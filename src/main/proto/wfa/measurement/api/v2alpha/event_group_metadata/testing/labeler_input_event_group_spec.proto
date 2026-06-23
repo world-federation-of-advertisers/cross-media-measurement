@@ -41,9 +41,10 @@ message LabelerInputEventGroupSpec {
   // Assigns demographics and frequency to a range of labeler input IDs.
   //
   // Each labeler input ID in the range is converted to a string
-  // (`id.toString()`) and used as `event_id.id` for the labeler. Demographics
-  // are set on the labeler input ID's
-  // `proprietary_id_space_1_user_info.demo.demo_bucket`.
+  // (`id.toString()`) and used as the labeler's
+  // `profile_info.proprietary_id_space_1_user_info.user_id`. Demographics are
+  // set on the labeler input ID's
+  // `profile_info.proprietary_id_space_1_user_info.demo.demo_bucket`.
   message DemographicDistribution {
     IdRange id_range = 1;
 

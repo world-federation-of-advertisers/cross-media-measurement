@@ -281,6 +281,86 @@ class LabelerInputSpecConverterTest {
   }
 
   @Test
+  fun `convert keeps adjacent VIDs with different fields in separate VidRangeSpecs`() {
+    val spec = labelerInputEventGroupSpec {
+      dateSpecs += dateSpec {
+        this.dateRange = dateRange {
+          start = date {
+            year = 2024
+            month = 1
+            day = 1
+          }
+          endExclusive = date {
+            year = 2024
+            month = 1
+            day = 2
+          }
+        }
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 0
+            endExclusive = 1
+          }
+          demoBucket = demoBucket {
+            gender = Gender.GENDER_MALE
+            age = ageRange {
+              minAge = 16
+              maxAge = 34
+            }
+          }
+          frequency = 1
+          nonPopulationFieldValues.put(
+            "video.completed_50_percent_plus",
+            fieldValue { boolValue = true },
+          )
+        }
+        demographicDistributions += demographicDistribution {
+          idRange = idRange {
+            start = 1
+            endExclusive = 2
+          }
+          demoBucket = demoBucket {
+            gender = Gender.GENDER_MALE
+            age = ageRange {
+              minAge = 16
+              maxAge = 34
+            }
+          }
+          frequency = 1
+          nonPopulationFieldValues.put(
+            "display.viewable_100_percent",
+            fieldValue { boolValue = true },
+          )
+        }
+      }
+    }
+
+    // Pin labeler input 0 -> VID 10005, input 1 -> VID 10006 — adjacent VIDs, same frequency,
+    // different non_population_field_values. Without per-(frequency,fields) grouping the merge
+    // step collapses both into one VidRangeSpec and the second VID silently loses its fields.
+    val fakeLabel: (LabelerInput) -> LabelerOutput = { input ->
+      val vid = if (input.profileInfo.proprietaryIdSpace1UserInfo.userId == "0") 10005L else 10006L
+      labelerOutput { people += virtualPersonActivity { virtualPersonId = vid } }
+    }
+
+    val converted = LabelerInputSpecConverter.convert(fakeLabel, spec, loadPopulationSpec())
+
+    val vidToFieldKeys: Map<Long, Set<String>> =
+      converted.syntheticEventGroupSpec.dateSpecsList
+        .flatMap { it.frequencySpecsList }
+        .flatMap { it.vidRangeSpecsList }
+        .flatMap { vrs ->
+          (vrs.vidRange.start until vrs.vidRange.endExclusive).map {
+            it to vrs.nonPopulationFieldValuesMap.keys
+          }
+        }
+        .toMap()
+
+    assertThat(vidToFieldKeys[10005L]).containsExactly("video.completed_50_percent_plus")
+    assertThat(vidToFieldKeys[10006L]).containsExactly("display.viewable_100_percent")
+  }
+
+  @Test
   fun `convert preserves different non-population field values for same frequency`() {
     val spec = labelerInputEventGroupSpec {
       dateSpecs += dateSpec {
@@ -381,9 +461,11 @@ class LabelerInputSpecConverterTest {
       }
     }
 
-    assertFailsWith<IllegalArgumentException> {
-      LabelerInputSpecConverter.convert(buildLabeler(), hugeSpec, loadPopulationSpec())
-    }
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        LabelerInputSpecConverter.convert(buildLabeler(), hugeSpec, loadPopulationSpec())
+      }
+    assertThat(failure).hasMessageThat().contains("labeler input IDs, exceeding maximum")
   }
 
   @Test
@@ -419,9 +501,11 @@ class LabelerInputSpecConverterTest {
       }
     }
 
-    assertFailsWith<IllegalArgumentException> {
-      LabelerInputSpecConverter.convert(buildLabeler(), spec, loadPopulationSpec())
-    }
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        LabelerInputSpecConverter.convert(buildLabeler(), spec, loadPopulationSpec())
+      }
+    assertThat(failure).hasMessageThat().contains("frequency must be positive (got 0)")
   }
 
   @Test
@@ -457,9 +541,13 @@ class LabelerInputSpecConverterTest {
       }
     }
 
-    assertFailsWith<IllegalArgumentException> {
-      LabelerInputSpecConverter.convert(buildLabeler(), spec, loadPopulationSpec())
-    }
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        LabelerInputSpecConverter.convert(buildLabeler(), spec, loadPopulationSpec())
+      }
+    assertThat(failure)
+      .hasMessageThat()
+      .contains("id_range.end_exclusive (5) must be greater than start (10)")
   }
 
   @Test
@@ -548,9 +636,11 @@ class LabelerInputSpecConverterTest {
       }
     }
 
-    assertFailsWith<IllegalArgumentException> {
-      LabelerInputSpecConverter.convert(buildLabeler(), spec, loadPopulationSpec())
-    }
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        LabelerInputSpecConverter.convert(buildLabeler(), spec, loadPopulationSpec())
+      }
+    assertThat(failure).hasMessageThat().contains("(0 until 10) overlaps with [1] (5 until 15)")
   }
 
   @Test

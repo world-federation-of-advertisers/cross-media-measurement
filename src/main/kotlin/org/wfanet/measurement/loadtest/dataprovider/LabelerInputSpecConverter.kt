@@ -35,7 +35,6 @@ import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.virtualpeople.common.LabelerInput
 import org.wfanet.virtualpeople.common.LabelerOutput
 import org.wfanet.virtualpeople.common.demoInfo
-import org.wfanet.virtualpeople.common.eventId
 import org.wfanet.virtualpeople.common.labelerInput
 import org.wfanet.virtualpeople.common.profileInfo
 import org.wfanet.virtualpeople.common.userInfo
@@ -56,12 +55,6 @@ object LabelerInputSpecConverter {
   )
 
   /**
-   * Converts a [LabelerInputEventGroupSpec] to a [SyntheticEventGroupSpec] and [PopulationSpec]
-   * pair by running labeler input IDs through the [labeler].
-   *
-   * @throws IllegalArgumentException if the resulting spec exceeds [maxVidRangeSpecs]
-   */
-  /**
    * Convenience overload that delegates labeling to [labeler].
    *
    * Equivalent to calling the primary [convert] with `labeler::label`.
@@ -73,6 +66,12 @@ object LabelerInputSpecConverter {
     maxVidRangeSpecs: Int = DEFAULT_MAX_VID_RANGE_SPECS,
   ): ConvertedSpecs = convert(labeler::label, spec, sourcePopulationSpec, maxVidRangeSpecs)
 
+  /**
+   * Converts a [LabelerInputEventGroupSpec] to a [SyntheticEventGroupSpec] and [PopulationSpec]
+   * pair by running each labeler input ID through [label].
+   *
+   * @throws IllegalArgumentException if the resulting spec exceeds [maxVidRangeSpecs]
+   */
   fun convert(
     label: (LabelerInput) -> LabelerOutput,
     spec: LabelerInputEventGroupSpec,
@@ -88,9 +87,8 @@ object LabelerInputSpecConverter {
       val dateSpecVids = mutableListOf<LabelerOutputEntry>()
       for (record in LabelerInputDataGeneration.generateForDateSpec(dateSpec)) {
         val input = labelerInput {
-          eventId = eventId { id = record.labelerInputId.toString() }
           // Hardcoded to 0: this converter only works correctly for time-independent labeler
-          // models (output VID is a deterministic function of profile + event_id alone). A
+          // models (output VID is a deterministic function of profile + user_id alone). A
           // time-dependent model would map every labeler input ID to its t=0 routing, which then
           // mismatches every real impression's at-fulfillment-time routing — the resulting
           // SyntheticEventGroupSpec would be wrong by construction. Do not use this converter
@@ -164,6 +162,9 @@ object LabelerInputSpecConverter {
     val nonPopulationFieldValues: Map<String, FieldValue>,
   )
 
+  /** Identity used to bucket VIDs into a single VidRangeSpec (same frequency + same fields). */
+  private data class VidGroupKey(val frequency: Long, val fields: Map<String, FieldValue>)
+
   private fun convertSyntheticSpec(
     perDateSpecVids: List<List<LabelerOutputEntry>>,
     spec: LabelerInputEventGroupSpec,
@@ -173,28 +174,35 @@ object LabelerInputSpecConverter {
 
     val result = syntheticEventGroupSpec {
       for ((refDateSpec, dateSpecVids) in spec.dateSpecsList.zip(perDateSpecVids)) {
+        // Collapse multiple entries per VID into a single (summed_frequency, fields) key.
+        // The same VID arriving with different non_population_field_values can't be expressed
+        // in one VidRangeSpec; reject that up front so callers see a clear error rather than
+        // losing data in the adjacent-VID merge below.
+        val vidToKey: Map<Long, VidGroupKey> =
+          dateSpecVids
+            .groupBy { it.vid }
+            .mapValues { (vid, entries) ->
+              val distinctFields = entries.map { it.nonPopulationFieldValues }.distinct()
+              require(distinctFields.size == 1) {
+                "Labeler VID $vid has ${distinctFields.size} distinct " +
+                  "non_population_field_values maps from $entries; SyntheticEventGroupSpec " +
+                  "does not allow more than one."
+              }
+              VidGroupKey(
+                frequency = entries.sumOf { it.frequency },
+                fields = distinctFields.first(),
+              )
+            }
 
-        val vidFrequencies: Map<Long, Long> =
-          dateSpecVids.groupBy { it.vid }.mapValues { (_, vids) -> vids.sumOf { it.frequency } }
-
-        val vidsByEffFreq: Map<Long, List<Long>> =
-          vidFrequencies.entries.groupBy({ it.value }, { it.key }).mapValues { (_, vids) ->
+        // Group VIDs by (frequency, fields) so adjacent-VID merging stays within a homogeneous
+        // group — adjacent VIDs with different fields end up in different groups, each
+        // producing their own VidRangeSpec with the correct field values.
+        val vidsByKey: Map<VidGroupKey, List<Long>> =
+          vidToKey.entries.groupBy({ it.value }, { it.key }).mapValues { (_, vids) ->
             vids.sorted()
           }
 
-        val vidFieldValues: Map<Long, Map<String, FieldValue>> =
-          dateSpecVids
-            .groupBy { it.vid }
-            .mapValues { (vid, vids) ->
-              val distinct = vids.map { it.nonPopulationFieldValues }.distinct()
-              require(distinct.size == 1) {
-                "Labeler VID $vid has ${distinct.size} distinct non_population_field_values " +
-                  "maps from $vids; SyntheticEventGroupSpec does not allow more than one."
-              }
-              distinct.first()
-            }
-
-        val dateSpecRangeCount = vidsByEffFreq.values.sumOf { mergeAdjacentVids(it).size }
+        val dateSpecRangeCount = vidsByKey.values.sumOf { mergeAdjacentVids(it).size }
         totalVidRangeSpecs += dateSpecRangeCount
 
         dateSpecs += dateSpec {
@@ -202,16 +210,21 @@ object LabelerInputSpecConverter {
             start = refDateSpec.dateRange.start
             endExclusive = refDateSpec.dateRange.endExclusive
           }
-          for ((freq, vids) in vidsByEffFreq.entries.sortedBy { it.key }) {
+          val keysByFrequency: Map<Long, List<VidGroupKey>> =
+            vidsByKey.keys.groupBy { it.frequency }
+          for ((freq, keysAtFreq) in keysByFrequency.toSortedMap()) {
             frequencySpecs += frequencySpec {
               frequency = freq
-              for (range in mergeAdjacentVids(vids)) {
-                vidRangeSpecs += vidRangeSpec {
-                  vidRange = vidRange {
-                    start = range.first
-                    endExclusive = range.last + 1
+              // Deterministic ordering within a FrequencySpec: by lowest VID per group.
+              for (key in keysAtFreq.sortedBy { vidsByKey.getValue(it).first() }) {
+                for (range in mergeAdjacentVids(vidsByKey.getValue(key))) {
+                  vidRangeSpecs += vidRangeSpec {
+                    vidRange = vidRange {
+                      start = range.first
+                      endExclusive = range.last + 1
+                    }
+                    nonPopulationFieldValues.putAll(key.fields)
                   }
-                  vidFieldValues[range.first]?.let { nonPopulationFieldValues.putAll(it) }
                 }
               }
             }
@@ -272,12 +285,12 @@ object LabelerInputSpecConverter {
         val idRange = dist.idRange
         require(idRange.endExclusive > idRange.start) {
           "DateSpec[$dateSpecIndex].demographicDistributions[$distIndex] " +
-            "id_range.end_exclusive (\${idRange.endExclusive}) must be greater than start " +
-            "(\${idRange.start})"
+            "id_range.end_exclusive (${idRange.endExclusive}) must be greater than start " +
+            "(${idRange.start})"
         }
         require(dist.frequency > 0) {
           "DateSpec[$dateSpecIndex].demographicDistributions[$distIndex] " +
-            "frequency must be positive (got \${dist.frequency})"
+            "frequency must be positive (got ${dist.frequency})"
         }
         ranges.add(idRange.start until idRange.endExclusive)
         totalInputSize += idRange.endExclusive - idRange.start
@@ -287,16 +300,16 @@ object LabelerInputSpecConverter {
       for (i in ranges.indices) {
         for (j in i + 1 until ranges.size) {
           require(!rangesOverlap(ranges[i], ranges[j])) {
-            "DateSpec[$dateSpecIndex] demographicDistributions[\$i] id_range " +
-              "(\${ranges[i].first} until \${ranges[i].last + 1}) overlaps with " +
-              "[\$j] (\${ranges[j].first} until \${ranges[j].last + 1})"
+            "DateSpec[$dateSpecIndex] demographicDistributions[$i] id_range " +
+              "(${ranges[i].first} until ${ranges[i].last + 1}) overlaps with " +
+              "[$j] (${ranges[j].first} until ${ranges[j].last + 1})"
           }
         }
       }
     }
     require(totalInputSize <= MAX_INPUT_LABELER_INPUT_IDS) {
-      "Input spec has \$totalInputSize labeler input IDs, exceeding maximum of " +
-        "\$MAX_INPUT_LABELER_INPUT_IDS."
+      "Input spec has $totalInputSize labeler input IDs, exceeding maximum of " +
+        "$MAX_INPUT_LABELER_INPUT_IDS."
     }
   }
 
