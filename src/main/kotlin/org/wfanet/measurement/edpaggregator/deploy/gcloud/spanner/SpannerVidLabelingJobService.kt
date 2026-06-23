@@ -96,16 +96,14 @@ class SpannerVidLabelingJobService(
     val createdJob: VidLabelingJob =
       try {
         transactionRunner.run { txn ->
-          if (request.requestId.isNotEmpty()) {
-            val existing =
-              txn.findVidLabelingJobByRequestId(
-                dataProviderResourceId,
-                rawImpressionUploadResourceId,
-                request.requestId,
-              )
-            if (existing != null) {
-              return@run existing.vidLabelingJob
-            }
+          val existing =
+            txn.findVidLabelingJobByRequestId(
+              dataProviderResourceId,
+              rawImpressionUploadResourceId,
+              request.requestId,
+            )
+          if (existing != null) {
+            return@run existing.vidLabelingJob
           }
 
           val rawImpressionUploadId =
@@ -215,19 +213,21 @@ class SpannerVidLabelingJobService(
       }
 
       val requestId = subRequest.requestId
-      if (requestId.isNotEmpty()) {
-        try {
-          UUID.fromString(requestId)
-        } catch (e: IllegalArgumentException) {
-          throw InvalidFieldValueException("requests[$index].request_id", e)
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
-        if (!requestIdSet.add(requestId)) {
-          throw InvalidFieldValueException("requests[$index].request_id") {
-              "Duplicate request_id $requestId in batch"
-            }
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
+      if (requestId.isEmpty()) {
+        throw RequiredFieldNotSetException("requests[$index].request_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      try {
+        UUID.fromString(requestId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("requests[$index].request_id", e)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (!requestIdSet.add(requestId)) {
+        throw InvalidFieldValueException("requests[$index].request_id") {
+            "Duplicate request_id $requestId in batch"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
 
@@ -252,12 +252,12 @@ class SpannerVidLabelingJobService(
             txn.findVidLabelingJobsByRequestIds(
               dataProviderResourceId,
               rawImpressionUploadResourceId,
-              request.requestsList.mapNotNull { it.requestId.ifEmpty { null } },
+              request.requestsList.map { it.requestId },
             )
 
           request.requestsList.map { subRequest ->
             val existing = existingByRequestId[subRequest.requestId]
-            if (subRequest.requestId.isNotEmpty() && existing != null) {
+            if (existing != null) {
               existing.vidLabelingJob
             } else {
               val vidLabelingJobId =
@@ -441,7 +441,6 @@ class SpannerVidLabelingJobService(
         // recomputing the completed model lines so the replay matches the first response (AIP-155).
         if (
           currentJob.state == State.VID_LABELING_STATE_SUCCEEDED &&
-            request.requestId.isNotEmpty() &&
             result.markRequestId == request.requestId
         ) {
           val allJobsForUpload: List<VidLabelingJobResult> = buildList {
@@ -564,7 +563,6 @@ class SpannerVidLabelingJobService(
         // Idempotency: if already failed by this same request_id, return as-is.
         if (
           currentJob.state == State.VID_LABELING_STATE_FAILED &&
-            request.requestId.isNotEmpty() &&
             result.markRequestId == request.requestId
         ) {
           return@run TransactionResult(currentJob, isReplay = true)
@@ -699,14 +697,6 @@ class SpannerVidLabelingJobService(
   }
 
   private fun validateCreateRequest(request: CreateVidLabelingJobRequest) {
-    if (request.requestId.isNotEmpty()) {
-      try {
-        UUID.fromString(request.requestId)
-      } catch (e: IllegalArgumentException) {
-        throw InvalidFieldValueException("request_id", e)
-      }
-    }
-
     if (!request.hasVidLabelingJob()) {
       throw RequiredFieldNotSetException("vid_labeling_job")
     }
@@ -721,6 +711,14 @@ class SpannerVidLabelingJobService(
     }
     if (request.vidLabelingJob.rawImpressionUploadFilesList.isEmpty()) {
       throw RequiredFieldNotSetException("vid_labeling_job.raw_impression_upload_files")
+    }
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
     }
   }
 
