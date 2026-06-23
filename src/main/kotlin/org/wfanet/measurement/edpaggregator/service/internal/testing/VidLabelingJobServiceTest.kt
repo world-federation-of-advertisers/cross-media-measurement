@@ -413,6 +413,7 @@ abstract class VidLabelingJobServiceTest {
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           vidLabelingJobResourceId = created.vidLabelingJobResourceId
           etag = created.etag
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -496,6 +497,7 @@ abstract class VidLabelingJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             vidLabelingJobResourceId = created.vidLabelingJobResourceId
             etag = created.etag
+            requestId = UUID.randomUUID().toString()
           }
         )
 
@@ -519,6 +521,7 @@ abstract class VidLabelingJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             vidLabelingJobResourceId = job2.vidLabelingJobResourceId
             etag = job2.etag
+            requestId = UUID.randomUUID().toString()
           }
         )
       assertThat(response2.hasLastVidLabelingJobResult()).isFalse()
@@ -531,6 +534,7 @@ abstract class VidLabelingJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             vidLabelingJobResourceId = job1.vidLabelingJobResourceId
             etag = job1.etag
+            requestId = UUID.randomUUID().toString()
           }
         )
 
@@ -583,6 +587,7 @@ abstract class VidLabelingJobServiceTest {
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               vidLabelingJobResourceId = created.vidLabelingJobResourceId
               etag = "wrong-etag"
+              requestId = UUID.randomUUID().toString()
             }
           )
         }
@@ -602,6 +607,7 @@ abstract class VidLabelingJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             vidLabelingJobResourceId = created.vidLabelingJobResourceId
             etag = created.etag
+            requestId = UUID.randomUUID().toString()
           }
         )
 
@@ -613,6 +619,7 @@ abstract class VidLabelingJobServiceTest {
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               vidLabelingJobResourceId = created.vidLabelingJobResourceId
               etag = response.vidLabelingJob.etag
+              requestId = UUID.randomUUID().toString()
             }
           )
         }
@@ -631,6 +638,7 @@ abstract class VidLabelingJobServiceTest {
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               vidLabelingJobResourceId = "nonexistent-job"
               etag = "some-etag"
+              requestId = UUID.randomUUID().toString()
             }
           )
         }
@@ -651,6 +659,7 @@ abstract class VidLabelingJobServiceTest {
             vidLabelingJobResourceId = created.vidLabelingJobResourceId
             etag = created.etag
             errorMessage = "something went wrong"
+            requestId = UUID.randomUUID().toString()
           }
         )
 
@@ -705,6 +714,7 @@ abstract class VidLabelingJobServiceTest {
               vidLabelingJobResourceId = created.vidLabelingJobResourceId
               etag = "wrong-etag"
               errorMessage = "something went wrong"
+              requestId = UUID.randomUUID().toString()
             }
           )
         }
@@ -724,6 +734,7 @@ abstract class VidLabelingJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             vidLabelingJobResourceId = created.vidLabelingJobResourceId
             etag = created.etag
+            requestId = UUID.randomUUID().toString()
           }
         )
 
@@ -736,6 +747,7 @@ abstract class VidLabelingJobServiceTest {
               vidLabelingJobResourceId = created.vidLabelingJobResourceId
               etag = response.vidLabelingJob.etag
               errorMessage = "should not work"
+              requestId = UUID.randomUUID().toString()
             }
           )
         }
@@ -874,12 +886,64 @@ abstract class VidLabelingJobServiceTest {
               vidLabelingJobResourceId = "nonexistent-job"
               etag = "some-etag"
               errorMessage = "boom"
+              requestId = UUID.randomUUID().toString()
             }
           )
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     }
+
+  @Test
+  fun `markVidLabelingJobSucceeded throws INVALID_ARGUMENT if request_id not set`() = runBlocking {
+    val exception: StatusRuntimeException =
+      assertFailsWith<StatusRuntimeException> {
+        service.markVidLabelingJobSucceeded(
+          markVidLabelingJobSucceededRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            vidLabelingJobResourceId = "some-job"
+            etag = "some-etag"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+        }
+      )
+  }
+
+  @Test
+  fun `markVidLabelingJobFailed throws INVALID_ARGUMENT if request_id not set`() = runBlocking {
+    val exception: StatusRuntimeException =
+      assertFailsWith<StatusRuntimeException> {
+        service.markVidLabelingJobFailed(
+          markVidLabelingJobFailedRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            vidLabelingJobResourceId = "some-job"
+            etag = "some-etag"
+            errorMessage = "boom"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+        }
+      )
+  }
 
   companion object {
     private const val MAX_BATCH_SIZE = 50
