@@ -503,11 +503,11 @@ def compute_basic_metric_set(
 
     basic_metric_set = BasicMetricSet()
 
-    if reach:
+    if reach is not None:
         basic_metric_set.reach = reach
         basic_metric_set.percent_reach = reach / population * 100
 
-    if impressions:
+    if impressions is not None:
         basic_metric_set.impressions = impressions
         basic_metric_set.grps = impressions / population * 100
         if basic_metric_set.reach > 0:
@@ -552,6 +552,12 @@ def compute_basic_metric_set(
                                                  k_plus_reach_values[i - 1])
             if impressions is not None:
                 excess = sum(k_plus_reach_values) - impressions
+                # Walk high index -> low. This direction is load-bearing:
+                # only lowering k[i] for i descending keeps the non-
+                # increasing invariant (k[i-1] >= k[i]) intact, because
+                # k[i-1] is either untouched or about to be lowered next.
+                # A low->high or proportional rewrite would silently
+                # break Rule 3 / monotonicity.
                 i = len(k_plus_reach_values) - 1
                 while excess > 0 and i >= 1:
                     absorbed = min(excess, k_plus_reach_values[i])
@@ -559,14 +565,17 @@ def compute_basic_metric_set(
                     excess -= absorbed
                     i -= 1
                 if excess > 0:
-                    # Reach > impressions in the input -- upstream data is
-                    # inconsistent. Preserve k_plus_reach[0] == reach (rule 1)
-                    # and leave the impressions identity (rule 2) violated by
-                    # the leftover residue, so downstream consumers can see
-                    # the input was corrupt.
+                    # The histogram's weighted sum exceeds impressions and
+                    # the cascade ran out of buckets to absorb the residue
+                    # (cascade stops before index 0 to preserve rule 1 when
+                    # reach is set). Upstream data is inconsistent; surface
+                    # it as a warning rather than silently producing a
+                    # BasicMetricSet that violates rule 2. Use %s for reach
+                    # because reach may be None when only the histogram and
+                    # impressions were supplied.
                     logging.warning(
                         "Could not fully reconcile sum(k_plus_reach) <= "
-                        "impressions: leftover residue %d (reach=%d, "
+                        "impressions: leftover residue %d (reach=%s, "
                         "impressions=%d). Preserving reach == "
                         "k_plus_reach[0]; sum(k_plus_reach) will exceed "
                         "impressions by this residue.",

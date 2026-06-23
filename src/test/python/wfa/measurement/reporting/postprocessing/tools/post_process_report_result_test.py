@@ -323,6 +323,29 @@ class PostProcessReportResultTest(unittest.TestCase):
             any('Could not fully reconcile' in m for m in cm.output),
             f"expected reconciliation warning, got: {cm.output}")
 
+    def test_compute_basic_metric_set_excess_warning_with_none_reach(self):
+        """When reach is None and the histogram's weighted sum exceeds
+        impressions, the cascade exhausts higher-frequency buckets and the
+        warning must format cleanly -- not TypeError on '%d % None'. With
+        reach=None there is no rule 1 to preserve; the warning still
+        signals upstream inconsistency to operators (Issue #4049).
+        """
+        with self.assertLogs(level='WARNING') as cm:
+            basic_metric_set = compute_basic_metric_set(
+                reach=None,
+                frequency_values=[100],
+                impressions=5,
+                population=1000,
+            )
+
+        self.assertEqual(list(basic_metric_set.k_plus_reach), [100])
+        self.assertTrue(
+            any('Could not fully reconcile' in m for m in cm.output),
+            f"expected reconciliation warning, got: {cm.output}")
+        self.assertTrue(
+            any('reach=None' in m for m in cm.output),
+            f"warning should render reach=None, got: {cm.output}")
+
     def test_compute_basic_metric_set_zero_reach_zeros_k_plus_reach(self):
         """reach=0 (rather than None) means "nobody was reached"; the
         snap overwrites k_plus_reach[0] with 0 and the forward-clamp
