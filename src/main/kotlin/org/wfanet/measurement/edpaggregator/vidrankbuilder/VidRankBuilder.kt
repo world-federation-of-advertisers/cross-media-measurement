@@ -461,6 +461,7 @@ class VidRankBuilder(
           markRankerJobFailedRequest {
             name = rankerJob
             etag = job.etag
+            requestId = markFailedRequestId()
             errorMessage = (cause.message ?: cause::class.java.simpleName).take(MAX_ERROR_MESSAGE)
           }
         )
@@ -525,6 +526,8 @@ class VidRankBuilder(
   }
 
   private fun markSucceededRequestId(): String = deterministicUuid("$rankerJob|succeeded")
+
+  private fun markFailedRequestId(): String = deterministicUuid("$rankerJob|failed")
 
   /**
    * Deterministic UUID4 from [seed], stable across redeliveries so the server reuses an existing
