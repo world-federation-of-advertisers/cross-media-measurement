@@ -323,6 +323,25 @@ class PostProcessReportResultTest(unittest.TestCase):
             any('Could not fully reconcile' in m for m in cm.output),
             f"expected reconciliation warning, got: {cm.output}")
 
+    def test_compute_basic_metric_set_zero_reach_zeros_k_plus_reach(self):
+        """reach=0 (rather than None) means "nobody was reached"; the
+        snap overwrites k_plus_reach[0] with 0 and the forward-clamp
+        cascades that down through every bucket. Pin the behavior so a
+        future change to the snaps truthiness check (e.g. `if reach:`
+        instead of `if reach is not None:`) is caught.
+        """
+        basic_metric_set = compute_basic_metric_set(
+            reach=0,
+            frequency_values=[3, 5, 2],
+            impressions=20,
+            population=1000,
+        )
+
+        self.assertEqual(basic_metric_set.reach, 0)
+        self.assertEqual(list(basic_metric_set.k_plus_reach), [0, 0, 0])
+        self.assertEqual(list(basic_metric_set.percent_k_plus_reach),
+                         [0.0, 0.0, 0.0])
+
     def test_compute_basic_metric_set_k_plus_reach_is_non_increasing(self):
         # Without the clamp: k_plus_reach[0]=6 (overwritten from reach) but
         # k_plus_reach[1]=round(5+2)=7 -- "2+ reach > 1+ reach", nonsense.
