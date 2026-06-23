@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.mcp.prompts
 
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.types.GetPromptResult
+import io.modelcontextprotocol.kotlin.sdk.types.Prompt
 import io.modelcontextprotocol.kotlin.sdk.types.PromptArgument
 import io.modelcontextprotocol.kotlin.sdk.types.PromptMessage
 import io.modelcontextprotocol.kotlin.sdk.types.Role
@@ -41,18 +42,21 @@ private fun Map<String, String>.argOrNull(name: String): String? = this[name]?.i
  */
 fun Server.registerReportingPrompts() {
   addPrompt(
-    name = "explore_reporting_data",
-    description =
-      "Guided steps to discover what can be measured for a MeasurementConsumer (event groups, " +
-        "reporting sets, and impression qualification filters) before building a report.",
-    arguments =
-      listOf(
-        PromptArgument(
-          name = MEASUREMENT_CONSUMER_ARG,
-          description = "MeasurementConsumer resource name, e.g. measurementConsumers/{id}",
-          required = true,
-        )
-      ),
+    Prompt(
+      name = "explore_reporting_data",
+      title = "Explore Reporting Data",
+      description =
+        "Guided steps to discover what can be measured for a MeasurementConsumer (event groups, " +
+          "reporting sets, and impression qualification filters) before building a report.",
+      arguments =
+        listOf(
+          PromptArgument(
+            name = MEASUREMENT_CONSUMER_ARG,
+            description = "MeasurementConsumer resource name, e.g. measurementConsumers/{id}",
+            required = true,
+          )
+        ),
+    )
   ) { request ->
     val args = request.arguments ?: emptyMap()
     val mc = args.argOrNull(MEASUREMENT_CONSUMER_ARG) ?: MEASUREMENT_CONSUMER_PLACEHOLDER
@@ -70,8 +74,8 @@ fun Server.registerReportingPrompts() {
                  each event group shows its data provider, media types, and data availability window.
               2. Call list_reporting_sets with parent "$mc" to see existing reporting sets, noting
                  which are campaign groups (usable as the campaign_group of a basic report).
-              3. Call list_impression_qualification_filters with parent "$mc" to see the available
-                 impression qualification filters.
+              3. Call list_impression_qualification_filters (no parent argument — impression
+                 qualification filters are top-level resources) to see the available filters.
 
               Then summarize the data providers and media types available, the candidate campaign
               groups, and the date range that has data, so I can decide what report to run.
@@ -84,30 +88,33 @@ fun Server.registerReportingPrompts() {
   }
 
   addPrompt(
-    name = "create_basic_report_workflow",
-    description =
-      "Guided end-to-end workflow to create a BasicReport and wait for results: discover data, " +
-        "choose a campaign group, create the report, then poll until it succeeds.",
-    arguments =
-      listOf(
-        PromptArgument(
-          name = MEASUREMENT_CONSUMER_ARG,
-          description = "MeasurementConsumer resource name, e.g. measurementConsumers/{id}",
-          required = true,
+    Prompt(
+      name = "create_basic_report_workflow",
+      title = "Create Basic Report",
+      description =
+        "Guided end-to-end workflow to create a BasicReport and wait for results: discover data, " +
+          "choose a campaign group, create the report, then poll until it succeeds.",
+      arguments =
+        listOf(
+          PromptArgument(
+            name = MEASUREMENT_CONSUMER_ARG,
+            description = "MeasurementConsumer resource name, e.g. measurementConsumers/{id}",
+            required = true,
+          ),
+          PromptArgument(
+            name = "campaign_group",
+            description =
+              "Optional reporting set resource name to use as the campaign group. If omitted, " +
+                "discover one first.",
+            required = false,
+          ),
+          PromptArgument(
+            name = "reporting_interval",
+            description = "Optional report date range, e.g. 2025-01-01 to 2025-01-31.",
+            required = false,
+          ),
         ),
-        PromptArgument(
-          name = "campaign_group",
-          description =
-            "Optional reporting set resource name to use as the campaign group. If omitted, " +
-              "discover one first.",
-          required = false,
-        ),
-        PromptArgument(
-          name = "reporting_interval",
-          description = "Optional report date range, e.g. 2025-01-01 to 2025-01-31.",
-          required = false,
-        ),
-      ),
+    )
   ) { request ->
     val args = request.arguments ?: emptyMap()
     val mc = args.argOrNull(MEASUREMENT_CONSUMER_ARG) ?: MEASUREMENT_CONSUMER_PLACEHOLDER
@@ -159,20 +166,23 @@ fun Server.registerReportingPrompts() {
   }
 
   addPrompt(
-    name = "interpret_basic_report",
-    description =
-      "Interpret a completed BasicReport for a media-planning audience: headline metrics, " +
-        "per-publisher reach, frequency, and cross-publisher overlap, with pitfalls and text " +
-        "tables and bar charts.",
-    arguments =
-      listOf(
-        PromptArgument(
-          name = BASIC_REPORT_ARG,
-          description =
-            "BasicReport resource name, e.g. measurementConsumers/{id}/basicReports/{id}",
-          required = true,
-        )
-      ),
+    Prompt(
+      name = "interpret_basic_report",
+      title = "Interpret Basic Report",
+      description =
+        "Interpret a completed BasicReport for a media-planning audience: headline metrics, " +
+          "per-publisher reach, frequency, and cross-publisher overlap, with pitfalls and text " +
+          "tables and bar charts.",
+      arguments =
+        listOf(
+          PromptArgument(
+            name = BASIC_REPORT_ARG,
+            description =
+              "BasicReport resource name, e.g. measurementConsumers/{id}/basicReports/{id}",
+            required = true,
+          )
+        ),
+    )
   ) { request ->
     val args = request.arguments ?: emptyMap()
     val report = args.argOrNull(BASIC_REPORT_ARG) ?: BASIC_REPORT_PLACEHOLDER
@@ -213,18 +223,21 @@ fun Server.registerReportingPrompts() {
   }
 
   addPrompt(
-    name = "compare_campaigns",
-    description =
-      "Compare reach and frequency across a MeasurementConsumer's recent campaigns: list the " +
-        "completed basic reports, fetch the most recent, and contrast their performance.",
-    arguments =
-      listOf(
-        PromptArgument(
-          name = MEASUREMENT_CONSUMER_ARG,
-          description = "MeasurementConsumer resource name, e.g. measurementConsumers/{id}",
-          required = true,
-        )
-      ),
+    Prompt(
+      name = "compare_campaigns",
+      title = "Compare Campaigns",
+      description =
+        "Compare reach and frequency across a MeasurementConsumer's recent campaigns: list the " +
+          "completed basic reports, fetch the most recent, and contrast their performance.",
+      arguments =
+        listOf(
+          PromptArgument(
+            name = MEASUREMENT_CONSUMER_ARG,
+            description = "MeasurementConsumer resource name, e.g. measurementConsumers/{id}",
+            required = true,
+          )
+        ),
+    )
   ) { request ->
     val args = request.arguments ?: emptyMap()
     val mc = args.argOrNull(MEASUREMENT_CONSUMER_ARG) ?: MEASUREMENT_CONSUMER_PLACEHOLDER

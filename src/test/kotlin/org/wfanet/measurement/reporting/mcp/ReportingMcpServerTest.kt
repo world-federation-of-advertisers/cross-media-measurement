@@ -127,6 +127,33 @@ class ReportingMcpServerTest {
   }
 
   @Test
+  fun getExplorePromptRendersWithMeasurementConsumer() = runBlocking {
+    val server = ReportingMcpServer.createServer(createFakeApiClientWithServices()) { "test-token" }
+    val (clientTransport, serverTransport) = ChannelTransport.createLinkedPair()
+    val client = Client(clientInfo = Implementation(name = "test-client", version = "0.1"))
+    server.createSession(serverTransport)
+    client.connect(clientTransport)
+
+    val result =
+      client.getPrompt(
+        GetPromptRequest(
+          GetPromptRequestParams(
+            name = "explore_reporting_data",
+            arguments = mapOf("measurement_consumer" to "measurementConsumers/mc1"),
+          )
+        )
+      )
+
+    val text = (result.messages.single().content as TextContent).text
+    assertThat(text).contains("measurementConsumers/mc1")
+    assertThat(text).contains("list_event_groups")
+    assertThat(text).contains("list_reporting_sets")
+    assertThat(text).contains("list_impression_qualification_filters")
+
+    client.close()
+  }
+
+  @Test
   fun getPromptRendersWorkflowWithProvidedArguments() = runBlocking {
     val server = ReportingMcpServer.createServer(createFakeApiClientWithServices()) { "test-token" }
     val (clientTransport, serverTransport) = ChannelTransport.createLinkedPair()
