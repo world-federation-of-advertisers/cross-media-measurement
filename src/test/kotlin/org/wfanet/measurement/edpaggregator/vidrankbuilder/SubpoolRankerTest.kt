@@ -480,7 +480,7 @@ class SubpoolRankerTest {
     }
 
   @Test
-  fun `an upload older than the retention window is not treated as a backfill`() =
+  fun `an upload older than the retention window fails loud instead of silently re-ranking`() =
     runBlocking<Unit> {
       seedPriorSnapshot(
         listOf(Triple(7L to 0, 0, 90)),
@@ -490,11 +490,15 @@ class SubpoolRankerTest {
       )
       val key = writePhase0(listOf(5L to 0))
 
-      // 100 - 60 = 40 > RETENTION_DAYS (30): outside the window, so the normal path runs.
-      val result = ranker(maxEventDate = epochDayToDate(60)).rank(POOL, key, rankedSize = 100)
-
-      assertThat(result.backfill).isFalse()
-      assertThat(hasUploadRow(RankIndexBlob.BlobType.SNAPSHOT)).isTrue()
+      // 100 - 60 = 40 > RETENTION_DAYS (30): the original rank has already aged out (Problem 3), so
+      // the dispatch fails loudly rather than silently forward-appending.
+      val exception =
+        assertFailsWith<OutOfRetentionBackfillException> {
+          ranker(maxEventDate = epochDayToDate(60)).rank(POOL, key, rankedSize = 100)
+        }
+      assertThat(exception).hasMessageThat().contains("out-of-retention backfill")
+      // No SNAPSHOT was written for the rejected dispatch.
+      assertThat(hasUploadRow(RankIndexBlob.BlobType.SNAPSHOT)).isFalse()
     }
 
   @Test
@@ -580,7 +584,7 @@ class SubpoolRankerTest {
     }
 
   @Test
-  fun `an upload one day past the retention window is not a backfill`() =
+  fun `a backfill one day past the retention window fails loud`() =
     runBlocking<Unit> {
       seedPriorSnapshot(
         listOf(Triple(1L to 0, 5, 60)),
@@ -596,10 +600,10 @@ class SubpoolRankerTest {
       )
       val key = writePhase0(listOf(1L to 0))
 
-      // 100 - 69 == RETENTION_DAYS + 1 (31): just outside the window, so the normal path runs.
-      val result = ranker(maxEventDate = epochDayToDate(69)).rank(POOL, key, rankedSize = 100)
-
-      assertThat(result.backfill).isFalse()
+      // 100 - 69 == RETENTION_DAYS + 1 (31): one day past the window — out of retention, fail loud.
+      assertFailsWith<OutOfRetentionBackfillException> {
+        ranker(maxEventDate = epochDayToDate(69)).rank(POOL, key, rankedSize = 100)
+      }
     }
 
   @Test

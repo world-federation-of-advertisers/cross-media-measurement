@@ -244,6 +244,7 @@ class SubpoolRanker(
       // Backfill: replay each fingerprint's historical rank into the day-only delta while extending
       // the cumulative forward (see class KDoc and RankAllocator.assignBackfill).
       val oldRanks = loadFingerprintRanks(oldSnapshot)
+      metrics.backfillOldSnapshotEntriesHistogram.record(oldRanks.size)
       todayFps.forEach { keyHi, keyLo, _ ->
         allocator.assignBackfill(keyHi, keyLo, oldRanks.get(keyHi, keyLo))
       }
@@ -407,10 +408,13 @@ class SubpoolRanker(
    * less than [eventDay] (the cumulative state just before the backfilled day) — only when:
    * * [priorSnapshot] (the latest cumulative) exists and carries a `max_event_date` strictly newer
    *   than [eventDay] (fresher data already exists), and
-   * * the gap is within [retentionDays] (older dispatches have no live ranks left to reclaim —
-   *   Problem 3, out of scope), and
    * * such an older snapshot actually exists (otherwise the data provider uploaded data older than
    *   anything on record — not a backfill).
+   *
+   * Throws [OutOfRetentionBackfillException] (after incrementing the out-of-retention metric) when
+   * the gap exceeds [retentionDays]: the rank state in force at the backfilled date has already
+   * aged out, so the dispatch fails loudly instead of silently forward-appending (Problem 3, out of
+   * scope).
    *
    * The `max_event_date_on_or_before = eventDay - 1` filter selects snapshots strictly older than
    * the backfilled day; the greatest among them is the closest prior cumulative.
@@ -424,8 +428,19 @@ class SubpoolRanker(
     val latestEventDay = priorSnapshot.maxEventDate.epochDay()
     // Forward append (newest or same day) — not a backfill.
     if (eventDay >= latestEventDay) return null
-    // Older than the retention window — no live ranks remain to reclaim (Problem 3, out of scope).
-    if (latestEventDay - eventDay > retentionDays) return null
+    // Older than the retention window — the rank state in force at the backfilled date has already
+    // aged out, so the original rank cannot be reclaimed (Problem 3, out of scope). Fail loudly
+    // rather than silently forward-appending, which would re-rank still-tracked fingerprints and
+    // corrupt produced labels; the orchestrator marks the RankerJob FAILED so an operator can act.
+    if (latestEventDay - eventDay > retentionDays) {
+      metrics.outOfRetentionBackfillCounter.add(1)
+      throw OutOfRetentionBackfillException(
+        poolOffset,
+        modelLine,
+        latestEventDay - eventDay,
+        retentionDays,
+      )
+    }
 
     val cutoff = epochDayToDate(eventDay - 1) // strictly older than the backfilled day
     var best: RankIndexBlob? = null

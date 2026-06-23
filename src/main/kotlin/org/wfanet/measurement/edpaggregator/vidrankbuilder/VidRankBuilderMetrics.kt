@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.vidrankbuilder
 
 import io.opentelemetry.api.metrics.LongCounter
+import io.opentelemetry.api.metrics.LongHistogram
 import io.opentelemetry.api.metrics.Meter
 import org.wfanet.measurement.common.Instrumentation
 
@@ -82,5 +83,29 @@ class VidRankBuilderMetrics(meter: Meter = Instrumentation.meter) {
       .setDescription(
         "Backfilled fingerprints whose reused old rank differs from their rank in the latest snapshot"
       )
+      .build()
+
+  /**
+   * Fingerprint count of the old snapshot loaded for a backfill. A backfill holds two in-heap maps
+   * (latest cumulative + old snapshot), which can OOM the ranker at India scale (see
+   * [SubpoolRanker]); this lets ops alert on growth before the load dies.
+   */
+  val backfillOldSnapshotEntriesHistogram: LongHistogram =
+    meter
+      .histogramBuilder("edpa.vid_rank_builder.backfill_old_snapshot_entries")
+      .ofLongs()
+      .setDescription("Fingerprint count of the old snapshot loaded for a backfill")
+      .setUnit("{fingerprints}")
+      .build()
+
+  /**
+   * Backfills rejected because the dispatch is older than the retention window (the original rank
+   * has already aged out — Problem 3). The ranker fails the dispatch loudly rather than silently
+   * re-ranking still-tracked fingerprints; this counts how often that happens.
+   */
+  val outOfRetentionBackfillCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.vid_rank_builder.out_of_retention_backfill")
+      .setDescription("Backfills rejected for being older than the retention window")
       .build()
 }
