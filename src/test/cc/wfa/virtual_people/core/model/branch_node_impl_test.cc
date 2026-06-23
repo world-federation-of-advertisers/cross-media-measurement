@@ -14,6 +14,10 @@
 
 #include "wfa/virtual_people/core/model/branch_node_impl.h"
 
+#include <memory>
+#include <utility>
+#include <vector>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/string_view.h"
 #include "common_cpp/testing/status_macros.h"
@@ -1370,6 +1374,68 @@ TEST(BranchNodeImplTest, TestNestedMultiplicity) {
   EXPECT_THAT(virtual_person_size_counts,
               UnorderedElementsAre(Pair(1, 3207), Pair(2, 5083), Pair(3, 945),
                                    Pair(4, 765)));
+}
+
+TEST(BranchNodeImplTest, TestMultiplicityPass1FoldsBackPoolAssignments) {
+  // The branch node has one ranked-population-node branch and uses multiplicity
+  // to clone events. In pool-identity (pass-1) mode each clone emits a
+  // PoolAssignment instead of a virtual person. Every clone's assignment must
+  // be folded back onto the event, so the pass-1 pool-assignment total must
+  // equal the full-mode virtual-person total (one of each per clone).
+  // Regression test for ApplyMultiplicity previously dropping pool assignments
+  // from clones.
+  CompiledNode config;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(
+      R"pb(
+        name: "TestBranchNode"
+        index: 1
+        branch_node {
+          branches {
+            node {
+              ranked_population_node {
+                pools { population_offset: 100 total_population: 500 }
+                random_seed: "TestRankedSeed"
+                ranked_size: 200
+                unranked_mode: DISJOINT
+              }
+            }
+            chance: 1.0
+          }
+          random_seed: "TestBranchNodeSeed"
+          multiplicity {
+            expected_multiplicity: 3
+            max_value: 1.2
+            cap_at_max: true
+            person_index_field: "multiplicity_person_index"
+            random_seed: "test multiplicity"
+          }
+        }
+      )pb",
+      &config));
+  ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModelNode> node,
+                       ModelNode::Build(config));
+
+  // clone_count depends only on acting_fingerprint, so it is identical across
+  // both modes. Full mode yields one virtual person per clone; pass-1 mode must
+  // yield one pool assignment per clone.
+  int64_t full_mode_total = 0;
+  int64_t pass1_total = 0;
+  for (int fingerprint = 0; fingerprint < kFingerprintNumber; ++fingerprint) {
+    LabelerEvent full_input;
+    full_input.set_acting_fingerprint(fingerprint);
+    EXPECT_THAT(node->Apply(full_input), IsOk());
+    full_mode_total += full_input.virtual_person_activities().size();
+
+    LabelerEvent pass1_input;
+    pass1_input.set_acting_fingerprint(fingerprint);
+    pass1_input.set_pool_identity_mode(true);
+    EXPECT_THAT(node->Apply(pass1_input), IsOk());
+    EXPECT_EQ(pass1_input.virtual_person_activities().size(), 0);
+    pass1_total += pass1_input.pool_assignments().size();
+  }
+
+  EXPECT_EQ(full_mode_total, pass1_total);
+  EXPECT_GT(pass1_total, kFingerprintNumber);
 }
 
 }  // namespace

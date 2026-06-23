@@ -291,6 +291,12 @@ absl::Status BranchNodeImpl::ApplyMultiplicity(LabelerEvent& event) const {
     for (const auto& person : clone.virtual_person_activities()) {
       *(event.add_virtual_person_activities()) = person;
     }
+    // Fold back pool assignments too. In pool-identity (pass-1) mode, leaf
+    // nodes emit pool assignments instead of virtual person activities; without
+    // this, assignments from cloned multiplicity events would be dropped.
+    for (const auto& pool_assignment : clone.pool_assignments()) {
+      *(event.add_pool_assignments()) = pool_assignment;
+    }
   }
 
   return absl::OkStatus();

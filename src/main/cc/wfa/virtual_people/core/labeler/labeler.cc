@@ -162,16 +162,29 @@ void SetFingerprints(LabelerEvent& event) {
 
 absl::Status Labeler::Label(const LabelerInput& input,
                             LabelerOutput& output) const {
+  return Label(input, output, LabelingMode::kFull);
+}
+
+absl::Status Labeler::Label(const LabelerInput& input, LabelerOutput& output,
+                            LabelingMode mode) const {
   // Prepare labeler event.
   LabelerEvent event;
   *event.mutable_labeler_input() = input;
   SetFingerprints(event);
+
+  if (mode == LabelingMode::kPoolIdentity) {
+    event.set_pool_identity_mode(true);
+  }
 
   // Apply model.
   RETURN_IF_ERROR(root_->Apply(event));
 
   // Populate data to output.
   *output.mutable_people() = event.virtual_person_activities();
+
+  // Copy pool assignments from event to output (populated in pass-1 mode).
+  *output.mutable_pool_assignments() = event.pool_assignments();
+
   if (input.enable_debug_trace()) {
     // TODO(@tcsnfkx): Update the content of debug trace. Currently only set the
     // debug trace to be the LabelerEvent.

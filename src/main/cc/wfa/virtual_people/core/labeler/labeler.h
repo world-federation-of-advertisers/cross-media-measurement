@@ -28,6 +28,11 @@
 
 namespace wfa_virtual_people {
 
+enum class LabelingMode {
+  kFull,          // Default: assign VID (today's behavior).
+  kPoolIdentity,  // Pass 1: emit pool assignment, no VID.
+};
+
 class Labeler {
  public:
   // Always use Labeler::Build to get a Labeler object.
@@ -98,6 +103,12 @@ class Labeler {
   // Apply the model to generate the labels.
   // Invalid inputs will result in an error status.
   absl::Status Label(const LabelerInput& input, LabelerOutput& output) const;
+
+  // Apply the model with a specific labeling mode.
+  // In kPoolIdentity mode, RankedPopulationNode leaves emit PoolAssignment
+  // entries instead of assigning VIDs.
+  absl::Status Label(const LabelerInput& input, LabelerOutput& output,
+                     LabelingMode mode) const;
 
  private:
   std::unique_ptr<ModelNode> root_;
