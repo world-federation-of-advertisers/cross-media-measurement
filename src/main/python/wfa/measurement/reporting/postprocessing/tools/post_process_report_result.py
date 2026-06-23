@@ -222,9 +222,11 @@ class PostProcessReportResult:
         re-breaking the per-window identity sum(k_plus_reach) <= impressions
         (Issue #4049 Rule 4), which a snap-upward could violate.
 
-        Derived fields (percent_reach, average_frequency) are not recomputed.
-        A 1-unit drift in reach shifts them by ~1e-5%, well below any
-        downstream tolerance.
+        Derived fields (percent_reach, percent_k_plus_reach[0],
+        average_frequency) are not recomputed. A 1-unit drift in reach shifts
+        them by ~1e-5%, well below any downstream tolerance, and recomputing
+        only some of them would create asymmetric staleness across the
+        BasicMetricSet.
         """
         # Group reporting_set_result IDs by dimension (excluding the
         # weekly/total selector) so we can match a whole_campaign RSR to its
