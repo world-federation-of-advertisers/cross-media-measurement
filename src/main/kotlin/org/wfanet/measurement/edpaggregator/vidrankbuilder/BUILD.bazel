@@ -59,7 +59,10 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "subpool_ranker",
-    srcs = ["SubpoolRanker.kt"],
+    srcs = [
+        "OutOfRetentionBackfillException.kt",
+        "SubpoolRanker.kt",
+    ],
     deps = [
         ":event_id_digest_bytes",
         ":rank_allocator",
