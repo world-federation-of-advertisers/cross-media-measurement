@@ -265,6 +265,20 @@ CREATE INDEX RankIndexBlobByMaxEventDate
 CREATE INDEX RankIndexBlobByUploadAndType
   ON RankIndexBlob(DataProviderResourceId, CmmsModelLine, BlobType, RawImpressionUploadId);
 
+-- Enforces the design invariant of at most one row per
+-- (upload, model line, subpool, blob type): one DAY_ONLY and one SNAPSHOT per
+-- subpool within an upload. Soft-deleted rows are included (Spanner GoogleSQL
+-- does not support a WHERE clause on CREATE INDEX), so a natural key cannot be
+-- reused until the prior row is hard-deleted.
+CREATE UNIQUE INDEX RankIndexBlobByNaturalKey
+  ON RankIndexBlob(
+    DataProviderResourceId,
+    RawImpressionUploadId,
+    CmmsModelLine,
+    BlobType,
+    PoolOffset
+  );
+
 
 -- =============================================================================
 -- VidLabelingJob — Phase-2 gate.
