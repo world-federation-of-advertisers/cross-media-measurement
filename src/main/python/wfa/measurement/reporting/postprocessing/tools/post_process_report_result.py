@@ -160,6 +160,11 @@ class PostProcessReportResult:
         # Snaps cross-window equality identities that may have been broken by
         # per-RSR rounding (e.g. whole_campaign.reach vs. last_cumulative_week
         # .reach).
+        # TODO(world-federation-of-advertisers/cross-media-measurement#4059):
+        # Add a Rule 5 snap pass here (or in a sibling helper) for
+        # `ami >= [custom, mrc]` across IQF-varying RSRs that share
+        # (reporting_set, venn_region, grouping, event_filters,
+        # metric_frequency_spec).
         if request is not None:
             self._reconcile_cross_window_identities(request,
                                                     reporting_set_results)
