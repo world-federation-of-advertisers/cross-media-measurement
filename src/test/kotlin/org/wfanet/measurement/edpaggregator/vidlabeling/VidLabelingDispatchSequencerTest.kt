@@ -42,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLinePoolAssigningRequest
@@ -159,6 +160,31 @@ class VidLabelingDispatchSequencerTest {
       )
   }
 
+  /** Stubs `listRawImpressionUploadModelLines` per parent upload name. */
+  private suspend fun stubModelLinesByParent(
+    modelLinesByParent: Map<String, List<RawImpressionUploadModelLine>>
+  ) {
+    whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
+      .thenAnswer { invocation ->
+        val parent = invocation.getArgument<ListRawImpressionUploadModelLinesRequest>(0).parent
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += modelLinesByParent[parent].orEmpty()
+        }
+      }
+  }
+
+  /** Builds a model line under [uploadName] for [cmmsModelLineName] in [state]. */
+  private fun modelLine(
+    uploadName: String,
+    cmmsModelLineName: String,
+    state: RawImpressionUploadModelLine.State,
+  ) = rawImpressionUploadModelLine {
+    name = "$uploadName/modelLines/ml"
+    cmmsModelLine = cmmsModelLineName
+    this.state = state
+    etag = ETAG
+  }
+
   /** Stubs the ModelRollout -> ModelShard resolution chain. */
   private suspend fun stubShardResolution(memoized: Boolean) {
     whenever(modelRolloutsService.listModelRollouts(any()))
@@ -220,14 +246,22 @@ class VidLabelingDispatchSequencerTest {
   }
 
   @Test
-  fun `dispatchNext does not dispatch when an upload is ACTIVE`() = runBlocking {
-    stubUploads(
-      active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)),
-      created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW)),
+  fun `dispatchNext does not start a model line already running in another upload`() = runBlocking {
+    val active = upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW.minusSeconds(60))
+    val created = upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW)
+    stubUploads(active = listOf(active), created = listOf(created))
+    stubModelLinesByParent(
+      mapOf(
+        active.name to
+          listOf(modelLine(active.name, MODEL_LINE, RawImpressionUploadModelLine.State.LABELING)),
+        created.name to
+          listOf(modelLine(created.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)),
+      )
     )
 
     val result = createSequencer().dispatchNext()
 
+    // MODEL_LINE is already running on the active upload, so the created upload's instance waits.
     assertThat(result.dispatchedUpload).isNull()
     assertThat(result.queuedUploads).isEqualTo(1)
     verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
@@ -235,6 +269,36 @@ class VidLabelingDispatchSequencerTest {
       markRawImpressionUploadModelLineLabeling(any())
     }
   }
+
+  @Test
+  fun `dispatchNext starts a different model line in parallel with a running one`() =
+    runBlocking<Unit> {
+      val active = upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW.minusSeconds(60))
+      val created = upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW)
+      stubUploads(active = listOf(active), created = listOf(created))
+      stubModelLinesByParent(
+        mapOf(
+          active.name to
+            listOf(modelLine(active.name, MODEL_LINE, RawImpressionUploadModelLine.State.LABELING)),
+          created.name to
+            listOf(
+              modelLine(created.name, MODEL_LINE_2, RawImpressionUploadModelLine.State.CREATED)
+            ),
+        )
+      )
+      stubShardResolution(memoized = false)
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      stubMarkTransitions()
+
+      val result = createSequencer().dispatchNext()
+
+      // MODEL_LINE_2 differs from the running MODEL_LINE, so it dispatches in parallel.
+      assertThat(result.dispatchedUpload).isEqualTo(created.name)
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(any()) }
+      verifyBlocking(rawImpressionUploadModelLineService) {
+        markRawImpressionUploadModelLineLabeling(any())
+      }
+    }
 
   @Test
   fun `dispatchNext returns null when no uploads are CREATED`() = runBlocking {
@@ -434,8 +498,8 @@ class VidLabelingDispatchSequencerTest {
 
     val result = createSequencer().dispatchNext()
 
-    // The upload is still considered dispatched (sequencing claimed it), but no work was created.
-    assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+    // Unresolvable shard: nothing dispatched, model line left CREATED for a later attempt.
+    assertThat(result.dispatchedUpload).isNull()
     verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
     verifyBlocking(rawImpressionUploadModelLineService, never()) {
       markRawImpressionUploadModelLineLabeling(any())
@@ -466,6 +530,7 @@ class VidLabelingDispatchSequencerTest {
     private const val DATA_PROVIDER = "dataProviders/edp123"
     private const val MODEL_SUITE = "modelProviders/mp1/modelSuites/ms1"
     private const val MODEL_LINE = "$MODEL_SUITE/modelLines/ml1"
+    private const val MODEL_LINE_2 = "$MODEL_SUITE/modelLines/ml2"
     private const val MODEL_RELEASE = "$MODEL_SUITE/modelReleases/mr1"
     private const val MODEL_BLOB_PATH = "gs://models/vid-model-v1.pb"
     private const val QUEUE_NAME = "queues/vid-labeler-queue"
@@ -498,7 +563,9 @@ class VidLabelingDispatchSequencerTest {
           VidLabelerParamsKt.modelLineConfig {
             labelerInputFieldMapping["age"] = "user_age"
             labelerInputFieldMapping["gender"] = "user_gender"
-          }
+          },
+        MODEL_LINE_2 to
+          VidLabelerParamsKt.modelLineConfig { labelerInputFieldMapping["age"] = "user_age" },
       )
   }
 }

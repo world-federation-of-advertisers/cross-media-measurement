@@ -116,25 +116,54 @@ class VidLabelingDispatchSequencer(
   data class ResolvedShardInfo(val modelBlobPath: String, val memoizationEnabled: Boolean)
 
   /**
-   * Dispatches the oldest `CREATED` upload for this `DataProvider`, iff none is `ACTIVE`.
+   * Dispatches each `CREATED` model line whose `(DataProvider, ModelLine)` is not already running.
+   *
+   * Serialization is per `(DataProvider, ModelLine)`, not per `DataProvider`: a model line is
+   * dispatched only if no upload currently has that same `cmmsModelLine` in a running state
+   * ([IN_PROGRESS_STATES]) — that is what protects the cumulative rank index from concurrent
+   * Phase-1 runs. Different model lines, whether on the same or different uploads, run in parallel.
+   * Within a single model line, uploads are dispatched oldest-first (FIFO).
    *
    * Safe to call concurrently with another invocation (e.g. the fast path racing the monitor): the
    * per-model-line etag CAS ensures each model line is claimed at most once.
    */
   suspend fun dispatchNext(): DispatchResult {
-    val activeUploads: List<RawImpressionUpload> = listUploads(RawImpressionUpload.State.ACTIVE)
-    if (activeUploads.isNotEmpty()) {
-      return DispatchResult(dispatchedUpload = null, queuedUploads = countQueued())
+    val uploads: List<RawImpressionUpload> =
+      (listUploads(RawImpressionUpload.State.CREATED) +
+          listUploads(RawImpressionUpload.State.ACTIVE))
+        .sortedBy { Timestamps.toNanos(it.createTime) }
+    val modelLinesByUpload: Map<String, List<RawImpressionUploadModelLine>> =
+      uploads.associate { it.name to listUploadModelLines(it.name) }
+
+    // Model lines already running anywhere for this DataProvider; never start a second upload for
+    // one of them.
+    val busyModelLines: MutableSet<String> =
+      modelLinesByUpload.values
+        .flatten()
+        .filter { it.state in IN_PROGRESS_STATES }
+        .map { it.cmmsModelLine }
+        .toMutableSet()
+
+    var dispatchedUpload: String? = null
+    var queuedModelLines = 0
+    for (upload in uploads) {
+      for (modelLine in modelLinesByUpload.getValue(upload.name)) {
+        if (modelLine.state != RawImpressionUploadModelLine.State.CREATED) continue
+        if (modelLine.cmmsModelLine in busyModelLines) {
+          queuedModelLines++
+          continue
+        }
+        if (activateModelLine(upload.name, modelLine)) {
+          busyModelLines += modelLine.cmmsModelLine
+          if (dispatchedUpload == null) dispatchedUpload = upload.name
+        }
+      }
     }
 
-    val nextUpload: RawImpressionUpload =
-      listUploads(RawImpressionUpload.State.CREATED).minByOrNull {
-        Timestamps.toNanos(it.createTime)
-      } ?: return DispatchResult(dispatchedUpload = null, queuedUploads = 0)
-
-    activateUpload(nextUpload)
-    logger.info("Dispatched upload ${nextUpload.name}")
-    return DispatchResult(dispatchedUpload = nextUpload.name, queuedUploads = 0)
+    if (dispatchedUpload != null) {
+      logger.info("Dispatched model line(s) for $dataProviderName starting with $dispatchedUpload")
+    }
+    return DispatchResult(dispatchedUpload = dispatchedUpload, queuedUploads = queuedModelLines)
   }
 
   /**
@@ -151,43 +180,44 @@ class VidLabelingDispatchSequencer(
   }
 
   /**
-   * Starts the pipeline for each `CREATED` model line of [upload]: creates the Phase-0/Phase-2 work
-   * and transitions the model line out of `CREATED` (which rolls the upload up to `ACTIVE`).
+   * Starts the pipeline for one `CREATED` [modelLine] of the upload named [uploadName]: resolves
+   * its model shard, creates the Phase-0 (memoized) or Phase-2 (non-memoized) work, and transitions
+   * the model line out of `CREATED` (which rolls the upload up to `ACTIVE`).
+   *
+   * @return true if the model line was activated (shard resolved and work attempted); false if its
+   *   model shard could not be resolved, in which case it is left `CREATED` for a later attempt.
    */
-  private suspend fun activateUpload(upload: RawImpressionUpload) {
-    val uploadId: String = upload.name.substringAfterLast("/")
-    val modelLines: List<RawImpressionUploadModelLine> = listUploadModelLines(upload.name)
-
-    for (modelLine in modelLines) {
-      if (modelLine.state != RawImpressionUploadModelLine.State.CREATED) continue
-
-      val shardInfo: ResolvedShardInfo? = resolveShardInfo(modelLine.cmmsModelLine)
-      if (shardInfo == null) {
-        logger.warning(
-          "Could not resolve model shard for ${modelLine.cmmsModelLine}; skipping dispatch"
-        )
-        continue
-      }
-
-      if (shardInfo.memoizationEnabled) {
-        createPoolAssignmentJobs(upload.name, modelLine.cmmsModelLine)
-        markPoolAssigning(modelLine.name, modelLine.etag)
-      } else {
-        for (shardIndex in 0 until numberOfShards) {
-          createWorkItem(
-            upload.name,
-            modelLine.cmmsModelLine,
-            shardInfo.modelBlobPath,
-            shardIndex,
-            uploadId,
+  private suspend fun activateModelLine(
+    uploadName: String,
+    modelLine: RawImpressionUploadModelLine,
+  ): Boolean {
+    val shardInfo: ResolvedShardInfo =
+      resolveShardInfo(modelLine.cmmsModelLine)
+        ?: run {
+          logger.warning(
+            "Could not resolve model shard for ${modelLine.cmmsModelLine}; skipping dispatch"
           )
+          return false
         }
-        markLabeling(modelLine.name, modelLine.etag)
-      }
-    }
-  }
 
-  private suspend fun countQueued(): Int = listUploads(RawImpressionUpload.State.CREATED).size
+    if (shardInfo.memoizationEnabled) {
+      createPoolAssignmentJobs(uploadName, modelLine.cmmsModelLine)
+      markPoolAssigning(modelLine.name, modelLine.etag)
+    } else {
+      val uploadId: String = uploadName.substringAfterLast("/")
+      for (shardIndex in 0 until numberOfShards) {
+        createWorkItem(
+          uploadName,
+          modelLine.cmmsModelLine,
+          shardInfo.modelBlobPath,
+          shardIndex,
+          uploadId,
+        )
+      }
+      markLabeling(modelLine.name, modelLine.etag)
+    }
+    return true
+  }
 
   /** Lists this DataProvider's uploads in [state]. */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
@@ -440,6 +470,17 @@ class VidLabelingDispatchSequencer(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     private const val POOL_ASSIGNMENT_JOB_BATCH_SIZE = 100
+
+    /**
+     * Model-line states that count as "running" for `(DataProvider, ModelLine)` serialization: a
+     * model line in any of these is in flight and must not be started in a second upload.
+     */
+    private val IN_PROGRESS_STATES: Set<RawImpressionUploadModelLine.State> =
+      setOf(
+        RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+        RawImpressionUploadModelLine.State.RANKING,
+        RawImpressionUploadModelLine.State.LABELING,
+      )
 
     /**
      * Whether [e] indicates this caller lost a concurrent dispatch race for a model line.
