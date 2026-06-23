@@ -18,8 +18,8 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
-import com.google.protobuf.ByteString
 import com.google.protobuf.Message
+import com.google.protobuf.util.JsonFormat
 import java.io.File
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.toList
@@ -28,13 +28,13 @@ import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.tink.AwsWebIdentityCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
-import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
+import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.gcloud.kms.GCloudToAwsKmsClientFactory
-import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
@@ -70,26 +70,71 @@ class VerifySyntheticData : Runnable {
   private var fakeKekKeysetFile: File? = null
 
   @Option(
-    names = ["--local-storage-path"],
-    description = ["Root path for local storage."],
-    required = true,
+    names = ["--scheme"],
+    description =
+      [
+        "Storage URI scheme (e.g. gs://, file:///). " +
+          "Used with --output-bucket and --base-path to scan for metadata files."
+      ],
+    required = false,
+    defaultValue = DEFAULT_SCHEME,
   )
-  private lateinit var storagePath: File
+  lateinit var scheme: String
+    private set
 
   @Option(
     names = ["--output-bucket"],
     description = ["The bucket name used during generation."],
-    required = true,
+    required = false,
+    defaultValue = "",
   )
-  lateinit var outputBucket: String
+  var outputBucket: String = ""
     private set
 
   @Option(
     names = ["--base-path"],
     description = ["Base path where impressions are stored."],
-    required = true,
+    required = false,
+    defaultValue = "",
   )
-  lateinit var basePath: String
+  var basePath: String = ""
+    private set
+
+  @Option(
+    names = ["--local-storage-path"],
+    description = ["Root path for local storage. Required when --scheme is file:///."],
+    required = false,
+  )
+  private var storagePath: File? = null
+
+  @Option(
+    names = ["--metadata-uri"],
+    description =
+      [
+        "URI of a metadata file to verify. Supports both binary protobuf (.binpb) and " +
+          "JSON metadata formats. May be specified multiple times. " +
+          "Mutually exclusive with --output-bucket/--base-path."
+      ],
+    required = false,
+  )
+  var metadataUris: List<String> = emptyList()
+    private set
+
+  @Option(
+    names = ["--metadata-prefix"],
+    description =
+      [
+        "Filename prefix used to identify metadata blobs during scans. Defaults to " +
+          "\"metadata\" (matches files written by GenerateSyntheticData and " +
+          "DataAvailabilitySync). Set to a different prefix when verifying data produced " +
+          "by a writer that uses a different naming convention. Must not be empty. " +
+          "Only consulted with --output-bucket/--base-path scans; ignored when " +
+          "--metadata-uri is given."
+      ],
+    required = false,
+    defaultValue = DEFAULT_METADATA_PREFIX,
+  )
+  lateinit var metadataPrefix: String
     private set
 
   @Option(
@@ -309,6 +354,36 @@ class VerifySyntheticData : Runnable {
         }
       }
 
+    val resolvedMetadataUris: List<String> =
+      if (metadataUris.isNotEmpty()) {
+        require(outputBucket.isEmpty() && basePath.isEmpty()) {
+          "--metadata-uri is mutually exclusive with --output-bucket/--base-path"
+        }
+        require(scheme == DEFAULT_SCHEME) {
+          "--scheme is only used with --output-bucket/--base-path scans and must not be set " +
+            "when --metadata-uri is given (each URI carries its own scheme)"
+        }
+        require(metadataPrefix == DEFAULT_METADATA_PREFIX) {
+          "--metadata-prefix is only used with --output-bucket/--base-path scans and must " +
+            "not be set when --metadata-uri is given"
+        }
+        metadataUris
+      } else {
+        require(outputBucket.isNotEmpty() && basePath.isNotEmpty()) {
+          "Either --metadata-uri or --output-bucket/--base-path must be provided"
+        }
+        require(metadataPrefix.isNotEmpty()) { "--metadata-prefix must not be empty" }
+        scanForMetadata(scheme, outputBucket, basePath, storagePath, metadataPrefix)
+      }
+
+    // SelectedStorageClient requires a root directory for file:/// blobs; surface a clear
+    // error here instead of letting FileSystemStorageClient throw a bare NPE downstream.
+    if (resolvedMetadataUris.any { it.startsWith("file:///") }) {
+      requireNotNull(storagePath) {
+        "--local-storage-path is required when any --metadata-uri uses file:///"
+      }
+    }
+
     val eventMessageInstance: Message =
       GenerateSyntheticData.resolveEventMessageInstance(
         eventMessageTypeUrl,
@@ -316,12 +391,11 @@ class VerifySyntheticData : Runnable {
       )
 
     val result =
-      verifySyntheticData(
+      verifyMetadata(
         kmsClient = kmsClient,
         kekUri = kekUri,
+        metadataUris = resolvedMetadataUris,
         storagePath = storagePath,
-        outputBucket = outputBucket,
-        basePath = basePath,
         eventMessageInstance = eventMessageInstance,
         expectedEventTypeUrl = eventMessageTypeUrl,
       )
@@ -373,98 +447,163 @@ class VerifySyntheticData : Runnable {
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
+    /** Default value of the --scheme flag (local filesystem). */
+    const val DEFAULT_SCHEME = "file:///"
+
+    /** Default value of the --metadata-prefix flag (matches GenerateSyntheticData output). */
+    const val DEFAULT_METADATA_PREFIX = "metadata"
+
+    /**
+     * True if this filename ends in a metadata extension the verifier knows how to parse (`.binpb`
+     * for binary protobuf or `.json` for JSON).
+     */
+    private fun String.isSupportedMetadataExtension(): Boolean =
+      endsWith(".binpb") || endsWith(".json")
+
     init {
       AeadConfig.register()
       StreamingAeadConfig.register()
     }
 
     /**
-     * Walks the output directory tree, decrypts each impressions blob using [kmsClient], validates
-     * every [LabeledImpression] record, and returns aggregate counts.
+     * Scans for metadata files under the given storage prefix.
      *
-     * The traversal finds all `metadata.binpb` files under [basePath] and processes each
-     * independently.
+     * Constructs the base URI as [scheme][outputBucket]/[basePath] and lists all blobs whose keys
+     * begin with [metadataPrefix] and end in a supported extension. Returns fully qualified URIs.
      */
-    private fun verifySyntheticData(
-      kmsClient: KmsClient,
-      kekUri: String,
-      storagePath: File,
+    private fun scanForMetadata(
+      scheme: String,
       outputBucket: String,
       basePath: String,
+      storagePath: File?,
+      metadataPrefix: String,
+    ): List<String> {
+      if (scheme == "file:///") {
+        requireNotNull(storagePath) { "--local-storage-path is required when --scheme is file:///" }
+        val scanDir = storagePath.resolve(outputBucket).resolve(basePath)
+        logger.info("Scanning for metadata files in: $scanDir")
+        check(scanDir.exists()) { "Directory does not exist: $scanDir" }
+
+        val metadataFiles =
+          scanDir
+            .walkTopDown()
+            .filter { it.name.startsWith(metadataPrefix) && it.name.isSupportedMetadataExtension() }
+            .toList()
+            .sorted()
+        check(metadataFiles.isNotEmpty()) {
+          "No metadata files found under: $scanDir (looking for files starting with " +
+            "\"$metadataPrefix\" and ending in .binpb or .json)"
+        }
+        logger.info("Found ${metadataFiles.size} metadata files")
+
+        return metadataFiles.map { file ->
+          val relativePath = file.relativeTo(storagePath).path
+          "file:///$relativePath"
+        }
+      }
+
+      val prefix = "$basePath/"
+      val baseUri = "$scheme$outputBucket"
+      val blobUri = SelectedStorageClient.parseBlobUri("$baseUri/$prefix")
+      val storageClient = SelectedStorageClient(blobUri)
+
+      logger.info("Scanning for metadata files under: $baseUri/$prefix")
+      val uris = runBlocking {
+        storageClient
+          .listBlobs(prefix)
+          .toList()
+          .filter {
+            val name = it.blobKey.substringAfterLast("/")
+            name.startsWith(metadataPrefix) && name.isSupportedMetadataExtension()
+          }
+          .map { "$baseUri/${it.blobKey}" }
+          .sorted()
+      }
+      check(uris.isNotEmpty()) {
+        "No metadata files found under: $baseUri/$prefix (looking for files starting with " +
+          "\"$metadataPrefix\" and ending in .binpb or .json)"
+      }
+      logger.info("Found ${uris.size} metadata files")
+      return uris
+    }
+
+    /**
+     * Verifies impression blobs by reading metadata from the given URIs.
+     *
+     * Supports both binary protobuf and JSON metadata formats, detected by file extension (`.json`
+     * for JSON, anything else for binary protobuf).
+     */
+    private fun verifyMetadata(
+      kmsClient: KmsClient,
+      kekUri: String,
+      metadataUris: List<String>,
+      storagePath: File?,
       eventMessageInstance: Message,
       expectedEventTypeUrl: String,
     ): VerificationResult {
-      val rootStorageClient = FileSystemStorageClient(storagePath)
-      val scanDir = storagePath.resolve(outputBucket).resolve(basePath)
-
-      logger.info("Scanning for metadata.binpb files in: $scanDir")
-      check(scanDir.exists()) { "Directory does not exist: $scanDir" }
-
-      val metadataFiles =
-        scanDir
-          .walkTopDown()
-          .filter { it.name.startsWith("metadata") && it.name.endsWith(".binpb") }
-          .toList()
-          .sorted()
-      check(metadataFiles.isNotEmpty()) { "No metadata*.binpb files found under: $scanDir" }
-
-      logger.info("Found ${metadataFiles.size} metadata.binpb files")
       var totalImpressions = 0
       var totalBlobsProcessed = 0
       var errors = 0
       val impressionsByEventGroupReferenceId = mutableMapOf<String, Int>()
 
-      for (metadataFile in metadataFiles) {
-        val relativePath = metadataFile.relativeTo(scanDir).path
+      for (metadataUri in metadataUris) {
         try {
-          logger.info("\n=== Processing: $relativePath ===")
+          logger.info("\n=== Processing: $metadataUri ===")
 
-          val bucketRelativePath = metadataFile.relativeTo(storagePath.resolve(outputBucket)).path
-          logger.info("Reading metadata from: $bucketRelativePath")
+          val metadataBlobUri = SelectedStorageClient.parseBlobUri(metadataUri)
+          val metadataStorageClient = SelectedStorageClient(metadataBlobUri, storagePath)
 
-          val metadataBlob = runBlocking {
-            rootStorageClient.getBlob("$outputBucket/$bucketRelativePath")
+          val metadataBytes = runBlocking {
+            val blob =
+              metadataStorageClient.getBlob(metadataBlobUri.key)
+                ?: throw IllegalStateException("Metadata not found: ${metadataBlobUri.key}")
+            blob.read().flatten()
           }
-          check(metadataBlob != null) {
-            "Metadata blob not found: $outputBucket/$bucketRelativePath"
-          }
 
-          val blobDetailsBytes = runBlocking { metadataBlob.read().toList() }
-          val blobDetails =
-            BlobDetails.parseFrom(
-              blobDetailsBytes.fold(ByteString.EMPTY) { acc, bs -> acc.concat(bs) }
-            )
+          val isJson = metadataUri.endsWith(".json")
+          val blobDetails: BlobDetails
+          val encryptedDek: EncryptedDek
+
+          if (isJson) {
+            val builder = BlobDetails.newBuilder()
+            JsonFormat.parser().ignoringUnknownFields().merge(metadataBytes.toStringUtf8(), builder)
+            blobDetails = builder.build()
+            encryptedDek = blobDetails.encryptedDek
+          } else {
+            blobDetails = BlobDetails.parseFrom(metadataBytes)
+            encryptedDek = blobDetails.encryptedDek
+          }
 
           logger.info("  Blob URI: ${blobDetails.blobUri}")
-          logger.info("  KEK URI: ${blobDetails.encryptedDek.kekUri}")
-          logger.info("  DEK type: ${blobDetails.encryptedDek.typeUrl}")
-          logger.info("  DEK format: ${blobDetails.encryptedDek.protobufFormat}")
+          logger.info("  KEK URI: ${encryptedDek.kekUri}")
+          logger.info("  DEK type: ${encryptedDek.typeUrl}")
+          logger.info("  DEK format: ${encryptedDek.protobufFormat}")
           logger.info("  Event group ref ID: ${blobDetails.eventGroupReferenceId}")
           logger.info("  Model line: ${blobDetails.modelLine}")
-          logger.info(
-            "  Interval: ${blobDetails.interval.startTime} - ${blobDetails.interval.endTime}"
-          )
 
-          val encryptedDek = blobDetails.encryptedDek
           check(encryptedDek.kekUri == kekUri) {
             "KEK URI mismatch: expected $kekUri, got ${encryptedDek.kekUri}"
           }
 
-          val impressionsBlobUri = blobDetails.blobUri
-          val selectedStorageClient = SelectedStorageClient(impressionsBlobUri, storagePath)
-          val decryptionClient =
-            selectedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, encryptedDek.ciphertext)
+          val impressionsBlobUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
+          val impressionsStorageClient = SelectedStorageClient(impressionsBlobUri, storagePath)
+          val mesosClient =
+            EncryptedStorage.buildEncryptedMesosStorageClient(
+              impressionsStorageClient,
+              kmsClient,
+              kekUri,
+              encryptedDek,
+            )
 
-          val impressionsBlobKey =
-            impressionsBlobUri.removePrefix("file:///").removePrefix("$outputBucket/")
+          val blobKey = impressionsBlobUri.key
+          logger.info("  Decrypting from blob key: $blobKey")
 
-          logger.info("  Decrypting impressions from blob key: $impressionsBlobKey")
-
-          val mesosClient = MesosRecordIoStorageClient(decryptionClient)
-          val impressionsBlob = runBlocking { mesosClient.getBlob(impressionsBlobKey) }
-          check(impressionsBlob != null) { "Impressions blob not found: $impressionsBlobKey" }
-
-          val records = runBlocking { impressionsBlob.read().toList() }
+          val records = runBlocking {
+            val blob =
+              mesosClient.getBlob(blobKey)
+                ?: throw IllegalStateException("Impression blob not found: $blobKey")
+            blob.read().toList()
+          }
           logger.info("  Decrypted ${records.size} impression records")
 
           for ((index, record) in records.withIndex()) {
@@ -482,8 +621,8 @@ class VerifySyntheticData : Runnable {
             }
 
             check(impression.event.typeUrl == expectedEventTypeUrl) {
-              "Event type URL mismatch on impression $index: expected $expectedEventTypeUrl, " +
-                "got ${impression.event.typeUrl}"
+              "Event type URL mismatch on impression $index: " +
+                "expected $expectedEventTypeUrl, got ${impression.event.typeUrl}"
             }
             eventMessageInstance.newBuilderForType().mergeFrom(impression.event.value).build()
 
@@ -491,8 +630,8 @@ class VerifySyntheticData : Runnable {
               val entityKeysSummary =
                 impression.entityKeysList.joinToString(", ") { "${it.entityType}=${it.entityId}" }
               logger.info(
-                "  Record[$index]: vid=${impression.vid}, eventTime=${impression.eventTime}, " +
-                  "entityKeys=[$entityKeysSummary]"
+                "  Record[$index]: vid=${impression.vid}, " +
+                  "eventTime=${impression.eventTime}, entityKeys=[$entityKeysSummary]"
               )
             }
           }
@@ -505,10 +644,10 @@ class VerifySyntheticData : Runnable {
           ) { old, new ->
             old + new
           }
-          logger.info("  PASS: $relativePath - ${records.size} impressions verified")
+          logger.info("  PASS: $metadataUri - ${records.size} impressions verified")
         } catch (e: Exception) {
           errors++
-          logger.severe("  FAIL: $relativePath - ${e.message}")
+          logger.severe("  FAIL: $metadataUri - ${e.message}")
           e.printStackTrace()
         }
       }
