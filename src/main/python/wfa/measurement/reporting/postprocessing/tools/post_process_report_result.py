@@ -222,11 +222,10 @@ class PostProcessReportResult:
         re-breaking the per-window identity sum(k_plus_reach) <= impressions
         (Issue #4049 Rule 4), which a snap-upward could violate.
 
-        Derived fields (percent_reach, percent_k_plus_reach[0],
-        average_frequency) are not recomputed. A 1-unit drift in reach shifts
-        them by ~1e-5%, well below any downstream tolerance, and recomputing
-        only some of them would create asymmetric staleness across the
-        BasicMetricSet.
+        After snapping, derived fields (percent_reach, percent_k_plus_reach,
+        average_frequency, grps) are recomputed via _recompute_derived_fields
+        -- the same helper compute_basic_metric_set uses -- so both
+        derivation paths stay consistent.
         """
         # Group reporting_set_result IDs by dimension (excluding the
         # weekly/total selector) so we can match a whole_campaign RSR to its
@@ -235,7 +234,11 @@ class PostProcessReportResult:
         # dimension), the pair is ambiguous -- log and skip the dimension
         # rather than mis-reconciling.
         dim_to_rsrs: dict[tuple, dict[str, int | None]] = {}
+        # Population is needed for the derived-field recompute on each snap.
+        population_by_rsr_id: dict[int, int] = {}
         for rsr in reporting_set_results:
+            population_by_rsr_id[rsr.external_reporting_set_result_id] = (
+                rsr.population_size)
             dim = rsr.dimension
             selector = dim.metric_frequency_spec.WhichOneof('selector')
             if selector not in ('total', 'weekly'):
@@ -292,30 +295,44 @@ class PostProcessReportResult:
             whole = total.reporting_window_results[0]
             snapped_reach = min(whole.value.cumulative_results.reach,
                                 last_weekly.value.cumulative_results.reach)
+            total_population = population_by_rsr_id.get(total_id, 0)
+            weekly_population = population_by_rsr_id.get(weekly_id, 0)
+            if total_population <= 0 or weekly_population <= 0:
+                logging.warning(
+                    "Missing population_size for RSR (total=%d weekly=%d); "
+                    "skipping cross-window reconciliation for this dimension.",
+                    total_id, weekly_id)
+                continue
             self._snap_cumulative_reach(whole.value.cumulative_results,
-                                        snapped_reach)
+                                        snapped_reach, total_population)
             self._snap_cumulative_reach(last_weekly.value.cumulative_results,
-                                        snapped_reach)
+                                        snapped_reach, weekly_population)
 
     @staticmethod
     def _snap_cumulative_reach(
-            cumulative_results: BasicMetricSet, snapped_reach: int) -> None:
+            cumulative_results: BasicMetricSet, snapped_reach: int,
+            population: int) -> None:
         """Snaps reach (and k_plus_reach[0]) to snapped_reach on one side of a
         cross-window pair. Re-clamps the rest of k_plus_reach forward so that
         lowering k_plus_reach[0] does not break the non-increasing invariant
         established by compute_basic_metric_set (Issue #4049 Rule 3 +
         k_plus_reach monotonicity). The clamp only lowers buckets, so it
         cannot re-break sum(k_plus_reach) <= impressions (Rule 4) either.
+
+        After mutating the raw values, derived fields (percent_reach,
+        percent_k_plus_reach, average_frequency, grps) are recomputed from
+        the same helper compute_basic_metric_set uses, so the two derivation
+        paths stay in lock-step (Issue #4049).
         """
         cumulative_results.reach = snapped_reach
         k_plus_reach = cumulative_results.k_plus_reach
-        if not k_plus_reach:
-            return
-        k_plus_reach[0] = snapped_reach
-        for i in range(1, len(k_plus_reach)):
-            if k_plus_reach[i] <= k_plus_reach[i - 1]:
-                break
-            k_plus_reach[i] = k_plus_reach[i - 1]
+        if k_plus_reach:
+            k_plus_reach[0] = snapped_reach
+            for i in range(1, len(k_plus_reach)):
+                if k_plus_reach[i] <= k_plus_reach[i - 1]:
+                    break
+                k_plus_reach[i] = k_plus_reach[i - 1]
+        _recompute_derived_fields(cumulative_results, population)
 
     def _get_report_result(
             self, cmms_measurement_consumer_id: str,
@@ -661,14 +678,9 @@ def compute_basic_metric_set(
 
     if reach:
         basic_metric_set.reach = reach
-        basic_metric_set.percent_reach = reach / population * 100
 
     if impressions:
         basic_metric_set.impressions = impressions
-        basic_metric_set.grps = impressions / population * 100
-        if basic_metric_set.reach > 0:
-            basic_metric_set.average_frequency = (impressions /
-                                                  basic_metric_set.reach)
 
     if frequency_values is not None:
         k_plus_reach_values = [
@@ -728,7 +740,32 @@ def compute_basic_metric_set(
                         "impressions by this residue.",
                         excess, reach, impressions)
         basic_metric_set.k_plus_reach.extend(k_plus_reach_values)
-        basic_metric_set.percent_k_plus_reach.extend(
-            [val / population * 100 for val in k_plus_reach_values])
 
+    _recompute_derived_fields(basic_metric_set, population)
     return basic_metric_set
+
+
+def _recompute_derived_fields(bms: BasicMetricSet, population: int) -> None:
+    """Single source of truth for BasicMetricSet derived fields.
+
+    percent_X = X / population * 100; average_frequency = impressions / reach;
+    percent_k_plus_reach is rebuilt from k_plus_reach. Call after any
+    mutation of reach, impressions, or k_plus_reach so the two derivation
+    paths (construction in compute_basic_metric_set and post-construction
+    mutation in _snap_cumulative_reach) stay in lock-step (Issue #4049).
+
+    Always assigns (rather than only-on-truthy), so a drop of reach or
+    impressions to zero clears the now-stale percent / average_frequency
+    rather than leaving the old value behind.
+    """
+    if population <= 0:
+        raise ValueError("Population must be a positive number.")
+    bms.percent_reach = bms.reach / population * 100 if bms.reach else 0
+    bms.grps = (bms.impressions / population * 100) if bms.impressions else 0
+    if bms.reach and bms.impressions:
+        bms.average_frequency = bms.impressions / bms.reach
+    else:
+        bms.average_frequency = 0
+    del bms.percent_k_plus_reach[:]
+    bms.percent_k_plus_reach.extend(
+        v / population * 100 for v in bms.k_plus_reach)

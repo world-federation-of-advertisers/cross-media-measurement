@@ -625,11 +625,13 @@ class PostProcessReportResultTest(unittest.TestCase):
         external_reporting_set_result_id: int,
         external_reporting_set_id: str,
         selector: str,
+        population_size: int = 1_000_000,
     ) -> report_result_pb2.ReportingSetResult:
         rsr = report_result_pb2.ReportingSetResult(
             cmms_measurement_consumer_id=self.cmms_measurement_consumer_id,
             external_report_result_id=self.external_report_result_id,
             external_reporting_set_result_id=external_reporting_set_result_id,
+            population_size=population_size,
         )
         rsr.dimension.external_reporting_set_id = external_reporting_set_id
         rsr.dimension.venn_diagram_region_type = (
@@ -1055,6 +1057,81 @@ class PostProcessReportResultTest(unittest.TestCase):
                     f"RSR {rsr_id}: k_plus_reach must be non-increasing; "
                     f"bucket {i}={cumulative.k_plus_reach[i]} exceeds "
                     f"bucket {i-1}={cumulative.k_plus_reach[i - 1]}")
+
+
+    def test_reconcile_snap_down_recomputes_derived_fields(self):
+        """After snap-down, percent_reach / percent_k_plus_reach[0] /
+        average_frequency must equal the value compute_basic_metric_set
+        would have produced for the snapped reach -- otherwise the two
+        derivation paths drift apart (the bug class that motivated this
+        whole PR series). Pin it explicitly so any future mutation in
+        _snap_cumulative_reach that forgets to recompute is caught."""
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+        population = 8_000_000
+        reporting_set_results = [
+            self._make_reporting_set_result(1, 'reporting_set_id_edp1',
+                                            'total',
+                                            population_size=population),
+            self._make_reporting_set_result(2, 'reporting_set_id_edp1',
+                                            'weekly',
+                                            population_size=population),
+        ]
+        request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        # Build a realistic BasicMetricSet on each side via the construction
+        # path so derived fields start out internally consistent. Then
+        # snap-down should keep them consistent.
+        # Deliberately large reach gap between whole and weekly so the
+        # drift between stale (pre-snap) and fresh (post-snap) derived fields
+        # is large enough to detect against float32 proto precision. Real
+        # rounding drift is sub-unit; this test pins behavior, not realism.
+        whole_bms = compute_basic_metric_set(
+            reach=1_000_000,
+            frequency_values=[500_000.0, 250_000.0, 125_000.0],
+            impressions=3_000_000,
+            population=population,
+        )
+        weekly_bms = compute_basic_metric_set(
+            reach=2_000_000,
+            frequency_values=[1_000_000.0, 500_000.0, 250_000.0],
+            impressions=6_000_000,
+            population=population,
+        )
+        for rsr_id, bms in ((1, whole_bms), (2, weekly_bms)):
+            entry = request.reporting_set_results[
+                rsr_id].reporting_window_results.add()
+            entry.key.end.year = 2025
+            entry.key.end.month = 10
+            entry.key.end.day = 15
+            entry.value.cumulative_results.CopyFrom(bms)
+
+        processor._reconcile_cross_window_identities(
+            request, reporting_set_results)
+
+        snapped_reach = 1_000_000
+        for rsr_id in (1, 2):
+            bms = (request.reporting_set_results[rsr_id]
+                   .reporting_window_results[0].value.cumulative_results)
+            self.assertEqual(bms.reach, snapped_reach)
+            self.assertEqual(bms.k_plus_reach[0], snapped_reach)
+            # Derived fields must match what compute_basic_metric_set would
+            # have produced for snapped_reach -- not the pre-snap reach.
+            self.assertAlmostEqual(
+                bms.percent_reach, snapped_reach / population * 100,
+                places=4,
+                msg=f"RSR {rsr_id}: percent_reach drifted after snap-down")
+            self.assertAlmostEqual(
+                bms.percent_k_plus_reach[0],
+                snapped_reach / population * 100, places=4,
+                msg=f"RSR {rsr_id}: percent_k_plus_reach[0] drifted")
+            self.assertAlmostEqual(
+                bms.average_frequency, bms.impressions / snapped_reach,
+                places=4,
+                msg=f"RSR {rsr_id}: average_frequency drifted")
+            self.assertAlmostEqual(
+                bms.grps, bms.impressions / population * 100, places=4,
+                msg=f"RSR {rsr_id}: grps drifted")
 
 
 if __name__ == "__main__":
