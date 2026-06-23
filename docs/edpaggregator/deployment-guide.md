@@ -1175,7 +1175,7 @@ Once all infrastructure has been deployed, you can verify the setup by running t
 
 3. **Generate and encrypt synthetic data** using the Data Provider KMS. You can use the [**SyntheticDataGenerator CLI**](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/c925d452f37785f822d80c4ca49b7dcfa03fbd03/src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools/GenerateSyntheticData.kt) for this. Example command:
 
-| bazel \--host_jvm_args=-Xmx20g run //src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:GenerateSyntheticData \-- \--event-group-reference-id=event-group-reference-id/edpa-eg-reference-id-1 \--output-bucket=secure-computation-storage-dev-bucket \--schema=gs:// \--kms-type=GCP \--kek-uri=gcp-kms://projects/halo-cmm-dev-edp/locations/global/keyRings/edp-key-ring/cryptoKeys/edp-kek \--population-spec-resource-path=small_population_spec.textproto \--data-spec-resource-path=small_data_spec.textproto |
+| bazel \--host_jvm_args=-Xmx20g run //src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:GenerateSyntheticData \-- \--event-group-reference-id=event-group-reference-id/edpa-eg-reference-id-1 \--output-bucket=secure-computation-storage-dev-bucket \--scheme=gs:// \--kms-type=GCP \--kek-uri=gcp-kms://projects/halo-cmm-dev-edp/locations/global/keyRings/edp-key-ring/cryptoKeys/edp-kek \--population-spec-resource-path=small_population_spec.textproto \--data-spec-resource-path=small_data_spec.textproto |
 | :---- |
 
 (\*) Note that \--event-group-reference-id must follow the pattern: event-group-reference-id/\<value_you_want_to_use_here\>

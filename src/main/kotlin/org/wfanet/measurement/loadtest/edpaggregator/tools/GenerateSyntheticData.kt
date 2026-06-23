@@ -150,7 +150,7 @@ class GenerateSyntheticData : Runnable {
 
   @Option(
     names = ["--local-storage-path"],
-    description = ["Optional. Path to local storage used when schema is file:///"],
+    description = ["Optional. Path to local storage used when scheme is file:///"],
     required = false,
   )
   private var storagePath: File? = null
@@ -164,15 +164,15 @@ class GenerateSyntheticData : Runnable {
     private set
 
   @Option(
-    names = ["--schema"],
+    names = ["--scheme"],
     description =
       [
-        "The schema to write to. Supported options are gs:// and file:///. Used by a SelectedStorageClient to build the proper storage client to write output to."
+        "Storage URI scheme to write to. Supported values are gs:// and file:///. Used by a SelectedStorageClient to build the proper storage client to write output to."
       ],
     required = true,
     defaultValue = "file:///",
   )
-  lateinit var schema: String
+  lateinit var scheme: String
     private set
 
   @Option(
@@ -310,7 +310,7 @@ class GenerateSyntheticData : Runnable {
             outputBucket,
             outputBucket,
             storagePath,
-            schema,
+            scheme,
             spec.outputKey,
           )
         impressionWriter.writeLabeledImpressionData(
@@ -323,7 +323,7 @@ class GenerateSyntheticData : Runnable {
       if (createDoneBlobs) {
         for (datePath in writtenDatePaths) {
           val doneKey = "$datePath/done"
-          val doneUri = "$schema$outputBucket/$doneKey"
+          val doneUri = "$scheme$outputBucket/$doneKey"
           val storageClient = SelectedStorageClient(doneUri, storagePath)
           logger.info("Writing done blob: $doneKey")
           storageClient.writeBlob(doneKey, emptyFlow())
