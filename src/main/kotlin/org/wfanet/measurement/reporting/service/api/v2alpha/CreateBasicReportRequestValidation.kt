@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
 import com.google.protobuf.duration
 import com.google.type.DateTime
@@ -37,6 +38,7 @@ import org.wfanet.measurement.reporting.service.api.EventTemplateFieldInvalidExc
 import org.wfanet.measurement.reporting.service.api.FieldUnimplementedException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
+import org.wfanet.measurement.reporting.service.internal.Normalization
 import org.wfanet.measurement.reporting.v2alpha.CreateBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateField
@@ -216,13 +218,23 @@ object CreateBasicReportRequestValidation {
     // solver. Specs that share the full metric_frequency value are fine:
     // the job-level dedup merges them into a single RSR before the
     // post-processor sees them.
-    val frequencyBytesByDimKey =
-      mutableMapOf<ResultGroupSpecCollisionKey, com.google.protobuf.ByteString>()
+    val frequencyBytesByDimKey = mutableMapOf<ResultGroupSpecCollisionKey, ByteString>()
     resultGroupSpecs.forEachIndexed { index, resultGroupSpec ->
+      // Convert to internal + normalize before keying so that order-only
+      // differences (e.g. `filters` permuted, `reportingUnit.components`
+      // permuted, `grouping.event_template_fields` permuted) -- which the
+      // downstream pipeline treats as equivalent when generating RSRs --
+      // are recognized as the same dim. A raw v2alpha `toByteString()` is
+      // sensitive to those orderings and would let a colliding pair slip
+      // through.
       val key =
         ResultGroupSpecCollisionKey(
-          reportingUnitBytes = resultGroupSpec.reportingUnit.toByteString(),
-          dimensionSpecBytes = resultGroupSpec.dimensionSpec.toByteString(),
+          reportingUnitBytes =
+            Normalization.normalizeReportingUnit(resultGroupSpec.reportingUnit.toInternal())
+              .toByteString(),
+          dimensionSpecBytes =
+            Normalization.normalizeDimensionSpec(resultGroupSpec.dimensionSpec.toInternal())
+              .toByteString(),
           selectorCase = resultGroupSpec.metricFrequency.selectorCase,
         )
       val frequencyBytes = resultGroupSpec.metricFrequency.toByteString()
@@ -240,16 +252,15 @@ object CreateBasicReportRequestValidation {
   }
 
   /**
-   * Hashable identity key used to detect duplicate [ResultGroupSpec]s that
-   * would collapse to the same dimension in the post-processor.
+   * Hashable identity key used to detect duplicate [ResultGroupSpec]s that would collapse to the
+   * same dimension in the post-processor.
    *
-   * Proto messages don't define stable hashCode/equals across runtimes, so
-   * key on the serialized bytes of the structured fields and on the enum
-   * selector case directly.
+   * Proto messages don't define stable hashCode/equals across runtimes, so key on the serialized
+   * bytes of the structured fields and on the enum selector case directly.
    */
   private data class ResultGroupSpecCollisionKey(
-    val reportingUnitBytes: com.google.protobuf.ByteString,
-    val dimensionSpecBytes: com.google.protobuf.ByteString,
+    val reportingUnitBytes: ByteString,
+    val dimensionSpecBytes: ByteString,
     val selectorCase: MetricFrequencySpec.SelectorCase,
   )
 

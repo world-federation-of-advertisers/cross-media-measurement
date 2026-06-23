@@ -48,6 +48,8 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/reporting/v2:event_template_field_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_frequency_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_unit_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:result_group_spec_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common:guava",
     ],
 )

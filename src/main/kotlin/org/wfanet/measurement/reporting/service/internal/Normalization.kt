@@ -19,10 +19,14 @@ package org.wfanet.measurement.reporting.service.internal
 import com.google.common.collect.Ordering
 import com.google.common.hash.Hashing
 import java.util.logging.Logger
+import org.wfanet.measurement.internal.reporting.v2.DimensionSpec
+import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt
 import org.wfanet.measurement.internal.reporting.v2.EventFilter
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.MetricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
+import org.wfanet.measurement.internal.reporting.v2.ReportingUnit
+import org.wfanet.measurement.internal.reporting.v2.ReportingUnitKt
 import org.wfanet.measurement.internal.reporting.v2.copy
 
 object Normalization {
@@ -56,6 +60,46 @@ object Normalization {
         }
       }
       .sortedWith(eventFilterComparator)
+  }
+
+  /**
+   * Returns a normalized copy of [reportingUnit] with components sorted.
+   *
+   * `ReportingUnit.components` is semantically a set (order does not affect downstream metric
+   * calculation), so order-only differences must not produce distinct dim keys. Today the only
+   * populated variant is `dataProviderKeys`; sort its entries by `cmmsDataProviderId`.
+   */
+  fun normalizeReportingUnit(reportingUnit: ReportingUnit): ReportingUnit {
+    return reportingUnit.copy {
+      if (hasDataProviderKeys()) {
+        dataProviderKeys =
+          ReportingUnitKt.dataProviderKeys {
+            dataProviderKeys +=
+              reportingUnit.dataProviderKeys.dataProviderKeysList.sortedBy { it.cmmsDataProviderId }
+          }
+      }
+    }
+  }
+
+  /**
+   * Returns a normalized copy of [dimensionSpec]: filters normalized via [normalizeEventFilters],
+   * grouping field paths sorted lexicographically.
+   *
+   * `DimensionSpec.filters` is a conjunction (AND), so order is not semantically meaningful.
+   * `Grouping.eventTemplateFields` is documented as containing each field path at most once and is
+   * consumed as a set downstream. Order-only differences must not produce distinct dim keys.
+   */
+  fun normalizeDimensionSpec(dimensionSpec: DimensionSpec): DimensionSpec {
+    return dimensionSpec.copy {
+      filters.clear()
+      filters += normalizeEventFilters(dimensionSpec.filtersList)
+      if (hasGrouping()) {
+        grouping =
+          DimensionSpecKt.grouping {
+            eventTemplateFields += dimensionSpec.grouping.eventTemplateFieldsList.sorted()
+          }
+      }
+    }
   }
 
   /** Computes the fingerprint of [metricFrequencySpec]. */

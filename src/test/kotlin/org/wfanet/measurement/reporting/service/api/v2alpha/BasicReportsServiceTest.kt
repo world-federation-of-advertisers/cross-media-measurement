@@ -5955,6 +5955,77 @@ class BasicReportsServiceTest {
     }
 
   @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when specs differ only in filter order and DayOfWeek`() =
+    runBlocking {
+      // Two specs whose dimension_spec.filters lists are the SAME conjunction
+      // but in PERMUTED order, and which differ only in DayOfWeek. The
+      // downstream pipeline normalizes filter order before generating RSRs
+      // (Normalization.normalizeEventFilters), so these would collapse to the
+      // same dim in the post-processor -- the same silent-overwrite bug as
+      // the DayOfWeek-only case above. The collision key must canonicalize
+      // (sort filters) before comparing, otherwise this slips through.
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            // BASIC_REPORT.resultGroupSpecs[0].dimensionSpec.filters is
+            // [age_group=18_TO_34, gender=MALE]. Reverse it and pair with a
+            // different DayOfWeek -- raw `toByteString()` would treat the two
+            // as distinct dims.
+            val original = resultGroupSpecs[0]
+            val reversedFilters = original.dimensionSpec.filtersList.reversed()
+            resultGroupSpecs +=
+              original.copy {
+                metricFrequency = metricFrequencySpec { weekly = DayOfWeek.TUESDAY }
+                dimensionSpec =
+                  original.dimensionSpec.copy {
+                    filters.clear()
+                    filters += reversedFilters
+                  }
+              }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs[1].metric_frequency"
+          }
+        )
+    }
+
+  @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reporting unit missing components`() =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
