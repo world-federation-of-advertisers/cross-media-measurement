@@ -304,6 +304,45 @@ class PostProcessReportResultTest(unittest.TestCase):
             any('Could not fully reconcile' in m for m in cm.output),
             f"expected reconciliation warning, got: {cm.output}")
 
+    def test_compute_basic_metric_set_single_bucket_excess_logs_warning(self):
+        """When the histogram has a single bucket, the cascade has no
+        higher-frequency bucket to absorb residue into. Identity 1
+        (k_plus_reach[0] == reach) is preserved and the warning surfaces
+        the unresolved residue (Issue #4049).
+        """
+        with self.assertLogs(level='WARNING') as cm:
+            basic_metric_set = compute_basic_metric_set(
+                reach=10,
+                frequency_values=[10],
+                impressions=5,
+                population=1000,
+            )
+
+        self.assertEqual(list(basic_metric_set.k_plus_reach), [10])
+        self.assertTrue(
+            any('Could not fully reconcile' in m for m in cm.output),
+            f"expected reconciliation warning, got: {cm.output}")
+
+    def test_compute_basic_metric_set_k_plus_reach_is_non_increasing(self):
+        # Without the clamp: k_plus_reach[0]=6 (overwritten from reach) but
+        # k_plus_reach[1]=round(5+2)=7 -- "2+ reach > 1+ reach", nonsense.
+        basic_metric_set = compute_basic_metric_set(
+            reach=6,
+            frequency_values=[3, 5, 2],
+            impressions=20,
+            population=1000,
+        )
+
+        k_plus_reach = list(basic_metric_set.k_plus_reach)
+        self.assertEqual(k_plus_reach[0], basic_metric_set.reach,
+                         "k_plus_reach[0] must equal reach")
+        for i in range(1, len(k_plus_reach)):
+            self.assertLessEqual(
+                k_plus_reach[i], k_plus_reach[i - 1],
+                f"k_plus_reach must be non-increasing; "
+                f"bucket {i}={k_plus_reach[i]} exceeds "
+                f"bucket {i-1}={k_plus_reach[i - 1]}")
+
     def test_post_process_report_result_success(self):
         # Configures the mock stubs to return the data from the textproto files.
         self.mock_report_results_stub.ListReportingSetResults.return_value = (
