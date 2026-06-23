@@ -45,6 +45,9 @@ object Errors {
     REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
     REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_STATE_INVALID,
+    RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+    RANK_INDEX_BLOB_NOT_FOUND,
+    RANK_INDEX_BLOB_ALREADY_EXISTS,
     ETAG_MISMATCH,
     REQUIRED_FIELD_NOT_SET,
     INVALID_FIELD_VALUE,
@@ -65,6 +68,8 @@ object Errors {
     ETAG("etag"),
     BATCH_RESOURCE_ID("batchResourceId"),
     FILE_RESOURCE_ID("fileResourceId"),
+    RAW_IMPRESSION_UPLOAD_RESOURCE_ID("rawImpressionUploadResourceId"),
+    RANK_INDEX_BLOB_RESOURCE_ID("rankIndexBlobResourceId"),
     FIELD_NAME("fieldName");
 
     companion object {
@@ -382,5 +387,52 @@ class InvalidFieldValueException(
     Errors.Reason.INVALID_FIELD_VALUE,
     buildMessage(fieldName),
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
+    cause,
+  )
+
+class RawImpressionUploadNotFoundException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+    "RawImpressionUpload with resource ID $rawImpressionUploadResourceId for DataProvider with resource ID $dataProviderResourceId not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+    ),
+    cause,
+  )
+
+class RankIndexBlobNotFoundException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  rankIndexBlobResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+    "RankIndexBlob with resource ID $rankIndexBlobResourceId for RawImpressionUpload $rawImpressionUploadResourceId of DataProvider $dataProviderResourceId not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+      Errors.Metadata.RANK_INDEX_BLOB_RESOURCE_ID to rankIndexBlobResourceId,
+    ),
+    cause,
+  )
+
+class RankIndexBlobAlreadyExistsException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+    "RankIndexBlob already exists for RawImpressionUpload $rawImpressionUploadResourceId of DataProvider $dataProviderResourceId",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+    ),
     cause,
   )

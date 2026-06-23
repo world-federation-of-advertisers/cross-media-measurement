@@ -132,6 +132,9 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -185,6 +188,9 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -277,6 +283,9 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -338,6 +347,9 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -431,6 +443,9 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -484,6 +499,9 @@ class ImpressionMetadataService(
         InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
         InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
         InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+        InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+        InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }
@@ -565,6 +583,9 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -679,6 +700,9 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -731,6 +755,9 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
