@@ -450,24 +450,7 @@ class RawImpressionUploadNotFoundException(uploadResourceName: String, cause: Th
     "RawImpressionUpload $uploadResourceName not found",
     mapOf(Errors.Metadata.RAW_IMPRESSION_UPLOAD to uploadResourceName),
     cause,
-  ) {
-  companion object : Factory<RawImpressionUploadNotFoundException>() {
-    override val reason: Errors.Reason
-      get() = Errors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND
-
-    override fun fromInternal(
-      internalMetadata: Map<InternalErrors.Metadata, String>,
-      cause: Throwable,
-    ): RawImpressionUploadNotFoundException {
-      val uploadKey =
-        RawImpressionUploadKey(
-          internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID),
-          internalMetadata.getValue(InternalErrors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID),
-        )
-      return RawImpressionUploadNotFoundException(uploadKey.toName(), cause)
-    }
-  }
-}
+  )
 
 class RawImpressionUploadFileNotFoundException(fileResourceName: String, cause: Throwable? = null) :
   ServiceException(
