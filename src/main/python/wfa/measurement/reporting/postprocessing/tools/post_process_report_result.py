@@ -241,13 +241,18 @@ class PostProcessReportResult:
             key = self._dimension_key_excluding_metric_frequency_spec(dim)
             bucket = dim_to_rsrs.setdefault(key, {})
             if selector in bucket:
-                logging.warning(
-                    "Multiple ReportingSetResults share dimension key with "
-                    "selector=%s (ids %s and %d); skipping cross-window "
-                    "reconciliation for this dimension.",
-                    selector, bucket[selector],
-                    rsr.external_reporting_set_result_id)
-                bucket[selector] = None
+                if bucket[selector] is not None:
+                    # First collision for this (dim, selector): log with both
+                    # real ids. Subsequent collisions for the same key add no
+                    # information (the dim is already skipped) and would log
+                    # `ids None and X` -- suppress them.
+                    logging.warning(
+                        "Multiple ReportingSetResults share dimension key "
+                        "with selector=%s (ids %d and %d); skipping "
+                        "cross-window reconciliation for this dimension.",
+                        selector, bucket[selector],
+                        rsr.external_reporting_set_result_id)
+                    bucket[selector] = None
             else:
                 bucket[selector] = rsr.external_reporting_set_result_id
 
@@ -261,8 +266,22 @@ class PostProcessReportResult:
             if total is None or weekly is None:
                 continue
             if len(total.reporting_window_results) != 1:
+                # A 'total' selector reports over the full reporting interval,
+                # so it should have exactly one window. Anything else is an
+                # upstream data-model violation -- log so it's traceable
+                # rather than silently leaving the cross-window identity
+                # unreconciled.
+                logging.warning(
+                    "Total-selector ReportingSetResult %d has %d reporting "
+                    "windows (expected 1); skipping cross-window "
+                    "reconciliation for this dimension.",
+                    total_id, len(total.reporting_window_results))
                 continue
             if not weekly.reporting_window_results:
+                logging.warning(
+                    "Weekly-selector ReportingSetResult %d has no reporting "
+                    "windows; skipping cross-window reconciliation for this "
+                    "dimension.", weekly_id)
                 continue
             last_weekly = max(
                 weekly.reporting_window_results,
