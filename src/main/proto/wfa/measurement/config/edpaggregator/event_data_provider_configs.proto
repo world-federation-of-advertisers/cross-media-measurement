@@ -101,6 +101,15 @@ message EventDataProviderConfig {
   // KMS config for decrypting raw impression data. Only set for EDPs
   // that use the VID Labeler. Read by VidLabelerAppRunner at startup.
   KmsConfig raw_impression_kms_config = 5;
+
+  // Rank-index retention window in days for the memoized VID ranker
+  // (Phase 1). A day-only rank-index blob is evicted once
+  // `today - MaxEventDate > retention_days`, and a backfill older than this
+  // window is rejected. MUST exceed this EDP's maximum measurement-report
+  // window (compliance constraint — violating it reintroduces the VID
+  // collision memoization exists to prevent). Only set for EDPs that use the
+  // memoized VID ranker; read by VidRankBuilderAppRunner at startup.
+  int32 retention_days = 6;
 }
 
 message EventDataProviderConfigs {

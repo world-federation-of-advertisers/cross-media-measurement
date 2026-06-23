@@ -60,6 +60,8 @@ import org.wfanet.measurement.storage.StorageClient
  * runner is filled in separately (mirrors `SubpoolAssignerApp`).
  *
  * @param kmsClients Per-DataProvider KMS clients used to wrap/unwrap DEKs.
+ * @param retentionDaysByDataProvider Per-DataProvider rank-index retention window (in days),
+ *   sourced from the EDPA config; MUST exceed the EDP's maximum measurement-report window.
  * @param getSubpoolMapStorageConfig [StorageConfig] for reading the Phase-0 `SubpoolFingerprints`
  *   blobs.
  * @param getVidRankMapStorageConfig [StorageConfig] for reading prior cumulative rank-index blobs
@@ -69,8 +71,8 @@ import org.wfanet.measurement.storage.StorageClient
  * @param rawImpressionUploadModelLinesStub stub to flip the parent `RANKING` -> `LABELING`.
  * @param vidLabelingJobsStub stub for the last-job-out Phase-2 fan-out.
  * @param rawImpressionUploadFilesStub stub to list the upload's files for Phase-2 sharding.
- * @param vidLabelerQueue Secure Computation queue for Phase-2 (currently unused; see
- *   [VidRankBuilder] fan-out TODO).
+ * @param vidLabelerQueue Secure Computation queue the last-job-out publishes Phase-2 VidLabeler
+ *   WorkItems to.
  * @param buildSubpoolMapStorageClient Builds the subpool-map [StorageClient].
  * @param buildVidRankMapStorageClient Builds the vid-rank-map [StorageClient].
  * @param getVidRankMapKekUri Resolves the KEK URI used to wrap each rank-index blob's DEK.
@@ -83,6 +85,7 @@ class VidRankBuilderApp(
   private val workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
   private val kmsClients: Map<String, KmsClient>,
+  private val retentionDaysByDataProvider: Map<String, Int>,
   private val getSubpoolMapStorageConfig: (StorageParams) -> StorageConfig,
   private val getVidRankMapStorageConfig: (StorageParams) -> StorageConfig,
   private val rankerJobsStub: RankerJobServiceCoroutineStub,
@@ -127,6 +130,10 @@ class VidRankBuilderApp(
 
     val kmsClient =
       requireNotNull(kmsClients[dataProvider]) { "KMS client not found for $dataProvider" }
+    val retentionDays =
+      requireNotNull(retentionDaysByDataProvider[dataProvider]) {
+        "retention_days not configured for $dataProvider"
+      }
 
     val subpoolFingerprintsStore =
       SubpoolFingerprintsStore(
@@ -146,9 +153,7 @@ class VidRankBuilderApp(
         rankIndexStore = rankIndexStore,
         dataProvider = dataProvider,
         modelLine = params.modelLine,
-        // TODO(@Marco-Premier): source RETENTION_DAYS from static runner config instead of the
-        //   default; it MUST exceed the deployment's maximum measurement-report window.
-        retentionDays = DEFAULT_RETENTION_DAYS,
+        retentionDays = retentionDays,
         today = runDate,
       )
 
@@ -165,7 +170,7 @@ class VidRankBuilderApp(
         kekUri = getVidRankMapKekUri(dataProvider),
         encryptedSubpoolMapsDek = params.encryptedSubpoolMapsDek,
         maxEventDate = params.maxEventDate,
-        retentionDays = DEFAULT_RETENTION_DAYS,
+        retentionDays = retentionDays,
         today = runDate,
       )
 
@@ -229,13 +234,5 @@ class VidRankBuilderApp(
             }
         }
     }
-  }
-
-  companion object {
-    /**
-     * Default retention window in days. TODO(@Marco-Premier): replace with static runner config —
-     * MUST exceed the deployment's maximum measurement-report window (see Data Deletion).
-     */
-    private const val DEFAULT_RETENTION_DAYS = 90
   }
 }
