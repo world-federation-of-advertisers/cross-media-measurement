@@ -267,10 +267,9 @@ object CreateBasicReportRequestValidation {
   )
 
   /**
-   * Tracks the index of the first [ResultGroupSpec] seen for a given
-   * [ResultGroupSpecCollisionKey], along with the serialized metric_frequency value at that
-   * index. The index lets the collision error name both colliding entries, not just the
-   * second one.
+   * Tracks the index of the first [ResultGroupSpec] seen for a given [ResultGroupSpecCollisionKey],
+   * along with the serialized metric_frequency value at that index. The index lets the collision
+   * error name both colliding entries, not just the second one.
    */
   private data class IndexedResultGroupSpecFrequency(
     val index: Int,

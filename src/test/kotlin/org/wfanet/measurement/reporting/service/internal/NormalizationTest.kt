@@ -22,13 +22,13 @@ import com.google.type.DayOfWeek
 import java.util.logging.ConsoleHandler
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import kotlin.test.assertFailsWith
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingUnit
@@ -236,15 +236,14 @@ class NormalizationTest {
 
   @Test
   fun `normalizeReportingUnit sorts dataProviderKeys by cmmsDataProviderId`() {
-    val reportingUnit =
-      reportingUnit {
-        dataProviderKeys =
-          ReportingUnitKt.dataProviderKeys {
-            dataProviderKeys += dataProviderKey { cmmsDataProviderId = "edp_zebra" }
-            dataProviderKeys += dataProviderKey { cmmsDataProviderId = "edp_alpha" }
-            dataProviderKeys += dataProviderKey { cmmsDataProviderId = "edp_mango" }
-          }
-      }
+    val reportingUnit = reportingUnit {
+      dataProviderKeys =
+        ReportingUnitKt.dataProviderKeys {
+          dataProviderKeys += dataProviderKey { cmmsDataProviderId = "edp_zebra" }
+          dataProviderKeys += dataProviderKey { cmmsDataProviderId = "edp_alpha" }
+          dataProviderKeys += dataProviderKey { cmmsDataProviderId = "edp_mango" }
+        }
+    }
 
     val normalized = Normalization.normalizeReportingUnit(reportingUnit)
 
@@ -260,22 +259,20 @@ class NormalizationTest {
     val normalized = Normalization.normalizeReportingUnit(reportingUnit)
 
     assertThat(normalized).isEqualTo(reportingUnit)
-    assertThat(normalized.componentsCase)
-      .isEqualTo(ReportingUnit.ComponentsCase.COMPONENTS_NOT_SET)
+    assertThat(normalized.componentsCase).isEqualTo(ReportingUnit.ComponentsCase.COMPONENTS_NOT_SET)
   }
 
   @Test
   fun `normalizeReportingUnit throws on reportingSetKeys variant`() {
-    val reportingUnit =
-      reportingUnit {
-        reportingSetKeys =
-          ReportingUnitKt.reportingSetKeys {
-            reportingSetKeys += reportingSetKey {
-              cmmsMeasurementConsumerId = "mc-1"
-              externalReportingSetId = "rs-1"
-            }
+    val reportingUnit = reportingUnit {
+      reportingSetKeys =
+        ReportingUnitKt.reportingSetKeys {
+          reportingSetKeys += reportingSetKey {
+            cmmsMeasurementConsumerId = "mc-1"
+            externalReportingSetId = "rs-1"
           }
-      }
+        }
+    }
 
     val exception =
       assertFailsWith<IllegalArgumentException> {

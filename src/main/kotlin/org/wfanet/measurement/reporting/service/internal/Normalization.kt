@@ -69,11 +69,11 @@ object Normalization {
    * calculation), so order-only differences must not produce distinct dim keys.
    *
    * Only the `dataProviderKeys` variant is implemented today (the BasicReport path). The
-   * `reportingSetKeys` variant is reserved for AdvancedReport and currently has no caller;
-   * a future AdvancedReport normalization path must extend this function rather than rely on
-   * the silent-passthrough that the old early `if (hasDataProviderKeys())` shape allowed --
-   * that would silently un-normalize AdvancedReport input and reintroduce the order-sensitive
-   * dim-key bug PR #4057 was written to prevent.
+   * `reportingSetKeys` variant is reserved for AdvancedReport and currently has no caller; a future
+   * AdvancedReport normalization path must extend this function rather than rely on the
+   * silent-passthrough that the old early `if (hasDataProviderKeys())` shape allowed -- that would
+   * silently un-normalize AdvancedReport input and reintroduce the order-sensitive dim-key bug
+   * PR #4057 was written to prevent.
    */
   fun normalizeReportingUnit(reportingUnit: ReportingUnit): ReportingUnit {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
