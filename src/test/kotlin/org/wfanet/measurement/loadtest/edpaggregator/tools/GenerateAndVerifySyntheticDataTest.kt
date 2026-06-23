@@ -266,6 +266,93 @@ class GenerateAndVerifySyntheticDataTest {
   }
 
   @Test
+  fun `verify scans metadata files using a custom --metadata-prefix`() {
+    runGenerate()
+
+    // Rename every generated metadata blob (`metadata.binpb` for SPEC_A,
+    // `metadata-b.binpb` for SPEC_B) so each starts with `custom-metadata` instead.
+    // The scan only succeeds when --metadata-prefix=custom-metadata is honored.
+    val renamed: List<File> =
+      tempFolder.root
+        .resolve(OUTPUT_BUCKET)
+        .walkTopDown()
+        .filter { it.isFile && it.name.startsWith("metadata") && it.name.endsWith(".binpb") }
+        .toList()
+        .map { original ->
+          val renamedName = "custom-" + original.name
+          val renamedFile = original.resolveSibling(renamedName)
+          check(original.renameTo(renamedFile)) { "Failed to rename $original" }
+          renamedFile
+        }
+    check(renamed.isNotEmpty()) { "Test setup failed — no metadata files were generated" }
+
+    val verifyCmd = VerifySyntheticData()
+    val exitCode =
+      CommandLine(verifyCmd)
+        .execute(
+          "--kms-type=FAKE",
+          "--kek-uri=$KEK_URI",
+          "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+          "--schema=file:///",
+          "--local-storage-path=${tempFolder.root.path}",
+          "--output-bucket=$OUTPUT_BUCKET",
+          "--base-path=$OUTPUT_BASE_PATH",
+          "--metadata-prefix=custom-metadata",
+        )
+    assertThat(exitCode).isEqualTo(0)
+    val result = verifyCmd.lastResult!!
+    assertThat(result.errors).isEqualTo(0)
+    assertThat(result.totalBlobsProcessed).isEqualTo(EXPECTED_DATES.size * 2)
+    assertThat(result.totalImpressions)
+      .isEqualTo(SPEC_A.expectedImpressions * 2 + SPEC_B.expectedImpressions)
+  }
+
+  @Test
+  fun `verify with custom --metadata-prefix skips files using the default prefix`() {
+    runGenerate()
+
+    // Keep the default-prefix files in place; the custom prefix must NOT match them,
+    // so the scan must fail with a no-metadata-found check failure.
+    val verifyCmd = VerifySyntheticData()
+    val exitCode =
+      CommandLine(verifyCmd)
+        .execute(
+          "--kms-type=FAKE",
+          "--kek-uri=$KEK_URI",
+          "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+          "--schema=file:///",
+          "--local-storage-path=${tempFolder.root.path}",
+          "--output-bucket=$OUTPUT_BUCKET",
+          "--base-path=$OUTPUT_BASE_PATH",
+          "--metadata-prefix=no-such-prefix",
+        )
+    // The scan throws an IllegalStateException, which picocli converts to a non-zero
+    // exit code; verifyCmd.lastResult is never assigned because run() aborted.
+    assertThat(exitCode).isNotEqualTo(0)
+    assertThat(verifyCmd.lastResult).isNull()
+  }
+
+  @Test
+  fun `verify rejects empty --metadata-prefix at run time`() {
+    runGenerate()
+
+    val verifyCmd = VerifySyntheticData()
+    CommandLine(verifyCmd)
+      .parseArgs(
+        "--kms-type=FAKE",
+        "--kek-uri=$KEK_URI",
+        "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+        "--schema=file:///",
+        "--local-storage-path=${tempFolder.root.path}",
+        "--output-bucket=$OUTPUT_BUCKET",
+        "--base-path=$OUTPUT_BASE_PATH",
+        "--metadata-prefix=",
+      )
+    val failure = assertFailsWith<IllegalArgumentException> { verifyCmd.run() }
+    assertThat(failure).hasMessageThat().contains("--metadata-prefix must not be empty")
+  }
+
+  @Test
   fun `generate with multiple sub-specs per event group stamps different EntityKeys in one blob`() {
     val outputBucketDir = tempFolder.root.resolve(OUTPUT_BUCKET)
     outputBucketDir.mkdirs()

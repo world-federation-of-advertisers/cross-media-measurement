@@ -121,6 +121,23 @@ class VerifySyntheticData : Runnable {
     private set
 
   @Option(
+    names = ["--metadata-prefix"],
+    description =
+      [
+        "Filename prefix used to identify metadata blobs during scans. Defaults to " +
+          "\"metadata\" (matches files written by GenerateSyntheticData and " +
+          "DataAvailabilitySync). Set to a different prefix when verifying data produced " +
+          "by a writer that uses a different naming convention. Must not be empty. " +
+          "Only consulted with --output-bucket/--base-path scans; ignored when " +
+          "--metadata-uri is given."
+      ],
+    required = false,
+    defaultValue = "metadata",
+  )
+  lateinit var metadataPrefix: String
+    private set
+
+  @Option(
     names = ["--event-message-type-url"],
     description =
       [
@@ -347,7 +364,8 @@ class VerifySyntheticData : Runnable {
         require(outputBucket.isNotEmpty() && basePath.isNotEmpty()) {
           "Either --metadata-uri or --output-bucket/--base-path must be provided"
         }
-        scanForMetadata(schema, outputBucket, basePath, storagePath)
+        require(metadataPrefix.isNotEmpty()) { "--metadata-prefix must not be empty" }
+        scanForMetadata(schema, outputBucket, basePath, storagePath, metadataPrefix)
       }
 
     val eventMessageInstance: Message =
@@ -429,13 +447,14 @@ class VerifySyntheticData : Runnable {
      * Scans for metadata files under the given storage prefix.
      *
      * Constructs the base URI as [schema][outputBucket]/[basePath] and lists all blobs whose keys
-     * start with "metadata". Returns fully qualified URIs.
+     * begin with [metadataPrefix] and end in a supported extension. Returns fully qualified URIs.
      */
     private fun scanForMetadata(
       schema: String,
       outputBucket: String,
       basePath: String,
       storagePath: File?,
+      metadataPrefix: String,
     ): List<String> {
       if (schema == "file:///") {
         requireNotNull(storagePath) { "--local-storage-path is required when --schema is file:///" }
@@ -444,8 +463,15 @@ class VerifySyntheticData : Runnable {
         check(scanDir.exists()) { "Directory does not exist: $scanDir" }
 
         val metadataFiles =
-          scanDir.walkTopDown().filter { it.name.startsWith("metadata") }.toList().sorted()
-        check(metadataFiles.isNotEmpty()) { "No metadata files found under: $scanDir" }
+          scanDir
+            .walkTopDown()
+            .filter { it.name.startsWith(metadataPrefix) && it.name.isSupportedMetadataExtension() }
+            .toList()
+            .sorted()
+        check(metadataFiles.isNotEmpty()) {
+          "No metadata files found under: $scanDir (looking for files starting with " +
+            "\"$metadataPrefix\" and ending in .binpb or .json)"
+        }
         logger.info("Found ${metadataFiles.size} metadata files")
 
         return metadataFiles.map { file ->
@@ -464,11 +490,17 @@ class VerifySyntheticData : Runnable {
         storageClient
           .listBlobs(prefix)
           .toList()
-          .filter { it.blobKey.substringAfterLast("/").startsWith("metadata") }
+          .filter {
+            val name = it.blobKey.substringAfterLast("/")
+            name.startsWith(metadataPrefix) && name.isSupportedMetadataExtension()
+          }
           .map { "$baseUri/${it.blobKey}" }
           .sorted()
       }
-      check(uris.isNotEmpty()) { "No metadata files found under: $baseUri/$prefix" }
+      check(uris.isNotEmpty()) {
+        "No metadata files found under: $baseUri/$prefix (looking for files starting with " +
+          "\"$metadataPrefix\" and ending in .binpb or .json)"
+      }
       logger.info("Found ${uris.size} metadata files")
       return uris
     }
