@@ -5952,6 +5952,11 @@ class BasicReportsServiceTest {
               "basic_report.result_group_specs[1].metric_frequency"
           }
         )
+      // Error message references BOTH colliding entries by index so a
+      // consumer can directly inspect the prior spec, not just the
+      // failing one.
+      assertThat(exception.status.description)
+        .contains("result_group_specs[0].metric_frequency")
     }
 
   @Test
@@ -6023,6 +6028,8 @@ class BasicReportsServiceTest {
               "basic_report.result_group_specs[1].metric_frequency"
           }
         )
+      assertThat(exception.status.description)
+        .contains("result_group_specs[0].metric_frequency")
     }
 
   @Test

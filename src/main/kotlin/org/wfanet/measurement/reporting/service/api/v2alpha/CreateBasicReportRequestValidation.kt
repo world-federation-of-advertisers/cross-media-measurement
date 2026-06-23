@@ -218,7 +218,8 @@ object CreateBasicReportRequestValidation {
     // solver. Specs that share the full metric_frequency value are fine:
     // the job-level dedup merges them into a single RSR before the
     // post-processor sees them.
-    val frequencyBytesByDimKey = mutableMapOf<ResultGroupSpecCollisionKey, ByteString>()
+    val frequencyByDimKey =
+      mutableMapOf<ResultGroupSpecCollisionKey, IndexedResultGroupSpecFrequency>()
     resultGroupSpecs.forEachIndexed { index, resultGroupSpec ->
       // Convert to internal + normalize before keying so that order-only
       // differences (e.g. `filters` permuted, `reportingUnit.components`
@@ -238,16 +239,17 @@ object CreateBasicReportRequestValidation {
           selectorCase = resultGroupSpec.metricFrequency.selectorCase,
         )
       val frequencyBytes = resultGroupSpec.metricFrequency.toByteString()
-      val existing = frequencyBytesByDimKey[key]
-      if (existing != null && existing != frequencyBytes) {
+      val existing = frequencyByDimKey[key]
+      if (existing != null && existing.frequencyBytes != frequencyBytes) {
         throw InvalidFieldValueException("$fieldPath[$index].metric_frequency") { fieldPath ->
-          "$fieldPath collides with an earlier result_group_specs entry on " +
+          "$fieldPath collides with result_group_specs[${existing.index}]" +
+            ".metric_frequency on " +
             "(reporting_unit, dimension_spec, metric_frequency selector kind) " +
             "but specifies a different metric_frequency value; multiple " +
             "cadences for the same slice are not supported."
         }
       }
-      frequencyBytesByDimKey[key] = frequencyBytes
+      frequencyByDimKey[key] = IndexedResultGroupSpecFrequency(index, frequencyBytes)
     }
   }
 
@@ -262,6 +264,17 @@ object CreateBasicReportRequestValidation {
     val reportingUnitBytes: ByteString,
     val dimensionSpecBytes: ByteString,
     val selectorCase: MetricFrequencySpec.SelectorCase,
+  )
+
+  /**
+   * Tracks the index of the first [ResultGroupSpec] seen for a given
+   * [ResultGroupSpecCollisionKey], along with the serialized metric_frequency value at that
+   * index. The index lets the collision error name both colliding entries, not just the
+   * second one.
+   */
+  private data class IndexedResultGroupSpecFrequency(
+    val index: Int,
+    val frequencyBytes: ByteString,
   )
 
   /**
