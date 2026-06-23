@@ -71,7 +71,7 @@ abstract class VidLabelingJobServiceTest {
   private suspend fun createJob(
     cmmsModelLines: List<String> = listOf(CMMS_MODEL_LINE),
     rawImpressionUploadFiles: List<String> = listOf(FILE_1),
-    requestId: String = "",
+    requestId: String = UUID.randomUUID().toString(),
   ): VidLabelingJob {
     return service.createVidLabelingJob(
       createVidLabelingJobRequest {
@@ -121,6 +121,7 @@ abstract class VidLabelingJobServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.createVidLabelingJob(
             createVidLabelingJobRequest {
+              requestId = UUID.randomUUID().toString()
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               vidLabelingJob = vidLabelingJob {
                 cmmsModelLines += CMMS_MODEL_LINE
@@ -148,6 +149,7 @@ abstract class VidLabelingJobServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.createVidLabelingJob(
             createVidLabelingJobRequest {
+              requestId = UUID.randomUUID().toString()
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               vidLabelingJob = vidLabelingJob {
                 cmmsModelLines += CMMS_MODEL_LINE
@@ -175,6 +177,7 @@ abstract class VidLabelingJobServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.createVidLabelingJob(
             createVidLabelingJobRequest {
+              requestId = UUID.randomUUID().toString()
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             }
@@ -199,6 +202,7 @@ abstract class VidLabelingJobServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.createVidLabelingJob(
             createVidLabelingJobRequest {
+              requestId = UUID.randomUUID().toString()
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               vidLabelingJob = vidLabelingJob { rawImpressionUploadFiles += FILE_1 }
@@ -224,6 +228,7 @@ abstract class VidLabelingJobServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.createVidLabelingJob(
             createVidLabelingJobRequest {
+              requestId = UUID.randomUUID().toString()
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               vidLabelingJob = vidLabelingJob { cmmsModelLines += CMMS_MODEL_LINE }
@@ -273,6 +278,34 @@ abstract class VidLabelingJobServiceTest {
     }
 
   @Test
+  fun `createVidLabelingJob throws INVALID_ARGUMENT for empty request_id`() =
+    runBlocking<Unit> {
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.createVidLabelingJob(
+            createVidLabelingJobRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              vidLabelingJob = vidLabelingJob {
+                cmmsModelLines += CMMS_MODEL_LINE
+                rawImpressionUploadFiles += FILE_1
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+          }
+        )
+    }
+
+  @Test
   fun `batchCreateVidLabelingJobs creates multiple`() =
     runBlocking<Unit> {
       val response =
@@ -281,12 +314,14 @@ abstract class VidLabelingJobServiceTest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             requests += createVidLabelingJobRequest {
+              requestId = UUID.randomUUID().toString()
               vidLabelingJob = vidLabelingJob {
                 cmmsModelLines += CMMS_MODEL_LINE
                 rawImpressionUploadFiles += FILE_1
               }
             }
             requests += createVidLabelingJobRequest {
+              requestId = UUID.randomUUID().toString()
               vidLabelingJob = vidLabelingJob {
                 cmmsModelLines += CMMS_MODEL_LINE_2
                 rawImpressionUploadFiles += FILE_2
@@ -762,6 +797,7 @@ abstract class VidLabelingJobServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.createVidLabelingJob(
             createVidLabelingJobRequest {
+              requestId = UUID.randomUUID().toString()
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = "nonexistent-upload"
               vidLabelingJob = vidLabelingJob {
@@ -785,6 +821,7 @@ abstract class VidLabelingJobServiceTest {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = "nonexistent-upload"
               requests += createVidLabelingJobRequest {
+                requestId = UUID.randomUUID().toString()
                 vidLabelingJob = vidLabelingJob {
                   cmmsModelLines += CMMS_MODEL_LINE
                   rawImpressionUploadFiles += FILE_1
@@ -838,6 +875,7 @@ abstract class VidLabelingJobServiceTest {
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               repeat(MAX_BATCH_SIZE + 1) {
                 requests += createVidLabelingJobRequest {
+                  requestId = UUID.randomUUID().toString()
                   vidLabelingJob = vidLabelingJob {
                     cmmsModelLines += CMMS_MODEL_LINE
                     rawImpressionUploadFiles += FILE_1
@@ -872,6 +910,36 @@ abstract class VidLabelingJobServiceTest {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `batchCreateVidLabelingJobs throws INVALID_ARGUMENT for empty request_id`() =
+    runBlocking<Unit> {
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateVidLabelingJobs(
+            batchCreateVidLabelingJobsRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              requests += createVidLabelingJobRequest {
+                vidLabelingJob = vidLabelingJob {
+                  cmmsModelLines += CMMS_MODEL_LINE
+                  rawImpressionUploadFiles += FILE_1
+                }
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests[0].request_id"
+          }
+        )
     }
 
   @Test

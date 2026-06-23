@@ -93,13 +93,15 @@ class VidLabelingJobService(
       throw RequiredFieldNotSetException("vid_labeling_job.raw_impression_upload_files")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (request.requestId.isNotEmpty()) {
-      try {
-        UUID.fromString(request.requestId)
-      } catch (e: IllegalArgumentException) {
-        throw InvalidFieldValueException("request_id", e)
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     val internalResponse: InternalVidLabelingJob =
@@ -150,14 +152,6 @@ class VidLabelingJobService(
         throw InvalidFieldValueException("requests.$index.parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
-      if (createRequest.requestId.isNotEmpty()) {
-        try {
-          UUID.fromString(createRequest.requestId)
-        } catch (e: IllegalArgumentException) {
-          throw InvalidFieldValueException("requests.$index.request_id", e)
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
-      }
       if (createRequest.vidLabelingJob.cmmsModelLinesList.isEmpty()) {
         throw RequiredFieldNotSetException("requests.$index.vid_labeling_job.cmms_model_lines")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -166,6 +160,16 @@ class VidLabelingJobService(
         throw RequiredFieldNotSetException(
             "requests.$index.vid_labeling_job.raw_impression_upload_files"
           )
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (createRequest.requestId.isEmpty()) {
+        throw RequiredFieldNotSetException("requests.$index.request_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      try {
+        UUID.fromString(createRequest.requestId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("requests.$index.request_id", e)
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
