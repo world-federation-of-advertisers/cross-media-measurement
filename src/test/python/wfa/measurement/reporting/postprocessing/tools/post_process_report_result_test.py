@@ -1100,6 +1100,17 @@ class PostProcessReportResultTest(unittest.TestCase):
             .value.cumulative_results.reach,
             request.reporting_set_results[2].reporting_window_results[0]
             .value.cumulative_results.reach)
+        # Pin that the snap touched k_plus_reach[0] on the side that was
+        # higher, not just the scalar reach field. Without this, a future
+        # refactor that forgot to mutate k_plus_reach[0] would still pass
+        # the Rule 3 / Rule 4 assertions above (they only check the new
+        # value is consistent, not that anything changed).
+        last_weekly_after = (request.reporting_set_results[2]
+                             .reporting_window_results[0]
+                             .value.cumulative_results)
+        self.assertEqual(
+            last_weekly_after.k_plus_reach[0], 2194000,
+            "snap-down must mutate k_plus_reach[0] (was 2194001 pre-snap)")
 
 
     def test_reconcile_snap_down_preserves_k_plus_reach_monotonicity(self):

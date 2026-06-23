@@ -170,37 +170,39 @@ class PostProcessReportResult:
 
     @staticmethod
     def _dimension_key_excluding_metric_frequency_spec(
-            dimension: ReportingSetResult.Dimension) -> tuple:
-        """Returns a hashable identity key for a Dimension, ignoring its
-        metric_frequency_spec selector.
+            rsr: ReportingSetResult) -> tuple:
+        """Returns a hashable identity key for an RSR's Dimension, ignoring
+        the metric_frequency_spec selector.
 
-        Two Dimensions that differ only in metric_frequency_spec describe the
-        same underlying slice (one whole-campaign, the other weekly cumulative)
-        and must agree on the metric values their solver-declared identities
+        Two RSRs that differ only in metric_frequency_spec describe the same
+        underlying slice (one whole-campaign, the other weekly cumulative) and
+        must agree on the metric values their solver-declared identities
         require.
+
+        Keys on the server-computed `grouping_dimension_fingerprint` and
+        `filter_fingerprint` (populated by SpannerReportResultsService and
+        used by the `ReportingSetResultsByDimensions` UNIQUE INDEX as the
+        authoritative dim identity). This avoids relying on
+        `SerializeToString()` of nested messages, which Python protobuf does
+        not guarantee deterministic across map iteration orders.
         """
-        iqf_field = dimension.WhichOneof('impression_qualification_filter')
+        iqf_field = rsr.dimension.WhichOneof(
+            'impression_qualification_filter')
         if iqf_field == 'external_impression_qualification_filter_id':
-            iqf_key = ('external',
-                       dimension.external_impression_qualification_filter_id)
+            iqf_key = (
+                'external',
+                rsr.dimension.external_impression_qualification_filter_id)
         elif iqf_field == 'custom':
-            iqf_key = ('custom', dimension.custom)
+            iqf_key = ('custom', rsr.dimension.custom)
         else:
             iqf_key = ('none', )
 
-        grouping_key = tuple(
-            sorted((path, value.SerializeToString())
-                   for path, value in dimension.grouping.value_by_path.items()))
-
-        event_filters_key = tuple(
-            f.SerializeToString() for f in dimension.event_filters)
-
         return (
-            dimension.external_reporting_set_id,
-            dimension.venn_diagram_region_type,
+            rsr.dimension.external_reporting_set_id,
+            rsr.dimension.venn_diagram_region_type,
             iqf_key,
-            grouping_key,
-            event_filters_key,
+            rsr.grouping_dimension_fingerprint,
+            rsr.filter_fingerprint,
         )
 
     def _reconcile_cross_window_identities(
@@ -248,7 +250,7 @@ class PostProcessReportResult:
             selector = dim.metric_frequency_spec.WhichOneof('selector')
             if selector not in ('total', 'weekly'):
                 continue
-            key = self._dimension_key_excluding_metric_frequency_spec(dim)
+            key = self._dimension_key_excluding_metric_frequency_spec(rsr)
             bucket = dim_to_rsrs.setdefault(key, {})
             if selector in bucket:
                 if bucket[selector] is not None:
@@ -315,6 +317,11 @@ class PostProcessReportResult:
                     '(total=%d weekly=%d): one side has no positive '
                     'cumulative reach (whole=%d, last_weekly=%d).',
                     total_id, weekly_id, whole_reach, last_weekly_reach)
+                continue
+            if whole_reach == last_weekly_reach:
+                # Reaches already agree; snap would be a no-op and the
+                # Rule 1 backward sweep is unnecessary because snap-down
+                # is what can introduce a non-decreasing violation.
                 continue
             snapped_reach = min(whole_reach, last_weekly_reach)
             total_population = population_by_rsr_id.get(total_id, 0)
