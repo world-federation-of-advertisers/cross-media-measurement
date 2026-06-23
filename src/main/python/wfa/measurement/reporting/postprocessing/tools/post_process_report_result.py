@@ -226,6 +226,11 @@ class PostProcessReportResult:
         average_frequency, grps) are recomputed via _recompute_derived_fields
         -- the same helper compute_basic_metric_set uses -- so both
         derivation paths stay consistent.
+
+        Finally, walks the weekly series newest-to-oldest and clamps any
+        earlier window whose reach exceeds its successor's. The snap-down
+        on last_weekly can otherwise introduce a Rule 1 (cumulative non-
+        decreasing) violation on a report that previously satisfied it.
         """
         # Group reporting_set_result IDs by dimension (excluding the
         # weekly/total selector) so we can match a whole_campaign RSR to its
