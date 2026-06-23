@@ -225,6 +225,47 @@ class GenerateAndVerifySyntheticDataTest {
   }
 
   @Test
+  fun `verify tolerates unknown fields in JSON metadata`() {
+    runGenerate()
+
+    // Round-trip a binary metadata file through JSON, then inject a synthetic top-level
+    // field that the BlobDetails schema does not know about. Verification must still
+    // succeed, proving the JSON parser's ignoringUnknownFields() configuration is in
+    // effect — a future regression that drops that call would surface here.
+    val binaryMetadataFile: File =
+      tempFolder.root
+        .resolve(OUTPUT_BUCKET)
+        .resolve(OUTPUT_BASE_PATH)
+        .walkTopDown()
+        .filter { it.isFile && it.name.endsWith(".binpb") && it.name.startsWith("metadata") }
+        .first()
+    val blobDetails = BlobDetails.parseFrom(binaryMetadataFile.readBytes())
+    val canonicalJson = JsonFormat.printer().print(blobDetails)
+    val jsonWithUnknown =
+      canonicalJson.replaceFirst("{", "{\n  \"unknownTopLevelField\": \"irrelevant\",")
+    val jsonMetadataFile =
+      binaryMetadataFile.resolveSibling(binaryMetadataFile.nameWithoutExtension + ".json")
+    jsonMetadataFile.writeText(jsonWithUnknown)
+
+    val verifyCmd = VerifySyntheticData()
+    val jsonUri = "file:///" + jsonMetadataFile.relativeTo(tempFolder.root).path
+    val exitCode =
+      CommandLine(verifyCmd)
+        .execute(
+          "--kms-type=FAKE",
+          "--kek-uri=$KEK_URI",
+          "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+          "--local-storage-path=${tempFolder.root.path}",
+          "--metadata-uri=$jsonUri",
+        )
+    assertThat(exitCode).isEqualTo(0)
+    val result = verifyCmd.lastResult!!
+    assertThat(result.errors).isEqualTo(0)
+    assertThat(result.totalBlobsProcessed).isEqualTo(1)
+    assertThat(result.totalImpressions).isGreaterThan(0)
+  }
+
+  @Test
   fun `generate with multiple sub-specs per event group stamps different EntityKeys in one blob`() {
     val outputBucketDir = tempFolder.root.resolve(OUTPUT_BUCKET)
     outputBucketDir.mkdirs()
