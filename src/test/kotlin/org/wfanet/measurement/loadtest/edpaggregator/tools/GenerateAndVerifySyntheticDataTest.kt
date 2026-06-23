@@ -19,6 +19,7 @@ package org.wfanet.measurement.loadtest.edpaggregator.tools
 import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
+import com.google.protobuf.ByteString
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.Message
@@ -26,7 +27,9 @@ import com.google.protobuf.TextFormat
 import com.google.protobuf.util.JsonFormat
 import java.io.File
 import java.nio.file.Paths
+import java.util.Base64
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.BeforeClass
@@ -47,8 +50,12 @@ import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -350,6 +357,117 @@ class GenerateAndVerifySyntheticDataTest {
       )
     val failure = assertFailsWith<IllegalArgumentException> { verifyCmd.run() }
     assertThat(failure).hasMessageThat().contains("--metadata-prefix must not be empty")
+  }
+
+  @Test
+  fun `verify decrypts JSON-format EncryptionKey DEK end-to-end via --metadata-uri`() {
+    // Production EDP writers emit `EncryptedDek { typeUrl = EncryptionKey, format = JSON }`,
+    // which `GenerateSyntheticData` never produces locally. This test hand-builds that exact
+    // wire shape so the JSON-DEK dispatch in `EncryptedStorage.buildEncryptedMesosStorageClient`
+    // is exercised end-to-end through `VerifySyntheticData`.
+
+    // 1. Materialize the FAKE KEK keyset that GenerateSyntheticData.buildFakeKmsClient consumes.
+    runGenerate()
+    val kmsClient = GenerateSyntheticData.buildFakeKmsClient(KEK_URI, fakeKekKeysetFile())
+    val kmsAead = kmsClient.getAead(KEK_URI)
+
+    // 2. Build a JSON-serialized EncryptionKey carrying an AES-GCM-HKDF streaming key, then
+    //    KMS-encrypt it. Wire shape mirrors what real EDP writers emit.
+    val streamingKeyBytes = ByteArray(16) { it.toByte() }
+    val keyValueB64 = Base64.getEncoder().encodeToString(streamingKeyBytes)
+    val encryptionKeyJson =
+      """
+      {
+        "aesGcmHkdfStreamingKey": {
+          "version": 0,
+          "params": {
+            "ciphertextSegmentSize": 1048576,
+            "derivedKeySize": 16,
+            "hkdfHashType": "SHA256"
+          },
+          "keyValue": "$keyValueB64"
+        }
+      }
+      """
+        .trimIndent()
+    val ciphertext =
+      ByteString.copyFrom(
+        kmsAead.encrypt(encryptionKeyJson.toByteArray(Charsets.UTF_8), byteArrayOf())
+      )
+    val encryptedDek: EncryptedDek = encryptedDek {
+      this.kekUri = KEK_URI
+      typeUrl = "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EncryptionKey"
+      protobufFormat = EncryptedDek.ProtobufFormat.JSON
+      this.ciphertext = ciphertext
+    }
+
+    // 3. Encrypt one LabeledImpression record and write it to a `.enc.recordio` blob under the
+    //    bucket directory. The blob URI must match what the verifier will reconstruct when it
+    //    parses the metadata.
+    val bucketDir = tempFolder.root.resolve(OUTPUT_BUCKET).apply { mkdirs() }
+    val datedDir = bucketDir.resolve("$OUTPUT_BASE_PATH/json-dek-fixture").apply { mkdirs() }
+    val impressionsRelativeKey = "$OUTPUT_BASE_PATH/json-dek-fixture/impressions.enc.recordio"
+    val impressionsBlobUri = "file:///$OUTPUT_BUCKET/$impressionsRelativeKey"
+
+    val impressionsStorageClient = SelectedStorageClient(impressionsBlobUri, tempFolder.root)
+    val encryptedMesosClient =
+      EncryptedStorage.buildEncryptedMesosStorageClient(
+        impressionsStorageClient,
+        kmsClient,
+        KEK_URI,
+        encryptedDek,
+      )
+    val labeledImpression =
+      LabeledImpression.newBuilder()
+        .apply {
+          vid = 12345
+          eventGroupReferenceId = "eg-json-dek"
+          eventTimeBuilder.seconds = 1_700_000_000L
+          event =
+            com.google.protobuf.Any.newBuilder()
+              .setTypeUrl(GenerateSyntheticData.DEFAULT_EVENT_MESSAGE_TYPE_URL)
+              .setValue(ByteString.EMPTY)
+              .build()
+          addEntityKeysBuilder().apply {
+            entityType = "creative"
+            entityId = "creative-1"
+          }
+        }
+        .build()
+    runBlocking {
+      encryptedMesosClient.writeBlob(
+        impressionsRelativeKey,
+        flowOf(labeledImpression.toByteString()),
+      )
+    }
+
+    // 4. Write the JSON metadata file pointing at the encrypted impressions blob.
+    val metadataBlobDetails: BlobDetails = blobDetails {
+      blobUri = impressionsBlobUri
+      this.encryptedDek = encryptedDek
+      eventGroupReferenceId = "eg-json-dek"
+      modelLine = MODEL_LINE
+    }
+    val metadataFile = datedDir.resolve("metadata.json")
+    metadataFile.writeText(JsonFormat.printer().print(metadataBlobDetails))
+
+    // 5. Run the verifier against the JSON metadata URI.
+    val verifyCmd = VerifySyntheticData()
+    val metadataUri = "file:///$OUTPUT_BUCKET/$OUTPUT_BASE_PATH/json-dek-fixture/metadata.json"
+    val exitCode =
+      CommandLine(verifyCmd)
+        .execute(
+          "--kms-type=FAKE",
+          "--kek-uri=$KEK_URI",
+          "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+          "--local-storage-path=${tempFolder.root.path}",
+          "--metadata-uri=$metadataUri",
+        )
+    assertThat(exitCode).isEqualTo(0)
+    val result = verifyCmd.lastResult!!
+    assertThat(result.errors).isEqualTo(0)
+    assertThat(result.totalBlobsProcessed).isEqualTo(1)
+    assertThat(result.totalImpressions).isEqualTo(1)
   }
 
   @Test
