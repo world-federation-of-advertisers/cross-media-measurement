@@ -55,17 +55,6 @@ class VidRankBuilderAppRunner : BaseTeeAppRunner() {
   )
   private lateinit var vidLabelerQueue: String
 
-  @CommandLine.Option(
-    names = ["--max-file-batch-size"],
-    description =
-      [
-        "Maximum total bytes of RawImpressionUploadFiles bin-packed into a single VidLabelingJob " +
-          "for Phase-2. A file larger than this gets its own job. Defaults to 1 GiB."
-      ],
-    defaultValue = "1073741824",
-  )
-  private var maxFileBatchSizeBytes: Long = 1L shl 30
-
   private val getStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)
   }
@@ -120,7 +109,6 @@ class VidRankBuilderAppRunner : BaseTeeAppRunner() {
         vidLabelingJobsStub = vidLabelingJobsClient,
         rawImpressionUploadFilesStub = rawImpressionUploadFilesClient,
         vidLabelerQueue = vidLabelerQueue,
-        maxFileBatchSizeBytes = maxFileBatchSizeBytes,
       )
 
     runBlockingWithTelemetry { vidRankBuilderApp.run() }

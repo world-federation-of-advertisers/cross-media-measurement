@@ -73,8 +73,6 @@ import org.wfanet.measurement.storage.StorageClient
  * @param rawImpressionUploadFilesStub stub to list the upload's files for Phase-2 sharding.
  * @param vidLabelerQueue Secure Computation queue the last-job-out publishes Phase-2 VidLabeler
  *   WorkItems to.
- * @param maxFileBatchSizeBytes max total `RawImpressionUploadFile` `size_bytes` packed into one
- *   `VidLabelingJob` by the last-job-out fan-out.
  * @param buildSubpoolMapStorageClient Builds the subpool-map [StorageClient].
  * @param buildVidRankMapStorageClient Builds the vid-rank-map [StorageClient].
  * @param getVidRankMapKekUri Resolves the KEK URI used to wrap each rank-index blob's DEK.
@@ -96,7 +94,6 @@ class VidRankBuilderApp(
   private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
   private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
   private val vidLabelerQueue: String,
-  private val maxFileBatchSizeBytes: Long,
   private val buildSubpoolMapStorageClient: (StorageConfig) -> StorageClient = {
     TODO(
       "Wire subpool-map StorageClient construction from StorageConfig in VidRankBuilderAppRunner"
@@ -191,7 +188,10 @@ class VidRankBuilderApp(
         subpoolRankedSizes = params.subpoolRankedSizesMap,
         vidLabelerParamsTemplate = buildVidLabelerParamsTemplate(params),
         vidLabelerQueue = vidLabelerQueue,
-        maxFileBatchSizeBytes = maxFileBatchSizeBytes,
+        // Forwarded from Phase-0 via VidRankBuilderParams; 0 (unset) falls back to the default.
+        maxFileBatchSizeBytes =
+          params.maxFileBatchSizeBytes.takeIf { it > 0 }
+            ?: VidRankBuilder.DEFAULT_MAX_FILE_BATCH_SIZE_BYTES,
       )
       .run()
   }

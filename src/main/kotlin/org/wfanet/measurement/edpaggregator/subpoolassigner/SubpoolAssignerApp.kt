@@ -235,6 +235,11 @@ class SubpoolAssignerApp(
       labelerInputFieldMapping.putAll(params.labelerInputFieldMappingMap)
       eventTemplateFieldMapping.putAll(params.eventTemplateFieldMappingMap)
       totalShards = params.totalShards
+      // Phase-2 bin-packing cap, forwarded verbatim so the Phase-1 last-out can
+      // batch the upload's files without round-tripping to the dispatcher. Left
+      // at 0 (unset) when the dispatcher did not set it; Phase-1 then falls back
+      // to its built-in default.
+      maxFileBatchSizeBytes = params.maxFileBatchSizeBytes
     }
   }
 

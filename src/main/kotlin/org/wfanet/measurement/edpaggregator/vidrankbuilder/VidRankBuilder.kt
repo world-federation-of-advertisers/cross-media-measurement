@@ -547,9 +547,10 @@ class VidRankBuilder(
 
     /**
      * Default bin-packing threshold: max total `RawImpressionUploadFile` `size_bytes` per
-     * `VidLabelingJob`, used when the runner does not supply `--max-file-batch-size`. 1 GiB.
+     * `VidLabelingJob`, used when `VidRankBuilderParams.max_file_batch_size_bytes` is unset (0). 1
+     * GiB.
      */
-    private const val DEFAULT_MAX_FILE_BATCH_SIZE_BYTES = 1L shl 30
+    const val DEFAULT_MAX_FILE_BATCH_SIZE_BYTES = 1L shl 30
 
     private val logger = Logger.getLogger(VidRankBuilder::class.java.name)
   }

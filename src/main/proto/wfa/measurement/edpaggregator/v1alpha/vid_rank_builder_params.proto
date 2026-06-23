@@ -171,4 +171,13 @@ message VidRankBuilderParams {
   // from.
   map<int64, int32> subpool_ranked_sizes = 16
       [(google.api.field_behavior) = REQUIRED];
+
+  // Maximum total `RawImpressionUploadFile.size_bytes` the Phase-1
+  // last-`RankerJob`-out bin-packs into a single `VidLabelingJob` for the
+  // Phase-2 VidLabeler fan-out. A single file at or above this size gets its
+  // own job. Forwarded by the SubpoolAssigner Phase-0 last-shard-out from
+  // `SubpoolAssignerParams.max_file_batch_size_bytes` (originally set by the
+  // VID Labeling Dispatcher / Monitor Cloud Functions). Unset (0) means the
+  // ranker falls back to its built-in default (1 GiB).
+  int64 max_file_batch_size_bytes = 17 [(google.api.field_behavior) = OPTIONAL];
 }
