@@ -26,7 +26,7 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RawImpressionUploadResult
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findExistingUploadByRequestId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadByCreateRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUpload
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadExists
@@ -82,7 +82,7 @@ class SpannerRawImpressionUploadService(
     val result: RawImpressionUpload =
       transactionRunner.run { txn ->
         val existing: RawImpressionUploadResult? =
-          txn.findExistingUploadByRequestId(request.dataProviderResourceId, requestId)
+          txn.findUploadByCreateRequestId(request.dataProviderResourceId, requestId)
         if (existing != null) {
           return@run existing.rawImpressionUpload
         }

@@ -78,7 +78,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadByResourceId(
 }
 
 /** Finds an existing [RawImpressionUpload] by request ID for idempotency. */
-suspend fun AsyncDatabaseClient.ReadContext.findExistingUploadByRequestId(
+suspend fun AsyncDatabaseClient.ReadContext.findUploadByCreateRequestId(
   dataProviderResourceId: String,
   requestId: String,
 ): RawImpressionUploadResult? {
