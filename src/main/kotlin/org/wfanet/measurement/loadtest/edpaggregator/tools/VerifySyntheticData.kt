@@ -77,7 +77,7 @@ class VerifySyntheticData : Runnable {
           "Used with --output-bucket and --base-path to scan for metadata files."
       ],
     required = false,
-    defaultValue = "file:///",
+    defaultValue = DEFAULT_SCHEME,
   )
   lateinit var scheme: String
     private set
@@ -132,7 +132,7 @@ class VerifySyntheticData : Runnable {
           "--metadata-uri is given."
       ],
     required = false,
-    defaultValue = "metadata",
+    defaultValue = DEFAULT_METADATA_PREFIX,
   )
   lateinit var metadataPrefix: String
     private set
@@ -359,6 +359,14 @@ class VerifySyntheticData : Runnable {
         require(outputBucket.isEmpty() && basePath.isEmpty()) {
           "--metadata-uri is mutually exclusive with --output-bucket/--base-path"
         }
+        require(scheme == DEFAULT_SCHEME) {
+          "--scheme is only used with --output-bucket/--base-path scans and must not be set " +
+            "when --metadata-uri is given (each URI carries its own scheme)"
+        }
+        require(metadataPrefix == DEFAULT_METADATA_PREFIX) {
+          "--metadata-prefix is only used with --output-bucket/--base-path scans and must " +
+            "not be set when --metadata-uri is given"
+        }
         metadataUris
       } else {
         require(outputBucket.isNotEmpty() && basePath.isNotEmpty()) {
@@ -438,6 +446,12 @@ class VerifySyntheticData : Runnable {
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    /** Default value of the --scheme flag (local filesystem). */
+    const val DEFAULT_SCHEME = "file:///"
+
+    /** Default value of the --metadata-prefix flag (matches GenerateSyntheticData output). */
+    const val DEFAULT_METADATA_PREFIX = "metadata"
 
     /**
      * True if this filename ends in a metadata extension the verifier knows how to parse (`.binpb`

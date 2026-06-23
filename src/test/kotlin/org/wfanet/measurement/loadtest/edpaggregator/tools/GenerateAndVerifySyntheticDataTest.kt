@@ -490,6 +490,44 @@ class GenerateAndVerifySyntheticDataTest {
   }
 
   @Test
+  fun `verify rejects --metadata-uri paired with explicit --scheme`() {
+    runGenerate()
+    val verifyCmd = VerifySyntheticData()
+    CommandLine(verifyCmd)
+      .parseArgs(
+        "--kms-type=FAKE",
+        "--kek-uri=$KEK_URI",
+        "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+        "--local-storage-path=${tempFolder.root.path}",
+        "--metadata-uri=file:///some/path/metadata.json",
+        "--scheme=gs://",
+      )
+    val failure = assertFailsWith<IllegalArgumentException> { verifyCmd.run() }
+    assertThat(failure)
+      .hasMessageThat()
+      .contains("--scheme is only used with --output-bucket/--base-path scans")
+  }
+
+  @Test
+  fun `verify rejects --metadata-uri paired with explicit --metadata-prefix`() {
+    runGenerate()
+    val verifyCmd = VerifySyntheticData()
+    CommandLine(verifyCmd)
+      .parseArgs(
+        "--kms-type=FAKE",
+        "--kek-uri=$KEK_URI",
+        "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+        "--local-storage-path=${tempFolder.root.path}",
+        "--metadata-uri=file:///some/path/metadata.json",
+        "--metadata-prefix=other",
+      )
+    val failure = assertFailsWith<IllegalArgumentException> { verifyCmd.run() }
+    assertThat(failure)
+      .hasMessageThat()
+      .contains("--metadata-prefix is only used with --output-bucket/--base-path scans")
+  }
+
+  @Test
   fun `generate with multiple sub-specs per event group stamps different EntityKeys in one blob`() {
     val outputBucketDir = tempFolder.root.resolve(OUTPUT_BUCKET)
     outputBucketDir.mkdirs()
