@@ -743,4 +743,117 @@ class VidRankBuilderTest {
     assertThat(result.lastJobOut).isFalse()
     verifyBlocking(modelLines, never()) { markRawImpressionUploadModelLineLabeling(any(), any()) }
   }
+
+  @Test
+  fun `best-effort fail does not mark a job that is no longer CREATED`() = runBlocking {
+    val ranker =
+      mock<SubpoolRanker> {
+        onBlocking { rank(any(), any(), any()) } doAnswer { throw IllegalStateException("boom") }
+      }
+    // First read (gating) sees CREATED; the best-effort fail re-reads and finds it already
+    // advanced,
+    // so it must not issue a MarkRankerJobFailed.
+    val rankerJobs =
+      mock<RankerJobServiceCoroutineStub> {
+        onBlocking { getRankerJob(any(), any()) } doReturnConsecutively
+          listOf(
+            rankerJob {
+              name = RANKER_JOB
+              state = RankerJob.State.CREATED
+              etag = "etag-1"
+            },
+            rankerJob {
+              name = RANKER_JOB
+              state = RankerJob.State.SUCCEEDED
+            },
+          )
+      }
+
+    assertFailsWith<IllegalStateException> { builder(ranker, rankerJobs).run() }
+
+    verifyBlocking(rankerJobs, never()) { markRankerJobFailed(any(), any()) }
+  }
+
+  @Test
+  fun `a non-ALREADY_EXISTS publish failure is rethrown`() = runBlocking {
+    val workItems =
+      mock<WorkItemsCoroutineStub> {
+        onBlocking { createWorkItem(any(), any()) } doAnswer
+          {
+            throw StatusException(Status.INTERNAL)
+          }
+      }
+
+    assertFailsWith<StatusException> {
+      builder(rankerMock(), rankerJobsMock(isLastJob = true), workItemsStub = workItems).run()
+    }
+    Unit
+  }
+
+  @Test
+  fun `a non-benign failure marking succeeded is rethrown`() = runBlocking {
+    val rankerJobs =
+      mock<RankerJobServiceCoroutineStub> {
+        onBlocking { getRankerJob(any(), any()) } doReturn
+          rankerJob {
+            name = RANKER_JOB
+            state = RankerJob.State.CREATED
+            etag = "etag-1"
+          }
+        onBlocking { markRankerJobSucceeded(any(), any()) } doAnswer
+          {
+            throw StatusException(Status.INTERNAL)
+          }
+        onBlocking { markRankerJobFailed(any(), any()) } doReturn rankerJob { name = RANKER_JOB }
+      }
+
+    assertFailsWith<StatusException> { builder(rankerMock(), rankerJobs).run() }
+    Unit
+  }
+
+  @Test
+  fun `a non-benign failure flipping the parent is rethrown`() = runBlocking {
+    val modelLines =
+      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = PARENT_NAME
+              cmmsModelLine = MODEL_LINE
+              state = RawImpressionUploadModelLine.State.RANKING
+            }
+          }
+        onBlocking { markRawImpressionUploadModelLineLabeling(any(), any()) } doAnswer
+          {
+            throw StatusException(Status.INTERNAL)
+          }
+      }
+
+    assertFailsWith<StatusException> {
+      builder(rankerMock(), rankerJobsMock(isLastJob = true), modelLines).run()
+    }
+    Unit
+  }
+
+  @Test
+  fun `redelivery recovery is a no-op when no RankerJobs are listed`() = runBlocking {
+    val ranker = rankerMock()
+    // Already SUCCEEDED and parent still RANKING, but listing returns nothing (sawAny = false): the
+    // last-job-out condition is not satisfied, so recovery must not fan out.
+    val rankerJobs =
+      mock<RankerJobServiceCoroutineStub> {
+        onBlocking { getRankerJob(any(), any()) } doReturn
+          rankerJob {
+            name = RANKER_JOB
+            state = RankerJob.State.SUCCEEDED
+          }
+        onBlocking { listRankerJobs(any(), any()) } doReturn listRankerJobsResponse {}
+      }
+    val modelLines = modelLinesMock(RawImpressionUploadModelLine.State.RANKING)
+
+    val result = builder(ranker, rankerJobs, modelLines).run()
+
+    assertThat(result.lastJobOut).isFalse()
+    verifyBlocking(modelLines, never()) { markRawImpressionUploadModelLineLabeling(any(), any()) }
+  }
 }

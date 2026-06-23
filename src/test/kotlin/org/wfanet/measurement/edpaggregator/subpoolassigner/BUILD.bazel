@@ -38,6 +38,20 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "SubpoolAssignerAppTest",
+    srcs = ["SubpoolAssignerAppTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.subpoolassigner.SubpoolAssignerAppTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/subpoolassigner:subpool_assigner_app",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:subpool_assigner_params_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_rank_builder_params_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
     name = "SubpoolAssignerTest",
     srcs = ["SubpoolAssignerTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.subpoolassigner.SubpoolAssignerTest",

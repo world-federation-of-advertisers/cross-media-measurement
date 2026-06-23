@@ -20,6 +20,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.Parser
 import java.time.Instant
+import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigestExtractor
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
@@ -212,40 +213,41 @@ class SubpoolAssignerApp(
     }
   }
 
-  /**
-   * Maps the static `SubpoolAssignerParams` fields to a partial [VidRankBuilderParams] template.
-   */
-  private fun buildVidRankBuilderParamsTemplate(
-    params: SubpoolAssignerParams
-  ): VidRankBuilderParams {
-    require(params.hasVidLabeledImpressionsStorageParams()) {
-      "vid_labeled_impressions_storage_params must be set"
-    }
-    require(params.hasVidRankMapStorageParams()) { "vid_rank_map_storage_params must be set" }
-    return vidRankBuilderParams {
-      dataProvider = params.dataProvider
-      rawImpressionStorageParams = params.rawImpressionStorageParams.toVidRankBuilderStorageParams()
-      vidLabeledImpressionsStorageParams =
-        params.vidLabeledImpressionsStorageParams.toVidRankBuilderStorageParams()
-      subpoolMapStorageParams = params.subpoolMapStorageParams.toVidRankBuilderStorageParams()
-      vidRankMapStorageParams = params.vidRankMapStorageParams.toVidRankBuilderStorageParams()
-      rawImpressionUpload = params.rawImpressionUpload
-      modelLine = params.modelLine
-      modelBlobPath = params.modelBlobPath
-      labelerInputFieldMapping.putAll(params.labelerInputFieldMappingMap)
-      eventTemplateFieldMapping.putAll(params.eventTemplateFieldMappingMap)
-      totalShards = params.totalShards
-      // Phase-2 bin-packing cap, forwarded verbatim so the Phase-1 last-out can
-      // batch the upload's files without round-tripping to the dispatcher. Left
-      // at 0 (unset) when the dispatcher did not set it; Phase-1 then falls back
-      // to its built-in default.
-      maxFileBatchSizeBytes = params.maxFileBatchSizeBytes
-    }
-  }
-
   companion object {
     /** LabelerInput field path whose mapped raw column carries the event id used for the digest. */
     private const val EVENT_ID_FIELD_PATH = "event_id.id"
+
+    /**
+     * Maps the static [SubpoolAssignerParams] fields to a partial [VidRankBuilderParams] template.
+     * The last-shard-out fan-out fills in the per-`RankerJob` fields (encrypted_subpool_maps_dek,
+     * ranker_job, subpool_map_blob_uris, max_event_date) on top of this.
+     */
+    @VisibleForTesting
+    fun buildVidRankBuilderParamsTemplate(params: SubpoolAssignerParams): VidRankBuilderParams {
+      require(params.hasVidLabeledImpressionsStorageParams()) {
+        "vid_labeled_impressions_storage_params must be set"
+      }
+      require(params.hasVidRankMapStorageParams()) { "vid_rank_map_storage_params must be set" }
+      return vidRankBuilderParams {
+        dataProvider = params.dataProvider
+        rawImpressionStorageParams =
+          params.rawImpressionStorageParams.toVidRankBuilderStorageParams()
+        vidLabeledImpressionsStorageParams =
+          params.vidLabeledImpressionsStorageParams.toVidRankBuilderStorageParams()
+        subpoolMapStorageParams = params.subpoolMapStorageParams.toVidRankBuilderStorageParams()
+        vidRankMapStorageParams = params.vidRankMapStorageParams.toVidRankBuilderStorageParams()
+        rawImpressionUpload = params.rawImpressionUpload
+        modelLine = params.modelLine
+        modelBlobPath = params.modelBlobPath
+        labelerInputFieldMapping.putAll(params.labelerInputFieldMappingMap)
+        eventTemplateFieldMapping.putAll(params.eventTemplateFieldMappingMap)
+        totalShards = params.totalShards
+        // Phase-2 bin-packing cap, forwarded verbatim so the Phase-1 last-out can batch the
+        // upload's files without round-tripping to the dispatcher. Left at 0 (unset) when the
+        // dispatcher did not set it; Phase-1 then falls back to its built-in default.
+        maxFileBatchSizeBytes = params.maxFileBatchSizeBytes
+      }
+    }
 
     private fun com.google.protobuf.Timestamp.toInstant(): Instant =
       Instant.ofEpochSecond(seconds, nanos.toLong())
