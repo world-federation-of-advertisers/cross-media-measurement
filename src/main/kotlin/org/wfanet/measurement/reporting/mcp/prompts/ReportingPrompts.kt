@@ -68,7 +68,7 @@ fun Server.registerReportingPrompts() {
             Role.User,
             TextContent(
               """
-              Help me understand what I can measure for $mc using the halo-reporting tools.
+              Help me understand what I can measure for $mc using the reporting tools.
 
               1. Call list_event_groups with parent "$mc" to see the available publisher data;
                  each event group shows its data provider, media types, and data availability window.
@@ -150,8 +150,10 @@ fun Server.registerReportingPrompts() {
               2. $campaignGroupStep
               3. $intervalStep
               4. Call create_basic_report with parent "$mc", a unique basic_report_id, and a
-                 basic_report that sets campaign_group, reporting_interval, and result_group_specs.
-                 Supply a request_id (UUID4) so retries are idempotent.
+                 basic_report that sets campaign_group, reporting_interval, result_group_specs, and
+                 impression_qualification_filters (a required field — choose one via
+                 list_impression_qualification_filters). Supply a request_id (UUID4) so retries are
+                 idempotent.
               5. Poll get_basic_report with the returned report name until its state is SUCCEEDED
                  or FAILED. When it succeeds, summarize the results: frame reach as a percentage
                  of the target population (not just an absolute count) and note the average

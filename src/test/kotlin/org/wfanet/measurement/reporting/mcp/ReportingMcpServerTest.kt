@@ -176,6 +176,7 @@ class ReportingMcpServerTest {
     val text = (result.messages.single().content as TextContent).text
     assertThat(text).contains("measurementConsumers/mc1")
     assertThat(text).contains("create_basic_report")
+    assertThat(text).contains("impression_qualification_filters")
 
     client.close()
   }
