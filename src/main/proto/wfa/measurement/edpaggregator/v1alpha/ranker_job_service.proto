@@ -77,7 +77,7 @@ message CreateRankerJobRequest {
   //
   // This field must be a UUID4 (RFC 4122) string.
   string request_id = 3 [
-    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = REQUIRED,
     (google.api.field_info).format = UUID4
   ];
 }
@@ -238,4 +238,14 @@ message MarkRankerJobFailedRequest {
 
   // Human-readable detail about the failure.
   string error_message = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // A request ID provided by the client to ensure idempotency
+  // on retry. A retry with the same `request_id` returns the
+  // original response without re-transitioning the resource.
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
 }

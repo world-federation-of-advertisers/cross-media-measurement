@@ -97,16 +97,14 @@ class SpannerRankerJobService(
     val createdJob: RankerJob =
       try {
         transactionRunner.run { txn ->
-          if (request.requestId.isNotEmpty()) {
-            val existing =
-              txn.findRankerJobByRequestId(
-                dataProviderResourceId,
-                rawImpressionUploadResourceId,
-                request.requestId,
-              )
-            if (existing != null) {
-              return@run existing.rankerJob
-            }
+          val existing =
+            txn.findRankerJobByRequestId(
+              dataProviderResourceId,
+              rawImpressionUploadResourceId,
+              request.requestId,
+            )
+          if (existing != null) {
+            return@run existing.rankerJob
           }
 
           val rawImpressionUploadId =
@@ -214,19 +212,21 @@ class SpannerRankerJobService(
       }
 
       val requestId = subRequest.requestId
-      if (requestId.isNotEmpty()) {
-        try {
-          UUID.fromString(requestId)
-        } catch (e: IllegalArgumentException) {
-          throw InvalidFieldValueException("requests[$index].request_id", e)
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
-        if (!requestIdSet.add(requestId)) {
-          throw InvalidFieldValueException("requests[$index].request_id") {
-              "Duplicate request_id $requestId in batch"
-            }
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
+      if (requestId.isEmpty()) {
+        throw RequiredFieldNotSetException("requests[$index].request_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      try {
+        UUID.fromString(requestId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("requests[$index].request_id", e)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (!requestIdSet.add(requestId)) {
+        throw InvalidFieldValueException("requests[$index].request_id") {
+            "Duplicate request_id $requestId in batch"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
 
@@ -251,12 +251,12 @@ class SpannerRankerJobService(
             txn.findRankerJobsByRequestIds(
               dataProviderResourceId,
               rawImpressionUploadResourceId,
-              request.requestsList.mapNotNull { it.requestId.ifEmpty { null } },
+              request.requestsList.map { it.requestId },
             )
 
           request.requestsList.map { subRequest ->
             val existing = existingByRequestId[subRequest.requestId]
-            if (subRequest.requestId.isNotEmpty() && existing != null) {
+            if (existing != null) {
               existing.rankerJob
             } else {
               val rankerJobId =
@@ -404,7 +404,6 @@ class SpannerRankerJobService(
       request.rankerJobResourceId,
       request.etag,
       request.requestId,
-      requireRequestId = true,
     )
 
     val transactionRunner =
@@ -442,7 +441,6 @@ class SpannerRankerJobService(
         // the original "last job out" call and any later replay can report completion.
         if (
           currentJob.state == State.RANKER_STATE_SUCCEEDED &&
-            request.requestId.isNotEmpty() &&
             result.markRequestId == request.requestId
         ) {
           return@run TransactionResult(
@@ -521,14 +519,15 @@ class SpannerRankerJobService(
       request.rawImpressionUploadResourceId,
       request.rankerJobResourceId,
       request.etag,
-      requestId = "",
-      requireRequestId = false,
+      request.requestId,
     )
 
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=markRankerJobFailed"))
 
-    val updatedJob: RankerJob =
+    data class TransactionResult(val updatedJob: RankerJob, val isReplay: Boolean = false)
+
+    val txnResult: TransactionResult =
       transactionRunner.run { txn ->
         val result =
           txn.getRankerJobByResourceId(
@@ -544,6 +543,13 @@ class SpannerRankerJobService(
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
         val currentJob = result.rankerJob
+
+        // Idempotency: if already failed by this same request_id, return as-is.
+        if (
+          currentJob.state == State.RANKER_STATE_FAILED && result.markRequestId == request.requestId
+        ) {
+          return@run TransactionResult(currentJob, isReplay = true)
+        }
 
         checkMarkPrecondition(
           dataProviderResourceId = request.dataProviderResourceId,
@@ -562,24 +568,30 @@ class SpannerRankerJobService(
           etag = newEtag,
         ) {
           set("ErrorMessage").to(request.errorMessage)
+          set("MarkRequestId").to(request.requestId)
         }
 
-        currentJob.copy {
-          state = State.RANKER_STATE_FAILED
-          errorMessage = request.errorMessage
-          etag = newEtag
-          clearUpdateTime()
-        }
+        TransactionResult(
+          currentJob.copy {
+            state = State.RANKER_STATE_FAILED
+            errorMessage = request.errorMessage
+            etag = newEtag
+            clearUpdateTime()
+          }
+        )
       }
 
-    val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-    return updatedJob.copy { updateTime = commitTimestamp }
+    return if (txnResult.isReplay) {
+      txnResult.updatedJob
+    } else {
+      val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
+      txnResult.updatedJob.copy { updateTime = commitTimestamp }
+    }
   }
 
   /**
    * Validates parent identifiers, the job resource ID, the etag, and the request ID common to the
-   * Mark requests. When [requireRequestId] is true, [requestId] must be set; it may be empty only
-   * for Mark RPCs that do not support idempotency.
+   * Mark requests. [requestId] is required on every Mark RPC for AIP-155 idempotency.
    */
   private fun validateMarkRequest(
     dataProviderResourceId: String,
@@ -587,7 +599,6 @@ class SpannerRankerJobService(
     rankerJobResourceId: String,
     etag: String,
     requestId: String,
-    requireRequestId: Boolean,
   ) {
     if (dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("data_provider_resource_id")
@@ -605,17 +616,15 @@ class SpannerRankerJobService(
       throw RequiredFieldNotSetException("etag")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (requireRequestId && requestId.isEmpty()) {
+    if (requestId.isEmpty()) {
       throw RequiredFieldNotSetException("request_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (requestId.isNotEmpty()) {
-      try {
-        UUID.fromString(requestId)
-      } catch (e: IllegalArgumentException) {
-        throw InvalidFieldValueException("request_id", e)
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
+    try {
+      UUID.fromString(requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
   }
 
@@ -648,14 +657,6 @@ class SpannerRankerJobService(
   }
 
   private fun validateCreateRequest(request: CreateRankerJobRequest) {
-    if (request.requestId.isNotEmpty()) {
-      try {
-        UUID.fromString(request.requestId)
-      } catch (e: IllegalArgumentException) {
-        throw InvalidFieldValueException("request_id", e)
-      }
-    }
-
     if (!request.hasRankerJob()) {
       throw RequiredFieldNotSetException("ranker_job")
     }
@@ -670,6 +671,14 @@ class SpannerRankerJobService(
     }
     if (request.rankerJob.poolOffsetsList.isEmpty()) {
       throw RequiredFieldNotSetException("ranker_job.pool_offsets")
+    }
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
     }
   }
 

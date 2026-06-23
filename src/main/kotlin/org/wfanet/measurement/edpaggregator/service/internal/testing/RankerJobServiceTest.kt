@@ -78,6 +78,7 @@ abstract class RankerJobServiceTest {
     val job: RankerJob =
       service.createRankerJob(
         createRankerJobRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rankerJob = rankerJob {
@@ -136,6 +137,7 @@ abstract class RankerJobServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.createRankerJob(
           createRankerJobRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = "uploads/missing"
             rankerJob = rankerJob {
@@ -156,6 +158,7 @@ abstract class RankerJobServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.createRankerJob(
             createRankerJobRequest {
+              requestId = UUID.randomUUID().toString()
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               rankerJob = rankerJob {
                 cmmsModelLine = CMMS_MODEL_LINE
@@ -198,6 +201,7 @@ abstract class RankerJobServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.createRankerJob(
           createRankerJobRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rankerJob = rankerJob { poolOffsets += POOL_OFFSETS }
@@ -222,6 +226,7 @@ abstract class RankerJobServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.createRankerJob(
           createRankerJobRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rankerJob = rankerJob { cmmsModelLine = CMMS_MODEL_LINE }
@@ -269,6 +274,33 @@ abstract class RankerJobServiceTest {
   }
 
   @Test
+  fun `createRankerJob throws INVALID_ARGUMENT for empty request_id`() = runBlocking {
+    val exception: StatusRuntimeException =
+      assertFailsWith<StatusRuntimeException> {
+        service.createRankerJob(
+          createRankerJobRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rankerJob = rankerJob {
+              cmmsModelLine = CMMS_MODEL_LINE
+              poolOffsets += POOL_OFFSETS
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+        }
+      )
+  }
+
+  @Test
   fun `batchCreateRankerJobs creates multiple`() =
     runBlocking<Unit> {
       val response =
@@ -277,12 +309,14 @@ abstract class RankerJobServiceTest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             requests += createRankerJobRequest {
+              requestId = UUID.randomUUID().toString()
               rankerJob = rankerJob {
                 cmmsModelLine = CMMS_MODEL_LINE
                 poolOffsets += listOf(0L, 1L)
               }
             }
             requests += createRankerJobRequest {
+              requestId = UUID.randomUUID().toString()
               rankerJob = rankerJob {
                 cmmsModelLine = CMMS_MODEL_LINE
                 poolOffsets += listOf(2L, 3L)
@@ -323,6 +357,7 @@ abstract class RankerJobServiceTest {
     val created: RankerJob =
       service.createRankerJob(
         createRankerJobRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rankerJob = rankerJob {
@@ -724,6 +759,7 @@ abstract class RankerJobServiceTest {
     val job: RankerJob =
       service.markRankerJobFailed(
         markRankerJobFailedRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rankerJobResourceId = created.rankerJobResourceId
@@ -743,6 +779,7 @@ abstract class RankerJobServiceTest {
     val failed: RankerJob =
       service.markRankerJobFailed(
         markRankerJobFailedRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rankerJobResourceId = created.rankerJobResourceId
@@ -773,6 +810,7 @@ abstract class RankerJobServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.markRankerJobFailed(
           markRankerJobFailedRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rankerJobResourceId = created.rankerJobResourceId
@@ -783,6 +821,64 @@ abstract class RankerJobServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+  }
+
+  @Test
+  fun `markRankerJobFailed throws INVALID_ARGUMENT for empty request_id`() = runBlocking {
+    val exception: StatusRuntimeException =
+      assertFailsWith<StatusRuntimeException> {
+        service.markRankerJobFailed(
+          markRankerJobFailedRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rankerJobResourceId = "some-job"
+            etag = "some-etag"
+            errorMessage = "boom"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+        }
+      )
+  }
+
+  @Test
+  fun `markRankerJobFailed is idempotent with same request_id`() = runBlocking {
+    val requestId = UUID.randomUUID().toString()
+    val created: RankerJob = createRanker(0L)
+
+    val failed1: RankerJob =
+      service.markRankerJobFailed(
+        markRankerJobFailedRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rankerJobResourceId = created.rankerJobResourceId
+          etag = created.etag
+          errorMessage = "boom"
+          this.requestId = requestId
+        }
+      )
+
+    val failed2: RankerJob =
+      service.markRankerJobFailed(
+        markRankerJobFailedRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rankerJobResourceId = created.rankerJobResourceId
+          etag = created.etag
+          errorMessage = "boom"
+          this.requestId = requestId
+        }
+      )
+
+    assertThat(failed2).isEqualTo(failed1)
   }
 
   @Test
@@ -822,6 +918,7 @@ abstract class RankerJobServiceTest {
     createParentUpload(DATA_PROVIDER_RESOURCE_ID, SECOND_UPLOAD_RESOURCE_ID)
     service.createRankerJob(
       createRankerJobRequest {
+        requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = SECOND_UPLOAD_RESOURCE_ID
         rankerJob = rankerJob {
@@ -850,6 +947,7 @@ abstract class RankerJobServiceTest {
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               for (i in 0 until 51) {
                 requests += createRankerJobRequest {
+                  requestId = UUID.randomUUID().toString()
                   rankerJob = rankerJob {
                     cmmsModelLine = CMMS_MODEL_LINE
                     poolOffsets += i.toLong()
@@ -916,6 +1014,7 @@ abstract class RankerJobServiceTest {
   ): RankerJob {
     return service.createRankerJob(
       createRankerJobRequest {
+        requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rankerJob = rankerJob {

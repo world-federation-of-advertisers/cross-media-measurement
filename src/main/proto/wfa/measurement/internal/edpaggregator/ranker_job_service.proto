@@ -195,4 +195,7 @@ message MarkRankerJobFailedRequest {
 
   // Human-readable detail about the failure.
   string error_message = 5;
+
+  // A request ID for retry idempotency.
+  string request_id = 6;
 }
