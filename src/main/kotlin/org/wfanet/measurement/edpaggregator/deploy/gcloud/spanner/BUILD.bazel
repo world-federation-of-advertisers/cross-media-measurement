@@ -121,3 +121,19 @@ java_image(
     main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.InternalApiServer",
     visibility = ["//src:docker_image_deployment"],
 )
+
+kt_jvm_library(
+    name = "spanner_rank_index_blob_service",
+    srcs = ["SpannerRankIndexBlobService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/db",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:errors",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:blob_type_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:rank_index_blob_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:rank_index_blob_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)
