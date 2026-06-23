@@ -477,7 +477,6 @@ class SpannerVidLabelingJobService(
           state = State.VID_LABELING_STATE_SUCCEEDED,
           etag = newEtag,
         ) {
-          // TODO(world-federation-of-advertisers/cross-media-measurement#3989): added by base PR
           set("MarkRequestId").to(request.requestId)
         }
 
@@ -585,7 +584,6 @@ class SpannerVidLabelingJobService(
           etag = newEtag,
         ) {
           set("ErrorMessage").to(request.errorMessage)
-          // TODO(world-federation-of-advertisers/cross-media-measurement#3989): added by base PR
           set("MarkRequestId").to(request.requestId)
         }
 
