@@ -36,6 +36,17 @@ cc_library(
 )
 
 cc_library(
+    name = "feistel",
+    srcs = ["feistel.cc"],
+    hdrs = ["feistel.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/strings",
+        "@farmhash",
+    ],
+)
+
+cc_library(
     name = "consistent_hash",
     srcs = ["consistent_hash.cc"],
     hdrs = ["consistent_hash.h"],
