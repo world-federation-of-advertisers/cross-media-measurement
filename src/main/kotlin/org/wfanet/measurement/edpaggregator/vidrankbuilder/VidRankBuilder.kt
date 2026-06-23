@@ -32,6 +32,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
@@ -74,7 +75,8 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  *
  * Phase 2 batches by the uploaded **file**, not by an integer shard: an output blob's `entity_keys`
  * must land in the same file groupings the EDP uploaded them in. So the job unit is a bin-packed
- * group of [RawImpressionUploadFile]s ([maxFilesPerLabelingJob] per group). For each group it
+ * group of [RawImpressionUploadFile]s — packed greedily by total `size_bytes` up to
+ * [maxFileBatchSizeBytes] (a single file larger than the limit gets its own job). For each group it
  * creates a `VidLabelingJob` row (carrying the model line + that group's files) and publishes one
  * WorkItem to [vidLabelerQueue] whose memoized [VidLabelerParams] points the Phase-2 TEE at the
  * `VidLabelingJob`; the TEE resolves the rank-index blobs from the `RankIndexBlobService` (gRPC)
@@ -93,8 +95,9 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  * @param vidLabelerParamsTemplate the memoized [VidLabelerParams] for this (upload, model line),
  *   built by [VidRankBuilderApp] from the pass-through fields on `VidRankBuilderParams`. The
  *   last-job-out copies it per `VidLabelingJob`, filling the job's name + its files.
- * @param maxFilesPerLabelingJob the bin-packing threshold: at most this many
- *   `RawImpressionUploadFile`s per `VidLabelingJob`.
+ * @param maxFileBatchSizeBytes the bin-packing threshold: the maximum total
+ *   `RawImpressionUploadFile` `size_bytes` packed into one `VidLabelingJob` (best-effort; a file
+ *   larger than this gets its own job).
  * @param maxJobsPerBatchCreate the maximum `CreateVidLabelingJobRequest`s per
  *   `BatchCreateVidLabelingJobs` call (the service's per-batch limit).
  * @param vidLabelerQueue the Secure Computation queue the Phase-2 WorkItems are published to.
@@ -113,11 +116,11 @@ class VidRankBuilder(
   private val subpoolRankedSizes: Map<Long, Int>,
   private val vidLabelerParamsTemplate: VidLabelerParams,
   private val vidLabelerQueue: String,
-  private val maxFilesPerLabelingJob: Int = DEFAULT_MAX_FILES_PER_LABELING_JOB,
+  private val maxFileBatchSizeBytes: Long = DEFAULT_MAX_FILE_BATCH_SIZE_BYTES,
   private val maxJobsPerBatchCreate: Int = DEFAULT_MAX_JOBS_PER_BATCH_CREATE,
 ) {
   init {
-    require(maxFilesPerLabelingJob > 0) { "maxFilesPerLabelingJob must be > 0" }
+    require(maxFileBatchSizeBytes > 0) { "maxFileBatchSizeBytes must be > 0" }
     require(maxJobsPerBatchCreate > 0) { "maxJobsPerBatchCreate must be > 0" }
   }
 
@@ -249,12 +252,9 @@ class VidRankBuilder(
    * Creates the Phase-2 `VidLabelingJob`s for the (upload, model line) — one per bin-packed group
    * of the upload's `RawImpressionUploadFile`s — and publishes a memoized-`VidLabelerParams`
    * WorkItem for each. Returns the number of WorkItems published.
-   *
-   * Files are sorted before chunking so the batching (and therefore each job's deterministic
-   * `request_id` / `work_item_id`) is stable across redeliveries.
    */
   private suspend fun fanOutLabeling(): Int {
-    val files = listUploadFiles().sorted()
+    val files = listUploadFiles()
     if (files.isEmpty()) {
       logger.warning(
         "Last-job-out for $modelLine: no RawImpressionUploadFiles under $rawImpressionUpload; " +
@@ -263,10 +263,44 @@ class VidRankBuilder(
       return 0
     }
 
-    val batches: List<List<String>> = files.chunked(maxFilesPerLabelingJob)
+    val batches: List<List<String>> = binPackFiles(files)
     val labelingJobs = createVidLabelingJobs(batches)
     labelingJobs.forEach { (job, batchFiles) -> publishVidLabelerWorkItem(job, batchFiles) }
     return labelingJobs.size
+  }
+
+  /**
+   * Greedily bin-packs [files] into batches whose total `size_bytes` stays within
+   * [maxFileBatchSizeBytes]. Files are sorted by name first so the batching — and therefore each
+   * job's deterministic `request_id` / `work_item_id` (keyed by batch index) — is stable across
+   * redeliveries. A single file whose `size_bytes` meets or exceeds the limit gets its own batch
+   * (best-effort: we never split a file). A file with an unknown size (0) contributes nothing to
+   * the running total, so files land together until a sized file tips the batch over.
+   *
+   * @return batches of `RawImpressionUploadFile` resource names, in deterministic order.
+   */
+  private fun binPackFiles(files: List<RawImpressionUploadFile>): List<List<String>> {
+    val batches = mutableListOf<List<String>>()
+    var current = mutableListOf<String>()
+    var currentBytes = 0L
+    for (file in files.sortedBy { it.name }) {
+      // Start a new batch before adding when the current one is non-empty and would overflow.
+      if (current.isNotEmpty() && currentBytes + file.sizeBytes > maxFileBatchSizeBytes) {
+        batches.add(current)
+        current = mutableListOf()
+        currentBytes = 0L
+      }
+      current.add(file.name)
+      currentBytes += file.sizeBytes
+      // A file at/over the limit fills the batch on its own; flush so it stays solo.
+      if (currentBytes >= maxFileBatchSizeBytes) {
+        batches.add(current)
+        current = mutableListOf()
+        currentBytes = 0L
+      }
+    }
+    if (current.isNotEmpty()) batches.add(current)
+    return batches
   }
 
   /**
@@ -298,9 +332,9 @@ class VidRankBuilder(
     return published
   }
 
-  /** Lists every (non-deleted) `RawImpressionUploadFile` name under this upload. */
-  private suspend fun listUploadFiles(): List<String> {
-    val names = mutableListOf<String>()
+  /** Lists every (non-deleted) `RawImpressionUploadFile` under this upload. */
+  private suspend fun listUploadFiles(): List<RawImpressionUploadFile> {
+    val files = mutableListOf<RawImpressionUploadFile>()
     rawImpressionUploadFilesStub
       .listResources { pageToken: String ->
         val response =
@@ -312,8 +346,8 @@ class VidRankBuilder(
           )
         ResourceList(response.rawImpressionUploadFilesList, response.nextPageToken)
       }
-      .collect { page -> page.forEach { names.add(it.name) } }
-    return names
+      .collect { page -> files.addAll(page) }
+    return files
   }
 
   /**
@@ -512,12 +546,10 @@ class VidRankBuilder(
     private const val DEFAULT_MAX_JOBS_PER_BATCH_CREATE = 50
 
     /**
-     * Default bin-packing threshold: `RawImpressionUploadFile`s per `VidLabelingJob`.
-     *
-     * TODO(@Marco-Premier): source from static runner config (and, once the file resource carries a
-     *   size, bin-pack by total input bytes instead of file count).
+     * Default bin-packing threshold: max total `RawImpressionUploadFile` `size_bytes` per
+     * `VidLabelingJob`, used when the runner does not supply `--max-file-batch-size`. 1 GiB.
      */
-    private const val DEFAULT_MAX_FILES_PER_LABELING_JOB = 100
+    private const val DEFAULT_MAX_FILE_BATCH_SIZE_BYTES = 1L shl 30
 
     private val logger = Logger.getLogger(VidRankBuilder::class.java.name)
   }

@@ -153,9 +153,18 @@ class VidRankBuilderTest {
   private fun filesMock(): RawImpressionUploadFileServiceCoroutineStub = mock {
     onBlocking { listRawImpressionUploadFiles(any(), any()) } doReturn
       listRawImpressionUploadFilesResponse {
-        rawImpressionUploadFiles += rawImpressionUploadFile { name = "$UPLOAD/files/0" }
-        rawImpressionUploadFiles += rawImpressionUploadFile { name = "$UPLOAD/files/1" }
-        rawImpressionUploadFiles += rawImpressionUploadFile { name = "$UPLOAD/files/2" }
+        rawImpressionUploadFiles += rawImpressionUploadFile {
+          name = "$UPLOAD/files/0"
+          sizeBytes = 100
+        }
+        rawImpressionUploadFiles += rawImpressionUploadFile {
+          name = "$UPLOAD/files/1"
+          sizeBytes = 100
+        }
+        rawImpressionUploadFiles += rawImpressionUploadFile {
+          name = "$UPLOAD/files/2"
+          sizeBytes = 100
+        }
       }
   }
 
@@ -183,7 +192,7 @@ class VidRankBuilderTest {
     vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub = vidLabelingJobsMock(),
     filesStub: RawImpressionUploadFileServiceCoroutineStub = filesMock(),
     workItemsStub: WorkItemsCoroutineStub = mock(),
-    maxFilesPerLabelingJob: Int = 100,
+    maxFileBatchSizeBytes: Long = 1_000_000_000,
     vidLabelerQueue: String = QUEUE,
   ) =
     VidRankBuilder(
@@ -200,7 +209,7 @@ class VidRankBuilderTest {
       subpoolRankedSizes = subpoolRankedSizes,
       vidLabelerParamsTemplate = VID_LABELER_TEMPLATE,
       vidLabelerQueue = vidLabelerQueue,
-      maxFilesPerLabelingJob = maxFilesPerLabelingJob,
+      maxFileBatchSizeBytes = maxFileBatchSizeBytes,
     )
 
   @Test
@@ -263,24 +272,68 @@ class VidRankBuilderTest {
     }
 
   @Test
-  fun `last job out bin-packs files across multiple VidLabelingJobs`() =
+  fun `last job out bin-packs files by size across multiple VidLabelingJobs`() =
     runBlocking<Unit> {
       val published = mutableListOf<CreateWorkItemRequest>()
 
+      // Each file is 100 bytes; a 250-byte limit packs files 0+1 together, then file 2.
       builder(
           rankerMock(),
           rankerJobsMock(isLastJob = true),
           workItemsStub = recordingWorkItems(published),
-          maxFilesPerLabelingJob = 2,
+          maxFileBatchSizeBytes = 250,
         )
         .run()
 
-      // 3 files at 2 per job -> two jobs, two WorkItems.
       assertThat(published).hasSize(2)
       val fileSets =
         published.map { publishedParams(it).memoizedParams.rawImpressionUploadFilesList.toSet() }
       assertThat(fileSets)
         .containsExactly(setOf("$UPLOAD/files/0", "$UPLOAD/files/1"), setOf("$UPLOAD/files/2"))
+    }
+
+  @Test
+  fun `a file larger than the batch limit gets its own VidLabelingJob`() =
+    runBlocking<Unit> {
+      val published = mutableListOf<CreateWorkItemRequest>()
+      // file 1 (500 bytes) exceeds the 250-byte limit, so it is isolated; 0 and 2 batch on either
+      // side.
+      val files =
+        mock<RawImpressionUploadFileServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadFiles(any(), any()) } doReturn
+            listRawImpressionUploadFilesResponse {
+              rawImpressionUploadFiles += rawImpressionUploadFile {
+                name = "$UPLOAD/files/0"
+                sizeBytes = 100
+              }
+              rawImpressionUploadFiles += rawImpressionUploadFile {
+                name = "$UPLOAD/files/1"
+                sizeBytes = 500
+              }
+              rawImpressionUploadFiles += rawImpressionUploadFile {
+                name = "$UPLOAD/files/2"
+                sizeBytes = 100
+              }
+            }
+        }
+
+      builder(
+          rankerMock(),
+          rankerJobsMock(isLastJob = true),
+          filesStub = files,
+          workItemsStub = recordingWorkItems(published),
+          maxFileBatchSizeBytes = 250,
+        )
+        .run()
+
+      val fileSets =
+        published.map { publishedParams(it).memoizedParams.rawImpressionUploadFilesList.toSet() }
+      assertThat(fileSets)
+        .containsExactly(
+          setOf("$UPLOAD/files/0"),
+          setOf("$UPLOAD/files/1"),
+          setOf("$UPLOAD/files/2"),
+        )
     }
 
   @Test

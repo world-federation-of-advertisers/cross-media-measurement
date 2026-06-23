@@ -54,4 +54,11 @@ message RawImpressionUploadFile {
   // Only populated if the file has been deleted.
   google.protobuf.Timestamp delete_time = 5
       [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Size of the raw impression file in bytes. Used by the Phase-1 last-out to
+  // bin-pack files into `VidLabelingJob`s by total input size. 0 if unknown.
+  int64 size_bytes = 6 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 }
