@@ -298,8 +298,25 @@ class PostProcessReportResult:
                 key=lambda w: (w.key.end.year, w.key.end.month, w.key.end.day),
             )
             whole = total.reporting_window_results[0]
-            snapped_reach = min(whole.value.cumulative_results.reach,
-                                last_weekly.value.cumulative_results.reach)
+            whole_reach = whole.value.cumulative_results.reach
+            last_weekly_reach = last_weekly.value.cumulative_results.reach
+            # reach is a scalar int64 with proto default 0; we cannot
+            # distinguish 'absent' from 'real zero'. If either side has
+            # reach <= 0 (e.g. the total-selector spec did not request
+            # whole-campaign cumulative reach but did request impressions /
+            # GRPs / etc.), snapping to min(...) would zero out the other
+            # sides legitimate reach and cascade through k_plus_reach /
+            # percent_reach / average_frequency. Skip: there is no
+            # cross-window reach identity to reconcile when one side has
+            # no cumulative reach measurement.
+            if whole_reach <= 0 or last_weekly_reach <= 0:
+                logging.info(
+                    'Skipping cross-window reach reconciliation for dim '
+                    '(total=%d weekly=%d): one side has no positive '
+                    'cumulative reach (whole=%d, last_weekly=%d).',
+                    total_id, weekly_id, whole_reach, last_weekly_reach)
+                continue
+            snapped_reach = min(whole_reach, last_weekly_reach)
             total_population = population_by_rsr_id.get(total_id, 0)
             weekly_population = population_by_rsr_id.get(weekly_id, 0)
             if total_population <= 0 or weekly_population <= 0:

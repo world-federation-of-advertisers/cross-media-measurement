@@ -860,6 +860,82 @@ class PostProcessReportResultTest(unittest.TestCase):
         self.assertEqual(
             list(last_weekly.value.cumulative_results.k_plus_reach), [])
 
+    def test_reconcile_skips_when_total_side_has_zero_reach(self):
+        """When the total-selector RSR has cumulative_results.reach == 0
+        (e.g. the spec did not request whole-campaign cumulative reach but
+        only requested impressions / GRPs / etc., leaving reach at the
+        proto default), the cross-window snap must NOT pull the weekly
+        side down to 0 -- that would corrupt a previously-valid reach
+        measurement plus its derived k_plus_reach / percent_reach /
+        average_frequency. Skip the dimension instead.
+        """
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+        reporting_set_results = [
+            self._make_reporting_set_result(1, 'reporting_set_id_edp1',
+                                            'total'),
+            self._make_reporting_set_result(2, 'reporting_set_id_edp1',
+                                            'weekly'),
+        ]
+        request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        # Total side has no cumulative reach (reach left at proto default).
+        # In practice this happens when the spec only requested
+        # whole-campaign impressions / GRPs, so the cumulative_results
+        # message exists (because impressions is in it) but reach is 0.
+        self._set_window_reach(request, 1, end_day=15, reach=0,
+                               k_plus_reach=[])
+        request.reporting_set_results[1].reporting_window_results[
+            0].value.cumulative_results.impressions = 9999
+        # Weekly side has a real cumulative reach we must not zero.
+        self._set_window_reach(request, 2, end_day=15, reach=1000,
+                               k_plus_reach=[1000, 500, 200])
+
+        processor._reconcile_cross_window_identities(
+            request, reporting_set_results)
+
+        last_weekly = request.reporting_set_results[
+            2].reporting_window_results[0]
+        # Weekly side untouched: reach and k_plus_reach preserved.
+        self.assertEqual(last_weekly.value.cumulative_results.reach, 1000)
+        self.assertEqual(
+            list(last_weekly.value.cumulative_results.k_plus_reach),
+            [1000, 500, 200])
+        # Total side also untouched.
+        whole = request.reporting_set_results[1].reporting_window_results[0]
+        self.assertEqual(whole.value.cumulative_results.reach, 0)
+        self.assertEqual(whole.value.cumulative_results.impressions, 9999)
+
+    def test_reconcile_skips_when_weekly_side_has_zero_reach(self):
+        """Mirror of the total-side guard: a weekly RSR whose last window
+        has reach=0 must not pull whole_campaign down to 0."""
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+        reporting_set_results = [
+            self._make_reporting_set_result(1, 'reporting_set_id_edp1',
+                                            'total'),
+            self._make_reporting_set_result(2, 'reporting_set_id_edp1',
+                                            'weekly'),
+        ]
+        request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        self._set_window_reach(request, 1, end_day=15, reach=1003,
+                               k_plus_reach=[1003, 500, 250])
+        # Weekly last window has reach=0; do not zero out the total side.
+        self._set_window_reach(request, 2, end_day=15, reach=0,
+                               k_plus_reach=[])
+        request.reporting_set_results[2].reporting_window_results[
+            0].value.cumulative_results.impressions = 7777
+
+        processor._reconcile_cross_window_identities(
+            request, reporting_set_results)
+
+        whole = request.reporting_set_results[1].reporting_window_results[0]
+        self.assertEqual(whole.value.cumulative_results.reach, 1003)
+        self.assertEqual(
+            list(whole.value.cumulative_results.k_plus_reach),
+            [1003, 500, 250])
+
     def test_reconcile_skips_when_multiple_rsrs_share_dim_and_selector(self):
         """When two RSRs share the dim key AND the same selector kind (e.g.
         two weekly cadences for the same dimension), the total<->weekly pair
