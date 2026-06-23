@@ -70,7 +70,7 @@ class VerifySyntheticData : Runnable {
   private var fakeKekKeysetFile: File? = null
 
   @Option(
-    names = ["--schema"],
+    names = ["--scheme"],
     description =
       [
         "Storage URI scheme (e.g. gs://, file:///). " +
@@ -79,7 +79,7 @@ class VerifySyntheticData : Runnable {
     required = false,
     defaultValue = "file:///",
   )
-  lateinit var schema: String
+  lateinit var scheme: String
     private set
 
   @Option(
@@ -102,7 +102,7 @@ class VerifySyntheticData : Runnable {
 
   @Option(
     names = ["--local-storage-path"],
-    description = ["Root path for local storage. Required when --schema is file:///."],
+    description = ["Root path for local storage. Required when --scheme is file:///."],
     required = false,
   )
   private var storagePath: File? = null
@@ -365,7 +365,7 @@ class VerifySyntheticData : Runnable {
           "Either --metadata-uri or --output-bucket/--base-path must be provided"
         }
         require(metadataPrefix.isNotEmpty()) { "--metadata-prefix must not be empty" }
-        scanForMetadata(schema, outputBucket, basePath, storagePath, metadataPrefix)
+        scanForMetadata(scheme, outputBucket, basePath, storagePath, metadataPrefix)
       }
 
     val eventMessageInstance: Message =
@@ -446,18 +446,18 @@ class VerifySyntheticData : Runnable {
     /**
      * Scans for metadata files under the given storage prefix.
      *
-     * Constructs the base URI as [schema][outputBucket]/[basePath] and lists all blobs whose keys
+     * Constructs the base URI as [scheme][outputBucket]/[basePath] and lists all blobs whose keys
      * begin with [metadataPrefix] and end in a supported extension. Returns fully qualified URIs.
      */
     private fun scanForMetadata(
-      schema: String,
+      scheme: String,
       outputBucket: String,
       basePath: String,
       storagePath: File?,
       metadataPrefix: String,
     ): List<String> {
-      if (schema == "file:///") {
-        requireNotNull(storagePath) { "--local-storage-path is required when --schema is file:///" }
+      if (scheme == "file:///") {
+        requireNotNull(storagePath) { "--local-storage-path is required when --scheme is file:///" }
         val scanDir = storagePath.resolve(outputBucket).resolve(basePath)
         logger.info("Scanning for metadata files in: $scanDir")
         check(scanDir.exists()) { "Directory does not exist: $scanDir" }
@@ -481,7 +481,7 @@ class VerifySyntheticData : Runnable {
       }
 
       val prefix = "$basePath/"
-      val baseUri = "$schema$outputBucket"
+      val baseUri = "$scheme$outputBucket"
       val blobUri = SelectedStorageClient.parseBlobUri("$baseUri/$prefix")
       val storageClient = SelectedStorageClient(blobUri)
 
