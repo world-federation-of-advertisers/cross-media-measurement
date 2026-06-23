@@ -5955,8 +5955,7 @@ class BasicReportsServiceTest {
       // Error message references BOTH colliding entries by index so a
       // consumer can directly inspect the prior spec, not just the
       // failing one.
-      assertThat(exception.status.description)
-        .contains("result_group_specs[0].metric_frequency")
+      assertThat(exception.status.description).contains("result_group_specs[0].metric_frequency")
     }
 
   @Test
@@ -6028,8 +6027,90 @@ class BasicReportsServiceTest {
               "basic_report.result_group_specs[1].metric_frequency"
           }
         )
-      assertThat(exception.status.description)
-        .contains("result_group_specs[0].metric_frequency")
+      assertThat(exception.status.description).contains("result_group_specs[0].metric_frequency")
+    }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when specs differ only in grouping field order and DayOfWeek`() =
+    runBlocking {
+      // Two specs whose dimension_spec.grouping.event_template_fields lists are
+      // the SAME set but in PERMUTED order, paired with different DayOfWeeks.
+      // Grouping is consumed as a set downstream (each path appears at most
+      // once per the proto contract), so these would collapse to the same dim
+      // in the post-processor. normalizeDimensionSpec sorts the grouping list
+      // before keying; without that sort, raw `toByteString()` would treat the
+      // two specs as distinct dims.
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            // Replace the seed spec's grouping with [gender, social_grade_group]
+            // and clear filters so neither grouping path overlaps a filter path
+            // (the existing validator forbids that within a single dimensionSpec).
+            // Then add a sibling spec with the PERMUTED grouping order and a
+            // different DayOfWeek -- the only difference between the two specs.
+            val original = resultGroupSpecs[0]
+            val baseGrouping = listOf("person.gender", "person.social_grade_group")
+            resultGroupSpecs.clear()
+            resultGroupSpecs +=
+              original.copy {
+                dimensionSpec =
+                  original.dimensionSpec.copy {
+                    grouping = DimensionSpecKt.grouping { eventTemplateFields += baseGrouping }
+                    filters.clear()
+                  }
+              }
+            resultGroupSpecs +=
+              original.copy {
+                metricFrequency = metricFrequencySpec { weekly = DayOfWeek.TUESDAY }
+                dimensionSpec =
+                  original.dimensionSpec.copy {
+                    grouping =
+                      DimensionSpecKt.grouping { eventTemplateFields += baseGrouping.reversed() }
+                    filters.clear()
+                  }
+              }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs[1].metric_frequency"
+          }
+        )
+      assertThat(exception.status.description).contains("result_group_specs[0].metric_frequency")
     }
 
   @Test
