@@ -75,7 +75,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  *
  * Phase 2 batches by the uploaded **file**, not by an integer shard: an output blob's `entity_keys`
  * must land in the same file groupings the EDP uploaded them in. So the job unit is a bin-packed
- * group of [RawImpressionUploadFile]s — packed greedily by total `size_bytes` up to
+ * group of [RawImpressionUploadFile]s — packed First-Fit-Decreasing by `size_bytes` up to
  * [maxFileBatchSizeBytes] (a single file larger than the limit gets its own job). For each group it
  * creates a `VidLabelingJob` row (carrying the model line + that group's files) and publishes one
  * WorkItem to [vidLabelerQueue] whose memoized [VidLabelerParams] points the Phase-2 TEE at the
@@ -270,37 +270,40 @@ class VidRankBuilder(
   }
 
   /**
-   * Greedily bin-packs [files] into batches whose total `size_bytes` stays within
-   * [maxFileBatchSizeBytes]. Files are sorted by name first so the batching — and therefore each
-   * job's deterministic `request_id` / `work_item_id` (keyed by batch index) — is stable across
-   * redeliveries. A single file whose `size_bytes` meets or exceeds the limit gets its own batch
-   * (best-effort: we never split a file). A file with an unknown size (0) contributes nothing to
-   * the running total, so files land together until a sized file tips the batch over.
+   * Bin-packs [files] into batches whose total `size_bytes` stays within [maxFileBatchSizeBytes]
+   * using First-Fit-Decreasing (FFD): files are processed largest-first (ties broken by name) and
+   * each is placed into the first existing batch it still fits in, opening a new batch only when
+   * none has room. FFD packs tighter than a single next-fit pass, so it wastes less headroom and
+   * yields fewer, fuller `VidLabelingJob`s.
+   *
+   * The (size-descending, name-ascending) ordering and the first-fit scan are a pure function of
+   * the input, so the batches — and therefore each job's deterministic `request_id` /
+   * `work_item_id` (keyed by batch index) — are stable across redeliveries. A single file whose
+   * `size_bytes` meets or exceeds the limit fits in no batch and lands in its own (best-effort: we
+   * never split a file). A file with an unknown size (0) adds nothing to a batch's running total.
    *
    * @return batches of `RawImpressionUploadFile` resource names, in deterministic order.
    */
   private fun binPackFiles(files: List<RawImpressionUploadFile>): List<List<String>> {
-    val batches = mutableListOf<List<String>>()
-    var current = mutableListOf<String>()
-    var currentBytes = 0L
-    for (file in files.sortedBy { it.name }) {
-      // Start a new batch before adding when the current one is non-empty and would overflow.
-      if (current.isNotEmpty() && currentBytes + file.sizeBytes > maxFileBatchSizeBytes) {
-        batches.add(current)
-        current = mutableListOf()
-        currentBytes = 0L
-      }
-      current.add(file.name)
-      currentBytes += file.sizeBytes
-      // A file at/over the limit fills the batch on its own; flush so it stays solo.
-      if (currentBytes >= maxFileBatchSizeBytes) {
-        batches.add(current)
-        current = mutableListOf()
-        currentBytes = 0L
+    val batchFiles = mutableListOf<MutableList<String>>()
+    val batchBytes = mutableListOf<Long>()
+    val ordered =
+      files.sortedWith(
+        compareByDescending<RawImpressionUploadFile> { it.sizeBytes }.thenBy { it.name }
+      )
+    for (file in ordered) {
+      val fit = batchBytes.indexOfFirst { it + file.sizeBytes <= maxFileBatchSizeBytes }
+      if (fit >= 0) {
+        batchFiles[fit].add(file.name)
+        batchBytes[fit] += file.sizeBytes
+      } else {
+        // No open batch has room (includes a file that alone meets/exceeds the cap): start a new
+        // one.
+        batchFiles.add(mutableListOf(file.name))
+        batchBytes.add(file.sizeBytes)
       }
     }
-    if (current.isNotEmpty()) batches.add(current)
-    return batches
+    return batchFiles
   }
 
   /**

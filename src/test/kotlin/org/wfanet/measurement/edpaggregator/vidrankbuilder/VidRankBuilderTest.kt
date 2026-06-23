@@ -297,8 +297,8 @@ class VidRankBuilderTest {
   fun `a file larger than the batch limit gets its own VidLabelingJob`() =
     runBlocking<Unit> {
       val published = mutableListOf<CreateWorkItemRequest>()
-      // file 1 (500 bytes) exceeds the 250-byte limit, so it is isolated; 0 and 2 batch on either
-      // side.
+      // file 1 (500 bytes) exceeds the 250-byte cap, so FFD isolates it; the two 100-byte files
+      // pack together into the remaining batch.
       val files =
         mock<RawImpressionUploadFileServiceCoroutineStub> {
           onBlocking { listRawImpressionUploadFiles(any(), any()) } doReturn
@@ -330,10 +330,54 @@ class VidRankBuilderTest {
       val fileSets =
         published.map { publishedParams(it).memoizedParams.rawImpressionUploadFilesList.toSet() }
       assertThat(fileSets)
+        .containsExactly(setOf("$UPLOAD/files/1"), setOf("$UPLOAD/files/0", "$UPLOAD/files/2"))
+    }
+
+  @Test
+  fun `bin-packs First-Fit-Decreasing to minimize the number of batches`() =
+    runBlocking<Unit> {
+      val published = mutableListOf<CreateWorkItemRequest>()
+      // Sizes 4,5,5,6 with a cap of 10: a name-order next-fit needs three batches
+      // ({4,5},{5},{6}), but FFD (6,5,5,4) fills exactly two: {6,4} and {5,5}.
+      val files =
+        mock<RawImpressionUploadFileServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadFiles(any(), any()) } doReturn
+            listRawImpressionUploadFilesResponse {
+              rawImpressionUploadFiles += rawImpressionUploadFile {
+                name = "$UPLOAD/files/0"
+                sizeBytes = 4
+              }
+              rawImpressionUploadFiles += rawImpressionUploadFile {
+                name = "$UPLOAD/files/1"
+                sizeBytes = 5
+              }
+              rawImpressionUploadFiles += rawImpressionUploadFile {
+                name = "$UPLOAD/files/2"
+                sizeBytes = 5
+              }
+              rawImpressionUploadFiles += rawImpressionUploadFile {
+                name = "$UPLOAD/files/3"
+                sizeBytes = 6
+              }
+            }
+        }
+
+      builder(
+          rankerMock(),
+          rankerJobsMock(isLastJob = true),
+          filesStub = files,
+          workItemsStub = recordingWorkItems(published),
+          maxFileBatchSizeBytes = 10,
+        )
+        .run()
+
+      assertThat(published).hasSize(2)
+      val fileSets =
+        published.map { publishedParams(it).memoizedParams.rawImpressionUploadFilesList.toSet() }
+      assertThat(fileSets)
         .containsExactly(
-          setOf("$UPLOAD/files/0"),
-          setOf("$UPLOAD/files/1"),
-          setOf("$UPLOAD/files/2"),
+          setOf("$UPLOAD/files/3", "$UPLOAD/files/0"),
+          setOf("$UPLOAD/files/1", "$UPLOAD/files/2"),
         )
     }
 
