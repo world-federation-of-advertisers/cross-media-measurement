@@ -150,10 +150,19 @@ fun Server.registerReportingPrompts() {
               2. $campaignGroupStep
               3. $intervalStep
               4. Call create_basic_report with parent "$mc", a unique basic_report_id, and a
-                 basic_report that sets campaign_group, reporting_interval, result_group_specs, and
-                 impression_qualification_filters (a required field — choose one via
-                 list_impression_qualification_filters). Supply a request_id (UUID4) so retries are
-                 idempotent.
+                 request_id (UUID4, so retries are idempotent). Construct the basic_report with:
+                 - campaign_group: resource name of a ReportingSet that is a campaign group (its
+                   campaign_group equals its own name). Reuse the one from step 2; only create a new
+                   one via create_reporting_set if needed.
+                 - reporting_interval: report_start_date (year/month/day) and report_end
+                   (year/month/day); start is inclusive, end is exclusive.
+                 - impression_qualification_filters (required): IQF resource names discovered via
+                   list_impression_qualification_filters, e.g. impressionQualificationFilters/ami.
+                 - result_group_specs: each has a reporting_unit whose components are the
+                   DataProvider resource names from the chosen event groups, a metric_frequency
+                   (e.g. total or weekly), a dimension_spec, and a result_group_metric_spec
+                   selecting metrics (reach, percent_reach, average_frequency, impressions,
+                   k_plus_reach).
               5. Poll get_basic_report with the returned report name until its state is SUCCEEDED
                  or FAILED. When it succeeds, summarize the results: frame reach as a percentage
                  of the target population (not just an absolute count) and note the average
@@ -253,8 +262,9 @@ fun Server.registerReportingPrompts() {
               """
               Compare the recent campaigns for $mc.
 
-              1. Call list_basic_reports with parent "$mc" and keep the most recent reports whose
-                 state is SUCCEEDED (skip RUNNING or FAILED).
+              1. Call list_basic_reports with parent "$mc" and a create_time_after filter (e.g. the
+                 last 30 days) so the server returns only recent reports; keep those whose state is
+                 SUCCEEDED (skip RUNNING or FAILED).
               2. Call get_basic_report for each of the most recent few to get their results.
               3. Contrast them for a media planner:
                  - Total reach as a percentage of the target population for each campaign.
