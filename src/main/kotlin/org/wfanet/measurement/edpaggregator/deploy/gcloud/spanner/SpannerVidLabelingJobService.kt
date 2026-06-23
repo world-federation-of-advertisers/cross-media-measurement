@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.VidLabelingJobResult
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countOtherNonSucceededVidLabelingJobsForModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findVidLabelingJobByRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findVidLabelingJobsByRequestIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadIdForVidLabeling
@@ -443,20 +444,17 @@ class SpannerVidLabelingJobService(
           currentJob.state == State.VID_LABELING_STATE_SUCCEEDED &&
             result.markRequestId == request.requestId
         ) {
-          val allJobsForUpload: List<VidLabelingJobResult> = buildList {
-            txn
-              .readVidLabelingJobs(
-                request.dataProviderResourceId,
-                request.rawImpressionUploadResourceId,
-                filter = null,
-                limit = Int.MAX_VALUE,
-              )
-              .collect { add(it) }
-          }
           return@run TransactionResult(
             currentJob,
             completedModelLines =
-              computeCompletedModelLines(currentJob, allJobsForUpload, result.vidLabelingJobId),
+              currentJob.cmmsModelLinesList.filter { modelLine ->
+                txn.countOtherNonSucceededVidLabelingJobsForModelLine(
+                  request.dataProviderResourceId,
+                  result.rawImpressionUploadId,
+                  modelLine,
+                  result.vidLabelingJobId,
+                ) == 0L
+              },
             isReplay = true,
           )
         }
@@ -478,30 +476,29 @@ class SpannerVidLabelingJobService(
           etag = newEtag,
         ) {
           set("MarkRequestId").to(request.requestId)
+          // Clear any error message from a prior FAILED attempt; it is only set while FAILED.
+          set("ErrorMessage").to(null as String?)
         }
 
-        // Read all jobs for this upload to detect which model lines have all their jobs done.
-        // The buffered update above is not visible in this read, so the current job still
-        // shows its previous state; we treat it as SUCCEEDED via its ID below.
-        val allJobsForUpload: List<VidLabelingJobResult> = buildList {
-          txn
-            .readVidLabelingJobs(
-              request.dataProviderResourceId,
-              request.rawImpressionUploadResourceId,
-              filter = null,
-              limit = Int.MAX_VALUE,
-            )
-            .collect { add(it) }
-        }
-
+        // A model line is complete when none of its sibling jobs (covering that model line) remain
+        // non-SUCCEEDED. The buffered update above is not visible in this read, so the current job
+        // is excluded by ID rather than relying on its persisted state.
         val completedModelLines: List<String> =
-          computeCompletedModelLines(currentJob, allJobsForUpload, result.vidLabelingJobId)
+          currentJob.cmmsModelLinesList.filter { modelLine ->
+            txn.countOtherNonSucceededVidLabelingJobsForModelLine(
+              request.dataProviderResourceId,
+              result.rawImpressionUploadId,
+              modelLine,
+              result.vidLabelingJobId,
+            ) == 0L
+          }
 
         TransactionResult(
           updatedJob =
             currentJob.copy {
               state = State.VID_LABELING_STATE_SUCCEEDED
               etag = newEtag
+              clearErrorMessage()
               clearUpdateTime()
             },
           completedModelLines = completedModelLines,
@@ -671,26 +668,6 @@ class SpannerVidLabelingJobService(
       EtagMismatchException.check(requestEtag, currentJob.etag)
     } catch (e: EtagMismatchException) {
       throw e.asStatusRuntimeException(Status.Code.ABORTED)
-    }
-  }
-
-  /**
-   * Returns the model lines of [currentJob] for which every VidLabelingJob covering that model line
-   * has succeeded. [currentJobId] is treated as succeeded so the buffered (not-yet-visible) update
-   * in the current transaction is accounted for.
-   */
-  private fun computeCompletedModelLines(
-    currentJob: VidLabelingJob,
-    allJobsForUpload: List<VidLabelingJobResult>,
-    currentJobId: Long,
-  ): List<String> {
-    return currentJob.cmmsModelLinesList.filter { modelLine ->
-      allJobsForUpload
-        .filter { modelLine in it.vidLabelingJob.cmmsModelLinesList }
-        .all {
-          it.vidLabelingJob.state == State.VID_LABELING_STATE_SUCCEEDED ||
-            it.vidLabelingJobId == currentJobId
-        }
     }
   }
 

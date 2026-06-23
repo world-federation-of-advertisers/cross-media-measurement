@@ -143,7 +143,9 @@ class VidLabelingJobService(
     }
 
     if (request.requestsList.size > MAX_BATCH_SIZE) {
-      throw InvalidFieldValueException("requests")
+      throw InvalidFieldValueException("requests") {
+          "$it must contain at most $MAX_BATCH_SIZE elements"
+        }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
@@ -279,6 +281,10 @@ class VidLabelingJobService(
             if (request.hasFilter()) {
               filter =
                 InternalListRequestKt.filter {
+                  if (request.filter.state == VidLabelingJob.State.UNRECOGNIZED) {
+                    throw InvalidFieldValueException("filter.state")
+                      .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+                  }
                   if (request.filter.state != VidLabelingJob.State.STATE_UNSPECIFIED) {
                     state = request.filter.state.toInternal()
                   }
