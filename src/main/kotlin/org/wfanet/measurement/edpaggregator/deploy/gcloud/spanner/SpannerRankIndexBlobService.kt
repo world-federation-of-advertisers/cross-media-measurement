@@ -365,8 +365,14 @@ class SpannerRankIndexBlobService(
         )
       }
 
-    val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-    return deletedBlob.copy { deleteTime = commitTimestamp }
+    // If the row was already soft-deleted, deleteOneRankIndexBlob returns it unchanged (with its
+    // original delete_time) for idempotency; otherwise stamp the new delete_time from the commit.
+    return if (deletedBlob.hasDeleteTime()) {
+      deletedBlob
+    } else {
+      val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
+      deletedBlob.copy { deleteTime = commitTimestamp }
+    }
   }
 
   override suspend fun batchDeleteRankIndexBlobs(
@@ -438,27 +444,36 @@ class SpannerRankIndexBlobService(
           )
 
         request.requestsList.map { subRequest ->
-          val result = byResourceId[subRequest.rankIndexBlobResourceId]
-          if (result == null || result.rankIndexBlob.hasDeleteTime()) {
-            throw RankIndexBlobNotFoundException(
-                dataProviderResourceId,
-                rawImpressionUploadResourceId,
-                subRequest.rankIndexBlobResourceId,
-              )
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          val result =
+            byResourceId[subRequest.rankIndexBlobResourceId]
+              ?: throw RankIndexBlobNotFoundException(
+                  dataProviderResourceId,
+                  rawImpressionUploadResourceId,
+                  subRequest.rankIndexBlobResourceId,
+                )
+                .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          // Idempotent (AIP-135): an already soft-deleted row is returned unchanged (with its
+          // original delete_time) rather than treated as not-found; only a row that never existed
+          // is NOT_FOUND.
+          if (!result.rankIndexBlob.hasDeleteTime()) {
+            txn.softDeleteRankIndexBlob(
+              dataProviderResourceId,
+              result.rawImpressionUploadId,
+              result.rankIndexBlobId,
+            )
           }
-          txn.softDeleteRankIndexBlob(
-            dataProviderResourceId,
-            result.rawImpressionUploadId,
-            result.rankIndexBlobId,
-          )
           result.rankIndexBlob
         }
       }
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
     return batchDeleteRankIndexBlobsResponse {
-      rankIndexBlobs += deletedBlobs.map { it.copy { deleteTime = commitTimestamp } }
+      // Newly soft-deleted rows take the commit timestamp; already-deleted rows (idempotent
+      // replays) keep their original delete_time.
+      rankIndexBlobs +=
+        deletedBlobs.map { blob ->
+          if (blob.hasDeleteTime()) blob else blob.copy { deleteTime = commitTimestamp }
+        }
     }
   }
 
@@ -519,13 +534,10 @@ class SpannerRankIndexBlobService(
           )
           .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
+    // Idempotent (AIP-135): a row that is already soft-deleted is returned unchanged with its
+    // original delete_time, rather than treated as not-found.
     if (result.rankIndexBlob.hasDeleteTime()) {
-      throw RankIndexBlobNotFoundException(
-          dataProviderResourceId,
-          rawImpressionUploadResourceId,
-          rankIndexBlobResourceId,
-        )
-        .asStatusRuntimeException(Status.Code.NOT_FOUND)
+      return result.rankIndexBlob
     }
 
     txn.softDeleteRankIndexBlob(
