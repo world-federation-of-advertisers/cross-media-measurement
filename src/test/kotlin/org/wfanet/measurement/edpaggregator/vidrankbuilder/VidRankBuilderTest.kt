@@ -30,6 +30,7 @@ import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.doReturnConsecutively
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
@@ -598,6 +599,117 @@ class VidRankBuilderTest {
 
     assertFailsWith<IllegalArgumentException> { builder(ranker, rankerJobs, modelLines).run() }
     Unit
+  }
+
+  @Test
+  fun `files with unknown size all pack into a single VidLabelingJob`() =
+    runBlocking<Unit> {
+      val published = mutableListOf<CreateWorkItemRequest>()
+      // size_bytes unset (0) contributes nothing to the running total, so no batch ever overflows.
+      val files =
+        mock<RawImpressionUploadFileServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadFiles(any(), any()) } doReturn
+            listRawImpressionUploadFilesResponse {
+              rawImpressionUploadFiles += rawImpressionUploadFile { name = "$UPLOAD/files/0" }
+              rawImpressionUploadFiles += rawImpressionUploadFile { name = "$UPLOAD/files/1" }
+              rawImpressionUploadFiles += rawImpressionUploadFile { name = "$UPLOAD/files/2" }
+            }
+        }
+
+      builder(
+          rankerMock(),
+          rankerJobsMock(isLastJob = true),
+          filesStub = files,
+          workItemsStub = recordingWorkItems(published),
+          maxFileBatchSizeBytes = 250,
+        )
+        .run()
+
+      assertThat(published).hasSize(1)
+      assertThat(publishedParams(published.single()).memoizedParams.rawImpressionUploadFilesList)
+        .containsExactly("$UPLOAD/files/0", "$UPLOAD/files/1", "$UPLOAD/files/2")
+    }
+
+  @Test
+  fun `last job out tolerates a benign race flipping the parent to LABELING`() = runBlocking {
+    // Another runner (or the Monitor) already advanced the parent: the flip comes back ABORTED.
+    // The last-job-out must treat it as done, not fail.
+    val modelLines =
+      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = PARENT_NAME
+              cmmsModelLine = MODEL_LINE
+              state = RawImpressionUploadModelLine.State.RANKING
+            }
+          }
+        onBlocking { markRawImpressionUploadModelLineLabeling(any(), any()) } doAnswer
+          {
+            throw StatusException(Status.ABORTED)
+          }
+      }
+
+    val result = builder(rankerMock(), rankerJobsMock(isLastJob = true), modelLines).run()
+
+    assertThat(result.lastJobOut).isTrue()
+  }
+
+  @Test
+  fun `BatchCreateVidLabelingJobs is chunked to the per-batch limit`() = runBlocking {
+    val rankerJobs = rankerJobsMock(isLastJob = true)
+    val vidLabelingJobs = vidLabelingJobsMock()
+    // Three 100-byte files with a 100-byte cap -> three single-file batches; a per-call limit of 1
+    // forces one BatchCreateVidLabelingJobs request per batch.
+    val subject =
+      VidRankBuilder(
+        subpoolRanker = rankerMock(),
+        rankerJobsStub = rankerJobs,
+        rawImpressionUploadModelLinesStub = modelLinesMock(),
+        vidLabelingJobsStub = vidLabelingJobs,
+        rawImpressionUploadFilesStub = filesMock(),
+        workItemsStub = mock(),
+        rawImpressionUpload = UPLOAD,
+        modelLine = MODEL_LINE,
+        rankerJob = RANKER_JOB,
+        subpoolMapBlobUris = subpoolMapBlobUris,
+        subpoolRankedSizes = subpoolRankedSizes,
+        vidLabelerParamsTemplate = VID_LABELER_TEMPLATE,
+        vidLabelerQueue = QUEUE,
+        maxFileBatchSizeBytes = 100,
+        maxJobsPerBatchCreate = 1,
+      )
+
+    val result = subject.run()
+
+    assertThat(result.lastJobOut).isTrue()
+    verifyBlocking(vidLabelingJobs, times(3)) { batchCreateVidLabelingJobs(any(), any()) }
+  }
+
+  @Test
+  fun `redelivery recovery is a no-op once the parent has advanced past RANKING`() = runBlocking {
+    val ranker = rankerMock()
+    val rankerJobs = rankerJobsMock(state = RankerJob.State.SUCCEEDED)
+    // Parent already LABELING: the original last-job-out completed; nothing left to recover.
+    val vidLabelingJobs = vidLabelingJobsMock()
+    val modelLines = modelLinesMock(RawImpressionUploadModelLine.State.LABELING)
+    val published = mutableListOf<CreateWorkItemRequest>()
+
+    val result =
+      builder(
+          ranker,
+          rankerJobs,
+          modelLines,
+          vidLabelingJobs,
+          workItemsStub = recordingWorkItems(published),
+        )
+        .run()
+
+    assertThat(result.lastJobOut).isFalse()
+    verifyBlocking(ranker, never()) { rank(any(), any(), any()) }
+    verifyBlocking(vidLabelingJobs, never()) { listVidLabelingJobs(any(), any()) }
+    assertThat(published).isEmpty()
+    verifyBlocking(modelLines, never()) { markRawImpressionUploadModelLineLabeling(any(), any()) }
   }
 
   @Test
