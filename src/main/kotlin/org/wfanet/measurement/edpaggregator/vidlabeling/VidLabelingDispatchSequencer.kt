@@ -32,20 +32,15 @@ import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
-import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
-import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.createPoolAssignmentJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLinePoolAssigningRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
@@ -57,27 +52,25 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  *
  * This is the single shared component that both [VidLabelingDispatcher] (the upload-triggered "fast
  * path") and `VidLabelingMonitor` (the periodic backstop) call to start pipeline work. Keeping the
- * logic in one place means the per-`DataProvider` sequencing rule, the model-shard resolution, and
- * the work-creation steps are defined exactly once.
+ * logic in one place means the per-`(DataProvider, ModelLine)` sequencing rule, the model-shard
+ * resolution, and the work-creation steps are defined exactly once.
  *
- * [dispatchNext] enforces the core invariant: **at most one upload per `DataProvider` is `ACTIVE`
- * at a time.** If any upload is already `ACTIVE`, it does nothing; otherwise it activates the
- * oldest `CREATED` upload — for each of that upload's `CREATED` model lines it creates the Phase-0
- * (memoized) or Phase-2 (non-memoized) work and transitions the model line out of `CREATED`. This
- * prevents two uploads for the same `(DataProvider, ModelLine)` from corrupting the cumulative rank
- * index by running Phase 1 concurrently.
+ * [dispatchNext] enforces the core invariant: **at most one upload per `(DataProvider, ModelLine)`
+ * runs at a time.** A model line is dispatched only if no upload currently has that same
+ * `cmmsModelLine` running, which protects the cumulative rank index from concurrent Phase-1 runs;
+ * different model lines proceed in parallel.
  *
- * Because the fast path and the monitor can run concurrently, two callers can momentarily both
- * observe "no `ACTIVE` upload" and both pick the same oldest `CREATED` upload (selection is
- * deterministic). Each model-line transition is therefore guarded by an etag compare-and-swap: the
- * first caller to call `Mark*` with the model line's etag wins, and the loser observes `ABORTED`
- * (or `FAILED_PRECONDITION` if the line already advanced) and no-ops. Work creation is idempotent
- * (`PoolAssignmentJob`s via deterministic request IDs, `WorkItem`s via deterministic IDs), so the
- * loser's redundant create calls are harmless.
+ * This PR handles only the **non-memoized** (Phase-2 VidLabeler) path. Memoized model lines are
+ * skipped pending follow-up (TODO(world-federation-of-advertisers/cross-media-measurement#4062)).
+ *
+ * Because the fast path and the monitor can run concurrently, two callers can momentarily both pick
+ * the same model line. Each transition is therefore guarded by an etag compare-and-swap: the first
+ * caller to call `Mark*` with the model line's etag wins, and the loser observes `ABORTED` (or
+ * `FAILED_PRECONDITION` if the line already advanced) and no-ops. `WorkItem` creation is idempotent
+ * (deterministic IDs), so the loser's redundant create calls are harmless.
  *
  * @param rawImpressionUploadStub stub for `RawImpressionUploadService`.
  * @param rawImpressionUploadModelLineStub stub for `RawImpressionUploadModelLineService`.
- * @param poolAssignmentJobStub stub for `PoolAssignmentJobService`.
  * @param workItemsStub stub for creating WorkItems via the Secure Computation API.
  * @param modelRolloutsStub VID Repository ModelRollouts API.
  * @param modelShardsStub VID Repository ModelShards API.
@@ -92,8 +85,6 @@ class VidLabelingDispatchSequencer(
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub,
   private val rawImpressionUploadModelLineStub:
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub,
-  private val poolAssignmentJobStub:
-    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub,
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   private val modelRolloutsStub: ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub,
   private val modelShardsStub: ModelShardsGrpcKt.ModelShardsCoroutineStub,
@@ -184,8 +175,9 @@ class VidLabelingDispatchSequencer(
    * its model shard, creates the Phase-0 (memoized) or Phase-2 (non-memoized) work, and transitions
    * the model line out of `CREATED` (which rolls the upload up to `ACTIVE`).
    *
-   * @return true if the model line was activated (shard resolved and work attempted); false if its
-   *   model shard could not be resolved, in which case it is left `CREATED` for a later attempt.
+   * @return true if the model line was activated (shard resolved and work attempted); false if it
+   *   was skipped (model shard unresolved, or memoized — see below), in which case it is left
+   *   `CREATED` for a later attempt.
    */
   private suspend fun activateModelLine(
     uploadName: String,
@@ -200,22 +192,28 @@ class VidLabelingDispatchSequencer(
           return false
         }
 
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4062): Dispatch the Phase-0
+    //   SubpoolAssigner WorkItem for memoized model lines. This PR handles only the non-memoized
+    //   (Phase-2 VidLabeler) path, so memoized model lines are skipped until that follow-up lands.
     if (shardInfo.memoizationEnabled) {
-      createPoolAssignmentJobs(uploadName, modelLine.cmmsModelLine)
-      markPoolAssigning(modelLine.name, modelLine.etag)
-    } else {
-      val uploadId: String = uploadName.substringAfterLast("/")
-      for (shardIndex in 0 until numberOfShards) {
-        createWorkItem(
-          uploadName,
-          modelLine.cmmsModelLine,
-          shardInfo.modelBlobPath,
-          shardIndex,
-          uploadId,
-        )
-      }
-      markLabeling(modelLine.name, modelLine.etag)
+      logger.warning(
+        "Skipping memoized model line ${modelLine.cmmsModelLine}: Phase-0 dispatch not yet " +
+          "implemented (see #4062)"
+      )
+      return false
     }
+
+    val uploadId: String = uploadName.substringAfterLast("/")
+    for (shardIndex in 0 until numberOfShards) {
+      createWorkItem(
+        uploadName,
+        modelLine.cmmsModelLine,
+        shardInfo.modelBlobPath,
+        shardIndex,
+        uploadId,
+      )
+    }
+    markLabeling(modelLine.name, modelLine.etag)
     return true
   }
 
@@ -335,37 +333,6 @@ class VidLabelingDispatchSequencer(
     )
   }
 
-  /** Creates one `PoolAssignmentJob` per shard for a memoized model line (Phase 0). */
-  private suspend fun createPoolAssignmentJobs(uploadName: String, modelLineName: String) {
-    for (shardChunk in (0 until numberOfShards).chunked(POOL_ASSIGNMENT_JOB_BATCH_SIZE)) {
-      val request = batchCreatePoolAssignmentJobsRequest {
-        parent = uploadName
-        for (shardIndex in shardChunk) {
-          requests += createPoolAssignmentJobRequest {
-            parent = uploadName
-            poolAssignmentJob = poolAssignmentJob {
-              cmmsModelLine = modelLineName
-              this.shardIndex = shardIndex
-            }
-            requestId = RequestIds.forPoolAssignmentJob(uploadName, modelLineName, shardIndex)
-          }
-        }
-      }
-      try {
-        poolAssignmentJobStub.batchCreatePoolAssignmentJobs(request)
-      } catch (e: StatusException) {
-        if (e.status.code == Status.Code.ALREADY_EXISTS) {
-          // Idempotent redelivery / concurrent dispatch: these jobs already exist. Ack and
-          // continue.
-          logger.info("PoolAssignmentJobs for $modelLineName already exist; skipping")
-          continue
-        }
-        throw e
-      }
-    }
-    logger.info("Created $numberOfShards PoolAssignmentJobs for memoized model line $modelLineName")
-  }
-
   /**
    * Creates a WorkItem in the Secure Computation control plane for one model line shard.
    *
@@ -426,26 +393,6 @@ class VidLabelingDispatchSequencer(
     logger.info("Created WorkItem $workItemId for model line $modelLineName shard $shardIndex")
   }
 
-  private suspend fun markPoolAssigning(modelLineName: String, etag: String) {
-    try {
-      rawImpressionUploadModelLineStub.markRawImpressionUploadModelLinePoolAssigning(
-        markRawImpressionUploadModelLinePoolAssigningRequest {
-          name = modelLineName
-          this.etag = etag
-        }
-      )
-    } catch (e: StatusException) {
-      if (isConcurrentClaimLoss(e)) {
-        logger.info(
-          "Skipping POOL_ASSIGNING for $modelLineName: ${e.status.code} (claimed by a " +
-            "concurrent dispatch)"
-        )
-        return
-      }
-      throw Exception("Error marking $modelLineName POOL_ASSIGNING", e)
-    }
-  }
-
   private suspend fun markLabeling(modelLineName: String, etag: String) {
     try {
       rawImpressionUploadModelLineStub.markRawImpressionUploadModelLineLabeling(
@@ -468,8 +415,6 @@ class VidLabelingDispatchSequencer(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-
-    private const val POOL_ASSIGNMENT_JOB_BATCH_SIZE = 100
 
     /**
      * Model-line states that count as "running" for `(DataProvider, ModelLine)` serialization: a

@@ -32,8 +32,6 @@ class RequestIdsTest {
       .isEqualTo(RequestIds.forRawImpressionUploadFile(UPLOAD, FILE_URI))
     assertThat(RequestIds.forRawImpressionUploadModelLine(UPLOAD, MODEL_LINE))
       .isEqualTo(RequestIds.forRawImpressionUploadModelLine(UPLOAD, MODEL_LINE))
-    assertThat(RequestIds.forPoolAssignmentJob(UPLOAD, MODEL_LINE, 0))
-      .isEqualTo(RequestIds.forPoolAssignmentJob(UPLOAD, MODEL_LINE, 0))
   }
 
   @Test
@@ -53,12 +51,6 @@ class RequestIdsTest {
       .isNotEqualTo(
         RequestIds.forRawImpressionUploadFile("$DATA_PROVIDER/rawImpressionUploads/b", FILE_URI)
       )
-  }
-
-  @Test
-  fun `pool assignment job request id differs by shard`() {
-    assertThat(RequestIds.forPoolAssignmentJob(UPLOAD, MODEL_LINE, 0))
-      .isNotEqualTo(RequestIds.forPoolAssignmentJob(UPLOAD, MODEL_LINE, 1))
   }
 
   @Test

@@ -45,9 +45,5 @@ object RequestIds {
   fun forRawImpressionUploadModelLine(uploadName: String, modelLineName: String): String =
     fromKey("rawImpressionUploadModelLine:$uploadName:$modelLineName")
 
-  /** `request_id` for creating a `PoolAssignmentJob`. */
-  fun forPoolAssignmentJob(uploadName: String, modelLineName: String, shardIndex: Int): String =
-    fromKey("poolAssignmentJob:$uploadName:$modelLineName:$shardIndex")
-
   private fun fromKey(key: String): String = UUID.nameUUIDFromBytes(key.toByteArray()).toString()
 }

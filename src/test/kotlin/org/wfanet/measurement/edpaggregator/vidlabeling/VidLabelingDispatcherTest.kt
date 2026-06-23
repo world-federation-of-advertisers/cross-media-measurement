@@ -62,7 +62,6 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
@@ -93,9 +92,6 @@ class VidLabelingDispatcherTest {
   private val rawImpressionUploadModelLineService:
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase =
     mockService()
-  private val poolAssignmentJobService:
-    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase =
-    mockService()
   private val workItemsService: WorkItemsGrpcKt.WorkItemsCoroutineImplBase = mockService()
   private val storageClient: StorageClient = mock()
 
@@ -107,7 +103,6 @@ class VidLabelingDispatcherTest {
     addService(rawImpressionUploadService)
     addService(rawImpressionUploadFileService)
     addService(rawImpressionUploadModelLineService)
-    addService(poolAssignmentJobService)
     addService(workItemsService)
   }
 
@@ -139,10 +134,6 @@ class VidLabelingDispatcherTest {
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
       grpcTestServerRule.channel
     )
-  }
-
-  private val poolAssignmentJobStub by lazy {
-    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val workItemsStub by lazy {
@@ -187,7 +178,6 @@ class VidLabelingDispatcherTest {
     return VidLabelingDispatchSequencer(
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
-      poolAssignmentJobStub = poolAssignmentJobStub,
       workItemsStub = workItemsStub,
       modelRolloutsStub = modelRolloutsStub,
       modelShardsStub = modelShardsStub,

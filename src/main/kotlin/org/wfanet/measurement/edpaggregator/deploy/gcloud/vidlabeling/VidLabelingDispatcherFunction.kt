@@ -47,7 +47,6 @@ import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
-import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
@@ -91,8 +90,8 @@ private data class ChannelKey(
  * - `MODEL_ROLLOUTS_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `MODEL_SHARDS_TARGET`: Required. Target endpoint for the VID Repository ModelShards service.
  * - `MODEL_SHARDS_CERT_HOST`: Optional. Overrides TLS authority for testing.
- * - `RAW_IMPRESSION_UPLOAD_TARGET`: Required. Target endpoint for the `RawImpressionUploadService`,
- *   `RawImpressionUploadModelLineService`, and `PoolAssignmentJobService`.
+ * - `RAW_IMPRESSION_UPLOAD_TARGET`: Required. Target endpoint for the `RawImpressionUploadService`
+ *   and `RawImpressionUploadModelLineService`.
  * - `RAW_IMPRESSION_UPLOAD_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `CONTROL_PLANE_TARGET`: Required. Target endpoint for the Secure Computation control plane
  *   (`WorkItemsService`).
@@ -201,11 +200,6 @@ class VidLabelingDispatcherFunction : HttpFunction {
         RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
           rawImpressionUploadChannel
         )
-      val poolAssignmentJobStub =
-        PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
-          rawImpressionUploadChannel
-        )
-
       val workItemsStub =
         WorkItemsGrpcKt.WorkItemsCoroutineStub(
           createInstrumentedChannel(
@@ -225,7 +219,6 @@ class VidLabelingDispatcherFunction : HttpFunction {
         VidLabelingDispatchSequencer(
           rawImpressionUploadStub = rawImpressionUploadStub,
           rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
-          poolAssignmentJobStub = poolAssignmentJobStub,
           workItemsStub = workItemsStub,
           modelRolloutsStub = modelRolloutsStub,
           modelShardsStub = modelShardsStub,

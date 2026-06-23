@@ -45,15 +45,12 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineLabelingRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLinePoolAssigningRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
-import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
@@ -74,9 +71,6 @@ class VidLabelingDispatchSequencerTest {
   private val rawImpressionUploadModelLineService:
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase =
     mockService()
-  private val poolAssignmentJobService:
-    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase =
-    mockService()
   private val workItemsService: WorkItemsGrpcKt.WorkItemsCoroutineImplBase = mockService()
   private val modelRolloutsService: ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase =
     mockService()
@@ -86,7 +80,6 @@ class VidLabelingDispatchSequencerTest {
   val grpcTestServerRule = GrpcTestServerRule {
     addService(rawImpressionUploadService)
     addService(rawImpressionUploadModelLineService)
-    addService(poolAssignmentJobService)
     addService(workItemsService)
     addService(modelRolloutsService)
     addService(modelShardsService)
@@ -102,9 +95,6 @@ class VidLabelingDispatchSequencerTest {
       grpcTestServerRule.channel
     )
   }
-  private val poolAssignmentJobStub by lazy {
-    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(grpcTestServerRule.channel)
-  }
   private val workItemsStub by lazy {
     WorkItemsGrpcKt.WorkItemsCoroutineStub(grpcTestServerRule.channel)
   }
@@ -119,7 +109,6 @@ class VidLabelingDispatchSequencerTest {
     VidLabelingDispatchSequencer(
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
-      poolAssignmentJobStub = poolAssignmentJobStub,
       workItemsStub = workItemsStub,
       modelRolloutsStub = modelRolloutsStub,
       modelShardsStub = modelShardsStub,
@@ -206,10 +195,6 @@ class VidLabelingDispatchSequencerTest {
 
   private suspend fun stubMarkTransitions() {
     whenever(rawImpressionUploadModelLineService.markRawImpressionUploadModelLineLabeling(any()))
-      .thenReturn(rawImpressionUploadModelLine {})
-    whenever(
-        rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
-      )
       .thenReturn(rawImpressionUploadModelLine {})
   }
 
@@ -311,22 +296,20 @@ class VidLabelingDispatchSequencerTest {
   }
 
   @Test
-  fun `dispatchNext dispatches a memoized model line via PoolAssignmentJobs`() = runBlocking {
+  fun `dispatchNext skips a memoized model line`() = runBlocking {
+    // Memoized (Phase-0 SubpoolAssigner) dispatch is out of scope for this PR (see #4062), so a
+    // memoized model line is left CREATED and no work is created.
     stubUploads(created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW)))
     stubModelLines(createdModelLine())
     stubShardResolution(memoized = true)
-    whenever(poolAssignmentJobService.batchCreatePoolAssignmentJobs(any()))
-      .thenReturn(batchCreatePoolAssignmentJobsResponse {})
-    stubMarkTransitions()
 
     val result = createSequencer().dispatchNext()
 
-    assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
-    verifyBlocking(poolAssignmentJobService) { batchCreatePoolAssignmentJobs(any()) }
-    verifyBlocking(rawImpressionUploadModelLineService) {
-      markRawImpressionUploadModelLinePoolAssigning(any())
-    }
+    assertThat(result.dispatchedUpload).isNull()
     verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      markRawImpressionUploadModelLineLabeling(any())
+    }
   }
 
   @Test
@@ -379,27 +362,6 @@ class VidLabelingDispatchSequencerTest {
       val captor = argumentCaptor<MarkRawImpressionUploadModelLineLabelingRequest>()
       verifyBlocking(rawImpressionUploadModelLineService) {
         markRawImpressionUploadModelLineLabeling(captor.capture())
-      }
-      assertThat(captor.firstValue.etag).isEqualTo(ETAG)
-    }
-
-  @Test
-  fun `dispatchNext passes the etag on the memoized Mark request`() =
-    runBlocking<Unit> {
-      stubUploads(
-        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
-      )
-      stubModelLines(createdModelLine())
-      stubShardResolution(memoized = true)
-      whenever(poolAssignmentJobService.batchCreatePoolAssignmentJobs(any()))
-        .thenReturn(batchCreatePoolAssignmentJobsResponse {})
-      stubMarkTransitions()
-
-      createSequencer().dispatchNext()
-
-      val captor = argumentCaptor<MarkRawImpressionUploadModelLinePoolAssigningRequest>()
-      verifyBlocking(rawImpressionUploadModelLineService) {
-        markRawImpressionUploadModelLinePoolAssigning(captor.capture())
       }
       assertThat(captor.firstValue.etag).isEqualTo(ETAG)
     }
@@ -463,29 +425,6 @@ class VidLabelingDispatchSequencerTest {
       assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
       verifyBlocking(rawImpressionUploadModelLineService) {
         markRawImpressionUploadModelLineLabeling(any())
-      }
-    }
-
-  @Test
-  fun `dispatchNext tolerates already-existing PoolAssignmentJobs`() =
-    runBlocking<Unit> {
-      stubUploads(
-        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
-      )
-      stubModelLines(createdModelLine())
-      stubShardResolution(memoized = true)
-      // Idempotent redelivery / concurrent dispatch: the jobs already exist.
-      whenever(poolAssignmentJobService.batchCreatePoolAssignmentJobs(any())).thenAnswer {
-        throw StatusException(Status.ALREADY_EXISTS.withDescription("jobs exist"))
-      }
-      stubMarkTransitions()
-
-      val result = createSequencer().dispatchNext()
-
-      // Ack and continue: the upload is still dispatched and the transition still happens.
-      assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
-      verifyBlocking(rawImpressionUploadModelLineService) {
-        markRawImpressionUploadModelLinePoolAssigning(any())
       }
     }
 
