@@ -841,15 +841,16 @@ abstract class RankIndexBlobServiceTest {
     }
 
   @Test
-  fun `deleteRankIndexBlob throws NOT_FOUND when already deleted`() =
+  fun `deleteRankIndexBlob is idempotent when already deleted`() =
     runBlocking<Unit> {
       val created: RankIndexBlob = createBlob()
-      deleteBlob(created.rankIndexBlobResourceId)
+      val firstDelete: RankIndexBlob = deleteBlob(created.rankIndexBlobResourceId)
+      assertThat(firstDelete.hasDeleteTime()).isTrue()
 
-      val exception: StatusRuntimeException =
-        assertFailsWith<StatusRuntimeException> { deleteBlob(created.rankIndexBlobResourceId) }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      // Deleting again succeeds (AIP-135) and returns the resource unchanged, preserving its
+      // original delete_time.
+      val secondDelete: RankIndexBlob = deleteBlob(created.rankIndexBlobResourceId)
+      assertThat(secondDelete).isEqualTo(firstDelete)
     }
 
   @Test
@@ -902,6 +903,39 @@ abstract class RankIndexBlobServiceTest {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    }
+
+  @Test
+  fun `batchDeleteRankIndexBlobs is idempotent for a mix of active and already-deleted rows`() =
+    runBlocking<Unit> {
+      val blob1: RankIndexBlob = createBlob(poolOffset = 0L)
+      val blob2: RankIndexBlob = createBlob(poolOffset = 1L)
+      // blob1 is already soft-deleted; blob2 is still active.
+      val alreadyDeleted: RankIndexBlob = deleteBlob(blob1.rankIndexBlobResourceId)
+
+      val response =
+        service.batchDeleteRankIndexBlobs(
+          batchDeleteRankIndexBlobsRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            requests += deleteRankIndexBlobRequest {
+              rankIndexBlobResourceId = blob1.rankIndexBlobResourceId
+            }
+            requests += deleteRankIndexBlobRequest {
+              rankIndexBlobResourceId = blob2.rankIndexBlobResourceId
+            }
+          }
+        )
+
+      // Both rows are returned and soft-deleted; the already-deleted one keeps its original
+      // delete_time.
+      assertThat(response.rankIndexBlobsList).hasSize(2)
+      assertThat(response.rankIndexBlobsList.all { it.hasDeleteTime() }).isTrue()
+      val returnedBlob1: RankIndexBlob =
+        response.rankIndexBlobsList.single {
+          it.rankIndexBlobResourceId == blob1.rankIndexBlobResourceId
+        }
+      assertThat(returnedBlob1.deleteTime).isEqualTo(alreadyDeleted.deleteTime)
     }
 
   @Test

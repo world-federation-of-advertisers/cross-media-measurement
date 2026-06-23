@@ -214,6 +214,10 @@ class RankIndexBlobService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    // Coerce page size at the public layer (the validation boundary): 0 -> default, capped at max.
+    val pageSize =
+      if (request.pageSize == 0) DEFAULT_PAGE_SIZE else request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
+
     if (request.hasFilter() && request.filter.blobType == RankIndexBlob.BlobType.UNRECOGNIZED) {
       throw InvalidFieldValueException("filter.blob_type")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -239,7 +243,7 @@ class RankIndexBlobService(
             rawImpressionUploadResourceId =
               if (uploadKey.rawImpressionUploadId == ResourceKey.WILDCARD_ID) ""
               else uploadKey.rawImpressionUploadId
-            this.pageSize = request.pageSize
+            this.pageSize = pageSize
             if (internalPageToken != null) {
               pageToken = internalPageToken
             }
@@ -417,6 +421,8 @@ class RankIndexBlobService(
   companion object {
     private const val MAX_BATCH_CREATE_SIZE = 50
     private const val MAX_BATCH_DELETE_SIZE = 1000
+    private const val DEFAULT_PAGE_SIZE = 50
+    private const val MAX_PAGE_SIZE = 100
 
     private fun handleInternalError(e: StatusException): StatusRuntimeException {
       return when (InternalErrors.getReason(e)) {
@@ -425,6 +431,9 @@ class RankIndexBlobService(
           Status.NOT_FOUND.withCause(e).asRuntimeException()
         InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS ->
           Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
+        InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+        InternalErrors.Reason.INVALID_FIELD_VALUE ->
+          Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
         InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
         InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
         InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
@@ -441,8 +450,6 @@ class RankIndexBlobService(
         InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
         InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
         InternalErrors.Reason.ETAG_MISMATCH,
-        InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-        InternalErrors.Reason.INVALID_FIELD_VALUE,
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }
