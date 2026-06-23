@@ -839,6 +839,173 @@ class PostProcessReportResultTest(unittest.TestCase):
         self.assertEqual(
             list(last_weekly.value.cumulative_results.k_plus_reach), [])
 
+    def test_reconcile_skips_when_multiple_rsrs_share_dim_and_selector(self):
+        """When two RSRs share the dim key AND the same selector kind (e.g.
+        two weekly cadences for the same dimension), the total<->weekly pair
+        is ambiguous. Log a warning and skip the dimension rather than
+        silently mis-reconciling."""
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+        reporting_set_results = [
+            self._make_reporting_set_result(1, 'reporting_set_id_edp1',
+                                            'total'),
+            self._make_reporting_set_result(2, 'reporting_set_id_edp1',
+                                            'weekly'),
+            self._make_reporting_set_result(3, 'reporting_set_id_edp1',
+                                            'weekly'),
+        ]
+        request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        self._set_window_reach(request, 1, end_day=15, reach=1003)
+        self._set_window_reach(request, 2, end_day=15, reach=1000)
+        self._set_window_reach(request, 3, end_day=15, reach=999)
+
+        with self.assertLogs(level='WARNING') as cm:
+            processor._reconcile_cross_window_identities(
+                request, reporting_set_results)
+
+        # No snap applied -- total still at its original 1003.
+        self.assertEqual(
+            request.reporting_set_results[1].reporting_window_results[0]
+            .value.cumulative_results.reach, 1003)
+        # Weekly RSRs also untouched.
+        self.assertEqual(
+            request.reporting_set_results[2].reporting_window_results[0]
+            .value.cumulative_results.reach, 1000)
+        self.assertEqual(
+            request.reporting_set_results[3].reporting_window_results[0]
+            .value.cumulative_results.reach, 999)
+        self.assertTrue(
+            any('share dimension key' in m for m in cm.output),
+            f"expected dim-key collision warning, got: {cm.output}")
+
+    def test_reconcile_snap_down_can_break_cumulative_monotonicity(self):
+        """When whole_campaign.reach < last_weekly.reach, the snap-down can
+        pull last_weekly below an earlier weekly window. This is an accepted
+        trade-off: snapping UP would re-break the per-BMS Rule 4
+        (sum(k_plus_reach) <= impressions) that PR #4053 fixes. Rule 1
+        (cumulative non-decreasing) is deferred to a separate snap pass.
+        See Issue #4049."""
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+        reporting_set_results = [
+            self._make_reporting_set_result(1, 'reporting_set_id_edp1',
+                                            'total'),
+            self._make_reporting_set_result(2, 'reporting_set_id_edp1',
+                                            'weekly'),
+        ]
+        request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        # whole_campaign rounds lower than last weekly cumulative; an earlier
+        # weekly equals last_weekly pre-snap.
+        self._set_window_reach(request, 1, end_day=15, reach=1000)
+        self._set_window_reach(request, 2, end_day=8, reach=1001)
+        self._set_window_reach(request, 2, end_day=15, reach=1001)
+
+        processor._reconcile_cross_window_identities(
+            request, reporting_set_results)
+
+        weekly = request.reporting_set_results[2].reporting_window_results
+        earlier = next(w for w in weekly if w.key.end.day == 8)
+        last = next(w for w in weekly if w.key.end.day == 15)
+        # Last week snapped down to whole_campaign's value...
+        self.assertEqual(last.value.cumulative_results.reach, 1000)
+        # ...even though earlier week stayed at 1001. Rule 1 violation is
+        # accepted; Rule 1 snap pass (TBD) will resolve it.
+        self.assertEqual(earlier.value.cumulative_results.reach, 1001)
+        self.assertLess(last.value.cumulative_results.reach,
+                        earlier.value.cumulative_results.reach)
+
+    def test_reconcile_preserves_per_bms_invariants_after_snap_down(self):
+        """Composition test: PR #4053's per-BMS invariants (k_plus_reach[0]
+        == reach and sum(k_plus_reach) <= impressions) must still hold on
+        both sides after this PR's cross-window snap-down runs. The
+        snap-down direction was chosen specifically to preserve these; pin
+        it down. Builds each side via the real compute_basic_metric_set so
+        the test exercises the actual PR #4053 + PR #4054 composition."""
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+        reporting_set_results = [
+            self._make_reporting_set_result(1, 'reporting_set_id_edp1',
+                                            'total'),
+            self._make_reporting_set_result(2, 'reporting_set_id_edp1',
+                                            'weekly'),
+        ]
+        # Float inputs picked so whole_campaign rounds to 2194000 and
+        # last_weekly rounds to 2194001 -- the exact 1-unit drift this PR
+        # fixes. impressions intentionally below sum(round(freqs)) so
+        # PR #4053's cascade fires too, leaving sum(k_plus_reach) ==
+        # impressions exactly (the worst case for PR #4054's snap-down --
+        # any further drop to k_plus_reach[0] must NOT push the sum below
+        # the actual histogram tail).
+        whole_camp_bms = compute_basic_metric_set(
+            reach=2194000,
+            frequency_values=[
+                1222269.4, 299330.4, 183245.4, 85498.4, 45170.4,
+                64182.4, 26965.4, 7445.4, 5345.4, 4608.4,
+                4874.4, 6342.4, 6253.4, 51051.4, 181420.4,
+            ],
+            impressions=7313150,
+            population=8045553,
+        )
+        last_weekly_bms = compute_basic_metric_set(
+            reach=2194001,
+            frequency_values=[
+                1222270.4, 299330.4, 183245.4, 85498.4, 45170.4,
+                64182.4, 26965.4, 7445.4, 5345.4, 4608.4,
+                4874.4, 6342.4, 6253.4, 51051.4, 181420.4,
+            ],
+            impressions=7313151,
+            population=8045553,
+        )
+
+        request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        for rsr_id, bms in ((1, whole_camp_bms), (2, last_weekly_bms)):
+            processed = request.reporting_set_results[rsr_id]
+            entry = processed.reporting_window_results.add()
+            entry.key.end.year = 2025
+            entry.key.end.month = 10
+            entry.key.end.day = 15
+            entry.value.cumulative_results.CopyFrom(bms)
+
+        # Sanity check: per-BMS invariants hold pre-snap on both sides, and
+        # the cross-window drift exists.
+        for rsr_id in (1, 2):
+            bms = request.reporting_set_results[
+                rsr_id].reporting_window_results[0].value.cumulative_results
+            self.assertEqual(bms.k_plus_reach[0], bms.reach)
+            self.assertLessEqual(sum(bms.k_plus_reach), bms.impressions)
+        self.assertNotEqual(
+            request.reporting_set_results[1].reporting_window_results[0]
+            .value.cumulative_results.reach,
+            request.reporting_set_results[2].reporting_window_results[0]
+            .value.cumulative_results.reach)
+
+        processor._reconcile_cross_window_identities(
+            request, reporting_set_results)
+
+        # Per-BMS invariants STILL hold on both sides after the snap-down.
+        # Snapping reach DOWN by 1 and k_plus_reach[0] DOWN by 1 keeps both
+        # equal (Rule 3) and reduces sum(k_plus_reach) by 1, which can only
+        # help Rule 4 (sum <= impressions). A snap-UP would have done the
+        # opposite -- this is the justification for min() in the PR.
+        for rsr_id in (1, 2):
+            bms = request.reporting_set_results[
+                rsr_id].reporting_window_results[0].value.cumulative_results
+            self.assertEqual(
+                bms.k_plus_reach[0], bms.reach,
+                f"RSR {rsr_id}: PR #4053 Rule 3 broken after snap-down")
+            self.assertLessEqual(
+                sum(bms.k_plus_reach), bms.impressions,
+                f"RSR {rsr_id}: PR #4053 Rule 4 broken after snap-down")
+        # PR #4054 invariant: reaches now agree.
+        self.assertEqual(
+            request.reporting_set_results[1].reporting_window_results[0]
+            .value.cumulative_results.reach,
+            request.reporting_set_results[2].reporting_window_results[0]
+            .value.cumulative_results.reach)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -228,16 +228,28 @@ class PostProcessReportResult:
         """
         # Group reporting_set_result IDs by dimension (excluding the
         # weekly/total selector) so we can match a whole_campaign RSR to its
-        # corresponding weekly RSR.
-        dim_to_rsrs: dict[tuple, dict[str, int]] = {}
+        # corresponding weekly RSR. If two RSRs share both the dim key and
+        # the selector kind (e.g. two weekly cadences for the same
+        # dimension), the pair is ambiguous -- log and skip the dimension
+        # rather than mis-reconciling.
+        dim_to_rsrs: dict[tuple, dict[str, int | None]] = {}
         for rsr in reporting_set_results:
             dim = rsr.dimension
             selector = dim.metric_frequency_spec.WhichOneof('selector')
             if selector not in ('total', 'weekly'):
                 continue
             key = self._dimension_key_excluding_metric_frequency_spec(dim)
-            dim_to_rsrs.setdefault(key, {})[selector] = (
-                rsr.external_reporting_set_result_id)
+            bucket = dim_to_rsrs.setdefault(key, {})
+            if selector in bucket:
+                logging.warning(
+                    "Multiple ReportingSetResults share dimension key with "
+                    "selector=%s (ids %s and %d); skipping cross-window "
+                    "reconciliation for this dimension.",
+                    selector, bucket[selector],
+                    rsr.external_reporting_set_result_id)
+                bucket[selector] = None
+            else:
+                bucket[selector] = rsr.external_reporting_set_result_id
 
         for selectors in dim_to_rsrs.values():
             total_id = selectors.get('total')
