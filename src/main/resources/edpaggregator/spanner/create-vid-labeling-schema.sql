@@ -257,6 +257,7 @@ CREATE TABLE VidLabelingJob (
   Etag STRING(36) NOT NULL,
   ErrorMessage STRING(MAX),
   CreateRequestId STRING(36),
+  MarkRequestId STRING(36),
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 ) PRIMARY KEY (DataProviderResourceId, RawImpressionUploadId, VidLabelingJobId),

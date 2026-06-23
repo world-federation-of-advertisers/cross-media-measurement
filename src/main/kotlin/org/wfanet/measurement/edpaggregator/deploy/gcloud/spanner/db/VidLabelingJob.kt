@@ -332,9 +332,6 @@ fun AsyncDatabaseClient.TransactionContext.updateVidLabelingJobState(
   }
 }
 
-// TODO(world-federation-of-advertisers/cross-media-measurement#3989): `MarkRequestId` is added by
-//  base schema PR #3989. The reads/writes of `MarkRequestId` in BASE_SQL, buildResult, and the Mark
-//  RPCs only succeed once that PR is merged.
 private object VidLabelingJobEntity {
   val BASE_SQL =
     """
