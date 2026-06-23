@@ -368,6 +368,14 @@ class VerifySyntheticData : Runnable {
         scanForMetadata(scheme, outputBucket, basePath, storagePath, metadataPrefix)
       }
 
+    // SelectedStorageClient requires a root directory for file:/// blobs; surface a clear
+    // error here instead of letting FileSystemStorageClient throw a bare NPE downstream.
+    if (resolvedMetadataUris.any { it.startsWith("file:///") }) {
+      requireNotNull(storagePath) {
+        "--local-storage-path is required when any --metadata-uri uses file:///"
+      }
+    }
+
     val eventMessageInstance: Message =
       GenerateSyntheticData.resolveEventMessageInstance(
         eventMessageTypeUrl,

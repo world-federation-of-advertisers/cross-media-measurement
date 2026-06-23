@@ -353,6 +353,25 @@ class GenerateAndVerifySyntheticDataTest {
   }
 
   @Test
+  fun `verify rejects file URI --metadata-uri without --local-storage-path`() {
+    // runGenerate() materializes the FAKE KEK keyset file the verifier requires up front;
+    // the require we are exercising fires after that check but before any storage I/O.
+    runGenerate()
+    val verifyCmd = VerifySyntheticData()
+    CommandLine(verifyCmd)
+      .parseArgs(
+        "--kms-type=FAKE",
+        "--kek-uri=$KEK_URI",
+        "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
+        "--metadata-uri=file:///some/path/metadata.json",
+      )
+    val failure = assertFailsWith<IllegalArgumentException> { verifyCmd.run() }
+    assertThat(failure)
+      .hasMessageThat()
+      .contains("--local-storage-path is required when any --metadata-uri uses file:///")
+  }
+
+  @Test
   fun `generate with multiple sub-specs per event group stamps different EntityKeys in one blob`() {
     val outputBucketDir = tempFolder.root.resolve(OUTPUT_BUCKET)
     outputBucketDir.mkdirs()
