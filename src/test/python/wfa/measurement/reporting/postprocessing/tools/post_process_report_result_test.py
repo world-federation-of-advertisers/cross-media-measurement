@@ -1007,5 +1007,55 @@ class PostProcessReportResultTest(unittest.TestCase):
             .value.cumulative_results.reach)
 
 
+    def test_reconcile_snap_down_preserves_k_plus_reach_monotonicity(self):
+        """When snap-down lowers k_plus_reach[0] on a side where
+        k_plus_reach[1] was already equal to k_plus_reach[0] (e.g. the
+        frequency=1 bucket rounded to 0), naive overwrite would leave
+        k_plus_reach[1] > k_plus_reach[0] -- nonsense and a regression of
+        PR #4053's non-increasing invariant. The snap helper must re-clamp
+        forward (Issue #4049).
+        """
+        processor = PostProcessReportResult(self.mock_report_results_stub,
+                                            self.mock_reporting_sets_stub)
+        reporting_set_results = [
+            self._make_reporting_set_result(1, 'reporting_set_id_edp1',
+                                            'total'),
+            self._make_reporting_set_result(2, 'reporting_set_id_edp1',
+                                            'weekly'),
+        ]
+        request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+        # Both sides have k_plus_reach[0] == k_plus_reach[1] (the worst case
+        # for snap-down): freq=1 bucket rounded to 0. After PR #4053's
+        # forward-clamp, this state is reachable in real data whenever the
+        # rounded 1-frequency bucket is zero.
+        self._set_window_reach(
+            request, 1, end_day=15, reach=11,
+            k_plus_reach=[11, 11, 7, 2])
+        self._set_window_reach(
+            request, 2, end_day=15, reach=10,
+            k_plus_reach=[10, 10, 7, 2])
+
+        processor._reconcile_cross_window_identities(
+            request, reporting_set_results)
+
+        # Both sides snapped to 10. The whole_campaign side's k_plus_reach[1]
+        # was 11; after lowering k_plus_reach[0] to 10 we MUST re-clamp it,
+        # otherwise k_plus_reach[1]=11 > k_plus_reach[0]=10.
+        for rsr_id in (1, 2):
+            cumulative = (
+                request.reporting_set_results[rsr_id]
+                .reporting_window_results[0].value.cumulative_results)
+            self.assertEqual(cumulative.reach, 10)
+            self.assertEqual(cumulative.k_plus_reach[0], 10)
+            for i in range(1, len(cumulative.k_plus_reach)):
+                self.assertLessEqual(
+                    cumulative.k_plus_reach[i],
+                    cumulative.k_plus_reach[i - 1],
+                    f"RSR {rsr_id}: k_plus_reach must be non-increasing; "
+                    f"bucket {i}={cumulative.k_plus_reach[i]} exceeds "
+                    f"bucket {i-1}={cumulative.k_plus_reach[i - 1]}")
+
+
 if __name__ == "__main__":
     unittest.main()

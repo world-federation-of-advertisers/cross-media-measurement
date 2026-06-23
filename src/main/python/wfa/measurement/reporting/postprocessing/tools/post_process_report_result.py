@@ -271,13 +271,30 @@ class PostProcessReportResult:
             whole = total.reporting_window_results[0]
             snapped_reach = min(whole.value.cumulative_results.reach,
                                 last_weekly.value.cumulative_results.reach)
-            whole.value.cumulative_results.reach = snapped_reach
-            if whole.value.cumulative_results.k_plus_reach:
-                whole.value.cumulative_results.k_plus_reach[0] = snapped_reach
-            last_weekly.value.cumulative_results.reach = snapped_reach
-            if last_weekly.value.cumulative_results.k_plus_reach:
-                last_weekly.value.cumulative_results.k_plus_reach[0] = (
-                    snapped_reach)
+            self._snap_cumulative_reach(whole.value.cumulative_results,
+                                        snapped_reach)
+            self._snap_cumulative_reach(last_weekly.value.cumulative_results,
+                                        snapped_reach)
+
+    @staticmethod
+    def _snap_cumulative_reach(
+            cumulative_results: BasicMetricSet, snapped_reach: int) -> None:
+        """Snaps reach (and k_plus_reach[0]) to snapped_reach on one side of a
+        cross-window pair. Re-clamps the rest of k_plus_reach forward so that
+        lowering k_plus_reach[0] does not break the non-increasing invariant
+        established by compute_basic_metric_set (Issue #4049 Rule 3 +
+        k_plus_reach monotonicity). The clamp only lowers buckets, so it
+        cannot re-break sum(k_plus_reach) <= impressions (Rule 4) either.
+        """
+        cumulative_results.reach = snapped_reach
+        k_plus_reach = cumulative_results.k_plus_reach
+        if not k_plus_reach:
+            return
+        k_plus_reach[0] = snapped_reach
+        for i in range(1, len(k_plus_reach)):
+            if k_plus_reach[i] <= k_plus_reach[i - 1]:
+                break
+            k_plus_reach[i] = k_plus_reach[i - 1]
 
     def _get_report_result(
             self, cmms_measurement_consumer_id: str,
