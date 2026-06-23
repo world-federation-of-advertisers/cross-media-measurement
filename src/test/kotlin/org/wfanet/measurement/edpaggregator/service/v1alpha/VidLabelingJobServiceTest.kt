@@ -158,6 +158,7 @@ class VidLabelingJobServiceTest {
   fun `createVidLabelingJob throws INVALID_ARGUMENT for empty parent`() =
     runBlocking<Unit> {
       val request = createVidLabelingJobRequest {
+        requestId = UUID.randomUUID().toString()
         vidLabelingJob = vidLabelingJob {
           cmmsModelLines += CMMS_MODEL_LINE
           rawImpressionUploadFiles += FILE_1
@@ -181,6 +182,7 @@ class VidLabelingJobServiceTest {
   fun `createVidLabelingJob throws INVALID_ARGUMENT for malformed parent`() =
     runBlocking<Unit> {
       val request = createVidLabelingJobRequest {
+        requestId = UUID.randomUUID().toString()
         parent = "invalid-parent"
         vidLabelingJob = vidLabelingJob {
           cmmsModelLines += CMMS_MODEL_LINE
@@ -223,6 +225,7 @@ class VidLabelingJobServiceTest {
   fun `createVidLabelingJob throws INVALID_ARGUMENT for empty cmms_model_lines`() =
     runBlocking<Unit> {
       val request = createVidLabelingJobRequest {
+        requestId = UUID.randomUUID().toString()
         parent = UPLOAD_KEY.toName()
         vidLabelingJob = vidLabelingJob { rawImpressionUploadFiles += FILE_1 }
       }
@@ -244,6 +247,7 @@ class VidLabelingJobServiceTest {
   fun `createVidLabelingJob throws INVALID_ARGUMENT for empty raw_impression_upload_files`() =
     runBlocking {
       val request = createVidLabelingJobRequest {
+        requestId = UUID.randomUUID().toString()
         parent = UPLOAD_KEY.toName()
         vidLabelingJob = vidLabelingJob { cmmsModelLines += CMMS_MODEL_LINE }
       }
@@ -288,18 +292,44 @@ class VidLabelingJobServiceTest {
     }
 
   @Test
+  fun `createVidLabelingJob throws INVALID_ARGUMENT for empty requestId`() =
+    runBlocking<Unit> {
+      val request = createVidLabelingJobRequest {
+        parent = UPLOAD_KEY.toName()
+        vidLabelingJob = vidLabelingJob {
+          cmmsModelLines += CMMS_MODEL_LINE
+          rawImpressionUploadFiles += FILE_1
+        }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.createVidLabelingJob(request) }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+          }
+        )
+    }
+
+  @Test
   fun `batchCreateVidLabelingJobs returns jobs successfully`() =
     runBlocking<Unit> {
       createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
       val request = batchCreateVidLabelingJobsRequest {
         parent = UPLOAD_KEY.toName()
         requests += createVidLabelingJobRequest {
+          requestId = UUID.randomUUID().toString()
           vidLabelingJob = vidLabelingJob {
             cmmsModelLines += CMMS_MODEL_LINE
             rawImpressionUploadFiles += FILE_1
           }
         }
         requests += createVidLabelingJobRequest {
+          requestId = UUID.randomUUID().toString()
           vidLabelingJob = vidLabelingJob {
             cmmsModelLines += CMMS_MODEL_LINE_2
             rawImpressionUploadFiles += FILE_2
@@ -319,6 +349,7 @@ class VidLabelingJobServiceTest {
     runBlocking<Unit> {
       val request = batchCreateVidLabelingJobsRequest {
         requests += createVidLabelingJobRequest {
+          requestId = UUID.randomUUID().toString()
           vidLabelingJob = vidLabelingJob {
             cmmsModelLines += CMMS_MODEL_LINE
             rawImpressionUploadFiles += FILE_1
@@ -353,6 +384,32 @@ class VidLabelingJobServiceTest {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] = "requests"
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateVidLabelingJobs throws INVALID_ARGUMENT for empty requestId`() =
+    runBlocking<Unit> {
+      val request = batchCreateVidLabelingJobsRequest {
+        parent = UPLOAD_KEY.toName()
+        requests += createVidLabelingJobRequest {
+          vidLabelingJob = vidLabelingJob {
+            cmmsModelLines += CMMS_MODEL_LINE
+            rawImpressionUploadFiles += FILE_1
+          }
+        }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.batchCreateVidLabelingJobs(request) }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.0.request_id"
           }
         )
     }
@@ -434,6 +491,7 @@ class VidLabelingJobServiceTest {
       val created =
         service.createVidLabelingJob(
           createVidLabelingJobRequest {
+            requestId = UUID.randomUUID().toString()
             parent = UPLOAD_KEY.toName()
             vidLabelingJob = vidLabelingJob {
               cmmsModelLines += CMMS_MODEL_LINE
@@ -455,6 +513,7 @@ class VidLabelingJobServiceTest {
       val created =
         service.createVidLabelingJob(
           createVidLabelingJobRequest {
+            requestId = UUID.randomUUID().toString()
             parent = UPLOAD_KEY.toName()
             vidLabelingJob = vidLabelingJob {
               cmmsModelLines += CMMS_MODEL_LINE
@@ -477,6 +536,7 @@ class VidLabelingJobServiceTest {
       val created1 =
         service.createVidLabelingJob(
           createVidLabelingJobRequest {
+            requestId = UUID.randomUUID().toString()
             parent = UPLOAD_KEY.toName()
             vidLabelingJob = vidLabelingJob {
               cmmsModelLines += CMMS_MODEL_LINE
@@ -487,6 +547,7 @@ class VidLabelingJobServiceTest {
       val created2 =
         service.createVidLabelingJob(
           createVidLabelingJobRequest {
+            requestId = UUID.randomUUID().toString()
             parent = UPLOAD_KEY.toName()
             vidLabelingJob = vidLabelingJob {
               cmmsModelLines += CMMS_MODEL_LINE_2
@@ -614,6 +675,7 @@ class VidLabelingJobServiceTest {
       val created =
         service.createVidLabelingJob(
           createVidLabelingJobRequest {
+            requestId = UUID.randomUUID().toString()
             parent = UPLOAD_KEY.toName()
             vidLabelingJob = vidLabelingJob {
               cmmsModelLines += CMMS_MODEL_LINE
@@ -666,6 +728,7 @@ class VidLabelingJobServiceTest {
       val created =
         service.createVidLabelingJob(
           createVidLabelingJobRequest {
+            requestId = UUID.randomUUID().toString()
             parent = UPLOAD_KEY.toName()
             vidLabelingJob = vidLabelingJob {
               cmmsModelLines += CMMS_MODEL_LINE
@@ -723,6 +786,7 @@ class VidLabelingJobServiceTest {
       val created =
         service.createVidLabelingJob(
           createVidLabelingJobRequest {
+            requestId = UUID.randomUUID().toString()
             parent = UPLOAD_KEY.toName()
             vidLabelingJob = vidLabelingJob {
               cmmsModelLines += CMMS_MODEL_LINE
@@ -808,6 +872,7 @@ class VidLabelingJobServiceTest {
   fun `createVidLabelingJob throws NOT_FOUND when parent upload does not exist`() =
     runBlocking<Unit> {
       val request = createVidLabelingJobRequest {
+        requestId = UUID.randomUUID().toString()
         parent = UPLOAD_KEY.toName()
         vidLabelingJob = vidLabelingJob {
           cmmsModelLines += CMMS_MODEL_LINE
