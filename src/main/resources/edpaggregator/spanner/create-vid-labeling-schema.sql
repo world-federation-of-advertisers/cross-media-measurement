@@ -178,11 +178,7 @@ CREATE TABLE RankerJob (
   Etag STRING(36) NOT NULL,
   ErrorMessage STRING(MAX),
   CreateRequestId STRING(36),
-  -- TODO(getina/vid-labeling-spanner-schema, PR #3989): Add `MarkRequestId STRING(36)` column.
-  -- The MarkRankerJobSucceeded idempotency (MarkRequestId) is implemented in the service/db layer
-  -- of this branch, but the schema column belongs to the base schema PR. A review comment already
-  -- exists on PR #3989 to add it. This code will run against the schema once that base-branch
-  -- change is merged.
+  MarkRequestId STRING(36),
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 ) PRIMARY KEY (DataProviderResourceId, RawImpressionUploadId, RankerJobId),
