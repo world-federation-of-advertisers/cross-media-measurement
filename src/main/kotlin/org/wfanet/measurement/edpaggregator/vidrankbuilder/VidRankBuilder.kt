@@ -29,6 +29,7 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
@@ -44,6 +45,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.getRankerJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRankerJobFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRankerJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
@@ -93,6 +95,8 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  *   last-job-out copies it per `VidLabelingJob`, filling the job's name + its files.
  * @param maxFilesPerLabelingJob the bin-packing threshold: at most this many
  *   `RawImpressionUploadFile`s per `VidLabelingJob`.
+ * @param maxJobsPerBatchCreate the maximum `CreateVidLabelingJobRequest`s per
+ *   `BatchCreateVidLabelingJobs` call (the service's per-batch limit).
  * @param vidLabelerQueue the Secure Computation queue the Phase-2 WorkItems are published to.
  */
 class VidRankBuilder(
@@ -110,12 +114,21 @@ class VidRankBuilder(
   private val vidLabelerParamsTemplate: VidLabelerParams,
   private val vidLabelerQueue: String,
   private val maxFilesPerLabelingJob: Int = DEFAULT_MAX_FILES_PER_LABELING_JOB,
+  private val maxJobsPerBatchCreate: Int = DEFAULT_MAX_JOBS_PER_BATCH_CREATE,
 ) {
+  init {
+    require(maxFilesPerLabelingJob > 0) { "maxFilesPerLabelingJob must be > 0" }
+    require(maxJobsPerBatchCreate > 0) { "maxJobsPerBatchCreate must be > 0" }
+  }
+
   /**
    * @property subpoolsRanked subpools this job ranked (0 on a redelivery short-circuit).
    * @property lastJobOut whether this job was the last out (and ran the Phase-2 fan-out).
    */
   data class Result(val subpoolsRanked: Int, val lastJobOut: Boolean)
+
+  /** A created `VidLabelingJob` paired with the `RawImpressionUploadFile`s it labels. */
+  private data class LabelingJobBatch(val job: VidLabelingJob, val files: List<String>)
 
   /** Runs the full Phase-1 work for one `RankerJob`. */
   suspend fun run(): Result {
@@ -175,7 +188,7 @@ class VidRankBuilder(
         requireNotNull(getParent()) {
           "RawImpressionUploadModelLine not found for $modelLine under $rawImpressionUpload"
         }
-      runLastJobOut(parent)
+      runLastJobOut(parent, fromRecovery = false)
       return Result(subpoolMapBlobUris.size, lastJobOut = true)
     }
     return Result(subpoolMapBlobUris.size, lastJobOut = false)
@@ -201,26 +214,34 @@ class VidRankBuilder(
       return Result(0, lastJobOut = false)
     }
     logger.info("RankerJob $rankerJob already SUCCEEDED; recovering last-job-out")
-    runLastJobOut(parent)
+    runLastJobOut(parent, fromRecovery = true)
     return Result(0, lastJobOut = true)
   }
 
   /**
-   * Fans out Phase 2 for the (upload, model line): creates the file-batched `VidLabelingJob`s,
-   * publishes one WorkItem per job, then flips the parent `RawImpressionUploadModelLine` `RANKING`
-   * -> `LABELING`. The flip is last so `LABELING` is the durable completion marker (a redelivery
-   * before the flip re-runs the idempotent fan-out).
+   * Fans out Phase 2 for the (upload, model line) then flips the parent
+   * `RawImpressionUploadModelLine` `RANKING` -> `LABELING`. The flip is last so `LABELING` is the
+   * durable completion marker (a redelivery before the flip re-runs the idempotent fan-out).
+   *
+   * On the fresh last-job-out ([fromRecovery] = false) it creates the file-batched
+   * `VidLabelingJob`s and publishes a WorkItem for each. On the recovery path ([fromRecovery] =
+   * true — a redelivered already-`SUCCEEDED` job) it re-publishes from the `VidLabelingJob`s that
+   * were already created, never re-listing the upload's files (which may have changed since the
+   * original last-job-out), so recovery is a pure function of what was already created.
    */
-  private suspend fun runLastJobOut(parent: RawImpressionUploadModelLine) {
+  private suspend fun runLastJobOut(parent: RawImpressionUploadModelLine, fromRecovery: Boolean) {
     if (parent.state != RawImpressionUploadModelLine.State.RANKING) {
       logger.info("Parent ${parent.name} already past RANKING; last-job-out already complete")
       return
     }
-    val published = fanOutLabeling()
+    require(vidLabelerQueue.isNotEmpty()) {
+      "vid_labeler_queue must be configured to fan out Phase-2 for $modelLine"
+    }
+    val published = if (fromRecovery) republishExistingLabelingJobs() else fanOutLabeling()
     markParentLabeling(parent)
     logger.info(
-      "Last-job-out for $modelLine: created/published $published VidLabelingJob WorkItem(s); " +
-        "parent -> LABELING"
+      "Last-job-out for $modelLine: published $published VidLabelingJob WorkItem(s); parent -> " +
+        "LABELING"
     )
   }
 
@@ -233,9 +254,6 @@ class VidRankBuilder(
    * `request_id` / `work_item_id`) is stable across redeliveries.
    */
   private suspend fun fanOutLabeling(): Int {
-    require(vidLabelerQueue.isNotEmpty()) {
-      "vid_labeler_queue must be configured to fan out Phase-2 for $modelLine"
-    }
     val files = listUploadFiles().sorted()
     if (files.isEmpty()) {
       logger.warning(
@@ -246,9 +264,38 @@ class VidRankBuilder(
     }
 
     val batches: List<List<String>> = files.chunked(maxFilesPerLabelingJob)
-    val jobs = createVidLabelingJobs(batches)
-    jobs.zip(batches).forEach { (job, batch) -> publishVidLabelerWorkItem(job, batch) }
-    return jobs.size
+    val labelingJobs = createVidLabelingJobs(batches)
+    labelingJobs.forEach { (job, batchFiles) -> publishVidLabelerWorkItem(job, batchFiles) }
+    return labelingJobs.size
+  }
+
+  /**
+   * Re-publishes a Phase-2 WorkItem for every existing `VidLabelingJob` of this (upload, model
+   * line). Used on the recovery path: rather than re-listing the upload's files, recovery reads
+   * back exactly the jobs that were already created and re-publishes them (publish is idempotent —
+   * `ALREADY_EXISTS` tolerated). Returns the number of WorkItems published.
+   */
+  private suspend fun republishExistingLabelingJobs(): Int {
+    var published = 0
+    vidLabelingJobsStub
+      .listResources { pageToken: String ->
+        val response =
+          listVidLabelingJobs(
+            listVidLabelingJobsRequest {
+              parent = rawImpressionUpload
+              filter = ListVidLabelingJobsRequestKt.filter { cmmsModelLine = modelLine }
+              this.pageToken = pageToken
+            }
+          )
+        ResourceList(response.vidLabelingJobsList, response.nextPageToken)
+      }
+      .collect { page ->
+        page.forEach { job ->
+          publishVidLabelerWorkItem(job, job.rawImpressionUploadFilesList)
+          published++
+        }
+      }
+    return published
   }
 
   /** Lists every (non-deleted) `RawImpressionUploadFile` name under this upload. */
@@ -270,31 +317,39 @@ class VidRankBuilder(
   }
 
   /**
-   * Creates a `VidLabelingJob` per [batches] entry via `BatchCreateVidLabelingJobs` (chunked to the
-   * service's per-batch limit). Each request carries a deterministic `request_id` keyed by the
-   * batch's first (sorted) file, so a redelivered last-job-out reuses the existing rows. Returns
-   * the created jobs in [batches] order.
+   * Creates a `VidLabelingJob` per [batches] entry via `BatchCreateVidLabelingJobs` (chunked to
+   * [maxJobsPerBatchCreate]). Each request carries a deterministic `request_id` keyed by the
+   * batch's **index** (stable across redeliveries even if the upload's file list changed), so a
+   * redelivered last-job-out reuses the existing rows. Each chunk is checked to return exactly as
+   * many jobs as requested so a partial response can't silently drop a batch. Returns each created
+   * job paired with its files.
    */
-  private suspend fun createVidLabelingJobs(batches: List<List<String>>): List<VidLabelingJob> {
-    val created = mutableListOf<VidLabelingJob>()
-    for (group in batches.chunked(MAX_JOBS_PER_BATCH_CREATE)) {
+  private suspend fun createVidLabelingJobs(batches: List<List<String>>): List<LabelingJobBatch> {
+    val created = mutableListOf<LabelingJobBatch>()
+    for (group in batches.withIndex().chunked(maxJobsPerBatchCreate)) {
       val response =
         vidLabelingJobsStub.batchCreateVidLabelingJobs(
           batchCreateVidLabelingJobsRequest {
             parent = rawImpressionUpload
-            for (batch in group) {
+            for ((batchIndex, batch) in group) {
               requests += createVidLabelingJobRequest {
                 parent = rawImpressionUpload
                 vidLabelingJob = vidLabelingJob {
                   cmmsModelLines += modelLine
                   rawImpressionUploadFiles += batch
                 }
-                requestId = labelingJobRequestId(batch)
+                requestId = labelingJobRequestId(batchIndex)
               }
             }
           }
         )
-      created += response.vidLabelingJobsList
+      check(response.vidLabelingJobsList.size == group.size) {
+        "BatchCreateVidLabelingJobs returned ${response.vidLabelingJobsList.size} jobs for " +
+          "${group.size} requests"
+      }
+      response.vidLabelingJobsList.zip(group).forEach { (job, indexedBatch) ->
+        created += LabelingJobBatch(job, indexedBatch.value)
+      }
     }
     return created
   }
@@ -330,12 +385,13 @@ class VidRankBuilder(
   }
 
   /**
-   * Deterministic `VidLabelingJob` `request_id` for a file [batch], keyed by (upload, model line,
-   * batch). The batch's first file (files are sorted, batches contiguous) uniquely identifies it
-   * and is stable across redeliveries, so the create reuses the existing row.
+   * Deterministic `VidLabelingJob` `request_id` for the batch at [batchIndex], keyed by (upload,
+   * model line, batch index). Keying by index (rather than a filename) keeps batch slot N stable
+   * across redeliveries even if a `RawImpressionUploadFile` was added/removed in between, so the
+   * create reuses the existing row instead of duplicating it.
    */
-  private fun labelingJobRequestId(batch: List<String>): String =
-    deterministicUuid("$rawImpressionUpload|$modelLine|labelingJob|${batch.first()}")
+  private fun labelingJobRequestId(batchIndex: Int): String =
+    deterministicUuid("$rawImpressionUpload|$modelLine|labelingJob|$batchIndex")
 
   /** Flips the parent `RANKING` -> `LABELING`, swallowing the benign "already advanced" races. */
   private suspend fun markParentLabeling(parent: RawImpressionUploadModelLine) {
@@ -419,7 +475,14 @@ class VidRankBuilder(
         ResourceList(response.rawImpressionUploadModelLinesList, response.nextPageToken)
       }
       .collect { page ->
-        page.forEach { line -> if (line.cmmsModelLine == modelLine) parentRow = line }
+        page.forEach { line ->
+          if (line.cmmsModelLine == modelLine) {
+            check(parentRow == null) {
+              "Duplicate RawImpressionUploadModelLine for $modelLine under $rawImpressionUpload"
+            }
+            parentRow = line
+          }
+        }
       }
     return parentRow
   }
@@ -442,8 +505,11 @@ class VidRankBuilder(
   companion object {
     private const val MAX_ERROR_MESSAGE = 1024
 
-    /** Max `CreateVidLabelingJobRequest`s per `BatchCreateVidLabelingJobs` call (service limit). */
-    private const val MAX_JOBS_PER_BATCH_CREATE = 50
+    /**
+     * Default max `CreateVidLabelingJobRequest`s per `BatchCreateVidLabelingJobs` call (the
+     * service's per-batch limit).
+     */
+    private const val DEFAULT_MAX_JOBS_PER_BATCH_CREATE = 50
 
     /**
      * Default bin-packing threshold: `RawImpressionUploadFile`s per `VidLabelingJob`.

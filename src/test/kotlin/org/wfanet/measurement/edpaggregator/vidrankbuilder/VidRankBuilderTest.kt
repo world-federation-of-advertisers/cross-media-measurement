@@ -39,17 +39,20 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.markRankerJobSucceededResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
@@ -130,7 +133,9 @@ class VidRankBuilderTest {
   }
 
   /** Echoes each created `VidLabelingJob` back with a deterministic name (mirrors the service). */
-  private fun vidLabelingJobsMock(): VidLabelingJobServiceCoroutineStub = mock {
+  private fun vidLabelingJobsMock(
+    existing: List<VidLabelingJob> = emptyList()
+  ): VidLabelingJobServiceCoroutineStub = mock {
     onBlocking { batchCreateVidLabelingJobs(any(), any()) } doAnswer
       { invocation ->
         val request = invocation.getArgument<BatchCreateVidLabelingJobsRequest>(0)
@@ -141,6 +146,8 @@ class VidRankBuilderTest {
           }
         }
       }
+    onBlocking { listVidLabelingJobs(any(), any()) } doReturn
+      listVidLabelingJobsResponse { vidLabelingJobs += existing }
   }
 
   private fun filesMock(): RawImpressionUploadFileServiceCoroutineStub = mock {
@@ -327,13 +334,30 @@ class VidRankBuilderTest {
   }
 
   @Test
-  fun `redelivery of an already-succeeded last job recovers the fan-out without re-ranking`() =
+  fun `redelivery of an already-succeeded last job re-publishes existing jobs without re-ranking`() =
     runBlocking {
       val ranker = rankerMock()
       // Job already SUCCEEDED; all jobs succeeded; parent still RANKING -> recover last-job-out.
       val rankerJobs = rankerJobsMock(state = RankerJob.State.SUCCEEDED)
-      val vidLabelingJobs = vidLabelingJobsMock()
+      // Two VidLabelingJobs already exist from the original last-job-out.
+      val vidLabelingJobs =
+        vidLabelingJobsMock(
+          existing =
+            listOf(
+              vidLabelingJob {
+                name = "$UPLOAD/vidLabelingJobs/job0"
+                cmmsModelLines += MODEL_LINE
+                rawImpressionUploadFiles += "$UPLOAD/files/0"
+              },
+              vidLabelingJob {
+                name = "$UPLOAD/vidLabelingJobs/job1"
+                cmmsModelLines += MODEL_LINE
+                rawImpressionUploadFiles += "$UPLOAD/files/1"
+              },
+            )
+        )
       val modelLines = modelLinesMock(RawImpressionUploadModelLine.State.RANKING)
+      val files = filesMock()
       val published = mutableListOf<CreateWorkItemRequest>()
 
       val result =
@@ -342,17 +366,66 @@ class VidRankBuilderTest {
             rankerJobs,
             modelLines,
             vidLabelingJobs,
-            workItemsStub = recordingWorkItems(published),
+            files,
+            recordingWorkItems(published),
           )
           .run()
 
       assertThat(result.lastJobOut).isTrue()
       verifyBlocking(ranker, never()) { rank(any(), any(), any()) }
       verifyBlocking(rankerJobs, never()) { markRankerJobSucceeded(any(), any()) }
-      verifyBlocking(vidLabelingJobs) { batchCreateVidLabelingJobs(any(), any()) }
-      assertThat(published).hasSize(1)
+      // Recovery re-publishes from the existing jobs; it neither re-lists files nor re-creates
+      // jobs.
+      verifyBlocking(vidLabelingJobs) { listVidLabelingJobs(any(), any()) }
+      verifyBlocking(vidLabelingJobs, never()) { batchCreateVidLabelingJobs(any(), any()) }
+      verifyBlocking(files, never()) { listRawImpressionUploadFiles(any(), any()) }
+      assertThat(published).hasSize(2)
+      assertThat(
+          published.flatMap { publishedParams(it).memoizedParams.rawImpressionUploadFilesList }
+        )
+        .containsExactly("$UPLOAD/files/0", "$UPLOAD/files/1")
       verifyBlocking(modelLines) { markRawImpressionUploadModelLineLabeling(any(), any()) }
     }
+
+  @Test
+  fun `duplicate parent rows for the model line fail loud`() = runBlocking {
+    val rankerJobs = rankerJobsMock(isLastJob = true)
+    val modelLines =
+      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = PARENT_NAME
+              cmmsModelLine = MODEL_LINE
+              state = RawImpressionUploadModelLine.State.RANKING
+            }
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = "$UPLOAD/rawImpressionUploadModelLines/rl2"
+              cmmsModelLine = MODEL_LINE
+              state = RawImpressionUploadModelLine.State.RANKING
+            }
+          }
+      }
+
+    assertFailsWith<IllegalStateException> { builder(rankerMock(), rankerJobs, modelLines).run() }
+    Unit
+  }
+
+  @Test
+  fun `a short BatchCreateVidLabelingJobs response fails loud`() = runBlocking {
+    val rankerJobs = rankerJobsMock(isLastJob = true)
+    // 3 files -> one batch / one create request, but the service returns zero jobs.
+    val vidLabelingJobs =
+      mock<VidLabelingJobServiceCoroutineStub> {
+        onBlocking { batchCreateVidLabelingJobs(any(), any()) } doReturn
+          batchCreateVidLabelingJobsResponse {}
+      }
+
+    assertFailsWith<IllegalStateException> {
+      builder(rankerMock(), rankerJobs, vidLabelingJobsStub = vidLabelingJobs).run()
+    }
+    Unit
+  }
 
   @Test
   fun `redelivery recovery with a missing parent fails`() = runBlocking {

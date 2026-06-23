@@ -48,6 +48,13 @@ import picocli.CommandLine
 @CommandLine.Command(name = "vid_rank_builder_app_runner")
 class VidRankBuilderAppRunner : BaseTeeAppRunner() {
 
+  @CommandLine.Option(
+    names = ["--vid-labeler-queue"],
+    description = ["Resource name of the Secure Computation queue for Phase-2 VidLabeler work."],
+    required = true,
+  )
+  private lateinit var vidLabelerQueue: String
+
   private val getStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)
   }
@@ -55,6 +62,15 @@ class VidRankBuilderAppRunner : BaseTeeAppRunner() {
   override fun run() {
     saveCommonEdpaCerts()
     val kmsClientsMap: Map<String, KmsClient> = buildKmsClientsMap()
+    // Per-EDP rank-index retention, validated non-negative at startup. Compliance-tied: it MUST
+    // exceed the EDP's maximum measurement-report window (operator's responsibility to configure).
+    val retentionDaysByDataProvider: Map<String, Int> =
+      edpsConfig.eventDataProviderConfigList.associate { edpConfig ->
+        require(edpConfig.retentionDays >= 0) {
+          "retention_days must be >= 0 for ${edpConfig.dataProvider}, got ${edpConfig.retentionDays}"
+        }
+        edpConfig.dataProvider to edpConfig.retentionDays
+      }
 
     val pubSubClient = DefaultGooglePubSubClient()
     val queueSubscriber = createQueueSubscriber(pubSubClient)
@@ -82,6 +98,7 @@ class VidRankBuilderAppRunner : BaseTeeAppRunner() {
         workItemsClient = workItemsClient,
         workItemAttemptsClient = workItemAttemptsClient,
         kmsClients = kmsClientsMap,
+        retentionDaysByDataProvider = retentionDaysByDataProvider,
         getSubpoolMapStorageConfig = getStorageConfig,
         getVidRankMapStorageConfig = getStorageConfig,
         rankerJobsStub = rankerJobsClient,
@@ -89,11 +106,7 @@ class VidRankBuilderAppRunner : BaseTeeAppRunner() {
         rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesClient,
         vidLabelingJobsStub = vidLabelingJobsClient,
         rawImpressionUploadFilesStub = rawImpressionUploadFilesClient,
-        // TODO(@Marco-Premier): supply the static config as CLI options:
-        //   - --vid-labeler-queue (Phase-2 Secure Computation queue), and
-        //   - --retention-days (MUST exceed the max measurement-report window),
-        //   then thread them through to VidRankBuilderApp. Left empty/default for now.
-        vidLabelerQueue = "",
+        vidLabelerQueue = vidLabelerQueue,
       )
 
     runBlockingWithTelemetry { vidRankBuilderApp.run() }
