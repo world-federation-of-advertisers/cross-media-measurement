@@ -22,6 +22,8 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.rpc.errorInfo
+import com.google.type.Date
+import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.util.UUID
@@ -137,7 +139,9 @@ class RankIndexBlobServiceTest {
       this.cmmsModelLine = cmmsModelLine
       this.poolOffset = poolOffset
       blobUri = BLOB_URI
+      blobChecksum = BLOB_CHECKSUM
       encryptedDek = ENCRYPTED_DEK
+      maxEventDate = MAX_EVENT_DATE
     }
   }
 
@@ -280,6 +284,54 @@ class RankIndexBlobServiceTest {
           )
         }
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `createRankIndexBlob throws INVALID_ARGUMENT when blob_checksum missing`() =
+    runBlocking<Unit> {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRankIndexBlob(
+            createRankIndexBlobRequest {
+              parent = UPLOAD_KEY.toName()
+              rankIndexBlob = newPublicBlob().copy { clearBlobChecksum() }
+              requestId = REQUEST_ID
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "rank_index_blob.blob_checksum"
+          }
+        )
+    }
+
+  @Test
+  fun `createRankIndexBlob throws INVALID_ARGUMENT when max_event_date missing`() =
+    runBlocking<Unit> {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRankIndexBlob(
+            createRankIndexBlobRequest {
+              parent = UPLOAD_KEY.toName()
+              rankIndexBlob = newPublicBlob().copy { clearMaxEventDate() }
+              requestId = REQUEST_ID
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "rank_index_blob.max_event_date"
+          }
+        )
     }
 
   @Test
@@ -614,9 +666,15 @@ class RankIndexBlobServiceTest {
     private const val BLOB_URI = "gs://bucket/rank-index-blob"
     private val REQUEST_ID = UUID.randomUUID().toString()
     private val UPLOAD_KEY = RawImpressionUploadKey(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+    private val BLOB_CHECKSUM = "checksum".toByteStringUtf8()
     private val ENCRYPTED_DEK: EncryptedDek = encryptedDek {
       kekUri = "kms://kek"
       ciphertext = "ciphertext".toByteStringUtf8()
+    }
+    private val MAX_EVENT_DATE: Date = date {
+      year = 2026
+      month = 3
+      day = 15
     }
   }
 }
