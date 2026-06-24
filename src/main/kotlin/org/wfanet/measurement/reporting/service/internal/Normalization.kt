@@ -22,6 +22,7 @@ import java.util.logging.Logger
 import org.wfanet.measurement.internal.reporting.v2.EventFilter
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.MetricFrequencySpec
+import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.copy
 
@@ -45,6 +46,17 @@ object Normalization {
   private val eventFilterComparator: Comparator<EventFilter> =
     compareBy(Ordering.from(eventFilterTermComparator).lexicographical()) { it.termsList }
 
+  private val primitiveReportingSetBasisComparator:
+    Comparator<ReportingSet.PrimitiveReportingSetBasis> =
+    compareBy {
+      it.externalReportingSetId
+    }
+
+  private val weightedSubsetUnionComparator: Comparator<ReportingSet.WeightedSubsetUnion> =
+    compareBy {
+      it.binaryRepresentation
+    }
+
   /** Returns a normalized copy of [eventFilters]. */
   fun normalizeEventFilters(eventFilters: Iterable<EventFilter>): List<EventFilter> {
     return eventFilters
@@ -56,6 +68,35 @@ object Normalization {
         }
       }
       .sortedWith(eventFilterComparator)
+  }
+
+  /** Returns a normalized copy of [weightedSubsetUnions]. */
+  fun normalizeWeightedSubsetUnions(
+    weightedSubsetUnions: Iterable<ReportingSet.WeightedSubsetUnion>
+  ): List<ReportingSet.WeightedSubsetUnion> {
+    return weightedSubsetUnions
+      .map {
+        it.copy {
+          val normalizedBases = normalizePrimitiveReportingSetBases(primitiveReportingSetBases)
+          primitiveReportingSetBases.clear()
+          primitiveReportingSetBases += normalizedBases
+        }
+      }
+      .sortedWith(weightedSubsetUnionComparator)
+  }
+
+  private fun normalizePrimitiveReportingSetBases(
+    primitiveReportingSetBases: Iterable<ReportingSet.PrimitiveReportingSetBasis>
+  ): List<ReportingSet.PrimitiveReportingSetBasis> {
+    return primitiveReportingSetBases
+      .map {
+        it.copy {
+          val normalizedFilters = filters.sorted()
+          filters.clear()
+          filters += normalizedFilters
+        }
+      }
+      .sortedWith(primitiveReportingSetBasisComparator)
   }
 
   /** Computes the fingerprint of [metricFrequencySpec]. */
