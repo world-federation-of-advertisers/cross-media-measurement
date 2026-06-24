@@ -6114,6 +6114,216 @@ class BasicReportsServiceTest {
     }
 
   @Test
+  fun `createBasicReport accepts duplicate result_group_specs with identical metric_frequency`():
+    Unit = runBlocking {
+    // Two specs sharing dim AND identical metric_frequency value. These
+    // dedup at the job-level (collapsed to a single RSR) and must NOT be
+    // rejected by the collision validator. Pins the
+    // `existing.frequency != frequency` short-circuit in the
+    // ResultGroupSpecCollisionKey check.
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
+          campaignGroup = campaignGroupKey.toName()
+          // Append an exact duplicate of resultGroupSpecs[0].
+          resultGroupSpecs += resultGroupSpecs[0]
+        }
+      basicReportId = "a1234"
+    }
+
+    withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+  }
+
+  @Test
+  fun `createBasicReport accepts specs that differ in reporting unit and metric_frequency`(): Unit =
+    runBlocking {
+      // Two specs that differ in reportingUnit AND metric_frequency. The
+      // collision key includes reportingUnit, so this is not a collision
+      // and must NOT be rejected. Pins that the collision check isn't
+      // over-eager when only metric_frequency differs.
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+              // Campaign group must contain both DPs since the second spec's
+              // reportingUnit references the second DP.
+              primitive =
+                ReportingSetKt.primitive {
+                  eventGroupKeys +=
+                    ReportingSetKt.PrimitiveKt.eventGroupKey {
+                      cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                      cmmsEventGroupId = "1235"
+                    }
+                  eventGroupKeys +=
+                    ReportingSetKt.PrimitiveKt.eventGroupKey {
+                      cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId + "b"
+                      cmmsEventGroupId = "1236"
+                    }
+                }
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs +=
+              resultGroupSpecs[0].copy {
+                reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() + "b" }
+                metricFrequency = metricFrequencySpec { weekly = DayOfWeek.TUESDAY }
+              }
+          }
+        basicReportId = "a1234"
+      }
+
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+    }
+
+  @Test
+  fun `createBasicReport accepts specs that differ in dimension_spec and metric_frequency`(): Unit =
+    runBlocking {
+      // Two specs that differ in dimensionSpec AND metric_frequency. The
+      // collision key includes dimensionSpec, so this is not a collision
+      // and must NOT be rejected.
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            val original = resultGroupSpecs[0]
+            resultGroupSpecs +=
+              original.copy {
+                metricFrequency = metricFrequencySpec { weekly = DayOfWeek.TUESDAY }
+                dimensionSpec =
+                  original.dimensionSpec.copy {
+                    filters.clear()
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "person.age_group"
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_35_TO_54" }
+                      }
+                    }
+                  }
+              }
+          }
+        basicReportId = "a1234"
+      }
+
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+    }
+
+  @Test
+  fun `createBasicReport accepts specs that differ only in selector kind`(): Unit = runBlocking {
+    // Two specs sharing dim but differing in metric_frequency selector
+    // kind (one weekly, one total). This is the legitimate cross-window
+    // pairing the reconciler in PR #4054 is designed to handle and must
+    // NOT be rejected. Pins that selectorCase distinguishes the
+    // collision key.
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
+          campaignGroup = campaignGroupKey.toName()
+          val original = resultGroupSpecs[0]
+          resultGroupSpecs +=
+            original.copy {
+              metricFrequency = metricFrequencySpec { total = true }
+              // When metric_frequency is total, non_cumulative metrics are
+              // forbidden (redundant with cumulative). Clear them.
+              resultGroupMetricSpec =
+                original.resultGroupMetricSpec.copy {
+                  reportingUnit =
+                    original.resultGroupMetricSpec.reportingUnit.copy { clearNonCumulative() }
+                  component =
+                    original.resultGroupMetricSpec.component.copy {
+                      clearNonCumulative()
+                      clearNonCumulativeUnique()
+                    }
+                }
+            }
+        }
+      basicReportId = "a1234"
+    }
+
+    withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+  }
+
+  @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reporting unit missing components`() =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
