@@ -1,0 +1,81 @@
+# proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/labeler_input_event_group_spec.proto
+# proto-message: LabelerInputEventGroupSpec
+
+# Small test spec: 300 labeler input IDs across 3 demographic buckets.
+# Date range: 2024-01-01..2024-01-03 (3 days).
+# Total events: (100 * freq 2) + (100 * freq 1) + (100 * freq 3) = 600 events.
+
+date_specs {
+  date_range {
+    start {
+      year: 2024
+      month: 1
+      day: 1
+    }
+    end_exclusive {
+      year: 2024
+      month: 1
+      day: 4
+    }
+  }
+  demographic_distributions {
+    id_range {
+      start: 0
+      end_exclusive: 100
+    }
+    demo_bucket {
+      gender: GENDER_MALE
+      age {
+        min_age: 16
+        max_age: 34
+      }
+    }
+    frequency: 2
+    non_population_field_values {
+      key: "video.completed_50_percent_plus"
+      value {
+        bool_value: true
+      }
+    }
+  }
+  demographic_distributions {
+    id_range {
+      start: 100
+      end_exclusive: 200
+    }
+    demo_bucket {
+      gender: GENDER_FEMALE
+      age {
+        min_age: 35
+        max_age: 54
+      }
+    }
+    frequency: 1
+    non_population_field_values {
+      key: "video.completed_50_percent_plus"
+      value {
+        bool_value: true
+      }
+    }
+  }
+  demographic_distributions {
+    id_range {
+      start: 200
+      end_exclusive: 300
+    }
+    demo_bucket {
+      gender: GENDER_MALE
+      age {
+        min_age: 55
+        max_age: 99
+      }
+    }
+    frequency: 3
+    non_population_field_values {
+      key: "video.completed_50_percent_plus"
+      value {
+        bool_value: true
+      }
+    }
+  }
+}

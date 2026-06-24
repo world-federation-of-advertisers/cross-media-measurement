@@ -14,6 +14,11 @@
 
 name: "Configure Reporting V2"
 
+run-name: >-
+  Configure Reporting V2 [${{ inputs.environment }}] |
+  apply=${{ inputs.apply }},
+  image-tag=${{ inputs.existing-image-tag }}
+
 on:
   workflow_call:
     inputs:

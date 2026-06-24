@@ -1,6 +1,20 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
+    name = "DataAvailabilityBlobsTest",
+    srcs = ["DataAvailabilityBlobsTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_blobs",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
+    ],
+)
+
+kt_jvm_test(
     name = "DataAvailabilitySyncTest",
     srcs = ["DataAvailabilitySyncTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncTest",
@@ -9,6 +23,7 @@ kt_jvm_test(
         "//imports/java/io/opentelemetry/sdk",
         "//imports/java/io/opentelemetry/sdk:sdk_metrics",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:watched_blobs",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/events",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
@@ -19,6 +34,7 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
     ],
 )
 
@@ -77,5 +93,6 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
     ],
 )
