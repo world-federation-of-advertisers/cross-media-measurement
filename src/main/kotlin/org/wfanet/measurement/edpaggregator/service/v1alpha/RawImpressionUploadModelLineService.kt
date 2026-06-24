@@ -405,6 +405,7 @@ class RawImpressionUploadModelLineService(
     }
   }
 
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4074): Add AIP-155 request_id idempotency
   override suspend fun markRawImpressionUploadModelLinePoolAssigning(
     request: MarkRawImpressionUploadModelLinePoolAssigningRequest
   ): RawImpressionUploadModelLine {
@@ -465,6 +466,7 @@ class RawImpressionUploadModelLineService(
     return internalResponse.toPublic()
   }
 
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4074): Add AIP-155 request_id idempotency
   override suspend fun markRawImpressionUploadModelLineRanking(
     request: MarkRawImpressionUploadModelLineRankingRequest
   ): RawImpressionUploadModelLine {
@@ -525,6 +527,7 @@ class RawImpressionUploadModelLineService(
     return internalResponse.toPublic()
   }
 
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4074): Add AIP-155 request_id idempotency
   override suspend fun markRawImpressionUploadModelLineLabeling(
     request: MarkRawImpressionUploadModelLineLabelingRequest
   ): RawImpressionUploadModelLine {
@@ -585,6 +588,7 @@ class RawImpressionUploadModelLineService(
     return internalResponse.toPublic()
   }
 
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4074): Add AIP-155 request_id idempotency
   override suspend fun markRawImpressionUploadModelLineCompleted(
     request: MarkRawImpressionUploadModelLineCompletedRequest
   ): RawImpressionUploadModelLine {
@@ -645,6 +649,7 @@ class RawImpressionUploadModelLineService(
     return internalResponse.toPublic()
   }
 
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4074): Add AIP-155 request_id idempotency
   override suspend fun markRawImpressionUploadModelLineFailed(
     request: MarkRawImpressionUploadModelLineFailedRequest
   ): RawImpressionUploadModelLine {
