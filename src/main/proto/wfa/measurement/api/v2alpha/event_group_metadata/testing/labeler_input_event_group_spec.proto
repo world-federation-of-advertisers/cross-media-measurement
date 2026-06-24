@@ -57,12 +57,12 @@ message LabelerInputEventGroupSpec {
 
     // Total frequency for each labeler input ID in this distribution over the
     // containing date range.
-    int64 frequency = 5;
+    int64 frequency = 3;
 
     // Non-population field values for events in this distribution (e.g.
     // viewability flags). Same key format as
     // `SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec.non_population_field_values`.
-    map<string, FieldValue> non_population_field_values = 6;
+    map<string, FieldValue> non_population_field_values = 4;
   }
 
   // Date range and demographic distributions for event generation.
