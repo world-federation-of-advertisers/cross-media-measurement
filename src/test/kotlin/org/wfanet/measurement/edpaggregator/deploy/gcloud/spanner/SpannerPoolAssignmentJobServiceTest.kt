@@ -16,24 +16,28 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
+import java.util.UUID
+import kotlinx.coroutines.flow.single
 import org.junit.ClassRule
 import org.junit.Rule
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.edpaggregator.service.internal.testing.PoolAssignmentJobServiceTest
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 
-class SpannerPoolAssignmentJobServiceTest :
-  PoolAssignmentJobServiceTest() {
+class SpannerPoolAssignmentJobServiceTest : PoolAssignmentJobServiceTest() {
   @get:Rule
   val spannerDatabase =
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.EDP_AGGREGATOR_CHANGELOG_PATH)
 
   private var nextUploadId: Long = 1L
+  private var nextModelLineId: Long = 1L
 
   override fun newService(
     idGenerator: IdGenerator
@@ -58,17 +62,71 @@ class SpannerPoolAssignmentJobServiceTest :
         .set("DoneBlobUri")
         .to("gs://bucket/done")
         .set("State")
-        .to(
-          Value.protoEnum(
-            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED
-          )
-        )
+        .to(Value.protoEnum(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED))
         .set("CreateTime")
         .to(Value.COMMIT_TIMESTAMP)
         .set("UpdateTime")
         .to(Value.COMMIT_TIMESTAMP)
         .build()
     spannerDatabase.databaseClient.write(listOf(mutation))
+  }
+
+  override suspend fun setPoolOffsetsForModelLine(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    cmmsModelLine: String,
+    poolOffsets: List<Long>,
+  ) {
+    val databaseClient: AsyncDatabaseClient = spannerDatabase.databaseClient
+    val uploadId: Long =
+      databaseClient.singleUse().use { txn ->
+        txn
+          .executeQuery(
+            statement(
+              """
+              SELECT RawImpressionUploadId
+              FROM RawImpressionUpload
+              WHERE DataProviderResourceId = @dataProviderResourceId
+                AND RawImpressionUploadResourceId = @rawImpressionUploadResourceId
+              """
+                .trimIndent()
+            ) {
+              bind("dataProviderResourceId").to(dataProviderResourceId)
+              bind("rawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
+            }
+          )
+          .single()
+          .getLong("RawImpressionUploadId")
+      }
+
+    val mutation =
+      Mutation.newInsertBuilder("RawImpressionUploadModelLine")
+        .set("DataProviderResourceId")
+        .to(dataProviderResourceId)
+        .set("RawImpressionUploadId")
+        .to(uploadId)
+        .set("RawImpressionUploadModelLineId")
+        .to(nextModelLineId++)
+        .set("RawImpressionUploadModelLineResourceId")
+        .to("ml-${UUID.randomUUID()}")
+        .set("CmmsModelLine")
+        .to(cmmsModelLine)
+        .set("State")
+        .to(
+          Value.protoEnum(
+            RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING
+          )
+        )
+        .set("PoolOffsets")
+        .toInt64Array(poolOffsets)
+        .set("Etag")
+        .to(UUID.randomUUID().toString())
+        .set("CreateTime")
+        .to(Value.COMMIT_TIMESTAMP)
+        .set("UpdateTime")
+        .to(Value.COMMIT_TIMESTAMP)
+        .build()
+    databaseClient.write(listOf(mutation))
   }
 
   companion object {

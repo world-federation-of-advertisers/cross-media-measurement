@@ -45,9 +45,11 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schema
 import org.wfanet.measurement.edpaggregator.service.Errors
 import org.wfanet.measurement.edpaggregator.service.PoolAssignmentJobKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createPoolAssignmentJobRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.getPoolAssignmentJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markPoolAssignmentJobFailedRequest
@@ -71,8 +73,7 @@ class PoolAssignmentJobServiceTest {
 
   val grpcTestServerRule = GrpcTestServerRule {
     val spannerDatabaseClient = spannerDatabase.databaseClient
-    internalService =
-      SpannerPoolAssignmentJobService(spannerDatabaseClient, EmptyCoroutineContext)
+    internalService = SpannerPoolAssignmentJobService(spannerDatabaseClient, EmptyCoroutineContext)
     addService(internalService)
   }
 
@@ -103,11 +104,7 @@ class PoolAssignmentJobServiceTest {
         .set("DoneBlobUri")
         .to("gs://bucket/done")
         .set("State")
-        .to(
-          Value.protoEnum(
-            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED
-          )
-        )
+        .to(Value.protoEnum(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED))
         .set("CreateTime")
         .to(Value.COMMIT_TIMESTAMP)
         .set("UpdateTime")
@@ -161,67 +158,57 @@ class PoolAssignmentJobServiceTest {
   }
 
   @Test
-  fun `createPoolAssignmentJob throws INVALID_ARGUMENT for empty parent`() =
-    runBlocking {
-      val request = createPoolAssignmentJobRequest {
-        poolAssignmentJob = poolAssignmentJob {
-          cmmsModelLine = CMMS_MODEL_LINE
-          shardIndex = 0
-        }
+  fun `createPoolAssignmentJob throws INVALID_ARGUMENT for empty parent`() = runBlocking {
+    val request = createPoolAssignmentJobRequest {
+      poolAssignmentJob = poolAssignmentJob {
+        cmmsModelLine = CMMS_MODEL_LINE
+        shardIndex = 0
       }
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.createPoolAssignmentJob(request)
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
-          }
-        )
     }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createPoolAssignmentJob(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+        }
+      )
+  }
 
   @Test
-  fun `createPoolAssignmentJob throws INVALID_ARGUMENT for malformed parent`() =
-    runBlocking {
-      val request = createPoolAssignmentJobRequest {
-        parent = "invalid-parent"
-        poolAssignmentJob = poolAssignmentJob {
-          cmmsModelLine = CMMS_MODEL_LINE
-          shardIndex = 0
-        }
+  fun `createPoolAssignmentJob throws INVALID_ARGUMENT for malformed parent`() = runBlocking {
+    val request = createPoolAssignmentJobRequest {
+      parent = "invalid-parent"
+      poolAssignmentJob = poolAssignmentJob {
+        cmmsModelLine = CMMS_MODEL_LINE
+        shardIndex = 0
       }
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.createPoolAssignmentJob(request)
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
-          }
-        )
     }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createPoolAssignmentJob(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+        }
+      )
+  }
 
   @Test
   fun `createPoolAssignmentJob throws INVALID_ARGUMENT for missing pool_assignment_job`() =
     runBlocking {
-      val request = createPoolAssignmentJobRequest {
-        parent = UPLOAD_KEY.toName()
-      }
+      val request = createPoolAssignmentJobRequest { parent = UPLOAD_KEY.toName() }
 
       val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.createPoolAssignmentJob(request)
-        }
+        assertFailsWith<StatusRuntimeException> { service.createPoolAssignmentJob(request) }
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
         .isEqualTo(
@@ -234,133 +221,116 @@ class PoolAssignmentJobServiceTest {
     }
 
   @Test
-  fun `createPoolAssignmentJob throws INVALID_ARGUMENT for empty cmmsModelLine`() =
-    runBlocking {
-      val request = createPoolAssignmentJobRequest {
-        parent = UPLOAD_KEY.toName()
-        poolAssignmentJob = poolAssignmentJob {
-          shardIndex = 0
-        }
-      }
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.createPoolAssignmentJob(request)
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "pool_assignment_job.cmms_model_line"
-          }
-        )
-    }
-
-  @Test
-  fun `createPoolAssignmentJob throws INVALID_ARGUMENT for malformed requestId`() =
-    runBlocking {
-      val request = createPoolAssignmentJobRequest {
-        parent = UPLOAD_KEY.toName()
-        poolAssignmentJob = poolAssignmentJob {
-          cmmsModelLine = CMMS_MODEL_LINE
-          shardIndex = 0
-        }
-        requestId = "invalid-request-id"
-      }
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.createPoolAssignmentJob(request)
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
-          }
-        )
-    }
-
-  @Test
-  fun `batchCreatePoolAssignmentJobs returns jobs successfully`() = runBlocking<Unit> {
-    createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
-    val request = batchCreatePoolAssignmentJobsRequest {
+  fun `createPoolAssignmentJob throws INVALID_ARGUMENT for empty cmmsModelLine`() = runBlocking {
+    val request = createPoolAssignmentJobRequest {
       parent = UPLOAD_KEY.toName()
-      requests += createPoolAssignmentJobRequest {
-        poolAssignmentJob = poolAssignmentJob {
-          cmmsModelLine = CMMS_MODEL_LINE
-          shardIndex = 0
-        }
-      }
-      requests += createPoolAssignmentJobRequest {
-        poolAssignmentJob = poolAssignmentJob {
-          cmmsModelLine = CMMS_MODEL_LINE
-          shardIndex = 1
-        }
-      }
+      poolAssignmentJob = poolAssignmentJob { shardIndex = 0 }
     }
 
-    val response = service.batchCreatePoolAssignmentJobs(request)
-
-    assertThat(response.poolAssignmentJobsList).hasSize(2)
-    val shardIndices =
-      response.poolAssignmentJobsList.map { it.shardIndex }.sorted()
-    assertThat(shardIndices).containsExactly(0, 1)
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createPoolAssignmentJob(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "pool_assignment_job.cmms_model_line"
+        }
+      )
   }
 
   @Test
-  fun `batchCreatePoolAssignmentJobs throws INVALID_ARGUMENT for empty parent`() =
-    runBlocking {
+  fun `createPoolAssignmentJob throws INVALID_ARGUMENT for malformed requestId`() = runBlocking {
+    val request = createPoolAssignmentJobRequest {
+      parent = UPLOAD_KEY.toName()
+      poolAssignmentJob = poolAssignmentJob {
+        cmmsModelLine = CMMS_MODEL_LINE
+        shardIndex = 0
+      }
+      requestId = "invalid-request-id"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createPoolAssignmentJob(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+        }
+      )
+  }
+
+  @Test
+  fun `batchCreatePoolAssignmentJobs returns jobs successfully`() =
+    runBlocking<Unit> {
+      createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
       val request = batchCreatePoolAssignmentJobsRequest {
+        parent = UPLOAD_KEY.toName()
         requests += createPoolAssignmentJobRequest {
           poolAssignmentJob = poolAssignmentJob {
             cmmsModelLine = CMMS_MODEL_LINE
             shardIndex = 0
           }
         }
+        requests += createPoolAssignmentJobRequest {
+          poolAssignmentJob = poolAssignmentJob {
+            cmmsModelLine = CMMS_MODEL_LINE
+            shardIndex = 1
+          }
+        }
       }
 
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.batchCreatePoolAssignmentJobs(request)
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
-          }
-        )
+      val response = service.batchCreatePoolAssignmentJobs(request)
+
+      assertThat(response.poolAssignmentJobsList).hasSize(2)
+      val shardIndices = response.poolAssignmentJobsList.map { it.shardIndex }.sorted()
+      assertThat(shardIndices).containsExactly(0, 1)
     }
 
   @Test
-  fun `batchCreatePoolAssignmentJobs throws INVALID_ARGUMENT for empty requests`() =
-    runBlocking {
-      val request = batchCreatePoolAssignmentJobsRequest {
-        parent = UPLOAD_KEY.toName()
-      }
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.batchCreatePoolAssignmentJobs(request)
+  fun `batchCreatePoolAssignmentJobs throws INVALID_ARGUMENT for empty parent`() = runBlocking {
+    val request = batchCreatePoolAssignmentJobsRequest {
+      requests += createPoolAssignmentJobRequest {
+        poolAssignmentJob = poolAssignmentJob {
+          cmmsModelLine = CMMS_MODEL_LINE
+          shardIndex = 0
         }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "requests"
-          }
-        )
+      }
     }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.batchCreatePoolAssignmentJobs(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+        }
+      )
+  }
+
+  @Test
+  fun `batchCreatePoolAssignmentJobs throws INVALID_ARGUMENT for empty requests`() = runBlocking {
+    val request = batchCreatePoolAssignmentJobsRequest { parent = UPLOAD_KEY.toName() }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.batchCreatePoolAssignmentJobs(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "requests"
+        }
+      )
+  }
 
   @Test
   fun `getPoolAssignmentJob returns a job`() = runBlocking {
@@ -377,10 +347,7 @@ class PoolAssignmentJobServiceTest {
         }
       )
 
-    val job =
-      service.getPoolAssignmentJob(
-        getPoolAssignmentJobRequest { name = created.name }
-      )
+    val job = service.getPoolAssignmentJob(getPoolAssignmentJobRequest { name = created.name })
 
     assertThat(job).isEqualTo(created)
   }
@@ -403,46 +370,44 @@ class PoolAssignmentJobServiceTest {
   }
 
   @Test
-  fun `getPoolAssignmentJob throws INVALID_ARGUMENT for malformed name`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.getPoolAssignmentJob(
-            getPoolAssignmentJobRequest { name = "invalid-name" }
-          )
+  fun `getPoolAssignmentJob throws INVALID_ARGUMENT for malformed name`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.getPoolAssignmentJob(getPoolAssignmentJobRequest { name = "invalid-name" })
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "name"
         }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "name"
-          }
-        )
-    }
+      )
+  }
 
   @Test
-  fun `listPoolAssignmentJobs returns jobs`() = runBlocking<Unit> {
-    createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
-    val created =
-      service.createPoolAssignmentJob(
-        createPoolAssignmentJobRequest {
-          parent = UPLOAD_KEY.toName()
-          poolAssignmentJob = poolAssignmentJob {
-            cmmsModelLine = CMMS_MODEL_LINE
-            shardIndex = 0
+  fun `listPoolAssignmentJobs returns jobs`() =
+    runBlocking<Unit> {
+      createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+      val created =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            parent = UPLOAD_KEY.toName()
+            poolAssignmentJob = poolAssignmentJob {
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
           }
-        }
-      )
+        )
 
-    val response =
-      service.listPoolAssignmentJobs(
-        listPoolAssignmentJobsRequest { parent = UPLOAD_KEY.toName() }
-      )
+      val response =
+        service.listPoolAssignmentJobs(
+          listPoolAssignmentJobsRequest { parent = UPLOAD_KEY.toName() }
+        )
 
-    assertThat(response.poolAssignmentJobsList).containsExactly(created)
-  }
+      assertThat(response.poolAssignmentJobsList).containsExactly(created)
+    }
 
   @Test
   fun `listPoolAssignmentJobs respects page size and pagination`() = runBlocking {
@@ -491,98 +456,108 @@ class PoolAssignmentJobServiceTest {
 
     assertThat(secondResponse.poolAssignmentJobsList).hasSize(1)
     assertThat(
-        (firstResponse.poolAssignmentJobsList +
-            secondResponse.poolAssignmentJobsList)
-          .sortedBy { it.name }
+        (firstResponse.poolAssignmentJobsList + secondResponse.poolAssignmentJobsList).sortedBy {
+          it.name
+        }
       )
       .isEqualTo(sortedCreated)
   }
 
   @Test
-  fun `listPoolAssignmentJobs throws INVALID_ARGUMENT for empty parent`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.listPoolAssignmentJobs(
-            listPoolAssignmentJobsRequest {}
-          )
+  fun `listPoolAssignmentJobs throws INVALID_ARGUMENT for empty parent`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listPoolAssignmentJobs(listPoolAssignmentJobsRequest {})
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
         }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
-          }
-        )
-    }
+      )
+  }
 
   @Test
-  fun `listPoolAssignmentJobs throws INVALID_ARGUMENT for malformed parent`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.listPoolAssignmentJobs(
-            listPoolAssignmentJobsRequest { parent = "invalid-parent" }
-          )
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
-          }
-        )
-    }
-
-  @Test
-  fun `listPoolAssignmentJobs throws INVALID_ARGUMENT for negative page size`() =
+  fun `listPoolAssignmentJobs throws INVALID_ARGUMENT for STATE_UNSPECIFIED in state_in`() =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
           service.listPoolAssignmentJobs(
             listPoolAssignmentJobsRequest {
               parent = UPLOAD_KEY.toName()
-              pageSize = -1
+              filter =
+                ListPoolAssignmentJobsRequestKt.filter {
+                  stateIn += PoolAssignmentJob.State.STATE_UNSPECIFIED
+                }
             }
           )
         }
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
-          }
-        )
     }
 
   @Test
-  fun `listPoolAssignmentJobs throws INVALID_ARGUMENT for malformed page token`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.listPoolAssignmentJobs(
-            listPoolAssignmentJobsRequest {
-              parent = UPLOAD_KEY.toName()
-              pageToken = "invalid-token"
-            }
-          )
+  fun `listPoolAssignmentJobs throws INVALID_ARGUMENT for malformed parent`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listPoolAssignmentJobs(listPoolAssignmentJobsRequest { parent = "invalid-parent" })
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
         }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "page_token"
+      )
+  }
+
+  @Test
+  fun `listPoolAssignmentJobs throws INVALID_ARGUMENT for negative page size`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listPoolAssignmentJobs(
+          listPoolAssignmentJobsRequest {
+            parent = UPLOAD_KEY.toName()
+            pageSize = -1
           }
         )
-    }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
+        }
+      )
+  }
+
+  @Test
+  fun `listPoolAssignmentJobs throws INVALID_ARGUMENT for malformed page token`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listPoolAssignmentJobs(
+          listPoolAssignmentJobsRequest {
+            parent = UPLOAD_KEY.toName()
+            pageToken = "invalid-token"
+          }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "page_token"
+        }
+      )
+  }
 
   @Test
   fun `markPoolAssignmentJobSucceeded transitions state`() = runBlocking {
@@ -603,38 +578,66 @@ class PoolAssignmentJobServiceTest {
         markPoolAssignmentJobSucceededRequest {
           name = created.name
           etag = created.etag
+          encryptedDek = ENCRYPTED_DEK
         }
       )
 
-    assertThat(response.poolAssignmentJob.state)
-      .isEqualTo(PoolAssignmentJob.State.SUCCEEDED)
+    assertThat(response.poolAssignmentJob.state).isEqualTo(PoolAssignmentJob.State.SUCCEEDED)
     assertThat(response.poolAssignmentJob.name).isEqualTo(created.name)
   }
 
   @Test
-  fun `markPoolAssignmentJobSucceeded throws INVALID_ARGUMENT for empty name`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.markPoolAssignmentJobSucceeded(
-            markPoolAssignmentJobSucceededRequest {
-              etag = "some-etag"
-            }
-          )
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "name"
-          }
+  fun `markPoolAssignmentJobSucceeded throws INVALID_ARGUMENT for empty name`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.markPoolAssignmentJobSucceeded(
+          markPoolAssignmentJobSucceededRequest { etag = "some-etag" }
         )
-    }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "name"
+        }
+      )
+  }
 
   @Test
-  fun `markPoolAssignmentJobSucceeded throws INVALID_ARGUMENT for empty etag`() =
+  fun `markPoolAssignmentJobSucceeded throws INVALID_ARGUMENT for empty etag`() = runBlocking {
+    createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+    val created =
+      service.createPoolAssignmentJob(
+        createPoolAssignmentJobRequest {
+          parent = UPLOAD_KEY.toName()
+          poolAssignmentJob = poolAssignmentJob {
+            cmmsModelLine = CMMS_MODEL_LINE
+            shardIndex = 0
+          }
+        }
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.markPoolAssignmentJobSucceeded(
+          markPoolAssignmentJobSucceededRequest { name = created.name }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "etag"
+        }
+      )
+  }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded throws INVALID_ARGUMENT for missing encrypted_dek`() =
     runBlocking {
       createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
       val created =
@@ -653,6 +656,7 @@ class PoolAssignmentJobServiceTest {
           service.markPoolAssignmentJobSucceeded(
             markPoolAssignmentJobSucceededRequest {
               name = created.name
+              etag = created.etag
             }
           )
         }
@@ -662,7 +666,7 @@ class PoolAssignmentJobServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "etag"
+            metadata[Errors.Metadata.FIELD_NAME.key] = "encrypted_dek"
           }
         )
     }
@@ -696,41 +700,37 @@ class PoolAssignmentJobServiceTest {
   }
 
   @Test
-  fun `markPoolAssignmentJobFailed throws INVALID_ARGUMENT for empty name`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.markPoolAssignmentJobFailed(
-            markPoolAssignmentJobFailedRequest {
-              etag = "some-etag"
-            }
-          )
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    }
+  fun `markPoolAssignmentJobFailed throws INVALID_ARGUMENT for empty name`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.markPoolAssignmentJobFailed(
+          markPoolAssignmentJobFailedRequest { etag = "some-etag" }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
 
   @Test
-  fun `markPoolAssignmentJobFailed throws INVALID_ARGUMENT for malformed name`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.markPoolAssignmentJobFailed(
-            markPoolAssignmentJobFailedRequest {
-              name = "invalid-name"
-              etag = "some-etag"
-            }
-          )
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "name"
+  fun `markPoolAssignmentJobFailed throws INVALID_ARGUMENT for malformed name`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.markPoolAssignmentJobFailed(
+          markPoolAssignmentJobFailedRequest {
+            name = "invalid-name"
+            etag = "some-etag"
           }
         )
-    }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "name"
+        }
+      )
+  }
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
@@ -741,5 +741,8 @@ class PoolAssignmentJobServiceTest {
     private val UPLOAD_KEY = RawImpressionUploadKey(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
     private const val CMMS_MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
     private val REQUEST_ID = UUID.randomUUID().toString()
+    private val ENCRYPTED_DEK = encryptedDek {
+      kekUri = "gcp-kms://projects/test/locations/us/keyRings/r/cryptoKeys/k"
+    }
   }
 }
