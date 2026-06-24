@@ -108,6 +108,7 @@ CREATE TABLE RawImpressionUploadModelLine (
   MaxEventDate DATE,
   EncryptedMergedDek BYTES(MAX),
   Etag STRING(36) NOT NULL,
+  MarkRequestId STRING(36),
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 ) PRIMARY KEY (DataProviderResourceId, RawImpressionUploadId, RawImpressionUploadModelLineId),
@@ -118,6 +119,9 @@ CREATE UNIQUE INDEX RawImpressionUploadModelLineByResourceId
 
 CREATE UNIQUE NULL_FILTERED INDEX RawImpressionUploadModelLineByCreateRequestId
   ON RawImpressionUploadModelLine(DataProviderResourceId, RawImpressionUploadId, CreateRequestId);
+
+CREATE UNIQUE NULL_FILTERED INDEX RawImpressionUploadModelLineByMarkRequestId
+  ON RawImpressionUploadModelLine(DataProviderResourceId, RawImpressionUploadId, MarkRequestId);
 
 CREATE INDEX RawImpressionUploadModelLineByState
   ON RawImpressionUploadModelLine(DataProviderResourceId, State, CreateTime);
@@ -157,6 +161,13 @@ CREATE UNIQUE NULL_FILTERED INDEX PoolAssignmentJobByCreateRequestId
     CreateRequestId
   );
 
+CREATE UNIQUE NULL_FILTERED INDEX PoolAssignmentJobByMarkRequestId
+  ON PoolAssignmentJob(
+    DataProviderResourceId,
+    RawImpressionUploadId,
+    MarkRequestId
+  );
+
 CREATE INDEX PoolAssignmentJobByState
   ON PoolAssignmentJob(DataProviderResourceId, State, CreateTime);
 
@@ -178,6 +189,7 @@ CREATE TABLE RankerJob (
   Etag STRING(36) NOT NULL,
   ErrorMessage STRING(MAX),
   CreateRequestId STRING(36),
+  MarkRequestId STRING(36),
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 ) PRIMARY KEY (DataProviderResourceId, RawImpressionUploadId, RankerJobId),
@@ -191,6 +203,13 @@ CREATE UNIQUE NULL_FILTERED INDEX RankerJobByCreateRequestId
     DataProviderResourceId,
     RawImpressionUploadId,
     CreateRequestId
+  );
+
+CREATE UNIQUE NULL_FILTERED INDEX RankerJobByMarkRequestId
+  ON RankerJob(
+    DataProviderResourceId,
+    RawImpressionUploadId,
+    MarkRequestId
   );
 
 CREATE INDEX RankerJobByState
@@ -231,6 +250,15 @@ CREATE UNIQUE NULL_FILTERED INDEX RankIndexBlobByCreateRequestId
     CreateRequestId
   );
 
+CREATE UNIQUE INDEX RankIndexBlobByNaturalKey
+  ON RankIndexBlob(
+    DataProviderResourceId,
+    RawImpressionUploadId,
+    CmmsModelLine,
+    BlobType,
+    PoolOffset
+  );
+
 CREATE INDEX RankIndexBlobByMaxEventDate
   ON RankIndexBlob(DataProviderResourceId, CmmsModelLine, BlobType, MaxEventDate);
 
@@ -257,6 +285,7 @@ CREATE TABLE VidLabelingJob (
   Etag STRING(36) NOT NULL,
   ErrorMessage STRING(MAX),
   CreateRequestId STRING(36),
+  MarkRequestId STRING(36),
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 ) PRIMARY KEY (DataProviderResourceId, RawImpressionUploadId, VidLabelingJobId),
@@ -270,6 +299,13 @@ CREATE UNIQUE NULL_FILTERED INDEX VidLabelingJobByCreateRequestId
     DataProviderResourceId,
     RawImpressionUploadId,
     CreateRequestId
+  );
+
+CREATE UNIQUE NULL_FILTERED INDEX VidLabelingJobByMarkRequestId
+  ON VidLabelingJob(
+    DataProviderResourceId,
+    RawImpressionUploadId,
+    MarkRequestId
   );
 
 CREATE INDEX VidLabelingJobByState
