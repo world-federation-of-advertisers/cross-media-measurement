@@ -12,3 +12,14 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/config/edpaggregator:data_provider_validation_config_kt_jvm_proto",
     ],
 )
+
+kt_jvm_library(
+    name = "validation_cloud_function_client",
+    srcs = ["ValidationCloudFunctionClient.kt"],
+    deps = [
+        "//imports/java/com/google/auth:credentials",
+        "//imports/java/com/google/auth:oauth_http2",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_impression_query_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)
