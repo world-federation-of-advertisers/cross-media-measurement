@@ -192,7 +192,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "bazel_jar_jar",
-    version = "0.1.7",
+    version = "0.1.15",
 )
 bazel_dep(
     name = "riegeli",
@@ -216,6 +216,8 @@ single_version_override(
 )
 # DO_NOT_SUBMIT: testing a new version of rules_rust, transitive dep of "grpc_ecosystem_grpc_gateway@2.26.0.bzlmod.1", to avoid the "The CcInfo symbol has been removed" error
 bazel_dep(name = "rules_rust", version = "0.70.0")
+# DO_NOT_SUBMIT: testing a new version of rules_foreign_cc, transitive dep of "grpc", to avoid the "initialization of module 'toolchains/toolchains.bzl' failed" error
+bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
 
 bazel_dep(
     name = "rules_multirun",
