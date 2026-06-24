@@ -15,6 +15,7 @@
 #include "wfa/virtual_people/core/labeler/labeler.h"
 
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -25,6 +26,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "common_cpp/macros/macros.h"
+#include "google/protobuf/text_format.h"
 #include "src/farmhash.h"
 #include "wfa/virtual_people/common/event.pb.h"
 #include "wfa/virtual_people/common/label.pb.h"
@@ -187,8 +189,12 @@ absl::Status Labeler::Label(const LabelerInput& input, LabelerOutput& output,
 
   if (input.enable_debug_trace()) {
     // TODO(@tcsnfkx): Update the content of debug trace. Currently only set the
-    // debug trace to be the LabelerEvent.
-    output.set_serialized_debug_trace(event.DebugString());
+    // debug trace to be the LabelerEvent. Use TextFormat::PrintToString rather
+    // than DebugString(): newer protobuf intentionally makes DebugString()
+    // emit a non-roundtrippable redaction marker.
+    std::string trace;
+    google::protobuf::TextFormat::PrintToString(event, &trace);
+    output.set_serialized_debug_trace(trace);
   }
   return absl::OkStatus();
 }

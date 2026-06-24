@@ -13,17 +13,17 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-cpp",
-    version = "0.13.0",
+    version = "0.14.0",
     repo_name = "wfa_common_cpp",
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.96.0",
+    version = "0.144.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.70.0",
+    version = "0.94.0",
     repo_name = "wfa_measurement_proto",
 )
 bazel_dep(

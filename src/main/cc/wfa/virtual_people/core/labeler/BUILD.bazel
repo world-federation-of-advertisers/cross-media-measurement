@@ -21,6 +21,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_protobuf//:protobuf",
         "@farmhash",
         "@wfa_common_cpp//src/main/cc/common_cpp/macros",
         "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_cc_proto",
