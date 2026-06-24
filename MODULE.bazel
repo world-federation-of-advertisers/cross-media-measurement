@@ -214,6 +214,8 @@ single_version_override(
         "//build/cosign/patches:sign_dot_bzl.patch",
     ],
 )
+# DO_NOT_SUBMIT: testing a new version of rules_rust, transitive dep of "grpc_ecosystem_grpc_gateway@2.26.0.bzlmod.1", to avoid the "The CcInfo symbol has been removed" error
+bazel_dep(name = "rules_rust", version = "0.70.0")
 
 bazel_dep(
     name = "rules_multirun",
