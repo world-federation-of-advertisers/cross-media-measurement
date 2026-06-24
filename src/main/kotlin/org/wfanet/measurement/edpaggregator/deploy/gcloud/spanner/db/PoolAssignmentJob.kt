@@ -23,13 +23,13 @@ import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
-import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
+import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.edpaggregator.ListPoolAssignmentJobsPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListPoolAssignmentJobsRequest
@@ -44,9 +44,7 @@ data class PoolAssignmentJobResult(
   val markRequestId: String,
 )
 
-/**
- * Returns whether a [PoolAssignmentJob] with the specified keys exists.
- */
+/** Returns whether a [PoolAssignmentJob] with the specified keys exists. */
 suspend fun AsyncDatabaseClient.ReadContext.poolAssignmentJobExists(
   dataProviderResourceId: String,
   rawImpressionUploadId: Long,
@@ -125,9 +123,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getPoolAssignmentJobByResourceId(
   return PoolAssignmentJobEntity.buildResult(row)
 }
 
-/**
- * Finds an existing [PoolAssignmentJob] by request ID for idempotency.
- */
+/** Finds an existing [PoolAssignmentJob] by request ID for idempotency. */
 suspend fun AsyncDatabaseClient.ReadContext.findPoolAssignmentJobByRequestId(
   dataProviderResourceId: String,
   rawImpressionUploadResourceId: String,
@@ -161,9 +157,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findPoolAssignmentJobByRequestId(
   return PoolAssignmentJobEntity.buildResult(row)
 }
 
-/**
- * Finds existing [PoolAssignmentJob] entries by request IDs for batch idempotency.
- */
+/** Finds existing [PoolAssignmentJob] entries by request IDs for batch idempotency. */
 suspend fun AsyncDatabaseClient.ReadContext.findPoolAssignmentJobsByRequestIds(
   dataProviderResourceId: String,
   rawImpressionUploadResourceId: String,
@@ -214,12 +208,13 @@ fun AsyncDatabaseClient.ReadContext.readPoolAssignmentJobs(
     appendLine(PoolAssignmentJobEntity.BASE_SQL)
     appendLine("JOIN RawImpressionUpload USING (DataProviderResourceId, RawImpressionUploadId)")
 
-    val conjuncts = mutableListOf(
-      "PoolAssignmentJob.DataProviderResourceId = @dataProviderResourceId",
-    )
+    val conjuncts =
+      mutableListOf("PoolAssignmentJob.DataProviderResourceId = @dataProviderResourceId")
 
     if (rawImpressionUploadResourceId != null) {
-      conjuncts.add("RawImpressionUpload.RawImpressionUploadResourceId = @rawImpressionUploadResourceId")
+      conjuncts.add(
+        "RawImpressionUpload.RawImpressionUploadResourceId = @rawImpressionUploadResourceId"
+      )
     }
 
     if (filter != null) {
@@ -327,6 +322,41 @@ suspend fun AsyncDatabaseClient.ReadContext.countNonSucceededPoolAssignmentJobs(
   return row.getLong("cnt")
 }
 
+/**
+ * Reads the `PoolOffsets` of a [RawImpressionUploadModelLine] for the given (upload, model line).
+ *
+ * Used by MarkSucceeded to populate the last-shard pool offsets that trigger Phase 1.
+ *
+ * @return the pool offsets (empty if the column is null), or `null` if the row does not exist
+ */
+suspend fun AsyncDatabaseClient.ReadContext.getPoolOffsetsForModelLine(
+  dataProviderResourceId: String,
+  rawImpressionUploadId: Long,
+  cmmsModelLine: String,
+): List<Long>? {
+  val sql =
+    """
+    SELECT PoolOffsets
+    FROM RawImpressionUploadModelLine
+    WHERE DataProviderResourceId = @dataProviderResourceId
+      AND RawImpressionUploadId = @rawImpressionUploadId
+      AND CmmsModelLine = @cmmsModelLine
+    """
+      .trimIndent()
+
+  val row: Struct =
+    executeQuery(
+        statement(sql) {
+          bind("dataProviderResourceId").to(dataProviderResourceId)
+          bind("rawImpressionUploadId").to(rawImpressionUploadId)
+          bind("cmmsModelLine").to(cmmsModelLine)
+        }
+      )
+      .singleOrNullIfEmpty() ?: return null
+
+  return if (row.isNull("PoolOffsets")) emptyList() else row.getLongList("PoolOffsets")
+}
+
 /** Buffers an insert mutation for a [PoolAssignmentJob] row. */
 fun AsyncDatabaseClient.TransactionContext.insertPoolAssignmentJob(
   rawImpressionUploadId: Long,
@@ -392,6 +422,7 @@ private object PoolAssignmentJobEntity {
       PoolAssignmentJob.MarkRequestId,
       PoolAssignmentJob.State,
       PoolAssignmentJob.ErrorMessage,
+      PoolAssignmentJob.EncryptedDek,
       PoolAssignmentJob.Etag,
       PoolAssignmentJob.CreateTime,
       PoolAssignmentJob.UpdateTime,
@@ -414,7 +445,10 @@ private object PoolAssignmentJobEntity {
         if (!struct.isNull("ErrorMessage")) {
           errorMessage = struct.getString("ErrorMessage")
         }
-        etag = ETags.computeETag(struct.getTimestamp("UpdateTime").toProto().toInstant())
+        if (!struct.isNull("EncryptedDek")) {
+          encryptedDek = struct.getProtoMessage("EncryptedDek", EncryptedDek.getDefaultInstance())
+        }
+        etag = struct.getString("Etag")
       },
       struct.getLong("RawImpressionUploadId"),
       struct.getLong("PoolAssignmentJobId"),

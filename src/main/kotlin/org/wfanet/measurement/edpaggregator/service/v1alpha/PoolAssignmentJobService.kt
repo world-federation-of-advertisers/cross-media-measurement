@@ -37,12 +37,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRespon
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobSucceededResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobSucceededResponseKt.lastShardResult
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.markPoolAssignmentJobSucceededResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobSucceededResponseKt.lastShardResult
 import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
 import org.wfanet.measurement.internal.edpaggregator.ListPoolAssignmentJobsPageToken as InternalListPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListPoolAssignmentJobsResponse as InternalListResponse
@@ -132,6 +132,12 @@ class PoolAssignmentJobService(
       throw RequiredFieldNotSetException("requests")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.requestsList.size > MAX_BATCH_SIZE) {
+      throw InvalidFieldValueException("requests") {
+          "$it must contain at most $MAX_BATCH_SIZE elements"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
     request.requestsList.forEachIndexed { index, createRequest ->
       if (createRequest.parent.isNotEmpty() && createRequest.parent != request.parent) {
@@ -139,10 +145,16 @@ class PoolAssignmentJobService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
       if (createRequest.poolAssignmentJob.cmmsModelLine.isEmpty()) {
-        throw RequiredFieldNotSetException(
-            "requests.$index.pool_assignment_job.cmms_model_line"
-          )
+        throw RequiredFieldNotSetException("requests.$index.pool_assignment_job.cmms_model_line")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (createRequest.requestId.isNotEmpty()) {
+        try {
+          UUID.fromString(createRequest.requestId)
+        } catch (e: IllegalArgumentException) {
+          throw InvalidFieldValueException("requests.$index.request_id", e)
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
       }
     }
 
@@ -171,8 +183,7 @@ class PoolAssignmentJobService(
       }
 
     return batchCreatePoolAssignmentJobsResponse {
-      poolAssignmentJobs +=
-        internalResponse.poolAssignmentJobsList.map { it.toPublic() }
+      poolAssignmentJobs += internalResponse.poolAssignmentJobsList.map { it.toPublic() }
     }
   }
 
@@ -223,6 +234,19 @@ class PoolAssignmentJobService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    if (
+      request.hasFilter() &&
+        request.filter.stateInList.any {
+          it == PoolAssignmentJob.State.STATE_UNSPECIFIED ||
+            it == PoolAssignmentJob.State.UNRECOGNIZED
+        }
+    ) {
+      throw InvalidFieldValueException("filter.state_in") {
+          "$it must not contain STATE_UNSPECIFIED or an unrecognized value"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
     val pageSize =
       if (request.pageSize == 0) {
         DEFAULT_PAGE_SIZE
@@ -256,8 +280,7 @@ class PoolAssignmentJobService(
             }
             if (request.hasFilter()) {
               filter =
-                org.wfanet.measurement.internal.edpaggregator
-                  .ListPoolAssignmentJobsRequestKt
+                org.wfanet.measurement.internal.edpaggregator.ListPoolAssignmentJobsRequestKt
                   .filter {
                     if (request.filter.stateInList.isNotEmpty()) {
                       stateIn += request.filter.stateInList.map { it.toInternal() }
@@ -277,8 +300,7 @@ class PoolAssignmentJobService(
       }
 
     return listPoolAssignmentJobsResponse {
-      poolAssignmentJobs +=
-        internalResponse.poolAssignmentJobsList.map { it.toPublic() }
+      poolAssignmentJobs += internalResponse.poolAssignmentJobsList.map { it.toPublic() }
       if (internalResponse.hasNextPageToken()) {
         nextPageToken = internalResponse.nextPageToken.toByteArray().base64UrlEncode()
       }
@@ -303,6 +325,11 @@ class PoolAssignmentJobService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    if (!request.hasEncryptedDek()) {
+      throw RequiredFieldNotSetException("encrypted_dek")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
     if (request.requestId.isNotEmpty()) {
       try {
         UUID.fromString(request.requestId)
@@ -321,6 +348,7 @@ class PoolAssignmentJobService(
             poolAssignmentJobResourceId = jobKey.poolAssignmentJobId
             etag = request.etag
             requestId = request.requestId
+            encryptedDek = request.encryptedDek
           }
         )
       } catch (e: StatusException) {
@@ -377,6 +405,7 @@ class PoolAssignmentJobService(
     private const val WILDCARD_ID = "-"
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 100
+    private const val MAX_BATCH_SIZE = 50
   }
 }
 
@@ -405,8 +434,9 @@ private fun handleInternalError(e: StatusException): StatusRuntimeException {
       Status.NOT_FOUND.withCause(e).asRuntimeException()
     InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID ->
       Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
-    InternalErrors.Reason.ETAG_MISMATCH ->
-      Status.ABORTED.withCause(e).asRuntimeException()
+    InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS ->
+      Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
+    InternalErrors.Reason.ETAG_MISMATCH -> Status.ABORTED.withCause(e).asRuntimeException()
   }
 }
 
@@ -416,10 +446,10 @@ fun InternalPoolAssignmentJob.toPublic(): PoolAssignmentJob {
   return poolAssignmentJob {
     name =
       PoolAssignmentJobKey(
-        source.dataProviderResourceId,
-        source.rawImpressionUploadResourceId,
-        source.poolAssignmentJobResourceId,
-      )
+          source.dataProviderResourceId,
+          source.rawImpressionUploadResourceId,
+          source.poolAssignmentJobResourceId,
+        )
         .toName()
     state = source.state.toPublic()
     cmmsModelLine = source.cmmsModelLine
@@ -435,36 +465,23 @@ fun InternalPoolAssignmentJob.toPublic(): PoolAssignmentJob {
   }
 }
 
-/**
- * Converts an internal [PoolAssignmentState] to a public
- * [PoolAssignmentJob.State].
- */
+/** Converts an internal [PoolAssignmentState] to a public [PoolAssignmentJob.State]. */
 internal fun PoolAssignmentState.toPublic(): PoolAssignmentJob.State {
   return when (this) {
-    PoolAssignmentState.POOL_ASSIGNMENT_STATE_CREATED ->
-      PoolAssignmentJob.State.CREATED
-    PoolAssignmentState.POOL_ASSIGNMENT_STATE_SUCCEEDED ->
-      PoolAssignmentJob.State.SUCCEEDED
-    PoolAssignmentState.POOL_ASSIGNMENT_STATE_FAILED ->
-      PoolAssignmentJob.State.FAILED
+    PoolAssignmentState.POOL_ASSIGNMENT_STATE_CREATED -> PoolAssignmentJob.State.CREATED
+    PoolAssignmentState.POOL_ASSIGNMENT_STATE_SUCCEEDED -> PoolAssignmentJob.State.SUCCEEDED
+    PoolAssignmentState.POOL_ASSIGNMENT_STATE_FAILED -> PoolAssignmentJob.State.FAILED
     PoolAssignmentState.UNRECOGNIZED,
-    PoolAssignmentState.POOL_ASSIGNMENT_STATE_UNSPECIFIED ->
-      error("Unrecognized state")
+    PoolAssignmentState.POOL_ASSIGNMENT_STATE_UNSPECIFIED -> error("Unrecognized state")
   }
 }
 
-/**
- * Converts a public [PoolAssignmentJob.State] to an internal
- * [PoolAssignmentState].
- */
+/** Converts a public [PoolAssignmentJob.State] to an internal [PoolAssignmentState]. */
 internal fun PoolAssignmentJob.State.toInternal(): PoolAssignmentState {
   return when (this) {
-    PoolAssignmentJob.State.CREATED ->
-      PoolAssignmentState.POOL_ASSIGNMENT_STATE_CREATED
-    PoolAssignmentJob.State.SUCCEEDED ->
-      PoolAssignmentState.POOL_ASSIGNMENT_STATE_SUCCEEDED
-    PoolAssignmentJob.State.FAILED ->
-      PoolAssignmentState.POOL_ASSIGNMENT_STATE_FAILED
+    PoolAssignmentJob.State.CREATED -> PoolAssignmentState.POOL_ASSIGNMENT_STATE_CREATED
+    PoolAssignmentJob.State.SUCCEEDED -> PoolAssignmentState.POOL_ASSIGNMENT_STATE_SUCCEEDED
+    PoolAssignmentJob.State.FAILED -> PoolAssignmentState.POOL_ASSIGNMENT_STATE_FAILED
     PoolAssignmentJob.State.UNRECOGNIZED,
     PoolAssignmentJob.State.STATE_UNSPECIFIED -> error("Unrecognized state")
   }

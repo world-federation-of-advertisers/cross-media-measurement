@@ -20,10 +20,10 @@ import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
-import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentState
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState
+import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionBatchState
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState
 
@@ -49,6 +49,7 @@ object Errors {
     RAW_IMPRESSION_UPLOAD_NOT_FOUND,
     POOL_ASSIGNMENT_JOB_NOT_FOUND,
     POOL_ASSIGNMENT_JOB_STATE_INVALID,
+    POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
     ETAG_MISMATCH,
     REQUIRED_FIELD_NOT_SET,
     INVALID_FIELD_VALUE,
@@ -381,8 +382,6 @@ class RequiredFieldNotSetException(fieldName: String, cause: Throwable? = null) 
     cause,
   )
 
-
-
 class RawImpressionUploadNotFoundException(
   dataProviderResourceId: String,
   rawImpressionUploadResourceId: String,
@@ -412,6 +411,14 @@ class PoolAssignmentJobNotFoundException(
       Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
       Errors.Metadata.POOL_ASSIGNMENT_JOB_RESOURCE_ID to poolAssignmentJobResourceId,
     ),
+    cause,
+  )
+
+class PoolAssignmentJobAlreadyExistsException(cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
+    "PoolAssignmentJob already exists",
+    emptyMap(),
     cause,
   )
 

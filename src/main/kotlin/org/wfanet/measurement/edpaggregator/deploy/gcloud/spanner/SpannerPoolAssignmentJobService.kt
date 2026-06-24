@@ -28,13 +28,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
-import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.generateNewId
-import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.PoolAssignmentJobResult
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countNonSucceededPoolAssignmentJobs
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findPoolAssignmentJobByRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findPoolAssignmentJobsByRequestIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getPoolAssignmentJobByResourceId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getPoolOffsetsForModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadIdForPoolAssignment
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertPoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.poolAssignmentJobExists
@@ -42,8 +42,13 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readPoolAss
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updatePoolAssignmentJobState
 import org.wfanet.measurement.edpaggregator.service.internal.EtagMismatchException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
+import org.wfanet.measurement.edpaggregator.service.internal.PoolAssignmentJobAlreadyExistsException
+import org.wfanet.measurement.edpaggregator.service.internal.PoolAssignmentJobNotFoundException
+import org.wfanet.measurement.edpaggregator.service.internal.PoolAssignmentJobStateInvalidException
+import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.toProtoBytes
 import org.wfanet.measurement.internal.edpaggregator.BatchCreatePoolAssignmentJobsRequest
 import org.wfanet.measurement.internal.edpaggregator.BatchCreatePoolAssignmentJobsResponse
 import org.wfanet.measurement.internal.edpaggregator.CreatePoolAssignmentJobRequest
@@ -105,23 +110,19 @@ class SpannerPoolAssignmentJobService(
               job.dataProviderResourceId,
               job.rawImpressionUploadResourceId,
             )
-              ?: throw Status.NOT_FOUND
-                .withDescription(
-                  "RawImpressionUpload not found for DataProvider ${job.dataProviderResourceId}" +
-                    " and upload ${job.rawImpressionUploadResourceId}"
+              ?: throw RawImpressionUploadNotFoundException(
+                  job.dataProviderResourceId,
+                  job.rawImpressionUploadResourceId,
                 )
-                .asRuntimeException()
+                .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
           val poolAssignmentJobId =
             idGenerator.generateNewId { id ->
-              txn.poolAssignmentJobExists(
-                job.dataProviderResourceId,
-                rawImpressionUploadId,
-                id,
-              )
+              txn.poolAssignmentJobExists(job.dataProviderResourceId, rawImpressionUploadId, id)
             }
 
           val resourceId = "$POOL_ASSIGNMENT_JOB_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
+          val newEtag = UUID.randomUUID().toString()
 
           txn.insertPoolAssignmentJob(
             rawImpressionUploadId = rawImpressionUploadId,
@@ -131,23 +132,21 @@ class SpannerPoolAssignmentJobService(
             cmmsModelLine = job.cmmsModelLine,
             shardIndex = job.shardIndex.toLong(),
             createRequestId = request.requestId,
-            etag = "", // Placeholder; real etag computed from commit timestamp.
+            etag = newEtag,
           )
 
           job.copy {
             poolAssignmentJobResourceId = resourceId
             state = State.POOL_ASSIGNMENT_STATE_CREATED
+            etag = newEtag
             clearCreateTime()
             clearUpdateTime()
-            clearEtag()
           }
         }
       } catch (e: SpannerException) {
         if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
-          throw Status.ALREADY_EXISTS
-            .withDescription("PoolAssignmentJob already exists")
-            .withCause(e)
-            .asRuntimeException()
+          throw PoolAssignmentJobAlreadyExistsException(e)
+            .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
         }
         throw e
       }
@@ -159,7 +158,6 @@ class SpannerPoolAssignmentJobService(
       createdJob.copy {
         createTime = commitTimestamp
         updateTime = commitTimestamp
-        etag = ETags.computeETag(commitTimestamp.toInstant())
       }
     }
   }
@@ -168,7 +166,9 @@ class SpannerPoolAssignmentJobService(
     request: BatchCreatePoolAssignmentJobsRequest
   ): BatchCreatePoolAssignmentJobsResponse {
     if (request.requestsList.size > MAX_BATCH_SIZE) {
-      throw InvalidFieldValueException("requests") { "$it must contain at most $MAX_BATCH_SIZE elements" }
+      throw InvalidFieldValueException("requests") {
+          "$it must contain at most $MAX_BATCH_SIZE elements"
+        }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     if (request.requestsList.isEmpty()) {
@@ -196,9 +196,8 @@ class SpannerPoolAssignmentJobService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
       if (subRequest.poolAssignmentJob.cmmsModelLine.isEmpty()) {
-        throw RequiredFieldNotSetException(
-          "requests[$index].pool_assignment_job.cmms_model_line"
-        ).asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        throw RequiredFieldNotSetException("requests[$index].pool_assignment_job.cmms_model_line")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
       if (
@@ -206,9 +205,9 @@ class SpannerPoolAssignmentJobService(
           subRequest.poolAssignmentJob.cmmsModelLine to subRequest.poolAssignmentJob.shardIndex
         )
       ) {
-        throw InvalidFieldValueException(
-          "requests[$index].pool_assignment_job.shard_index"
-        ) { "Duplicate (cmms_model_line, shard_index) in batch" }
+        throw InvalidFieldValueException("requests[$index].pool_assignment_job.shard_index") {
+            "Duplicate (cmms_model_line, shard_index) in batch"
+          }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
@@ -222,8 +221,9 @@ class SpannerPoolAssignmentJobService(
         }
         if (!requestIdSet.add(requestId)) {
           throw InvalidFieldValueException("requests[$index].request_id") {
-            "Duplicate request_id $requestId in batch"
-          }.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+              "Duplicate request_id $requestId in batch"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
       }
     }
@@ -235,13 +235,15 @@ class SpannerPoolAssignmentJobService(
       try {
         transactionRunner.run { txn ->
           val rawImpressionUploadId =
-            txn.getRawImpressionUploadIdForPoolAssignment(dataProviderResourceId, rawImpressionUploadResourceId)
-              ?: throw Status.NOT_FOUND
-                .withDescription(
-                  "RawImpressionUpload not found for DataProvider $dataProviderResourceId" +
-                    " and upload $rawImpressionUploadResourceId"
+            txn.getRawImpressionUploadIdForPoolAssignment(
+              dataProviderResourceId,
+              rawImpressionUploadResourceId,
+            )
+              ?: throw RawImpressionUploadNotFoundException(
+                  dataProviderResourceId,
+                  rawImpressionUploadResourceId,
                 )
-                .asRuntimeException()
+                .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
           val existingByRequestId: Map<String, PoolAssignmentJobResult> =
             txn.findPoolAssignmentJobsByRequestIds(
@@ -257,14 +259,11 @@ class SpannerPoolAssignmentJobService(
             } else {
               val poolAssignmentJobId =
                 idGenerator.generateNewId { id ->
-                  txn.poolAssignmentJobExists(
-                    dataProviderResourceId,
-                    rawImpressionUploadId,
-                    id,
-                  )
+                  txn.poolAssignmentJobExists(dataProviderResourceId, rawImpressionUploadId, id)
                 }
 
               val resourceId = "$POOL_ASSIGNMENT_JOB_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
+              val newEtag = UUID.randomUUID().toString()
 
               txn.insertPoolAssignmentJob(
                 rawImpressionUploadId = rawImpressionUploadId,
@@ -274,7 +273,7 @@ class SpannerPoolAssignmentJobService(
                 cmmsModelLine = subRequest.poolAssignmentJob.cmmsModelLine,
                 shardIndex = subRequest.poolAssignmentJob.shardIndex.toLong(),
                 createRequestId = subRequest.requestId,
-                etag = "", // Placeholder; real etag computed from commit timestamp.
+                etag = newEtag,
               )
 
               subRequest.poolAssignmentJob.copy {
@@ -282,25 +281,22 @@ class SpannerPoolAssignmentJobService(
                 this.rawImpressionUploadResourceId = rawImpressionUploadResourceId
                 poolAssignmentJobResourceId = resourceId
                 state = State.POOL_ASSIGNMENT_STATE_CREATED
+                etag = newEtag
                 clearCreateTime()
                 clearUpdateTime()
-                clearEtag()
               }
             }
           }
         }
       } catch (e: SpannerException) {
         if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
-          throw Status.ALREADY_EXISTS
-            .withDescription("PoolAssignmentJob already exists")
-            .withCause(e)
-            .asRuntimeException()
+          throw PoolAssignmentJobAlreadyExistsException(e)
+            .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
         }
         throw e
       }
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-    val computedEtag = ETags.computeETag(commitTimestamp.toInstant())
     return batchCreatePoolAssignmentJobsResponse {
       poolAssignmentJobs +=
         results.map { result ->
@@ -310,7 +306,6 @@ class SpannerPoolAssignmentJobService(
             result.copy {
               createTime = commitTimestamp
               updateTime = commitTimestamp
-              etag = computedEtag
             }
           }
         }
@@ -341,11 +336,12 @@ class SpannerPoolAssignmentJobService(
           request.poolAssignmentJobResourceId,
         )
         ?.poolAssignmentJob
-        ?: throw Status.NOT_FOUND
-          .withDescription(
-            "PoolAssignmentJob ${request.poolAssignmentJobResourceId} not found"
+        ?: throw PoolAssignmentJobNotFoundException(
+            request.dataProviderResourceId,
+            request.rawImpressionUploadResourceId,
+            request.poolAssignmentJobResourceId,
           )
-          .asRuntimeException()
+          .asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
   }
 
@@ -358,13 +354,13 @@ class SpannerPoolAssignmentJobService(
     }
     if (request.pageSize < 0) {
       throw InvalidFieldValueException("page_size") { fieldName ->
-        "$fieldName must be non-negative"
-      }.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          "$fieldName must be non-negative"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     val pageSize =
-      if (request.pageSize == 0) DEFAULT_PAGE_SIZE
-      else request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
+      if (request.pageSize == 0) DEFAULT_PAGE_SIZE else request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
 
     val after = if (request.hasPageToken()) request.pageToken.after else null
 
@@ -379,21 +375,22 @@ class SpannerPoolAssignmentJobService(
         )
 
       return listPoolAssignmentJobsResponse {
-        var count = 0
-        rows.map { it.poolAssignmentJob }.collectIndexed { index, item ->
-          if (index == pageSize) {
-            val lastIncluded = poolAssignmentJobs.last()
-            nextPageToken = listPoolAssignmentJobsPageToken {
-              this.after =
-                ListPoolAssignmentJobsPageTokenKt.after {
-                  createTime = lastIncluded.createTime
-                  poolAssignmentJobResourceId = lastIncluded.poolAssignmentJobResourceId
-                }
+        rows
+          .map { it.poolAssignmentJob }
+          .collectIndexed { index, item ->
+            if (index == pageSize) {
+              val lastIncluded = poolAssignmentJobs.last()
+              nextPageToken = listPoolAssignmentJobsPageToken {
+                this.after =
+                  ListPoolAssignmentJobsPageTokenKt.after {
+                    createTime = lastIncluded.createTime
+                    poolAssignmentJobResourceId = lastIncluded.poolAssignmentJobResourceId
+                  }
+              }
+            } else {
+              poolAssignmentJobs += item
             }
-          } else {
-            poolAssignmentJobs += item
           }
-        }
       }
     }
   }
@@ -436,40 +433,58 @@ class SpannerPoolAssignmentJobService(
             request.rawImpressionUploadResourceId,
             request.poolAssignmentJobResourceId,
           )
-            ?: throw Status.NOT_FOUND
-              .withDescription(
-                "PoolAssignmentJob ${request.poolAssignmentJobResourceId} not found"
+            ?: throw PoolAssignmentJobNotFoundException(
+                request.dataProviderResourceId,
+                request.rawImpressionUploadResourceId,
+                request.poolAssignmentJobResourceId,
               )
-              .asRuntimeException()
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
         val currentJob = result.poolAssignmentJob
 
-        // Idempotency: if already succeeded by this same request_id, return as-is.
+        // Idempotency: a replay of the same request_id returns the ORIGINAL response,
+        // re-deriving last-shard status. Safe because SUCCEEDED is terminal: once all
+        // shards for this (upload, model line) are SUCCEEDED, that stays true.
         if (
           currentJob.state == State.POOL_ASSIGNMENT_STATE_SUCCEEDED &&
             request.requestId.isNotEmpty() &&
             result.markRequestId == request.requestId
         ) {
+          val wasLastShard =
+            txn.countNonSucceededPoolAssignmentJobs(
+              request.dataProviderResourceId,
+              result.rawImpressionUploadId,
+              currentJob.cmmsModelLine,
+            ) == 0L
+          val poolOffsets =
+            if (wasLastShard) {
+              txn.getPoolOffsetsForModelLine(
+                request.dataProviderResourceId,
+                result.rawImpressionUploadId,
+                currentJob.cmmsModelLine,
+              ) ?: emptyList()
+            } else {
+              emptyList()
+            }
           return@run TransactionResult(
             currentJob,
-            isLastShard = false,
-            poolOffsets = emptyList(),
+            isLastShard = wasLastShard,
+            poolOffsets = poolOffsets,
             isReplay = true,
           )
         }
 
         val validPreviousStates =
-          setOf(
-            State.POOL_ASSIGNMENT_STATE_CREATED,
-            State.POOL_ASSIGNMENT_STATE_FAILED,
-          )
+          setOf(State.POOL_ASSIGNMENT_STATE_CREATED, State.POOL_ASSIGNMENT_STATE_FAILED)
         if (currentJob.state !in validPreviousStates) {
-          throw Status.FAILED_PRECONDITION
-            .withDescription(
-              "PoolAssignmentJob is in state ${currentJob.state}," +
-                " expected one of $validPreviousStates"
+          throw PoolAssignmentJobStateInvalidException(
+              request.dataProviderResourceId,
+              request.rawImpressionUploadResourceId,
+              request.poolAssignmentJobResourceId,
+              currentJob.state,
+              validPreviousStates,
             )
-            .asRuntimeException()
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         }
 
         try {
@@ -478,69 +493,72 @@ class SpannerPoolAssignmentJobService(
           throw e.asStatusRuntimeException(Status.Code.ABORTED)
         }
 
+        val newEtag = UUID.randomUUID().toString()
         txn.updatePoolAssignmentJobState(
           dataProviderResourceId = request.dataProviderResourceId,
           rawImpressionUploadId = result.rawImpressionUploadId,
           poolAssignmentJobId = result.poolAssignmentJobId,
           state = State.POOL_ASSIGNMENT_STATE_SUCCEEDED,
-          etag = "", // Placeholder; real etag computed from commit timestamp.
+          etag = newEtag,
         ) {
-          set("MarkRequestId").to(request.requestId)
+          // Leave MarkRequestId NULL when no request_id is supplied; the NULL_FILTERED
+          // unique index would otherwise reject a second empty-string value in the group.
+          if (request.requestId.isNotEmpty()) {
+            set("MarkRequestId").to(request.requestId)
+          }
+          // Persist the per-shard DEK that encrypts this shard's SubpoolFingerprints blobs.
+          if (request.hasEncryptedDek()) {
+            set("EncryptedDek").toProtoBytes(request.encryptedDek)
+          }
+          // Clear any stale failure detail on the FAILED -> SUCCEEDED transition.
+          set("ErrorMessage").to(null as String?)
         }
 
-        // Check if all jobs for this (upload, model line) are now SUCCEEDED.
-        val allJobsForModelLine: List<PoolAssignmentJobResult> = buildList {
-          txn
-            .readPoolAssignmentJobs(
-              request.dataProviderResourceId,
-              request.rawImpressionUploadResourceId,
-              filter =
-                ListPoolAssignmentJobsRequest.Filter.newBuilder()
-                  .setCmmsModelLine(currentJob.cmmsModelLine)
-                  .build(),
-              limit = Int.MAX_VALUE,
-            )
-            .collect { add(it) }
-        }
-
-        // This job is still CREATED/FAILED in the read (buffered mutation not visible),
-        // so check: all *other* jobs are SUCCEEDED, and we're transitioning this one.
+        // The buffered SUCCEEDED mutation is not visible to reads in this transaction, so
+        // this job still counts as non-succeeded; it is the last shard iff it is the only
+        // remaining non-succeeded row for the (upload, model line).
         val isLastShard =
-          allJobsForModelLine.all { jobResult ->
-            jobResult.poolAssignmentJob.state == State.POOL_ASSIGNMENT_STATE_SUCCEEDED ||
-              jobResult.poolAssignmentJobId == result.poolAssignmentJobId
+          txn.countNonSucceededPoolAssignmentJobs(
+            request.dataProviderResourceId,
+            result.rawImpressionUploadId,
+            currentJob.cmmsModelLine,
+          ) == 1L
+
+        val poolOffsets =
+          if (isLastShard) {
+            txn.getPoolOffsetsForModelLine(
+              request.dataProviderResourceId,
+              result.rawImpressionUploadId,
+              currentJob.cmmsModelLine,
+            ) ?: emptyList()
+          } else {
+            emptyList()
           }
 
         TransactionResult(
           updatedJob =
             currentJob.copy {
               state = State.POOL_ASSIGNMENT_STATE_SUCCEEDED
+              etag = newEtag
+              if (request.hasEncryptedDek()) {
+                encryptedDek = request.encryptedDek
+              }
+              clearErrorMessage()
               clearUpdateTime()
-              clearEtag()
             },
           isLastShard = isLastShard,
-          poolOffsets = emptyList(), // Pool offsets would be populated from actual shard data.
+          poolOffsets = poolOffsets,
         )
       }
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-    val computedEtag = ETags.computeETag(commitTimestamp.toInstant())
 
     return markPoolAssignmentJobSucceededResponse {
       poolAssignmentJob =
         if (txnResult.isReplay) {
           txnResult.updatedJob
-        } else if (txnResult.updatedJob.hasCreateTime()) {
-          txnResult.updatedJob.copy {
-            updateTime = commitTimestamp
-            etag = computedEtag
-          }
         } else {
-          txnResult.updatedJob.copy {
-            createTime = commitTimestamp
-            updateTime = commitTimestamp
-            etag = computedEtag
-          }
+          txnResult.updatedJob.copy { updateTime = commitTimestamp }
         }
 
       if (txnResult.isLastShard) {
@@ -583,26 +601,26 @@ class SpannerPoolAssignmentJobService(
             request.rawImpressionUploadResourceId,
             request.poolAssignmentJobResourceId,
           )
-            ?: throw Status.NOT_FOUND
-              .withDescription(
-                "PoolAssignmentJob ${request.poolAssignmentJobResourceId} not found"
+            ?: throw PoolAssignmentJobNotFoundException(
+                request.dataProviderResourceId,
+                request.rawImpressionUploadResourceId,
+                request.poolAssignmentJobResourceId,
               )
-              .asRuntimeException()
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
         val currentJob = result.poolAssignmentJob
 
         val validPreviousStates =
-          setOf(
-            State.POOL_ASSIGNMENT_STATE_CREATED,
-            State.POOL_ASSIGNMENT_STATE_FAILED,
-          )
+          setOf(State.POOL_ASSIGNMENT_STATE_CREATED, State.POOL_ASSIGNMENT_STATE_FAILED)
         if (currentJob.state !in validPreviousStates) {
-          throw Status.FAILED_PRECONDITION
-            .withDescription(
-              "PoolAssignmentJob is in state ${currentJob.state}," +
-                " expected one of $validPreviousStates"
+          throw PoolAssignmentJobStateInvalidException(
+              request.dataProviderResourceId,
+              request.rawImpressionUploadResourceId,
+              request.poolAssignmentJobResourceId,
+              currentJob.state,
+              validPreviousStates,
             )
-            .asRuntimeException()
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         }
 
         try {
@@ -611,12 +629,13 @@ class SpannerPoolAssignmentJobService(
           throw e.asStatusRuntimeException(Status.Code.ABORTED)
         }
 
+        val newEtag = UUID.randomUUID().toString()
         txn.updatePoolAssignmentJobState(
           dataProviderResourceId = request.dataProviderResourceId,
           rawImpressionUploadId = result.rawImpressionUploadId,
           poolAssignmentJobId = result.poolAssignmentJobId,
           state = State.POOL_ASSIGNMENT_STATE_FAILED,
-          etag = "", // Placeholder; real etag computed from commit timestamp.
+          etag = newEtag,
         ) {
           set("ErrorMessage").to(request.errorMessage)
         }
@@ -624,18 +643,14 @@ class SpannerPoolAssignmentJobService(
         currentJob.copy {
           state = State.POOL_ASSIGNMENT_STATE_FAILED
           errorMessage = request.errorMessage
+          etag = newEtag
           clearUpdateTime()
-          clearEtag()
         }
       }
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-    val computedEtag = ETags.computeETag(commitTimestamp.toInstant())
 
-    return updatedJob.copy {
-      updateTime = commitTimestamp
-      etag = computedEtag
-    }
+    return updatedJob.copy { updateTime = commitTimestamp }
   }
 
   /**
