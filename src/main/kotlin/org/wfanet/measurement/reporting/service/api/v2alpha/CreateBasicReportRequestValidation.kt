@@ -258,15 +258,21 @@ object CreateBasicReportRequestValidation {
    * Protobuf-generated [equals]/[hashCode] are stable within a single JVM, which is all this map
    * needs (built and discarded inside [validateResultGroupSpecs]).
    *
-   * Both [reportingUnit] and [dimensionSpec] must be the result of
-   * [Normalization.normalizeReportingUnit] and [Normalization.normalizeDimensionSpec] respectively;
-   * an un-normalized value would not collide with its normalized counterpart and would silently
-   * bypass dedup.
+   * Both [reportingUnit] and [dimensionSpec] must be normalized before being used as key fields; an
+   * un-normalized value would not collide with its normalized counterpart and would silently bypass
+   * dedup. Normalization is order-canonicalization across three axes that the downstream pipeline
+   * treats as equivalent:
+   * - `reportingUnit.dataProviderKeys.dataProviderKeysList` sorted by `cmmsDataProviderId`
+   *   ([Normalization.normalizeReportingUnit]).
+   * - `dimensionSpec.filtersList` sorted with each filter's `termsList` sorted by `(path, value)`
+   *   ([Normalization.normalizeEventFilters], invoked by [Normalization.normalizeDimensionSpec]).
+   * - `dimensionSpec.grouping.eventTemplateFieldsList` sorted lexicographically
+   *   ([Normalization.normalizeDimensionSpec]).
    */
   private data class ResultGroupSpecCollisionKey(
-    /** Result of [Normalization.normalizeReportingUnit]. */
+    /** Normalized via [Normalization.normalizeReportingUnit]. */
     val reportingUnit: InternalReportingUnit,
-    /** Result of [Normalization.normalizeDimensionSpec]. */
+    /** Normalized via [Normalization.normalizeDimensionSpec]. */
     val dimensionSpec: InternalDimensionSpec,
     val selectorCase: MetricFrequencySpec.SelectorCase,
   )
