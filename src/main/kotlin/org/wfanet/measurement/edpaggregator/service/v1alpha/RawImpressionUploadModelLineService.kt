@@ -127,9 +127,9 @@ class RawImpressionUploadModelLineService(
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.ETAG_MISMATCH ->
             Status.ABORTED.withCause(e).asRuntimeException()
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
             Status.NOT_FOUND.withCause(e).asRuntimeException()
@@ -159,7 +159,22 @@ class RawImpressionUploadModelLineService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    if (request.requestsList.size > MAX_BATCH_SIZE) {
+      throw InvalidFieldValueException("requests") {
+          "$it must contain at most $MAX_BATCH_SIZE elements"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
     request.requestsList.forEachIndexed { index, createRequest ->
+      if (createRequest.requestId.isNotEmpty()) {
+        try {
+          UUID.fromString(createRequest.requestId)
+        } catch (e: IllegalArgumentException) {
+          throw InvalidFieldValueException("requests.$index.request_id", e)
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+      }
       if (createRequest.parent.isNotEmpty() && createRequest.parent != request.parent) {
         throw InvalidFieldValueException("requests.$index.parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -212,9 +227,9 @@ class RawImpressionUploadModelLineService(
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.ETAG_MISMATCH ->
             Status.ABORTED.withCause(e).asRuntimeException()
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
             Status.NOT_FOUND.withCause(e).asRuntimeException()
@@ -270,9 +285,9 @@ class RawImpressionUploadModelLineService(
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.ETAG_MISMATCH ->
             Status.ABORTED.withCause(e).asRuntimeException()
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
             Status.NOT_FOUND.withCause(e).asRuntimeException()
@@ -370,9 +385,9 @@ class RawImpressionUploadModelLineService(
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.ETAG_MISMATCH ->
             Status.ABORTED.withCause(e).asRuntimeException()
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
             Status.NOT_FOUND.withCause(e).asRuntimeException()
@@ -436,9 +451,9 @@ class RawImpressionUploadModelLineService(
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.ETAG_MISMATCH ->
             Status.ABORTED.withCause(e).asRuntimeException()
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
             Status.NOT_FOUND.withCause(e).asRuntimeException()
@@ -496,9 +511,9 @@ class RawImpressionUploadModelLineService(
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.ETAG_MISMATCH ->
             Status.ABORTED.withCause(e).asRuntimeException()
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
             Status.NOT_FOUND.withCause(e).asRuntimeException()
@@ -556,9 +571,9 @@ class RawImpressionUploadModelLineService(
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.ETAG_MISMATCH ->
             Status.ABORTED.withCause(e).asRuntimeException()
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
             Status.NOT_FOUND.withCause(e).asRuntimeException()
@@ -616,9 +631,9 @@ class RawImpressionUploadModelLineService(
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.ETAG_MISMATCH ->
             Status.ABORTED.withCause(e).asRuntimeException()
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
             Status.NOT_FOUND.withCause(e).asRuntimeException()
@@ -677,9 +692,9 @@ class RawImpressionUploadModelLineService(
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.ETAG_MISMATCH ->
             Status.ABORTED.withCause(e).asRuntimeException()
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
             Status.NOT_FOUND.withCause(e).asRuntimeException()
@@ -693,6 +708,7 @@ class RawImpressionUploadModelLineService(
 
   companion object {
     private const val WILDCARD_ID = "-"
+    private const val MAX_BATCH_SIZE = 50
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 100
   }

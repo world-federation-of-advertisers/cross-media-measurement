@@ -36,7 +36,7 @@ message RawImpressionUploadModelLine {
   string raw_impression_upload_resource_id = 2;
 
   // Resource ID of this record (server-generated).
-  string raw_impression_upload_model_line_resource_id = 9;
+  string raw_impression_upload_model_line_resource_id = 12;
 
   // The CMMS model line resource name this record tracks.
   string cmms_model_line = 3;

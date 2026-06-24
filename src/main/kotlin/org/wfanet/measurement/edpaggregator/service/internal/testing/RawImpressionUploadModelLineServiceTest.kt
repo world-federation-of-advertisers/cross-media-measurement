@@ -607,6 +607,58 @@ abstract class RawImpressionUploadModelLineServiceTest {
     }
 
   @Test
+  fun `markRawImpressionUploadModelLinePoolAssigning succeeds from FAILED and clears error_message`() =
+    runBlocking {
+      val created: RawImpressionUploadModelLine =
+        service.createRawImpressionUploadModelLine(
+          createRawImpressionUploadModelLineRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              cmmsModelLine = CMMS_MODEL_LINE
+            }
+          }
+        )
+      val poolAssigning =
+        service.markRawImpressionUploadModelLinePoolAssigning(
+          markRawImpressionUploadModelLinePoolAssigningRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId =
+              created.rawImpressionUploadModelLineResourceId
+            etag = created.etag
+          }
+        )
+      val failed =
+        service.markRawImpressionUploadModelLineFailed(
+          markRawImpressionUploadModelLineFailedRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId =
+              created.rawImpressionUploadModelLineResourceId
+            etag = poolAssigning.etag
+            errorMessage = "something went wrong"
+          }
+        )
+      val resumed =
+        service.markRawImpressionUploadModelLinePoolAssigning(
+          markRawImpressionUploadModelLinePoolAssigningRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId =
+              created.rawImpressionUploadModelLineResourceId
+            etag = failed.etag
+          }
+        )
+      assertThat(resumed.state)
+        .isEqualTo(
+          RawImpressionUploadModelLineState
+            .RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING
+        )
+      assertThat(resumed.errorMessage).isEmpty()
+    }
+
+  @Test
   fun `markRawImpressionUploadModelLineRanking transitions POOL_ASSIGNING to RANKING`() =
     runBlocking {
       val created: RawImpressionUploadModelLine =
@@ -868,6 +920,281 @@ abstract class RawImpressionUploadModelLineServiceTest {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineRanking throws ABORTED on etag mismatch`() =
+    runBlocking {
+      val created =
+        service.createRawImpressionUploadModelLine(
+          createRawImpressionUploadModelLineRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              cmmsModelLine = CMMS_MODEL_LINE
+            }
+          }
+        )
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLineRanking(
+            markRawImpressionUploadModelLineRankingRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              rawImpressionUploadModelLineResourceId =
+                created.rawImpressionUploadModelLineResourceId
+              etag = "wrong-etag"
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineLabeling throws ABORTED on etag mismatch`() =
+    runBlocking {
+      val created =
+        service.createRawImpressionUploadModelLine(
+          createRawImpressionUploadModelLineRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              cmmsModelLine = CMMS_MODEL_LINE
+            }
+          }
+        )
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLineLabeling(
+            markRawImpressionUploadModelLineLabelingRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              rawImpressionUploadModelLineResourceId =
+                created.rawImpressionUploadModelLineResourceId
+              etag = "wrong-etag"
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineCompleted throws ABORTED on etag mismatch`() =
+    runBlocking {
+      val created =
+        service.createRawImpressionUploadModelLine(
+          createRawImpressionUploadModelLineRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              cmmsModelLine = CMMS_MODEL_LINE
+            }
+          }
+        )
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLineCompleted(
+            markRawImpressionUploadModelLineCompletedRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              rawImpressionUploadModelLineResourceId =
+                created.rawImpressionUploadModelLineResourceId
+              etag = "wrong-etag"
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineFailed throws ABORTED on etag mismatch`() =
+    runBlocking {
+      val created =
+        service.createRawImpressionUploadModelLine(
+          createRawImpressionUploadModelLineRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              cmmsModelLine = CMMS_MODEL_LINE
+            }
+          }
+        )
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLineFailed(
+            markRawImpressionUploadModelLineFailedRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              rawImpressionUploadModelLineResourceId =
+                created.rawImpressionUploadModelLineResourceId
+              etag = "wrong-etag"
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLinePoolAssigning throws FAILED_PRECONDITION from RANKING`() =
+    runBlocking {
+      val created =
+        service.createRawImpressionUploadModelLine(
+          createRawImpressionUploadModelLineRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              cmmsModelLine = CMMS_MODEL_LINE
+            }
+          }
+        )
+      val poolAssigning =
+        service.markRawImpressionUploadModelLinePoolAssigning(
+          markRawImpressionUploadModelLinePoolAssigningRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId =
+              created.rawImpressionUploadModelLineResourceId
+            etag = created.etag
+          }
+        )
+      val ranking =
+        service.markRawImpressionUploadModelLineRanking(
+          markRawImpressionUploadModelLineRankingRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId =
+              created.rawImpressionUploadModelLineResourceId
+            etag = poolAssigning.etag
+          }
+        )
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLinePoolAssigning(
+            markRawImpressionUploadModelLinePoolAssigningRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              rawImpressionUploadModelLineResourceId =
+                created.rawImpressionUploadModelLineResourceId
+              etag = ranking.etag
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineRanking throws NOT_FOUND when not found`() =
+    runBlocking {
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLineRanking(
+            markRawImpressionUploadModelLineRankingRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              rawImpressionUploadModelLineResourceId = "riuml-does-not-exist"
+              etag = "some-etag"
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    }
+
+  @Test
+  fun `batchCreateRawImpressionUploadModelLines throws INVALID_ARGUMENT over max batch size`() =
+    runBlocking {
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRawImpressionUploadModelLines(
+            batchCreateRawImpressionUploadModelLinesRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              for (i in 0 until 51) {
+                requests +=
+                  createRawImpressionUploadModelLineRequest {
+                    rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+                      cmmsModelLine =
+                        "modelProviders/mp1/modelSuites/ms1/modelLines/ml$i"
+                    }
+                  }
+              }
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `batchCreateRawImpressionUploadModelLines is idempotent across replays`() =
+    runBlocking {
+      val request =
+        batchCreateRawImpressionUploadModelLinesRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          requests +=
+            createRawImpressionUploadModelLineRequest {
+              rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+                cmmsModelLine = CMMS_MODEL_LINE
+              }
+              requestId = UUID.randomUUID().toString()
+            }
+          requests +=
+            createRawImpressionUploadModelLineRequest {
+              rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+                cmmsModelLine = CMMS_MODEL_LINE_2
+              }
+              requestId = UUID.randomUUID().toString()
+            }
+        }
+      val first = service.batchCreateRawImpressionUploadModelLines(request)
+      val second = service.batchCreateRawImpressionUploadModelLines(request)
+      assertThat(second.rawImpressionUploadModelLinesList)
+        .isEqualTo(first.rawImpressionUploadModelLinesList)
+    }
+
+  @Test
+  fun `batchCreateRawImpressionUploadModelLines request_id is scoped to parent upload`() =
+    runBlocking {
+      val secondUpload = "uploads/upload2"
+      createParentUpload(DATA_PROVIDER_RESOURCE_ID, secondUpload)
+      val requestId = UUID.randomUUID().toString()
+      val first =
+        service.batchCreateRawImpressionUploadModelLines(
+          batchCreateRawImpressionUploadModelLinesRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            requests +=
+              createRawImpressionUploadModelLineRequest {
+                rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+                  cmmsModelLine = CMMS_MODEL_LINE
+                }
+                this.requestId = requestId
+              }
+          }
+        )
+      val second =
+        service.batchCreateRawImpressionUploadModelLines(
+          batchCreateRawImpressionUploadModelLinesRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = secondUpload
+            requests +=
+              createRawImpressionUploadModelLineRequest {
+                rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+                  cmmsModelLine = CMMS_MODEL_LINE
+                }
+                this.requestId = requestId
+              }
+          }
+        )
+      assertThat(
+          second.rawImpressionUploadModelLinesList
+            .single()
+            .rawImpressionUploadModelLineResourceId
+        )
+        .isNotEqualTo(
+          first.rawImpressionUploadModelLinesList
+            .single()
+            .rawImpressionUploadModelLineResourceId
+        )
     }
 
   companion object {

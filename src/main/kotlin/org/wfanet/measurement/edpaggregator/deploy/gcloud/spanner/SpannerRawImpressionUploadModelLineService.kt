@@ -242,6 +242,7 @@ class SpannerRawImpressionUploadModelLineService(
           val existingByRequestId: Map<String, RawImpressionUploadModelLineResult> =
             txn.findRawImpressionUploadModelLinesByRequestIds(
               dataProviderResourceId,
+              rawImpressionUploadResourceId,
               request.requestsList.mapNotNull { it.requestId.ifEmpty { null } },
             )
 
@@ -406,7 +407,10 @@ class SpannerRawImpressionUploadModelLineService(
       request.etag,
       State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
       validPreviousStates =
-        setOf(State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED),
+        setOf(
+          State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED,
+          State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
+        ),
     )
   }
 
@@ -420,7 +424,10 @@ class SpannerRawImpressionUploadModelLineService(
       request.etag,
       State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
       validPreviousStates =
-        setOf(State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING),
+        setOf(
+          State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
+          State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
+        ),
     )
   }
 
@@ -434,7 +441,10 @@ class SpannerRawImpressionUploadModelLineService(
       request.etag,
       State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
       validPreviousStates =
-        setOf(State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING),
+        setOf(
+          State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
+          State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
+        ),
     )
   }
 
@@ -542,6 +552,7 @@ class SpannerRawImpressionUploadModelLineService(
         }
 
         val newEtag = UUID.randomUUID().toString()
+        val clearError = nextState != State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED
 
         txn.updateRawImpressionUploadModelLineState(
           dataProviderResourceId,
@@ -549,9 +560,14 @@ class SpannerRawImpressionUploadModelLineService(
           result.rawImpressionUploadModelLineId,
           nextState,
           newEtag,
-          block,
-        )
-        result.rawImpressionUploadModelLine.copy { etag = newEtag }
+        ) {
+          if (clearError) set("ErrorMessage").to(null as String?)
+          block?.invoke(this)
+        }
+        result.rawImpressionUploadModelLine.copy {
+          etag = newEtag
+          if (clearError) clearErrorMessage()
+        }
       }
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()

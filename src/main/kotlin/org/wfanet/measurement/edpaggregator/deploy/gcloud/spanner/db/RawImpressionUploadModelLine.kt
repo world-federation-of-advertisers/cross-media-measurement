@@ -165,6 +165,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findRawImpressionUploadModelLineByRe
  */
 suspend fun AsyncDatabaseClient.ReadContext.findRawImpressionUploadModelLinesByRequestIds(
   dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
   requestIds: List<String>,
 ): Map<String, RawImpressionUploadModelLineResult> {
   if (requestIds.isEmpty()) return emptyMap()
@@ -175,6 +176,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findRawImpressionUploadModelLinesByR
       """
       JOIN RawImpressionUpload USING (DataProviderResourceId, RawImpressionUploadId)
       WHERE RawImpressionUploadModelLine.DataProviderResourceId = @dataProviderResourceId
+        AND RawImpressionUpload.RawImpressionUploadResourceId = @rawImpressionUploadResourceId
         AND RawImpressionUploadModelLine.CreateRequestId IN UNNEST(@createRequestIds)
       """
         .trimIndent()
@@ -185,6 +187,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findRawImpressionUploadModelLinesByR
     executeQuery(
         statement(sql) {
           bind("dataProviderResourceId").to(dataProviderResourceId)
+          bind("rawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
           bind("createRequestIds").toStringArray(requestIds)
         },
         Options.tag("action=findRawImpressionUploadModelLinesByRequestIds"),
