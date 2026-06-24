@@ -16,299 +16,421 @@
 
 package org.wfanet.measurement.edpaggregator.vidlabeling
 
+import com.google.protobuf.Timestamp
+import com.google.protobuf.util.Timestamps
+import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
+import java.time.Clock
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
-import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatch
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFileServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchServiceGrpcKt
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
+import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.flattenConcat
+import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.edpaggregator.BlobUris
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionMetadataBatchFilesRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionMetadataBatchFileRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionMetadataBatchRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionMetadataBatchFile
-import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadModelLinesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadFileRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadModelLineRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
 /**
- * Dispatches VID labeling work items to the Secure Computation control plane.
+ * Registers VID labeling uploads in the EDP Aggregator metadata store and starts the pipeline.
  *
- * Processes "done" blob events by crawling directories for raw impression files, partitioning them
- * into batches, and creating WorkItems for TEE processing via the Secure Computation API.
+ * Processes "done" blob events by crawling directories for raw impression files, resolving active
+ * model lines via the VID Repository API (ListModelLines -> ListModelRollouts -> ListModelShards),
+ * and registering per-model-line state for downstream processing. After registration it calls the
+ * shared [VidLabelingDispatchSequencer] to aggressively start work for the upload (the "fast path")
+ * instead of waiting for the next `VidLabelingMonitor` tick.
  *
- * @param storageClient client for crawling raw impressions directory and reading file sizes.
- * @param workItemsStub gRPC stub for creating WorkItems via Secure Computation API.
- * @param rawImpressionMetadataBatchStub gRPC stub for creating RawImpressionMetadataBatch
- *   resources.
- * @param rawImpressionMetadataBatchFileStub gRPC stub for creating RawImpressionMetadataBatchFile
- *   resources.
- * @param dataProviderName resource name of the DataProvider.
- * @param vidLabelerParamsTemplate template [VidLabelerParams] with static fields populated.
- *   Per-batch field [VidLabelerParams.getRawImpressionMetadataBatch] is set by the dispatcher for
- *   each batch.
- * @param queueName resource name of the Secure Computation queue for VID labeling work items.
- * @param batchMaxSizeBytes maximum batch size in bytes.
+ * @param storageClient client for crawling raw impressions directory.
+ * @param rawImpressionUploadStub gRPC stub for the `RawImpressionUploadService`.
+ * @param rawImpressionUploadFilesStub gRPC stub for the `RawImpressionUploadFileService`.
+ * @param rawImpressionUploadModelLineStub gRPC stub for the `RawImpressionUploadModelLineService`.
+ * @param modelLinesStub gRPC stub for the VID Repository ModelLines API.
+ * @param dispatchSequencer shared sequencer that resolves model shards and starts pipeline work;
+ *   shared with `VidLabelingMonitor` so dispatch logic lives in one place.
+ * @param dataProviderName resource name of the `DataProvider`.
+ * @param modelSuiteName resource name of the model suite for ListModelLines.
+ * @param overrideModelLines if non-empty, use these model lines instead of querying the API.
+ *   Overrides bypass active window checks to support backfilling past data.
+ * @param modelLineConfigs field mapping configuration keyed by model line resource name.
+ * @param clock clock for determining active model line windows.
  * @param metrics OpenTelemetry metrics recorder.
  */
 class VidLabelingDispatcher(
   private val storageClient: StorageClient,
-  private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
-  private val rawImpressionMetadataBatchStub:
-    RawImpressionMetadataBatchServiceGrpcKt.RawImpressionMetadataBatchServiceCoroutineStub,
-  private val rawImpressionMetadataBatchFileStub:
-    RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineStub,
+  private val rawImpressionUploadStub:
+    RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub,
+  private val rawImpressionUploadFilesStub:
+    RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub,
+  private val rawImpressionUploadModelLineStub:
+    RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub,
+  private val modelLinesStub: ModelLinesGrpcKt.ModelLinesCoroutineStub,
+  private val dispatchSequencer: VidLabelingDispatchSequencer,
   private val dataProviderName: String,
-  private val vidLabelerParamsTemplate: VidLabelerParams,
-  private val queueName: String,
-  private val batchMaxSizeBytes: Long,
+  private val modelSuiteName: String,
+  private val overrideModelLines: List<String>,
+  private val modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig>,
+  private val clock: Clock = Clock.systemUTC(),
   private val metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
 ) {
-  /** Holds a blob key and its size for batching. */
-  private data class BlobInfo(val blobKey: String, val sizeBytes: Long)
-
-  /** A batch of blobs with tracked total size. */
-  private class Batch {
-    private val mutableBlobs = mutableListOf<BlobInfo>()
-
-    val blobs: List<BlobInfo>
-      get() = mutableBlobs
-
-    var sizeBytes: Long = 0L
-      private set
-
-    fun addBlob(blob: BlobInfo) {
-      mutableBlobs.add(blob)
-      sizeBytes += blob.sizeBytes
-    }
-  }
 
   /**
-   * Dispatches VID labeling work for raw impression files in the directory containing the done
-   * blob.
+   * Uploads VID labeling work for raw impression files in the directory containing the done blob.
    *
-   * @param doneBlobPath the full storage URI of the "done" blob that triggered this dispatch.
-   * @throws IllegalArgumentException if [doneBlobPath] uses an unsupported URI scheme.
-   * @throws Exception if a WorkItem creation fails via the Secure Computation API.
+   * @param doneBlobPath the full storage URI of the "done" blob that triggered this upload.
+   * @param doneBlobGeneration GCS object generation number of the done blob. Used to produce
+   *   idempotent request IDs that handle both Pub/Sub redelivery (same generation = same ID) and
+   *   EDP re-uploads to the same path (new generation = new ID).
+   * @throws IllegalArgumentException if [doneBlobPath] uses an unsupported URI scheme or
+   *   [doneBlobGeneration] is null.
    */
-  suspend fun dispatch(doneBlobPath: String) {
+  suspend fun upload(doneBlobPath: String, doneBlobGeneration: Long) {
     val startTime: TimeSource.Monotonic.ValueTimeMark = TimeSource.Monotonic.markNow()
 
     try {
       val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
       val folderPrefix: String = doneBlobUri.key.substringBeforeLast("/")
 
-      // Crawl for raw impression files, excluding the done marker.
-      val blobInfos = mutableListOf<BlobInfo>()
-      storageClient.listBlobs(folderPrefix).collect { blob ->
-        if (!isDoneMarker(blob.blobKey)) {
-          blobInfos.add(BlobInfo(blob.blobKey, blob.size))
-        }
-      }
+      val blobKeys: List<String> =
+        storageClient
+          .listBlobs(folderPrefix)
+          .filter { !isDoneMarker(it.blobKey) }
+          .map { it.blobKey }
+          .toList()
 
-      if (blobInfos.isEmpty()) {
+      if (blobKeys.isEmpty()) {
         logger.info("No raw impression files found in $folderPrefix")
-        recordDispatchDuration(startTime, DISPATCH_STATUS_SUCCESS)
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
       }
 
       metrics.filesProcessedCounter.add(
-        blobInfos.size.toLong(),
+        blobKeys.size.toLong(),
         Attributes.of(DATA_PROVIDER_ATTR, dataProviderName),
       )
 
-      val batches: List<List<BlobInfo>> = partitionIntoBatches(blobInfos)
+      val rawImpressionUpload = createRawImpressionUpload(doneBlobPath, doneBlobGeneration)
 
-      for (batch in batches) {
-        val batchBlobUris: List<String> = batch.map { buildBlobUri(doneBlobUri, it.blobKey) }
+      createRawImpressionUploadFiles(rawImpressionUpload.name, blobKeys, doneBlobUri)
 
-        val createdBatch = createBatch()
-        val batchResourceName: String = createdBatch.name
-        createBatchFiles(batchResourceName, batchBlobUris)
+      val resolvedModelLineNames = resolveModelLines()
 
-        val params = vidLabelerParams {
-          dataProvider = vidLabelerParamsTemplate.dataProvider
-          vidLabeledImpressionsStorageParams =
-            vidLabelerParamsTemplate.vidLabeledImpressionsStorageParams
-          rawImpressionsStorageParams = vidLabelerParamsTemplate.rawImpressionsStorageParams
-          vidRepoConnection = vidLabelerParamsTemplate.vidRepoConnection
-          modelLineConfigs.putAll(vidLabelerParamsTemplate.modelLineConfigsMap)
-          overrideModelLines += vidLabelerParamsTemplate.overrideModelLinesList
-          rawImpressionMetadataBatch = batchResourceName
-        }
-
-        createWorkItem(batchResourceName, params)
+      if (resolvedModelLineNames.isEmpty()) {
+        logger.info("No active model lines resolved for $modelSuiteName")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
       }
 
-      metrics.batchesCreatedCounter.add(
-        batches.size.toLong(),
-        Attributes.of(DATA_PROVIDER_ATTR, dataProviderName),
+      createRawImpressionUploadModelLines(rawImpressionUpload.name, resolvedModelLineNames)
+
+      logger.info(
+        "Registered upload ${rawImpressionUpload.name} with ${blobKeys.size} files and " +
+          "${resolvedModelLineNames.size} model lines"
       )
 
-      recordDispatchDuration(startTime, DISPATCH_STATUS_SUCCESS)
+      dispatchFastPath(rawImpressionUpload.name)
+
+      recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
     } catch (e: Exception) {
-      recordDispatchDuration(startTime, DISPATCH_STATUS_FAILED)
+      recordUploadDuration(startTime, UPLOAD_STATUS_FAILED)
       throw e
     }
   }
 
   /**
-   * Partitions blob infos into batches using Best-Fit Decreasing bin-packing.
+   * Aggressively starts pipeline work for this DataProvider now instead of waiting for the next
+   * `VidLabelingMonitor` tick.
    *
-   * Files that individually exceed [batchMaxSizeBytes] are placed in their own batch and an
-   * oversized file alert is emitted. Remaining files are sorted by size descending (with blob key
-   * as tiebreaker) and each file is placed into the batch with the smallest remaining capacity that
-   * can still fit it.
+   * The shared [dispatchSequencer] enforces the per-DataProvider "at most one ACTIVE upload" guard
+   * and claims each model line via an etag CAS, so this is safe to run concurrently with the
+   * monitor. Dispatch is best-effort: a failure here must not fail an already-successful
+   * registration, because the monitor remains the backstop.
    *
-   * @param blobInfos list of blob infos to partition.
-   * @return list of batches, where each batch is a list of [BlobInfo].
+   * @param justRegisteredUpload resource name of the upload just registered, for logging context.
    */
-  private fun partitionIntoBatches(blobInfos: List<BlobInfo>): List<List<BlobInfo>> {
-    val oversizedBatches = mutableListOf<List<BlobInfo>>()
-    val fittingBlobs = mutableListOf<BlobInfo>()
-
-    for (blobInfo in blobInfos) {
-      if (blobInfo.sizeBytes > batchMaxSizeBytes) {
-        logger.warning(
-          "File ${blobInfo.blobKey} (${blobInfo.sizeBytes} bytes) exceeds batch max size " +
-            "($batchMaxSizeBytes bytes)"
-        )
-        metrics.oversizedFileAlertsCounter.add(
-          1,
-          Attributes.of(DATA_PROVIDER_ATTR, dataProviderName),
-        )
-        oversizedBatches.add(listOf(blobInfo))
-      } else {
-        fittingBlobs.add(blobInfo)
-      }
-    }
-
-    // Sort by size descending for Best-Fit Decreasing, with blob key as tiebreaker.
-    val sortedBlobs =
-      fittingBlobs.sortedWith(compareByDescending<BlobInfo> { it.sizeBytes }.thenBy { it.blobKey })
-
-    val batches = mutableListOf<Batch>()
-
-    for (blobInfo in sortedBlobs) {
-      // Find the batch with the smallest remaining capacity that can fit this file.
-      var bestFitIndex = -1
-      var bestFitRemaining = Long.MAX_VALUE
-
-      for (i in batches.indices) {
-        val remaining = batchMaxSizeBytes - batches[i].sizeBytes
-        if (blobInfo.sizeBytes <= remaining && remaining < bestFitRemaining) {
-          bestFitIndex = i
-          bestFitRemaining = remaining
-        }
-      }
-
-      if (bestFitIndex >= 0) {
-        batches[bestFitIndex].addBlob(blobInfo)
-      } else {
-        val batch = Batch()
-        batch.addBlob(blobInfo)
-        batches.add(batch)
-      }
-    }
-
-    return oversizedBatches + batches.map { it.blobs }
-  }
-
-  /**
-   * Creates a [RawImpressionMetadataBatch] via the gRPC API.
-   *
-   * @return the created [RawImpressionMetadataBatch] with server-assigned name.
-   */
-  private suspend fun createBatch(): RawImpressionMetadataBatch {
-    val request = createRawImpressionMetadataBatchRequest {
-      parent = dataProviderName
-      rawImpressionMetadataBatch = RawImpressionMetadataBatch.getDefaultInstance()
-    }
+  private suspend fun dispatchFastPath(justRegisteredUpload: String) {
     try {
-      return rawImpressionMetadataBatchStub.createRawImpressionMetadataBatch(request)
-    } catch (e: StatusException) {
-      throw Exception("Error creating RawImpressionMetadataBatch for $dataProviderName", e)
-    }
-  }
-
-  /**
-   * Creates [RawImpressionMetadataBatchFile] entries for each blob URI in the batch.
-   *
-   * @param batchResourceName the parent batch resource name.
-   * @param blobUris the blob URIs to register as files.
-   */
-  private suspend fun createBatchFiles(batchResourceName: String, blobUris: List<String>) {
-    val request = batchCreateRawImpressionMetadataBatchFilesRequest {
-      parent = batchResourceName
-      requests +=
-        blobUris.map { uri ->
-          createRawImpressionMetadataBatchFileRequest {
-            parent = batchResourceName
-            rawImpressionMetadataBatchFile = rawImpressionMetadataBatchFile { blobUri = uri }
-          }
-        }
-    }
-    try {
-      rawImpressionMetadataBatchFileStub.batchCreateRawImpressionMetadataBatchFiles(request)
-    } catch (e: StatusException) {
-      throw Exception(
-        "Error creating RawImpressionMetadataBatchFiles for batch $batchResourceName",
+      val dispatchResult: VidLabelingDispatchSequencer.DispatchResult =
+        dispatchSequencer.dispatchNext()
+      if (dispatchResult.dispatchedUpload != null) {
+        metrics.uploadsDispatchedCounter.add(1, Attributes.of(DATA_PROVIDER_ATTR, dataProviderName))
+        logger.info("Fast-path dispatched ${dispatchResult.dispatchedUpload}")
+      }
+    } catch (e: Exception) {
+      logger.log(
+        Level.WARNING,
+        "Fast-path dispatch failed after registering $justRegisteredUpload; " +
+          "VidLabelingMonitor will retry",
         e,
       )
     }
   }
 
   /**
-   * Creates a WorkItem in the Secure Computation control plane.
+   * Resolves the active model lines whose model shard is available in the VID Repository.
    *
-   * @param batchResourceName resource name of the [RawImpressionMetadataBatch].
-   * @param params the [VidLabelerParams] for this batch.
+   * If [overrideModelLines] is non-empty, uses those directly without active window filtering. This
+   * supports backfilling past data where the model line may no longer be in the active window.
+   * Model shard availability is checked via [dispatchSequencer] so the resolution logic is shared
+   * with the dispatch path.
+   *
+   * @return resource names of model lines that should be registered for this upload.
    */
-  private suspend fun createWorkItem(batchResourceName: String, params: VidLabelerParams) {
-    val workItemId = "vid-labeling-$batchResourceName"
-    val packedWorkItemParams = workItemParams { appParams = params.pack() }.pack()
+  private suspend fun resolveModelLines(): List<String> {
+    val activeModelLineNames: List<String> =
+      if (overrideModelLines.isNotEmpty()) {
+        // Override model lines bypass active window checks to support backfilling past data.
+        logger.info("Using ${overrideModelLines.size} override model lines")
+        overrideModelLines
+      } else {
+        resolveActiveModelLinesFromApi()
+      }
 
-    val request = createWorkItemRequest {
-      this.workItemId = workItemId
-      workItem = workItem {
-        queue = queueName
-        workItemParams = packedWorkItemParams
+    if (activeModelLineNames.isEmpty()) return emptyList()
+
+    val resolved: List<String> = buildList {
+      for (modelLineName in activeModelLineNames) {
+        if (dispatchSequencer.resolveShardInfo(modelLineName) != null) {
+          add(modelLineName)
+        } else {
+          logger.warning("Could not resolve model shard for $modelLineName, skipping")
+        }
       }
     }
 
-    try {
-      workItemsStub.createWorkItem(request)
+    logger.info("Resolved ${resolved.size} model lines with available shards")
+    return resolved
+  }
+
+  /**
+   * Lists active PROD model lines from the VID Repository API.
+   *
+   * @return list of active model line resource names that have entries in [modelLineConfigs].
+   */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  private suspend fun resolveActiveModelLinesFromApi(): List<String> {
+    val now: Timestamp = Timestamps.fromMillis(clock.millis())
+
+    val activeModelLines: List<String> =
+      modelLinesStub
+        .listResources { pageToken: String ->
+          val response =
+            try {
+              modelLinesStub.listModelLines(
+                listModelLinesRequest {
+                  parent = modelSuiteName
+                  if (pageToken.isNotEmpty()) {
+                    this.pageToken = pageToken
+                  }
+                }
+              )
+            } catch (e: StatusException) {
+              throw Exception("Error listing model lines for $modelSuiteName", e)
+            }
+          ResourceList(response.modelLinesList, response.nextPageToken)
+        }
+        .flattenConcat()
+        .filter { modelLine -> isActiveProdModelLineWithConfig(modelLine, now) }
+        .map { it.name }
+        .toList()
+
+    logger.info("Found ${activeModelLines.size} active PROD model lines from API")
+    return activeModelLines
+  }
+
+  /**
+   * Returns whether [modelLine] is an active PROD model line that has a [modelLineConfigs] entry.
+   *
+   * @param modelLine the model line to check.
+   * @param now the current time used for active window evaluation.
+   */
+  private fun isActiveProdModelLineWithConfig(modelLine: ModelLine, now: Timestamp): Boolean {
+    if (modelLine.type != ModelLine.Type.PROD) return false
+    if (!isWithinActiveWindow(modelLine, now)) return false
+    // TODO(world-federation-of-advertisers/cross-media-measurement#3956): Remove the static
+    // modelLineConfigs dependency. Field mappings should come from ModelShard or be
+    // convention-based so adding a new model line in the VID Repository doesn't require a
+    // Cloud Function config redeploy.
+    if (modelLine.name !in modelLineConfigs) {
+      logger.warning("Skipping model line ${modelLine.name}: no config entry")
+      return false
+    }
+    return true
+  }
+
+  /**
+   * Creates a `RawImpressionUpload` resource to track this upload.
+   *
+   * Uses the done blob path and GCS generation number to produce an idempotent request ID. Same
+   * (path, generation) → same request ID → idempotent on Pub/Sub redelivery. New generation at the
+   * same path → new request ID → new upload for EDP re-uploads.
+   *
+   * On `ALREADY_EXISTS` (redelivery after the AIP-155 idempotency cache has expired, so the server
+   * returns the error rather than the cached resource), looks up and returns the existing upload so
+   * the caller can continue the idempotent downstream steps. This avoids stranding an upload whose
+   * row was created by a prior delivery that died before creating its files or model lines.
+   *
+   * @param doneBlobPath the full storage URI of the "done" blob.
+   * @param generation GCS object generation number.
+   * @return the created (or pre-existing) `RawImpressionUpload`.
+   */
+  private suspend fun createRawImpressionUpload(
+    doneBlobPath: String,
+    generation: Long,
+  ): RawImpressionUpload {
+    val request = createRawImpressionUploadRequest {
+      parent = dataProviderName
+      rawImpressionUpload = rawImpressionUpload { doneBlobUri = doneBlobPath }
+      requestId = RequestIds.forRawImpressionUpload(doneBlobPath, generation)
+    }
+
+    return try {
+      rawImpressionUploadStub.createRawImpressionUpload(request)
     } catch (e: StatusException) {
-      throw Exception("Error creating WorkItem $workItemId for batch $batchResourceName", e)
+      if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
+      findUploadByDoneBlobUri(doneBlobPath)
+        ?: throw IllegalStateException(
+          "createRawImpressionUpload returned ALREADY_EXISTS but no RawImpressionUpload matches " +
+            doneBlobPath
+        )
     }
-    logger.info("Created WorkItem $workItemId for batch ${params.rawImpressionMetadataBatch}")
   }
 
-  private fun recordDispatchDuration(
-    startTime: TimeSource.Monotonic.ValueTimeMark,
-    status: String,
+  /**
+   * Finds the existing `RawImpressionUpload` for [doneBlobPath] under this DataProvider, matching
+   * on `done_blob_uri`. Used to recover from `ALREADY_EXISTS` on create. Matches client-side over
+   * the DataProvider's uploads (bounded per DataProvider); no `done_blob_uri` filter exists on the
+   * API.
+   */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  private suspend fun findUploadByDoneBlobUri(doneBlobPath: String): RawImpressionUpload? =
+    rawImpressionUploadStub
+      .listResources { pageToken: String ->
+        val response =
+          try {
+            rawImpressionUploadStub.listRawImpressionUploads(
+              listRawImpressionUploadsRequest {
+                parent = dataProviderName
+                if (pageToken.isNotEmpty()) {
+                  this.pageToken = pageToken
+                }
+              }
+            )
+          } catch (e: StatusException) {
+            throw Exception("Error listing RawImpressionUploads for $dataProviderName", e)
+          }
+        ResourceList(response.rawImpressionUploadsList, response.nextPageToken)
+      }
+      .flattenConcat()
+      .firstOrNull { it.doneBlobUri == doneBlobPath }
+
+  /**
+   * Creates a `RawImpressionUploadFile` for each raw impression blob in the upload.
+   *
+   * @param uploadName resource name of the parent `RawImpressionUpload`.
+   * @param blobKeys storage keys of the raw impression files in the upload.
+   * @param doneBlobUri parsed URI of the "done" blob, used to reconstruct full blob URIs.
+   */
+  private suspend fun createRawImpressionUploadFiles(
+    uploadName: String,
+    blobKeys: List<String>,
+    doneBlobUri: BlobUri,
   ) {
-    val duration: Double = startTime.elapsedNow().inWholeMilliseconds / 1000.0
-    metrics.dispatchDurationHistogram.record(
-      duration,
-      Attributes.of(DATA_PROVIDER_ATTR, dataProviderName, DISPATCH_STATUS_ATTR, status),
-    )
+    for (chunk in blobKeys.chunked(RAW_IMPRESSION_UPLOAD_FILE_BATCH_SIZE)) {
+      val request = batchCreateRawImpressionUploadFilesRequest {
+        parent = uploadName
+        for (blobKey in chunk) {
+          val fileBlobUri = BlobUris.buildUri(doneBlobUri, blobKey)
+          requests += createRawImpressionUploadFileRequest {
+            parent = uploadName
+            rawImpressionUploadFile = rawImpressionUploadFile { blobUri = fileBlobUri }
+            requestId = RequestIds.forRawImpressionUploadFile(uploadName, fileBlobUri)
+          }
+        }
+      }
+
+      try {
+        rawImpressionUploadFilesStub.batchCreateRawImpressionUploadFiles(request)
+      } catch (e: StatusException) {
+        if (e.status.code == Status.Code.ALREADY_EXISTS) {
+          // Idempotent redelivery: these files were already created. Ack and continue.
+          logger.info("RawImpressionUploadFiles for $uploadName already exist; skipping")
+          continue
+        }
+        throw e
+      }
+    }
   }
 
-  private fun buildBlobUri(doneBlobUri: BlobUri, blobKey: String): String {
-    return when (doneBlobUri.scheme) {
-      "gs" -> "${doneBlobUri.scheme}://${doneBlobUri.bucket}/$blobKey"
-      "file" -> "${doneBlobUri.scheme}:///${doneBlobUri.bucket}/$blobKey"
-      else -> throw IllegalArgumentException("Unsupported scheme: ${doneBlobUri.scheme}")
+  /**
+   * Creates a `RawImpressionUploadModelLine` for each resolved model line.
+   *
+   * @param uploadName resource name of the parent `RawImpressionUpload`.
+   * @param modelLineNames the resolved model line resource names to register.
+   */
+  private suspend fun createRawImpressionUploadModelLines(
+    uploadName: String,
+    modelLineNames: List<String>,
+  ) {
+    for (chunk in modelLineNames.chunked(RAW_IMPRESSION_UPLOAD_MODEL_LINE_BATCH_SIZE)) {
+      val request = batchCreateRawImpressionUploadModelLinesRequest {
+        parent = uploadName
+        for (modelLineName in chunk) {
+          requests += createRawImpressionUploadModelLineRequest {
+            parent = uploadName
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              cmmsModelLine = modelLineName
+            }
+            requestId = RequestIds.forRawImpressionUploadModelLine(uploadName, modelLineName)
+          }
+        }
+      }
+
+      try {
+        rawImpressionUploadModelLineStub.batchCreateRawImpressionUploadModelLines(request)
+      } catch (e: StatusException) {
+        if (e.status.code == Status.Code.ALREADY_EXISTS) {
+          // Idempotent redelivery: these model lines were already created. Ack and continue.
+          logger.info("RawImpressionUploadModelLines for $uploadName already exist; skipping")
+          continue
+        }
+        throw e
+      }
     }
+
+    logger.info("Created ${modelLineNames.size} RawImpressionUploadModelLines for $uploadName")
+  }
+
+  private fun recordUploadDuration(startTime: TimeSource.Monotonic.ValueTimeMark, status: String) {
+    val duration: Double = startTime.elapsedNow().inWholeMilliseconds / 1000.0
+    metrics.uploadDurationHistogram.record(
+      duration,
+      Attributes.of(DATA_PROVIDER_ATTR, dataProviderName, UPLOAD_STATUS_ATTR, status),
+    )
   }
 
   private fun isDoneMarker(blobKey: String): Boolean {
@@ -320,11 +442,23 @@ class VidLabelingDispatcher(
 
     private const val DONE_MARKER_FILE_NAME = "done"
 
+    private const val RAW_IMPRESSION_UPLOAD_FILE_BATCH_SIZE = 100
+    private const val RAW_IMPRESSION_UPLOAD_MODEL_LINE_BATCH_SIZE = 50
+
     private val DATA_PROVIDER_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.vid_labeling_dispatcher.data_provider")
-    private val DISPATCH_STATUS_ATTR: AttributeKey<String> =
+    private val UPLOAD_STATUS_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.vid_labeling_dispatcher.dispatch_status")
-    private const val DISPATCH_STATUS_SUCCESS = "success"
-    private const val DISPATCH_STATUS_FAILED = "failed"
+    private const val UPLOAD_STATUS_SUCCESS = "success"
+    private const val UPLOAD_STATUS_FAILED = "failed"
+
+    private fun isWithinActiveWindow(modelLine: ModelLine, now: Timestamp): Boolean {
+      if (!modelLine.hasActiveStartTime()) return false
+      if (Timestamps.compare(now, modelLine.activeStartTime) < 0) return false
+      if (modelLine.hasActiveEndTime() && Timestamps.compare(now, modelLine.activeEndTime) >= 0) {
+        return false
+      }
+      return true
+    }
   }
 }
