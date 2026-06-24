@@ -1,6 +1,6 @@
 filegroup(
     name = "reference_test_model",
-    srcs = ["reference_test_model.textproto"],
     testonly = True,
+    srcs = ["reference_test_model.textproto"],
     visibility = ["//src/test/kotlin/org/wfanet/measurement/loadtest/dataprovider:__pkg__"],
 )
