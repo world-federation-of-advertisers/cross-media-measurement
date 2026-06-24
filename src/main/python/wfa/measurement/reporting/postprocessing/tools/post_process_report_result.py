@@ -143,6 +143,10 @@ class PostProcessReportResult:
                     PARTIAL_SOLUTION_FOUND_WITH_HIGHS,
                     ReportPostProcessorStatus.PARTIAL_SOLUTION_FOUND_WITH_OSQP,
             ]:
+                if result.large_corrections:
+                    raise ValueError(
+                        "Noise correction produced large corrections for a"
+                        f" report summary: {list(result.large_corrections)}")
                 all_updated_measurements.update(result.updated_measurements)
             else:
                 raise ValueError(
@@ -499,11 +503,11 @@ def compute_basic_metric_set(
 
     basic_metric_set = BasicMetricSet()
 
-    if reach:
+    if reach is not None:
         basic_metric_set.reach = reach
         basic_metric_set.percent_reach = reach / population * 100
 
-    if impressions:
+    if impressions is not None:
         basic_metric_set.impressions = impressions
         basic_metric_set.grps = impressions / population * 100
         if basic_metric_set.reach > 0:
@@ -515,6 +519,67 @@ def compute_basic_metric_set(
             round(sum(frequency_values[i:]))
             for i in range(len(frequency_values))
         ]
+        # The post-processor solver returns reach and the frequency
+        # histogram as independent floats; rounding each separately can
+        # break three algebraic identities consumers rely on:
+        #
+        # 1. k_plus_reach[0] (the "1+ reach") must equal reach.
+        # 2. The weighted sum of frequency buckets must not exceed
+        #    impressions (it is conceptually equal, but rounding can push
+        #    it slightly above).
+        # 3. k_plus_reach is non-increasing: k_plus_reach[i] >=
+        #    k_plus_reach[i+1] ("N+ reach" cannot exceed "(N-1)+ reach").
+        #
+        # Snap to enforce all three. The reach value is the canonical 1+
+        # reach, so overwrite k_plus_reach[0]; that overwrite plus
+        # independent rounding can leave k_plus_reach[1] > k_plus_reach[0],
+        # so forward-clamp each bucket to its predecessor. Then, for the
+        # impression identity, absorb any positive residue starting at the
+        # highest-frequency bucket (which has the loosest physical
+        # interpretation: "saw it at least N times for large N"). If a
+        # single bucket can't absorb the full residue (e.g. it would go
+        # below zero), cascade into the next-highest bucket. Stop before
+        # index 0 so the reach == k_plus_reach[0] identity is preserved
+        # even in the (unrealistic) case where the residue exceeds the
+        # total capacity of all higher-frequency buckets. The forward-
+        # clamp must run before the cascade because clamping reduces
+        # sum(k_plus_reach) and thus changes the excess. See Issue #4049.
+        if k_plus_reach_values:
+            if reach is not None:
+                k_plus_reach_values[0] = reach
+                for i in range(1, len(k_plus_reach_values)):
+                    k_plus_reach_values[i] = min(k_plus_reach_values[i],
+                                                 k_plus_reach_values[i - 1])
+            if impressions is not None:
+                excess = sum(k_plus_reach_values) - impressions
+                # Walk high index -> low. This direction is load-bearing:
+                # only lowering k[i] for i descending keeps the non-
+                # increasing invariant (k[i-1] >= k[i]) intact, because
+                # k[i-1] is either untouched or about to be lowered next.
+                # A low->high or proportional rewrite would silently
+                # break Rule 3 / monotonicity.
+                i = len(k_plus_reach_values) - 1
+                while excess > 0 and i >= 1:
+                    absorbed = min(excess, k_plus_reach_values[i])
+                    k_plus_reach_values[i] -= absorbed
+                    excess -= absorbed
+                    i -= 1
+                if excess > 0:
+                    # The histogram's weighted sum exceeds impressions and
+                    # the cascade ran out of buckets to absorb the residue
+                    # (cascade stops before index 0 to preserve rule 1 when
+                    # reach is set). Upstream data is inconsistent; surface
+                    # it as a warning rather than silently producing a
+                    # BasicMetricSet that violates rule 2. Use %s for reach
+                    # because reach may be None when only the histogram and
+                    # impressions were supplied.
+                    logging.warning(
+                        "Could not fully reconcile sum(k_plus_reach) <= "
+                        "impressions: leftover residue %d (reach=%s, "
+                        "impressions=%d). Preserving reach == "
+                        "k_plus_reach[0]; sum(k_plus_reach) will exceed "
+                        "impressions by this residue.",
+                        excess, reach, impressions)
         basic_metric_set.k_plus_reach.extend(k_plus_reach_values)
         basic_metric_set.percent_k_plus_reach.extend(
             [val / population * 100 for val in k_plus_reach_values])

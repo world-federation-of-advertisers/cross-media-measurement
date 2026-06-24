@@ -14,6 +14,12 @@
 
 name: Draft new release
 
+run-name: >-
+  Draft new release |
+  release=${{ inputs.existing-release-tag }},
+  milestone=${{ inputs.milestone-name }},
+  notes-start=${{ inputs.notes-start-commitish }}
+
 on:
   workflow_dispatch:
     inputs:

@@ -31,7 +31,6 @@ kt_jvm_library(
     srcs = ["InMemoryEventQuery.kt"],
     deps = [
         ":event_query",
-        ":labeled_event",
         "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
@@ -65,11 +64,9 @@ kt_jvm_library(
     srcs = ["SyntheticGeneratorEventQuery.kt"],
     deps = [
         ":event_query",
-        ":labeled_event",
         ":synthetic_data_generation",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )
@@ -107,8 +104,10 @@ kt_jvm_library(
     deps = [
         ":event_query",
         ":frequency_vector_generator",
+        ":labeled_event",
         ":sketch_encrypter",
         ":sketch_generator",
+        ":synthetic_data_generation",
         ":vid_to_index_map_generator",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
@@ -191,7 +190,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
@@ -289,5 +287,41 @@ kt_jvm_library(
         ":vid_to_index_map_generator",
         "//src/main/kotlin/org/wfanet/measurement/common:sorted_lists",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+    ],
+)
+
+kt_jvm_library(
+    name = "labeler_input_record",
+    srcs = ["LabelerInputRecord.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:demographic_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "labeler_input_data_generation",
+    srcs = [
+        "LabelerInputDataGeneration.kt",
+    ],
+    deps = [
+        ":labeler_input_record",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:labeler_input_event_group_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "labeler_input_spec_converter",
+    srcs = [
+        "LabelerInputSpecConverter.kt",
+    ],
+    deps = [
+        ":labeler_input_data_generation",
+        ":labeler_input_record",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:labeler_input_event_group_spec_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_virtual_people_core_serving//src/main/kotlin/org/wfanet/virtualpeople/core/labeler",
     ],
 )

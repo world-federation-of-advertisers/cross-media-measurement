@@ -74,6 +74,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -728,6 +729,68 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
+  fun `sync with unchanged content restamps synced-by marker on metadata blobs`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+      )
+
+    // First sync — creates entries and stamps the marker.
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    val createCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      batchCreateImpressionMetadata(createCaptor.capture())
+    }
+    val createdMetadata = createCaptor.firstValue.requestsList.single().impressionMetadata
+
+    // List returns the just-created entries so the second sync sees them as existing.
+    wheneverBlocking {
+        impressionMetadataServiceMock.listImpressionMetadata(any<ListImpressionMetadataRequest>())
+      }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+        listImpressionMetadataResponse {
+          impressionMetadata +=
+            createdMetadata.copy { name = "${request.parent}/impressionMetadata/im-0" }
+        }
+      }
+
+    // Count metadata-blob stamp calls (those carrying the resource-ID + synced-by metadata)
+    // after the first sync.
+    val metadataStampCallsAfterFirstSync =
+      storageClient.updateBlobMetadataCalls.count {
+        it.metadata.containsKey(WatchedBlobs.IMPRESSION_METADATA_RESOURCE_ID_KEY)
+      }
+
+    // Second sync — same content, no create or update, but marker must still be restamped.
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    val metadataStampCallsAfterSecondSync =
+      storageClient.updateBlobMetadataCalls.count {
+        it.metadata.containsKey(WatchedBlobs.IMPRESSION_METADATA_RESOURCE_ID_KEY)
+      }
+
+    // Each sync should produce one metadata-stamp call per metadata blob (1 blob in this
+    // fixture). If the stamp was gated on create/update responses, the second sync would
+    // add zero new calls and this assertion would fail.
+    assertThat(metadataStampCallsAfterSecondSync - metadataStampCallsAfterFirstSync).isEqualTo(1)
+  }
+
+  @Test
   fun `saveImpressionMetadata batches according to batch size and throttles each batch`() =
     runBlocking {
       val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
@@ -872,16 +935,19 @@ class DataAvailabilitySyncTest {
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
-    // Should have exactly 2 calls: one for metadata file, one for impressions file
-    assertThat(storageClient.updateBlobMetadataCalls).hasSize(2)
+    // Three calls: metadata file (resource-id + synced-by), impressions file (customCreateTime
+    // only), and done blob (synced-by only).
+    assertThat(storageClient.updateBlobMetadataCalls).hasSize(3)
 
-    // Verify metadata file update (has resource ID in metadata)
+    // Verify metadata file update (has resource ID + synced-by in metadata)
     val metadataFileUpdate =
-      storageClient.updateBlobMetadataCalls.single { it.metadata.isNotEmpty() }
+      storageClient.updateBlobMetadataCalls.single {
+        it.metadata.containsKey(WatchedBlobs.IMPRESSION_METADATA_RESOURCE_ID_KEY)
+      }
     assertThat(metadataFileUpdate.blobKey).contains("metadata")
     assertThat(metadataFileUpdate.customCreateTime).isNotNull()
-    assertThat(metadataFileUpdate.metadata)
-      .containsKey(DataAvailabilitySync.IMPRESSION_METADATA_RESOURCE_ID_KEY)
+    assertThat(metadataFileUpdate.metadata[DataAvailabilityBlobs.SYNCED_BY_KEY])
+      .isEqualTo(DataAvailabilityBlobs.SYNCED_BY_VALUE)
 
     // Verify impressions file update (no metadata, just customCreateTime)
     val impressionsFileUpdate =
@@ -889,7 +955,14 @@ class DataAvailabilitySyncTest {
     assertThat(impressionsFileUpdate.blobKey).contains("some_blob_uri")
     assertThat(impressionsFileUpdate.customCreateTime).isNotNull()
 
-    // Both files should have the same customCreateTime (derived from interval start time)
+    // Verify done blob update (synced-by marker only, no customCreateTime, no resource ID).
+    val doneFileUpdate =
+      storageClient.updateBlobMetadataCalls.single { it.blobKey.endsWith("/done") }
+    assertThat(doneFileUpdate.metadata)
+      .containsExactly(DataAvailabilityBlobs.SYNCED_BY_KEY, DataAvailabilityBlobs.SYNCED_BY_VALUE)
+    assertThat(doneFileUpdate.customCreateTime).isNull()
+
+    // Metadata and impressions files share the same customCreateTime (interval start time).
     assertThat(metadataFileUpdate.customCreateTime)
       .isEqualTo(impressionsFileUpdate.customCreateTime)
   }
@@ -945,9 +1018,11 @@ class DataAvailabilitySyncTest {
       val metadataUpdate = metadataUpdateCalls.first()
       assertThat(metadataUpdate.customCreateTime).isNotNull()
       assertThat(metadataUpdate.metadata)
-        .containsKey(DataAvailabilitySync.IMPRESSION_METADATA_RESOURCE_ID_KEY)
-      assertThat(metadataUpdate.metadata[DataAvailabilitySync.IMPRESSION_METADATA_RESOURCE_ID_KEY])
+        .containsKey(WatchedBlobs.IMPRESSION_METADATA_RESOURCE_ID_KEY)
+      assertThat(metadataUpdate.metadata[WatchedBlobs.IMPRESSION_METADATA_RESOURCE_ID_KEY])
         .isEqualTo("dataProviders/dataProvider123/impressionMetadata/im-0")
+      assertThat(metadataUpdate.metadata[DataAvailabilityBlobs.SYNCED_BY_KEY])
+        .isEqualTo(DataAvailabilityBlobs.SYNCED_BY_VALUE)
 
       // Verify both files have the same customCreateTime (derived from the interval start time)
       assertThat(impressionsUpdateCalls.first().customCreateTime)

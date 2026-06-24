@@ -1,0 +1,52 @@
+# proto-file: wfa/measurement/api/v2alpha/population_spec.proto
+# proto-message: PopulationSpec
+
+# Expected output of LabelerInputSpecConverter for the golden test input.
+
+subpopulations {
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.market.v1.Common] {
+      sex: MALE
+      age_group: YEARS_16_TO_34
+    }
+  }
+  vid_ranges { start_vid: 10002  end_vid_inclusive: 10003 }
+  vid_ranges { start_vid: 10005  end_vid_inclusive: 10005 }
+  vid_ranges { start_vid: 10018  end_vid_inclusive: 10019 }
+  vid_ranges { start_vid: 10022  end_vid_inclusive: 10023 }
+  vid_ranges { start_vid: 10025  end_vid_inclusive: 10026 }
+  vid_ranges { start_vid: 10032  end_vid_inclusive: 10032 }
+  vid_ranges { start_vid: 10043  end_vid_inclusive: 10043 }
+  vid_ranges { start_vid: 10047  end_vid_inclusive: 10048 }
+  vid_ranges { start_vid: 10052  end_vid_inclusive: 10052 }
+  vid_ranges { start_vid: 10055  end_vid_inclusive: 10055 }
+  vid_ranges { start_vid: 10072  end_vid_inclusive: 10072 }
+  vid_ranges { start_vid: 10080  end_vid_inclusive: 10080 }
+  vid_ranges { start_vid: 10089  end_vid_inclusive: 10089 }
+  vid_ranges { start_vid: 10094  end_vid_inclusive: 10094 }
+}
+subpopulations {
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.market.v1.Common] {
+      sex: FEMALE
+      age_group: YEARS_35_TO_54
+    }
+  }
+  vid_ranges { start_vid: 10486  end_vid_inclusive: 10486 }
+}
+subpopulations {
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.market.v1.Common] {
+      sex: FEMALE
+      age_group: YEARS_55_PLUS
+    }
+  }
+  vid_ranges { start_vid: 10512  end_vid_inclusive: 10512 }
+  vid_ranges { start_vid: 10519  end_vid_inclusive: 10519 }
+  vid_ranges { start_vid: 10533  end_vid_inclusive: 10533 }
+  vid_ranges { start_vid: 10536  end_vid_inclusive: 10536 }
+  vid_ranges { start_vid: 10540  end_vid_inclusive: 10540 }
+  vid_ranges { start_vid: 10564  end_vid_inclusive: 10565 }
+  vid_ranges { start_vid: 10590  end_vid_inclusive: 10590 }
+  vid_ranges { start_vid: 10595  end_vid_inclusive: 10595 }
+}

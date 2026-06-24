@@ -82,13 +82,14 @@ class DataAvailabilityMonitorFunction : HttpFunction {
         monitorConfigs.configsList.map { config -> checkAndLogConfigIssues(config) }.any { it }
       }
 
-      if (hasAnyIssues) {
-        response.setStatusCode(500)
-        response.writer.write("Data availability issues detected. See logs for details.")
-      } else {
-        response.setStatusCode(200)
-        response.writer.write("All model lines healthy.")
-      }
+      // Always return 200 on a successful run. Data availability issues are surfaced via
+      // OpenTelemetry metrics (DataAvailabilityMonitorMetrics) and SEVERE log entries; HTTP 500
+      // is reserved for genuine function failures (the catch block below).
+      response.setStatusCode(200)
+      response.writer.write(
+        if (hasAnyIssues) "Data availability issues detected. See logs for details."
+        else "All model lines healthy."
+      )
     } catch (e: Exception) {
       logger.log(Level.SEVERE, "Error in DataAvailabilityMonitorFunction", e)
       response.setStatusCode(500)
@@ -154,10 +155,21 @@ class DataAvailabilityMonitorFunction : HttpFunction {
         dataProviderName = config.dataProviderName.ifEmpty { null },
       )
 
+    val unprocessedDoneThreshold: Duration =
+      if (config.hasUnprocessedDoneThreshold()) {
+        Duration.ofSeconds(
+          config.unprocessedDoneThreshold.seconds,
+          config.unprocessedDoneThreshold.nanos.toLong(),
+        )
+      } else {
+        DEFAULT_UNPROCESSED_DONE_THRESHOLD
+      }
+
     val result =
       monitor.checkFullStatus(
         maxStaleDays = maxStaleDays,
         timeZone = timeZone,
+        unprocessedDoneThreshold = unprocessedDoneThreshold,
         spuriousDeletionLookbackDays = spuriousLookbackDays,
       )
 
@@ -214,6 +226,14 @@ class DataAvailabilityMonitorFunction : HttpFunction {
           "has late-arriving data after done blob: ${status.lateArrivingDates}",
       )
     }
+    if (!status.unprocessedDoneDates.isNullOrEmpty()) {
+      logger.log(
+        Level.SEVERE,
+        "ALERT: Model line $modelLineName in $edpImpressionPath " +
+          "has unprocessed done blobs (DataAvailabilitySync did not complete): " +
+          "${status.unprocessedDoneDates}",
+      )
+    }
     if ((status.spuriousDeletionCount ?: 0) > 0) {
       logger.log(
         Level.SEVERE,
@@ -252,6 +272,7 @@ class DataAvailabilityMonitorFunction : HttpFunction {
 
     private val impressionMetadataCertHost: String? = System.getenv("IMPRESSION_METADATA_CERT_HOST")
 
+    private val DEFAULT_UNPROCESSED_DONE_THRESHOLD: Duration = Duration.ofHours(24)
     private val channelShutdownDurationSeconds: Long =
       System.getenv("CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLongOrNull() ?: 3L
 
@@ -304,6 +325,7 @@ class DataAvailabilityMonitorFunction : HttpFunction {
         !status.zeroImpressionDates.isNullOrEmpty() ||
         !status.datesWithoutDoneBlob.isNullOrEmpty() ||
         !status.lateArrivingDates.isNullOrEmpty() ||
+        !status.unprocessedDoneDates.isNullOrEmpty() ||
         (status.spuriousDeletionCount ?: 0) > 0
   }
 }
