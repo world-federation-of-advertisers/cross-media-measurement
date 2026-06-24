@@ -75,7 +75,7 @@ private val EVENT_GROUP_NAME = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAHs"
 private val EVENT_GROUP_EXTERNAL_ID =
   apiIdToExternalId(EventGroupKey.fromName(EVENT_GROUP_NAME)!!.eventGroupId)
 private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
-private const val DEFAULT_PAGE_SIZE = 1000
+private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
 @RunWith(JUnit4::class)
@@ -937,7 +937,7 @@ class EventGroupActivitiesServiceTest {
   }
 
   @Test
-  fun `listEventGroupActivities throws INTERNAL when internal service throws INVALID_ARGUMENT`() {
+  fun `listEventGroupActivities throws INVALID_ARGUMENT when internal service throws INVALID_ARGUMENT`() {
     internalServiceMock.stub {
       onBlocking { listEventGroupActivities(any()) }
         .thenThrow(Status.INVALID_ARGUMENT.asRuntimeException())
@@ -954,7 +954,7 @@ class EventGroupActivitiesServiceTest {
         }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test

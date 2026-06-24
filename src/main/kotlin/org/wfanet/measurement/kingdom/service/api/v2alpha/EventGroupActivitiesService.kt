@@ -302,8 +302,10 @@ class EventGroupActivitiesService(
         internalEventGroupActivitiesStub.listEventGroupActivities(internalRequest)
       } catch (e: StatusException) {
         throw when (e.status.code) {
+          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+          Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
           Status.Code.NOT_FOUND -> Status.NOT_FOUND
-          else -> Status.INTERNAL
+          else -> Status.UNKNOWN
         }.toExternalStatusRuntimeException(e)
       }
 
@@ -317,7 +319,7 @@ class EventGroupActivitiesService(
   }
 
   companion object {
-    private const val DEFAULT_PAGE_SIZE = 1000
+    private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 1000
   }
 }
