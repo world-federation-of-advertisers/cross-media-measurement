@@ -533,6 +533,8 @@ class DataAvailabilityMonitor(
         modelLineName,
         DataAvailabilityMonitorMetrics.EDP_IMPRESSION_PATH_ATTR,
         edpImpressionPath,
+        DataAvailabilityMonitorMetrics.SOURCE_ATTR,
+        DataAvailabilityMonitorMetrics.SOURCE_MONITOR,
       )
 
     if (status.staleDays != null) {

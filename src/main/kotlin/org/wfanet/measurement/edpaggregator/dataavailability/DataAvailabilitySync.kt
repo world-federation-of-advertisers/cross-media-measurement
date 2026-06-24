@@ -183,17 +183,16 @@ class DataAvailabilitySync(
         saveImpressionMetadata(metadataWithBlobKeys)
       }
 
-      // 2b. Stamp the `done` blob with the synced-by marker. The marker means "EDPA finished
-      // its local processing for this date" — Spanner records are persisted and metadata blobs
-      // are stamped. It is stamped before the Kingdom `replaceDataAvailabilityIntervals` call
-      // (step 6) on purpose: Kingdom publishing is a separately retryable broadcast and has its
-      // own failure signal (`cmmsRpcErrorsCounter`). Conflating "local processing done" with
-      // "Kingdom in sync" would mask the more common, more actionable case of Sync never running
-      // for a date.
+      // 2b. Stamp the `done` blob with the synced-by marker. The marker means "the
+      // ImpressionMetadata store is updated for this date" — Spanner records are persisted
+      // and metadata blobs are stamped. It does NOT imply that Kingdom data availability has
+      // been updated: gap detection at step 5 may skip the Kingdom publish entirely when
+      // errorIfGapsExist=true, and Kingdom publish has its own failure signal
+      // (`cmmsRpcErrorsCounter`) when it is attempted.
       //
       // DataAvailabilityMonitor uses the marker to tell late-arrival from never-arrived: a done
-      // blob older than its threshold without this marker means Sync did not (yet) complete
-      // EDPA-side for the date.
+      // blob older than its threshold without this marker means Sync did not (yet) update the
+      // ImpressionMetadata store for the date.
       storageClient.updateBlobMetadata(
         blobKey = doneBlobUri.key,
         metadata =
@@ -360,6 +359,8 @@ class DataAvailabilitySync(
         edpImpressionPath,
         DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR,
         status,
+        DataAvailabilityMonitorMetrics.SOURCE_ATTR,
+        DataAvailabilityMonitorMetrics.SOURCE_SYNC,
       ),
     )
   }
