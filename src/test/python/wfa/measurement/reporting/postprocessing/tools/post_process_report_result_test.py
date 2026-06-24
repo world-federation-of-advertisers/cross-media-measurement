@@ -198,6 +198,193 @@ class PostProcessReportResultTest(unittest.TestCase):
         self.assertEqual(list(basic_metric_set.percent_k_plus_reach),
                          [50.0, 40.0, 20.0, 5.0, 0.0])
 
+    def test_compute_basic_metric_set_k_plus_reach_zero_matches_reach(self):
+        """k_plus_reach[0] is the "1+ reach" and must equal reach.
+
+        When the post-processor solver returns reach and the frequency
+        histogram as floats (the realistic case in production), independent
+        round() calls on the two derivations can disagree by 1+. Consumers
+        rely on k_plus_reach[0] == reach (Issue #4049).
+        """
+        # Floats chosen so round(reach) != round(sum(freqs)):
+        # reach rounds to 2194000; sum(freqs) rounds to 2193997 (matches the
+        # real-world example from Origin staging in #4049).
+        basic_metric_set = compute_basic_metric_set(
+            reach=2194000,
+            frequency_values=[
+                1222269.4, 299330.4, 183245.4, 85498.4, 45170.4,
+                64182.4, 26965.4, 7445.4, 5345.4, 4608.4,
+                4874.4, 6342.4, 6253.4, 51051.4, 181420.4,
+            ],
+            impressions=7313150,
+            population=8045553,
+        )
+
+        self.assertEqual(basic_metric_set.k_plus_reach[0],
+                         basic_metric_set.reach,
+                         "k_plus_reach[0] (1+ reach) must equal reach")
+
+    def test_compute_basic_metric_set_k_plus_buckets_sum_le_impressions(self):
+        """The weighted sum of frequency-distribution buckets is conceptually
+        the impression count. With independent rounding the weighted sum can
+        exceed impressions by a small amount, breaking a validation rule
+        post-processor consumers rely on (Issue #4049).
+        """
+        basic_metric_set = compute_basic_metric_set(
+            reach=3946000,
+            frequency_values=[
+                1663825.4, 651217.4, 382519.4, 244746.4, 164390.4,
+                124340.4, 105164.4, 74233.4, 30675.4, 37481.4,
+                25755.4, 21514.4, 31622.4, 139317.4, 249203.4,
+            ],
+            impressions=15282723,
+            population=8568303,
+        )
+
+        # k_plus_reach values are aggregated by frequency bucket k. The
+        # impression count equals weighted sum: sum(freq[i] * (i+1)) for
+        # buckets [0..max], or equivalently sum(k_plus_reach).
+        weighted_sum_of_buckets = sum(basic_metric_set.k_plus_reach)
+        self.assertLessEqual(
+            weighted_sum_of_buckets, basic_metric_set.impressions,
+            "sum of k_plus_reach buckets must not exceed impressions")
+
+    def test_compute_basic_metric_set_k_plus_excess_cascades_across_buckets(
+            self):
+        """When the rounding residue exceeds the last k_plus_reach bucket, the
+        snap cascades into the next-highest bucket until the impressions
+        identity is satisfied. Without cascading, the violation would persist.
+        """
+        # frequency_values picked so the highest bucket can absorb only part of
+        # the residue: k_plus_reach[-1] = 1 (= frequency_values[-1]) but
+        # excess after capping impressions is 5, so 4 must cascade into the
+        # next bucket.
+        basic_metric_set = compute_basic_metric_set(
+            reach=166,
+            frequency_values=[100, 50, 10, 5, 1],
+            impressions=250,
+            population=1000,
+        )
+
+        weighted_sum_of_buckets = sum(basic_metric_set.k_plus_reach)
+        self.assertLessEqual(
+            weighted_sum_of_buckets, basic_metric_set.impressions,
+            "sum of k_plus_reach buckets must not exceed impressions")
+        # k_plus_reach[-1] absorbs as much as it can; remainder cascades.
+        self.assertEqual(basic_metric_set.k_plus_reach[-1], 0)
+        self.assertEqual(basic_metric_set.k_plus_reach[-2], 2)
+        # Lower buckets are untouched.
+        self.assertEqual(basic_metric_set.k_plus_reach[0], 166)
+        self.assertEqual(basic_metric_set.k_plus_reach[1], 66)
+        self.assertEqual(basic_metric_set.k_plus_reach[2], 16)
+
+    def test_compute_basic_metric_set_k_plus_excess_preserves_reach_identity(
+            self):
+        """The cascade stops at index 1 so k_plus_reach[0] == reach holds
+        even when the residue would otherwise consume the whole histogram.
+        Identity #1 takes precedence over identity #2 in this (unrealistic)
+        case; the residual is small in practice because large corrections
+        are rejected upstream by the 7-sigma threshold.
+        """
+        with self.assertLogs(level='WARNING') as cm:
+            basic_metric_set = compute_basic_metric_set(
+                reach=10,
+                frequency_values=[10, 5, 3, 2, 1],
+                impressions=1,
+                population=1000,
+            )
+
+        # All higher buckets pushed to zero, but k_plus_reach[0] is preserved.
+        self.assertEqual(basic_metric_set.k_plus_reach[0], 10)
+        for bucket in basic_metric_set.k_plus_reach[1:]:
+            self.assertEqual(bucket, 0)
+        # Warning surfaces the unresolved residue so operators notice the
+        # upstream data inconsistency (reach > impressions).
+        self.assertTrue(
+            any('Could not fully reconcile' in m for m in cm.output),
+            f"expected reconciliation warning, got: {cm.output}")
+
+    def test_compute_basic_metric_set_single_bucket_excess_logs_warning(self):
+        """When the histogram has a single bucket, the cascade has no
+        higher-frequency bucket to absorb residue into. Identity 1
+        (k_plus_reach[0] == reach) is preserved and the warning surfaces
+        the unresolved residue (Issue #4049).
+        """
+        with self.assertLogs(level='WARNING') as cm:
+            basic_metric_set = compute_basic_metric_set(
+                reach=10,
+                frequency_values=[10],
+                impressions=5,
+                population=1000,
+            )
+
+        self.assertEqual(list(basic_metric_set.k_plus_reach), [10])
+        self.assertTrue(
+            any('Could not fully reconcile' in m for m in cm.output),
+            f"expected reconciliation warning, got: {cm.output}")
+
+    def test_compute_basic_metric_set_excess_warning_with_none_reach(self):
+        """When reach is None and the histogram's weighted sum exceeds
+        impressions, the cascade exhausts higher-frequency buckets and the
+        warning must format cleanly -- not TypeError on '%d % None'. With
+        reach=None there is no rule 1 to preserve; the warning still
+        signals upstream inconsistency to operators (Issue #4049).
+        """
+        with self.assertLogs(level='WARNING') as cm:
+            basic_metric_set = compute_basic_metric_set(
+                reach=None,
+                frequency_values=[100],
+                impressions=5,
+                population=1000,
+            )
+
+        self.assertEqual(list(basic_metric_set.k_plus_reach), [100])
+        self.assertTrue(
+            any('Could not fully reconcile' in m for m in cm.output),
+            f"expected reconciliation warning, got: {cm.output}")
+        self.assertTrue(
+            any('reach=None' in m for m in cm.output),
+            f"warning should render reach=None, got: {cm.output}")
+
+    def test_compute_basic_metric_set_zero_reach_zeros_k_plus_reach(self):
+        """reach=0 (rather than None) means "nobody was reached"; the
+        snap overwrites k_plus_reach[0] with 0 and the forward-clamp
+        cascades that down through every bucket. Pin the behavior so a
+        future change to the snaps truthiness check (e.g. `if reach:`
+        instead of `if reach is not None:`) is caught.
+        """
+        basic_metric_set = compute_basic_metric_set(
+            reach=0,
+            frequency_values=[3, 5, 2],
+            impressions=20,
+            population=1000,
+        )
+
+        self.assertEqual(basic_metric_set.reach, 0)
+        self.assertEqual(list(basic_metric_set.k_plus_reach), [0, 0, 0])
+        self.assertEqual(list(basic_metric_set.percent_k_plus_reach),
+                         [0.0, 0.0, 0.0])
+
+    def test_compute_basic_metric_set_k_plus_reach_is_non_increasing(self):
+        # Without the clamp: k_plus_reach[0]=6 (overwritten from reach) but
+        # k_plus_reach[1]=round(5+2)=7 -- "2+ reach > 1+ reach", nonsense.
+        basic_metric_set = compute_basic_metric_set(
+            reach=6,
+            frequency_values=[3, 5, 2],
+            impressions=20,
+            population=1000,
+        )
+
+        k_plus_reach = list(basic_metric_set.k_plus_reach)
+        self.assertEqual(k_plus_reach[0], basic_metric_set.reach,
+                         "k_plus_reach[0] must equal reach")
+        for i in range(1, len(k_plus_reach)):
+            self.assertLessEqual(
+                k_plus_reach[i], k_plus_reach[i - 1],
+                f"k_plus_reach must be non-increasing; "
+                f"bucket {i}={k_plus_reach[i]} exceeds "
+                f"bucket {i-1}={k_plus_reach[i - 1]}")
+
     def test_post_process_report_result_success(self):
         # Configures the mock stubs to return the data from the textproto files.
         self.mock_report_results_stub.ListReportingSetResults.return_value = (
