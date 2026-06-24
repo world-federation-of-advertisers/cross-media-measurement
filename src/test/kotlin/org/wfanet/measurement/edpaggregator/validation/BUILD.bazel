@@ -1,0 +1,13 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "ToleranceEvaluatorTest",
+    srcs = ["ToleranceEvaluatorTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.validation.ToleranceEvaluatorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/validation:tolerance_evaluator",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:data_provider_validation_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
