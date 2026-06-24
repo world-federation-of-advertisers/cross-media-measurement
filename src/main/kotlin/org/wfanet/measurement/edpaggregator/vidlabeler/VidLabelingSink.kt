@@ -84,7 +84,15 @@ class VidLabelingSink(
         val converted = impressionConverter.convert(digestedEvent, context.config) ?: continue
         if (!context.activeWindow.contains(converted.eventTimeMicros)) continue
 
-        val output = context.assigner.assign(converted.labelerInput)
+        // Memoized path: attach the impression's pre-computed rank (keyed by its EventIdDigest) so
+        // the model's RankedPopulationNode leaf derives a collision-free VID via Feistel. A miss
+        // leaves the input untouched and the leaf falls back to the hash path.
+        val labelerInput =
+          context.rankIndex?.lookup(digestedEvent.digest)?.let { rankAssignment ->
+            converted.labelerInput.toBuilder().addRankAssignments(rankAssignment).build()
+          } ?: converted.labelerInput
+
+        val output = context.assigner.assign(labelerInput)
         if (output.peopleCount == 0) continue
 
         val labeled = labeledImpression {
@@ -238,12 +246,15 @@ class VidLabelingSink(
  * @property activeWindow the model line's active interval, for event-time filtering.
  * @property assigner the [VidAssigner] bound to this model line's compiled model.
  * @property config the model line's field-mapping configuration.
+ * @property rankIndex the memoized rank index for this model line, or `null` for the non-memoized
+ *   (hash-only) path.
  */
 data class ModelLineContext(
   val modelLine: String,
   val activeWindow: ActiveWindow,
   val assigner: VidAssigner,
   val config: VidLabelerParams.ModelLineConfig,
+  val rankIndex: MemoizedRankIndex? = null,
 )
 
 /** Identifies one labeled-output blob: a `(model line, event group)` pair within an input file. */
