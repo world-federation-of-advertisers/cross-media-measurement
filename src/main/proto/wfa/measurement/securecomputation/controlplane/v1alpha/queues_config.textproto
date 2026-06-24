@@ -5,3 +5,18 @@ queueInfos {
   queue_resource_id: "results-fulfiller-queue"
   app_params_type_url: "type.googleapis.com/wfa.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams"
 }
+
+queueInfos {
+  queue_resource_id: "subpool-assigner-queue"
+  app_params_type_url: "type.googleapis.com/wfa.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams"
+}
+
+queueInfos {
+  queue_resource_id: "vid-rank-builder-queue"
+  app_params_type_url: "type.googleapis.com/wfa.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams"
+}
+
+queueInfos {
+  queue_resource_id: "vid-labeler-queue"
+  app_params_type_url: "type.googleapis.com/wfa.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams"
+}

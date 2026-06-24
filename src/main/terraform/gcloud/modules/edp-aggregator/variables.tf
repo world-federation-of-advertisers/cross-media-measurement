@@ -451,3 +451,74 @@ variable "data_availability_monitor_scheduler_config" {
   })
   nullable = false
 }
+
+variable "vid_labeling_workers" {
+  description = "Map of VID Labeling TEE apps (Phase 0/1/2): one Pub/Sub work queue and one Confidential Space MIG worker each."
+  type = map(object({
+    queue = object({
+      topic_name            = string
+      subscription_name     = string
+      ack_deadline_seconds  = number
+      max_delivery_attempts = number
+    })
+    worker = object({
+      instance_template_name        = string
+      base_instance_name            = string
+      managed_instance_group_name   = string
+      mig_service_account_name      = string
+      single_instance_assignment    = number
+      min_replicas                  = number
+      max_replicas                  = number
+      machine_type                  = string
+      java_tool_options             = optional(string)
+      docker_image                  = string
+      tee_signed_image_repo         = string
+      mig_distribution_policy_zones = list(string)
+      app_flags                     = list(string)
+    })
+  }))
+  default = {}
+}
+
+variable "vid_labeling_dispatcher_service_account_name" {
+  description = "Name of the VidLabelingDispatcher service account."
+  type        = string
+  nullable    = false
+}
+
+variable "vid_labeling_monitor_service_account_name" {
+  description = "Name of the VidLabelingMonitor service account."
+  type        = string
+  nullable    = false
+}
+
+variable "vid_labeling_dispatcher_config" {
+  description = "An object containing the local path of the VidLabelingDispatcher config file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
+variable "vid_labeling_monitor_config" {
+  description = "An object containing the local path of the VidLabelingMonitor config file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
+variable "vid_labeling_monitor_scheduler_config" {
+  description = "Configuration for Google Cloud Scheduler to trigger the VidLabelingMonitor."
+  type = object({
+    schedule                  = string
+    time_zone                 = string
+    name                      = string
+    function_url              = string
+    scheduler_sa_display_name = string
+    scheduler_sa_description  = string
+    scheduler_job_description = string
+    scheduler_job_name        = optional(string)
+  })
+  nullable = false
+}
