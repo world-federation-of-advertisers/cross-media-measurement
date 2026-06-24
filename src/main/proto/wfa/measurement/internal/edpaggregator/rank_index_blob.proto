@@ -58,8 +58,9 @@ message RankIndexBlob {
   // The encrypted data encryption key (DEK) for this blob.
   EncryptedDek encrypted_dek = 9;
 
-  // The newest event date among the impressions in this blob.
-  // NULL for SNAPSHOT blobs, set for DAY_ONLY blobs.
+  // The newest event date represented in the blob. Set for both blob types:
+  // DAY_ONLY uses it for retention; SNAPSHOT carries it (inherited from the prior
+  // snapshot on backfill) as the backfill 'old snapshot' selection key.
   google.type.Date max_event_date = 10;
 
   // The timestamp when this record was created.

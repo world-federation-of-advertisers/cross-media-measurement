@@ -576,8 +576,14 @@ class SpannerRankIndexBlobService(
     if (rankIndexBlob.blobUri.isEmpty()) {
       throw RequiredFieldNotSetException("${fieldPathPrefix}rank_index_blob.blob_uri")
     }
+    if (rankIndexBlob.blobChecksum.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}rank_index_blob.blob_checksum")
+    }
     if (!rankIndexBlob.hasEncryptedDek()) {
       throw RequiredFieldNotSetException("${fieldPathPrefix}rank_index_blob.encrypted_dek")
+    }
+    if (!rankIndexBlob.hasMaxEventDate()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}rank_index_blob.max_event_date")
     }
     if (request.requestId.isEmpty()) {
       throw RequiredFieldNotSetException("${fieldPathPrefix}request_id")
