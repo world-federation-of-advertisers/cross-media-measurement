@@ -84,7 +84,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "virtual-people-core-serving",
-    version = "0.2.2",
+    version = "0.3.1",
     repo_name = "wfa_virtual_people_core_serving",
 )
 bazel_dep(
@@ -201,24 +201,6 @@ single_version_override(
     patches = [
         "//build/cosign/patches:sign_dot_bzl.patch",
     ],
-)
-
-# Pin googleapis to a non-yanked version compatible with
-# virtual-people-core-serving (which otherwise resolves the yanked
-# googleapis@0.0.0-bzlmod.1).
-single_version_override(
-    module_name = "googleapis",
-    version = "0.0.0-20251127-8cd3749f",
-)
-
-# DO_NOT_SUBMIT(@stevenwarejones): Replace with a versioned `bazel_dep` once
-# virtual-people-core-serving cuts a release containing commit 869f9aca. The
-# pinned commit carries the Labeler API the VID Labeler needs, which is not yet
-# in a published registry version.
-git_override(
-    module_name = "virtual-people-core-serving",
-    commit = "869f9aca2d0247bc3f38a93aab489543cf7a511f",
-    remote = "https://github.com/world-federation-of-advertisers/virtual-people-core-serving.git",
 )
 
 bazel_dep(
