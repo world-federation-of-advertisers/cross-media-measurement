@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
+import com.google.protobuf.util.Timestamps
 import java.util.logging.Logger
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -91,7 +92,6 @@ private constructor(private val mapsByPoolOffset: Map<Long, Bytes12IntMap>) {
     /** Default number of subpool blobs decrypted/built concurrently. */
     const val DEFAULT_READER_PARALLELISM: Int = 16
 
-    private const val NANOS_PER_SECOND = 1_000_000_000L
     private const val FINGERPRINT_BYTES = Bytes12IntMap.FINGERPRINT_BYTE_WIDTH
 
     /**
@@ -137,9 +137,7 @@ private constructor(private val mapsByPoolOffset: Map<Long, Bytes12IntMap>) {
         .collect { page ->
           for (blob in page) {
             val current = latestByPoolOffset[blob.poolOffset]
-            if (
-              current == null || blob.createTime.toComparable() > current.createTime.toComparable()
-            ) {
+            if (current == null || Timestamps.compare(blob.createTime, current.createTime) > 0) {
               latestByPoolOffset[blob.poolOffset] = blob
             }
           }
@@ -183,8 +181,5 @@ private constructor(private val mapsByPoolOffset: Map<Long, Bytes12IntMap>) {
       }
       return map
     }
-
-    private fun com.google.protobuf.Timestamp.toComparable(): Long =
-      seconds * NANOS_PER_SECOND + nanos
   }
 }

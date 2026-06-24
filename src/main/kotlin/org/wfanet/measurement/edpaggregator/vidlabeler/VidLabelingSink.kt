@@ -41,6 +41,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.virtualpeople.common.copy
 
 /**
  * Per-input-file [RawImpressionSource.BlobSink] that labels one raw-impression file's
@@ -89,12 +90,12 @@ class VidLabelingSink(
         // the fingerprint's per-subpool ranks are attached (a fingerprint can route to several
         // subpools across impressions); the leaf selects the one matching its own pool_offset. No
         // match (overflow / unseen) leaves the input untouched and the leaf falls back to hashing.
-        val rankAssignments = context.rankIndex?.lookup(digestedEvent.digest).orEmpty()
+        val ranks = context.rankIndex?.lookup(digestedEvent.digest).orEmpty()
         val labelerInput =
-          if (rankAssignments.isEmpty()) {
+          if (ranks.isEmpty()) {
             converted.labelerInput
           } else {
-            converted.labelerInput.toBuilder().addAllRankAssignments(rankAssignments).build()
+            converted.labelerInput.copy { rankAssignments += ranks }
           }
 
         val output = context.assigner.assign(labelerInput)
