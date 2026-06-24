@@ -23,3 +23,26 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )
+
+kt_jvm_library(
+    name = "edp_validation_metrics",
+    srcs = ["EdpValidationMetrics.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "edp_validation_post_processor",
+    srcs = ["EdpValidationPostProcessor.kt"],
+    deps = [
+        ":edp_validation_metrics",
+        ":tolerance_evaluator",
+        ":validation_cloud_function_client",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_impression_query_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:data_provider_validation_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
