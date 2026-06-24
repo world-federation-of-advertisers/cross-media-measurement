@@ -84,18 +84,8 @@ bazel_dep(
 )
 bazel_dep(
     name = "virtual-people-core-serving",
-    version = "0.2.2",
+    version = "0.3.1",
     repo_name = "wfa_virtual_people_core_serving",
-)
-single_version_override(
-    module_name = "googleapis",
-    version = "0.0.0-20251127-8cd3749f",
-)
-
-git_override(
-    module_name = "virtual-people-core-serving",
-    commit = "869f9aca2d0247bc3f38a93aab489543cf7a511f",
-    remote = "https://github.com/world-federation-of-advertisers/virtual-people-core-serving.git",
 )
 bazel_dep(
     name = "grpc_ecosystem_grpc_gateway",
