@@ -21,7 +21,7 @@ import com.google.protobuf.Duration
 import com.google.protobuf.Timestamp
 
 /** Wrapper around Descriptor for an Event message */
-class EventMessageDescriptor(eventDescriptor: Descriptors.Descriptor) {
+class EventMessageDescriptor(val descriptor: Descriptors.Descriptor) {
   data class SupportedReportingFeatures(
     val groupable: Boolean,
     val filterable: Boolean,
@@ -39,7 +39,7 @@ class EventMessageDescriptor(eventDescriptor: Descriptors.Descriptor) {
 
   /** Map of EventTemplate field path with respect to Event message to info for the field. */
   val eventTemplateFieldsByPath: Map<String, EventTemplateFieldInfo> =
-    buildEventTemplateFieldsByPath(eventDescriptor)
+    buildEventTemplateFieldsByPath(descriptor)
 
   companion object {
     /**

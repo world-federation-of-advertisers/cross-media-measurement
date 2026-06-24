@@ -17,6 +17,7 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.Descriptors
+import org.projectnessie.cel.Env
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
@@ -73,7 +74,11 @@ private data class MetricCalculationSpecInfo(
  * @param resultGroupSpecs List of [ResultGroupSpec] to transform
  * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for parsing [EventTemplateField]
+ * @param env CEL [Env] used to compile-check each generated CEL string. The [Env] must declare the
+ *   same Event message that [eventTemplateFieldsByPath] was built from.
  * @return Map of [ReportingSet] to [MetricCalculationSpec.Details]
+ * @throws org.wfanet.measurement.reporting.service.api.InvalidFieldValueException when a generated
+ *   CEL string fails to compile or does not evaluate to a boolean.
  */
 fun buildReportingSetMetricCalculationSpecDetailsMap(
   campaignGroupName: String,
@@ -81,10 +86,15 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
   dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet>,
   resultGroupSpecs: List<ResultGroupSpec>,
   eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
+  env: Env,
 ): Map<ReportingSet, List<MetricCalculationSpec.Details>> {
   val impressionQualificationFilterSpecsFilters: List<String> =
     impressionQualificationFilterSpecsLists
-      .map { buildCelExpression(it, eventTemplateFieldsByPath) }
+      .map { iqfSpecs ->
+        val expr = buildCelExpression(iqfSpecs, eventTemplateFieldsByPath)
+        validateCelBooleanFilter(env, expr, "basic_report.impression_qualification_filters")
+        expr
+      }
       .filter { it.isNotEmpty() }
 
   // This intermediate map is for reducing the number of MetricCalculationSpecs created for a given
@@ -94,7 +104,7 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
   val reportingSetMetricCalculationSpecInfoMap:
     Map<ReportingSet, MutableMap<MetricCalculationSpecInfoKey, MetricCalculationSpecInfo>> =
     buildMap {
-      for (resultGroupSpec in resultGroupSpecs) {
+      for ((specIndex, resultGroupSpec) in resultGroupSpecs.withIndex()) {
         val groupings: Set<MetricCalculationSpec.Grouping> =
           if (resultGroupSpec.dimensionSpec.hasGrouping()) {
             resultGroupSpec.dimensionSpec.grouping
@@ -104,11 +114,16 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
             emptySet()
           }
 
+        val dimensionSpecFieldPath =
+          "basic_report.result_group_specs[$specIndex].dimension_spec.filters"
         val dimensionSpecFilter: String =
           buildCelExpression(resultGroupSpec.dimensionSpec.filtersList, eventTemplateFieldsByPath)
+        validateCelBooleanFilter(env, dimensionSpecFilter, dimensionSpecFieldPath)
 
         // List of filters to be used in creating the MetricCalculationSpecs given the
-        // DimensionSpec
+        // DimensionSpec. Each combined string is either an IQF expression alone,
+        // the DimensionSpec expression alone, or `(iqf) && (dim)`; both pieces
+        // were validated above, so the combination is valid by construction.
         val metricCalculationSpecFilters: List<String> =
           buildCelExpressions(impressionQualificationFilterSpecsFilters, dimensionSpecFilter)
 

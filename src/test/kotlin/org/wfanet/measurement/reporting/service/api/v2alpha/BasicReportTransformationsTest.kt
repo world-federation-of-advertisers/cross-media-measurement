@@ -101,6 +101,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(2)
@@ -231,6 +232,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(2)
@@ -349,6 +351,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
@@ -559,6 +562,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
@@ -685,6 +689,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(2)
@@ -769,6 +774,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
@@ -922,6 +928,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -983,6 +990,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(5)
@@ -1255,6 +1263,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(5)
@@ -1474,6 +1483,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -1539,6 +1549,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -1608,6 +1619,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
@@ -1765,6 +1777,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap.keys)
@@ -1812,6 +1825,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
     }
   }
@@ -1869,6 +1883,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     val resultGroupSpecsWithDuplicates = resultGroupSpecs + resultGroupSpecs
@@ -1879,6 +1894,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecsWithDuplicates,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap)
@@ -1926,6 +1942,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -1992,6 +2009,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2058,6 +2076,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2126,6 +2145,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2194,6 +2214,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2261,6 +2282,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2327,6 +2349,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2388,6 +2411,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2451,6 +2475,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2520,6 +2545,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2607,6 +2633,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2703,6 +2730,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2754,6 +2782,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2804,6 +2833,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2866,6 +2896,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap.keys)
@@ -2930,6 +2961,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap.keys)
@@ -2998,6 +3030,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap.keys)
@@ -3061,6 +3094,7 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap.keys)
@@ -3120,5 +3154,6 @@ class BasicReportTransformationsTest {
     }
 
     private val TEST_EVENT_DESCRIPTOR = EventMessageDescriptor(TestEvent.getDescriptor())
+    private val TEST_CEL_ENV = buildCelEnvironment(TestEvent.getDescriptor())
   }
 }

@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import org.projectnessie.cel.Env
 import org.projectnessie.cel.EnvOption
@@ -23,27 +24,34 @@ import org.projectnessie.cel.checker.Decls
 import org.projectnessie.cel.common.types.Err
 import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.projectnessie.cel.common.types.ref.Val
+import org.wfanet.measurement.common.ProtoReflection.allDependencies
 
 /** Builds a CEL Env from a [Message]. */
 fun buildCelEnvironment(message: Message): Env {
-  // Build CEL ProtoTypeRegistry.
-  val celTypeRegistry = ProtoTypeRegistry.newRegistry()
-  celTypeRegistry.registerMessage(message)
+  return buildCelEnvironment(message.descriptorForType)
+}
 
-  // Build CEL Env.
-  val descriptor = message.descriptorForType
-  val env =
-    Env.newEnv(
-      EnvOption.container(descriptor.fullName),
-      EnvOption.customTypeProvider(celTypeRegistry),
-      EnvOption.customTypeAdapter(celTypeRegistry),
-      EnvOption.declarations(
-        descriptor.fields.map {
-          Decls.newVar(it.name, celTypeRegistry.findFieldType(descriptor.fullName, it.name).type)
-        }
-      ),
-    )
-  return env
+/** Builds a CEL Env from a [Descriptors.Descriptor]. */
+fun buildCelEnvironment(descriptor: Descriptors.Descriptor): Env {
+  // Register the message's file together with all transitive file dependencies
+  // so that types declared in imported files (e.g. EventTemplate sub-messages)
+  // are resolvable.
+  val celTypeRegistry = ProtoTypeRegistry.newRegistry()
+  celTypeRegistry.registerDescriptor(descriptor.file)
+  for (dep in descriptor.file.allDependencies) {
+    celTypeRegistry.registerDescriptor(dep)
+  }
+
+  return Env.newEnv(
+    EnvOption.container(descriptor.fullName),
+    EnvOption.customTypeProvider(celTypeRegistry),
+    EnvOption.customTypeAdapter(celTypeRegistry),
+    EnvOption.declarations(
+      descriptor.fields.map {
+        Decls.newVar(it.name, celTypeRegistry.findFieldType(descriptor.fullName, it.name).type)
+      }
+    ),
+  )
 }
 
 /**

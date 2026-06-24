@@ -33,6 +33,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.random.Random
 import kotlinx.coroutines.flow.filter
+import org.projectnessie.cel.Env
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.access.client.v1alpha.withForwardedTrustedCredentials
@@ -125,7 +126,7 @@ class BasicReportsService(
   private val internalMetricCalculationSpecsStub: InternalMetricCalculationSpecsCoroutineStub,
   private val reportsStub: ReportsCoroutineStub,
   private val kingdomModelLinesStub: KingdomModelLinesCoroutineStub,
-  private val eventMessageDescriptor: EventMessageDescriptor?,
+  private val eventMessageDescriptor: EventMessageDescriptor,
   private val metricSpecConfig: MetricSpecConfig,
   private val secureRandom: Random,
   private val authorization: Authorization,
@@ -135,6 +136,8 @@ class BasicReportsService(
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   data class ZonedHour(val hour: Int, val zoneId: ZoneId)
+
+  private val filterEnv: Env = buildCelEnvironment(eventMessageDescriptor.descriptor)
 
   private sealed class ReportingSetMapKey {
     data class Composite(val composite: ReportingSet.Composite) : ReportingSetMapKey()
@@ -150,7 +153,7 @@ class BasicReportsService(
   )
 
   override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport {
-    val eventTemplateFieldsByPath = eventMessageDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
+    val eventTemplateFieldsByPath = eventMessageDescriptor.eventTemplateFieldsByPath
 
     if (request.basicReport.campaignGroup.isEmpty()) {
       throw RequiredFieldNotSetException("basic_report.campaign_group")
@@ -316,6 +319,23 @@ class BasicReportsService(
 
     val createReportRequestId = UUID.randomUUID().toString()
 
+    val reportingSetsMetricCalculationSpecDetailsMap:
+      Map<ReportingSet, List<InternalMetricCalculationSpec.Details>> =
+      try {
+        buildReportingSetMetricCalculationSpecDetailsMap(
+          campaignGroupName = request.basicReport.campaignGroup,
+          impressionQualificationFilterSpecsLists =
+            impressionQualificationFilterSpecsByName.values + customFilterSpecs,
+          dataProviderPrimitiveReportingSetMap =
+            reportingSetMaps.primitiveReportingSetsByDataProvider,
+          resultGroupSpecs = request.basicReport.resultGroupSpecsList,
+          eventTemplateFieldsByPath = eventTemplateFieldsByPath,
+          env = filterEnv,
+        )
+      } catch (e: InvalidFieldValueException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
     val createdInternalBasicReport =
       try {
         internalBasicReportsStub.createBasicReport(
@@ -363,18 +383,6 @@ class BasicReportsService(
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
-
-    val reportingSetsMetricCalculationSpecDetailsMap:
-      Map<ReportingSet, List<InternalMetricCalculationSpec.Details>> =
-      buildReportingSetMetricCalculationSpecDetailsMap(
-        campaignGroupName = request.basicReport.campaignGroup,
-        impressionQualificationFilterSpecsLists =
-          impressionQualificationFilterSpecsByName.values + customFilterSpecs,
-        dataProviderPrimitiveReportingSetMap =
-          reportingSetMaps.primitiveReportingSetsByDataProvider,
-        resultGroupSpecs = request.basicReport.resultGroupSpecsList,
-        eventTemplateFieldsByPath = eventTemplateFieldsByPath,
-      )
 
     val report: Report =
       try {
