@@ -74,6 +74,7 @@ CREATE TABLE RawImpressionUploadFile (
   FileResourceId STRING(63) NOT NULL,
   CreateRequestId STRING(36),
   BlobUri STRING(MAX) NOT NULL,
+  SizeBytes INT64 NOT NULL,
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   DeleteTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
@@ -171,6 +172,14 @@ CREATE UNIQUE NULL_FILTERED INDEX PoolAssignmentJobByMarkRequestId
 CREATE INDEX PoolAssignmentJobByState
   ON PoolAssignmentJob(DataProviderResourceId, State, CreateTime);
 
+CREATE UNIQUE INDEX PoolAssignmentJobByModelLineShard
+  ON PoolAssignmentJob(
+    DataProviderResourceId,
+    RawImpressionUploadId,
+    CmmsModelLine,
+    ShardIndex
+  ) STORING (State);
+
 -- =============================================================================
 -- RankerJob — Phase-1 gate.
 -- One row per (upload, model line, ranker job); pre-created by the Phase-0
@@ -232,8 +241,8 @@ CREATE TABLE RankIndexBlob (
   PoolOffset INT64 NOT NULL,
   BlobUri STRING(MAX) NOT NULL,
   EncryptedDek BYTES(MAX) NOT NULL,
-  MaxEventDate DATE,
-  BlobChecksum BYTES(32),
+  MaxEventDate DATE NOT NULL,
+  BlobChecksum BYTES(32) NOT NULL,
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   DeleteTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
@@ -268,11 +277,18 @@ CREATE INDEX RankIndexBlobByUploadAndType
 
 -- =============================================================================
 -- VidLabelingJob — Phase-2 gate.
--- One row per (upload, model line, file batch); pre-created by the Phase-1
--- last-RankerJob-out when transitioning RawImpressionUploadModelLine from
--- RANKING to LABELING. The "last VidLabelingJob out" of a (upload, model
--- line) flips RawImpressionUploadModelLine state from LABELING to COMPLETED
--- and triggers DataAvailabilitySync.
+-- One row per (upload, file batch). Each job labels a batch of files
+-- (RawImpressionUploadFiles) for one or more model lines (CmmsModelLines):
+--   - When the model lines do NOT require memoization, a single job can batch
+--     multiple files AND multiple model lines together (CmmsModelLines holds
+--     the set).
+--   - When a model line DOES require memoization, the job covers exactly one
+--     model line (CmmsModelLines has a single entry) but still multiple files.
+-- Pre-created by the Phase-1 last-RankerJob-out when transitioning
+-- RawImpressionUploadModelLine from RANKING to LABELING.
+-- A model line transitions LABELING -> COMPLETED once every VidLabelingJob
+-- whose CmmsModelLines contains it has succeeded; the job that completes the
+-- last such model line triggers DataAvailabilitySync.
 -- =============================================================================
 CREATE TABLE VidLabelingJob (
   DataProviderResourceId STRING(63) NOT NULL,
