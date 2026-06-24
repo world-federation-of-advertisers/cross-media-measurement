@@ -427,8 +427,6 @@ class VidLabelingJobService(
       InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
       InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
       InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-      InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-      InternalErrors.Reason.INVALID_FIELD_VALUE,
       null -> Status.INTERNAL.withCause(e).asRuntimeException()
       InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
       InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND ->
@@ -438,6 +436,9 @@ class VidLabelingJobService(
       InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS ->
         Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
       InternalErrors.Reason.ETAG_MISMATCH -> Status.ABORTED.withCause(e).asRuntimeException()
+      InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+      InternalErrors.Reason.INVALID_FIELD_VALUE ->
+        Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
     }
   }
 
