@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
 import com.google.protobuf.duration
 import com.google.type.DateTime
@@ -33,6 +32,8 @@ import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.mediatype.toEventAnnotationMediaType
 import org.wfanet.measurement.common.toTimestamp
+import org.wfanet.measurement.internal.reporting.v2.DimensionSpec as InternalDimensionSpec
+import org.wfanet.measurement.internal.reporting.v2.ReportingUnit as InternalReportingUnit
 import org.wfanet.measurement.reporting.service.api.DataProviderNotFoundForCampaignGroupException
 import org.wfanet.measurement.reporting.service.api.EventTemplateFieldInvalidException
 import org.wfanet.measurement.reporting.service.api.FieldUnimplementedException
@@ -225,22 +226,19 @@ object CreateBasicReportRequestValidation {
       // differences (e.g. `filters` permuted, `reportingUnit.components`
       // permuted, `grouping.event_template_fields` permuted) -- which the
       // downstream pipeline treats as equivalent when generating RSRs --
-      // are recognized as the same dim. A raw v2alpha `toByteString()` is
-      // sensitive to those orderings and would let a colliding pair slip
-      // through.
+      // are recognized as the same dim. Without normalization a colliding
+      // pair with any of those order-only differences would slip through.
       val key =
         ResultGroupSpecCollisionKey(
-          reportingUnitBytes =
-            Normalization.normalizeReportingUnit(resultGroupSpec.reportingUnit.toInternal())
-              .toByteString(),
-          dimensionSpecBytes =
-            Normalization.normalizeDimensionSpec(resultGroupSpec.dimensionSpec.toInternal())
-              .toByteString(),
+          reportingUnit =
+            Normalization.normalizeReportingUnit(resultGroupSpec.reportingUnit.toInternal()),
+          dimensionSpec =
+            Normalization.normalizeDimensionSpec(resultGroupSpec.dimensionSpec.toInternal()),
           selectorCase = resultGroupSpec.metricFrequency.selectorCase,
         )
-      val frequencyBytes = resultGroupSpec.metricFrequency.toByteString()
+      val frequency = resultGroupSpec.metricFrequency
       val existing = frequencyByDimKey[key]
-      if (existing != null && existing.frequencyBytes != frequencyBytes) {
+      if (existing != null && existing.frequency != frequency) {
         throw InvalidFieldValueException("$fieldPath[$index].metric_frequency") { fieldPath ->
           "$fieldPath collides with result_group_specs[${existing.index}]" +
             ".metric_frequency on " +
@@ -249,7 +247,7 @@ object CreateBasicReportRequestValidation {
             "cadences for the same slice are not supported."
         }
       }
-      frequencyByDimKey[key] = IndexedResultGroupSpecFrequency(index, frequencyBytes)
+      frequencyByDimKey[key] = IndexedResultGroupSpecFrequency(index, frequency)
     }
   }
 
@@ -257,23 +255,23 @@ object CreateBasicReportRequestValidation {
    * Hashable identity key used to detect duplicate [ResultGroupSpec]s that would collapse to the
    * same dimension in the post-processor.
    *
-   * Proto messages don't define stable hashCode/equals across runtimes, so key on the serialized
-   * bytes of the structured fields and on the enum selector case directly.
+   * Protobuf-generated [equals]/[hashCode] are stable within a single JVM, which is all this map
+   * needs (built and discarded inside [validateResultGroupSpecs]).
    */
   private data class ResultGroupSpecCollisionKey(
-    val reportingUnitBytes: ByteString,
-    val dimensionSpecBytes: ByteString,
+    val reportingUnit: InternalReportingUnit,
+    val dimensionSpec: InternalDimensionSpec,
     val selectorCase: MetricFrequencySpec.SelectorCase,
   )
 
   /**
    * Tracks the index of the first [ResultGroupSpec] seen for a given [ResultGroupSpecCollisionKey],
-   * along with the serialized metric_frequency value at that index. The index lets the collision
-   * error name both colliding entries, not just the second one.
+   * along with its full metric_frequency value. The index lets the collision error name both
+   * colliding entries, not just the second one.
    */
   private data class IndexedResultGroupSpecFrequency(
     val index: Int,
-    val frequencyBytes: ByteString,
+    val frequency: MetricFrequencySpec,
   )
 
   /**
