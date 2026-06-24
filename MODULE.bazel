@@ -30,7 +30,7 @@ bazel_dep(
 # DO_NOT_SUBMIT: use new release version
 git_override(
     module_name = "rules_kotlin_jvm",
-    commit = "a8c01872660dc08644f88b7ab5ff495c6d34204a",
+    commit = "abc7df30d55ffa85361ba592ffa0658cc80cabc0",
     remote = "https://github.com/world-federation-of-advertisers/rules_kotlin_jvm.git",
 )
 bazel_dep(
@@ -51,7 +51,7 @@ bazel_dep(
 # DO_NOT_SUBMIT: use new release version
 git_override(
     module_name = "common-jvm",
-    commit = "6dadbecca82f661d827b21b682c1cc87404beb36",
+    commit = "86c066b670f7e9e7808eaac2f97fdadead669ead",
     remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
 bazel_dep(
@@ -132,7 +132,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_cc",
-    version = "0.2.14",
+    version = "0.2.20",
 )
 bazel_dep(
     name = "rules_pkg",
@@ -154,7 +154,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_jvm_external",
-    version = "6.8",
+    version = "7.0",
 )
 bazel_dep(
     name = "rules_python",
@@ -205,7 +205,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_oci",
-    version = "2.2.1",
+    version = "2.3.0",
 )
 single_version_override(
     module_name = "rules_oci",
