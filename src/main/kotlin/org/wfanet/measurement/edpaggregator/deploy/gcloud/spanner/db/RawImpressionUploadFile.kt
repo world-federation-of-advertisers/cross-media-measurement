@@ -53,6 +53,7 @@ private const val BASE_SQL =
     RawImpressionUploadFile.FileResourceId,
     RawImpressionUploadFile.CreateRequestId,
     RawImpressionUploadFile.BlobUri,
+    RawImpressionUploadFile.SizeBytes,
     RawImpressionUploadFile.CreateTime,
     RawImpressionUploadFile.UpdateTime,
     RawImpressionUploadFile.DeleteTime,
@@ -133,8 +134,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingUploadFilesByRequestIds(
   rawImpressionUploadId: Long,
   requestIds: List<String>,
 ): Map<String, RawImpressionUploadFileResult> {
-  val nonEmptyRequestIds: List<String> = requestIds.filter { it.isNotEmpty() }
-  if (nonEmptyRequestIds.isEmpty()) return emptyMap()
+  if (requestIds.isEmpty()) return emptyMap()
 
   val sql: String =
     """
@@ -150,7 +150,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingUploadFilesByRequestIds(
     statement(sql) {
       bind("dataProviderResourceId").to(dataProviderResourceId)
       bind("rawImpressionUploadId").to(rawImpressionUploadId)
-      bind("createRequestIds").toStringArray(nonEmptyRequestIds)
+      bind("createRequestIds").toStringArray(requestIds)
     }
 
   return buildMap {
@@ -214,6 +214,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUploadFile(
   rawImpressionUploadId: Long,
   fileResourceId: String,
   blobUri: String,
+  sizeBytes: Long,
   createRequestId: String,
 ) {
   bufferInsertMutation("RawImpressionUploadFile") {
@@ -221,10 +222,9 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUploadFile(
     set("RawImpressionUploadId").to(rawImpressionUploadId)
     set("FileId").to(fileId)
     set("FileResourceId").to(fileResourceId)
-    if (createRequestId.isNotEmpty()) {
-      set("CreateRequestId").to(createRequestId)
-    }
+    set("CreateRequestId").to(createRequestId)
     set("BlobUri").to(blobUri)
+    set("SizeBytes").to(sizeBytes)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
@@ -355,6 +355,7 @@ private fun buildRawImpressionUploadFileResult(struct: Struct): RawImpressionUpl
       rawImpressionUploadResourceId = struct.getString("RawImpressionUploadResourceId")
       fileResourceId = struct.getString("FileResourceId")
       blobUri = struct.getString("BlobUri")
+      sizeBytes = struct.getLong("SizeBytes")
       createTime = struct.getTimestamp("CreateTime").toProto()
       updateTime = struct.getTimestamp("UpdateTime").toProto()
       if (!struct.isNull("DeleteTime")) {
