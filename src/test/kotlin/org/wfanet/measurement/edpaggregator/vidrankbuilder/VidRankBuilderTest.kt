@@ -635,6 +635,7 @@ class VidRankBuilderTest {
         subpoolRankedSizes = emptyMap(),
         vidLabelerParamsTemplate = VID_LABELER_TEMPLATE,
         vidLabelerQueue = QUEUE,
+        maxFileBatchSizeBytes = 1_000_000_000,
       )
 
     assertFailsWith<IllegalArgumentException> { subject.run() }
@@ -656,17 +657,27 @@ class VidRankBuilderTest {
   }
 
   @Test
-  fun `files with unknown size all pack into a single VidLabelingJob`() =
+  fun `empty (zero-byte) files all pack into a single VidLabelingJob`() =
     runBlocking<Unit> {
       val published = mutableListOf<CreateWorkItemRequest>()
-      // size_bytes unset (0) contributes nothing to the running total, so no batch ever overflows.
+      // size_bytes = 0 means a genuinely empty file (not "unknown"); it contributes nothing to the
+      // running total, so no batch ever overflows.
       val files =
         mock<RawImpressionUploadFileServiceCoroutineStub> {
           onBlocking { listRawImpressionUploadFiles(any(), any()) } doReturn
             listRawImpressionUploadFilesResponse {
-              rawImpressionUploadFiles += rawImpressionUploadFile { name = "$UPLOAD/files/0" }
-              rawImpressionUploadFiles += rawImpressionUploadFile { name = "$UPLOAD/files/1" }
-              rawImpressionUploadFiles += rawImpressionUploadFile { name = "$UPLOAD/files/2" }
+              rawImpressionUploadFiles += rawImpressionUploadFile {
+                name = "$UPLOAD/files/0"
+                sizeBytes = 0
+              }
+              rawImpressionUploadFiles += rawImpressionUploadFile {
+                name = "$UPLOAD/files/1"
+                sizeBytes = 0
+              }
+              rawImpressionUploadFiles += rawImpressionUploadFile {
+                name = "$UPLOAD/files/2"
+                sizeBytes = 0
+              }
             }
         }
 

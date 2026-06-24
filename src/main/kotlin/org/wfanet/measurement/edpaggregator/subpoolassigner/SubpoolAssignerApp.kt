@@ -228,6 +228,9 @@ class SubpoolAssignerApp(
         "vid_labeled_impressions_storage_params must be set"
       }
       require(params.hasVidRankMapStorageParams()) { "vid_rank_map_storage_params must be set" }
+      require(params.maxFileBatchSizeBytes > 0) {
+        "max_file_batch_size_bytes must be set (> 0) by the dispatcher"
+      }
       return vidRankBuilderParams {
         dataProvider = params.dataProvider
         rawImpressionStorageParams =
@@ -242,9 +245,8 @@ class SubpoolAssignerApp(
         labelerInputFieldMapping.putAll(params.labelerInputFieldMappingMap)
         eventTemplateFieldMapping.putAll(params.eventTemplateFieldMappingMap)
         totalShards = params.totalShards
-        // Phase-2 bin-packing cap, forwarded verbatim so the Phase-1 last-out can batch the
-        // upload's files without round-tripping to the dispatcher. Left at 0 (unset) when the
-        // dispatcher did not set it; Phase-1 then falls back to its built-in default.
+        // Phase-2 bin-packing cap (REQUIRED), forwarded verbatim so the Phase-1 last-out can batch
+        // the upload's files without round-tripping to the dispatcher.
         maxFileBatchSizeBytes = params.maxFileBatchSizeBytes
       }
     }

@@ -169,11 +169,16 @@ message SubpoolAssignerParams {
   // Maximum total `RawImpressionUploadFile.size_bytes` the VidRankBuilder
   // Phase-1 last-`RankerJob`-out bin-packs into a single `VidLabelingJob` for
   // the Phase-2 VidLabeler fan-out. A single file at or above this size gets
-  // its own job. Originally set by the VID Labeling Dispatcher / Monitor Cloud
-  // Functions.
+  // its own job.
   //
-  // Not consumed by the Phase-0 SubpoolAssigner. Carried as pass-through so the
-  // last-shard-out can stamp it on the VidRankBuilder Phase-1 WorkItem. Unset
-  // (0) means the Phase-1 ranker falls back to its built-in default (1 GiB).
-  int64 max_file_batch_size_bytes = 17 [(google.api.field_behavior) = OPTIONAL];
+  // REQUIRED: this is the upstream end of the Phase-2 VM-sizing contract
+  // (dispatcher -> SubpoolAssignerParams -> VidRankBuilderParams -> bin-packing).
+  // The VID Labeling Dispatcher / Monitor Cloud Functions MUST set it; there is
+  // no built-in default, because a wrong default OOMs the Phase-2 VM (cap too
+  // high) or under-utilizes it (cap too low). Validated `> 0` at the
+  // SubpoolAssignerApp boundary.
+  //
+  // Not consumed by the Phase-0 SubpoolAssigner; carried as pass-through so the
+  // last-shard-out can stamp it on the VidRankBuilder Phase-1 WorkItem.
+  int64 max_file_batch_size_bytes = 17 [(google.api.field_behavior) = REQUIRED];
 }

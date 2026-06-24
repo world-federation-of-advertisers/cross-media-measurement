@@ -56,9 +56,15 @@ message RawImpressionUploadFile {
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Size of the raw impression file in bytes. Used by the Phase-1 last-out to
-  // bin-pack files into `VidLabelingJob`s by total input size. 0 if unknown.
+  // bin-pack files into `VidLabelingJob`s by total input size.
+  //
+  // REQUIRED: the EDP uploader, GCS object metadata, and the dispatcher all know
+  // the size, so it is always available at row-creation time. A value of `0`
+  // means a genuinely empty file, NOT "unknown" — leaving it unset would let the
+  // bin-packer pack every file into a single `VidLabelingJob`, blowing the
+  // Phase-2 VM memory and the gRPC message-size limit.
   int64 size_bytes = 6 [
-    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
 }

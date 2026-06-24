@@ -304,19 +304,14 @@ class VidRankBuilderAppTest {
     }
 
   @Test
-  fun `runWork falls back to the default cap when max_file_batch_size_bytes is unset`() =
-    runBlocking<Unit> {
-      val published = mutableListOf<CreateWorkItemRequest>()
-      // 0 (unset) -> 1 GiB default -> all three 100-byte files in a single WorkItem.
-      val params = validParams().toBuilder().setMaxFileBatchSizeBytes(0).build()
+  fun `runWork rejects an unset max_file_batch_size_bytes`() = runBlocking {
+    // max_file_batch_size_bytes is REQUIRED (no built-in default); 0/unset must fail at the
+    // VidRankBuilder boundary rather than silently picking a cap.
+    val params = validParams().toBuilder().setMaxFileBatchSizeBytes(0).build()
 
-      createApp(workItemsStub = recordingWorkItems(published)).runWork(buildMessage(params))
-
-      assertThat(published).hasSize(1)
-      val memoized = publishedParams(published.single()).memoizedParams
-      assertThat(memoized.rawImpressionUploadFilesList)
-        .containsExactly("$UPLOAD/files/0", "$UPLOAD/files/1", "$UPLOAD/files/2")
-    }
+    assertFailsWith<IllegalArgumentException> { createApp().runWork(buildMessage(params)) }
+    Unit
+  }
 
   @Test
   fun `runWork carries pass-through fields into the memoized VidLabelerParams template`() =

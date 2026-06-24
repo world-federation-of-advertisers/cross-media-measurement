@@ -52,11 +52,15 @@ message VidLabelerParams {
   StorageParams vid_labeled_impressions_storage_params = 3
       [(google.api.field_behavior) = REQUIRED];
 
-  // Connection used by TEE App to access the VID Repo.
+  // Connection used by the TEE app to access the VID Repo.
   //
-  // Required on the legacy labeling path. Unset on the memoized path
-  // ([memoized_params] set), which derives each VID from its memoized rank and
-  // never calls the VID Repo.
+  // Configuration-dependent, not path-dependent: one labeler serves both the
+  // non-memoized and memoized model-line configurations. Required for the
+  // non-memoized configuration, which resolves VIDs against the VID Repo. Unset
+  // for the memoized configuration ([memoized_params] set), which derives each
+  // VID from its memoized rank using the compiled model at
+  // [MemoizedParams.model_blob_path] and never calls the VID Repo (an overflow /
+  // unseen fingerprint falls back to the locally-computed hash path).
   TransportLayerSecurityParams vid_repo_connection = 4
       [(google.api.field_behavior) = OPTIONAL];
 
@@ -81,9 +85,12 @@ message VidLabelerParams {
 
   // Resource name of the RawImpressionMetadataBatch for this batch.
   //
-  // Required on the legacy labeling path. Unset on the memoized path
-  // ([memoized_params] set), which locates its work via that message instead.
+  // Deprecated: this was the old per-batch work locator. New code locates its
+  // work via [MemoizedParams.raw_impression_upload_files] +
+  // [MemoizedParams.vid_labeling_job] instead. Retained read-only for any
+  // in-flight WorkItems created before the cutover; never written by new code.
   string raw_impression_metadata_batch = 7 [
+    deprecated = true,
     (google.api.field_behavior) = OPTIONAL,
     (google.api.resource_reference).type =
         "edpaggregator.halo-cmm.org/RawImpressionMetadataBatch"

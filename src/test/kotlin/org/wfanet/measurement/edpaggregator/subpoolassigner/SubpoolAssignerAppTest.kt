@@ -67,13 +67,14 @@ class SubpoolAssignerAppTest {
   }
 
   @Test
-  fun `leaves max_file_batch_size_bytes at 0 when the dispatcher did not set it`() {
+  fun `requires max_file_batch_size_bytes to be set`() {
+    // REQUIRED contract: the dispatcher must set it; an unset (0) value fails at this boundary
+    // rather than being forwarded for Phase-1 to silently default.
     val params = validParams().toBuilder().clearMaxFileBatchSizeBytes().build()
 
-    val template = SubpoolAssignerApp.buildVidRankBuilderParamsTemplate(params)
-
-    // The mapper forwards verbatim; the 0 -> 1 GiB default is resolved by Phase-1, not here.
-    assertThat(template.maxFileBatchSizeBytes).isEqualTo(0)
+    assertFailsWith<IllegalArgumentException> {
+      SubpoolAssignerApp.buildVidRankBuilderParamsTemplate(params)
+    }
   }
 
   @Test

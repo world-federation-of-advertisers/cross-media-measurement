@@ -188,10 +188,9 @@ class VidRankBuilderApp(
         subpoolRankedSizes = params.subpoolRankedSizesMap,
         vidLabelerParamsTemplate = buildVidLabelerParamsTemplate(params),
         vidLabelerQueue = vidLabelerQueue,
-        // Forwarded from Phase-0 via VidRankBuilderParams; 0 (unset) falls back to the default.
-        maxFileBatchSizeBytes =
-          params.maxFileBatchSizeBytes.takeIf { it > 0 }
-            ?: VidRankBuilder.DEFAULT_MAX_FILE_BATCH_SIZE_BYTES,
+        // Forwarded verbatim from Phase-0 via VidRankBuilderParams (REQUIRED); VidRankBuilder's
+        // `require(maxFileBatchSizeBytes > 0)` rejects an unset/zero value at the boundary.
+        maxFileBatchSizeBytes = params.maxFileBatchSizeBytes,
       )
       .run()
   }

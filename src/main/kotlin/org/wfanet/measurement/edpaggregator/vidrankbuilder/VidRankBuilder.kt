@@ -97,7 +97,8 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  *   last-job-out copies it per `VidLabelingJob`, filling the job's name + its files.
  * @param maxFileBatchSizeBytes the bin-packing threshold: the maximum total
  *   `RawImpressionUploadFile` `size_bytes` packed into one `VidLabelingJob` (best-effort; a file
- *   larger than this gets its own job).
+ *   larger than this gets its own job). Sourced from
+ *   `VidRankBuilderParams.max_file_batch_size_bytes` (REQUIRED); must be `> 0`.
  * @param maxJobsPerBatchCreate the maximum `CreateVidLabelingJobRequest`s per
  *   `BatchCreateVidLabelingJobs` call (the service's per-batch limit).
  * @param vidLabelerQueue the Secure Computation queue the Phase-2 WorkItems are published to.
@@ -116,7 +117,7 @@ class VidRankBuilder(
   private val subpoolRankedSizes: Map<Long, Int>,
   private val vidLabelerParamsTemplate: VidLabelerParams,
   private val vidLabelerQueue: String,
-  private val maxFileBatchSizeBytes: Long = DEFAULT_MAX_FILE_BATCH_SIZE_BYTES,
+  private val maxFileBatchSizeBytes: Long,
   private val maxJobsPerBatchCreate: Int = DEFAULT_MAX_JOBS_PER_BATCH_CREATE,
 ) {
   init {
@@ -280,7 +281,8 @@ class VidRankBuilder(
    * the input, so the batches — and therefore each job's deterministic `request_id` /
    * `work_item_id` (keyed by batch index) — are stable across redeliveries. A single file whose
    * `size_bytes` meets or exceeds the limit fits in no batch and lands in its own (best-effort: we
-   * never split a file). A file with an unknown size (0) adds nothing to a batch's running total.
+   * never split a file). `size_bytes` is REQUIRED on `RawImpressionUploadFile`; a `0` means a
+   * genuinely empty file (contributing nothing to a batch's running total), not "unknown".
    *
    * @return batches of `RawImpressionUploadFile` resource names, in deterministic order.
    */
@@ -465,13 +467,27 @@ class VidRankBuilder(
             errorMessage = (cause.message ?: cause::class.java.simpleName).take(MAX_ERROR_MESSAGE)
           }
         )
+      } else {
+        // Already advanced (most commonly: a prior attempt marked it FAILED and a redelivery failed
+        // again). Log the no-op so operators don't wonder why error_message wasn't updated.
+        logger.info("RankerJob $rankerJob already in state ${job.state}; not re-marking FAILED")
       }
     } catch (e: Exception) {
       logger.log(Level.WARNING, "Failed to mark RankerJob $rankerJob FAILED", e)
     }
   }
 
-  /** Whether every `RankerJob` for this (upload, model line) is `SUCCEEDED`. */
+  /**
+   * Whether every `RankerJob` for this (upload, model line) is `SUCCEEDED`.
+   *
+   * DO_NOT_SUBMIT: this is an N+1 list-scan — it reads every `RankerJob` row for the (upload, model
+   * line) and checks each in memory. The producer side was already fixed in #4052 (commit 12f9cb8
+   * replaced the list-and-check with `countOtherNonSucceededRankerJobs`). Once #4052 merges,
+   * replace this with a single COUNT (`countOtherNonSucceededRankerJobs(...) == 0L`); a COUNT is
+   * O(1) on the wire vs. O(rows). The DO_NOT_SUBMIT marker blocks merge until that swap lands.
+   *
+   * TODO(world-federation-of-advertisers/cross-media-measurement#4052): use the COUNT RPC.
+   */
   private suspend fun allRankerJobsSucceeded(): Boolean {
     var sawAny = false
     var allSucceeded = true
@@ -550,13 +566,6 @@ class VidRankBuilder(
      * service's per-batch limit).
      */
     private const val DEFAULT_MAX_JOBS_PER_BATCH_CREATE = 50
-
-    /**
-     * Default bin-packing threshold: max total `RawImpressionUploadFile` `size_bytes` per
-     * `VidLabelingJob`, used when `VidRankBuilderParams.max_file_batch_size_bytes` is unset (0). 1
-     * GiB.
-     */
-    const val DEFAULT_MAX_FILE_BATCH_SIZE_BYTES = 1L shl 30
 
     private val logger = Logger.getLogger(VidRankBuilder::class.java.name)
   }
