@@ -1,0 +1,45 @@
+# proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
+# proto-message: SyntheticEventGroupSpec
+
+# Expected output of LabelerInputSpecConverter for the golden test input:
+# 20 M16-34 labeler input IDs (0-19, freq 2) + 10 F55+ labeler input IDs (20-29, freq 1).
+
+date_specs {
+  date_range {
+    start { year: 2024  month: 1  day: 1 }
+    end_exclusive { year: 2024  month: 1  day: 2 }
+  }
+  frequency_specs {
+    frequency: 1
+    vid_range_specs { vid_range { start: 10486  end_exclusive: 10487 } }
+    vid_range_specs { vid_range { start: 10512  end_exclusive: 10513 } }
+    vid_range_specs { vid_range { start: 10519  end_exclusive: 10520 } }
+    vid_range_specs { vid_range { start: 10533  end_exclusive: 10534 } }
+    vid_range_specs { vid_range { start: 10536  end_exclusive: 10537 } }
+    vid_range_specs { vid_range { start: 10540  end_exclusive: 10541 } }
+    vid_range_specs { vid_range { start: 10564  end_exclusive: 10566 } }
+    vid_range_specs { vid_range { start: 10590  end_exclusive: 10591 } }
+    vid_range_specs { vid_range { start: 10595  end_exclusive: 10596 } }
+  }
+  frequency_specs {
+    frequency: 2
+    vid_range_specs { vid_range { start: 10002  end_exclusive: 10004 } }
+    vid_range_specs { vid_range { start: 10005  end_exclusive: 10006 } }
+    vid_range_specs { vid_range { start: 10018  end_exclusive: 10020 } }
+    vid_range_specs { vid_range { start: 10022  end_exclusive: 10023 } }
+    vid_range_specs { vid_range { start: 10025  end_exclusive: 10027 } }
+    vid_range_specs { vid_range { start: 10032  end_exclusive: 10033 } }
+    vid_range_specs { vid_range { start: 10043  end_exclusive: 10044 } }
+    vid_range_specs { vid_range { start: 10047  end_exclusive: 10049 } }
+    vid_range_specs { vid_range { start: 10052  end_exclusive: 10053 } }
+    vid_range_specs { vid_range { start: 10055  end_exclusive: 10056 } }
+    vid_range_specs { vid_range { start: 10072  end_exclusive: 10073 } }
+    vid_range_specs { vid_range { start: 10080  end_exclusive: 10081 } }
+    vid_range_specs { vid_range { start: 10089  end_exclusive: 10090 } }
+    vid_range_specs { vid_range { start: 10094  end_exclusive: 10095 } }
+  }
+  frequency_specs {
+    frequency: 4
+    vid_range_specs { vid_range { start: 10023  end_exclusive: 10024 } }
+  }
+}
