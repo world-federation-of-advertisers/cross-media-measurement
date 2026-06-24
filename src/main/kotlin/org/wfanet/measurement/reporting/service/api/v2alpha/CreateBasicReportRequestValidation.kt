@@ -257,9 +257,16 @@ object CreateBasicReportRequestValidation {
    *
    * Protobuf-generated [equals]/[hashCode] are stable within a single JVM, which is all this map
    * needs (built and discarded inside [validateResultGroupSpecs]).
+   *
+   * Both [reportingUnit] and [dimensionSpec] must be the result of
+   * [Normalization.normalizeReportingUnit] and [Normalization.normalizeDimensionSpec] respectively;
+   * an un-normalized value would not collide with its normalized counterpart and would silently
+   * bypass dedup.
    */
   private data class ResultGroupSpecCollisionKey(
+    /** Result of [Normalization.normalizeReportingUnit]. */
     val reportingUnit: InternalReportingUnit,
+    /** Result of [Normalization.normalizeDimensionSpec]. */
     val dimensionSpec: InternalDimensionSpec,
     val selectorCase: MetricFrequencySpec.SelectorCase,
   )
