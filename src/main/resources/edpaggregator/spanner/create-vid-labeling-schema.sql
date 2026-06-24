@@ -224,6 +224,13 @@ CREATE UNIQUE NULL_FILTERED INDEX RankerJobByMarkRequestId
 CREATE INDEX RankerJobByState
   ON RankerJob(DataProviderResourceId, State, CreateTime);
 
+CREATE INDEX RankerJobByModelLine
+  ON RankerJob(
+    DataProviderResourceId,
+    RawImpressionUploadId,
+    CmmsModelLine
+  ) STORING (State);
+
 -- =============================================================================
 -- RankIndexBlob — pointer to the rank-index blobs in GCS, with their DEKs.
 -- Two rows per (upload, model line, subpool): one DAY_ONLY and one SNAPSHOT.
