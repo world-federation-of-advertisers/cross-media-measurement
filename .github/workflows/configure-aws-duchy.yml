@@ -14,6 +14,12 @@
 
 name: "Configure AWS Duchy"
 
+run-name: >-
+  Configure AWS Duchy [${{ inputs.environment }}] |
+  apply=${{ inputs.apply }},
+  duchy=${{ inputs.duchy-name }},
+  image-tag=${{ inputs.image-tag }}
+
 on:
   workflow_call:
     inputs:

@@ -1,0 +1,31 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+package(default_testonly = True)
+
+kt_jvm_test(
+    name = "RankAllocatorTest",
+    srcs = ["RankAllocatorTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidrankbuilder.RankAllocatorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:event_id_digest_bytes",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:last_seen_day_bytes",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:rank_allocator",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_map_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_test(
+    name = "EventIdDigestBytesTest",
+    srcs = ["EventIdDigestBytesTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidrankbuilder.EventIdDigestBytesTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:event_id_digest_bytes",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)

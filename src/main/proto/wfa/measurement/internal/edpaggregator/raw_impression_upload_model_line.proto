@@ -17,6 +17,8 @@ syntax = "proto3";
 package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
@@ -47,4 +49,21 @@ message RawImpressionUploadModelLine {
 
   // Detail about the failure, set when state is FAILED.
   string error_message = 7;
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 8;
+
+  // Union of subpool offsets discovered across all shards during Phase 0;
+  // populated on last-shard-out.
+  repeated int64 pool_offsets = 9;
+
+  // Maximum event date (UTC) across all impressions discovered during Phase 0;
+  // populated on last-shard-out alongside `pool_offsets`.
+  google.type.Date max_event_date = 10;
+
+  // DEK that encrypts the merged per-subpool SubpoolFingerprints blobs; the
+  // last shard's encrypted_dek, promoted on last-shard-out so a retrying
+  // SubpoolAssigner reuses it.
+  wfa.measurement.securecomputation.impressions.EncryptedDek
+      encrypted_merged_dek = 11;
 }

@@ -48,27 +48,37 @@ service RawImpressionUploadModelLineService {
       ListRawImpressionUploadModelLinesRequest)
       returns (ListRawImpressionUploadModelLinesResponse);
 
-  // Marks a `RawImpressionUploadModelLine` as `POOL_ASSIGNING`.
+  // Marks a `RawImpressionUploadModelLine` as `POOL_ASSIGNING`. Throws
+  // `ABORTED` if `etag` does not match. Throws `FAILED_PRECONDITION`
+  // if the prior state does not allow this transition.
   rpc MarkRawImpressionUploadModelLinePoolAssigning(
       MarkRawImpressionUploadModelLinePoolAssigningRequest)
       returns (RawImpressionUploadModelLine);
 
-  // Marks a `RawImpressionUploadModelLine` as `RANKING`.
+  // Marks a `RawImpressionUploadModelLine` as `RANKING`. Throws
+  // `ABORTED` if `etag` does not match. Throws `FAILED_PRECONDITION`
+  // if the prior state does not allow this transition.
   rpc MarkRawImpressionUploadModelLineRanking(
       MarkRawImpressionUploadModelLineRankingRequest)
       returns (RawImpressionUploadModelLine);
 
-  // Marks a `RawImpressionUploadModelLine` as `LABELING`.
+  // Marks a `RawImpressionUploadModelLine` as `LABELING`. Throws
+  // `ABORTED` if `etag` does not match. Throws `FAILED_PRECONDITION`
+  // if the prior state does not allow this transition.
   rpc MarkRawImpressionUploadModelLineLabeling(
       MarkRawImpressionUploadModelLineLabelingRequest)
       returns (RawImpressionUploadModelLine);
 
-  // Marks a `RawImpressionUploadModelLine` as `COMPLETED`.
+  // Marks a `RawImpressionUploadModelLine` as `COMPLETED`. Throws
+  // `ABORTED` if `etag` does not match. Throws `FAILED_PRECONDITION`
+  // if the prior state does not allow this transition.
   rpc MarkRawImpressionUploadModelLineCompleted(
       MarkRawImpressionUploadModelLineCompletedRequest)
       returns (RawImpressionUploadModelLine);
 
-  // Marks a `RawImpressionUploadModelLine` as `FAILED`.
+  // Marks a `RawImpressionUploadModelLine` as `FAILED`. Throws
+  // `ABORTED` if `etag` does not match. Throws `FAILED_PRECONDITION`
+  // if the prior state does not allow this transition.
   rpc MarkRawImpressionUploadModelLineFailed(
       MarkRawImpressionUploadModelLineFailedRequest)
       returns (RawImpressionUploadModelLine);
@@ -181,6 +191,9 @@ message MarkRawImpressionUploadModelLinePoolAssigningRequest {
 
   // The CMMS model line resource name.
   string cmms_model_line = 3;
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 4;
 }
 
 // Request message for MarkRawImpressionUploadModelLineRanking.
@@ -193,6 +206,9 @@ message MarkRawImpressionUploadModelLineRankingRequest {
 
   // The CMMS model line resource name.
   string cmms_model_line = 3;
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 4;
 }
 
 // Request message for MarkRawImpressionUploadModelLineLabeling.
@@ -205,6 +221,9 @@ message MarkRawImpressionUploadModelLineLabelingRequest {
 
   // The CMMS model line resource name.
   string cmms_model_line = 3;
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 4;
 }
 
 // Request message for MarkRawImpressionUploadModelLineCompleted.
@@ -217,6 +236,9 @@ message MarkRawImpressionUploadModelLineCompletedRequest {
 
   // The CMMS model line resource name.
   string cmms_model_line = 3;
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 4;
 }
 
 // Request message for MarkRawImpressionUploadModelLineFailed.
@@ -232,4 +254,7 @@ message MarkRawImpressionUploadModelLineFailedRequest {
 
   // Human-readable detail about the failure.
   string error_message = 4;
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 5;
 }

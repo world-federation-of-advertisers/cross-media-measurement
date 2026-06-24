@@ -1,4 +1,4 @@
-// Copyright 2025 The Cross-Media Measurement Authors
+// Copyright 2026 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,13 +20,16 @@ import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.type.Date
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
+import org.wfanet.measurement.internal.kingdom.DateInterval
 import org.wfanet.measurement.internal.kingdom.EventGroupActivity
+import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesPageToken
 import org.wfanet.measurement.internal.kingdom.eventGroupActivity
 
 class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Result>() {
@@ -85,6 +88,49 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
       date = struct.getDate("ActivityDate").toProtoDate()
       createTime = struct.getTimestamp("CreateTime").toProto()
     }
+  }
+
+  suspend fun readEventGroupActivities(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalDataProviderId: Long,
+    externalEventGroupId: Long,
+    limit: Int,
+    after: ListEventGroupActivitiesPageToken.After? = null,
+    dateInterval: DateInterval? = null,
+  ): List<Result> {
+    return fillStatementBuilder {
+        val conjuncts = mutableListOf<String>()
+        conjuncts.add("DataProviders.ExternalDataProviderId = @externalDataProviderId")
+        bind("externalDataProviderId").to(externalDataProviderId)
+        if (externalEventGroupId != 0L) {
+          conjuncts.add("EventGroups.ExternalEventGroupId = @externalEventGroupId")
+          bind("externalEventGroupId").to(externalEventGroupId)
+        }
+        if (dateInterval != null) {
+          if (dateInterval.hasStartDate()) {
+            conjuncts.add("ActivityDate >= @startDate")
+            bind("startDate").to(dateInterval.startDate.toCloudDate())
+          }
+          if (dateInterval.hasEndDate()) {
+            conjuncts.add("ActivityDate < @endDate")
+            bind("endDate").to(dateInterval.endDate.toCloudDate())
+          }
+        }
+        if (after != null) {
+          conjuncts.add(
+            "((ActivityDate > @afterDate) OR (ActivityDate = @afterDate AND EventGroups.ExternalEventGroupId > @afterEventGroupId))"
+          )
+          bind("afterDate").to(after.date.toCloudDate())
+          bind("afterEventGroupId").to(after.externalEventGroupId)
+        }
+        if (conjuncts.isNotEmpty()) {
+          appendClause("WHERE " + conjuncts.joinToString(" AND "))
+        }
+        appendClause("ORDER BY ActivityDate ASC, EventGroups.ExternalEventGroupId ASC")
+        appendClause("LIMIT $limit")
+      }
+      .execute(readContext)
+      .toList()
   }
 
   companion object {
