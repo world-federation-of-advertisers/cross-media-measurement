@@ -570,6 +570,7 @@ class SpannerPoolAssignmentJobService(
     }
   }
 
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4078): Add AIP-155 request_id idempotency
   override suspend fun markPoolAssignmentJobFailed(
     request: MarkPoolAssignmentJobFailedRequest
   ): PoolAssignmentJob {
