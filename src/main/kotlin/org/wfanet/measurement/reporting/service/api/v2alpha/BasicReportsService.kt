@@ -365,6 +365,14 @@ class BasicReportsService(
 
     val createReportRequestId = UUID.randomUUID().toString()
 
+    // CEL compile-check the generated filter strings BEFORE the internal create call below. A
+    // bad-CEL request must surface as a failure on `createBasicReport` and leave no internal
+    // BasicReport row -- the EDP requisition path would otherwise fail at fulfillment time with
+    // an opaque "does not evaluate to a boolean" error against a row that the user thought
+    // succeeded. Any future refactor that reorders these blocks (or pushes CEL validation into a
+    // post-create step) reintroduces the orphan-row bug PR #4077 was written to prevent. The
+    // exception routing (Custom -> INVALID_ARGUMENT, Base/Named -> INTERNAL) is enforced inside
+    // `validateImpressionQualificationFilterCel` -- see its KDoc for the rationale.
     val reportingSetsMetricCalculationSpecDetailsMap:
       Map<ReportingSet, List<InternalMetricCalculationSpec.Details>> =
       try {
