@@ -152,6 +152,17 @@ class BasicReportsService(
     val nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
   )
 
+  /**
+   * A custom-IQF spec list tagged with its position in
+   * `basic_report.impression_qualification_filters`. Carries the index alongside the spec list so
+   * that the downstream Sourced... construction does not need to zip two parallel lists by position
+   * -- a coupling that would silently break under a future reorder of either list.
+   */
+  private data class IndexedCustomImpressionQualificationFilterSpec(
+    val requestIndex: Int,
+    val specs: List<ImpressionQualificationFilterSpec>,
+  )
+
   override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport {
     val eventTemplateFieldsByPath = eventMessageDescriptor.eventTemplateFieldsByPath
 
@@ -291,11 +302,12 @@ class BasicReportsService(
           it.impressionQualificationFilter to filterSpecs
         }
 
-    val customFilterSpecs: List<List<ImpressionQualificationFilterSpec>> = buildList {
+    val customFilterSpecs: List<IndexedCustomImpressionQualificationFilterSpec> = buildList {
       addAll(
-        effectiveReportingImpressionQualificationFilters
-          .filter { it.hasCustom() }
-          .map { customIqf ->
+        request.basicReport.impressionQualificationFiltersList
+          .withIndex()
+          .filter { it.value.hasCustom() }
+          .map { (requestIndex, customIqf) ->
             val normalizedCustomSpecs: Iterable<ImpressionQualificationFilterSpec> =
               normalizeImpressionQualificationFilterSpecs(customIqf.custom.filterSpecList)
 
@@ -312,7 +324,10 @@ class BasicReportsService(
                   .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
               }
             }
-            customIqf.custom.filterSpecList
+            IndexedCustomImpressionQualificationFilterSpec(
+              requestIndex = requestIndex,
+              specs = customIqf.custom.filterSpecList,
+            )
           }
       )
     }
@@ -323,6 +338,18 @@ class BasicReportsService(
     // base IQFs to INTERNAL. The request-index for user entries is the position in
     // `request.basicReport.impression_qualification_filters` -- NOT the position in the merged
     // effective list, which prepends base IQFs and reorders.
+    //
+    // Named IQFs: build a (name -> request index) map once and look up by name, so the source
+    // construction does not silently depend on `effectiveReportingImpressionQualificationFilters`
+    // preserving request order.
+    //
+    // Custom IQFs: take the index directly from `customFilterSpecs`, which carries the request
+    // index alongside the spec list (see [IndexedCustomImpressionQualificationFilterSpec]).
+    val namedRequestIndexByName: Map<String, Int> =
+      request.basicReport.impressionQualificationFiltersList
+        .withIndex()
+        .filter { it.value.hasImpressionQualificationFilter() }
+        .associate { (index, iqf) -> iqf.impressionQualificationFilter to index }
     val sourcedImpressionQualificationFilterSpecs: List<SourcedImpressionQualificationFilterSpecs> =
       buildList {
         for ((name, specs) in impressionQualificationFilterSpecsByName) {
@@ -336,27 +363,19 @@ class BasicReportsService(
               )
             } else {
               ImpressionQualificationFilterSpecsSource.Named(
-                requestIndex =
-                  request.basicReport.impressionQualificationFiltersList.indexOfFirst {
-                    it.impressionQualificationFilter == name
-                  },
+                requestIndex = namedRequestIndexByName.getValue(name),
                 impressionQualificationFilterName = name,
               )
             }
           add(SourcedImpressionQualificationFilterSpecs(specs, source))
         }
-        val customRequestIndices =
-          request.basicReport.impressionQualificationFiltersList
-            .withIndex()
-            .filter { it.value.hasCustom() }
-            .map { it.index }
-        for ((customListIndex, specs) in customFilterSpecs.withIndex()) {
+        for (indexedCustom in customFilterSpecs) {
           add(
             SourcedImpressionQualificationFilterSpecs(
-              specs = specs,
+              specs = indexedCustom.specs,
               source =
                 ImpressionQualificationFilterSpecsSource.Custom(
-                  requestIndex = customRequestIndices[customListIndex]
+                  requestIndex = indexedCustom.requestIndex
                 ),
             )
           )
