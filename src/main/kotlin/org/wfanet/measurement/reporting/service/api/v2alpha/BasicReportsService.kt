@@ -317,6 +317,52 @@ class BasicReportsService(
       )
     }
 
+    // Tag each effective IQF's filter specs with its provenance so CEL-validation failures inside
+    // buildReportingSetMetricCalculationSpecDetailsMap can be routed back to a meaningful error
+    // site: user-supplied entries to INVALID_ARGUMENT with the request index, server-configured
+    // base IQFs to INTERNAL. The request-index for user entries is the position in
+    // `request.basicReport.impression_qualification_filters` -- NOT the position in the merged
+    // effective list, which prepends base IQFs and reorders.
+    val sourcedImpressionQualificationFilterSpecs: List<SourcedImpressionQualificationFilterSpecs> =
+      buildList {
+        for ((name, specs) in impressionQualificationFilterSpecsByName) {
+          val source =
+            if (name in baseImpressionQualificationFilterNames) {
+              ImpressionQualificationFilterSpecsSource.Base(
+                externalImpressionQualificationFilterId =
+                  impressionQualificationFilterKeyByName
+                    .getValue(name)
+                    .impressionQualificationFilterId
+              )
+            } else {
+              ImpressionQualificationFilterSpecsSource.Named(
+                requestIndex =
+                  request.basicReport.impressionQualificationFiltersList.indexOfFirst {
+                    it.impressionQualificationFilter == name
+                  },
+                impressionQualificationFilterName = name,
+              )
+            }
+          add(SourcedImpressionQualificationFilterSpecs(specs, source))
+        }
+        val customRequestIndices =
+          request.basicReport.impressionQualificationFiltersList
+            .withIndex()
+            .filter { it.value.hasCustom() }
+            .map { it.index }
+        for ((customListIndex, specs) in customFilterSpecs.withIndex()) {
+          add(
+            SourcedImpressionQualificationFilterSpecs(
+              specs = specs,
+              source =
+                ImpressionQualificationFilterSpecsSource.Custom(
+                  requestIndex = customRequestIndices[customListIndex]
+                ),
+            )
+          )
+        }
+      }
+
     val createReportRequestId = UUID.randomUUID().toString()
 
     val reportingSetsMetricCalculationSpecDetailsMap:
@@ -324,8 +370,7 @@ class BasicReportsService(
       try {
         buildReportingSetMetricCalculationSpecDetailsMap(
           campaignGroupName = request.basicReport.campaignGroup,
-          impressionQualificationFilterSpecsLists =
-            impressionQualificationFilterSpecsByName.values + customFilterSpecs,
+          impressionQualificationFilterSpecs = sourcedImpressionQualificationFilterSpecs,
           dataProviderPrimitiveReportingSetMap =
             reportingSetMaps.primitiveReportingSetsByDataProvider,
           resultGroupSpecs = request.basicReport.resultGroupSpecsList,
@@ -334,6 +379,11 @@ class BasicReportsService(
         )
       } catch (e: InvalidFieldValueException) {
         throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      } catch (e: IllegalStateException) {
+        // Thrown by the transformer when a base or named IQF generated invalid CEL -- a server
+        // configuration error, not user input. Map to INTERNAL with the underlying cause attached
+        // so the operator can read the IQF id and the CEL issue from the cause chain.
+        throw Status.INTERNAL.withDescription(e.message).withCause(e).asRuntimeException()
       }
 
     val createdInternalBasicReport =

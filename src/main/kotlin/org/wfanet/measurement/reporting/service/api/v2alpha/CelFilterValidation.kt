@@ -29,21 +29,68 @@ import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
  *   does not return a boolean.
  */
 fun validateCelBooleanFilter(env: Env, filter: String, fieldPath: String) {
+  val issue = checkCelBoolean(env, filter) ?: return
+  throw InvalidFieldValueException(fieldPath) { "$it ${issue.fieldSuffix}" }
+}
+
+/**
+ * Validates that a CEL filter string compiles against the given [Env] and returns a boolean.
+ *
+ * An empty [filter] is a no-op. Throws [IllegalStateException] with a message built by
+ * [buildMessage] from the diagnostic when validation fails. Use for CEL whose source is server-
+ * controlled (a configuration error, not user input).
+ */
+fun validateCelBoolean(env: Env, filter: String, buildMessage: (issue: String) -> String) {
+  val issue = checkCelBoolean(env, filter) ?: return
+  throw IllegalStateException(buildMessage(issue.diagnostic))
+}
+
+/**
+ * Returns a [CelValidationIssue] describing why [filter] failed to validate, or `null` if it
+ * compiles and returns a boolean. An empty [filter] is treated as valid.
+ */
+private fun checkCelBoolean(env: Env, filter: String): CelValidationIssue? {
   if (filter.isEmpty()) {
-    return
+    return null
   }
   val astAndIssues =
     try {
       env.compile(filter)
     } catch (_: NullPointerException) {
-      throw InvalidFieldValueException(fieldPath) { "$it is not a valid CEL expression" }
+      // CEL throws NPE when the filter uses a non-CEL operator. Same swallowing pattern as
+      // CelFilteringMethods.filterList; treat as a syntax error.
+      return CelValidationIssue(
+        diagnostic = "not a valid CEL expression",
+        fieldSuffix = "is not a valid CEL expression",
+      )
     }
   if (astAndIssues.hasIssues()) {
-    throw InvalidFieldValueException(fieldPath) {
-      "$it is not a valid CEL expression: ${astAndIssues.issues}"
-    }
+    val issues = astAndIssues.issues.toString()
+    return CelValidationIssue(
+      diagnostic = "not a valid CEL expression: $issues",
+      fieldSuffix = "is not a valid CEL expression: $issues",
+    )
   }
   if (astAndIssues.ast.resultType != Decls.Bool) {
-    throw InvalidFieldValueException(fieldPath) { "$it does not evaluate to a boolean" }
+    return CelValidationIssue(
+      diagnostic = "does not evaluate to a boolean",
+      fieldSuffix = "does not evaluate to a boolean",
+    )
   }
+  return null
 }
+
+/**
+ * Diagnostic from a single CEL validation pass, in two formats so the caller can compose the right
+ * exception message without re-running the check.
+ *
+ * [fieldSuffix] reads naturally after a field path -- `"$fieldPath $fieldSuffix"` produces e.g.
+ * `"basic_report.…[2].custom is not a valid CEL expression"`. Used by [validateCelBooleanFilter] to
+ * feed [InvalidFieldValueException]'s `buildMessage` callback.
+ *
+ * [diagnostic] is the same content phrased as a standalone clause -- `"not a valid CEL expression"`
+ * -- so a caller-built message can splice it in: `"foo bar baz: $diagnostic"`. Used by
+ * [validateCelBoolean] for `IllegalStateException` messages where the field-path framing does not
+ * apply.
+ */
+private data class CelValidationIssue(val diagnostic: String, val fieldSuffix: String)
