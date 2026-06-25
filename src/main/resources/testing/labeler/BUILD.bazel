@@ -4,3 +4,13 @@ filegroup(
     srcs = ["reference_test_model.textproto"],
     visibility = ["//src/test/kotlin/org/wfanet/measurement/loadtest/dataprovider:__pkg__"],
 )
+
+# Riegeli record file of `Any`-packed `CompiledNode`s, vendored from virtual-people-core-serving
+# v0.3.1 (src/main/resources/testing/labeler/single_id_model_riegeli_list). The model assigns
+# virtual person id 10000 to every input.
+filegroup(
+    name = "single_id_model_riegeli",
+    testonly = True,
+    srcs = ["single_id_model_riegeli_list"],
+    visibility = ["//src/test/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:__pkg__"],
+)
