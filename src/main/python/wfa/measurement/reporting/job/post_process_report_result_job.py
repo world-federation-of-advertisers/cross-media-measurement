@@ -238,8 +238,9 @@ class PostProcessReportResultJob:
             # UNPROCESSED_RESULTS_READY so the next tick can retry; do not
             # mark it FAILED.
             logging.warning(
-                "Transient failure updating ReportResult for BasicReport %s,"
-                " MeasurementConsumer %s; will retry next tick",
+                "Transient failure (%s) updating ReportResult for BasicReport"
+                " %s, MeasurementConsumer %s; will retry next tick",
+                e.code().name,
                 basic_report.external_basic_report_id,
                 basic_report.cmms_measurement_consumer_id,
                 exc_info=True,
