@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.vidrankbuilder
 import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
+import com.google.protobuf.timestamp
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -179,6 +180,8 @@ class VidRankBuilderAppTest {
     labelerInputFieldMapping.put("event_id.id", "raw_event_id")
     eventTemplateFieldMapping.put("banner_ad.viewable", "raw_viewable")
     maxFileBatchSizeBytes = 1_000_000_000
+    activeStartTime = timestamp { seconds = 1000 }
+    activeEndTime = timestamp { seconds = 2000 }
     // subpool_map_blob_uris intentionally empty -> runWork skips ranking.
   }
 
@@ -330,5 +333,8 @@ class VidRankBuilderAppTest {
         .containsExactly("event_id.id", "raw_event_id")
       assertThat(modelLineConfig.eventTemplateFieldMappingMap)
         .containsExactly("banner_ad.viewable", "raw_viewable")
+      // Active-window forwarded Phase-0 -> Phase-1 -> Phase-2 ModelLineConfig.
+      assertThat(modelLineConfig.activeStartTime).isEqualTo(timestamp { seconds = 1000 })
+      assertThat(modelLineConfig.activeEndTime).isEqualTo(timestamp { seconds = 2000 })
     }
 }

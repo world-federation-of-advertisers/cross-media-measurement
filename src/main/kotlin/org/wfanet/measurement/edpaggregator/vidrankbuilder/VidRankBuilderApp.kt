@@ -224,6 +224,13 @@ class VidRankBuilderApp(
         VidLabelerParamsKt.modelLineConfig {
           labelerInputFieldMapping.putAll(params.labelerInputFieldMappingMap)
           eventTemplateFieldMapping.putAll(params.eventTemplateFieldMappingMap)
+          // Active-window pass-through (OPTIONAL): Phase-2 drops impressions outside this window.
+          if (params.hasActiveStartTime()) {
+            activeStartTime = params.activeStartTime
+          }
+          if (params.hasActiveEndTime()) {
+            activeEndTime = params.activeEndTime
+          }
         },
       )
       memoizedParams =

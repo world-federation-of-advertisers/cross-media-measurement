@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.subpoolassigner
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.timestamp
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -57,6 +58,8 @@ class SubpoolAssignerAppTest {
     eventTemplateFieldMapping.put("banner_ad.viewable", "raw_viewable")
     totalShards = 4
     maxFileBatchSizeBytes = 777
+    activeStartTime = timestamp { seconds = 1000 }
+    activeEndTime = timestamp { seconds = 2000 }
   }
 
   @Test
@@ -89,6 +92,9 @@ class SubpoolAssignerAppTest {
     assertThat(template.labelerInputFieldMappingMap).containsExactly("event_id.id", "raw_event_id")
     assertThat(template.eventTemplateFieldMappingMap)
       .containsExactly("banner_ad.viewable", "raw_viewable")
+    // Active-window timestamps forwarded verbatim from Phase-0 for the Phase-2 fan-out.
+    assertThat(template.activeStartTime).isEqualTo(timestamp { seconds = 1000 })
+    assertThat(template.activeEndTime).isEqualTo(timestamp { seconds = 2000 })
     // Storage params copy the {gcs_project_id, blob_prefix} shape across the two protos.
     assertThat(template.rawImpressionStorageParams.gcsProjectId).isEqualTo("test-project")
     assertThat(template.rawImpressionStorageParams.blobPrefix).isEqualTo("raw-impressions")

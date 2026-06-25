@@ -18,6 +18,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
 import "google/type/date.proto";
 import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
 
@@ -183,4 +184,22 @@ message VidRankBuilderParams {
   // too low), so the operator MUST choose it explicitly. Validated `> 0` by the
   // VidRankBuilder constructor.
   int64 max_file_batch_size_bytes = 17 [(google.api.field_behavior) = REQUIRED];
+
+  // Inclusive start of the model line's active window. Forwarded verbatim by
+  // the SubpoolAssigner Phase-0 last-shard-out from
+  // `SubpoolAssignerParams.active_start_time` so the Phase-1 last-`RankerJob`-out
+  // can stamp it on the Phase-2 VidLabeler `ModelLineConfig`. Impressions whose
+  // event timestamp is before this point are dropped before labeling at Phase-2.
+  // Mirrors `ModelLine.active_start_time` from the public API.
+  google.protobuf.Timestamp active_start_time = 18
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Exclusive end of the model line's active window. Forwarded verbatim by the
+  // SubpoolAssigner Phase-0 last-shard-out from
+  // `SubpoolAssignerParams.active_end_time`. Unset means no upper bound.
+  // Impressions whose event timestamp is at or after this point are dropped
+  // before labeling at Phase-2. Mirrors `ModelLine.active_end_time` from the
+  // public API.
+  google.protobuf.Timestamp active_end_time = 19
+      [(google.api.field_behavior) = OPTIONAL];
 }
