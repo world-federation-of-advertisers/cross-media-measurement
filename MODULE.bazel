@@ -38,6 +38,12 @@ bazel_dep(
     version = "0.1.0",
     repo_name = "wfa_rules_swig",
 )
+# DO_NOT_SUBMIT: use new release version
+git_override(
+    module_name = "rules_swig",
+    commit = "09b56740eb29007901c8514494683caa811564d2",
+    remote = "https://github.com/world-federation-of-advertisers/rules_swig.git",
+)
 bazel_dep(
     name = "rules_cue",
     version = "0.4.1",
