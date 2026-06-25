@@ -20,7 +20,10 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "memoized_rank_index",
-    srcs = ["MemoizedRankIndex.kt"],
+    srcs = [
+        "MemoizedRankIndex.kt",
+        "MemoizedRankIndexMetrics.kt",
+    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
@@ -33,7 +36,9 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_map_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_kt_jvm_proto",
     ],
 )
