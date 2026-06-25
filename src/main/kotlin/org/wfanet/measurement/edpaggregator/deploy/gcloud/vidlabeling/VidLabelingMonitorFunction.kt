@@ -351,6 +351,10 @@ class VidLabelingMonitorFunction : HttpFunction {
       }
     }
 
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4020): De-duplicate this
+    // template builder (with buildVidLabelerParamsTemplate and convertModelLineConfigs) into a
+    // shared helper once the helper-extraction thread on #4020 (this branch's parent) is
+    // addressed, rather than copying it across the dispatcher and monitor Function classes.
     /**
      * Builds the template [SubpoolAssignerParams] carrying the storage + connection fields shared
      * by every memoized Phase-0 WorkItem. The per-shard fields (model line, shard index, active
@@ -365,11 +369,18 @@ class VidLabelingMonitorFunction : HttpFunction {
       require(config.vidLabeledImpressionsStorageParams.hasGcs()) {
         "VidLabelingConfig vid_labeled_impressions_storage_params must use GCS"
       }
-      require(config.vidRankMapStorageParams.hasGcs()) {
-        "VidLabelingConfig vid_rank_map_storage_params must use GCS"
+      // vid_rank_map/subpool_map storage are consumed only by the memoized Phase-0 path and are
+      // therefore optional in VidLabelingConfig; validate them only when set. An EDP whose model
+      // lines are all non-memoized may omit them, and this template is then never consumed.
+      if (config.hasVidRankMapStorageParams()) {
+        require(config.vidRankMapStorageParams.hasGcs()) {
+          "VidLabelingConfig vid_rank_map_storage_params must use GCS"
+        }
       }
-      require(config.subpoolMapStorageParams.hasGcs()) {
-        "VidLabelingConfig subpool_map_storage_params must use GCS"
+      if (config.hasSubpoolMapStorageParams()) {
+        require(config.subpoolMapStorageParams.hasGcs()) {
+          "VidLabelingConfig subpool_map_storage_params must use GCS"
+        }
       }
 
       return subpoolAssignerParams {
@@ -384,16 +395,20 @@ class VidLabelingMonitorFunction : HttpFunction {
             gcsProjectId = config.vidLabeledImpressionsStorageParams.gcs.projectId
             blobPrefix = "gs://${config.vidLabeledImpressionsStorageParams.gcs.bucketName}"
           }
-        vidRankMapStorageParams =
-          SubpoolAssignerParamsKt.storageParams {
-            gcsProjectId = config.vidRankMapStorageParams.gcs.projectId
-            blobPrefix = "gs://${config.vidRankMapStorageParams.gcs.bucketName}"
-          }
-        subpoolMapStorageParams =
-          SubpoolAssignerParamsKt.storageParams {
-            gcsProjectId = config.subpoolMapStorageParams.gcs.projectId
-            blobPrefix = "gs://${config.subpoolMapStorageParams.gcs.bucketName}"
-          }
+        if (config.hasVidRankMapStorageParams()) {
+          vidRankMapStorageParams =
+            SubpoolAssignerParamsKt.storageParams {
+              gcsProjectId = config.vidRankMapStorageParams.gcs.projectId
+              blobPrefix = "gs://${config.vidRankMapStorageParams.gcs.bucketName}"
+            }
+        }
+        if (config.hasSubpoolMapStorageParams()) {
+          subpoolMapStorageParams =
+            SubpoolAssignerParamsKt.storageParams {
+              gcsProjectId = config.subpoolMapStorageParams.gcs.projectId
+              blobPrefix = "gs://${config.subpoolMapStorageParams.gcs.bucketName}"
+            }
+        }
         rawImpressionMetadataStorageConnection = transportLayerSecurityParams {
           clientCertResourcePath = config.rawImpressionMetadataStorageConnection.certFilePath
           clientPrivateKeyResourcePath =

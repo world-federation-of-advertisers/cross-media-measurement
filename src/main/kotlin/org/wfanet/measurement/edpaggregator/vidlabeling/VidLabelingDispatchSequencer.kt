@@ -44,13 +44,13 @@ import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.createPoolAssignmentJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLinePoolAssigningRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
-import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
@@ -581,28 +581,24 @@ class VidLabelingDispatchSequencer(
     shardIndex: Int,
     uploadId: String,
   ) {
-    val params = subpoolAssignerParams {
-      dataProvider = dataProviderName
-      rawImpressionStorageParams = subpoolAssignerParamsTemplate.rawImpressionStorageParams
-      vidLabeledImpressionsStorageParams =
-        subpoolAssignerParamsTemplate.vidLabeledImpressionsStorageParams
-      vidRankMapStorageParams = subpoolAssignerParamsTemplate.vidRankMapStorageParams
-      subpoolMapStorageParams = subpoolAssignerParamsTemplate.subpoolMapStorageParams
-      rawImpressionMetadataStorageConnection =
-        subpoolAssignerParamsTemplate.rawImpressionMetadataStorageConnection
-      rawImpressionUpload = uploadName
-      modelLine = modelLineName
-      this.modelBlobPath = modelBlobPath
-      activeStartTime = resolvedModelLine.activeStartTime
-      if (resolvedModelLine.hasActiveEndTime()) {
-        activeEndTime = resolvedModelLine.activeEndTime
+    // Start from the shared template (data provider, storage params, TLS connection) and fill in
+    // the per-shard fields. `copy` carries every template field, so a field added to the template
+    // later is propagated automatically.
+    val params =
+      subpoolAssignerParamsTemplate.copy {
+        rawImpressionUpload = uploadName
+        modelLine = modelLineName
+        this.modelBlobPath = modelBlobPath
+        activeStartTime = resolvedModelLine.activeStartTime
+        if (resolvedModelLine.hasActiveEndTime()) {
+          activeEndTime = resolvedModelLine.activeEndTime
+        }
+        this.shardIndex = shardIndex
+        totalShards = numberOfShards
+        labelerInputFieldMapping.putAll(modelLineConfig.labelerInputFieldMappingMap)
+        eventTemplateFieldMapping.putAll(modelLineConfig.eventTemplateFieldMappingMap)
+        this.poolAssignmentJob = poolAssignmentJob
       }
-      this.shardIndex = shardIndex
-      totalShards = numberOfShards
-      labelerInputFieldMapping.putAll(modelLineConfig.labelerInputFieldMappingMap)
-      eventTemplateFieldMapping.putAll(modelLineConfig.eventTemplateFieldMappingMap)
-      this.poolAssignmentJob = poolAssignmentJob
-    }
 
     val workItemId =
       "subpool-assigner-$uploadId-${modelLineName.substringAfterLast("/")}-shard-$shardIndex"
