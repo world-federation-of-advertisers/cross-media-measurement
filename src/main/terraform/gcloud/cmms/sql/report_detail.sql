@@ -12,6 +12,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- NOTE: These tables are empty until an upstream change persists report
+-- event-group associations in a queryable form (BasicReportResultDetails is
+-- never populated). Tracked in: https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/4084
+
 MERGE INTO `${project_id}.${dataset}.${table_name}` T
 USING (
 %{ if include_platform_columns }
