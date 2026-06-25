@@ -38,25 +38,37 @@ class DashboardViewIsolationLocalTest {
     return Files.readString(path)
   }
 
-  private fun renderWithPlatformColumnsDisabled(template: String): String {
+  /**
+   * Renders a templatefile-style SQL template by resolving the `include_platform_columns`
+   * conditionals. Handles both the positive (`%{ if include_platform_columns }`) and negated (`%{
+   * if !include_platform_columns }`) directives, plus `%{ else }`. Assumes the conditionals are not
+   * nested (true for the dashboard SQL).
+   */
+  private fun render(template: String, platformEnabled: Boolean): String {
     val result = StringBuilder()
-    var inIfBlock = false
-    var inElseBlock = false
+    var inConditional = false
+    var conditionMet = false
+    var keep = true
 
     for (line in template.lines()) {
       val trimmed = line.trim()
       when {
-        trimmed == "%{ if include_platform_columns }" -> inIfBlock = true
-        trimmed == "%{ else }" -> {
-          inIfBlock = false
-          inElseBlock = true
+        trimmed == "%{ if include_platform_columns }" -> {
+          inConditional = true
+          conditionMet = platformEnabled
+          keep = conditionMet
         }
+        trimmed == "%{ if !include_platform_columns }" -> {
+          inConditional = true
+          conditionMet = !platformEnabled
+          keep = conditionMet
+        }
+        trimmed == "%{ else }" -> keep = inConditional && !conditionMet
         trimmed == "%{ endif }" -> {
-          inIfBlock = false
-          inElseBlock = false
+          inConditional = false
+          keep = true
         }
-        inIfBlock -> {}
-        else -> result.appendLine(line)
+        keep -> result.appendLine(line)
       }
     }
     return result.toString()
@@ -68,12 +80,26 @@ class DashboardViewIsolationLocalTest {
       val sql = readSqlFile(fileName)
       assertThat(sql).contains("include_platform_columns")
 
-      val rendered = renderWithPlatformColumnsDisabled(sql)
+      val rendered = render(sql, platformEnabled = false)
 
       for (col in PLATFORM_ONLY_COLUMNS) {
         assertThat(rendered).doesNotContain(col)
       }
     }
+  }
+
+  @Test
+  fun entityKeysAreEdpOnlyInReportDetail() {
+    // EntityTypes/EntityIds are EDP-specific and must appear only in the
+    // EDP variant of report_detail, never in the platform variant.
+    val sql = readSqlFile("report_detail.sql")
+    val edpRendered = render(sql, platformEnabled = false)
+    val platformRendered = render(sql, platformEnabled = true)
+
+    assertThat(edpRendered).contains("AS EntityTypes")
+    assertThat(edpRendered).contains("AS EntityIds")
+    assertThat(platformRendered).doesNotContain("AS EntityTypes")
+    assertThat(platformRendered).doesNotContain("AS EntityIds")
   }
 
   @Test

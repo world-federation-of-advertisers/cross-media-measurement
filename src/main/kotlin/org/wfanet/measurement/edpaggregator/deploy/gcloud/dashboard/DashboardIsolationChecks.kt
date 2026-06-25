@@ -379,6 +379,8 @@ class DashboardIsolationChecks(
             "CmmsEventGroupIds",
             "CampaignNames",
             "BrandNames",
+            "EntityTypes",
+            "EntityIds",
           ),
         "mc_details" to
           setOf(

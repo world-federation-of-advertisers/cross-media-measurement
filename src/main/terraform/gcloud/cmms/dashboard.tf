@@ -454,6 +454,16 @@ resource "google_bigquery_table" "report_detail_edp" {
     "name": "BrandNames",
     "type": "STRING",
     "mode": "REPEATED"
+  },
+  {
+    "name": "EntityTypes",
+    "type": "STRING",
+    "mode": "REPEATED"
+  },
+  {
+    "name": "EntityIds",
+    "type": "STRING",
+    "mode": "REPEATED"
   }
 ]
 EOF

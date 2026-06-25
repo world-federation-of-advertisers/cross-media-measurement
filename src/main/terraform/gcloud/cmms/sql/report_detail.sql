@@ -27,13 +27,20 @@ SELECT
   ARRAY_AGG(DISTINCT base.CmmsEventGroupId) AS CmmsEventGroupIds,
   ARRAY_AGG(DISTINCT base.CampaignName IGNORE NULLS) AS CampaignNames,
   ARRAY_AGG(DISTINCT base.BrandName IGNORE NULLS) AS BrandNames
+%{ if !include_platform_columns }
+  ,
+  ARRAY_AGG(DISTINCT base.EntityType IGNORE NULLS) AS EntityTypes,
+  ARRAY_AGG(DISTINCT base.EntityId IGNORE NULLS) AS EntityIds
+%{ endif }
 FROM (
   SELECT
     br.ExternalReportId,
     JSON_VALUE(comp, '$.cmmsDataProviderId') AS CmmsDataProvider,
     JSON_VALUE(eg, '$.cmmsEventGroupId') AS CmmsEventGroupId,
     keg.CampaignName,
-    keg.BrandName
+    keg.BrandName,
+    keg.EntityType,
+    keg.EntityId
   FROM (
     SELECT
       ExternalReportId,
@@ -56,7 +63,9 @@ FROM (
         eg.ExternalEventGroupId,
         eg.MeasurementConsumerId,
         JSON_VALUE(TO_JSON(eg.EventGroupDetails), '$.metadata.adMetadata.campaignMetadata.campaignName') AS CampaignName,
-        JSON_VALUE(TO_JSON(eg.EventGroupDetails), '$.metadata.adMetadata.campaignMetadata.brandName') AS BrandName
+        JSON_VALUE(TO_JSON(eg.EventGroupDetails), '$.metadata.adMetadata.campaignMetadata.brandName') AS BrandName,
+        eg.EntityType,
+        eg.EntityId
       FROM EventGroups eg''')
   ) keg
     ON JSON_VALUE(eg, '$.cmmsEventGroupId') = `${project_id}.dashboard.externalIdToApiId`(keg.ExternalEventGroupId)
