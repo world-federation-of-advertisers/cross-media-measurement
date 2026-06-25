@@ -89,6 +89,7 @@ class SpannerRawImpressionUploadFileServiceTest : RawImpressionUploadFileService
         set("FileId").to(fileId)
         set("FileResourceId").to(fileResourceId)
         set("BlobUri").to(blobUri)
+        set("SizeBytes").to(1024L)
         set("CreateTime").to(createTime)
         set("UpdateTime").to(createTime)
         if (deleted) {

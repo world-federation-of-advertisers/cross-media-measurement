@@ -114,7 +114,10 @@ class RawImpressionUploadFileServiceTest {
       fileService.createRawImpressionUploadFile(
         createRawImpressionUploadFileRequest {
           parent = uploadName
-          rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+          rawImpressionUploadFile = rawImpressionUploadFile {
+            sizeBytes = SIZE_BYTES
+            blobUri = BLOB_URI_1
+          }
           requestId = UUID.randomUUID().toString()
         }
       )
@@ -131,7 +134,10 @@ class RawImpressionUploadFileServiceTest {
   @Test
   fun `createRawImpressionUploadFile throws INVALID_ARGUMENT for empty parent`() = runBlocking {
     val request = createRawImpressionUploadFileRequest {
-      rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+      rawImpressionUploadFile = rawImpressionUploadFile {
+        sizeBytes = SIZE_BYTES
+        blobUri = BLOB_URI_1
+      }
     }
 
     val exception =
@@ -151,7 +157,10 @@ class RawImpressionUploadFileServiceTest {
   fun `createRawImpressionUploadFile throws NOT_FOUND for nonexistent upload`() = runBlocking {
     val request = createRawImpressionUploadFileRequest {
       parent = "dataProviders/dp1/rawImpressionUploads/nonexistent"
-      rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+      rawImpressionUploadFile = rawImpressionUploadFile {
+        sizeBytes = SIZE_BYTES
+        blobUri = BLOB_URI_1
+      }
       requestId = UUID.randomUUID().toString()
     }
 
@@ -167,7 +176,10 @@ class RawImpressionUploadFileServiceTest {
       fileService.createRawImpressionUploadFile(
         createRawImpressionUploadFileRequest {
           parent = uploadName
-          rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+          rawImpressionUploadFile = rawImpressionUploadFile {
+            sizeBytes = SIZE_BYTES
+            blobUri = BLOB_URI_1
+          }
           requestId = UUID.randomUUID().toString()
         }
       )
@@ -206,7 +218,10 @@ class RawImpressionUploadFileServiceTest {
       fileService.createRawImpressionUploadFile(
         createRawImpressionUploadFileRequest {
           parent = uploadName
-          rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+          rawImpressionUploadFile = rawImpressionUploadFile {
+            sizeBytes = SIZE_BYTES
+            blobUri = BLOB_URI_1
+          }
           requestId = UUID.randomUUID().toString()
         }
       )
@@ -227,7 +242,10 @@ class RawImpressionUploadFileServiceTest {
       fileService.createRawImpressionUploadFile(
         createRawImpressionUploadFileRequest {
           parent = uploadName
-          rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+          rawImpressionUploadFile = rawImpressionUploadFile {
+            sizeBytes = SIZE_BYTES
+            blobUri = BLOB_URI_1
+          }
           requestId = UUID.randomUUID().toString()
         }
       )
@@ -252,12 +270,18 @@ class RawImpressionUploadFileServiceTest {
           parent = uploadName
           requests += createRawImpressionUploadFileRequest {
             parent = uploadName
-            rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+            rawImpressionUploadFile = rawImpressionUploadFile {
+              sizeBytes = SIZE_BYTES
+              blobUri = BLOB_URI_1
+            }
             requestId = UUID.randomUUID().toString()
           }
           requests += createRawImpressionUploadFileRequest {
             parent = uploadName
-            rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_2 }
+            rawImpressionUploadFile = rawImpressionUploadFile {
+              sizeBytes = SIZE_BYTES
+              blobUri = BLOB_URI_2
+            }
             requestId = UUID.randomUUID().toString()
           }
         }
@@ -276,7 +300,10 @@ class RawImpressionUploadFileServiceTest {
       fileService.createRawImpressionUploadFile(
         createRawImpressionUploadFileRequest {
           parent = uploadName
-          rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+          rawImpressionUploadFile = rawImpressionUploadFile {
+            sizeBytes = SIZE_BYTES
+            blobUri = BLOB_URI_1
+          }
           requestId = UUID.randomUUID().toString()
         }
       )
@@ -284,7 +311,10 @@ class RawImpressionUploadFileServiceTest {
       fileService.createRawImpressionUploadFile(
         createRawImpressionUploadFileRequest {
           parent = uploadName
-          rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_2 }
+          rawImpressionUploadFile = rawImpressionUploadFile {
+            sizeBytes = SIZE_BYTES
+            blobUri = BLOB_URI_2
+          }
           requestId = UUID.randomUUID().toString()
         }
       )
@@ -311,7 +341,10 @@ class RawImpressionUploadFileServiceTest {
       fileService.createRawImpressionUploadFile(
         createRawImpressionUploadFileRequest {
           parent = uploadName
-          rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+          rawImpressionUploadFile = rawImpressionUploadFile {
+            sizeBytes = SIZE_BYTES
+            blobUri = BLOB_URI_1
+          }
           this.requestId = requestId
         }
       )
@@ -319,7 +352,10 @@ class RawImpressionUploadFileServiceTest {
       fileService.createRawImpressionUploadFile(
         createRawImpressionUploadFileRequest {
           parent = uploadName
-          rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_2 }
+          rawImpressionUploadFile = rawImpressionUploadFile {
+            sizeBytes = SIZE_BYTES
+            blobUri = BLOB_URI_2
+          }
           this.requestId = requestId
         }
       )
@@ -337,7 +373,10 @@ class RawImpressionUploadFileServiceTest {
           fileService.createRawImpressionUploadFile(
             createRawImpressionUploadFileRequest {
               parent = uploadName
-              rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+              rawImpressionUploadFile = rawImpressionUploadFile {
+                sizeBytes = SIZE_BYTES
+                blobUri = BLOB_URI_1
+              }
               requestId = "not-a-uuid"
             }
           )
@@ -364,7 +403,10 @@ class RawImpressionUploadFileServiceTest {
           fileService.createRawImpressionUploadFile(
             createRawImpressionUploadFileRequest {
               parent = uploadName
-              rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+              rawImpressionUploadFile = rawImpressionUploadFile {
+                sizeBytes = SIZE_BYTES
+                blobUri = BLOB_URI_1
+              }
             }
           )
         }
@@ -392,7 +434,10 @@ class RawImpressionUploadFileServiceTest {
               parent = uploadName
               requests += createRawImpressionUploadFileRequest {
                 parent = uploadName
-                rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+                rawImpressionUploadFile = rawImpressionUploadFile {
+                  sizeBytes = SIZE_BYTES
+                  blobUri = BLOB_URI_1
+                }
               }
             }
           )
@@ -418,7 +463,10 @@ class RawImpressionUploadFileServiceTest {
           .createRawImpressionUploadFile(
             createRawImpressionUploadFileRequest {
               parent = uploadName
-              rawImpressionUploadFile = rawImpressionUploadFile { blobUri = "gs://bucket/file-$i" }
+              rawImpressionUploadFile = rawImpressionUploadFile {
+                sizeBytes = SIZE_BYTES
+                blobUri = "gs://bucket/file-$i"
+              }
               requestId = UUID.randomUUID().toString()
             }
           )
@@ -462,7 +510,10 @@ class RawImpressionUploadFileServiceTest {
       fileService.createRawImpressionUploadFile(
         createRawImpressionUploadFileRequest {
           parent = uploadNameA
-          rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+          rawImpressionUploadFile = rawImpressionUploadFile {
+            sizeBytes = SIZE_BYTES
+            blobUri = BLOB_URI_1
+          }
           requestId = UUID.randomUUID().toString()
         }
       )
@@ -470,7 +521,10 @@ class RawImpressionUploadFileServiceTest {
       fileService.createRawImpressionUploadFile(
         createRawImpressionUploadFileRequest {
           parent = uploadNameB
-          rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_2 }
+          rawImpressionUploadFile = rawImpressionUploadFile {
+            sizeBytes = SIZE_BYTES
+            blobUri = BLOB_URI_2
+          }
           requestId = UUID.randomUUID().toString()
         }
       )
@@ -492,14 +546,20 @@ class RawImpressionUploadFileServiceTest {
     fileService.createRawImpressionUploadFile(
       createRawImpressionUploadFileRequest {
         parent = uploadName
-        rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+        rawImpressionUploadFile = rawImpressionUploadFile {
+          sizeBytes = SIZE_BYTES
+          blobUri = BLOB_URI_1
+        }
         requestId = UUID.randomUUID().toString()
       }
     )
     fileService.createRawImpressionUploadFile(
       createRawImpressionUploadFileRequest {
         parent = uploadName
-        rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_2 }
+        rawImpressionUploadFile = rawImpressionUploadFile {
+          sizeBytes = SIZE_BYTES
+          blobUri = BLOB_URI_2
+        }
         requestId = UUID.randomUUID().toString()
       }
     )
@@ -522,14 +582,20 @@ class RawImpressionUploadFileServiceTest {
     fileService.createRawImpressionUploadFile(
       createRawImpressionUploadFileRequest {
         parent = uploadName
-        rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+        rawImpressionUploadFile = rawImpressionUploadFile {
+          sizeBytes = SIZE_BYTES
+          blobUri = BLOB_URI_1
+        }
         requestId = UUID.randomUUID().toString()
       }
     )
     fileService.createRawImpressionUploadFile(
       createRawImpressionUploadFileRequest {
         parent = uploadName
-        rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_2 }
+        rawImpressionUploadFile = rawImpressionUploadFile {
+          sizeBytes = SIZE_BYTES
+          blobUri = BLOB_URI_2
+        }
         requestId = UUID.randomUUID().toString()
       }
     )
@@ -572,12 +638,18 @@ class RawImpressionUploadFileServiceTest {
               parent = uploadName
               requests += createRawImpressionUploadFileRequest {
                 parent = uploadName
-                rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+                rawImpressionUploadFile = rawImpressionUploadFile {
+                  sizeBytes = SIZE_BYTES
+                  blobUri = BLOB_URI_1
+                }
                 this.requestId = requestId
               }
               requests += createRawImpressionUploadFileRequest {
                 parent = uploadName
-                rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_2 }
+                rawImpressionUploadFile = rawImpressionUploadFile {
+                  sizeBytes = SIZE_BYTES
+                  blobUri = BLOB_URI_2
+                }
                 this.requestId = requestId
               }
             }
@@ -607,7 +679,10 @@ class RawImpressionUploadFileServiceTest {
               parent = uploadName
               requests += createRawImpressionUploadFileRequest {
                 parent = "dataProviders/dp1/rawImpressionUploads/other"
-                rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+                rawImpressionUploadFile = rawImpressionUploadFile {
+                  sizeBytes = SIZE_BYTES
+                  blobUri = BLOB_URI_1
+                }
               }
             }
           )
@@ -670,7 +745,10 @@ class RawImpressionUploadFileServiceTest {
         fileService.createRawImpressionUploadFile(
           createRawImpressionUploadFileRequest {
             parent = uploadName
-            rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+            rawImpressionUploadFile = rawImpressionUploadFile {
+              sizeBytes = SIZE_BYTES
+              blobUri = BLOB_URI_1
+            }
             requestId = UUID.randomUUID().toString()
           }
         )
@@ -706,7 +784,10 @@ class RawImpressionUploadFileServiceTest {
         fileService.createRawImpressionUploadFile(
           createRawImpressionUploadFileRequest {
             parent = otherUploadName
-            rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+            rawImpressionUploadFile = rawImpressionUploadFile {
+              sizeBytes = SIZE_BYTES
+              blobUri = BLOB_URI_1
+            }
             requestId = UUID.randomUUID().toString()
           }
         )
@@ -790,7 +871,10 @@ class RawImpressionUploadFileServiceTest {
       fileService.createRawImpressionUploadFile(
         createRawImpressionUploadFileRequest {
           parent = uploadName
-          rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+          rawImpressionUploadFile = rawImpressionUploadFile {
+            sizeBytes = SIZE_BYTES
+            blobUri = BLOB_URI_1
+          }
           requestId = UUID.randomUUID().toString()
         }
       )
@@ -798,7 +882,10 @@ class RawImpressionUploadFileServiceTest {
       fileService.createRawImpressionUploadFile(
         createRawImpressionUploadFileRequest {
           parent = uploadName
-          rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_2 }
+          rawImpressionUploadFile = rawImpressionUploadFile {
+            sizeBytes = SIZE_BYTES
+            blobUri = BLOB_URI_2
+          }
           requestId = UUID.randomUUID().toString()
         }
       )
@@ -823,7 +910,10 @@ class RawImpressionUploadFileServiceTest {
         fileService.createRawImpressionUploadFile(
           createRawImpressionUploadFileRequest {
             parent = uploadName
-            rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+            rawImpressionUploadFile = rawImpressionUploadFile {
+              sizeBytes = SIZE_BYTES
+              blobUri = BLOB_URI_1
+            }
             requestId = UUID.randomUUID().toString()
           }
         )
@@ -831,7 +921,10 @@ class RawImpressionUploadFileServiceTest {
         fileService.createRawImpressionUploadFile(
           createRawImpressionUploadFileRequest {
             parent = uploadName
-            rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_2 }
+            rawImpressionUploadFile = rawImpressionUploadFile {
+              sizeBytes = SIZE_BYTES
+              blobUri = BLOB_URI_2
+            }
             requestId = UUID.randomUUID().toString()
           }
         )
@@ -867,6 +960,7 @@ class RawImpressionUploadFileServiceTest {
                 requests += createRawImpressionUploadFileRequest {
                   parent = uploadName
                   rawImpressionUploadFile = rawImpressionUploadFile {
+                    sizeBytes = SIZE_BYTES
                     blobUri = "gs://bucket/file-$i"
                   }
                   requestId = UUID.randomUUID().toString()
@@ -931,6 +1025,7 @@ class RawImpressionUploadFileServiceTest {
     private val DATA_PROVIDER_ID = externalIdToApiId(111L)
     private const val BLOB_URI_1 = "gs://bucket/file1"
     private const val BLOB_URI_2 = "gs://bucket/file2"
+    private const val SIZE_BYTES = 1024L
     private val FAR_FUTURE = timestamp { seconds = 4102444800L }
     private val uploadIdCounter = AtomicLong(0L)
   }
