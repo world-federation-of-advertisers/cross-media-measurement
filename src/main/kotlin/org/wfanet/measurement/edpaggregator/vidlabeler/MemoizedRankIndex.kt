@@ -17,7 +17,9 @@
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.protobuf.util.Timestamps
+import io.opentelemetry.api.common.Attributes
 import java.util.logging.Logger
+import kotlin.time.TimeSource
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -116,7 +118,9 @@ private constructor(private val mapsByPoolOffset: Map<Long, Bytes12IntMap>) {
       dataProvider: String,
       modelLine: String,
       readerParallelism: Int = DEFAULT_READER_PARALLELISM,
+      metrics: MemoizedRankIndexMetrics = MemoizedRankIndexMetrics(),
     ): MemoizedRankIndex {
+      val startMark = TimeSource.Monotonic.markNow()
       val latestByPoolOffset = LinkedHashMap<Long, RankIndexBlob>()
       rankIndexBlobsStub
         .listResources { pageToken: String ->
@@ -144,7 +148,7 @@ private constructor(private val mapsByPoolOffset: Map<Long, Bytes12IntMap>) {
         }
 
       val semaphore = Semaphore(readerParallelism.coerceAtLeast(1))
-      val maps: Map<Long, Bytes12IntMap> = coroutineScope {
+      val loaded: Map<Long, LoadedSubpool> = coroutineScope {
         latestByPoolOffset.values
           .map { blob ->
             async {
@@ -154,6 +158,22 @@ private constructor(private val mapsByPoolOffset: Map<Long, Bytes12IntMap>) {
           .awaitAll()
           .toMap()
       }
+      val maps: Map<Long, Bytes12IntMap> = loaded.mapValues { (_, subpool) -> subpool.map }
+
+      val baseAttributes =
+        Attributes.of(metrics.DATA_PROVIDER_ATTR, dataProvider, metrics.MODEL_LINE_ATTR, modelLine)
+      metrics.subpoolCountGauge.set(maps.size.toLong(), baseAttributes)
+      metrics.coldStartDurationHistogram.record(
+        startMark.elapsedNow().inWholeMilliseconds / 1000.0,
+        baseAttributes,
+      )
+      for ((poolOffset, subpool) in loaded) {
+        val poolAttributes =
+          baseAttributes.toBuilder().put(metrics.POOL_OFFSET_ATTR, poolOffset).build()
+        metrics.entryCountGauge.set(subpool.map.size, poolAttributes)
+        metrics.rankedSizeGauge.set(subpool.rankedSize.toLong(), poolAttributes)
+      }
+
       logger.info("Loaded memoized rank index for $modelLine: ${maps.size} subpool(s)")
       return MemoizedRankIndex(maps)
     }
@@ -164,10 +184,12 @@ private constructor(private val mapsByPoolOffset: Map<Long, Bytes12IntMap>) {
     private suspend fun readSubpoolMap(
       rankIndexStore: RankIndexStore,
       blob: RankIndexBlob,
-    ): Bytes12IntMap {
+    ): LoadedSubpool {
       val map = Bytes12IntMap()
+      var rankedSize = 0
       rankIndexStore.readBlob(blob.blobUri, blob.encryptedDek, blob.blobChecksum).collect { record
         ->
+        rankedSize = record.rankedSize
         val fingerprints = record.fingerprints
         val ranks = record.ranksList
         var offset = 0
@@ -179,7 +201,10 @@ private constructor(private val mapsByPoolOffset: Map<Long, Bytes12IntMap>) {
           offset += FINGERPRINT_BYTES
         }
       }
-      return map
+      return LoadedSubpool(map, rankedSize)
     }
+
+    /** A subpool's in-memory rank map plus its configured `ranked_size`, captured at load. */
+    private data class LoadedSubpool(val map: Bytes12IntMap, val rankedSize: Int)
   }
 }
