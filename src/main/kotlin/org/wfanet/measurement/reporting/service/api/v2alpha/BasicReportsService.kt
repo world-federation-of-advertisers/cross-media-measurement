@@ -89,6 +89,7 @@ import org.wfanet.measurement.reporting.service.api.CampaignGroupInvalidExceptio
 import org.wfanet.measurement.reporting.service.api.DataProviderNotFoundForCampaignGroupException
 import org.wfanet.measurement.reporting.service.api.EventTemplateFieldInvalidException
 import org.wfanet.measurement.reporting.service.api.FieldUnimplementedException
+import org.wfanet.measurement.reporting.service.api.ImpressionQualificationFilterInvalidCelException
 import org.wfanet.measurement.reporting.service.api.ImpressionQualificationFilterNotFoundException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.ModelLineNotActiveException
@@ -406,11 +407,12 @@ class BasicReportsService(
         )
       } catch (e: InvalidFieldValueException) {
         throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      } catch (e: IllegalStateException) {
+      } catch (e: ImpressionQualificationFilterInvalidCelException) {
         // Thrown by the transformer when a base or named IQF generated invalid CEL -- a server
-        // configuration error, not user input. Map to INTERNAL with the underlying cause attached
-        // so the operator can read the IQF id and the CEL issue from the cause chain.
-        throw Status.INTERNAL.withDescription(e.message).withCause(e).asRuntimeException()
+        // configuration error, not user input. Map to INTERNAL with the IQF id and CEL issue
+        // exposed as `errorInfo` metadata so operators can route on a structured reason rather
+        // than parsing a free-text description.
+        throw e.asStatusRuntimeException(Status.Code.INTERNAL)
       }
 
     val createdInternalBasicReport =

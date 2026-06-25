@@ -30,12 +30,12 @@ class CelFilterValidationTest {
 
   @Test
   fun `validateCelBooleanFilter accepts empty filter`() {
-    validateCelBooleanFilter(env, "", "field")
+    CelFilterValidation.validateCelBooleanFilter(env, "", "field")
   }
 
   @Test
   fun `validateCelBooleanFilter accepts well-formed boolean`() {
-    validateCelBooleanFilter(env, "banner_ad.viewable == true", "field")
+    CelFilterValidation.validateCelBooleanFilter(env, "banner_ad.viewable == true", "field")
   }
 
   @Test
@@ -43,7 +43,7 @@ class CelFilterValidationTest {
     for (case in BAD_CEL_CASES) {
       val exception =
         assertFailsWith<InvalidFieldValueException>("case: ${case.label} filter='${case.filter}'") {
-          validateCelBooleanFilter(env, case.filter, "my.field.path")
+          CelFilterValidation.validateCelBooleanFilter(env, case.filter, "my.field.path")
         }
       assertThat(exception.message).contains("my.field.path")
       assertThat(exception.message).contains(case.fieldSuffix)
@@ -52,12 +52,16 @@ class CelFilterValidationTest {
 
   @Test
   fun `validateCelBoolean accepts empty filter`() {
-    validateCelBoolean(env, "") { "should not be called" }
+    CelFilterValidation.validateCelBoolean(env, "") {
+      IllegalStateException("should not be called")
+    }
   }
 
   @Test
   fun `validateCelBoolean accepts well-formed boolean`() {
-    validateCelBoolean(env, "banner_ad.viewable == true") { "should not be called" }
+    CelFilterValidation.validateCelBoolean(env, "banner_ad.viewable == true") {
+      IllegalStateException("should not be called")
+    }
   }
 
   @Test
@@ -65,7 +69,9 @@ class CelFilterValidationTest {
     for (case in BAD_CEL_CASES) {
       val exception =
         assertFailsWith<IllegalStateException>("case: ${case.label} filter='${case.filter}'") {
-          validateCelBoolean(env, case.filter) { issue -> "tagged: $issue [end]" }
+          CelFilterValidation.validateCelBoolean(env, case.filter) { issue ->
+            IllegalStateException("tagged: $issue [end]")
+          }
         }
       assertThat(exception.message).startsWith("tagged: ")
       assertThat(exception.message).endsWith(" [end]")

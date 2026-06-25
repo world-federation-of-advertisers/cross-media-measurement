@@ -7479,6 +7479,75 @@ class BasicReportsServiceTest {
         )
     }
 
+  // Regression for the orphan-row property the CEL-validation pass is responsible for:
+  // a request that produces an invalid generated CEL string must fail on `createBasicReport`
+  // AND leave no internal BasicReport row behind. Reuses the "wrong enum value" rejection
+  // path because it is the simplest user-input that surfaces with a meaningful field path;
+  // the property tested is the call ordering (validation BEFORE internalCreate), not the
+  // specific failure mode. Any reorder that pushes validation past internalCreate will fail
+  // the `getBasicReport ... NOT_FOUND` assertion below.
+  @Test
+  fun `createBasicReport with bad request leaves no internal BasicReport row`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
+          campaignGroup = campaignGroupKey.toName()
+          resultGroupSpecs[0] =
+            resultGroupSpecs[0].copy {
+              dimensionSpec =
+                BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
+                  filters += eventFilter {
+                    terms += eventTemplateField {
+                      path = "person.gender"
+                      value = EventTemplateFieldKt.fieldValue { enumValue = "dinosaur" }
+                    }
+                  }
+                }
+            }
+        }
+      basicReportId = "a1234"
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+    // Orphan-prevention: the failing request must not have created an internal row.
+    val notFound =
+      assertFailsWith<io.grpc.StatusException> {
+        internalBasicReportsService.getBasicReport(
+          internalGetBasicReportRequest {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalBasicReportId = request.basicReportId
+          }
+        )
+      }
+    assertThat(notFound.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimension bool_value set for Enum`() =
     runBlocking {

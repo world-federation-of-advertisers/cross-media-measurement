@@ -29,6 +29,7 @@ import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
+import org.wfanet.measurement.reporting.service.api.ImpressionQualificationFilterInvalidCelException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpecKt
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
@@ -3164,10 +3165,12 @@ class BasicReportTransformationsTest {
   }
 
   @Test
-  fun `Base IQF with bad CEL throws IllegalStateException naming the IQF id`() {
+  fun `Base IQF with bad CEL throws ImpressionQualificationFilterInvalidCelException naming the IQF id`() {
     for (case in BAD_CEL_CASES) {
       val exception =
-        assertFailsWith<IllegalStateException>("case: ${case.label} filter='${case.filter}'") {
+        assertFailsWith<ImpressionQualificationFilterInvalidCelException>(
+          "case: ${case.label} filter='${case.filter}'"
+        ) {
           validateImpressionQualificationFilterCel(
             env = TEST_CEL_ENV,
             filter = case.filter,
@@ -3180,10 +3183,12 @@ class BasicReportTransformationsTest {
   }
 
   @Test
-  fun `Named IQF with bad CEL throws IllegalStateException naming the IQF resource and request index`() {
+  fun `Named IQF with bad CEL throws ImpressionQualificationFilterInvalidCelException naming the IQF resource and request index`() {
     for (case in BAD_CEL_CASES) {
       val exception =
-        assertFailsWith<IllegalStateException>("case: ${case.label} filter='${case.filter}'") {
+        assertFailsWith<ImpressionQualificationFilterInvalidCelException>(
+          "case: ${case.label} filter='${case.filter}'"
+        ) {
           validateImpressionQualificationFilterCel(
             env = TEST_CEL_ENV,
             filter = case.filter,
@@ -3259,7 +3264,8 @@ class BasicReportTransformationsTest {
      *
      * Each case carries both:
      * - [diagnostic]: the standalone clause the [validateCelBoolean] path interpolates into a
-     *   server-side message (e.g. `IllegalStateException` for Base / Named provenance).
+     *   server-side message (e.g. `ImpressionQualificationFilterInvalidCelException` for Base /
+     *   Named provenance).
      * - [fieldSuffix]: the field-suffix clause [validateCelBooleanFilter] uses to build the
      *   user-facing [InvalidFieldValueException] message (e.g. `"$fieldPath $fieldSuffix"` -> `"...
      *   is not a valid CEL expression"`).
