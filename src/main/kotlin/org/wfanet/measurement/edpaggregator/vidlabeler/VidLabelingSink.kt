@@ -59,6 +59,8 @@ import org.wfanet.virtualpeople.common.copy
  * @param modelLineContexts model lines to label with, each with its [ActiveWindow] and
  *   [VidAssigner].
  * @param impressionConverter converts a Parquet row into a [ConvertedImpression] (schema seam).
+ * @param eventGroupReferenceId the event group this input file belongs to (read from the Parquet
+ *   footer by [VidLabeler]), passed through to the converter to resolve the impression entity keys.
  * @param encryptKmsClient encrypt/decrypt KMS client for the labeled output.
  * @param encryptKekUri KEK URI for generating per-output DEKs.
  * @param outputStorageParams GCS project + blob prefix for labeled output.
@@ -68,6 +70,7 @@ class VidLabelingSink(
   private val inputBlobUri: String,
   private val modelLineContexts: List<ModelLineContext>,
   private val impressionConverter: ImpressionConverter,
+  private val eventGroupReferenceId: String,
   private val encryptKmsClient: KmsClient,
   private val encryptKekUri: String,
   private val outputStorageParams: VidLabelerParams.StorageParams,
@@ -82,7 +85,9 @@ class VidLabelingSink(
     val produced = ArrayList<Pair<OutputGroupKey, LabeledImpression>>()
     for (digestedEvent in events) {
       for (context in modelLineContexts) {
-        val converted = impressionConverter.convert(digestedEvent, context.config) ?: continue
+        val converted =
+          impressionConverter.convert(digestedEvent, context.config, eventGroupReferenceId)
+            ?: continue
         if (!context.activeWindow.contains(converted.eventTimeMicros)) continue
 
         // Memoized path: attach the impression's pre-computed rank(s) (keyed by its EventIdDigest)

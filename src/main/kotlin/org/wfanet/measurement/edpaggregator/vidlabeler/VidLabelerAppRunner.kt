@@ -17,14 +17,19 @@
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.crypto.tink.KmsClient
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.Descriptors
+import com.google.protobuf.ExtensionRegistry
+import java.util.concurrent.ConcurrentHashMap
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResultsFulfillerConfigAsByteArray
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.edpaggregator.BaseTeeAppRunner
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
-import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.runBlockingWithTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
@@ -59,6 +64,11 @@ class VidLabelerAppRunner : BaseTeeAppRunner() {
   private val getStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)
   }
+
+  // Caches resolved EventTemplate descriptors by (blob URI, type name) so a descriptor blob is read
+  // and parsed once per process instead of once per WorkItem.
+  private val eventDescriptorCache =
+    ConcurrentHashMap<Pair<String, String>, Descriptors.Descriptor>()
 
   override fun run() {
     saveCommonEdpaCerts()
@@ -110,10 +120,43 @@ class VidLabelerAppRunner : BaseTeeAppRunner() {
               .getBlob(blobUri.key) ?: error("Compiled-model blob not found: $modelBlobUri")
           VirtualPeopleVidAssigner.fromCompiledNodeBlob(modelBlob.read().flatten())
         },
-        impressionConverter = ParquetImpressionConverter,
+        buildImpressionConverter = { _, config, entityKeysByEventGroupReferenceId ->
+          ParquetImpressionConverter(
+            eventDescriptor = resolveEventDescriptor(config),
+            entityKeysByEventGroupReferenceId = entityKeysByEventGroupReferenceId,
+          )
+        },
       )
 
     runBlockingWithTelemetry { vidLabelerApp.run() }
+  }
+
+  /**
+   * Resolves the [config]'s EventTemplate event [Descriptors.Descriptor] by loading the
+   * `FileDescriptorSet` at [VidLabelerParams.ModelLineConfig.getEventTemplateDescriptorBlobUri]
+   * from EDPA config storage and finding
+   * [VidLabelerParams.ModelLineConfig.getEventTemplateTypeName] within it (mirrors
+   * `ResultsFulfillerAppRunner.buildModelLineMap`). Cached per (blob URI, type name).
+   */
+  private suspend fun resolveEventDescriptor(
+    config: VidLabelerParams.ModelLineConfig
+  ): Descriptors.Descriptor {
+    val blobUri = config.eventTemplateDescriptorBlobUri
+    val typeName = config.eventTemplateTypeName
+    require(blobUri.isNotEmpty()) { "event_template_descriptor_blob_uri must be set" }
+    require(typeName.isNotEmpty()) { "event_template_type_name must be set" }
+    eventDescriptorCache[blobUri to typeName]?.let {
+      return it
+    }
+    val descriptorBytes = getResultsFulfillerConfigAsByteArray(googleProjectId, blobUri)
+    val fileDescriptorSet =
+      DescriptorProtos.FileDescriptorSet.parseFrom(descriptorBytes, EXTENSION_REGISTRY)
+    val descriptors: List<Descriptors.Descriptor> =
+      ProtoReflection.buildDescriptors(listOf(fileDescriptorSet), COMPILED_PROTOBUF_TYPES)
+    val eventDescriptor =
+      descriptors.firstOrNull { it.fullName == typeName }
+        ?: error("EventTemplate descriptor not found for type: $typeName")
+    return eventDescriptorCache.computeIfAbsent(blobUri to typeName) { eventDescriptor }
   }
 
   companion object {
@@ -121,6 +164,19 @@ class VidLabelerAppRunner : BaseTeeAppRunner() {
 
     /** Root URI selecting the GCS-backed [SelectedStorageClient] for absolute `gs://` blob URIs. */
     private const val GCS_ROOT_URI = "gs://"
+
+    /**
+     * [Descriptors.FileDescriptor]s of protobuf types known at compile time that may be referenced
+     * from a loaded [DescriptorProtos.FileDescriptorSet].
+     */
+    private val COMPILED_PROTOBUF_TYPES: Iterable<Descriptors.FileDescriptor> =
+      ProtoReflection.WELL_KNOWN_TYPES.asSequence().asIterable()
+
+    /** Extension registry so EventTemplate annotations on the loaded descriptors parse. */
+    private val EXTENSION_REGISTRY =
+      ExtensionRegistry.newInstance()
+        .also { EventAnnotationsProto.registerAllExtensions(it) }
+        .unmodifiable
 
     /**
      * Hadoop [Configuration] selecting the GCS connector with Compute-Engine (VM SA) auth, for the
@@ -144,56 +200,5 @@ class VidLabelerAppRunner : BaseTeeAppRunner() {
         cfg.rootDirectory,
         cfg.projectId,
       )
-  }
-}
-
-/**
- * Production [ImpressionConverter]: projects a raw-impression Parquet row into a [LabelerInput] via
- * the model line's `labeler_input_field_mapping`, and derives the labeling-relevant fields the
- * current schema + mapping pin down (`event_time_micros` from `LabelerInput.timestamp_usec`).
- *
- * TODO(world-federation-of-advertisers/cross-media-measurement#3913): once the raw-impression
- *   Parquet schema (#3954) is finalized, source `event_group_reference_id`, the `event` template
- *   payload (via `event_template_field_mapping`), and `entity_keys` (from `EventGroup` metadata)
- *   from the row + footer. Until then `convert` throws when it reaches the schema-dependent fields,
- *   since [ConvertedImpression] requires a non-empty `entity_keys` and there is no schema to read
- *   them from. This is the single documented residual of the Phase-2 wiring.
- */
-object ParquetImpressionConverter : ImpressionConverter {
-  override fun convert(
-    event: ParquetDigestedEvent,
-    config: VidLabelerParams.ModelLineConfig,
-  ): ConvertedImpression? {
-    // Real: project the LabelerInput via the per-model-line field mapping.
-    val labelerInput = LabelerInputMapper(config.labelerInputFieldMappingMap).project(event.row)
-    // Real: event time is LabelerInput.timestamp_usec (mapped via labeler_input_field_mapping).
-    val eventTimeMicros: Long = labelerInput.timestampUsec
-
-    // TODO(world-federation-of-advertisers/cross-media-measurement#3913): derive
-    //   eventGroupReferenceId, the event template payload, and entityKeys from the finalized
-    //   raw-impression schema (event_template_field_mapping + EventGroup metadata). entityKeys is
-    //   REQUIRED by ConvertedImpression, so this throws until the schema lands.
-    val entityKeys: List<org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression.EntityKey> =
-      TODO(
-        "Source entityKeys from EventGroup metadata once the raw-impression Parquet schema is " +
-          "finalized (world-federation-of-advertisers/cross-media-measurement#3913)"
-      )
-
-    return ConvertedImpression(
-      labelerInput = labelerInput,
-      eventTimeMicros = eventTimeMicros,
-      eventGroupReferenceId =
-        TODO(
-          "Source eventGroupReferenceId once the raw-impression Parquet schema is finalized " +
-            "(world-federation-of-advertisers/cross-media-measurement#3913)"
-        ),
-      event =
-        TODO(
-          "Build the event template payload from event_template_field_mapping once the " +
-            "raw-impression Parquet schema is finalized " +
-            "(world-federation-of-advertisers/cross-media-measurement#3913)"
-        ),
-      entityKeys = entityKeys,
-    )
   }
 }

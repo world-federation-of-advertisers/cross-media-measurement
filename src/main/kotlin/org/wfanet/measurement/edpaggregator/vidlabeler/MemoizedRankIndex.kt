@@ -184,7 +184,7 @@ private constructor(
       // Every rank-index blob is wrapped with the EDP's single KEK; resolve it (and assert it
       // is present + consistent) so the labeled output can be wrapped with the same key. Zero
       // blobs means there is no KEK to resolve, which is a hard error for the memoized path.
-      require(latestByPoolOffset.isNotEmpty()) {
+      check(latestByPoolOffset.isNotEmpty()) {
         "no rank-index blobs for $modelLine; cannot resolve output KEK"
       }
       val kekUri = resolveKekUri(latestByPoolOffset.values, modelLine)
@@ -200,7 +200,7 @@ private constructor(
      */
     private fun resolveKekUri(blobs: Collection<RankIndexBlob>, modelLine: String): String {
       val kekUris = blobs.map { it.encryptedDek.kekUri }.toSet()
-      require(kekUris.size == 1 && kekUris.first().isNotEmpty()) {
+      check(kekUris.size == 1 && kekUris.first().isNotEmpty()) {
         "rank-index blobs for $modelLine have missing or inconsistent KEK URIs: $kekUris"
       }
       return kekUris.first()

@@ -23,10 +23,19 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "proto_row_projector",
+    srcs = ["ProtoRowProjector.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/proto/wfa/measurement/storage:parquet_row_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
     name = "labeler_input_mapper",
     srcs = ["LabelerInputMapper.kt"],
     deps = [
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        ":proto_row_projector",
         "@wfa_common_jvm//src/main/proto/wfa/measurement/storage:parquet_row_kt_jvm_proto",
         "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_kt_jvm_proto",
     ],

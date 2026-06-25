@@ -24,7 +24,8 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
-import io.grpc.StatusException
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -49,7 +50,6 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
-import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededResponseKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
@@ -208,8 +208,9 @@ class VidLabelerAppTest {
       // The model is loaded up-front by VidLabeler.label(); the converter never runs because the
       // (mocked) RawImpressionUploadFileService returns no files, so there are no events to label.
       loadAssigner = { mockVidAssigner },
-      impressionConverter =
-        ImpressionConverter { _, _ -> error("impressionConverter should not be invoked") },
+      buildImpressionConverter = { _, _, _ ->
+        ImpressionConverter { _, _, _ -> error("impressionConverter should not be invoked") }
+      },
     )
   }
 
@@ -333,7 +334,99 @@ class VidLabelerAppTest {
   }
 
   @Test
-  fun `runWork marks job failed best-effort and rethrows when the work block throws`() =
+  fun `runWork skips relabel but still marks succeeded when job already SUCCEEDED`() = runBlocking {
+    // No seedRankIndexBlob(): the already-SUCCEEDED branch skips label(), so MemoizedRankIndex.load
+    // is never invoked. The idempotent mark + last-job-out recovery must still run.
+    vidLabelingJobsService.stub {
+      onBlocking { getVidLabelingJob(any()) } doReturn
+        vidLabelingJob {
+          name = VID_LABELING_JOB
+          state = VidLabelingJob.State.SUCCEEDED
+          etag = "etag-1"
+        }
+      onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
+        markVidLabelingJobSucceededResponse {
+          vidLabelingJob = vidLabelingJob {
+            name = VID_LABELING_JOB
+            state = VidLabelingJob.State.SUCCEEDED
+          }
+          lastVidLabelingJobResult =
+            MarkVidLabelingJobSucceededResponseKt.lastVidLabelingJobResult {
+              completedModelLines += MODEL_LINE
+            }
+        }
+    }
+    rawImpressionUploadModelLinesService.stub {
+      onBlocking { listRawImpressionUploadModelLines(any()) } doReturn
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = PARENT_NAME
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.LABELING
+            etag = "parent-etag"
+          }
+        }
+    }
+
+    tempFolder.root.resolve("output-bucket").mkdirs()
+
+    val app = createApp()
+    app.runWork(buildMessage(memoizedParams()))
+
+    // The (mocked) converter would throw if label() ran; reaching here proves relabel was skipped.
+    verifyBlocking(vidLabelingJobsService) { markVidLabelingJobSucceeded(any()) }
+    // Last-job-out recovery still runs from the already-SUCCEEDED path.
+    verifyBlocking(rawImpressionUploadModelLinesService) {
+      markRawImpressionUploadModelLineCompleted(any())
+    }
+    val doneFile =
+      tempFolder.root.toPath().resolve("output-bucket/labeled/labeled-impressions/done").toFile()
+    assertThat(doneFile.exists()).isTrue()
+  }
+
+  @Test
+  fun `runWork warns and continues when no matching RawImpressionUploadModelLine`() = runBlocking {
+    seedRankIndexBlob()
+    vidLabelingJobsService.stub {
+      onBlocking { getVidLabelingJob(any()) } doReturn
+        vidLabelingJob {
+          name = VID_LABELING_JOB
+          state = VidLabelingJob.State.CREATED
+          etag = "etag-1"
+        }
+      onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
+        markVidLabelingJobSucceededResponse {
+          vidLabelingJob = vidLabelingJob {
+            name = VID_LABELING_JOB
+            state = VidLabelingJob.State.SUCCEEDED
+          }
+          lastVidLabelingJobResult =
+            MarkVidLabelingJobSucceededResponseKt.lastVidLabelingJobResult {
+              completedModelLines += MODEL_LINE
+            }
+        }
+    }
+    // getParent finds nothing for the completed model line.
+    rawImpressionUploadModelLinesService.stub {
+      onBlocking { listRawImpressionUploadModelLines(any()) } doReturn
+        listRawImpressionUploadModelLinesResponse {}
+    }
+
+    tempFolder.root.resolve("output-bucket").mkdirs()
+
+    val app = createApp()
+    // No throw: a missing parent is logged and skipped.
+    app.runWork(buildMessage(memoizedParams()))
+
+    // Mark succeeded still happens; no completion transition is attempted for the absent parent.
+    verifyBlocking(vidLabelingJobsService) { markVidLabelingJobSucceeded(any()) }
+    verifyBlocking(rawImpressionUploadModelLinesService, never()) {
+      markRawImpressionUploadModelLineCompleted(any())
+    }
+  }
+
+  @Test
+  fun `runWork swallows FAILED_PRECONDITION from markRawImpressionUploadModelLineCompleted`() =
     runBlocking {
       seedRankIndexBlob()
       vidLabelingJobsService.stub {
@@ -343,22 +436,77 @@ class VidLabelerAppTest {
             state = VidLabelingJob.State.CREATED
             etag = "etag-1"
           }
-        // The success mark throws, driving runWork into its catch -> markFailedBestEffort path.
-        onBlocking { markVidLabelingJobSucceeded(any()) } doThrow RuntimeException("boom")
+        onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
+          markVidLabelingJobSucceededResponse {
+            vidLabelingJob = vidLabelingJob {
+              name = VID_LABELING_JOB
+              state = VidLabelingJob.State.SUCCEEDED
+            }
+            lastVidLabelingJobResult =
+              MarkVidLabelingJobSucceededResponseKt.lastVidLabelingJobResult {
+                completedModelLines += MODEL_LINE
+              }
+          }
+      }
+      rawImpressionUploadModelLinesService.stub {
+        onBlocking { listRawImpressionUploadModelLines(any()) } doReturn
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = PARENT_NAME
+              cmmsModelLine = MODEL_LINE
+              state = RawImpressionUploadModelLine.State.LABELING
+              etag = "parent-etag"
+            }
+          }
+        // The parent already advanced: the transition is a benign already-advanced race.
+        onBlocking { markRawImpressionUploadModelLineCompleted(any()) } doThrow
+          StatusRuntimeException(Status.FAILED_PRECONDITION)
       }
 
-      val app = createApp()
-      // The gRPC framework surfaces the server-thrown RuntimeException to the client as a
-      // StatusException(UNKNOWN); runWork marks the job FAILED best-effort and rethrows that.
-      assertFailsWith<StatusException> { app.runWork(buildMessage(memoizedParams())) }
+      tempFolder.root.resolve("output-bucket").mkdirs()
 
-      val captor = argumentCaptor<MarkVidLabelingJobFailedRequest>()
-      verifyBlocking(vidLabelingJobsService) { markVidLabelingJobFailed(captor.capture()) }
-      assertThat(captor.firstValue.name).isEqualTo(VID_LABELING_JOB)
-      assertThat(captor.firstValue.etag).isEqualTo("etag-1")
-      assertThat(captor.firstValue.requestId).isNotEmpty()
-      assertThat(captor.firstValue.errorMessage).isNotEmpty()
+      val app = createApp()
+      // No throw: FAILED_PRECONDITION on the completion transition is treated as already-done.
+      app.runWork(buildMessage(memoizedParams()))
+
+      verifyBlocking(rawImpressionUploadModelLinesService) {
+        markRawImpressionUploadModelLineCompleted(any())
+      }
     }
+
+  @Test
+  fun `runWork throws when raw_impressions_storage_params is not set`() = runBlocking {
+    val app = createApp()
+    val params = vidLabelerParams {
+      dataProvider = DATA_PROVIDER_NAME
+      vidLabeledImpressionsStorageParams =
+        VidLabelerParamsKt.storageParams {
+          gcsProjectId = "test-project"
+          impressionsBlobPrefix = "file:///output-bucket/labeled"
+        }
+    }
+
+    val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
+    assertThat(exception).hasMessageThat().contains("raw_impressions_storage_params must be set")
+  }
+
+  @Test
+  fun `runWork throws when vid_labeled_impressions_storage_params is not set`() = runBlocking {
+    val app = createApp()
+    val params = vidLabelerParams {
+      dataProvider = DATA_PROVIDER_NAME
+      rawImpressionsStorageParams =
+        VidLabelerParamsKt.storageParams {
+          gcsProjectId = "test-project"
+          impressionsBlobPrefix = "file:///raw-bucket/impressions"
+        }
+    }
+
+    val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("vid_labeled_impressions_storage_params must be set")
+  }
 
   @Test
   fun `runWork throws when memoized_params is not set`() = runBlocking {

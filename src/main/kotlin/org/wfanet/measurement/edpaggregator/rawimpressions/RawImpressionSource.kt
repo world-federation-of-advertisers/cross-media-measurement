@@ -366,6 +366,17 @@ class RawImpressionSource(
   }
 
   /**
+   * Reads the `event_group_reference_id` from [blobUri]'s Parquet footer key-value metadata, or
+   * `null` if the blob is absent or the key is not present.
+   *
+   * Additive read-only accessor used by the VID labeling pipeline to surface the per-file event
+   * group; it does not touch the [BlobSink] contract or the shard/discovery skeleton that Phase-0
+   * (`SubpoolAssigner`) relies on.
+   */
+  suspend fun readEventGroupReferenceId(blobUri: String): String? =
+    parquetStorageClient.getBlob(blobUri)?.readKeyValueMetadata()?.get(EVENT_GROUP_REFERENCE_ID_KEY)
+
+  /**
    * Lists the [rawImpressionUpload]'s `RawImpressionUploadFile`s via the metadata service
    * (paginated) and returns their Cloud Storage `blob_uri`s.
    */
@@ -463,6 +474,9 @@ class RawImpressionSource(
 
     /** Read-ahead depth in batches (> DEFAULT_WORKERS so the CPU pool stays fed). */
     private const val DEFAULT_MAX_IN_FLIGHT_BATCHES = 64
+
+    /** Parquet footer key-value metadata key carrying the event group reference id. */
+    const val EVENT_GROUP_REFERENCE_ID_KEY = "event_group_reference_id"
 
     /** Page size for listing the upload's files. */
     private const val LIST_PAGE_SIZE = 1000

@@ -85,10 +85,17 @@ class VidLabeler(
     // contract. RawImpressionSource currently shards by fingerprint; once VidLabelerApp is wired
     // up, pass VidLabelingJob.raw_impression_upload_files directly and remove fingerprint sharding.
     rawImpressionSource.streamBlobs { blobUri ->
+      // The Parquet footer pins each input file to one EventGroup; the converter resolves the
+      // file's entity keys from it. Missing it is a producer bug, so fail the file rather than
+      // labeling impressions with no attributable entity.
+      val eventGroupReferenceId =
+        rawImpressionSource.readEventGroupReferenceId(blobUri)
+          ?: error("missing event_group_reference_id footer for $blobUri")
       VidLabelingSink(
         inputBlobUri = blobUri,
         modelLineContexts = contexts,
         impressionConverter = impressionConverter,
+        eventGroupReferenceId = eventGroupReferenceId,
         encryptKmsClient = encryptKmsClient,
         encryptKekUri = encryptKekUri,
         outputStorageParams = outputStorageParams,

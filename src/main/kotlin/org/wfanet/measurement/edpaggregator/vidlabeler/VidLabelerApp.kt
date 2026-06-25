@@ -24,12 +24,11 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.nio.ByteBuffer
 import java.security.MessageDigest
-import java.time.Instant
 import java.util.UUID
-import java.util.logging.Level
 import java.util.logging.Logger
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigestExtractor
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
@@ -45,7 +44,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.
 import org.wfanet.measurement.edpaggregator.v1alpha.getVidLabelingJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
 import org.wfanet.measurement.queue.QueueSubscriber
@@ -70,8 +68,13 @@ import org.wfanet.measurement.storage.StorageClient
  * / unseen fingerprint), writes the encrypted labeled output, marks the `VidLabelingJob`
  * `SUCCEEDED`, and — when this call was the last job out for a model line — transitions the parent
  * `RawImpressionUploadModelLine` to `COMPLETED` and drops a `done` marker blob that triggers
- * downstream DataAvailabilitySync. On failure the job is marked `FAILED` (best-effort) and the
- * error rethrown so the TEE framework nacks.
+ * downstream DataAvailabilitySync.
+ *
+ * Failure model: [runWork] does NOT mark the job `FAILED` itself. A transient failure propagates
+ * out of [runWork] so the TEE framework nacks the message, leaving the job in `LABELING`/`CREATED`
+ * for Pub/Sub to redeliver and retry. The terminal `FAILED` state is written by the DLQ listener on
+ * retry exhaustion (see the design's failure model), which owns the single authoritative FAILED
+ * transition.
  *
  * @param subscriptionId Pub/Sub subscription for VID labeling queue.
  * @param queueSubscriber handles Pub/Sub pull.
@@ -81,8 +84,8 @@ import org.wfanet.measurement.storage.StorageClient
  * @param kmsClients per-`DataProvider` [KmsClient]s (each the EDP's own KEK), used for BOTH the
  *   raw-impression PME decrypt and the labeled-output encrypt — exactly one client per EDP.
  * @param getStorageConfig builds a [StorageConfig] from [VidLabelerParams.StorageParams].
- * @param vidLabelingJobsStub stub to mark this WorkItem's `VidLabelingJob` `SUCCEEDED`/`FAILED` and
- *   learn whether it is the last job out for one or more model lines.
+ * @param vidLabelingJobsStub stub to mark this WorkItem's `VidLabelingJob` `SUCCEEDED` and learn
+ *   whether it is the last job out for one or more model lines.
  * @param rawImpressionUploadModelLinesStub stub for transitioning the parent
  *   `RawImpressionUploadModelLine` to `COMPLETED` on last-job-out.
  * @param rankIndexBlobsStub stub used by [MemoizedRankIndex.load] to resolve the per-subpool
@@ -95,7 +98,9 @@ import org.wfanet.measurement.storage.StorageClient
  *   [RankIndexStore].
  * @param loadAssigner loads the compiled VID model (C++/JNI) for a model blob URI into a
  *   [VidAssigner].
- * @param impressionConverter converts Parquet rows into [ConvertedImpression]s (schema seam).
+ * @param buildImpressionConverter builds the per-(WorkItem, model line) [ImpressionConverter],
+ *   given the model line, its [VidLabelerParams.ModelLineConfig], and the per-EventGroup entity
+ *   keys; the production factory loads the EventTemplate descriptor from the config blob.
  * @param eventIdDigestExtractor computes the 12-byte `EventIdDigest` of an event id.
  */
 class VidLabelerApp(
@@ -113,7 +118,12 @@ class VidLabelerApp(
   private val buildParquetStorageClient: (StorageConfig, KmsClient) -> ParquetStorageClient,
   private val buildVidRankMapStorageClient: (StorageConfig) -> StorageClient,
   private val loadAssigner: suspend (modelBlobUri: String) -> VidAssigner,
-  private val impressionConverter: ImpressionConverter,
+  private val buildImpressionConverter:
+    suspend (
+      modelLine: String,
+      config: VidLabelerParams.ModelLineConfig,
+      entityKeysByEventGroupReferenceId: Map<String, VidLabelerParams.EntityKeyValues>,
+    ) -> ImpressionConverter,
   private val eventIdDigestExtractor: EventIdDigestExtractor = EventIdDigestExtractor(),
 ) :
   BaseTeeApplication(
@@ -124,6 +134,15 @@ class VidLabelerApp(
     workItemAttemptsStub = workItemAttemptsClient,
   ) {
 
+  /**
+   * Processes one VID-labeling WorkItem.
+   *
+   * Any exception thrown here propagates so the TEE framework nacks the message: a transient
+   * failure is retried by Pub/Sub and the job state stays in `LABELING`/`CREATED`. This method
+   * never writes `FAILED` — terminal `FAILED` on retry exhaustion is owned by the DLQ listener (the
+   * design's failure model), so an indiscriminate best-effort FAILED-marking here would race that
+   * owner and fight Pub/Sub redelivery.
+   */
   override suspend fun runWork(message: Any) {
     val workItemParams = message.unpack(WorkItemParams::class.java)
     val params = workItemParams.appParams.unpack(VidLabelerParams::class.java)
@@ -150,23 +169,18 @@ class VidLabelerApp(
         "model_line_configs must contain an entry for ${mp.modelLine}"
       }
 
-    try {
-      // Gate on job state first: on Pub/Sub redelivery of an already-completed job, skip relabeling
-      // (the output is idempotent via deterministic blob keys) but still run the idempotent mark +
-      // last-job-out recovery so a crash between label() and the mark cannot drop the completion.
-      val job =
-        vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { name = mp.vidLabelingJob })
-      if (job.state != VidLabelingJob.State.SUCCEEDED) {
-        label(params, mp, config, dataProvider, kmsClient)
-      } else {
-        logger.info("VidLabelingJob ${mp.vidLabelingJob} already SUCCEEDED; skipping relabel")
-      }
-
-      markSucceededAndTransition(params, mp, job.etag)
-    } catch (t: Throwable) {
-      markFailedBestEffort(mp.vidLabelingJob, t)
-      throw t
+    // Gate on job state first: on Pub/Sub redelivery of an already-completed job, skip relabeling
+    // (the output is idempotent via deterministic blob keys) but still run the idempotent mark +
+    // last-job-out recovery so a crash between label() and the mark cannot drop the completion.
+    val job =
+      vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { name = mp.vidLabelingJob })
+    if (job.state != VidLabelingJob.State.SUCCEEDED) {
+      label(params, mp, config, dataProvider, kmsClient)
+    } else {
+      logger.info("VidLabelingJob ${mp.vidLabelingJob} already SUCCEEDED; skipping relabel")
     }
+
+    markSucceededAndTransition(params, mp, job.etag)
   }
 
   /** Labels this WorkItem's raw-impression files for [mp]'s single model line (memoized path). */
@@ -210,6 +224,10 @@ class VidLabelerApp(
 
     val activeWindow =
       ActiveWindow.of(
+        // active_start_time is required on ModelLineConfig (a model line always has an active
+        // start),
+        // so ActiveWindow.of's non-null start parameter is satisfied directly; only the end is
+        // optional and mapped to a null (open-ended) upper bound.
         config.activeStartTime.toInstant(),
         if (config.hasActiveEndTime()) config.activeEndTime.toInstant() else null,
       )
@@ -221,6 +239,9 @@ class VidLabelerApp(
         config = config,
         rankIndex = rankIndex,
       )
+
+    val impressionConverter =
+      buildImpressionConverter(mp.modelLine, config, params.entityKeysByEventGroupReferenceIdMap)
 
     VidLabeler(
         rawImpressionSource = rawImpressionSource,
@@ -255,6 +276,10 @@ class VidLabelerApp(
       vidLabelingJobsStub.markVidLabelingJobSucceeded(
         markVidLabelingJobSucceededRequest {
           name = mp.vidLabelingJob
+          // [etag] was captured from GetVidLabelingJob before label(); together with the
+          // deterministic request_id below it covers Pub/Sub *redelivery* under the single-writer
+          // assumption (only this worker mutates the job), NOT a concurrent first-delivery mutation
+          // by another writer.
           this.etag = etag
           // AIP-155 retry-idempotency key: a Pub/Sub redelivery reuses the same request_id so the
           // server returns the cached result instead of hitting the etag-mismatch path.
@@ -281,6 +306,13 @@ class VidLabelerApp(
     // DataAvailabilitySync, which crawls that folder for the per-blob .metadata.binpb sidecars
     // written by VidLabelingSink. Written only on last-job-out so the crawl runs once the model
     // line's output is complete.
+    //
+    // TODO(known limitation): a single `labeled-impressions/done` covers the whole output folder,
+    // so
+    // for a multi-model-line upload it triggers DataAvailabilitySync over ALL model lines' output —
+    // registering availability for model lines whose own last-job-out has not fired yet (premature
+    // availability). A per-model-line done marker (or per-model-line subfolder) is needed to scope
+    // the sync; tracked as future work.
     writeDoneBlob(params.vidLabeledImpressionsStorageParams)
   }
 
@@ -312,31 +344,6 @@ class VidLabelerApp(
     }
   }
 
-  /** Best-effort transition of this job to FAILED so operators see the failure; never throws. */
-  private suspend fun markFailedBestEffort(vidLabelingJob: String, cause: Throwable) {
-    try {
-      val job =
-        vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { name = vidLabelingJob })
-      if (job.state == VidLabelingJob.State.CREATED) {
-        vidLabelingJobsStub.markVidLabelingJobFailed(
-          markVidLabelingJobFailedRequest {
-            name = vidLabelingJob
-            etag = job.etag
-            // request_id is OPTIONAL on this RPC; deterministic so a redelivery is idempotent.
-            requestId = deterministicUuid("$vidLabelingJob|failed")
-            errorMessage = (cause.message ?: cause::class.java.simpleName).take(MAX_ERROR_MESSAGE)
-          }
-        )
-      } else {
-        logger.info(
-          "VidLabelingJob $vidLabelingJob already in state ${job.state}; not re-marking FAILED"
-        )
-      }
-    } catch (e: Exception) {
-      logger.log(Level.WARNING, "Failed to mark VidLabelingJob $vidLabelingJob FAILED", e)
-    }
-  }
-
   /** Writes an empty `done` marker blob under the labeled-impressions prefix. */
   private suspend fun writeDoneBlob(outputStorageParams: VidLabelerParams.StorageParams) {
     val doneUri = "${outputStorageParams.impressionsBlobPrefix}/labeled-impressions/done"
@@ -353,6 +360,8 @@ class VidLabelerApp(
    */
   private suspend fun getParent(upload: String, modelLine: String): RawImpressionUploadModelLine? {
     var parentRow: RawImpressionUploadModelLine? = null
+    // The List call applies the cmmsModelLine filter server-side, so every returned row already
+    // matches [modelLine]; take the first one across pages without re-filtering client-side.
     rawImpressionUploadModelLinesStub
       .listResources { pageToken: String ->
         val response =
@@ -367,7 +376,9 @@ class VidLabelerApp(
         ResourceList(response.rawImpressionUploadModelLinesList, response.nextPageToken)
       }
       .collect { page ->
-        page.forEach { line -> if (line.cmmsModelLine == modelLine) parentRow = line }
+        if (parentRow == null) {
+          parentRow = page.firstOrNull()
+        }
       }
     return parentRow
   }
@@ -376,13 +387,20 @@ class VidLabelerApp(
    * Derives the parent `RawImpressionUpload` resource name from a `VidLabelingJob` resource name by
    * stripping the `/vidLabelingJobs/{job}` segment.
    */
-  private fun parentUpload(vidLabelingJob: String): String =
-    vidLabelingJob.substringBefore("/vidLabelingJobs/")
+  private fun parentUpload(vidLabelingJob: String): String {
+    require(vidLabelingJob.contains("/vidLabelingJobs/")) {
+      "Malformed VidLabelingJob resource name: $vidLabelingJob"
+    }
+    return vidLabelingJob.substringBefore("/vidLabelingJobs/")
+  }
 
   /**
    * Derives a deterministic UUID4 from [seed], stable across redeliveries, for use as an AIP-155
    * `request_id`. Computed from an MD5 digest of the seed with the RFC-4122 version (4) and variant
    * bits forced, so it satisfies a field's `format = UUID4`.
+   *
+   * MD5 here is a non-cryptographic, deterministic idempotency-key derivation (not used for
+   * security); the version/variant bits are forced only to satisfy the field format = UUID4.
    */
   private fun deterministicUuid(seed: String): String {
     val bytes = MessageDigest.getInstance("MD5").digest(seed.toByteArray(Charsets.UTF_8))
@@ -395,12 +413,7 @@ class VidLabelerApp(
   companion object {
     private val logger = Logger.getLogger(VidLabelerApp::class.java.name)
 
-    private const val MAX_ERROR_MESSAGE = 1024
-
     /** LabelerInput field path whose mapped raw column carries the event id used for the digest. */
     private const val EVENT_ID_FIELD_PATH = "event_id.id"
-
-    private fun com.google.protobuf.Timestamp.toInstant(): Instant =
-      Instant.ofEpochSecond(seconds, nanos.toLong())
   }
 }
