@@ -232,12 +232,15 @@ class VidLabelingDispatchSequencer(
     modelLine: RawImpressionUploadModelLine,
     shardInfo: ResolvedShardInfo,
   ) {
+    // The active window is read from the ModelLine so the TEE can drop out-of-window impressions.
+    val resolvedModelLine: ModelLine = getModelLine(modelLine.cmmsModelLine)
     val uploadId: String = uploadName.substringAfterLast("/")
     for (shardIndex in 0 until numberOfShards) {
       createWorkItem(
         uploadName,
         modelLine.cmmsModelLine,
         shardInfo.modelBlobPath,
+        resolvedModelLine,
         shardIndex,
         uploadId,
       )
@@ -419,6 +422,7 @@ class VidLabelingDispatchSequencer(
     uploadName: String,
     modelLineName: String,
     modelBlobPath: String,
+    resolvedModelLine: ModelLine,
     shardIndex: Int,
     uploadId: String,
   ) {
@@ -437,6 +441,11 @@ class VidLabelingDispatchSequencer(
         VidLabelerParamsKt.modelLineConfig {
           labelerInputFieldMapping.putAll(modelLineConfig.labelerInputFieldMappingMap)
           eventTemplateFieldMapping.putAll(modelLineConfig.eventTemplateFieldMappingMap)
+          // The active window lets the TEE drop out-of-window impressions before labeling.
+          activeStartTime = resolvedModelLine.activeStartTime
+          if (resolvedModelLine.hasActiveEndTime()) {
+            activeEndTime = resolvedModelLine.activeEndTime
+          }
         }
       overrideModelLines += listOf(modelLineName)
       rawImpressionUpload = uploadName
