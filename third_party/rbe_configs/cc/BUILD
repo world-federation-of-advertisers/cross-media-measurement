@@ -14,9 +14,11 @@
 
 # This becomes the BUILD file for @local_config_cc// under non-BSD unixes.
 
-load(":cc_toolchain_config.bzl", "cc_toolchain_config")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc/toolchains:cc_toolchain.bzl", "cc_toolchain")
+load("@rules_cc//cc/toolchains:cc_toolchain_suite.bzl", "cc_toolchain_suite")
 load(":armeabi_cc_toolchain_config.bzl", "armeabi_cc_toolchain_config")
-load("@rules_cc//cc:defs.bzl", "cc_toolchain", "cc_toolchain_suite")
+load(":cc_toolchain_config.bzl", "cc_toolchain_config")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -60,10 +62,20 @@ filegroup(
 )
 
 filegroup(
+    name = "deps_scanner_wrapper",
+    srcs = ["deps_scanner_wrapper.sh"],
+)
+filegroup(
     name = "compiler_deps",
-    srcs = glob(["extra_tools/**"], allow_empty = True) + [":builtin_include_directory_paths",
+    srcs = glob(
+        ["extra_tools/**"],
+        allow_empty = True
+    ) + [
+        ":builtin_include_directory_paths",
     ":cc_wrapper",
-    ":validate_static_library"],
+    ":deps_scanner_wrapper",
+    ":validate_static_library"
+    ],
 )
 
 # This is the entry point for --crosstool_top.  Toolchains are found
@@ -81,19 +93,19 @@ cc_toolchain_suite(
 
 cc_toolchain(
     name = "cc-compiler-k8",
-    toolchain_identifier = "linux_gnu_x86",
-    toolchain_config = ":linux_gnu_x86",
     all_files = ":compiler_deps",
     ar_files = ":compiler_deps",
     as_files = ":compiler_deps",
     compiler_files = ":compiler_deps",
     dwp_files = ":empty",
     linker_files = ":compiler_deps",
+    module_map = ":module.modulemap",
     objcopy_files = ":empty",
     strip_files = ":empty",
     supports_header_parsing = 1,
     supports_param_files = 1,
-    module_map = ":module.modulemap",
+    toolchain_config = ":linux_gnu_x86",    
+    toolchain_identifier = "linux_gnu_x86",
 )
 
 cc_toolchain_config(
@@ -128,6 +140,7 @@ cc_toolchain_config(
         "objdump": "/usr/bin/objdump",
         "strip": "/usr/bin/strip",
         "c++filt": "/usr/bin/c++filt",
+        "cpp-module-deps-scanner": "deps_scanner_wrapper.sh",
         "parse_headers": "cc_wrapper.sh",
         "validate_static_library": "validate_static_library.sh"},
     compile_flags = ["-fstack-protector",
@@ -138,6 +151,7 @@ cc_toolchain_config(
     "-Wno-free-nonheap-object",
     "-fcolor-diagnostics",
     "-fno-omit-frame-pointer"],
+    fastbuild_compile_flags = [],
     opt_compile_flags = ["-g0",
     "-O2",
     "-D_FORTIFY_SOURCE=1",
@@ -146,7 +160,8 @@ cc_toolchain_config(
     "-fdata-sections"],
     dbg_compile_flags = ["-g"],
     conly_flags = [],
-    cxx_flags = ["-std=c++14"],
+    all_compile_flags = [],
+    cxx_flags = ["-std=c++17"],
     link_flags = ["-B/usr/lib/llvm-19/bin",
     "-B/usr/bin",
     "-Wl,-no-as-needed",
