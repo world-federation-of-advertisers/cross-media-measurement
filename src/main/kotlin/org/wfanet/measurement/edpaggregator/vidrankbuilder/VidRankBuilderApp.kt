@@ -21,7 +21,6 @@ import com.google.protobuf.Any
 import com.google.protobuf.Parser
 import java.time.LocalDate
 import java.time.ZoneOffset
-import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
@@ -40,6 +39,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.Wo
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
+import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
 /**
@@ -55,17 +55,9 @@ import org.wfanet.measurement.storage.StorageClient
  * One ranker VM per `RankerJob`. A `RankerJob` may cover one or more bin-packed subpools; within a
  * subpool there is no intra-subpool sharding. One WorkItem is published per `RankerJob` row.
  *
- * The not-yet-wired collaborators ([buildSubpoolMapStorageClient], [buildVidRankMapStorageClient],
- * [getVidRankMapKekUri]) are defaulted to throwing TODOs so the app stays constructible while the
- * runner is filled in separately (mirrors `SubpoolAssignerApp`).
- *
  * @param kmsClients Per-DataProvider KMS clients used to wrap/unwrap DEKs.
  * @param retentionDaysByDataProvider Per-DataProvider rank-index retention window (in days),
  *   sourced from the EDPA config; MUST exceed the EDP's maximum measurement-report window.
- * @param getSubpoolMapStorageConfig [StorageConfig] for reading the Phase-0 `SubpoolFingerprints`
- *   blobs.
- * @param getVidRankMapStorageConfig [StorageConfig] for reading prior cumulative rank-index blobs
- *   and writing the new day-only + cumulative blobs.
  * @param rankerJobsStub stub to gate on / mark this `RankerJob`.
  * @param rankIndexBlobsStub stub for locating the prior snapshot, retention, and new blob rows.
  * @param rawImpressionUploadModelLinesStub stub to flip the parent `RANKING` -> `LABELING`.
@@ -73,9 +65,10 @@ import org.wfanet.measurement.storage.StorageClient
  * @param rawImpressionUploadFilesStub stub to list the upload's files for Phase-2 sharding.
  * @param vidLabelerQueue Secure Computation queue the last-job-out publishes Phase-2 VidLabeler
  *   WorkItems to.
- * @param buildSubpoolMapStorageClient Builds the subpool-map [StorageClient].
- * @param buildVidRankMapStorageClient Builds the vid-rank-map [StorageClient].
- * @param getVidRankMapKekUri Resolves the KEK URI used to wrap each rank-index blob's DEK.
+ * @param buildSubpoolMapStorageClient Builds the subpool-map [StorageClient] from its
+ *   [StorageParams] (bucket parsed from the `gs://` blob_prefix).
+ * @param buildVidRankMapStorageClient Builds the vid-rank-map [StorageClient] from its
+ *   [StorageParams] (bucket parsed from the `gs://` blob_prefix).
  * @param today Supplies the UTC date treated as "now" for retention (injectable for tests).
  */
 class VidRankBuilderApp(
@@ -86,27 +79,14 @@ class VidRankBuilderApp(
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
   private val kmsClients: Map<String, KmsClient>,
   private val retentionDaysByDataProvider: Map<String, Int>,
-  private val getSubpoolMapStorageConfig: (StorageParams) -> StorageConfig,
-  private val getVidRankMapStorageConfig: (StorageParams) -> StorageConfig,
   private val rankerJobsStub: RankerJobServiceCoroutineStub,
   private val rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
   private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
   private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
   private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
   private val vidLabelerQueue: String,
-  private val buildSubpoolMapStorageClient: (StorageConfig) -> StorageClient = {
-    TODO(
-      "Wire subpool-map StorageClient construction from StorageConfig in VidRankBuilderAppRunner"
-    )
-  },
-  private val buildVidRankMapStorageClient: (StorageConfig) -> StorageClient = {
-    TODO(
-      "Wire vid-rank-map StorageClient construction from StorageConfig in VidRankBuilderAppRunner"
-    )
-  },
-  private val getVidRankMapKekUri: (dataProvider: String) -> String = {
-    TODO("Resolve the vid-rank-map KEK URI for the DataProvider in VidRankBuilderAppRunner")
-  },
+  private val buildSubpoolMapStorageClient: (StorageParams) -> StorageClient,
+  private val buildVidRankMapStorageClient: (StorageParams) -> StorageClient,
   private val today: () -> LocalDate = { LocalDate.now(ZoneOffset.UTC) },
 ) :
   BaseTeeApplication(
@@ -126,6 +106,9 @@ class VidRankBuilderApp(
     require(params.hasSubpoolMapStorageParams()) { "subpool_map_storage_params must be set" }
     require(params.hasVidRankMapStorageParams()) { "vid_rank_map_storage_params must be set" }
     require(params.hasEncryptedSubpoolMapsDek()) { "encrypted_subpool_maps_dek must be set" }
+    require(params.encryptedSubpoolMapsDek.kekUri.isNotEmpty()) {
+      "encrypted_subpool_maps_dek.kek_uri must be set"
+    }
     require(params.totalShards > 0) { "total_shards must be > 0" }
 
     val kmsClient =
@@ -137,14 +120,11 @@ class VidRankBuilderApp(
 
     val subpoolFingerprintsStore =
       SubpoolFingerprintsStore(
-        buildSubpoolMapStorageClient(getSubpoolMapStorageConfig(params.subpoolMapStorageParams)),
+        buildSubpoolMapStorageClient(params.subpoolMapStorageParams),
         kmsClient,
       )
     val rankIndexStore =
-      RankIndexStore(
-        buildVidRankMapStorageClient(getVidRankMapStorageConfig(params.vidRankMapStorageParams)),
-        kmsClient,
-      )
+      RankIndexStore(buildVidRankMapStorageClient(params.vidRankMapStorageParams), kmsClient)
 
     val runDate = today()
     val retention =
@@ -166,8 +146,9 @@ class VidRankBuilderApp(
         dataProvider = dataProvider,
         rawImpressionUpload = params.rawImpressionUpload,
         modelLine = params.modelLine,
-        vidRankMapBlobPrefix = params.vidRankMapStorageParams.blobPrefix,
-        kekUri = getVidRankMapKekUri(dataProvider),
+        vidRankMapBlobPrefix =
+          SelectedStorageClient.parseBlobUri(params.vidRankMapStorageParams.blobPrefix).key,
+        kekUri = params.encryptedSubpoolMapsDek.kekUri,
         encryptedSubpoolMapsDek = params.encryptedSubpoolMapsDek,
         maxEventDate = params.maxEventDate,
         retentionDays = retentionDays,

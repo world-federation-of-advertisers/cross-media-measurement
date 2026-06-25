@@ -16,11 +16,11 @@
 
 package org.wfanet.measurement.edpaggregator.vidrankbuilder
 
+import com.google.cloud.storage.StorageOptions
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Parser
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.edpaggregator.BaseTeeAppRunner
-import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.runBlockingWithTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
@@ -28,10 +28,13 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServi
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams.StorageParams
+import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
+import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 
 /**
@@ -54,10 +57,6 @@ class VidRankBuilderAppRunner : BaseTeeAppRunner() {
     required = true,
   )
   private lateinit var vidLabelerQueue: String
-
-  private val getStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
-    StorageConfig(projectId = storageParams.gcsProjectId)
-  }
 
   override fun run() {
     saveCommonEdpaCerts()
@@ -101,8 +100,8 @@ class VidRankBuilderAppRunner : BaseTeeAppRunner() {
         workItemAttemptsClient = workItemAttemptsClient,
         kmsClients = kmsClientsMap,
         retentionDaysByDataProvider = retentionDaysByDataProvider,
-        getSubpoolMapStorageConfig = getStorageConfig,
-        getVidRankMapStorageConfig = getStorageConfig,
+        buildSubpoolMapStorageClient = ::buildStorageClient,
+        buildVidRankMapStorageClient = ::buildStorageClient,
         rankerJobsStub = rankerJobsClient,
         rankIndexBlobsStub = rankIndexBlobsClient,
         rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesClient,
@@ -112,6 +111,24 @@ class VidRankBuilderAppRunner : BaseTeeAppRunner() {
       )
 
     runBlockingWithTelemetry { vidRankBuilderApp.run() }
+  }
+
+  /**
+   * Builds a bucket-rooted [StorageClient] for [storageParams], parsing the bucket from the `gs://`
+   * blob_prefix and authenticating to GCS as the Confidential Space VM's attached service account.
+   * Mirrors the deployed VID Labeling functions' storage-client construction.
+   */
+  private fun buildStorageClient(storageParams: StorageParams): StorageClient {
+    val blobUri = SelectedStorageClient.parseBlobUri(storageParams.blobPrefix)
+    val storageOptions =
+      StorageOptions.newBuilder()
+        .apply {
+          if (storageParams.gcsProjectId.isNotEmpty()) {
+            setProjectId(storageParams.gcsProjectId)
+          }
+        }
+        .build()
+    return GcsStorageClient(storageOptions.service, blobUri.bucket)
   }
 
   companion object {

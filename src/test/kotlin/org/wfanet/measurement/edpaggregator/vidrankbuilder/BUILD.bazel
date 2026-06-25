@@ -49,7 +49,6 @@ kt_jvm_test(
     srcs = ["VidRankBuilderAppTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.vidrankbuilder.VidRankBuilderAppTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:vid_rank_builder_app",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_service_kt_jvm_grpc_proto",

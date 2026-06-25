@@ -30,7 +30,6 @@ import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
@@ -161,13 +160,13 @@ class VidRankBuilderAppTest {
   private fun storageParams(prefix: String) =
     VidRankBuilderParamsKt.storageParams {
       gcsProjectId = "test-project"
-      blobPrefix = prefix
+      blobPrefix = "gs://test-bucket/$prefix"
     }
 
   /** A fully-populated, valid [VidRankBuilderParams] with no subpools (so ranking is skipped). */
   private fun validParams(): VidRankBuilderParams = vidRankBuilderParams {
     dataProvider = DATA_PROVIDER
-    encryptedSubpoolMapsDek = encryptedDek {}
+    encryptedSubpoolMapsDek = encryptedDek { kekUri = "kek-uri" }
     subpoolMapStorageParams = storageParams("subpool-map")
     vidRankMapStorageParams = storageParams("vid-rank-map")
     rawImpressionStorageParams = storageParams("raw-impressions")
@@ -205,8 +204,6 @@ class VidRankBuilderAppTest {
       workItemAttemptsClient = mock<WorkItemAttemptsCoroutineStub>(),
       kmsClients = kmsClients,
       retentionDaysByDataProvider = retentionDays,
-      getSubpoolMapStorageConfig = { StorageConfig(projectId = it.gcsProjectId) },
-      getVidRankMapStorageConfig = { StorageConfig(projectId = it.gcsProjectId) },
       rankerJobsStub = rankerJobsStub,
       rankIndexBlobsStub = mock<RankIndexBlobServiceCoroutineStub>(),
       rawImpressionUploadModelLinesStub = modelLinesStub,
@@ -215,7 +212,6 @@ class VidRankBuilderAppTest {
       vidLabelerQueue = QUEUE,
       buildSubpoolMapStorageClient = { mock<StorageClient>() },
       buildVidRankMapStorageClient = { mock<StorageClient>() },
-      getVidRankMapKekUri = { "kek-uri" },
     )
 
   @Test
