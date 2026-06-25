@@ -16,10 +16,9 @@
 from absl import logging
 from typing import Iterable, Optional
 import grpc
+from grpc_status import rpc_status
 
-from google.protobuf import message as _proto_message
 from google.rpc import error_details_pb2
-from google.rpc import status_pb2
 from wfa.measurement.internal.reporting.v2 import basic_report_pb2
 from wfa.measurement.internal.reporting.v2 import basic_reports_service_pb2
 from wfa.measurement.internal.reporting.v2 import basic_reports_service_pb2_grpc
@@ -27,10 +26,13 @@ from wfa.measurement.internal.reporting.v2 import report_results_service_pb2_grp
 from wfa.measurement.internal.reporting.v2 import reporting_sets_service_pb2_grpc
 from tools import post_process_report_result
 
-# Error reason and metadata key emitted by the internal reporting server when
-# the operation's precondition on BasicReport state fails. See
+_MAX_PAGE_SIZE = 50
+
+# Domain, reason, and metadata key emitted by the internal reporting server
+# when the operation's precondition on BasicReport state fails. See
 # org.wfanet.measurement.reporting.service.internal.Errors in the Kotlin
 # source.
+_INTERNAL_REPORTING_ERROR_DOMAIN = "internal.reporting.halo-cmm.org"
 _BASIC_REPORT_STATE_INVALID_REASON = "BASIC_REPORT_STATE_INVALID"
 _BASIC_REPORT_STATE_METADATA_KEY = "basicReportState"
 _STATES_PAST_UNPROCESSED = frozenset({
@@ -43,55 +45,61 @@ _STATES_PAST_UNPROCESSED = frozenset({
 })
 
 
-def _basic_report_state_past_unprocessed(
+def _extract_error_info(
     rpc_error: grpc.RpcError,
-) -> Optional[str]:
-    """If the RpcError carries a BASIC_REPORT_STATE_INVALID ErrorInfo whose
-    basicReportState metadata indicates a state past
-    UNPROCESSED_RESULTS_READY (SUCCEEDED or FAILED), returns that state name.
-    Otherwise returns None.
+) -> Optional[error_details_pb2.ErrorInfo]:
+    """Returns the first ErrorInfo attached to [rpc_error]'s status details,
+    or None if the call did not carry a google.rpc.Status with an ErrorInfo.
 
-    The server attaches a google.rpc.Status with an ErrorInfo to the
-    grpc-status-details-bin trailing metadata, per
-    google.rpc.error_details.proto. We parse it without taking a dependency
-    on grpcio-status by reading the trailer directly.
+    Uses grpcio-status' rpc_status.from_call to parse the
+    grpc-status-details-bin trailer; see google.rpc.status.proto and
+    google.rpc.error_details.proto for the wire format.
     """
-    trailers = (
-        rpc_error.trailing_metadata()
-        if hasattr(rpc_error, "trailing_metadata")
-        else ()
-    )
-    for key, value in trailers or ():
-        if key != "grpc-status-details-bin":
+    try:
+        status = rpc_status.from_call(rpc_error)
+    except (ValueError, TypeError):
+        # rpc_status.from_call raises ValueError if the trailer is present but
+        # the gRPC status code does not match what's encoded inside, and may
+        # raise TypeError for malformed inputs. Either way the trailer is not
+        # usable; surface as "no ErrorInfo available" rather than letting the
+        # caller treat the error as a non-state-precondition one (which would
+        # FAIL the BasicReport).
+        logging.warning(
+            "Failed to parse google.rpc.Status from grpc-status-details-bin"
+            " trailer",
+            exc_info=True,
+        )
+        return None
+    if status is None:
+        return None
+    for detail in status.details:
+        if not detail.Is(error_details_pb2.ErrorInfo.DESCRIPTOR):
             continue
-        status = status_pb2.Status()
-        try:
-            status.ParseFromString(value)
-        except _proto_message.DecodeError:
-            # Malformed grpc-status-details-bin trailer: surface it rather
-            # than silently treating the error as a non-state-precondition
-            # one (which would FAIL the BasicReport).
-            logging.warning(
-                "Failed to parse grpc-status-details-bin trailer as"
-                " google.rpc.Status",
-                exc_info=True,
-            )
-            return None
-        for detail in status.details:
-            if not detail.Is(error_details_pb2.ErrorInfo.DESCRIPTOR):
-                continue
-            error_info = error_details_pb2.ErrorInfo()
-            detail.Unpack(error_info)
-            if error_info.reason != _BASIC_REPORT_STATE_INVALID_REASON:
-                continue
-            state = error_info.metadata.get(_BASIC_REPORT_STATE_METADATA_KEY)
-            if state in _STATES_PAST_UNPROCESSED:
-                return state
-            return None
+        error_info = error_details_pb2.ErrorInfo()
+        detail.Unpack(error_info)
+        return error_info
     return None
 
 
-_MAX_PAGE_SIZE = 50
+def _basic_report_state_past_unprocessed(
+    rpc_error: grpc.RpcError,
+) -> Optional[str]:
+    """If [rpc_error] carries a BASIC_REPORT_STATE_INVALID ErrorInfo whose
+    basicReportState metadata indicates a state past
+    UNPROCESSED_RESULTS_READY (SUCCEEDED or FAILED), returns that state name.
+    Otherwise returns None.
+    """
+    error_info = _extract_error_info(rpc_error)
+    if error_info is None:
+        return None
+    if error_info.domain != _INTERNAL_REPORTING_ERROR_DOMAIN:
+        return None
+    if error_info.reason != _BASIC_REPORT_STATE_INVALID_REASON:
+        return None
+    state = error_info.metadata.get(_BASIC_REPORT_STATE_METADATA_KEY)
+    if state in _STATES_PAST_UNPROCESSED:
+        return state
+    return None
 
 
 class PostProcessReportResultJob:

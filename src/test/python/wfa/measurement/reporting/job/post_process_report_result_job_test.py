@@ -37,13 +37,14 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         reason: str,
         metadata: dict,
         details_text: str = "",
+        domain: str = "internal.reporting.halo-cmm.org",
     ) -> grpc.RpcError:
         """Builds a grpc.RpcError that carries a google.rpc.Status with an
         ErrorInfo in its trailing metadata, matching the wire format the
         Reporting server emits.
         """
         error_info = error_details_pb2.ErrorInfo(
-            domain="halo.wfanet.org",
+            domain=domain,
             reason=reason,
             metadata=metadata,
         )
@@ -351,6 +352,52 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             basic_reports_service_pb2.FailBasicReportRequest(
                 cmms_measurement_consumer_id="mc_id_1",
                 external_basic_report_id="basic_report_missing_data",
+            )
+        )
+
+    def test_execute_fails_basic_report_when_state_reason_comes_from_other_domain(
+        self,
+    ):
+        """When AddProcessedResultValues returns FAILED_PRECONDITION with an
+        ErrorInfo whose reason text matches BASIC_REPORT_STATE_INVALID but the
+        domain is NOT the reporting server's, the BasicReport must NOT be
+        silently skipped: the reason name is only meaningful within its own
+        domain. Treat as a real failure -- mark FAILED.
+        """
+        mock_report = BasicReport(
+            external_basic_report_id="basic_report_wrong_domain",
+            cmms_measurement_consumer_id="mc_id_1",
+            external_report_result_id=101,
+        )
+        self.mock_basic_reports_stub.ListBasicReports.return_value = (
+            basic_reports_service_pb2.ListBasicReportsResponse(
+                basic_reports=[mock_report]
+            )
+        )
+
+        mock_request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest()
+        )
+        self.mock_post_processor.process.return_value = mock_request
+
+        rpc_error = self._make_rpc_error_with_error_info(
+            code=grpc.StatusCode.FAILED_PRECONDITION,
+            reason="BASIC_REPORT_STATE_INVALID",
+            metadata={"basicReportState": "SUCCEEDED"},
+            details_text="lookalike error from some other subsystem",
+            domain="other.example.com",
+        )
+        self.mock_report_results_stub.AddProcessedResultValues.side_effect = (
+            rpc_error
+        )
+
+        result = self.job.execute()
+
+        self.assertFalse(result)
+        self.mock_basic_reports_stub.FailBasicReport.assert_called_once_with(
+            basic_reports_service_pb2.FailBasicReportRequest(
+                cmms_measurement_consumer_id="mc_id_1",
+                external_basic_report_id="basic_report_wrong_domain",
             )
         )
 

@@ -9,6 +9,7 @@ py_library(
     imports = ["../"],
     deps = [
         requirement("googleapis-common-protos"),
+        requirement("grpcio-status"),
         "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_report_py_pb2",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_reports_service_py_pb2_grpc",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:report_results_service_py_pb2_grpc",
