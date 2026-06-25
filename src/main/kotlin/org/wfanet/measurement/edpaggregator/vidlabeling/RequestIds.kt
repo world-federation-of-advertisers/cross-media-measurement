@@ -45,5 +45,15 @@ object RequestIds {
   fun forRawImpressionUploadModelLine(uploadName: String, modelLineName: String): String =
     fromKey("rawImpressionUploadModelLine:$uploadName:$modelLineName")
 
+  /**
+   * `request_id` for creating a Phase-0 `PoolAssignmentJob`.
+   *
+   * Keyed on [uploadName], [modelLineName], and [shardIndex] so each (upload, model line, shard)
+   * row is created at most once: a redelivered `BatchCreatePoolAssignmentJobs` returns the existing
+   * rows instead of duplicating them per shard.
+   */
+  fun forPoolAssignmentJob(uploadName: String, modelLineName: String, shardIndex: Int): String =
+    fromKey("poolAssignmentJob:$uploadName:$modelLineName:$shardIndex")
+
   private fun fromKey(key: String): String = UUID.nameUUIDFromBytes(key.toByteArray()).toString()
 }

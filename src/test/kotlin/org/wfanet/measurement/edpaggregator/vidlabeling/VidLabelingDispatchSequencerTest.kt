@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Timestamp
 import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
@@ -33,28 +34,38 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsResponse
 import org.wfanet.measurement.api.v2alpha.listModelShardsResponse
+import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreatePoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineLabelingRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLinePoolAssigningRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
@@ -72,17 +83,23 @@ class VidLabelingDispatchSequencerTest {
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase =
     mockService()
   private val workItemsService: WorkItemsGrpcKt.WorkItemsCoroutineImplBase = mockService()
+  private val poolAssignmentJobService:
+    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase =
+    mockService()
   private val modelRolloutsService: ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase =
     mockService()
   private val modelShardsService: ModelShardsGrpcKt.ModelShardsCoroutineImplBase = mockService()
+  private val modelLinesService: ModelLinesGrpcKt.ModelLinesCoroutineImplBase = mockService()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(rawImpressionUploadService)
     addService(rawImpressionUploadModelLineService)
     addService(workItemsService)
+    addService(poolAssignmentJobService)
     addService(modelRolloutsService)
     addService(modelShardsService)
+    addService(modelLinesService)
   }
 
   private val rawImpressionUploadStub by lazy {
@@ -98,24 +115,36 @@ class VidLabelingDispatchSequencerTest {
   private val workItemsStub by lazy {
     WorkItemsGrpcKt.WorkItemsCoroutineStub(grpcTestServerRule.channel)
   }
+  private val poolAssignmentJobStub by lazy {
+    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(grpcTestServerRule.channel)
+  }
   private val modelRolloutsStub by lazy {
     ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub(grpcTestServerRule.channel)
   }
   private val modelShardsStub by lazy {
     ModelShardsGrpcKt.ModelShardsCoroutineStub(grpcTestServerRule.channel)
   }
+  private val modelLinesStub by lazy {
+    ModelLinesGrpcKt.ModelLinesCoroutineStub(grpcTestServerRule.channel)
+  }
 
-  private fun createSequencer(): VidLabelingDispatchSequencer =
+  private fun createSequencer(
+    numberOfShards: Int = NUMBER_OF_SHARDS
+  ): VidLabelingDispatchSequencer =
     VidLabelingDispatchSequencer(
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
       workItemsStub = workItemsStub,
+      poolAssignmentJobStub = poolAssignmentJobStub,
       modelRolloutsStub = modelRolloutsStub,
       modelShardsStub = modelShardsStub,
+      modelLinesStub = modelLinesStub,
       dataProviderName = DATA_PROVIDER,
       vidLabelerParamsTemplate = VID_LABELER_PARAMS_TEMPLATE,
+      subpoolAssignerParamsTemplate = SUBPOOL_ASSIGNER_PARAMS_TEMPLATE,
       queueName = QUEUE_NAME,
-      numberOfShards = NUMBER_OF_SHARDS,
+      poolAssignerQueueName = POOL_ASSIGNER_QUEUE_NAME,
+      numberOfShards = numberOfShards,
       modelLineConfigs = MODEL_LINE_CONFIGS,
     )
 
@@ -196,6 +225,55 @@ class VidLabelingDispatchSequencerTest {
   private suspend fun stubMarkTransitions() {
     whenever(rawImpressionUploadModelLineService.markRawImpressionUploadModelLineLabeling(any()))
       .thenReturn(rawImpressionUploadModelLine {})
+  }
+
+  /** Stubs `getModelLine` to return a model line with the fixed active window. */
+  private suspend fun stubModelLine() {
+    whenever(modelLinesService.getModelLine(any()))
+      .thenReturn(
+        modelLine {
+          name = MODEL_LINE
+          activeStartTime = ACTIVE_START_TIME
+          activeEndTime = ACTIVE_END_TIME
+        }
+      )
+  }
+
+  /**
+   * Stubs `batchCreatePoolAssignmentJobs` to echo back one `PoolAssignmentJob` per requested shard,
+   * each with a deterministic resource name embedding its shard index.
+   */
+  private suspend fun stubPoolAssignmentJobs() {
+    whenever(poolAssignmentJobService.batchCreatePoolAssignmentJobs(any())).thenAnswer { invocation
+      ->
+      val request = invocation.getArgument<BatchCreatePoolAssignmentJobsRequest>(0)
+      batchCreatePoolAssignmentJobsResponse {
+        for (createRequest in request.requestsList) {
+          val shardIndex = createRequest.poolAssignmentJob.shardIndex
+          poolAssignmentJobs += poolAssignmentJob {
+            name = "${request.parent}/poolAssignmentJobs/job-$shardIndex"
+            cmmsModelLine = createRequest.poolAssignmentJob.cmmsModelLine
+            this.shardIndex = shardIndex
+          }
+        }
+      }
+    }
+  }
+
+  private suspend fun stubMarkPoolAssigning() {
+    whenever(
+        rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
+      )
+      .thenReturn(rawImpressionUploadModelLine {})
+  }
+
+  /** Stubs all the RPCs a successful memoized dispatch needs. */
+  private suspend fun stubMemoizedDispatch() {
+    stubShardResolution(memoized = true)
+    stubModelLine()
+    stubPoolAssignmentJobs()
+    whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+    stubMarkPoolAssigning()
   }
 
   private fun upload(id: String, state: RawImpressionUpload.State, createdAt: Instant) =
@@ -296,21 +374,182 @@ class VidLabelingDispatchSequencerTest {
   }
 
   @Test
-  fun `dispatchNext skips a memoized model line`() = runBlocking {
-    // Memoized (Phase-0 SubpoolAssigner) dispatch is out of scope for this PR (see #4062), so a
-    // memoized model line is left CREATED and no work is created.
-    stubUploads(created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW)))
-    stubModelLines(createdModelLine())
-    stubShardResolution(memoized = true)
+  fun `dispatchNext dispatches a memoized model line to Phase-0`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubMemoizedDispatch()
 
-    val result = createSequencer().dispatchNext()
+      val result = createSequencer().dispatchNext()
 
-    assertThat(result.dispatchedUpload).isNull()
-    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
-    verifyBlocking(rawImpressionUploadModelLineService, never()) {
-      markRawImpressionUploadModelLineLabeling(any())
+      assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+      // Memoized line: one PoolAssignmentJob batch, one SubpoolAssigner WorkItem per shard, then
+      // MarkPoolAssigning once. The non-memoized MarkLabeling must NOT be called.
+      verifyBlocking(poolAssignmentJobService) { batchCreatePoolAssignmentJobs(any()) }
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(any()) }
+      verifyBlocking(rawImpressionUploadModelLineService) {
+        markRawImpressionUploadModelLinePoolAssigning(any())
+      }
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        markRawImpressionUploadModelLineLabeling(any())
+      }
     }
-  }
+
+  @Test
+  fun `dispatchNext threads each shard's PoolAssignmentJob and active window into its WorkItem`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubMemoizedDispatch()
+
+      createSequencer().dispatchNext()
+
+      val captor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(captor.capture()) }
+      // Each WorkItem targets the Phase-0 queue and carries a SubpoolAssignerParams whose
+      // pool_assignment_job matches its own shard index, plus the model line's active window.
+      val paramsByShard: Map<Int, SubpoolAssignerParams> =
+        captor.allValues.associate { request ->
+          assertThat(request.workItem.queue).isEqualTo(POOL_ASSIGNER_QUEUE_NAME)
+          val params =
+            request.workItem.workItemParams
+              .unpack<WorkItemParams>()
+              .appParams
+              .unpack<SubpoolAssignerParams>()
+          params.shardIndex to params
+        }
+      assertThat(paramsByShard.keys).containsExactly(0, 1)
+      for ((shardIndex, params) in paramsByShard) {
+        assertThat(params.poolAssignmentJob)
+          .isEqualTo(
+            "$DATA_PROVIDER/rawImpressionUploads/upload-1/poolAssignmentJobs/job-$shardIndex"
+          )
+        assertThat(params.modelLine).isEqualTo(MODEL_LINE)
+        assertThat(params.totalShards).isEqualTo(NUMBER_OF_SHARDS)
+        assertThat(params.rawImpressionUpload)
+          .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+        assertThat(params.activeStartTime).isEqualTo(ACTIVE_START_TIME)
+        assertThat(params.activeEndTime).isEqualTo(ACTIVE_END_TIME)
+      }
+    }
+
+  @Test
+  fun `dispatchNext creates a PoolAssignmentJob per shard with deterministic request ids`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubMemoizedDispatch()
+
+      createSequencer().dispatchNext()
+
+      val captor = argumentCaptor<BatchCreatePoolAssignmentJobsRequest>()
+      verifyBlocking(poolAssignmentJobService) { batchCreatePoolAssignmentJobs(captor.capture()) }
+      val batch = captor.firstValue
+      assertThat(batch.requestsList.map { it.poolAssignmentJob.shardIndex }).containsExactly(0, 1)
+      // Deterministic, shard-scoped request_ids so a redelivery is idempotent per shard.
+      assertThat(batch.requestsList.map { it.requestId })
+        .containsExactly(
+          RequestIds.forPoolAssignmentJob(
+            "$DATA_PROVIDER/rawImpressionUploads/upload-1",
+            MODEL_LINE,
+            0,
+          ),
+          RequestIds.forPoolAssignmentJob(
+            "$DATA_PROVIDER/rawImpressionUploads/upload-1",
+            MODEL_LINE,
+            1,
+          ),
+        )
+    }
+
+  @Test
+  fun `dispatchNext passes the model line etag on the PoolAssigning mark`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubMemoizedDispatch()
+
+      createSequencer().dispatchNext()
+
+      val captor = argumentCaptor<MarkRawImpressionUploadModelLinePoolAssigningRequest>()
+      verifyBlocking(rawImpressionUploadModelLineService) {
+        markRawImpressionUploadModelLinePoolAssigning(captor.capture())
+      }
+      assertThat(captor.firstValue.etag).isEqualTo(ETAG)
+    }
+
+  @Test
+  fun `dispatchNext tolerates an already-existing SubpoolAssigner WorkItem`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = true)
+      stubModelLine()
+      stubPoolAssignmentJobs()
+      // A concurrent dispatch already published the WorkItem with the same deterministic ID.
+      whenever(workItemsService.createWorkItem(any())).thenAnswer {
+        throw StatusException(Status.ALREADY_EXISTS.withDescription("work item exists"))
+      }
+      stubMarkPoolAssigning()
+
+      val result = createSequencer().dispatchNext()
+
+      // Idempotent: the upload is still dispatched and the transition still happens.
+      assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+      verifyBlocking(rawImpressionUploadModelLineService) {
+        markRawImpressionUploadModelLinePoolAssigning(any())
+      }
+    }
+
+  @Test
+  fun `dispatchNext skips a memoized model line whose claim was lost with ABORTED`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = true)
+      stubModelLine()
+      stubPoolAssignmentJobs()
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      // Another concurrent dispatcher claimed the model line first: the etag CAS fails with
+      // ABORTED.
+      whenever(
+          rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
+        )
+        .thenAnswer { throw StatusException(Status.ABORTED.withDescription("etag mismatch")) }
+
+      // dispatchNext must not propagate the lost-race error.
+      val result = createSequencer().dispatchNext()
+
+      assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+    }
+
+  @Test
+  fun `dispatchNext chunks PoolAssignmentJob creation above the batch limit`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubMemoizedDispatch()
+
+      // 120 shards -> 50 + 50 + 20 across three BatchCreate calls; one WorkItem per shard.
+      createSequencer(numberOfShards = 120).dispatchNext()
+
+      verifyBlocking(poolAssignmentJobService, times(3)) { batchCreatePoolAssignmentJobs(any()) }
+      verifyBlocking(workItemsService, times(120)) { createWorkItem(any()) }
+    }
 
   @Test
   fun `dispatchNext selects the oldest CREATED upload`() =
@@ -473,10 +712,13 @@ class VidLabelingDispatchSequencerTest {
     private const val MODEL_RELEASE = "$MODEL_SUITE/modelReleases/mr1"
     private const val MODEL_BLOB_PATH = "gs://models/vid-model-v1.pb"
     private const val QUEUE_NAME = "queues/vid-labeler-queue"
+    private const val POOL_ASSIGNER_QUEUE_NAME = "queues/pool-assigner-queue"
     private const val NUMBER_OF_SHARDS = 2
     private const val ETAG = "W/\"abc123\""
 
     private val FIXED_NOW: Instant = Instant.parse("2026-06-03T12:00:00Z")
+    private val ACTIVE_START_TIME: Timestamp = Timestamps.fromSeconds(1_600_000_000L)
+    private val ACTIVE_END_TIME: Timestamp = Timestamps.fromSeconds(1_700_000_000L)
 
     private val VID_LABELER_PARAMS_TEMPLATE: VidLabelerParams = vidLabelerParams {
       dataProvider = DATA_PROVIDER
@@ -491,6 +733,34 @@ class VidLabelingDispatchSequencerTest {
           impressionsBlobPrefix = "gs://vid-labeled-bucket"
         }
       vidRepoConnection = transportLayerSecurityParams {
+        clientCertResourcePath = "cert"
+        clientPrivateKeyResourcePath = "key"
+      }
+    }
+
+    private val SUBPOOL_ASSIGNER_PARAMS_TEMPLATE: SubpoolAssignerParams = subpoolAssignerParams {
+      dataProvider = DATA_PROVIDER
+      rawImpressionStorageParams =
+        SubpoolAssignerParamsKt.storageParams {
+          gcsProjectId = "test-project"
+          blobPrefix = "gs://raw-impressions-bucket"
+        }
+      vidLabeledImpressionsStorageParams =
+        SubpoolAssignerParamsKt.storageParams {
+          gcsProjectId = "test-project"
+          blobPrefix = "gs://vid-labeled-bucket"
+        }
+      vidRankMapStorageParams =
+        SubpoolAssignerParamsKt.storageParams {
+          gcsProjectId = "test-project"
+          blobPrefix = "gs://vid-rank-map-bucket"
+        }
+      subpoolMapStorageParams =
+        SubpoolAssignerParamsKt.storageParams {
+          gcsProjectId = "test-project"
+          blobPrefix = "gs://subpool-map-bucket"
+        }
+      rawImpressionMetadataStorageConnection = transportLayerSecurityParams {
         clientCertResourcePath = "cert"
         clientPrivateKeyResourcePath = "key"
       }

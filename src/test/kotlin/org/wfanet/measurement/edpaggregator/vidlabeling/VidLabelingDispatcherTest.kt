@@ -62,10 +62,12 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesResponse
@@ -93,6 +95,9 @@ class VidLabelingDispatcherTest {
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase =
     mockService()
   private val workItemsService: WorkItemsGrpcKt.WorkItemsCoroutineImplBase = mockService()
+  private val poolAssignmentJobService:
+    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase =
+    mockService()
   private val storageClient: StorageClient = mock()
 
   @get:Rule
@@ -104,6 +109,11 @@ class VidLabelingDispatcherTest {
     addService(rawImpressionUploadFileService)
     addService(rawImpressionUploadModelLineService)
     addService(workItemsService)
+    addService(poolAssignmentJobService)
+  }
+
+  private val poolAssignmentJobStub by lazy {
+    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val modelLinesStub by lazy {
@@ -179,11 +189,15 @@ class VidLabelingDispatcherTest {
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
       workItemsStub = workItemsStub,
+      poolAssignmentJobStub = poolAssignmentJobStub,
       modelRolloutsStub = modelRolloutsStub,
       modelShardsStub = modelShardsStub,
+      modelLinesStub = modelLinesStub,
       dataProviderName = DATA_PROVIDER_NAME,
       vidLabelerParamsTemplate = vidLabelerParams {},
+      subpoolAssignerParamsTemplate = SubpoolAssignerParams.getDefaultInstance(),
       queueName = QUEUE_NAME,
+      poolAssignerQueueName = POOL_ASSIGNER_QUEUE_NAME,
       numberOfShards = NUMBER_OF_SHARDS,
       modelLineConfigs = modelLineConfigs,
     )
@@ -728,6 +742,7 @@ class VidLabelingDispatcherTest {
     private const val DONE_BLOB_GENERATION = 12345L
     private const val NUMBER_OF_SHARDS = 2
     private const val QUEUE_NAME = "queues/vid-labeler"
+    private const val POOL_ASSIGNER_QUEUE_NAME = "queues/pool-assigner"
 
     private val FIXED_NOW: Instant = Instant.parse("2026-06-03T12:00:00Z")
 
