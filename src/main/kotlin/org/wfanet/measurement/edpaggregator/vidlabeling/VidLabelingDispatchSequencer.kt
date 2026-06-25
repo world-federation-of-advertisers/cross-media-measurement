@@ -263,6 +263,18 @@ class VidLabelingDispatchSequencer(
     modelLine: RawImpressionUploadModelLine,
     shardInfo: ResolvedShardInfo,
   ) {
+    // `vid_rank_map_storage_params` and `subpool_map_storage_params` are REQUIRED on
+    // `SubpoolAssignerParams` but OPTIONAL on `VidLabelingConfig` (only required for EDPs with at
+    // least one memoized model line). Enforce that intent here: fail fast at the first memoized
+    // dispatch rather than publishing a WorkItem with REQUIRED fields missing.
+    require(subpoolAssignerParamsTemplate.hasVidRankMapStorageParams()) {
+      "vid_rank_map_storage_params missing for memoized model line ${modelLine.cmmsModelLine}; " +
+        "set it on VidLabelingConfig for this DataProvider"
+    }
+    require(subpoolAssignerParamsTemplate.hasSubpoolMapStorageParams()) {
+      "subpool_map_storage_params missing for memoized model line ${modelLine.cmmsModelLine}; " +
+        "set it on VidLabelingConfig for this DataProvider"
+    }
     val modelLineConfig =
       requireNotNull(modelLineConfigs[modelLine.cmmsModelLine]) {
         "No ModelLineConfig found for model line: ${modelLine.cmmsModelLine}"
