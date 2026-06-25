@@ -42,7 +42,11 @@ import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams.StorageParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.gcloud.kms.GCloudToAwsKmsClientFactory
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
@@ -200,6 +204,35 @@ class VidLabelerAppRunner : Runnable {
     val workItemAttemptsClient =
       WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(secureComputationPublicChannel)
 
+    // Build the mutual TLS channel for the EDP Aggregator Metadata Storage public API.
+    val metadataStorageClientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = File(edpaCertFilePath),
+        privateKeyFile = File(edpaPrivateKeyFilePath),
+        trustedCertCollectionFile = File(metadataStorageCertCollectionFilePath),
+      )
+    val metadataStoragePublicChannel =
+      ClientInterceptors.intercept(
+        buildMutualTlsChannel(
+          metadataStoragePublicApiTarget,
+          metadataStorageClientCerts,
+          metadataStoragePublicApiCertHost,
+        ),
+        grpcTelemetry.newClientInterceptor(),
+      )
+    val vidLabelingJobsClient =
+      VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(metadataStoragePublicChannel)
+    val rawImpressionUploadModelLinesClient =
+      RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
+        metadataStoragePublicChannel
+      )
+    val rankIndexBlobsClient =
+      RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(metadataStoragePublicChannel)
+    val rawImpressionUploadFilesClient =
+      RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
+        metadataStoragePublicChannel
+      )
+
     val vidLabelerApp =
       VidLabelerApp(
         subscriptionId = subscriptionId,
@@ -210,6 +243,16 @@ class VidLabelerAppRunner : Runnable {
         rawImpressionsKmsClient = rawImpressionsKmsClients,
         vidLabeledImpressionsKmsClient = vidLabeledImpressionsKmsClients,
         getStorageConfig = getStorageConfig,
+        vidLabelingJobsStub = vidLabelingJobsClient,
+        rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesClient,
+        rankIndexBlobsStub = rankIndexBlobsClient,
+        rawImpressionUploadFilesStub = rawImpressionUploadFilesClient,
+        // TODO(world-federation-of-advertisers/cross-media-measurement#3954): Wire
+        //   ParquetStorageClient construction from StorageConfig (raw-impressions storage).
+        // TODO(world-federation-of-advertisers/cross-media-measurement#3913): Wire the production
+        //   ImpressionConverter, the vid-rank-map StorageClient, the compiled-model (C++/JNI)
+        //   loadAssigner, and the vid-labeled-impressions KEK URI here once available. Until then
+        //   the VidLabelerApp defaults (TODO bodies) keep the runner constructible.
       )
 
     runBlockingWithTelemetry { vidLabelerApp.run() }
@@ -221,8 +264,7 @@ class VidLabelerAppRunner : Runnable {
     vidLabeledImpressionsKmsClients = mutableMapOf()
 
     for (config in vidLabelingConfigs.configsList) {
-      rawImpressionsKmsClients[config.dataProvider] =
-        buildKmsClient(config.rawImpressionsKmsConfig)
+      rawImpressionsKmsClients[config.dataProvider] = buildKmsClient(config.rawImpressionsKmsConfig)
       vidLabeledImpressionsKmsClients[config.dataProvider] =
         buildKmsClient(config.vidLabeledImpressionsKmsConfig)
     }
@@ -261,8 +303,7 @@ class VidLabelerAppRunner : Runnable {
         GCloudToAwsKmsClientFactory().getKmsClient(credentials)
       }
       VidLabelingConfig.KmsConfig.ProviderConfigCase.PROVIDERCONFIG_NOT_SET,
-      null ->
-        error("KmsConfig provider must be set")
+      null -> error("KmsConfig provider must be set")
     }
   }
 
