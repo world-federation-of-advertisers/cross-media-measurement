@@ -256,6 +256,9 @@ class EventGroupActivitiesService(
 
     grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
 
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4080): Support
+    // MeasurementConsumer-rooted EventGroup parents in addition to the
+    // DataProvider-rooted form.
     val dataProviderKey: DataProviderKey = parentKey.parentKey
     grpcRequire(dataProviderKey.dataProviderId != ResourceKey.WILDCARD_ID) {
       "Wildcard ID is not supported for the DataProvider in parent"
@@ -276,6 +279,10 @@ class EventGroupActivitiesService(
         try {
           ListEventGroupActivitiesPageToken.parseFrom(request.pageToken.base64UrlDecode())
         } catch (e: IOException) {
+          throw Status.INVALID_ARGUMENT.withCause(e)
+            .withDescription("page_token is malformed")
+            .asRuntimeException()
+        } catch (e: IllegalArgumentException) {
           throw Status.INVALID_ARGUMENT.withCause(e)
             .withDescription("page_token is malformed")
             .asRuntimeException()
