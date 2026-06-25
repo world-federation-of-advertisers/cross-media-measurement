@@ -19,17 +19,18 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
 import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
+import com.google.gson.JsonParser
+import com.google.gson.stream.JsonReader
 import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
 import io.grpc.ClientInterceptors
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
+import java.io.InputStreamReader
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
@@ -48,7 +49,6 @@ import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfigs
 import org.wfanet.measurement.edpaggregator.ConfigLoader
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroups
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.storage.BlobUri
@@ -184,6 +184,16 @@ class EventGroupSyncFunction() : HttpFunction {
     return blob.read().map { bytes -> EventGroup.parseFrom(bytes) }
   }
 
+  /**
+   * Reads an `EventGroups` JSON file and emits each [EventGroup] as it is parsed.
+   *
+   * The file is parsed incrementally with a streaming [JsonReader]: the top-level `event_groups`
+   * array is walked element by element and each element is converted to a single [EventGroup] via
+   * [JsonFormat]. This avoids materializing the whole file as a UTF-8 String and the entire
+   * `EventGroups` message in memory, which previously caused [OutOfMemoryError] on large (ad-level)
+   * uploads. The raw blob bytes are still buffered once (see `flatten()` below), so peak memory is
+   * roughly the file size plus a single [EventGroup] rather than several multiples of it.
+   */
   private suspend fun getEventGroupsFromJsonFormat(
     eventGroupsBlobUri: BlobUri,
     eventGroupSyncConfig: EventGroupSyncConfig,
@@ -202,18 +212,34 @@ class EventGroupSyncFunction() : HttpFunction {
       storageClient.getBlob(eventGroupsBlobUri.key)
         ?: throw IllegalStateException("Blob not found for key: ${eventGroupsBlobUri.key}")
     val parser = JsonFormat.parser()
-    val eventGroups: EventGroups =
-      EventGroups.newBuilder()
-        .apply {
-          val bytes = blob.read().flatten()
-          parser.merge(bytes.toStringUtf8(), this)
+    // The blob bytes are buffered once via flatten(); newInput() then reads over that (possibly
+    // rope) ByteString lazily, without forcing a contiguous copy or a full UTF-8 String. Peak
+    // memory is ~1x the file size (plus a single EventGroup), not several multiples of it.
+    var count = 0
+    JsonReader(InputStreamReader(blob.read().flatten().newInput(), Charsets.UTF_8)).use { jsonReader
+      ->
+      jsonReader.beginObject()
+      while (jsonReader.hasNext()) {
+        when (jsonReader.nextName()) {
+          EVENT_GROUPS_FIELD_NAME,
+          EVENT_GROUPS_FIELD_JSON_NAME -> {
+            jsonReader.beginArray()
+            while (jsonReader.hasNext()) {
+              // Parse a single array element (one EventGroup) into its own message.
+              val element = JsonParser.parseReader(jsonReader)
+              val builder = EventGroup.newBuilder()
+              parser.merge(element.toString(), builder)
+              emit(builder.build())
+              count++
+            }
+            jsonReader.endArray()
+          }
+          else -> jsonReader.skipValue()
         }
-        .build()
-    val eventGroupsList = eventGroups.eventGroupsList
-    require(eventGroupsList.size > 0) {
-      "Uploads of zero event groups are not supported. Or unable to parse."
+      }
+      jsonReader.endObject()
     }
-    emitAll(eventGroupsList.asFlow())
+    require(count > 0) { "Uploads of zero event groups are not supported. Or unable to parse." }
   }
 
   companion object {
@@ -237,6 +263,11 @@ class EventGroupSyncFunction() : HttpFunction {
     private val fileSystemStorageRoot = System.getenv("FILE_STORAGE_ROOT")
     private const val PROTO_FILE_SUFFIX = ".binpb"
     private const val JSON_FILE_SUFFIX = ".json"
+
+    // Name of the repeated field in the EventGroups message, in both its proto (snake_case) and
+    // JSON (camelCase) spellings, since JsonFormat accepts either.
+    private const val EVENT_GROUPS_FIELD_NAME = "event_groups"
+    private const val EVENT_GROUPS_FIELD_JSON_NAME = "eventGroups"
     private val DATA_WATCHER_PATH_HEADER =
       System.getenv("DATA_WATCHER_PATH_HEADER") ?: "X-DataWatcher-Path"
 
