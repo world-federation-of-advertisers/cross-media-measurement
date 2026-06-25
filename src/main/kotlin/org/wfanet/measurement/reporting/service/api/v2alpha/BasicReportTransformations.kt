@@ -163,9 +163,12 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
         validateCelBooleanFilter(env, dimensionSpecFilter, dimensionSpecFieldPath)
 
         // List of filters to be used in creating the MetricCalculationSpecs given the
-        // DimensionSpec. Each combined string is either an IQF expression alone,
-        // the DimensionSpec expression alone, or `(iqf) && (dim)`; both pieces
-        // were validated above, so the combination is valid by construction.
+        // DimensionSpec. [buildCelExpressions] only emits three shapes today: the IQF expression
+        // alone, the DimensionSpec expression alone, or `(iqf) && (dim)` -- each piece was
+        // compile-checked above and `&&` of two bool expressions is bool, so the combined string
+        // is valid by construction. Anyone modifying [buildCelExpressions] to introduce a new
+        // shape (e.g. wrapping in a CEL function call, adding a third operand) must either
+        // preserve the bool-of-bools invariant or add a third validation pass here.
         val metricCalculationSpecFilters: List<String> =
           buildCelExpressions(impressionQualificationFilterSpecsFilters, dimensionSpecFilter)
 
