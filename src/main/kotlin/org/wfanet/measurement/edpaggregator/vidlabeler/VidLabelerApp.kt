@@ -26,6 +26,7 @@ import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.time.Instant
 import java.util.UUID
+import java.util.logging.Level
 import java.util.logging.Logger
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
@@ -44,6 +45,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.
 import org.wfanet.measurement.edpaggregator.v1alpha.getVidLabelingJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
 import org.wfanet.measurement.queue.QueueSubscriber
@@ -68,32 +70,32 @@ import org.wfanet.measurement.storage.StorageClient
  * / unseen fingerprint), writes the encrypted labeled output, marks the `VidLabelingJob`
  * `SUCCEEDED`, and — when this call was the last job out for a model line — transitions the parent
  * `RawImpressionUploadModelLine` to `COMPLETED` and drops a `done` marker blob that triggers
- * downstream DataAvailabilitySync.
+ * downstream DataAvailabilitySync. On failure the job is marked `FAILED` (best-effort) and the
+ * error rethrown so the TEE framework nacks.
  *
  * @param subscriptionId Pub/Sub subscription for VID labeling queue.
  * @param queueSubscriber handles Pub/Sub pull.
  * @param parser protobuf [Parser] for [WorkItem] messages.
  * @param workItemsClient gRPC stub for WorkItems service.
  * @param workItemAttemptsClient gRPC stub for WorkItemAttempts service.
- * @param rawImpressionsKmsClient decrypt-only KMS clients keyed by data provider resource name.
- * @param vidLabeledImpressionsKmsClient encrypt/decrypt KMS clients keyed by data provider resource
- *   name.
+ * @param kmsClients per-`DataProvider` [KmsClient]s (each the EDP's own KEK), used for BOTH the
+ *   raw-impression PME decrypt and the labeled-output encrypt — exactly one client per EDP.
  * @param getStorageConfig builds a [StorageConfig] from [VidLabelerParams.StorageParams].
- * @param vidLabelingJobsStub stub to mark this WorkItem's `VidLabelingJob` `SUCCEEDED` and learn
- *   whether it is the last job out for one or more model lines.
+ * @param vidLabelingJobsStub stub to mark this WorkItem's `VidLabelingJob` `SUCCEEDED`/`FAILED` and
+ *   learn whether it is the last job out for one or more model lines.
  * @param rawImpressionUploadModelLinesStub stub for transitioning the parent
  *   `RawImpressionUploadModelLine` to `COMPLETED` on last-job-out.
  * @param rankIndexBlobsStub stub used by [MemoizedRankIndex.load] to resolve the per-subpool
  *   rank-index blob pointers.
  * @param rawImpressionUploadFilesStub stub used by [RawImpressionSource] to discover this upload's
  *   raw-impression files.
- * @param buildParquetStorageClient builds a [ParquetStorageClient] for the raw-impressions storage.
+ * @param buildParquetStorageClient builds a [ParquetStorageClient] for the raw-impressions storage,
+ *   threaded with the per-EDP [KmsClient] for PME decryption.
  * @param buildVidRankMapStorageClient builds a [StorageClient] for the vid-rank-map storage read by
  *   [RankIndexStore].
  * @param loadAssigner loads the compiled VID model (C++/JNI) for a model blob URI into a
  *   [VidAssigner].
  * @param impressionConverter converts Parquet rows into [ConvertedImpression]s (schema seam).
- * @param getVidLabeledImpressionsKekUri resolves the KEK URI used to wrap the labeled-output DEK.
  * @param eventIdDigestExtractor computes the 12-byte `EventIdDigest` of an event id.
  */
 class VidLabelerApp(
@@ -102,34 +104,16 @@ class VidLabelerApp(
   parser: Parser<WorkItem>,
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
-  private val rawImpressionsKmsClient: Map<String, KmsClient>,
-  private val vidLabeledImpressionsKmsClient: Map<String, KmsClient>,
+  private val kmsClients: Map<String, KmsClient>,
   private val getStorageConfig: (VidLabelerParams.StorageParams) -> StorageConfig,
   private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
   private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
   private val rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
-  // The following collaborators are defaulted so the runner (which supplies the production wiring)
-  // can be filled in separately; the defaults throw if invoked, but keep the app constructible.
-  private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub? = null,
-  private val buildParquetStorageClient: (StorageConfig) -> ParquetStorageClient = {
-    TODO("Wire ParquetStorageClient construction from StorageConfig in VidLabelerAppRunner")
-  },
-  private val buildVidRankMapStorageClient: (StorageConfig) -> StorageClient = {
-    TODO("Wire vid-rank-map StorageClient construction from StorageConfig in VidLabelerAppRunner")
-  },
-  // TODO(world-federation-of-advertisers/cross-media-measurement#3913): Load the compiled VID model
-  // (C++/JNI) in VidLabelerAppRunner; defaulted to throw until the JNI model loader is available.
-  private val loadAssigner: suspend (modelBlobUri: String) -> VidAssigner = {
-    TODO("Load the compiled VID model (C++/JNI) in VidLabelerAppRunner")
-  },
-  // TODO(world-federation-of-advertisers/cross-media-measurement#3913): Provide the production
-  // ImpressionConverter in VidLabelerAppRunner once the raw-impression Parquet schema is finalized.
-  private val impressionConverter: ImpressionConverter = ImpressionConverter { _, _ ->
-    TODO("Provide the production ImpressionConverter in VidLabelerAppRunner")
-  },
-  private val getVidLabeledImpressionsKekUri: (dataProvider: String) -> String = {
-    TODO("Resolve the vid-labeled-impressions KEK URI for the DataProvider in VidLabelerAppRunner")
-  },
+  private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
+  private val buildParquetStorageClient: (StorageConfig, KmsClient) -> ParquetStorageClient,
+  private val buildVidRankMapStorageClient: (StorageConfig) -> StorageClient,
+  private val loadAssigner: suspend (modelBlobUri: String) -> VidAssigner,
+  private val impressionConverter: ImpressionConverter,
   private val eventIdDigestExtractor: EventIdDigestExtractor = EventIdDigestExtractor(),
 ) :
   BaseTeeApplication(
@@ -156,37 +140,33 @@ class VidLabelerApp(
     require(params.hasMemoizedParams()) { "memoized_params must be set" }
     val mp = params.memoizedParams
 
-    val encryptKmsClient =
-      requireNotNull(vidLabeledImpressionsKmsClient[dataProvider]) {
-        "Encrypt KMS client not found for $dataProvider"
-      }
-    // Resolved for symmetry with the non-memoized path and to fail fast on a misconfigured DP; the
-    // memoized path reads vid-rank-map blobs with the encrypt client (the EDP's own KEK).
-    requireNotNull(rawImpressionsKmsClient[dataProvider]) {
-      "Decrypt KMS client not found for $dataProvider"
-    }
-    // Fail fast on a missing discovery stub (used by label()).
-    requireNotNull(rawImpressionUploadFilesStub) {
-      "RawImpressionUploadFileService stub not configured"
-    }
+    // One client per EDP (the EDP's own KEK), used for BOTH the raw-impression PME decrypt and the
+    // labeled-output encrypt — mirrors SubpoolAssigner's single-client model.
+    val kmsClient =
+      requireNotNull(kmsClients[dataProvider]) { "KMS client not found for $dataProvider" }
 
     val config =
       requireNotNull(params.modelLineConfigsMap[mp.modelLine]) {
         "model_line_configs must contain an entry for ${mp.modelLine}"
       }
 
-    // Gate on job state first: on Pub/Sub redelivery of an already-completed job, skip relabeling
-    // (the output is idempotent via deterministic blob keys) but still run the idempotent mark +
-    // last-job-out recovery so a crash between label() and the mark cannot drop the completion.
-    val job =
-      vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { name = mp.vidLabelingJob })
-    if (job.state != VidLabelingJob.State.SUCCEEDED) {
-      label(params, mp, config, dataProvider, encryptKmsClient)
-    } else {
-      logger.info("VidLabelingJob ${mp.vidLabelingJob} already SUCCEEDED; skipping relabel")
-    }
+    try {
+      // Gate on job state first: on Pub/Sub redelivery of an already-completed job, skip relabeling
+      // (the output is idempotent via deterministic blob keys) but still run the idempotent mark +
+      // last-job-out recovery so a crash between label() and the mark cannot drop the completion.
+      val job =
+        vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { name = mp.vidLabelingJob })
+      if (job.state != VidLabelingJob.State.SUCCEEDED) {
+        label(params, mp, config, dataProvider, kmsClient)
+      } else {
+        logger.info("VidLabelingJob ${mp.vidLabelingJob} already SUCCEEDED; skipping relabel")
+      }
 
-    markSucceededAndTransition(params, mp, job.etag)
+      markSucceededAndTransition(params, mp, job.etag)
+    } catch (t: Throwable) {
+      markFailedBestEffort(mp.vidLabelingJob, t)
+      throw t
+    }
   }
 
   /** Labels this WorkItem's raw-impression files for [mp]'s single model line (memoized path). */
@@ -195,12 +175,12 @@ class VidLabelerApp(
     mp: VidLabelerParams.MemoizedParams,
     config: VidLabelerParams.ModelLineConfig,
     dataProvider: String,
-    encryptKmsClient: KmsClient,
+    kmsClient: KmsClient,
   ) {
     val rankIndexStore =
       RankIndexStore(
         buildVidRankMapStorageClient(getStorageConfig(mp.vidRankMapStorageParams)),
-        encryptKmsClient,
+        kmsClient,
       )
     val rankIndex =
       MemoizedRankIndex.load(rankIndexBlobsStub, rankIndexStore, dataProvider, mp.modelLine)
@@ -211,17 +191,16 @@ class VidLabelerApp(
         "labeler_input_field_mapping must map '$EVENT_ID_FIELD_PATH' to the raw event-id column"
       }
 
-    val filesStub =
-      requireNotNull(rawImpressionUploadFilesStub) {
-        "RawImpressionUploadFileService stub not configured"
-      }
     // The memoized path labels exactly the files carried on this WorkItem; the whole batch is one
     // shard, so shardIndex=0 / totalShards=1.
     val rawImpressionSource =
       RawImpressionSource(
         parquetStorageClient =
-          buildParquetStorageClient(getStorageConfig(params.rawImpressionsStorageParams)),
-        rawImpressionUploadFilesStub = filesStub,
+          buildParquetStorageClient(
+            getStorageConfig(params.rawImpressionsStorageParams),
+            kmsClient,
+          ),
+        rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
         rawImpressionUpload = parentUpload(mp.vidLabelingJob),
         eventIdColumn = eventIdColumn,
         shardIndex = 0,
@@ -249,8 +228,10 @@ class VidLabelerApp(
         overrideModelLines = emptyList(),
         vidModelLoader = VidModelLoader(loadAssigner),
         impressionConverter = impressionConverter,
-        encryptKmsClient = encryptKmsClient,
-        encryptKekUri = getVidLabeledImpressionsKekUri(params.dataProvider),
+        encryptKmsClient = kmsClient,
+        // The labeled output is wrapped with the EDP's KEK, the same one the rank-index blobs were
+        // written with; read it from the loaded RankIndexBlobs so there is no separate KEK field.
+        encryptKekUri = rankIndex.kekUri,
         outputStorageParams = params.vidLabeledImpressionsStorageParams,
         storageConfig = getStorageConfig(params.vidLabeledImpressionsStorageParams),
       )
@@ -331,6 +312,31 @@ class VidLabelerApp(
     }
   }
 
+  /** Best-effort transition of this job to FAILED so operators see the failure; never throws. */
+  private suspend fun markFailedBestEffort(vidLabelingJob: String, cause: Throwable) {
+    try {
+      val job =
+        vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { name = vidLabelingJob })
+      if (job.state == VidLabelingJob.State.CREATED) {
+        vidLabelingJobsStub.markVidLabelingJobFailed(
+          markVidLabelingJobFailedRequest {
+            name = vidLabelingJob
+            etag = job.etag
+            // request_id is OPTIONAL on this RPC; deterministic so a redelivery is idempotent.
+            requestId = deterministicUuid("$vidLabelingJob|failed")
+            errorMessage = (cause.message ?: cause::class.java.simpleName).take(MAX_ERROR_MESSAGE)
+          }
+        )
+      } else {
+        logger.info(
+          "VidLabelingJob $vidLabelingJob already in state ${job.state}; not re-marking FAILED"
+        )
+      }
+    } catch (e: Exception) {
+      logger.log(Level.WARNING, "Failed to mark VidLabelingJob $vidLabelingJob FAILED", e)
+    }
+  }
+
   /** Writes an empty `done` marker blob under the labeled-impressions prefix. */
   private suspend fun writeDoneBlob(outputStorageParams: VidLabelerParams.StorageParams) {
     val doneUri = "${outputStorageParams.impressionsBlobPrefix}/labeled-impressions/done"
@@ -388,6 +394,8 @@ class VidLabelerApp(
 
   companion object {
     private val logger = Logger.getLogger(VidLabelerApp::class.java.name)
+
+    private const val MAX_ERROR_MESSAGE = 1024
 
     /** LabelerInput field path whose mapped raw column carries the event id used for the digest. */
     private const val EVENT_ID_FIELD_PATH = "event_id.id"

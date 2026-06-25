@@ -17,9 +17,18 @@
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.common.truth.Truth.assertThat
+import com.google.crypto.tink.Aead
+import com.google.crypto.tink.KeyTemplates
+import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
+import com.google.crypto.tink.aead.AeadConfig
+import com.google.protobuf.ByteString
+import com.google.protobuf.timestamp
+import io.grpc.StatusException
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -28,16 +37,22 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.verifyBlocking
+import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
+import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededResponseKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -46,8 +61,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobSucceededResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
+import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
@@ -57,7 +75,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAtt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.storage.ParquetStorageClient
-import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
 class VidLabelerAppTest {
@@ -113,18 +131,65 @@ class VidLabelerAppTest {
     )
   }
 
-  private val mockDecryptKmsClient: KmsClient = mock()
-  private val mockEncryptKmsClient: KmsClient = mock()
+  // Real KMS + vid-rank-map storage so MemoizedRankIndex.load resolves the output KEK from a seeded
+  // RankIndexBlob (the KEK accessor reads encrypted_dek.kek_uri off the loaded blobs).
+  private val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
+  private lateinit var kmsClient: FakeKmsClient
+  private lateinit var vidRankMapStorageClient: InMemoryStorageClient
+  private lateinit var rankStore: RankIndexStore
+  private lateinit var encryptedDek: EncryptedDek
+
   private val mockQueueSubscriber: QueueSubscriber = mock()
   private val mockParquetStorageClient: ParquetStorageClient = mock()
-  private val mockVidRankMapStorageClient: StorageClient = mock()
   private val mockVidAssigner: VidAssigner = mock()
 
+  @Before
+  fun setUp() {
+    AeadConfig.register()
+    kmsClient =
+      FakeKmsClient().apply {
+        setAead(
+          kekUri,
+          KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM")).getPrimitive(Aead::class.java),
+        )
+      }
+    vidRankMapStorageClient = InMemoryStorageClient()
+    rankStore = RankIndexStore(vidRankMapStorageClient, kmsClient)
+    encryptedDek = rankStore.generateDek(kekUri)
+  }
+
+  /** Seeds one SNAPSHOT RankIndexBlob and stubs the service to return its row. */
+  private fun seedRankIndexBlob() = runBlocking {
+    val checksum =
+      rankStore.writeBlob(
+        RANK_BLOB_KEY,
+        encryptedDek,
+        flowOf(
+          rankIndexMap {
+            poolOffset = 0L
+            rankedSize = 1000
+            fingerprints = ByteString.copyFrom(ByteArray(12))
+            ranks += 0
+          }
+        ),
+      )
+    val row = rankIndexBlob {
+      poolOffset = 0L
+      blobType = RankIndexBlob.BlobType.SNAPSHOT
+      cmmsModelLine = MODEL_LINE
+      blobUri = RANK_BLOB_KEY
+      encryptedDek = this@VidLabelerAppTest.encryptedDek
+      blobChecksum = checksum
+      createTime = timestamp { seconds = 1L }
+    }
+    rankIndexBlobsService.stub {
+      onBlocking { listRankIndexBlobs(any()) } doReturn
+        listRankIndexBlobsResponse { rankIndexBlobs += row }
+    }
+  }
+
   private fun createApp(
-    rawImpressionsKmsClient: Map<String, KmsClient> =
-      mapOf(DATA_PROVIDER_NAME to mockDecryptKmsClient),
-    vidLabeledImpressionsKmsClient: Map<String, KmsClient> =
-      mapOf(DATA_PROVIDER_NAME to mockEncryptKmsClient),
+    kmsClients: Map<String, KmsClient> = mapOf(DATA_PROVIDER_NAME to kmsClient)
   ): VidLabelerApp {
     return VidLabelerApp(
       subscriptionId = "test-subscription",
@@ -132,21 +197,19 @@ class VidLabelerAppTest {
       parser = WorkItem.parser(),
       workItemsClient = workItemsStub,
       workItemAttemptsClient = workItemAttemptsStub,
-      rawImpressionsKmsClient = rawImpressionsKmsClient,
-      vidLabeledImpressionsKmsClient = vidLabeledImpressionsKmsClient,
+      kmsClients = kmsClients,
       getStorageConfig = { StorageConfig(rootDirectory = tempFolder.root) },
       vidLabelingJobsStub = vidLabelingJobsStub,
       rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesStub,
       rankIndexBlobsStub = rankIndexBlobsStub,
       rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
-      buildParquetStorageClient = { mockParquetStorageClient },
-      buildVidRankMapStorageClient = { mockVidRankMapStorageClient },
+      buildParquetStorageClient = { _, _ -> mockParquetStorageClient },
+      buildVidRankMapStorageClient = { vidRankMapStorageClient },
       // The model is loaded up-front by VidLabeler.label(); the converter never runs because the
       // (mocked) RawImpressionUploadFileService returns no files, so there are no events to label.
       loadAssigner = { mockVidAssigner },
       impressionConverter =
         ImpressionConverter { _, _ -> error("impressionConverter should not be invoked") },
-      getVidLabeledImpressionsKekUri = { "fake-kek-uri" },
     )
   }
 
@@ -188,6 +251,7 @@ class VidLabelerAppTest {
 
   @Test
   fun `runWork marks job succeeded`() = runBlocking {
+    seedRankIndexBlob()
     vidLabelingJobsService.stub {
       onBlocking { getVidLabelingJob(any()) } doReturn
         vidLabelingJob {
@@ -220,6 +284,7 @@ class VidLabelerAppTest {
 
   @Test
   fun `runWork on last-job-out completes model line and writes done blob`() = runBlocking {
+    seedRankIndexBlob()
     vidLabelingJobsService.stub {
       onBlocking { getVidLabelingJob(any()) } doReturn
         vidLabelingJob {
@@ -268,6 +333,34 @@ class VidLabelerAppTest {
   }
 
   @Test
+  fun `runWork marks job failed best-effort and rethrows when the work block throws`() =
+    runBlocking {
+      seedRankIndexBlob()
+      vidLabelingJobsService.stub {
+        onBlocking { getVidLabelingJob(any()) } doReturn
+          vidLabelingJob {
+            name = VID_LABELING_JOB
+            state = VidLabelingJob.State.CREATED
+            etag = "etag-1"
+          }
+        // The success mark throws, driving runWork into its catch -> markFailedBestEffort path.
+        onBlocking { markVidLabelingJobSucceeded(any()) } doThrow RuntimeException("boom")
+      }
+
+      val app = createApp()
+      // The gRPC framework surfaces the server-thrown RuntimeException to the client as a
+      // StatusException(UNKNOWN); runWork marks the job FAILED best-effort and rethrows that.
+      assertFailsWith<StatusException> { app.runWork(buildMessage(memoizedParams())) }
+
+      val captor = argumentCaptor<MarkVidLabelingJobFailedRequest>()
+      verifyBlocking(vidLabelingJobsService) { markVidLabelingJobFailed(captor.capture()) }
+      assertThat(captor.firstValue.name).isEqualTo(VID_LABELING_JOB)
+      assertThat(captor.firstValue.etag).isEqualTo("etag-1")
+      assertThat(captor.firstValue.requestId).isNotEmpty()
+      assertThat(captor.firstValue.errorMessage).isNotEmpty()
+    }
+
+  @Test
   fun `runWork throws when memoized_params is not set`() = runBlocking {
     val app = createApp()
     val params = vidLabelerParams {
@@ -289,11 +382,11 @@ class VidLabelerAppTest {
   }
 
   @Test
-  fun `runWork throws when encrypt KMS client not found for data provider`() = runBlocking {
-    val app = createApp(vidLabeledImpressionsKmsClient = emptyMap())
+  fun `runWork throws when KMS client not found for data provider`() = runBlocking {
+    val app = createApp(kmsClients = emptyMap())
     val exception =
       assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(memoizedParams())) }
-    assertThat(exception).hasMessageThat().contains("Encrypt KMS client not found")
+    assertThat(exception).hasMessageThat().contains("KMS client not found")
     assertThat(exception).hasMessageThat().contains(DATA_PROVIDER_NAME)
   }
 
@@ -325,5 +418,6 @@ class VidLabelerAppTest {
     private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml1"
     private const val PARENT_NAME =
       "dataProviders/edp123/rawImpressionUploads/up1/rawImpressionUploadModelLines/rl1"
+    private const val RANK_BLOB_KEY = "rank-index/snapshot/pool0"
   }
 }
