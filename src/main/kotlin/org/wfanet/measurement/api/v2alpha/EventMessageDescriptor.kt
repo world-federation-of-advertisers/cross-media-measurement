@@ -20,7 +20,14 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.Duration
 import com.google.protobuf.Timestamp
 
-/** Wrapper around Descriptor for an Event message */
+/**
+ * Wrapper around Descriptor for an Event message.
+ *
+ * @property descriptor [Descriptors.Descriptor] for the Event message, validated on construction
+ *   (`buildEventTemplateFieldsByPath` enforces that every nested field carries the EventTemplate /
+ *   EventField annotations and uses a supported type). Exposed for consumers that need to register
+ *   the descriptor with another subsystem -- e.g. `buildCelEnvironment` -- without re-deriving it.
+ */
 class EventMessageDescriptor(val descriptor: Descriptors.Descriptor) {
   data class SupportedReportingFeatures(
     val groupable: Boolean,
