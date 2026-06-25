@@ -69,10 +69,9 @@ message RankIndexBlob {
 
   // The pool offset this blob belongs to.
   //
-  // Marked REQUIRED, but note that 0 is a valid pool offset and is also the
-  // default value of an unset `int64`, so the server cannot distinguish "unset"
-  // from "0" and does not reject 0. Callers must always set this field.
-  int64 pool_offset = 4 [
+  // `optional` so the server can distinguish unset from a valid `0` offset and
+  // enforce the REQUIRED field behavior; 0 is a valid pool offset.
+  optional int64 pool_offset = 4 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];

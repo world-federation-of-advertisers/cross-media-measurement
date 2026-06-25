@@ -116,6 +116,8 @@ class RawImpressionUploadService(
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -167,6 +169,8 @@ class RawImpressionUploadService(
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -264,6 +268,8 @@ class RawImpressionUploadService(
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }

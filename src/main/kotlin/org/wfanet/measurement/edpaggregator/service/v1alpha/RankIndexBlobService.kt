@@ -397,6 +397,10 @@ class RankIndexBlobService(
       throw RequiredFieldNotSetException("${fieldPathPrefix}rank_index_blob.cmms_model_line")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (!request.rankIndexBlob.hasPoolOffset()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}rank_index_blob.pool_offset")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     if (request.rankIndexBlob.blobUri.isEmpty()) {
       throw RequiredFieldNotSetException("${fieldPathPrefix}rank_index_blob.blob_uri")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
