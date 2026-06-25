@@ -30,7 +30,7 @@ bazel_dep(
 # DO_NOT_SUBMIT: use new release version
 git_override(
     module_name = "rules_kotlin_jvm",
-    commit = "abc7df30d55ffa85361ba592ffa0658cc80cabc0",
+    commit = "a79da22354028f0a753acfba677ad23a49dfd910",
     remote = "https://github.com/world-federation-of-advertisers/rules_kotlin_jvm.git",
 )
 bazel_dep(
