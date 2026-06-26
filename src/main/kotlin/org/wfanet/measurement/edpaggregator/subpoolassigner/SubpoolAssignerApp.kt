@@ -81,7 +81,8 @@ import org.wfanet.measurement.storage.StorageClient
  *   whether it is the last shard out.
  * @param rawImpressionUploadFilesStub Stub for discovering this upload's raw-impression files.
  *   Built by the runner from `raw_impression_metadata_storage_connection`.
- * @param buildParquetStorageClient Builds a [ParquetStorageClient] for the raw-impressions storage.
+ * @param buildParquetStorageClient Builds a [ParquetStorageClient] for the raw-impressions storage,
+ *   PME-decrypting raw impressions via the per-EDP [KmsClient].
  * @param buildSubpoolMapStorageClient Builds a [StorageClient] for the subpool-map storage.
  * @param loadPoolEmitLabeler Loads the compiled VID model in pool-emit mode from a
  *   `model_blob_path`.
@@ -102,24 +103,11 @@ class SubpoolAssignerApp(
   private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
   private val rankerJobsStub: RankerJobServiceCoroutineStub,
   private val poolAssignmentJobsStub: PoolAssignmentJobServiceCoroutineStub,
-  // The following collaborators are defaulted so the runner (which supplies the production
-  // wiring)
-  // can be filled in separately; the defaults throw if invoked, but keep the app constructible.
-  private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub? = null,
-  private val buildParquetStorageClient: (StorageConfig) -> ParquetStorageClient = {
-    TODO("Wire ParquetStorageClient construction from StorageConfig in SubpoolAssignerAppRunner")
-  },
-  private val buildSubpoolMapStorageClient: (StorageConfig) -> StorageClient = {
-    TODO(
-      "Wire subpool-map StorageClient construction from StorageConfig in SubpoolAssignerAppRunner"
-    )
-  },
-  private val loadPoolEmitLabeler: (modelBlobPath: String) -> PoolEmitLabeler = {
-    TODO("Load the compiled VID model in pool-emit mode (C++/JNI) in SubpoolAssignerAppRunner")
-  },
-  private val getSubpoolMapKekUri: (dataProvider: String) -> String = {
-    TODO("Resolve the subpool-map KEK URI for the DataProvider in SubpoolAssignerAppRunner")
-  },
+  private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
+  private val buildParquetStorageClient: (StorageConfig, KmsClient) -> ParquetStorageClient,
+  private val buildSubpoolMapStorageClient: (StorageConfig) -> StorageClient,
+  private val loadPoolEmitLabeler: suspend (modelBlobPath: String) -> PoolEmitLabeler,
+  private val getSubpoolMapKekUri: (dataProvider: String) -> String,
   private val eventIdDigestExtractor: EventIdDigestExtractor = EventIdDigestExtractor(),
 ) :
   BaseTeeApplication(
@@ -142,14 +130,9 @@ class SubpoolAssignerApp(
 
     val kmsClient =
       requireNotNull(kmsClients[dataProvider]) { "KMS client not found for $dataProvider" }
-    val filesStub =
-      requireNotNull(rawImpressionUploadFilesStub) {
-        "RawImpressionUploadFileService stub not configured"
-      }
 
-    // The raw event-id column is the raw-impression field mapped to LabelerInput's `event_id.id`.
-    // TODO(@Marco-Premier): confirm this is the canonical source for the digest column, vs. a
-    //   dedicated config knob.
+    // The raw event-id column is the raw-impression field mapped to LabelerInput's `event_id.id`
+    // (same convention as Phase 2's VidLabelerApp).
     val eventIdColumn =
       requireNotNull(params.labelerInputFieldMappingMap[EVENT_ID_FIELD_PATH]) {
         "labeler_input_field_mapping must map '$EVENT_ID_FIELD_PATH' to the raw event-id column"
@@ -159,9 +142,10 @@ class SubpoolAssignerApp(
       RawImpressionSource(
         parquetStorageClient =
           buildParquetStorageClient(
-            getRawImpressionsStorageConfig(params.rawImpressionStorageParams)
+            getRawImpressionsStorageConfig(params.rawImpressionStorageParams),
+            kmsClient,
           ),
-        rawImpressionUploadFilesStub = filesStub,
+        rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
         rawImpressionUpload = params.rawImpressionUpload,
         eventIdColumn = eventIdColumn,
         shardIndex = params.shardIndex,
