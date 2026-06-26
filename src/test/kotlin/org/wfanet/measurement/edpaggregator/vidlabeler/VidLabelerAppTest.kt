@@ -38,6 +38,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.mock
@@ -51,6 +52,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededResponseKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
@@ -306,17 +308,10 @@ class VidLabelerAppTest {
             }
         }
     }
-    rawImpressionUploadModelLinesService.stub {
-      onBlocking { listRawImpressionUploadModelLines(any()) } doReturn
-        listRawImpressionUploadModelLinesResponse {
-          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
-            name = PARENT_NAME
-            cmmsModelLine = MODEL_LINE
-            state = RawImpressionUploadModelLine.State.LABELING
-            etag = "parent-etag"
-          }
-        }
-    }
+    stubModelLineList(
+      filteredState = RawImpressionUploadModelLine.State.LABELING,
+      gateStates = listOf(RawImpressionUploadModelLine.State.COMPLETED),
+    )
 
     // FileSystemStorageClient requires the bucket directory to pre-exist (GCS buckets always do).
     tempFolder.root.resolve("output-bucket").mkdirs()
@@ -357,17 +352,10 @@ class VidLabelerAppTest {
             }
         }
     }
-    rawImpressionUploadModelLinesService.stub {
-      onBlocking { listRawImpressionUploadModelLines(any()) } doReturn
-        listRawImpressionUploadModelLinesResponse {
-          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
-            name = PARENT_NAME
-            cmmsModelLine = MODEL_LINE
-            state = RawImpressionUploadModelLine.State.LABELING
-            etag = "parent-etag"
-          }
-        }
-    }
+    stubModelLineList(
+      filteredState = RawImpressionUploadModelLine.State.LABELING,
+      gateStates = listOf(RawImpressionUploadModelLine.State.COMPLETED),
+    )
 
     tempFolder.root.resolve("output-bucket").mkdirs()
 
@@ -449,17 +437,12 @@ class VidLabelerAppTest {
               }
           }
       }
+      stubModelLineList(
+        filteredState = RawImpressionUploadModelLine.State.LABELING,
+        gateStates = listOf(RawImpressionUploadModelLine.State.COMPLETED),
+      )
+      // The parent already advanced: the transition is a benign already-advanced race.
       rawImpressionUploadModelLinesService.stub {
-        onBlocking { listRawImpressionUploadModelLines(any()) } doReturn
-          listRawImpressionUploadModelLinesResponse {
-            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
-              name = PARENT_NAME
-              cmmsModelLine = MODEL_LINE
-              state = RawImpressionUploadModelLine.State.LABELING
-              etag = "parent-etag"
-            }
-          }
-        // The parent already advanced: the transition is a benign already-advanced race.
         onBlocking { markRawImpressionUploadModelLineCompleted(any()) } doThrow
           StatusRuntimeException(Status.FAILED_PRECONDITION)
       }
@@ -474,6 +457,94 @@ class VidLabelerAppTest {
         markRawImpressionUploadModelLineCompleted(any())
       }
     }
+
+  @Test
+  fun `runWork withholds done blob while another model line of the upload is still labeling`() =
+    runBlocking {
+      seedRankIndexBlob()
+      vidLabelingJobsService.stub {
+        onBlocking { getVidLabelingJob(any()) } doReturn
+          vidLabelingJob {
+            name = VID_LABELING_JOB
+            state = VidLabelingJob.State.CREATED
+            etag = "etag-1"
+          }
+        onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
+          markVidLabelingJobSucceededResponse {
+            vidLabelingJob = vidLabelingJob {
+              name = VID_LABELING_JOB
+              state = VidLabelingJob.State.SUCCEEDED
+            }
+            lastVidLabelingJobResult =
+              MarkVidLabelingJobSucceededResponseKt.lastVidLabelingJobResult {
+                completedModelLines += MODEL_LINE
+              }
+          }
+      }
+      // This WorkItem's model line is COMPLETED, but a sibling model line of the same upload is
+      // still LABELING, so the upload-wide done blob must not be written yet.
+      stubModelLineList(
+        filteredState = RawImpressionUploadModelLine.State.LABELING,
+        gateStates =
+          listOf(
+            RawImpressionUploadModelLine.State.COMPLETED,
+            RawImpressionUploadModelLine.State.LABELING,
+          ),
+      )
+
+      tempFolder.root.resolve("output-bucket").mkdirs()
+
+      val app = createApp()
+      app.runWork(buildMessage(memoizedParams()))
+
+      // The job's own model line is still transitioned to COMPLETED ...
+      verifyBlocking(rawImpressionUploadModelLinesService) {
+        markRawImpressionUploadModelLineCompleted(any())
+      }
+      // ... but the shared done blob is withheld until every model line of the upload completes.
+      val doneFile =
+        tempFolder.root.toPath().resolve("output-bucket/labeled/labeled-impressions/done").toFile()
+      assertThat(doneFile.exists()).isFalse()
+    }
+
+  /**
+   * Stubs [listRawImpressionUploadModelLines] so a filtered call (getParent) reports a single model
+   * line in [filteredState] and the unfiltered all-completion gate reports one row per state in
+   * [gateStates]. One mock serves both call sites: the production code lists with a cmms_model_line
+   * filter to find a parent and without one to gate the upload-wide done blob.
+   */
+  private fun stubModelLineList(
+    filteredState: RawImpressionUploadModelLine.State,
+    gateStates: List<RawImpressionUploadModelLine.State>,
+  ) {
+    rawImpressionUploadModelLinesService.stub {
+      onBlocking { listRawImpressionUploadModelLines(any()) } doAnswer
+        {
+          val request = it.getArgument<ListRawImpressionUploadModelLinesRequest>(0)
+          if (request.filter.cmmsModelLine.isNotEmpty()) {
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                name = PARENT_NAME
+                cmmsModelLine = MODEL_LINE
+                state = filteredState
+                etag = "parent-etag"
+              }
+            }
+          } else {
+            listRawImpressionUploadModelLinesResponse {
+              for (modelLineState in gateStates) {
+                rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                  name = PARENT_NAME
+                  cmmsModelLine = MODEL_LINE
+                  state = modelLineState
+                  etag = "parent-etag"
+                }
+              }
+            }
+          }
+        }
+    }
+  }
 
   @Test
   fun `runWork propagates failure without marking the job FAILED`() = runBlocking {

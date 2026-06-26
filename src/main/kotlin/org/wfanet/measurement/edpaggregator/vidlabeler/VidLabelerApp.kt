@@ -304,18 +304,14 @@ class VidLabelerApp(
       markParentCompleted(parent)
     }
 
-    // Drop a `done` marker blob under the labeled-impressions prefix. This triggers DataWatcher ->
-    // DataAvailabilitySync, which crawls that folder for the per-blob .metadata.binpb sidecars
-    // written by VidLabelingSink. Written only on last-job-out so the crawl runs once the model
-    // line's output is complete.
-    //
-    // TODO(known limitation): a single `labeled-impressions/done` covers the whole output folder,
-    // so
-    // for a multi-model-line upload it triggers DataAvailabilitySync over ALL model lines' output —
-    // registering availability for model lines whose own last-job-out has not fired yet (premature
-    // availability). A per-model-line done marker (or per-model-line subfolder) is needed to scope
-    // the sync; tracked as future work.
-    writeDoneBlob(params.vidLabeledImpressionsStorageParams)
+    // Drop the single `labeled-impressions/done` marker only once *every* model line of this
+    // upload has reached COMPLETED. The marker makes DataAvailabilitySync crawl the whole output
+    // folder, which mixes every model line's labeled blobs; gating on full-upload completion keeps
+    // it from publishing a model line whose labeling is still in flight. Idempotent: a redelivery
+    // (or a concurrent last-out on the final model line) just rewrites the same empty blob.
+    if (allModelLinesCompleted(upload)) {
+      writeDoneBlob(params.vidLabeledImpressionsStorageParams)
+    }
   }
 
   /**
@@ -344,6 +340,38 @@ class VidLabelerApp(
           "(${e.status.code}); treating as done"
       )
     }
+  }
+
+  /**
+   * Returns true iff every [RawImpressionUploadModelLine] under [upload] is in the terminal
+   * `COMPLETED` state. Lists all model lines for the upload (no `cmms_model_line` filter), read
+   * after this WorkItem marked its own model line(s) `COMPLETED`, so the last model line of the
+   * upload to finish observes the whole set complete. Returns false for an upload with no model
+   * lines; a single `FAILED` model line keeps it false until an operator resolves it.
+   */
+  private suspend fun allModelLinesCompleted(upload: String): Boolean {
+    var anyFound = false
+    var allCompleted = true
+    rawImpressionUploadModelLinesStub
+      .listResources { pageToken: String ->
+        val response =
+          listRawImpressionUploadModelLines(
+            listRawImpressionUploadModelLinesRequest {
+              parent = upload
+              this.pageToken = pageToken
+            }
+          )
+        ResourceList(response.rawImpressionUploadModelLinesList, response.nextPageToken)
+      }
+      .collect { page ->
+        for (row in page) {
+          anyFound = true
+          if (row.state != RawImpressionUploadModelLine.State.COMPLETED) {
+            allCompleted = false
+          }
+        }
+      }
+    return anyFound && allCompleted
   }
 
   /** Writes an empty `done` marker blob under the labeled-impressions prefix. */
