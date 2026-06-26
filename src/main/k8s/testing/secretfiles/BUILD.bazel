@@ -50,7 +50,10 @@ filegroup(
 
 filegroup(
     name = "all_configs",
-    srcs = glob(["*.textproto"]),
+    srcs = glob(
+        ["*.textproto"],
+        allow_empty = True,
+    ),
 )
 
 filegroup(

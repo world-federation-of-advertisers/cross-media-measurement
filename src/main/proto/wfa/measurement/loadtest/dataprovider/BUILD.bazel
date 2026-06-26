@@ -5,5 +5,8 @@ package(
 
 filegroup(
     name = "specs",
-    srcs = glob(["*.textproto"]),
+    srcs = glob(
+        ["*.textproto"],
+        allow_empty = True,
+    ),
 )
