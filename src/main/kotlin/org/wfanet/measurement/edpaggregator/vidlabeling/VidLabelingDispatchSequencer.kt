@@ -443,6 +443,13 @@ class VidLabelingDispatchSequencer(
         "No ModelLineConfig found for model line: $modelLineName"
       }
 
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4083): Populate
+    // VidLabelerParams.entity_keys_by_input_blob_uri so the memoized labeler resolves each input
+    // file's entity keys by blob URI (see #4083). Requires (a) reconciling this dispatcher
+    // VidLabelerParams shape with the memoized lineage (fields 7-10 collide; no memoized_params /
+    // entity_keys here), and (b) resolving each file's entity keys from its plaintext footer
+    // event_group_reference_id + the CMMS EventGroup.entity_key (new EventGroups stub + footer
+    // read).
     val params = vidLabelerParams {
       dataProvider = dataProviderName
       vidLabeledImpressionsStorageParams =
@@ -605,6 +612,10 @@ class VidLabelingDispatchSequencer(
     // Start from the shared template (data provider, storage params, TLS connection) and fill in
     // the per-shard fields. `copy` carries every template field, so a field added to the template
     // later is propagated automatically.
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4083): Resolve each input
+    // file's entity keys (plaintext footer event_group_reference_id + CMMS EventGroup.entity_key)
+    // and add them to SubpoolAssignerParams so Phase-1 (#4009) threads them into
+    // VidLabelerParams.entity_keys_by_input_blob_uri for the memoized labeler (see #4083).
     val params =
       subpoolAssignerParamsTemplate.copy {
         rawImpressionUpload = uploadName
