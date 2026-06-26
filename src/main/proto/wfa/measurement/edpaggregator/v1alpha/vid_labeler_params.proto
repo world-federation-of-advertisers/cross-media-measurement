@@ -94,4 +94,53 @@ message VidLabelerParams {
   // the VID Repository API.
   map<string, string> model_blob_paths = 10
       [(google.api.field_behavior) = REQUIRED];
+
+  // Parameters for the memoized rank-index Phase-2 path.
+  //
+  // When set, this WorkItem uses the memoized rank-index path: the TEE resolves
+  // the per-subpool rank-index blobs from the `RankIndexBlobService` (gRPC) for
+  // the upload, and derives each VID from its memoized rank, instead of invoking
+  // the labeler against the VID Repo. Built by the Phase-1 `VidRankBuilder`
+  // last-`RankerJob`-out (one WorkItem per `VidLabelingJob`).
+  //
+  // NOTE: copied verbatim from the memoized-path branch (vid-labeler-app-runner /
+  // #4083), where it is field 8. Field 8 is `shard_index` on this branch, so it
+  // is field 11 here; the number divergence is reconciled when the branches merge.
+  MemoizedParams memoized_params = 11 [(google.api.field_behavior) = OPTIONAL];
+
+  // Parameters specific to the memoized rank-index Phase-2 path.
+  message MemoizedParams {
+    // The `VidLabelingJob` this WorkItem fulfils. The TEE marks it
+    // `SUCCEEDED`/`FAILED`, and its parent `RawImpressionUpload` scopes the
+    // `RankIndexBlob` lookup.
+    string vid_labeling_job = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference).type =
+          "edpaggregator.halo-cmm.org/VidLabelingJob"
+    ];
+
+    // The `RawImpressionUploadFile`s this WorkItem labels (the bin-packed batch
+    // carried on the `VidLabelingJob`), so the TEE need not re-read the job.
+    repeated string raw_impression_upload_files = 2 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference).type =
+          "edpaggregator.halo-cmm.org/RawImpressionUploadFile"
+    ];
+
+    // The `ModelLine` being labeled (exactly one per WorkItem).
+    string model_line = 3 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+    ];
+
+    // Cloud Storage blob path of the compiled VID model for this model line,
+    // used to map a memoized rank to its VID.
+    string model_blob_path = 4 [(google.api.field_behavior) = REQUIRED];
+
+    // Storage holding the rank-index blobs. The TEE resolves the individual blob
+    // URIs from the `RankIndexBlobService`; this supplies the project + blob
+    // prefix needed to read their bytes.
+    StorageParams vid_rank_map_storage_params = 5
+        [(google.api.field_behavior) = REQUIRED];
+  }
 }

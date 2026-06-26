@@ -26,10 +26,25 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import org.junit.Test
 import org.mockito.kotlin.*
+import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobFailedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineFailedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobFailedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.service.Errors
 
@@ -682,8 +697,235 @@ class DeadLetterQueueListenerTest {
     job.cancel()
   }
 
+  @Test
+  fun `phase-0 SubpoolAssignerParams marks pool assignment job and model line failed`() =
+    runBlocking {
+      val appParams = subpoolAssignerParams {
+        rawImpressionUpload = UPLOAD
+        modelLine = MODEL_LINE
+        poolAssignmentJob = POOL_ASSIGNMENT_JOB
+      }
+      val workItem = workItemForAppParams(appParams.pack())
+      val mockQueueMessage =
+        mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
+      val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
+      val mockQueueSubscriber =
+        mock<QueueSubscriber> {
+          on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
+        }
+      val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+
+      val mockPoolAssignmentJobsStub = mock<PoolAssignmentJobServiceCoroutineStub>()
+      val mockModelLinesStub =
+        mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines += parentModelLine()
+            }
+        }
+
+      val listener =
+        DeadLetterQueueListener(
+          subscriptionId = subscriptionId,
+          queueSubscriber = mockQueueSubscriber,
+          parser = WorkItem.parser(),
+          workItemsStub = mockWorkItemsStub,
+          poolAssignmentJobsStub = mockPoolAssignmentJobsStub,
+          rankerJobsStub = mock<RankerJobServiceCoroutineStub>(),
+          vidLabelingJobsStub = mock<VidLabelingJobServiceCoroutineStub>(),
+          rawImpressionUploadModelLinesStub = mockModelLinesStub,
+        )
+
+      val job = launch { listener.run() }
+      messageChannel.send(mockQueueMessage)
+
+      val poolCaptor = argumentCaptor<MarkPoolAssignmentJobFailedRequest>()
+      verify(mockPoolAssignmentJobsStub, timeout(5000))
+        .markPoolAssignmentJobFailed(poolCaptor.capture(), any())
+      assertEquals(POOL_ASSIGNMENT_JOB, poolCaptor.firstValue.name)
+
+      val modelLineCaptor = argumentCaptor<MarkRawImpressionUploadModelLineFailedRequest>()
+      verify(mockModelLinesStub, timeout(5000))
+        .markRawImpressionUploadModelLineFailed(modelLineCaptor.capture(), any())
+      assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
+
+      verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
+      verify(mockQueueMessage, timeout(5000)).ack()
+
+      messageChannel.close()
+      job.cancel()
+    }
+
+  @Test
+  fun `phase-2 VidLabelerParams marks model line failed and acks`() = runBlocking {
+    val appParams = vidLabelerParams {
+      rawImpressionUpload = UPLOAD
+      overrideModelLines += MODEL_LINE
+    }
+    val workItem = workItemForAppParams(appParams.pack())
+    val mockQueueMessage =
+      mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
+    val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
+    val mockQueueSubscriber =
+      mock<QueueSubscriber> {
+        on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
+      }
+    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+
+    val mockModelLinesStub =
+      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines += parentModelLine()
+          }
+      }
+
+    val listener =
+      DeadLetterQueueListener(
+        subscriptionId = subscriptionId,
+        queueSubscriber = mockQueueSubscriber,
+        parser = WorkItem.parser(),
+        workItemsStub = mockWorkItemsStub,
+        poolAssignmentJobsStub = mock<PoolAssignmentJobServiceCoroutineStub>(),
+        rankerJobsStub = mock<RankerJobServiceCoroutineStub>(),
+        vidLabelingJobsStub = mock<VidLabelingJobServiceCoroutineStub>(),
+        rawImpressionUploadModelLinesStub = mockModelLinesStub,
+      )
+
+    val job = launch { listener.run() }
+    messageChannel.send(mockQueueMessage)
+
+    val modelLineCaptor = argumentCaptor<MarkRawImpressionUploadModelLineFailedRequest>()
+    verify(mockModelLinesStub, timeout(5000))
+      .markRawImpressionUploadModelLineFailed(modelLineCaptor.capture(), any())
+    assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
+
+    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
+    verify(mockQueueMessage, timeout(5000)).ack()
+
+    messageChannel.close()
+    job.cancel()
+  }
+
+  @Test
+  fun `phase-2 memoized VidLabelerParams marks vid labeling job and model line failed`() =
+    runBlocking {
+      val appParams = vidLabelerParams {
+        memoizedParams =
+          VidLabelerParamsKt.memoizedParams {
+            vidLabelingJob = VID_LABELING_JOB
+            modelLine = MODEL_LINE
+          }
+      }
+      val workItem = workItemForAppParams(appParams.pack())
+      val mockQueueMessage =
+        mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
+      val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
+      val mockQueueSubscriber =
+        mock<QueueSubscriber> {
+          on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
+        }
+      val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+
+      val mockVidLabelingJobsStub = mock<VidLabelingJobServiceCoroutineStub>()
+      val mockModelLinesStub =
+        mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines += parentModelLine()
+            }
+        }
+
+      val listener =
+        DeadLetterQueueListener(
+          subscriptionId = subscriptionId,
+          queueSubscriber = mockQueueSubscriber,
+          parser = WorkItem.parser(),
+          workItemsStub = mockWorkItemsStub,
+          poolAssignmentJobsStub = mock<PoolAssignmentJobServiceCoroutineStub>(),
+          rankerJobsStub = mock<RankerJobServiceCoroutineStub>(),
+          vidLabelingJobsStub = mockVidLabelingJobsStub,
+          rawImpressionUploadModelLinesStub = mockModelLinesStub,
+        )
+
+      val job = launch { listener.run() }
+      messageChannel.send(mockQueueMessage)
+
+      val vljCaptor = argumentCaptor<MarkVidLabelingJobFailedRequest>()
+      verify(mockVidLabelingJobsStub, timeout(5000))
+        .markVidLabelingJobFailed(vljCaptor.capture(), any())
+      assertEquals(VID_LABELING_JOB, vljCaptor.firstValue.name)
+
+      val modelLineCaptor = argumentCaptor<MarkRawImpressionUploadModelLineFailedRequest>()
+      verify(mockModelLinesStub, timeout(5000))
+        .markRawImpressionUploadModelLineFailed(modelLineCaptor.capture(), any())
+      assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
+
+      verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
+      verify(mockQueueMessage, timeout(5000)).ack()
+
+      messageChannel.close()
+      job.cancel()
+    }
+
+  @Test
+  fun `with null EDPA stubs only failWorkItem is called`() = runBlocking {
+    val appParams = subpoolAssignerParams {
+      rawImpressionUpload = UPLOAD
+      modelLine = MODEL_LINE
+      poolAssignmentJob = POOL_ASSIGNMENT_JOB
+    }
+    val workItem = workItemForAppParams(appParams.pack())
+    val mockQueueMessage =
+      mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
+    val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
+    val mockQueueSubscriber =
+      mock<QueueSubscriber> {
+        on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
+      }
+    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+    val mockPoolAssignmentJobsStub = mock<PoolAssignmentJobServiceCoroutineStub>()
+
+    // EDPA stubs default to null, so no EDPA marking should occur.
+    val listener =
+      DeadLetterQueueListener(
+        subscriptionId = subscriptionId,
+        queueSubscriber = mockQueueSubscriber,
+        parser = WorkItem.parser(),
+        workItemsStub = mockWorkItemsStub,
+      )
+
+    val job = launch { listener.run() }
+    messageChannel.send(mockQueueMessage)
+
+    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
+    verify(mockQueueMessage, timeout(5000)).ack()
+    verifyNoInteractions(mockPoolAssignmentJobsStub)
+
+    messageChannel.close()
+    job.cancel()
+  }
+
+  private fun workItemForAppParams(appParams: com.google.protobuf.Any): WorkItem = workItem {
+    name = workItemId
+    workItemParams = workItemParams { this.appParams = appParams }.pack()
+  }
+
+  private fun parentModelLine(): RawImpressionUploadModelLine = rawImpressionUploadModelLine {
+    name = PARENT_NAME
+    cmmsModelLine = MODEL_LINE
+  }
+
   companion object {
     private val subscriptionId = "test-subscription"
     private val workItemId = "test-work-item"
+    private const val UPLOAD = "dataProviders/dp/rawImpressionUploads/up1"
+    private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml1"
+    private const val POOL_ASSIGNMENT_JOB =
+      "dataProviders/dp/rawImpressionUploads/up1/poolAssignmentJobs/paj-0"
+    private const val PARENT_NAME =
+      "dataProviders/dp/rawImpressionUploads/up1/rawImpressionUploadModelLines/rl1"
+    private const val VID_LABELING_JOB =
+      "dataProviders/dp/rawImpressionUploads/up1/vidLabelingJobs/vlj-0"
   }
 }
