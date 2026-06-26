@@ -41,13 +41,19 @@ bazel_dep(
 # DO_NOT_SUBMIT: use new release version
 git_override(
     module_name = "rules_swig",
-    commit = "09b56740eb29007901c8514494683caa811564d2",
+    commit = "db31b5f9695cf1c80f4fe0966b619a27e58a4579",
     remote = "https://github.com/world-federation-of-advertisers/rules_swig.git",
 )
 bazel_dep(
     name = "rules_cue",
     version = "0.4.1",
     repo_name = "wfa_rules_cue",
+)
+# DO_NOT_SUBMIT: use new release version
+git_override(
+    module_name = "rules_cue",
+    commit = "876f5377a17fdbacde2b57fd0eb98b5d63e89b73",
+    remote = "https://github.com/world-federation-of-advertisers/rules_cue.git",
 )
 bazel_dep(
     name = "common-jvm",
@@ -64,6 +70,12 @@ bazel_dep(
     name = "common-cpp",
     version = "0.14.0",
     repo_name = "wfa_common_cpp",
+)
+# DO_NOT_SUBMIT: use new release version
+git_override(
+    module_name = "common-cpp",
+    commit = "510cc23c01791cfe4f64e543ad145e1ae41534de",
+    remote = "https://github.com/world-federation-of-advertisers/common-cpp.git",
 )
 bazel_dep(
     name = "cross-media-measurement-api",
@@ -118,7 +130,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "shell-encryption",
-    version = "0.0.0-20241214-b381c4e",
+    version = "0.0.0-20260625-61c9af6",
     repo_name = "com_github_google_shell",
 )
 
@@ -481,9 +493,9 @@ http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "ht
 
 http_archive(
     name = "private_membership",
-    sha256 = "b1e0e7f74f4da09a6011c6fa91d7b968cdff6bb571712490dae427704b2af14c",
-    strip_prefix = "private-membership-84e45669f7357bffcdafbc1b0cc26e72512808ce",
-    url = "https://github.com/google/private-membership/archive/84e45669f7357bffcdafbc1b0cc26e72512808ce.zip",
+    sha256 = "0fc261c006257a4b7cb0ac600c769e12f121c875106ddd69229a850299e328e9",
+    strip_prefix = "private-membership-376dfed362faedf87a1aa6cab8d0e52e1a9b9aaf",
+    url = "https://github.com/google/private-membership/archive/376dfed362faedf87a1aa6cab8d0e52e1a9b9aaf.zip",
 )
 
 http_archive(
