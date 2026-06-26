@@ -21,14 +21,11 @@ import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import com.google.protobuf.ExtensionRegistry
 import java.util.concurrent.ConcurrentHashMap
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.Path
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResultsFulfillerConfigAsByteArray
-import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.edpaggregator.BaseTeeAppRunner
+import org.wfanet.measurement.edpaggregator.BaseVidLabelingTeeAppRunner
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.runBlockingWithTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
@@ -41,10 +38,6 @@ import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
-import org.wfanet.measurement.storage.ParquetEncryptionConfig
-import org.wfanet.measurement.storage.ParquetStorageClient
-import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 
 /**
@@ -59,10 +52,10 @@ import picocli.CommandLine
  * converter seams, and hands everything to [VidLabelerApp.run].
  */
 @CommandLine.Command(name = "vid_labeler_app_runner")
-class VidLabelerAppRunner : BaseTeeAppRunner() {
+class VidLabelerAppRunner : BaseVidLabelingTeeAppRunner() {
 
   private val getStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
-    StorageConfig(projectId = storageParams.gcsProjectId)
+    storageConfig(storageParams.gcsProjectId)
   }
 
   // Caches resolved EventTemplate descriptors by (blob URI, type name) so a descriptor blob is read
@@ -103,22 +96,10 @@ class VidLabelerAppRunner : BaseTeeAppRunner() {
         rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesClient,
         rankIndexBlobsStub = rankIndexBlobsClient,
         rawImpressionUploadFilesStub = rawImpressionUploadFilesClient,
-        buildParquetStorageClient = { cfg, kms ->
-          ParquetStorageClient(
-            conf = productionConfiguration(requireNotNull(cfg.projectId)),
-            // RawImpressionSource hands ParquetStorageClient absolute gs:// URIs, so the root is
-            // only the FileSystem selector; the read never resolves against it.
-            rootPath = Path(GCS_ROOT_URI),
-            encryptionConfig = ParquetEncryptionConfig(kmsProvider = { kms }),
-          )
-        },
-        buildVidRankMapStorageClient = { cfg -> buildSelectedStorageClient(cfg, GCS_ROOT_URI) },
+        buildParquetStorageClient = { cfg, kms -> buildParquetStorageClient(cfg, kms) },
+        buildVidRankMapStorageClient = { cfg -> buildStorageClient(cfg) },
         loadAssigner = { modelBlobUri ->
-          val blobUri = SelectedStorageClient.parseBlobUri(modelBlobUri)
-          val modelBlob =
-            SelectedStorageClient(blobUri, /* rootDirectory= */ null, googleProjectId)
-              .getBlob(blobUri.key) ?: error("Compiled-model blob not found: $modelBlobUri")
-          VirtualPeopleVidAssigner.fromCompiledNodeBlob(modelBlob.read().flatten())
+          VirtualPeopleVidAssigner.fromCompiledNodeBlob(readCompiledModelBlob(modelBlobUri))
         },
         buildImpressionConverter = { _, config, entityKeysByEventGroupReferenceId ->
           ParquetImpressionConverter(
@@ -162,9 +143,6 @@ class VidLabelerAppRunner : BaseTeeAppRunner() {
   companion object {
     @JvmStatic fun main(args: Array<String>) = commandLineMain(VidLabelerAppRunner(), args)
 
-    /** Root URI selecting the GCS-backed [SelectedStorageClient] for absolute `gs://` blob URIs. */
-    private const val GCS_ROOT_URI = "gs://"
-
     /**
      * [Descriptors.FileDescriptor]s of protobuf types known at compile time that may be referenced
      * from a loaded [DescriptorProtos.FileDescriptorSet].
@@ -177,28 +155,5 @@ class VidLabelerAppRunner : BaseTeeAppRunner() {
       ExtensionRegistry.newInstance()
         .also { EventAnnotationsProto.registerAllExtensions(it) }
         .unmodifiable
-
-    /**
-     * Hadoop [Configuration] selecting the GCS connector with Compute-Engine (VM SA) auth, for the
-     * `ParquetStorageClient` reading raw impressions.
-     */
-    private fun productionConfiguration(projectId: String): Configuration =
-      Configuration().apply {
-        set("fs.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem")
-        set("fs.AbstractFileSystem.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFS")
-        set("fs.gs.auth.type", "COMPUTE_ENGINE")
-        set("fs.gs.project.id", projectId)
-      }
-
-    /**
-     * Builds a [StorageClient] for [rootUri], passing the optional [StorageConfig.projectId]
-     * through to the underlying GCS client.
-     */
-    private fun buildSelectedStorageClient(cfg: StorageConfig, rootUri: String): StorageClient =
-      SelectedStorageClient(
-        SelectedStorageClient.parseBlobUri(rootUri),
-        cfg.rootDirectory,
-        cfg.projectId,
-      )
   }
 }
