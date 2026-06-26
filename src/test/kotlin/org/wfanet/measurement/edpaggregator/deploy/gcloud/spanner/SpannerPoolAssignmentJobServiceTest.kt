@@ -71,11 +71,10 @@ class SpannerPoolAssignmentJobServiceTest : PoolAssignmentJobServiceTest() {
     spannerDatabase.databaseClient.write(listOf(mutation))
   }
 
-  override suspend fun setPoolOffsetsForModelLine(
+  override suspend fun createRawImpressionUploadModelLine(
     dataProviderResourceId: String,
     rawImpressionUploadResourceId: String,
     cmmsModelLine: String,
-    poolOffsets: List<Long>,
   ) {
     val databaseClient: AsyncDatabaseClient = spannerDatabase.databaseClient
     val uploadId: Long =
@@ -118,7 +117,7 @@ class SpannerPoolAssignmentJobServiceTest : PoolAssignmentJobServiceTest() {
           )
         )
         .set("PoolOffsets")
-        .toInt64Array(poolOffsets)
+        .toInt64Array(emptyList())
         .set("Etag")
         .to(UUID.randomUUID().toString())
         .set("CreateTime")

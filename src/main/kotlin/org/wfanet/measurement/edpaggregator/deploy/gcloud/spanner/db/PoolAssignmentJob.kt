@@ -21,11 +21,14 @@ import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
+import com.google.type.Date
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
@@ -329,14 +332,27 @@ suspend fun AsyncDatabaseClient.ReadContext.countNonSucceededPoolAssignmentJobs(
  *
  * @return the pool offsets (empty if the column is null), or `null` if the row does not exist
  */
-suspend fun AsyncDatabaseClient.ReadContext.getPoolOffsetsForModelLine(
+data class RawImpressionUploadModelLineMergeState(
+  val rawImpressionUploadModelLineId: Long,
+  val poolOffsets: List<Long>,
+  val maxEventDate: Date?,
+)
+
+/**
+ * Reads the parent [RawImpressionUploadModelLine]'s merge state — its surrogate ID, the pool
+ * offsets unioned so far, and the max event date reduced so far — for the given (upload, model
+ * line).
+ *
+ * @return the merge state, or `null` if the model line row does not exist
+ */
+suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadModelLineMergeState(
   dataProviderResourceId: String,
   rawImpressionUploadId: Long,
   cmmsModelLine: String,
-): List<Long>? {
+): RawImpressionUploadModelLineMergeState? {
   val sql =
     """
-    SELECT PoolOffsets
+    SELECT RawImpressionUploadModelLineId, PoolOffsets, MaxEventDate
     FROM RawImpressionUploadModelLine
     WHERE DataProviderResourceId = @dataProviderResourceId
       AND RawImpressionUploadId = @rawImpressionUploadId
@@ -354,7 +370,34 @@ suspend fun AsyncDatabaseClient.ReadContext.getPoolOffsetsForModelLine(
       )
       .singleOrNullIfEmpty() ?: return null
 
-  return if (row.isNull("PoolOffsets")) emptyList() else row.getLongList("PoolOffsets")
+  return RawImpressionUploadModelLineMergeState(
+    rawImpressionUploadModelLineId = row.getLong("RawImpressionUploadModelLineId"),
+    poolOffsets = if (row.isNull("PoolOffsets")) emptyList() else row.getLongList("PoolOffsets"),
+    maxEventDate =
+      if (row.isNull("MaxEventDate")) null else row.getDate("MaxEventDate").toProtoDate(),
+  )
+}
+
+/**
+ * Buffers an update to the parent [RawImpressionUploadModelLine] row's merged Phase-1 outputs:
+ * the unioned [poolOffsets] and reduced [maxEventDate] accumulated across PoolAssignmentJob
+ * shards.
+ */
+fun AsyncDatabaseClient.TransactionContext.updateRawImpressionUploadModelLineMergedOutputs(
+  dataProviderResourceId: String,
+  rawImpressionUploadId: Long,
+  rawImpressionUploadModelLineId: Long,
+  poolOffsets: List<Long>,
+  maxEventDate: Date?,
+) {
+  bufferUpdateMutation("RawImpressionUploadModelLine") {
+    set("DataProviderResourceId").to(dataProviderResourceId)
+    set("RawImpressionUploadId").to(rawImpressionUploadId)
+    set("RawImpressionUploadModelLineId").to(rawImpressionUploadModelLineId)
+    set("PoolOffsets").toInt64Array(poolOffsets)
+    set("MaxEventDate").to(maxEventDate?.toCloudDate())
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
 }
 
 /** Buffers an insert mutation for a [PoolAssignmentJob] row. */

@@ -17,6 +17,7 @@ package org.wfanet.measurement.edpaggregator.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.rpc.errorInfo
+import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -64,20 +65,27 @@ abstract class PoolAssignmentJobServiceTest {
   )
 
   /**
-   * Creates a [RawImpressionUploadModelLine] row for the given (upload, model line) with the
-   * provided [poolOffsets], so MarkSucceeded can surface them in the last-shard result.
+   * Creates a parent [RawImpressionUploadModelLine] row (empty pool offsets, no max event date)
+   * for the given (upload, model line). MarkSucceeded requires this parent row so it can merge
+   * each shard's pool offsets / max event date into it.
    */
-  protected abstract suspend fun setPoolOffsetsForModelLine(
+  protected abstract suspend fun createRawImpressionUploadModelLine(
     dataProviderResourceId: String,
     rawImpressionUploadResourceId: String,
     cmmsModelLine: String,
-    poolOffsets: List<Long>,
   )
 
   @Before
   fun initService() {
     service = newService()
-    runBlocking { createParentUpload(DATA_PROVIDER_RESOURCE_ID, RAW_IMPRESSION_UPLOAD_RESOURCE_ID) }
+    runBlocking {
+      createParentUpload(DATA_PROVIDER_RESOURCE_ID, RAW_IMPRESSION_UPLOAD_RESOURCE_ID)
+      createRawImpressionUploadModelLine(
+        DATA_PROVIDER_RESOURCE_ID,
+        RAW_IMPRESSION_UPLOAD_RESOURCE_ID,
+        CMMS_MODEL_LINE,
+      )
+    }
   }
 
   @Test
@@ -904,14 +912,8 @@ abstract class PoolAssignmentJobServiceTest {
     }
 
   @Test
-  fun `markPoolAssignmentJobSucceeded last_shard_result carries model line pool offsets`() =
+  fun `markPoolAssignmentJobSucceeded last_shard_result carries merged pool offsets and max date`() =
     runBlocking {
-      setPoolOffsetsForModelLine(
-        DATA_PROVIDER_RESOURCE_ID,
-        RAW_IMPRESSION_UPLOAD_RESOURCE_ID,
-        CMMS_MODEL_LINE,
-        POOL_OFFSETS,
-      )
       val shard: PoolAssignmentJob =
         service.createPoolAssignmentJob(
           createPoolAssignmentJobRequest {
@@ -931,6 +933,8 @@ abstract class PoolAssignmentJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = shard.poolAssignmentJobResourceId
             etag = shard.etag
+            poolOffsets += POOL_OFFSETS
+            maxEventDate = MAX_EVENT_DATE
           }
         )
 
@@ -938,17 +942,12 @@ abstract class PoolAssignmentJobServiceTest {
       assertThat(response.lastShardResult.poolOffsetsList)
         .containsExactlyElementsIn(POOL_OFFSETS)
         .inOrder()
+      assertThat(response.lastShardResult.maxEventDate).isEqualTo(MAX_EVENT_DATE)
     }
 
   @Test
   fun `markPoolAssignmentJobSucceeded replay of last shard returns last_shard_result`() =
     runBlocking {
-      setPoolOffsetsForModelLine(
-        DATA_PROVIDER_RESOURCE_ID,
-        RAW_IMPRESSION_UPLOAD_RESOURCE_ID,
-        CMMS_MODEL_LINE,
-        POOL_OFFSETS,
-      )
       val requestId: String = UUID.randomUUID().toString()
       val shard: PoolAssignmentJob =
         service.createPoolAssignmentJob(
@@ -970,6 +969,8 @@ abstract class PoolAssignmentJobServiceTest {
             poolAssignmentJobResourceId = shard.poolAssignmentJobResourceId
             etag = shard.etag
             this.requestId = requestId
+            poolOffsets += POOL_OFFSETS
+            maxEventDate = MAX_EVENT_DATE
           }
         )
       assertThat(first.hasLastShardResult()).isTrue()
@@ -988,6 +989,83 @@ abstract class PoolAssignmentJobServiceTest {
       assertThat(replay.poolAssignmentJob).isEqualTo(first.poolAssignmentJob)
       assertThat(replay.hasLastShardResult()).isTrue()
       assertThat(replay.lastShardResult.poolOffsetsList)
+        .containsExactlyElementsIn(POOL_OFFSETS)
+        .inOrder()
+      assertThat(replay.lastShardResult.maxEventDate).isEqualTo(MAX_EVENT_DATE)
+    }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded scopes last shard detection per model line`() =
+    runBlocking {
+      createRawImpressionUploadModelLine(
+        DATA_PROVIDER_RESOURCE_ID,
+        RAW_IMPRESSION_UPLOAD_RESOURCE_ID,
+        CMMS_MODEL_LINE_2,
+      )
+      // Model line A has two shards under the upload.
+      val modelLineAShard0: PoolAssignmentJob =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            poolAssignmentJob = poolAssignmentJob {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
+          }
+        )
+      val modelLineAShard1: PoolAssignmentJob =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            poolAssignmentJob = poolAssignmentJob {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 1
+            }
+          }
+        )
+      // Model line B has a single shard under the same upload that stays pending for the
+      // whole test, so it can neither trigger nor suppress model line A's last-shard result.
+      service.createPoolAssignmentJob(
+        createPoolAssignmentJobRequest {
+          poolAssignmentJob = poolAssignmentJob {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            cmmsModelLine = CMMS_MODEL_LINE_2
+            shardIndex = 0
+          }
+        }
+      )
+
+      // Marking A's first shard is NOT the last shard for A (A still has shard 1 pending);
+      // model line B's pending shard must not spuriously trigger a last-shard result.
+      val firstResponse: MarkPoolAssignmentJobSucceededResponse =
+        service.markPoolAssignmentJobSucceeded(
+          markPoolAssignmentJobSucceededRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            poolAssignmentJobResourceId = modelLineAShard0.poolAssignmentJobResourceId
+            etag = modelLineAShard0.etag
+          }
+        )
+      assertThat(firstResponse.hasLastShardResult()).isFalse()
+
+      // Marking A's second shard IS A's last shard; model line B's still-pending shard under
+      // the same upload must not suppress A's last-shard result.
+      val lastResponse: MarkPoolAssignmentJobSucceededResponse =
+        service.markPoolAssignmentJobSucceeded(
+          markPoolAssignmentJobSucceededRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            poolAssignmentJobResourceId = modelLineAShard1.poolAssignmentJobResourceId
+            etag = modelLineAShard1.etag
+            poolOffsets += POOL_OFFSETS
+          }
+        )
+
+      assertThat(lastResponse.hasLastShardResult()).isTrue()
+      assertThat(lastResponse.lastShardResult.poolOffsetsList)
         .containsExactlyElementsIn(POOL_OFFSETS)
         .inOrder()
     }
@@ -1155,6 +1233,11 @@ abstract class PoolAssignmentJobServiceTest {
     private const val CMMS_MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
     private const val CMMS_MODEL_LINE_2 = "modelProviders/mp1/modelSuites/ms1/modelLines/ml2"
     private val POOL_OFFSETS = listOf(0L, 4L, 8L)
+    private val MAX_EVENT_DATE = date {
+      year = 2026
+      month = 6
+      day = 25
+    }
     private val ENCRYPTED_DEK = encryptedDek {
       kekUri = "gcp-kms://projects/test/locations/us/keyRings/r/cryptoKeys/k"
     }

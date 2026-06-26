@@ -63,6 +63,7 @@ class PoolAssignmentJobService(
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : PoolAssignmentJobServiceCoroutineImplBase(coroutineContext) {
 
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4078): Flip request_id to REQUIRED + UUID4
   override suspend fun createPoolAssignmentJob(
     request: CreatePoolAssignmentJobRequest
   ): PoolAssignmentJob {
@@ -115,6 +116,7 @@ class PoolAssignmentJobService(
     return internalResponse.toPublic()
   }
 
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4078): Flip per-element request_id to REQUIRED + UUID4
   override suspend fun batchCreatePoolAssignmentJobs(
     request: BatchCreatePoolAssignmentJobsRequest
   ): BatchCreatePoolAssignmentJobsResponse {
@@ -307,6 +309,7 @@ class PoolAssignmentJobService(
     }
   }
 
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4078): Flip request_id to REQUIRED + UUID4
   override suspend fun markPoolAssignmentJobSucceeded(
     request: MarkPoolAssignmentJobSucceededRequest
   ): MarkPoolAssignmentJobSucceededResponse {
@@ -349,6 +352,10 @@ class PoolAssignmentJobService(
             etag = request.etag
             requestId = request.requestId
             encryptedDek = request.encryptedDek
+            poolOffsets += request.poolOffsetsList
+            if (request.hasMaxEventDate()) {
+              maxEventDate = request.maxEventDate
+            }
           }
         )
       } catch (e: StatusException) {
@@ -360,12 +367,16 @@ class PoolAssignmentJobService(
       if (internalResponse.hasLastShardResult()) {
         this.lastShardResult = lastShardResult {
           poolOffsets += internalResponse.lastShardResult.poolOffsetsList
+          if (internalResponse.lastShardResult.hasMaxEventDate()) {
+            maxEventDate = internalResponse.lastShardResult.maxEventDate
+          }
         }
       }
     }
   }
 
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4078): Add AIP-155 request_id idempotency
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4078): Validate request_id (UUID4)
+  // and forward it to the internal request, mirroring markPoolAssignmentJobSucceeded.
   override suspend fun markPoolAssignmentJobFailed(
     request: MarkPoolAssignmentJobFailedRequest
   ): PoolAssignmentJob {
@@ -442,7 +453,7 @@ private fun handleInternalError(e: StatusException): StatusRuntimeException {
 }
 
 /** Converts an internal [InternalPoolAssignmentJob] to a public one. */
-fun InternalPoolAssignmentJob.toPublic(): PoolAssignmentJob {
+internal fun InternalPoolAssignmentJob.toPublic(): PoolAssignmentJob {
   val source = this
   return poolAssignmentJob {
     name =

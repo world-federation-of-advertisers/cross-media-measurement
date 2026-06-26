@@ -26,6 +26,7 @@ import java.util.UUID
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.ClassRule
@@ -55,10 +56,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsReques
 import org.wfanet.measurement.edpaggregator.v1alpha.markPoolAssignmentJobFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markPoolAssignmentJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase as InternalPoolAssignmentJobServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub as InternalPoolAssignmentJobServiceCoroutineStub
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 
 @RunWith(JUnit4::class)
@@ -67,6 +70,7 @@ class PoolAssignmentJobServiceTest {
   private lateinit var service: PoolAssignmentJobService
 
   private var nextUploadId: Long = 1L
+  private var nextModelLineId: Long = 1L
 
   val spannerDatabase =
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.EDP_AGGREGATOR_CHANGELOG_PATH)
@@ -105,6 +109,62 @@ class PoolAssignmentJobServiceTest {
         .to("gs://bucket/done")
         .set("State")
         .to(Value.protoEnum(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED))
+        .set("CreateTime")
+        .to(Value.COMMIT_TIMESTAMP)
+        .set("UpdateTime")
+        .to(Value.COMMIT_TIMESTAMP)
+        .build()
+    spannerDatabase.databaseClient.write(listOf(mutation))
+  }
+
+  private suspend fun createRawImpressionUploadModelLine(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    cmmsModelLine: String,
+  ) {
+    val uploadId: Long =
+      spannerDatabase.databaseClient.singleUse().use { txn ->
+        txn
+          .executeQuery(
+            statement(
+              """
+              SELECT RawImpressionUploadId
+              FROM RawImpressionUpload
+              WHERE DataProviderResourceId = @dataProviderResourceId
+                AND RawImpressionUploadResourceId = @rawImpressionUploadResourceId
+              """
+                .trimIndent()
+            ) {
+              bind("dataProviderResourceId").to(dataProviderResourceId)
+              bind("rawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
+            }
+          )
+          .single()
+          .getLong("RawImpressionUploadId")
+      }
+
+    val mutation =
+      Mutation.newInsertBuilder("RawImpressionUploadModelLine")
+        .set("DataProviderResourceId")
+        .to(dataProviderResourceId)
+        .set("RawImpressionUploadId")
+        .to(uploadId)
+        .set("RawImpressionUploadModelLineId")
+        .to(nextModelLineId++)
+        .set("RawImpressionUploadModelLineResourceId")
+        .to("ml-${UUID.randomUUID()}")
+        .set("CmmsModelLine")
+        .to(cmmsModelLine)
+        .set("State")
+        .to(
+          Value.protoEnum(
+            RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING
+          )
+        )
+        .set("PoolOffsets")
+        .toInt64Array(emptyList())
+        .set("Etag")
+        .to(UUID.randomUUID().toString())
         .set("CreateTime")
         .to(Value.COMMIT_TIMESTAMP)
         .set("UpdateTime")
@@ -410,6 +470,44 @@ class PoolAssignmentJobServiceTest {
     }
 
   @Test
+  fun `listPoolAssignmentJobs lists across all uploads with wildcard parent`() =
+    runBlocking<Unit> {
+      val uploadId2 = "upload-2"
+      val uploadKey2 = RawImpressionUploadKey(DATA_PROVIDER_ID, uploadId2)
+      createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+      createParentUpload(DATA_PROVIDER_ID, uploadId2)
+      val created1 =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            parent = UPLOAD_KEY.toName()
+            poolAssignmentJob = poolAssignmentJob {
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
+          }
+        )
+      val created2 =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            parent = uploadKey2.toName()
+            poolAssignmentJob = poolAssignmentJob {
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
+          }
+        )
+
+      val response =
+        service.listPoolAssignmentJobs(
+          listPoolAssignmentJobsRequest {
+            parent = RawImpressionUploadKey(DATA_PROVIDER_ID, WILDCARD_ID).toName()
+          }
+        )
+
+      assertThat(response.poolAssignmentJobsList).containsExactly(created1, created2)
+    }
+
+  @Test
   fun `listPoolAssignmentJobs respects page size and pagination`() = runBlocking {
     createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
     val created1 =
@@ -562,6 +660,11 @@ class PoolAssignmentJobServiceTest {
   @Test
   fun `markPoolAssignmentJobSucceeded transitions state`() = runBlocking {
     createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+    createRawImpressionUploadModelLine(
+      DATA_PROVIDER_ID,
+      RAW_IMPRESSION_UPLOAD_ID,
+      CMMS_MODEL_LINE,
+    )
     val created =
       service.createPoolAssignmentJob(
         createPoolAssignmentJobRequest {
@@ -738,6 +841,7 @@ class PoolAssignmentJobServiceTest {
     private val DATA_PROVIDER_ID = externalIdToApiId(111L)
     private val DATA_PROVIDER_KEY = DataProviderKey(DATA_PROVIDER_ID)
     private const val RAW_IMPRESSION_UPLOAD_ID = "upload-1"
+    private const val WILDCARD_ID = "-"
     private val UPLOAD_KEY = RawImpressionUploadKey(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
     private const val CMMS_MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
     private val REQUEST_ID = UUID.randomUUID().toString()

@@ -20,6 +20,7 @@ import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Timestamp
+import com.google.type.Date
 import io.grpc.Status
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
@@ -34,7 +35,8 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countNonSuc
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findPoolAssignmentJobByRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findPoolAssignmentJobsByRequestIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getPoolAssignmentJobByResourceId
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getPoolOffsetsForModelLine
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadModelLineMergeState
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadModelLineMergedOutputs
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadIdForPoolAssignment
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertPoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.poolAssignmentJobExists
@@ -422,6 +424,7 @@ class SpannerPoolAssignmentJobService(
       val updatedJob: PoolAssignmentJob,
       val isLastShard: Boolean,
       val poolOffsets: List<Long>,
+      val maxEventDate: Date? = null,
       val isReplay: Boolean = false,
     )
 
@@ -456,20 +459,23 @@ class SpannerPoolAssignmentJobService(
               result.rawImpressionUploadId,
               currentJob.cmmsModelLine,
             ) == 0L
-          val poolOffsets =
+          // On replay the merged outputs are already persisted (committed by the original
+          // mark), so re-read them from the parent model line.
+          val mergeState =
             if (wasLastShard) {
-              txn.getPoolOffsetsForModelLine(
+              txn.getRawImpressionUploadModelLineMergeState(
                 request.dataProviderResourceId,
                 result.rawImpressionUploadId,
                 currentJob.cmmsModelLine,
-              ) ?: emptyList()
+              )
             } else {
-              emptyList()
+              null
             }
           return@run TransactionResult(
             currentJob,
             isLastShard = wasLastShard,
-            poolOffsets = poolOffsets,
+            poolOffsets = mergeState?.poolOffsets ?: emptyList(),
+            maxEventDate = mergeState?.maxEventDate,
             isReplay = true,
           )
         }
@@ -514,6 +520,33 @@ class SpannerPoolAssignmentJobService(
           set("ErrorMessage").to(null as String?)
         }
 
+        // Merge this shard's pool offsets + max event date into the parent model line's
+        // accumulated outputs: read current values, merge in memory (the buffered write below
+        // is not visible to reads in this txn), then persist the union/max.
+        val mergeState =
+          txn.getRawImpressionUploadModelLineMergeState(
+            request.dataProviderResourceId,
+            result.rawImpressionUploadId,
+            currentJob.cmmsModelLine,
+          )
+            ?: throw IllegalStateException(
+              "RawImpressionUploadModelLine not found for upload " +
+                "${result.rawImpressionUploadId} model line ${currentJob.cmmsModelLine}"
+            )
+        val mergedOffsets = (mergeState.poolOffsets + request.poolOffsetsList).distinct().sorted()
+        val mergedMaxEventDate =
+          maxProtoDate(
+            mergeState.maxEventDate,
+            if (request.hasMaxEventDate()) request.maxEventDate else null,
+          )
+        txn.updateRawImpressionUploadModelLineMergedOutputs(
+          request.dataProviderResourceId,
+          result.rawImpressionUploadId,
+          mergeState.rawImpressionUploadModelLineId,
+          mergedOffsets,
+          mergedMaxEventDate,
+        )
+
         // The buffered SUCCEEDED mutation is not visible to reads in this transaction, so
         // this job still counts as non-succeeded; it is the last shard iff it is the only
         // remaining non-succeeded row for the (upload, model line).
@@ -523,17 +556,6 @@ class SpannerPoolAssignmentJobService(
             result.rawImpressionUploadId,
             currentJob.cmmsModelLine,
           ) == 1L
-
-        val poolOffsets =
-          if (isLastShard) {
-            txn.getPoolOffsetsForModelLine(
-              request.dataProviderResourceId,
-              result.rawImpressionUploadId,
-              currentJob.cmmsModelLine,
-            ) ?: emptyList()
-          } else {
-            emptyList()
-          }
 
         TransactionResult(
           updatedJob =
@@ -547,7 +569,8 @@ class SpannerPoolAssignmentJobService(
               clearUpdateTime()
             },
           isLastShard = isLastShard,
-          poolOffsets = poolOffsets,
+          poolOffsets = if (isLastShard) mergedOffsets else emptyList(),
+          maxEventDate = if (isLastShard) mergedMaxEventDate else null,
         )
       }
 
@@ -565,12 +588,14 @@ class SpannerPoolAssignmentJobService(
         lastShardResult =
           MarkPoolAssignmentJobSucceededResponseKt.lastShardResult {
             poolOffsets += txnResult.poolOffsets
+            txnResult.maxEventDate?.let { maxEventDate = it }
           }
       }
     }
   }
 
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4078): Add AIP-155 request_id idempotency
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4078): Add AIP-155 request_id
+  // idempotency (replay check + MarkRequestId stamp), mirroring markPoolAssignmentJobSucceeded.
   override suspend fun markPoolAssignmentJobFailed(
     request: MarkPoolAssignmentJobFailedRequest
   ): PoolAssignmentJob {
@@ -689,4 +714,18 @@ class SpannerPoolAssignmentJobService(
     private const val MAX_BATCH_SIZE = 50
     private const val DEFAULT_PAGE_SIZE = 50
   }
+}
+
+/** Returns the later of two [Date]s by (year, month, day); treats null as "no date". */
+private fun maxProtoDate(a: Date?, b: Date?): Date? =
+  when {
+    a == null -> b
+    b == null -> a
+    else -> if (compareProtoDate(a, b) >= 0) a else b
+  }
+
+private fun compareProtoDate(a: Date, b: Date): Int {
+  if (a.year != b.year) return a.year - b.year
+  if (a.month != b.month) return a.month - b.month
+  return a.day - b.day
 }
