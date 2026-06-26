@@ -20,8 +20,8 @@ import com.google.crypto.tink.KmsClient
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
-import org.wfanet.measurement.storage.StorageClient
 
 /**
  * Shared envelope-encryption plumbing for the memoized VID pipeline's **RecordIO** blob stores.
@@ -40,7 +40,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @param kmsClient KMS client able to wrap/unwrap the EDP's KEK.
  */
 abstract class EncryptedRecordIoStore(
-  protected val storageClient: StorageClient,
+  protected val storageClient: ConditionalOperationStorageClient,
   protected val kmsClient: KmsClient,
 ) {
   /** Generates a fresh DEK wrapped under [kekUri], used to encrypt this VM's blobs. */
