@@ -188,6 +188,12 @@ class VidRankBuilderApp(
     require(params.hasVidLabeledImpressionsStorageParams()) {
       "vid_labeled_impressions_storage_params must be set"
     }
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4083): Thread per-input-file
+    // entity keys into VidLabelerParams.entity_keys_by_input_blob_uri for the memoized labeler
+    // (see #4083). The dispatcher (#4081) must first resolve each file's entity keys (plaintext
+    // footer event_group_reference_id + CMMS EventGroup.entity_key) and seed them on
+    // SubpoolAssignerParams; this last-RankerJob-out fan-out then passes them through here,
+    // mirroring the active-window pass-through below.
     return vidLabelerParams {
       dataProvider = params.dataProvider
       rawImpressionsStorageParams =
