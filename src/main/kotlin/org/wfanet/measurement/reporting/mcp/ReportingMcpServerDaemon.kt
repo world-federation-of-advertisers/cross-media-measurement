@@ -92,7 +92,12 @@ class ReportingMcpServerDaemon : Runnable {
       )
 
     embeddedServer(CIO, host = mcpServerFlags.host, port = mcpServerFlags.port) {
-        installReportingMcp(apiClient, mcpServerFlags.allowedHosts)
+        installReportingMcp(
+          apiClient,
+          mcpServerFlags.allowedHosts,
+          mcpServerFlags.oauthProtectedResource,
+          mcpServerFlags.oauthAuthorizationServers,
+        )
       }
       .start(wait = true)
   }
@@ -150,6 +155,30 @@ class McpServerFlags {
       ],
   )
   var allowedHosts: List<String> = emptyList()
+    private set
+
+  @CommandLine.Option(
+    names = ["--oauth-protected-resource"],
+    description =
+      [
+        "OAuth 2.0 resource identifier for this server (RFC 9728), e.g. its public URL. When set " +
+          "together with --oauth-authorization-server, the server serves Protected Resource " +
+          "Metadata at /.well-known/oauth-protected-resource so MCP clients can discover how to " +
+          "obtain a token. Unset (default) disables the endpoint and leaves behavior unchanged."
+      ],
+  )
+  var oauthProtectedResource: String? = null
+    private set
+
+  @CommandLine.Option(
+    names = ["--oauth-authorization-server"],
+    description =
+      [
+        "Issuer URL of an OAuth 2.0 authorization server that issues tokens for this resource " +
+          "(RFC 9728 authorization_servers; may be repeated)."
+      ],
+  )
+  var oauthAuthorizationServers: List<String> = emptyList()
     private set
 
   @set:CommandLine.Option(

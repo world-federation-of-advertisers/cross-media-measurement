@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.mcp
 
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
@@ -30,6 +31,10 @@ import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
 import io.modelcontextprotocol.kotlin.sdk.server.mcpStatelessStreamableHttp
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import io.modelcontextprotocol.kotlin.sdk.types.ServerCapabilities
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
 import org.wfanet.measurement.reporting.mcp.tools.registerBasicReportTools
 import org.wfanet.measurement.reporting.mcp.tools.registerEventGroupTools
@@ -50,6 +55,11 @@ private const val BEARER_PREFIX = "Bearer "
  * DNS rebinding protection is enabled only when [allowedHosts] is non-empty (e.g. the in-cluster
  * service hostnames); otherwise the Host header is not checked.
  *
+ * When [oauthProtectedResource] and [oauthAuthorizationServers] are set, the server also serves
+ * OAuth 2.0 Protected Resource Metadata (RFC 9728) at `/.well-known/oauth-protected-resource` so
+ * MCP clients can discover the authorization server; otherwise that endpoint is absent and behavior
+ * is unchanged.
+ *
  * The bearer token is read per request and resolved lazily inside each tool call: a missing token
  * throws [IllegalArgumentException], which the tool error handler turns into a clean tool error
  * rather than a 500.
@@ -57,6 +67,8 @@ private const val BEARER_PREFIX = "Bearer "
 fun Application.installReportingMcp(
   apiClient: ReportingPublicApiClient,
   allowedHosts: List<String> = emptyList(),
+  oauthProtectedResource: String? = null,
+  oauthAuthorizationServers: List<String> = emptyList(),
 ) {
   install(CORS) {
     anyHost()
@@ -77,8 +89,38 @@ fun Application.installReportingMcp(
     ReportingMcpServer.createServer(apiClient) { bearerToken(authorizationHeader) }
   }
 
-  routing { get("/healthz") { call.respondText("OK", status = HttpStatusCode.OK) } }
+  routing {
+    get("/healthz") { call.respondText("OK", status = HttpStatusCode.OK) }
+
+    // When configured, advertise this server as an OAuth 2.0 protected resource (RFC 9728) so MCP
+    // clients can discover the authorization server and obtain a token. Gated on configuration:
+    // with no authorization server set the endpoint is absent and behavior is unchanged. The
+    // interactive login flow itself is tracked in #4042.
+    if (oauthProtectedResource != null && oauthAuthorizationServers.isNotEmpty()) {
+      get("/.well-known/oauth-protected-resource") {
+        call.respondText(
+          oauthProtectedResourceMetadata(oauthProtectedResource, oauthAuthorizationServers),
+          ContentType.Application.Json,
+        )
+      }
+    }
+  }
 }
+
+/**
+ * Builds the OAuth 2.0 Protected Resource Metadata document (RFC 9728), advertising the
+ * authorization server(s) a client should use to obtain a token for this resource.
+ */
+private fun oauthProtectedResourceMetadata(
+  resource: String,
+  authorizationServers: List<String>,
+): String =
+  buildJsonObject {
+      put("resource", resource)
+      putJsonArray("authorization_servers") { authorizationServers.forEach { add(it) } }
+      putJsonArray("bearer_methods_supported") { add("header") }
+    }
+    .toString()
 
 /**
  * Extracts the bearer token from an `Authorization` header value, forwarded to the Reporting API.

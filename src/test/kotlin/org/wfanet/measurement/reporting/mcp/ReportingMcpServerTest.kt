@@ -291,6 +291,68 @@ class ReportingMcpServerTest {
     }
   }
 
+  /**
+   * When an authorization server is configured, the server publishes OAuth 2.0 Protected Resource
+   * Metadata (RFC 9728) so MCP clients can discover where to obtain a token.
+   */
+  @Test
+  fun servesOAuthProtectedResourceMetadataWhenConfigured() = runBlocking {
+    val server =
+      embeddedServer(CIO, host = "127.0.0.1", port = 0) {
+        installReportingMcp(
+          createFakeApiClientWithServices(),
+          oauthProtectedResource = "https://mcp.example.test/",
+          oauthAuthorizationServers = listOf("https://auth.example.test/"),
+        )
+      }
+    server.start(wait = false)
+    try {
+      val port = server.engine.resolvedConnectors().first().port
+      val response =
+        HttpClient.newHttpClient()
+          .send(
+            HttpRequest.newBuilder(
+                URI("http://127.0.0.1:$port/.well-known/oauth-protected-resource")
+              )
+              .GET()
+              .build(),
+            HttpResponse.BodyHandlers.ofString(),
+          )
+      assertThat(response.statusCode()).isEqualTo(200)
+      assertThat(response.body()).contains("https://mcp.example.test/")
+      assertThat(response.body()).contains("https://auth.example.test/")
+      assertThat(response.body()).contains("authorization_servers")
+    } finally {
+      server.stop()
+    }
+  }
+
+  /** Without OAuth configuration, the metadata endpoint is absent and behavior is unchanged. */
+  @Test
+  fun omitsOAuthProtectedResourceMetadataByDefault() = runBlocking {
+    val server =
+      embeddedServer(CIO, host = "127.0.0.1", port = 0) {
+        installReportingMcp(createFakeApiClientWithServices())
+      }
+    server.start(wait = false)
+    try {
+      val port = server.engine.resolvedConnectors().first().port
+      val response =
+        HttpClient.newHttpClient()
+          .send(
+            HttpRequest.newBuilder(
+                URI("http://127.0.0.1:$port/.well-known/oauth-protected-resource")
+              )
+              .GET()
+              .build(),
+            HttpResponse.BodyHandlers.ofString(),
+          )
+      assertThat(response.statusCode()).isEqualTo(404)
+    } finally {
+      server.stop()
+    }
+  }
+
   private fun createFakeApiClientWithServices(): ReportingPublicApiClient {
     val serverName = InProcessServerBuilder.generateName()
     grpcCleanup.register(
