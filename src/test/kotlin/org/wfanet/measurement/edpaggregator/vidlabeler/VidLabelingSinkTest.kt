@@ -70,7 +70,6 @@ class VidLabelingSinkTest {
       inputBlobUri = "file:///raw/file-1.parquet",
       modelLineContexts = contexts,
       impressionConverter = FakeImpressionConverter(),
-      eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID,
       encryptKmsClient = kmsClient,
       encryptKekUri = kekUri,
       outputStorageParams = outputStorageParams,
@@ -172,16 +171,15 @@ class VidLabelingSinkTest {
           modelLineContexts =
             listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L))),
           impressionConverter =
-            ImpressionConverter { event, _, eventGroupReferenceId ->
+            ImpressionConverter { event, _, _ ->
               ConvertedImpression(
                 labelerInput = LabelerInput.getDefaultInstance(),
                 eventTimeMicros = event.row.getValue(EVENT_TIME_COLUMN).int64Value,
-                eventGroupReferenceId = eventGroupReferenceId,
+                eventGroupReferenceId = event.row.getValue(EVENT_GROUP_COLUMN).stringValue,
                 event = Any.getDefaultInstance(),
                 entityKeys = emptyList(),
               )
             },
-          eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID,
           encryptKmsClient = kmsClient,
           encryptKekUri = kekUri,
           outputStorageParams = outputStorageParams,
@@ -222,12 +220,12 @@ class VidLabelingSinkTest {
     override fun convert(
       event: ParquetDigestedEvent,
       config: VidLabelerParams.ModelLineConfig,
-      eventGroupReferenceId: String,
+      inputBlobUri: String,
     ): ConvertedImpression =
       ConvertedImpression(
         labelerInput = LabelerInput.getDefaultInstance(),
         eventTimeMicros = event.row.getValue(EVENT_TIME_COLUMN).int64Value,
-        eventGroupReferenceId = eventGroupReferenceId,
+        eventGroupReferenceId = event.row.getValue(EVENT_GROUP_COLUMN).stringValue,
         event = Any.getDefaultInstance(),
         entityKeys =
           listOf(
@@ -275,8 +273,5 @@ class VidLabelingSinkTest {
     private const val VID = 42L
     private const val EVENT_TIME_COLUMN = "event_time_micros"
     private const val EVENT_GROUP_COLUMN = "event_group"
-    // The per-file event group reference id the reader reads from the Parquet footer and the sink
-    // passes to the converter. The test rows also carry it in EVENT_GROUP_COLUMN so the rows match.
-    private const val EVENT_GROUP_REFERENCE_ID = "eg1"
   }
 }

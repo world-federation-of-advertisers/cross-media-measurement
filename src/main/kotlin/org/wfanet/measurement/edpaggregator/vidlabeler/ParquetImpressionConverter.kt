@@ -32,8 +32,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
  * * `event_time_micros` is read from `LabelerInput.timestamp_usec` (mapped via the same mapping);
  * * the output `event` is built as a [com.google.protobuf.Any]-packed [eventDescriptor] message
  *   projected via the model line's `event_template_field_mapping` (empty mapping -> empty event);
- * * the `entity_keys` are looked up from [entityKeysByEventGroupReferenceId] by the file's
- *   `event_group_reference_id` (read from the Parquet footer by the caller).
+ * * the `entity_keys` (and legacy `event_group_reference_id`) are looked up from
+ *   [entityKeysByInputBlobUri] by the input file's blob URI.
  *
  * One instance is built per (WorkItem, model line) by the runner factory, so [config] is fixed
  * across the instance's [convert] calls; the per-config [LabelerInputMapper] and
@@ -42,12 +42,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
  * @property eventDescriptor descriptor of the model line's EventTemplate event message, resolved by
  *   the runner from `ModelLineConfig.event_template_descriptor_blob_uri` +
  *   `event_template_type_name`.
- * @property entityKeysByEventGroupReferenceId per-`EventGroup` entity keys resolved by the
- *   dispatcher from `EventGroup` metadata.
+ * @property entityKeysByInputBlobUri per-input-file entity keys (and legacy event group reference
+ *   id) resolved by the dispatcher from each file's `EventGroup`.
  */
 class ParquetImpressionConverter(
   private val eventDescriptor: Descriptors.Descriptor,
-  private val entityKeysByEventGroupReferenceId: Map<String, VidLabelerParams.EntityKeyValues>,
+  private val entityKeysByInputBlobUri: Map<String, VidLabelerParams.InputFileEntityKeys>,
 ) : ImpressionConverter {
   // The converter is built per (WorkItem, model line), so config is fixed; build the mappers once
   // on first use and reuse them for every row (path resolution is the expensive part).
@@ -70,7 +70,7 @@ class ParquetImpressionConverter(
   override fun convert(
     event: ParquetDigestedEvent,
     config: VidLabelerParams.ModelLineConfig,
-    eventGroupReferenceId: String,
+    inputBlobUri: String,
   ): ConvertedImpression? {
     val (inputMapper, messageMapper) = mappersFor(config)
 
@@ -78,19 +78,25 @@ class ParquetImpressionConverter(
     val eventTimeMicros: Long = labelerInput.timestampUsec
     val eventMessage = Any.pack(messageMapper.project(event.row))
 
-    val entityKeys =
-      entityKeysByEventGroupReferenceId[eventGroupReferenceId]?.entityKeysList ?: emptyList()
-    // The dispatcher must have populated entity keys for every event group it scheduled; an empty
-    // list means a config/dispatch bug, and ConvertedImpression forbids it, so fail loudly here
-    // with the offending event group rather than at the generic data-class precondition.
-    require(entityKeys.isNotEmpty()) { "no entity keys for event group $eventGroupReferenceId" }
+    // The dispatcher resolves each input file's EventGroup -> entity keys and provides them keyed
+    // by
+    // the file's blob URI. A blob missing from the map is a dispatch/config bug (not a per-row
+    // condition); fail loudly naming the offending file rather than silently dropping its rows.
+    val fileEntityKeys =
+      requireNotNull(entityKeysByInputBlobUri[inputBlobUri]) {
+        "no entity keys for input file $inputBlobUri; the dispatcher must populate " +
+          "entity_keys_by_input_blob_uri for every file it schedules"
+      }
+    require(fileEntityKeys.entityKeysList.isNotEmpty()) {
+      "no entity keys for input file $inputBlobUri"
+    }
 
     return ConvertedImpression(
       labelerInput = labelerInput,
       eventTimeMicros = eventTimeMicros,
-      eventGroupReferenceId = eventGroupReferenceId,
+      eventGroupReferenceId = fileEntityKeys.eventGroupReferenceId,
       event = eventMessage,
-      entityKeys = entityKeys,
+      entityKeys = fileEntityKeys.entityKeysList,
     )
   }
 }

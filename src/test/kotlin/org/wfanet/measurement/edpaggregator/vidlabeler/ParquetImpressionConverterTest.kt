@@ -29,7 +29,7 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
-import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt.entityKeyValues
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt.inputFileEntityKeys
 import org.wfanet.measurement.storage.ParquetValue
 import org.wfanet.measurement.storage.parquetValue
 
@@ -45,10 +45,11 @@ class ParquetImpressionConverterTest {
       eventTemplateFieldMapping.put("person.age_group", "age")
     }
 
-  private val entityKeysByEventGroup =
+  private val entityKeysByInputBlobUri =
     mapOf(
-      EVENT_GROUP to
-        entityKeyValues {
+      INPUT_BLOB_URI to
+        inputFileEntityKeys {
+          eventGroupReferenceId = EVENT_GROUP
           entityKeys += entityKey {
             entityType = "creative"
             entityId = "c-1"
@@ -65,7 +66,7 @@ class ParquetImpressionConverterTest {
 
   @Test
   fun `convert projects labeler input, event, event group, and entity keys`() {
-    val converter = ParquetImpressionConverter(eventDescriptor, entityKeysByEventGroup)
+    val converter = ParquetImpressionConverter(eventDescriptor, entityKeysByInputBlobUri)
     val row =
       mapOf(
         "eid" to parquetValue { stringValue = "event-1" },
@@ -74,7 +75,7 @@ class ParquetImpressionConverterTest {
         "age" to parquetValue { stringValue = "YEARS_18_TO_34" },
       )
 
-    val converted = converter.convert(digestedEvent(row), config, EVENT_GROUP)
+    val converted = converter.convert(digestedEvent(row), config, INPUT_BLOB_URI)
 
     assertThat(converted).isNotNull()
     assertThat(converted!!.labelerInput.eventId.id).isEqualTo("event-1")
@@ -96,14 +97,14 @@ class ParquetImpressionConverterTest {
         labelerInputFieldMapping.put("event_id.id", "eid")
         labelerInputFieldMapping.put("timestamp_usec", "ts")
       }
-    val converter = ParquetImpressionConverter(eventDescriptor, entityKeysByEventGroup)
+    val converter = ParquetImpressionConverter(eventDescriptor, entityKeysByInputBlobUri)
     val row =
       mapOf(
         "eid" to parquetValue { stringValue = "event-2" },
         "ts" to parquetValue { int64Value = 5L },
       )
 
-    val converted = converter.convert(digestedEvent(row), emptyMappingConfig, EVENT_GROUP)
+    val converted = converter.convert(digestedEvent(row), emptyMappingConfig, INPUT_BLOB_URI)
 
     assertThat(converted).isNotNull()
     val event = converted!!.event.unpack(TestEvent::class.java)
@@ -114,7 +115,7 @@ class ParquetImpressionConverterTest {
 
   @Test
   fun `convert throws when there are no entity keys for the event group`() {
-    val converter = ParquetImpressionConverter(eventDescriptor, entityKeysByEventGroup)
+    val converter = ParquetImpressionConverter(eventDescriptor, entityKeysByInputBlobUri)
     val row =
       mapOf(
         "eid" to parquetValue { stringValue = "event-3" },
@@ -124,13 +125,14 @@ class ParquetImpressionConverterTest {
 
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        converter.convert(digestedEvent(row), config, "unknown-event-group")
+        converter.convert(digestedEvent(row), config, "unknown-blob-uri")
       }
-    assertThat(exception).hasMessageThat().contains("no entity keys for event group")
-    assertThat(exception).hasMessageThat().contains("unknown-event-group")
+    assertThat(exception).hasMessageThat().contains("no entity keys for input file")
+    assertThat(exception).hasMessageThat().contains("unknown-blob-uri")
   }
 
   companion object {
     private const val EVENT_GROUP = "event-group-ref-1"
+    private const val INPUT_BLOB_URI = "file:///raw/file-1.parquet"
   }
 }

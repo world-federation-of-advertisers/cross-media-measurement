@@ -132,15 +132,25 @@ message VidLabelerParams {
   // with [raw_impression_metadata_batch].
   MemoizedParams memoized_params = 8 [(google.api.field_behavior) = OPTIONAL];
 
-  // event_group_reference_id (Parquet footer) -> that EventGroup's entity keys,
-  // resolved by the VID Labeling Dispatcher from EventGroup metadata. Looked up
-  // per file by the converter.
-  map<string, EntityKeyValues> entity_keys_by_event_group_reference_id = 9
+  // Input raw-impression blob URI -> that file's entity keys and (legacy) event
+  // group reference id, resolved by the VID Labeling Dispatcher from the file's
+  // EventGroup. Keyed by the blob URI the TEE already reads
+  // (`RawImpressionUploadFile.blob_uri`) so the labeler resolves a file's entity
+  // keys by the file it is processing, not by the deprecated
+  // `event_group_reference_id` footer field. Looked up per file by the converter.
+  map<string, InputFileEntityKeys> entity_keys_by_input_blob_uri = 9
       [(google.api.field_behavior) = OPTIONAL];
 
-  // The entity keys for a single EventGroup (map values cannot be repeated).
-  message EntityKeyValues {
+  // Entity keys (and legacy event group reference id) for a single input file's
+  // EventGroup (map values cannot be repeated).
+  message InputFileEntityKeys {
+    // Entity keys of the EventGroup that produced this file. Canonical selector.
     repeated LabeledImpression.EntityKey entity_keys = 1;
+
+    // Reference id of the EventGroup that produced this file. Legacy: retained
+    // only to populate the (still REQUIRED) `LabeledImpression
+    // .event_group_reference_id` on output; `entity_keys` is canonical.
+    string event_group_reference_id = 2;
   }
 
   // Parameters specific to the memoized rank-index Phase-2 path.

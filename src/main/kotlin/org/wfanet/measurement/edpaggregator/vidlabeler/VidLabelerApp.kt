@@ -122,7 +122,7 @@ class VidLabelerApp(
     suspend (
       modelLine: String,
       config: VidLabelerParams.ModelLineConfig,
-      entityKeysByEventGroupReferenceId: Map<String, VidLabelerParams.EntityKeyValues>,
+      entityKeysByInputBlobUri: Map<String, VidLabelerParams.InputFileEntityKeys>,
     ) -> ImpressionConverter,
   private val eventIdDigestExtractor: EventIdDigestExtractor = EventIdDigestExtractor(),
 ) :
@@ -243,7 +243,7 @@ class VidLabelerApp(
       )
 
     val impressionConverter =
-      buildImpressionConverter(mp.modelLine, config, params.entityKeysByEventGroupReferenceIdMap)
+      buildImpressionConverter(mp.modelLine, config, params.entityKeysByInputBlobUriMap)
 
     VidLabeler(
         rawImpressionSource = rawImpressionSource,
@@ -416,6 +416,13 @@ class VidLabelerApp(
   /**
    * Derives the parent `RawImpressionUpload` resource name from a `VidLabelingJob` resource name by
    * stripping the `/vidLabelingJobs/{job}` segment.
+   *
+   * TODO(world-federation-of-advertisers/cross-media-measurement#4051): Replace this string
+   *   stripping with the resource-name parser once #4051 (`VidLabelingJobKey`) and #4013
+   *   (`RawImpressionUploadKey`) merge:
+   *   `VidLabelingJobKey.fromName(vidLabelingJob)!!.toRawImpressionUploadKey().toName()`. The
+   *   parser fails loudly on a malformed or extended resource name instead of silently producing a
+   *   wrong parent URI that the next RPC rejects.
    */
   private fun parentUpload(vidLabelingJob: String): String {
     require(vidLabelingJob.contains("/vidLabelingJobs/")) {
@@ -431,6 +438,11 @@ class VidLabelerApp(
    *
    * MD5 here is a non-cryptographic, deterministic idempotency-key derivation (not used for
    * security); the version/variant bits are forced only to satisfy the field format = UUID4.
+   *
+   * TODO(world-federation-of-advertisers/cross-media-measurement#4081): Replace this local helper
+   *   and its call sites with the shared `RequestIds` derivation created in #4081 once it merges
+   *   (e.g. `RequestIds.forMarkVidLabelingJobSucceeded(mp.vidLabelingJob)`), so the AIP-155
+   *   request_id rule lives in one place instead of being reinvented here.
    */
   private fun deterministicUuid(seed: String): String {
     val bytes = MessageDigest.getInstance("MD5").digest(seed.toByteArray(Charsets.UTF_8))

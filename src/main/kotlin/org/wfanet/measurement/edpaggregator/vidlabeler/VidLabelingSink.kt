@@ -58,9 +58,8 @@ import org.wfanet.virtualpeople.common.copy
  * @param inputBlobUri URI of the raw-impression file this sink consumes.
  * @param modelLineContexts model lines to label with, each with its [ActiveWindow] and
  *   [VidAssigner].
- * @param impressionConverter converts a Parquet row into a [ConvertedImpression] (schema seam).
- * @param eventGroupReferenceId the event group this input file belongs to (read from the Parquet
- *   footer by [VidLabeler]), passed through to the converter to resolve the impression entity keys.
+ * @param impressionConverter converts a Parquet row into a [ConvertedImpression] (schema seam),
+ *   resolving the file's entity keys from [inputBlobUri].
  * @param encryptKmsClient encrypt/decrypt KMS client for the labeled output.
  * @param encryptKekUri KEK URI for generating per-output DEKs.
  * @param outputStorageParams GCS project + blob prefix for labeled output.
@@ -70,7 +69,6 @@ class VidLabelingSink(
   private val inputBlobUri: String,
   private val modelLineContexts: List<ModelLineContext>,
   private val impressionConverter: ImpressionConverter,
-  private val eventGroupReferenceId: String,
   private val encryptKmsClient: KmsClient,
   private val encryptKekUri: String,
   private val outputStorageParams: VidLabelerParams.StorageParams,
@@ -86,8 +84,7 @@ class VidLabelingSink(
     for (digestedEvent in events) {
       for (context in modelLineContexts) {
         val converted =
-          impressionConverter.convert(digestedEvent, context.config, eventGroupReferenceId)
-            ?: continue
+          impressionConverter.convert(digestedEvent, context.config, inputBlobUri) ?: continue
         if (!context.activeWindow.contains(converted.eventTimeMicros)) continue
 
         // Memoized path: attach the impression's pre-computed rank(s) (keyed by its EventIdDigest)
