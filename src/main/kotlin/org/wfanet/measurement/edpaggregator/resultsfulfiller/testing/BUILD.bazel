@@ -34,8 +34,5 @@ kt_jvm_library(
 
 filegroup(
     name = "specs",
-    srcs = glob(
-        ["*.textproto"],
-        allow_empty = True,
-    ),
+    srcs = glob(["*.textproto"]),
 )
