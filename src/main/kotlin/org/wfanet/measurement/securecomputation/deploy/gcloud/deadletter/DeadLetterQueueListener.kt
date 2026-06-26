@@ -163,8 +163,7 @@ class DeadLetterQueueListener(
           if (e.status.code == Status.Code.NOT_FOUND) {
             logger.warning("Work item not found: ${workItem.name}. Acknowledging message.")
             queueMessage.ack()
-          }
-          if (isAlreadyFailedError(e)) {
+          } else if (isAlreadyFailedError(e)) {
             logger.info(
               "Work item ${workItem.name} is already in FAILED state. Acknowledging message."
             )
