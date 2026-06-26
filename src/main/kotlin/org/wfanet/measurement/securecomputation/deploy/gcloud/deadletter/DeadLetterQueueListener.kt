@@ -30,14 +30,20 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
+import org.wfanet.measurement.edpaggregator.v1alpha.getPoolAssignmentJobRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getRankerJobRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getVidLabelingJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markPoolAssignmentJobFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRankerJobFailedRequest
@@ -252,16 +258,34 @@ class DeadLetterQueueListener(
     }
   }
 
-  /** Best-effort `MarkPoolAssignmentJobFailed`; logs and swallows any failure. */
+  /**
+   * Best-effort `MarkPoolAssignmentJobFailed`; logs and swallows any failure. `Get`s the job first
+   * to obtain its current `etag` (REQUIRED on `MarkPoolAssignmentJobFailedRequest`) and to skip the
+   * mark when the job is already in a terminal state.
+   */
   private suspend fun markPoolAssignmentJobFailedBestEffort(name: String, errorMessage: String) {
     if (name.isEmpty()) return
     try {
-      // Empty etag: the Mark RPC only enforces optimistic concurrency when the etag is non-empty,
-      // and the dead-letter path is terminal, so no CAS is needed.
+      val job =
+        poolAssignmentJobsStub!!.getPoolAssignmentJob(
+          getPoolAssignmentJobRequest { this.name = name }
+        )
+      if (
+        job.state == PoolAssignmentJob.State.SUCCEEDED ||
+          job.state == PoolAssignmentJob.State.FAILED
+      ) {
+        logger.info("PoolAssignmentJob $name already terminal (${job.state}); skipping FAILED mark")
+        return
+      }
       poolAssignmentJobsStub!!.markPoolAssignmentJobFailed(
         markPoolAssignmentJobFailedRequest {
           this.name = name
+          this.etag = job.etag
           this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
+          // TODO(#4078): MarkPoolAssignmentJobFailedRequest has no `request_id` field on the
+          // current base; #4078 adds it (flipping it OPTIONAL -> REQUIRED). Once it lands, set
+          // requestId = deterministicUuid("MarkPoolAssignmentJobFailed:$name") for AIP-155
+          // idempotency on Pub/Sub redelivery, mirroring MarkVidLabelingJobFailed.
         }
       )
       logger.info("Marked PoolAssignmentJob $name FAILED from dead-letter queue")
@@ -270,14 +294,28 @@ class DeadLetterQueueListener(
     }
   }
 
-  /** Best-effort `MarkRankerJobFailed`; logs and swallows any failure. */
+  /**
+   * Best-effort `MarkRankerJobFailed`; logs and swallows any failure. `Get`s the job first to
+   * obtain its current `etag` (REQUIRED on `MarkRankerJobFailedRequest`) and to skip the mark when
+   * the job is already in a terminal state.
+   */
   private suspend fun markRankerJobFailedBestEffort(name: String, errorMessage: String) {
     if (name.isEmpty()) return
     try {
+      val job = rankerJobsStub!!.getRankerJob(getRankerJobRequest { this.name = name })
+      if (job.state == RankerJob.State.SUCCEEDED || job.state == RankerJob.State.FAILED) {
+        logger.info("RankerJob $name already terminal (${job.state}); skipping FAILED mark")
+        return
+      }
       rankerJobsStub!!.markRankerJobFailed(
         markRankerJobFailedRequest {
           this.name = name
+          this.etag = job.etag
           this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
+          // TODO(#4052): MarkRankerJobFailedRequest gains a REQUIRED `request_id` field in #4052
+          // (absent on the current base, which is why it is not set here). Once this PR is
+          // re-parented onto #4052, set requestId = deterministicUuid("MarkRankerJobFailed:$name")
+          // for AIP-155 idempotency on Pub/Sub redelivery, mirroring MarkVidLabelingJobFailed.
         }
       )
       logger.info("Marked RankerJob $name FAILED from dead-letter queue")
@@ -287,18 +325,24 @@ class DeadLetterQueueListener(
   }
 
   /**
-   * Best-effort `MarkVidLabelingJobFailed`; logs and swallows any failure. Unlike the sibling Mark
-   * RPCs this one carries a `request_id`, set to a deterministic UUID so a redelivery is
-   * idempotent.
+   * Best-effort `MarkVidLabelingJobFailed`; logs and swallows any failure. `Get`s the job first to
+   * obtain its current `etag` (REQUIRED on `MarkVidLabelingJobFailedRequest`) and to skip the mark
+   * when the job is already in a terminal state. Unlike the sibling Mark RPCs this one carries a
+   * `request_id`, set to a deterministic UUID so a redelivery is idempotent.
    */
   private suspend fun markVidLabelingJobFailedBestEffort(name: String, errorMessage: String) {
     if (name.isEmpty()) return
     try {
-      // Empty etag: optimistic concurrency is only enforced when the etag is non-empty, and the
-      // dead-letter path is terminal, so no CAS is needed.
+      val job =
+        vidLabelingJobsStub!!.getVidLabelingJob(getVidLabelingJobRequest { this.name = name })
+      if (job.state == VidLabelingJob.State.SUCCEEDED || job.state == VidLabelingJob.State.FAILED) {
+        logger.info("VidLabelingJob $name already terminal (${job.state}); skipping FAILED mark")
+        return
+      }
       vidLabelingJobsStub!!.markVidLabelingJobFailed(
         markVidLabelingJobFailedRequest {
           this.name = name
+          this.etag = job.etag
           this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
           requestId = deterministicUuid("MarkVidLabelingJobFailed:$name")
         }
@@ -330,10 +374,27 @@ class DeadLetterQueueListener(
         )
         return
       }
+      if (
+        parent.state == RawImpressionUploadModelLine.State.COMPLETED ||
+          parent.state == RawImpressionUploadModelLine.State.FAILED
+      ) {
+        logger.info(
+          "RawImpressionUploadModelLine ${parent.name} already terminal (${parent.state}); " +
+            "skipping FAILED mark"
+        )
+        return
+      }
       rawImpressionUploadModelLinesStub!!.markRawImpressionUploadModelLineFailed(
         markRawImpressionUploadModelLineFailedRequest {
           name = parent.name
+          // `etag` is REQUIRED. Reuse the one already returned by getParentModelLine's List (the
+          // RawImpressionUploadModelLine resource carries it) instead of an extra Get.
+          etag = parent.etag
           this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
+          // TODO(#4074): MarkRawImpressionUploadModelLineFailedRequest has no `request_id` field
+          // yet; #4074 adds it across the 5 RawImpressionUploadModelLine Mark RPCs. Once it lands,
+          // set requestId = deterministicUuid("MarkModelLineFailed:${parent.name}") for AIP-155
+          // idempotency on Pub/Sub redelivery.
         }
       )
       logger.info(
