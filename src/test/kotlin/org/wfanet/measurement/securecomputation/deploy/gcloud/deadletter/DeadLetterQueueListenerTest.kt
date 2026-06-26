@@ -539,9 +539,13 @@ class DeadLetterQueueListenerTest {
     // Verify the message is acknowledged
     verify(mockQueueMessage, timeout(5000)).ack()
 
-    // Close the channel and cancel the job
+    // Drain and let processing finish so the "never nacked" assertion is deterministic: a NOT_FOUND
+    // must NOT fall through to the SEVERE-log + nack() branch (that branch is for unhandled errors,
+    // and nacking an already-acked message is undefined per Pub/Sub).
     messageChannel.close()
-    job.cancel()
+    withTimeout(5000) { job.join() }
+    verify(mockQueueMessage, times(1)).ack()
+    verify(mockQueueMessage, never()).nack()
   }
 
   @Test
