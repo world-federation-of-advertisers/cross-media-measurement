@@ -285,6 +285,7 @@ class ResultsFulfillerApp(
       throw ImpressionReadException(
         storageClientUri.key,
         ImpressionReadException.Code.INVALID_FORMAT,
+        cause = e,
       )
     }
   }
