@@ -43,3 +43,6 @@ databaseChangeLog:
   - include:
       file: add-update-request-id.sql
       relativeToChangeLogFile: true
+  - include:
+      file: create-vid-labeling-schema.sql
+      relativeToChangeLogFile: true
