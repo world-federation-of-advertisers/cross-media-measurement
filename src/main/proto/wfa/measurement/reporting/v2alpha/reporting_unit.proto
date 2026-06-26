@@ -28,8 +28,13 @@ option go_package = "github.com/world-federation-of-advertisers/cross-media-meas
 message ReportingUnit {
   // A list of resources to report on.
   //
-  // For use with BasicReport these must be DataProvider resource names
-  // For use with AdvancedReport these must be ReportingSet resource names
+  // For use with BasicReport each component must be either a DataProvider
+  // resource name or a ReportingSet resource name. A ReportingSet component
+  // must have its `campaign_group` set to the BasicReport's campaign group.
+  // DataProvider and ReportingSet components must not be mixed within a single
+  // BasicReport.
+  //
+  // For use with AdvancedReport these must be ReportingSet resource names.
   repeated string components = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE,
