@@ -25,6 +25,7 @@ import io.grpc.StatusException
 import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.UUID
+import java.util.logging.Level
 import java.util.logging.Logger
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
@@ -44,6 +45,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.
 import org.wfanet.measurement.edpaggregator.v1alpha.getVidLabelingJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
 import org.wfanet.measurement.queue.QueueSubscriber
@@ -138,10 +140,14 @@ class VidLabelerApp(
    * Processes one VID-labeling WorkItem.
    *
    * Any exception thrown here propagates so the TEE framework nacks the message: a transient
-   * failure is retried by Pub/Sub and the job state stays in `LABELING`/`CREATED`. This method
-   * never writes `FAILED` — terminal `FAILED` on retry exhaustion is owned by the DLQ listener (the
-   * design's failure model), so an indiscriminate best-effort FAILED-marking here would race that
-   * owner and fight Pub/Sub redelivery.
+   * failure is retried by Pub/Sub and the job state stays in `LABELING`/`CREATED`. On a
+   * non-cancellation failure the worker additionally best-effort-marks the `VidLabelingJob`
+   * `FAILED` (gated on `CREATED`, so a redelivery that already SUCCEEDED/FAILED is a no-op) and
+   * rethrows so Pub/Sub still retries; this mirrors Phase 0/1 (`SubpoolAssigner`/`VidRankBuilder`).
+   * A coroutine `CancellationException` is propagated without marking FAILED.
+   *
+   * TODO(@marcopremier): unify terminal-FAILED ownership pipeline-wide (the DLQ listener resolving
+   *   the EDPA job from appParams) so transient failures do not transiently show FAILED.
    */
   override suspend fun runWork(message: Any) {
     val workItemParams = message.unpack(WorkItemParams::class.java)
@@ -157,30 +163,43 @@ class VidLabelerApp(
     }
     // Scope is the memoized rank-index Phase-2 path; the non-memoized path is wired separately.
     require(params.hasMemoizedParams()) { "memoized_params must be set" }
+    // [mp] identifies the VidLabelingJob; everything that can be attributed to that job runs inside
+    // the try so a non-cancellation failure best-effort-marks the job FAILED. The require(...)
+    // validations above run BEFORE [mp] is known — a WorkItem with no memoized_params cannot be
+    // attributed to a job — so they stay outside.
     val mp = params.memoizedParams
 
-    // One client per EDP (the EDP's own KEK), used for BOTH the raw-impression PME decrypt and the
-    // labeled-output encrypt — mirrors SubpoolAssigner's single-client model.
-    val kmsClient =
-      requireNotNull(kmsClients[dataProvider]) { "KMS client not found for $dataProvider" }
+    try {
+      // One client per EDP (the EDP's own KEK), used for BOTH the raw-impression PME decrypt and
+      // the
+      // labeled-output encrypt — mirrors SubpoolAssigner's single-client model.
+      val kmsClient =
+        requireNotNull(kmsClients[dataProvider]) { "KMS client not found for $dataProvider" }
 
-    val config =
-      requireNotNull(params.modelLineConfigsMap[mp.modelLine]) {
-        "model_line_configs must contain an entry for ${mp.modelLine}"
+      val config =
+        requireNotNull(params.modelLineConfigsMap[mp.modelLine]) {
+          "model_line_configs must contain an entry for ${mp.modelLine}"
+        }
+
+      // Gate on job state first: on Pub/Sub redelivery of an already-completed job, skip relabeling
+      // (the output is idempotent via deterministic blob keys) but still run the idempotent mark +
+      // last-job-out recovery so a crash between label() and the mark cannot drop the completion.
+      val job =
+        vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { name = mp.vidLabelingJob })
+      if (job.state != VidLabelingJob.State.SUCCEEDED) {
+        label(params, mp, config, dataProvider, kmsClient)
+      } else {
+        logger.info("VidLabelingJob ${mp.vidLabelingJob} already SUCCEEDED; skipping relabel")
       }
 
-    // Gate on job state first: on Pub/Sub redelivery of an already-completed job, skip relabeling
-    // (the output is idempotent via deterministic blob keys) but still run the idempotent mark +
-    // last-job-out recovery so a crash between label() and the mark cannot drop the completion.
-    val job =
-      vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { name = mp.vidLabelingJob })
-    if (job.state != VidLabelingJob.State.SUCCEEDED) {
-      label(params, mp, config, dataProvider, kmsClient)
-    } else {
-      logger.info("VidLabelingJob ${mp.vidLabelingJob} already SUCCEEDED; skipping relabel")
+      markSucceededAndTransition(params, mp, job.etag)
+    } catch (e: Exception) {
+      // A coroutine cancellation must not run RPCs or mark the job FAILED — just propagate.
+      if (e !is kotlinx.coroutines.CancellationException) {
+        markFailedBestEffort(mp.vidLabelingJob, e)
+      }
+      throw e
     }
-
-    markSucceededAndTransition(params, mp, job.etag)
   }
 
   /** Labels this WorkItem's raw-impression files for [mp]'s single model line (memoized path). */
@@ -344,6 +363,35 @@ class VidLabelerApp(
     }
   }
 
+  /**
+   * Best-effort transition of this VidLabelingJob to FAILED so operators see the failure; never
+   * throws. Mirrors SubpoolAssigner/VidRankBuilder: only marks a still-CREATED job, so a redelivery
+   * that already SUCCEEDED/FAILED is a no-op.
+   */
+  private suspend fun markFailedBestEffort(vidLabelingJob: String, cause: Throwable) {
+    try {
+      val job =
+        vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { name = vidLabelingJob })
+      if (job.state == VidLabelingJob.State.CREATED) {
+        vidLabelingJobsStub.markVidLabelingJobFailed(
+          markVidLabelingJobFailedRequest {
+            name = vidLabelingJob
+            etag = job.etag
+            // request_id is OPTIONAL on this RPC; deterministic so a redelivery is idempotent.
+            requestId = deterministicUuid("$vidLabelingJob|failed")
+            errorMessage = (cause.message ?: cause::class.java.simpleName).take(MAX_ERROR_MESSAGE)
+          }
+        )
+      } else {
+        logger.info(
+          "VidLabelingJob $vidLabelingJob already in state ${job.state}; not re-marking FAILED"
+        )
+      }
+    } catch (e: Exception) {
+      logger.log(Level.WARNING, "Failed to mark VidLabelingJob $vidLabelingJob FAILED", e)
+    }
+  }
+
   /** Writes an empty `done` marker blob under the labeled-impressions prefix. */
   private suspend fun writeDoneBlob(outputStorageParams: VidLabelerParams.StorageParams) {
     val doneUri = "${outputStorageParams.impressionsBlobPrefix}/labeled-impressions/done"
@@ -415,5 +463,7 @@ class VidLabelerApp(
 
     /** LabelerInput field path whose mapped raw column carries the event id used for the digest. */
     private const val EVENT_ID_FIELD_PATH = "event_id.id"
+
+    private const val MAX_ERROR_MESSAGE = 1024
   }
 }

@@ -25,6 +25,7 @@ import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import io.grpc.Status
+import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
@@ -50,6 +51,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededResponseKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
@@ -473,6 +475,41 @@ class VidLabelerAppTest {
         markRawImpressionUploadModelLineCompleted(any())
       }
     }
+
+  @Test
+  fun `runWork marks job FAILED and rethrows on non-cancellation failure`() = runBlocking {
+    seedRankIndexBlob()
+    vidLabelingJobsService.stub {
+      onBlocking { getVidLabelingJob(any()) } doReturn
+        vidLabelingJob {
+          name = VID_LABELING_JOB
+          state = VidLabelingJob.State.CREATED
+          etag = "etag-1"
+        }
+      // The work fails: mark-succeeded throws a non-cancellation StatusRuntimeException. Use
+      // StatusRuntimeException (not a checked StatusException) because Mockito rejects a checked
+      // exception on the suspend stub.
+      onBlocking { markVidLabelingJobSucceeded(any()) } doThrow
+        StatusRuntimeException(Status.FAILED_PRECONDITION)
+      onBlocking { markVidLabelingJobFailed(any()) } doReturn
+        vidLabelingJob {
+          name = VID_LABELING_JOB
+          state = VidLabelingJob.State.FAILED
+        }
+    }
+
+    val app = createApp()
+    // The non-cancellation failure propagates so Pub/Sub still retries. The gRPC client surfaces
+    // the server-side StatusRuntimeException to the caller as a StatusException.
+    assertFailsWith<StatusException> { app.runWork(buildMessage(memoizedParams())) }
+
+    val captor = argumentCaptor<MarkVidLabelingJobFailedRequest>()
+    verifyBlocking(vidLabelingJobsService) { markVidLabelingJobFailed(captor.capture()) }
+    assertThat(captor.firstValue.name).isEqualTo(VID_LABELING_JOB)
+    assertThat(captor.firstValue.etag).isNotEmpty()
+    assertThat(captor.firstValue.requestId).isNotEmpty()
+    assertThat(captor.firstValue.errorMessage).isNotEmpty()
+  }
 
   @Test
   fun `runWork throws when raw_impressions_storage_params is not set`() = runBlocking {
