@@ -19,14 +19,12 @@ package org.wfanet.measurement.edpaggregator.vidrankbuilder
 import com.google.common.truth.Truth.assertThat
 import io.grpc.Status
 import io.grpc.StatusException
-import java.util.UUID
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
-import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.doReturnConsecutively
@@ -35,7 +33,6 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.MarkRankerJobFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
@@ -110,7 +107,6 @@ class VidRankBuilderTest {
         rankerJob = rankerJob { name = RANKER_JOB }
         this.isLastJob = isLastJob
       }
-    onBlocking { markRankerJobFailed(any(), any()) } doReturn rankerJob { name = RANKER_JOB }
     onBlocking { listRankerJobs(any(), any()) } doReturn
       listRankerJobsResponse {
         rankerJobs += rankerJob {
@@ -545,24 +541,19 @@ class VidRankBuilderTest {
   }
 
   @Test
-  fun `a failing subpool marks the ranker job FAILED with a request_id and rethrows`() =
-    runBlocking {
-      val ranker =
-        mock<SubpoolRanker> {
-          onBlocking { rank(any(), any(), any()) } doAnswer { throw IllegalStateException("boom") }
-        }
-      val rankerJobs = rankerJobsMock(state = RankerJob.State.CREATED)
+  fun `a failing subpool propagates without marking the ranker job FAILED`() = runBlocking {
+    val ranker =
+      mock<SubpoolRanker> {
+        onBlocking { rank(any(), any(), any()) } doAnswer { throw IllegalStateException("boom") }
+      }
+    val rankerJobs = rankerJobsMock(state = RankerJob.State.CREATED)
 
-      assertFailsWith<IllegalStateException> { builder(ranker, rankerJobs).run() }
+    assertFailsWith<IllegalStateException> { builder(ranker, rankerJobs).run() }
 
-      val captor = argumentCaptor<MarkRankerJobFailedRequest>()
-      verifyBlocking(rankerJobs) { markRankerJobFailed(captor.capture(), any()) }
-      // request_id is the AIP-155 retry-idempotency key (REQUIRED once #4052 lands); it must be a
-      // non-empty UUID4.
-      val requestId = captor.firstValue.requestId
-      UUID.fromString(requestId) // throws if not a valid UUID
-      assertThat(requestId).isNotEmpty()
-    }
+    // The DLQ listener owns the terminal FAILED transition on retry exhaustion; this worker never
+    // marks the job FAILED itself.
+    verifyBlocking(rankerJobs, never()) { markRankerJobFailed(any(), any()) }
+  }
 
   @Test
   fun `lost etag race on mark succeeded acks when the job is already succeeded`() = runBlocking {
@@ -609,7 +600,6 @@ class VidRankBuilderTest {
           {
             throw StatusException(Status.ABORTED)
           }
-        onBlocking { markRankerJobFailed(any(), any()) } doReturn rankerJob { name = RANKER_JOB }
       }
 
     assertFailsWith<StatusException> { builder(ranker, rankerJobs).run() }
@@ -810,36 +800,6 @@ class VidRankBuilderTest {
   }
 
   @Test
-  fun `best-effort fail does not mark a job that is no longer CREATED`() = runBlocking {
-    val ranker =
-      mock<SubpoolRanker> {
-        onBlocking { rank(any(), any(), any()) } doAnswer { throw IllegalStateException("boom") }
-      }
-    // First read (gating) sees CREATED; the best-effort fail re-reads and finds it already
-    // advanced,
-    // so it must not issue a MarkRankerJobFailed.
-    val rankerJobs =
-      mock<RankerJobServiceCoroutineStub> {
-        onBlocking { getRankerJob(any(), any()) } doReturnConsecutively
-          listOf(
-            rankerJob {
-              name = RANKER_JOB
-              state = RankerJob.State.CREATED
-              etag = "etag-1"
-            },
-            rankerJob {
-              name = RANKER_JOB
-              state = RankerJob.State.SUCCEEDED
-            },
-          )
-      }
-
-    assertFailsWith<IllegalStateException> { builder(ranker, rankerJobs).run() }
-
-    verifyBlocking(rankerJobs, never()) { markRankerJobFailed(any(), any()) }
-  }
-
-  @Test
   fun `a non-ALREADY_EXISTS publish failure is rethrown`() = runBlocking {
     val workItems =
       mock<WorkItemsCoroutineStub> {
@@ -869,7 +829,6 @@ class VidRankBuilderTest {
           {
             throw StatusException(Status.INTERNAL)
           }
-        onBlocking { markRankerJobFailed(any(), any()) } doReturn rankerJob { name = RANKER_JOB }
       }
 
     assertFailsWith<StatusException> { builder(rankerMock(), rankerJobs).run() }

@@ -113,6 +113,11 @@ class VidRankBuilderAppRunner : BaseTeeAppRunner() {
     runBlockingWithTelemetry { vidRankBuilderApp.run() }
   }
 
+  // TODO(world-federation-of-advertisers/cross-media-measurement#3903): once
+  //   BaseVidLabelingTeeAppRunner lands on main (branch
+  // marcopremier/base-vid-labeling-tee-app-runner),
+  //   extend it and replace the local storage-client helper(s) with the shared base helpers
+  //   (buildStorageClient / buildParquetStorageClient / readCompiledModelBlob / kekUriFor).
   /**
    * Builds a bucket-rooted [StorageClient] for [storageParams], parsing the bucket from the `gs://`
    * blob_prefix and authenticating to GCS as the Confidential Space VM's attached service account.

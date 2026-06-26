@@ -21,7 +21,6 @@ import io.grpc.StatusException
 import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.UUID
-import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.common.api.grpc.ResourceList
@@ -47,7 +46,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.markRankerJobFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRankerJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
@@ -85,8 +83,10 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  *
  * Idempotent on redelivery: a `SUCCEEDED` job short-circuits ranking; `VidLabelingJob` creation is
  * keyed by a deterministic `request_id` and WorkItem creation by a deterministic `work_item_id`
- * (`ALREADY_EXISTS` tolerated); the parent flip is a no-op once advanced. On failure the job is
- * marked `FAILED` and the error rethrown so the TEE framework nacks.
+ * (`ALREADY_EXISTS` tolerated); the parent flip is a no-op once advanced. On failure the exception
+ * propagates so the framework nacks and Pub/Sub retries; this worker never marks the job `FAILED`
+ * itself -- the dead-letter (DLQ) listener owns the terminal `FAILED` transition on retry
+ * exhaustion.
  *
  * Concurrent-ranker protection: `MarkRankerJobSucceeded` carries the read `etag`; a stale write
  * (another VM won the race after Pub/Sub redelivery) surfaces as `ABORTED`/`FAILED_PRECONDITION`
@@ -134,15 +134,14 @@ class VidRankBuilder(
   /** A created `VidLabelingJob` paired with the `RawImpressionUploadFile`s it labels. */
   private data class LabelingJobBatch(val job: VidLabelingJob, val files: List<String>)
 
-  /** Runs the full Phase-1 work for one `RankerJob`. */
-  suspend fun run(): Result {
-    try {
-      return runRankerJob()
-    } catch (t: Throwable) {
-      markFailedBestEffort(t)
-      throw t
-    }
-  }
+  /**
+   * Runs the full Phase-1 work for one `RankerJob`.
+   *
+   * Any exception propagates so the framework nacks and Pub/Sub retries; this worker never marks
+   * the job `FAILED` itself -- the dead-letter (DLQ) listener owns the terminal `FAILED` transition
+   * on retry exhaustion.
+   */
+  suspend fun run(): Result = runRankerJob()
 
   private suspend fun runRankerJob(): Result {
     // Gate on job state: an already-SUCCEEDED job on redelivery skips the expensive re-rank and
@@ -454,29 +453,6 @@ class VidRankBuilder(
     }
   }
 
-  /** Best-effort transition of this job to FAILED so operators see the failure; never throws. */
-  private suspend fun markFailedBestEffort(cause: Throwable) {
-    try {
-      val job = rankerJobsStub.getRankerJob(getRankerJobRequest { name = rankerJob })
-      if (job.state == RankerJob.State.CREATED) {
-        rankerJobsStub.markRankerJobFailed(
-          markRankerJobFailedRequest {
-            name = rankerJob
-            etag = job.etag
-            requestId = markFailedRequestId()
-            errorMessage = (cause.message ?: cause::class.java.simpleName).take(MAX_ERROR_MESSAGE)
-          }
-        )
-      } else {
-        // Already advanced (most commonly: a prior attempt marked it FAILED and a redelivery failed
-        // again). Log the no-op so operators don't wonder why error_message wasn't updated.
-        logger.info("RankerJob $rankerJob already in state ${job.state}; not re-marking FAILED")
-      }
-    } catch (e: Exception) {
-      logger.log(Level.WARNING, "Failed to mark RankerJob $rankerJob FAILED", e)
-    }
-  }
-
   /**
    * Whether every `RankerJob` for this (upload, model line) is `SUCCEEDED`.
    *
@@ -543,8 +519,6 @@ class VidRankBuilder(
 
   private fun markSucceededRequestId(): String = deterministicUuid("$rankerJob|succeeded")
 
-  private fun markFailedRequestId(): String = deterministicUuid("$rankerJob|failed")
-
   /**
    * Deterministic UUID4 from [seed], stable across redeliveries so the server reuses an existing
    * row/transition rather than duplicating. MD5 digest with RFC-4122 version (4) + variant bits
@@ -559,8 +533,6 @@ class VidRankBuilder(
   }
 
   companion object {
-    private const val MAX_ERROR_MESSAGE = 1024
-
     /**
      * Default max `CreateVidLabelingJobRequest`s per `BatchCreateVidLabelingJobs` call (the
      * service's per-batch limit).

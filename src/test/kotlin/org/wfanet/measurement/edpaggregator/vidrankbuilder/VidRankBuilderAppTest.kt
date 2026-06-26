@@ -94,7 +94,6 @@ class VidRankBuilderAppTest {
         rankerJob = rankerJob { name = RANKER_JOB }
         this.isLastJob = isLastJob
       }
-    onBlocking { markRankerJobFailed(any(), any()) } doReturn rankerJob { name = RANKER_JOB }
   }
 
   private fun modelLinesMock(): RawImpressionUploadModelLineServiceCoroutineStub = mock {
