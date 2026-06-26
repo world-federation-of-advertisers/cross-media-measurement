@@ -739,6 +739,17 @@ resource "google_pubsub_topic_iam_member" "vid_labeling_publisher" {
   member = var.pubsub_iam_service_account_member
 }
 
+# Allow the Secure Computation control plane to consume each phase's dead-letter
+# subscription so its dead-letter listener can mark the EDPA pipeline resources
+# FAILED on Pub/Sub retry exhaustion.
+resource "google_pubsub_subscription_iam_member" "vid_labeling_dead_letter_subscriber" {
+  for_each = var.vid_labeling_workers
+
+  subscription = module.vid_labeling_queue[each.key].dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = var.pubsub_iam_service_account_member
+}
+
 module "vid_labeling_tee_app" {
   source   = "../mig"
   for_each = var.vid_labeling_workers
