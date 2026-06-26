@@ -57,6 +57,8 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.wheneverBlocking
+import org.wfanet.measurement.api.v2alpha.BatchCreateEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
@@ -71,6 +73,8 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerClientAccountKey
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.batchCreateEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.clientAccount
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as cmmsEventGroupMetadata
@@ -133,6 +137,24 @@ class EventGroupSyncTest {
       .thenAnswer { invocation -> invocation.getArgument<UpdateEventGroupRequest>(0).eventGroup }
     onBlocking { createEventGroup(any<CreateEventGroupRequest>()) }
       .thenAnswer { invocation -> invocation.getArgument<CreateEventGroupRequest>(0).eventGroup }
+    onBlocking { batchCreateEventGroups(any<BatchCreateEventGroupsRequest>()) }
+      .thenAnswer { invocation ->
+        batchCreateEventGroupsResponse {
+          eventGroups +=
+            invocation.getArgument<BatchCreateEventGroupsRequest>(0).requestsList.map {
+              it.eventGroup
+            }
+        }
+      }
+    onBlocking { batchUpdateEventGroups(any<BatchUpdateEventGroupsRequest>()) }
+      .thenAnswer { invocation ->
+        batchUpdateEventGroupsResponse {
+          eventGroups +=
+            invocation.getArgument<BatchUpdateEventGroupsRequest>(0).requestsList.map {
+              it.eventGroup
+            }
+        }
+      }
     onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
       .thenAnswer {
         listEventGroupsResponse {
@@ -304,7 +326,7 @@ class EventGroupSyncTest {
         entityKeyTypes = emptyList(),
       )
     runBlocking { eventGroupSync.sync().collect() }
-    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { batchCreateEventGroups(any()) }
   }
 
   @Test
@@ -339,9 +361,12 @@ class EventGroupSyncTest {
         entityKeyTypes = emptyList(),
       )
     runBlocking { eventGroupSync.sync().collect() }
-    val createCaptor = argumentCaptor<CreateEventGroupRequest>()
-    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(createCaptor.capture()) }
-    assertThat(createCaptor.firstValue.eventGroup.eventGroupReferenceId).isEqualTo("reference-id-4")
+    val createCaptor = argumentCaptor<BatchCreateEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) {
+      batchCreateEventGroups(createCaptor.capture())
+    }
+    assertThat(createCaptor.firstValue.requestsList.single().eventGroup.eventGroupReferenceId)
+      .isEqualTo("reference-id-4")
     verifyBlocking(eventGroupsServiceMock, times(0)) { deleteEventGroup(any()) }
   }
 
@@ -424,8 +449,8 @@ class EventGroupSyncTest {
     verifyBlocking(eventGroupsServiceMock, times(1)) { deleteEventGroup(deleteCaptor.capture()) }
     assertThat(deleteCaptor.firstValue.name)
       .isEqualTo("dataProviders/data-provider-1/eventGroups/resource-id-1")
-    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
-    verifyBlocking(eventGroupsServiceMock, times(0)) { updateEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchUpdateEventGroups(any()) }
     assertThat(result).isEmpty()
   }
 
@@ -523,8 +548,8 @@ class EventGroupSyncTest {
     assertThat(deleteCaptor.firstValue.name)
       .isEqualTo("dataProviders/data-provider-1/eventGroups/resource-id-1")
 
-    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
-    verifyBlocking(eventGroupsServiceMock, times(0)) { updateEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchUpdateEventGroups(any()) }
 
     assertThat(result).hasSize(1)
     assertThat(result.first().eventGroupReferenceId).isEqualTo("reference-id-1")
@@ -678,8 +703,8 @@ class EventGroupSyncTest {
         entityKeyTypes = emptyList(),
       )
     runBlocking { eventGroupSync.sync().collect() }
-    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
-    verifyBlocking(eventGroupsServiceMock, times(0)) { updateEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { batchCreateEventGroups(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchUpdateEventGroups(any()) }
   }
 
   @Test
@@ -722,9 +747,11 @@ class EventGroupSyncTest {
       )
     runBlocking { eventGroupSync.sync().collect() }
 
-    val createCaptor = argumentCaptor<CreateEventGroupRequest>()
-    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(createCaptor.capture()) }
-    val created = createCaptor.firstValue.eventGroup
+    val createCaptor = argumentCaptor<BatchCreateEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) {
+      batchCreateEventGroups(createCaptor.capture())
+    }
+    val created = createCaptor.firstValue.requestsList.single().eventGroup
     assertThat(created.entityKey.entityType).isEqualTo("creative")
     assertThat(created.entityKey.entityId).isEqualTo("cr-7")
     assertThat(created.eventGroupMetadata.entityMetadata.fieldsMap["ad_group"])
@@ -765,9 +792,11 @@ class EventGroupSyncTest {
       )
     runBlocking { eventGroupSync.sync().collect() }
 
-    val createCaptor = argumentCaptor<CreateEventGroupRequest>()
-    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(createCaptor.capture()) }
-    val created = createCaptor.firstValue.eventGroup
+    val createCaptor = argumentCaptor<BatchCreateEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) {
+      batchCreateEventGroups(createCaptor.capture())
+    }
+    val created = createCaptor.firstValue.requestsList.single().eventGroup
     assertThat(created.hasEntityKey()).isFalse()
     assertThat(created.eventGroupMetadata.hasEntityMetadata()).isFalse()
   }
@@ -826,9 +855,12 @@ class EventGroupSyncTest {
       )
     runBlocking { eventGroupSync.sync().collect() }
 
-    val createCaptor = argumentCaptor<CreateEventGroupRequest>()
-    verifyBlocking(eventGroupsServiceMock, times(2)) { createEventGroup(createCaptor.capture()) }
-    val byRefId = createCaptor.allValues.associateBy { it.eventGroup.eventGroupReferenceId }
+    val createCaptor = argumentCaptor<BatchCreateEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) {
+      batchCreateEventGroups(createCaptor.capture())
+    }
+    val byRefId =
+      createCaptor.firstValue.requestsList.associateBy { it.eventGroup.eventGroupReferenceId }
 
     val legacy = byRefId.getValue("reference-id-mixed-legacy").eventGroup
     assertThat(legacy.hasEntityKey()).isFalse()
@@ -894,9 +926,12 @@ class EventGroupSyncTest {
       )
     runBlocking { eventGroupSync.sync().collect() }
 
-    val createCaptor = argumentCaptor<CreateEventGroupRequest>()
-    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(createCaptor.capture()) }
-    val forwarded = createCaptor.firstValue.eventGroup.eventGroupMetadata.entityMetadata
+    val createCaptor = argumentCaptor<BatchCreateEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) {
+      batchCreateEventGroups(createCaptor.capture())
+    }
+    val forwarded =
+      createCaptor.firstValue.requestsList.single().eventGroup.eventGroupMetadata.entityMetadata
 
     assertThat(forwarded.fieldsMap.getValue("ad_group_id").stringValue).isEqualTo("ag-42")
     assertThat(forwarded.fieldsMap.getValue("impressions").numberValue).isEqualTo(12345.0)
@@ -923,7 +958,7 @@ class EventGroupSyncTest {
         entityKeyTypes = emptyList(),
       )
     runBlocking { eventGroupSync.sync().collect() }
-    verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { batchUpdateEventGroups(any()) }
   }
 
   @Test
@@ -963,9 +998,11 @@ class EventGroupSyncTest {
       )
     runBlocking { eventGroupSync.sync().collect() }
 
-    val updateCaptor = argumentCaptor<UpdateEventGroupRequest>()
-    verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(updateCaptor.capture()) }
-    val updated = updateCaptor.firstValue.eventGroup
+    val updateCaptor = argumentCaptor<BatchUpdateEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) {
+      batchUpdateEventGroups(updateCaptor.capture())
+    }
+    val updated = updateCaptor.firstValue.requestsList.single().eventGroup
     assertThat(updated.entityKey.entityType).isEqualTo("creative")
     assertThat(updated.entityKey.entityId).isEqualTo("cr-upd")
     assertThat(updated.eventGroupMetadata.entityMetadata.fieldsMap["ad_group"])
@@ -979,6 +1016,24 @@ class EventGroupSyncTest {
         .thenAnswer { invocation -> invocation.getArgument<UpdateEventGroupRequest>(0).eventGroup }
       onBlocking { createEventGroup(any<CreateEventGroupRequest>()) }
         .thenAnswer { invocation -> invocation.getArgument<CreateEventGroupRequest>(0).eventGroup }
+      onBlocking { batchCreateEventGroups(any<BatchCreateEventGroupsRequest>()) }
+        .thenAnswer { invocation ->
+          batchCreateEventGroupsResponse {
+            eventGroups +=
+              invocation.getArgument<BatchCreateEventGroupsRequest>(0).requestsList.map {
+                it.eventGroup
+              }
+          }
+        }
+      onBlocking { batchUpdateEventGroups(any<BatchUpdateEventGroupsRequest>()) }
+        .thenAnswer { invocation ->
+          batchUpdateEventGroupsResponse {
+            eventGroups +=
+              invocation.getArgument<BatchUpdateEventGroupsRequest>(0).requestsList.map {
+                it.eventGroup
+              }
+          }
+        }
       onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
         .thenAnswer {
           listEventGroupsResponse {
@@ -1047,9 +1102,11 @@ class EventGroupSyncTest {
 
           runBlocking { eventGroupSync.sync().collect() }
 
-          val updateCaptor = argumentCaptor<UpdateEventGroupRequest>()
-          verifyBlocking(eventGroupsMock, times(1)) { updateEventGroup(updateCaptor.capture()) }
-          val updated = updateCaptor.firstValue.eventGroup
+          val updateCaptor = argumentCaptor<BatchUpdateEventGroupsRequest>()
+          verifyBlocking(eventGroupsMock, times(1)) {
+            batchUpdateEventGroups(updateCaptor.capture())
+          }
+          val updated = updateCaptor.firstValue.requestsList.single().eventGroup
           assertThat(updated.hasEntityKey()).isFalse()
         }
       }
@@ -1064,6 +1121,24 @@ class EventGroupSyncTest {
         .thenAnswer { invocation -> invocation.getArgument<UpdateEventGroupRequest>(0).eventGroup }
       onBlocking { createEventGroup(any<CreateEventGroupRequest>()) }
         .thenAnswer { invocation -> invocation.getArgument<CreateEventGroupRequest>(0).eventGroup }
+      onBlocking { batchCreateEventGroups(any<BatchCreateEventGroupsRequest>()) }
+        .thenAnswer { invocation ->
+          batchCreateEventGroupsResponse {
+            eventGroups +=
+              invocation.getArgument<BatchCreateEventGroupsRequest>(0).requestsList.map {
+                it.eventGroup
+              }
+          }
+        }
+      onBlocking { batchUpdateEventGroups(any<BatchUpdateEventGroupsRequest>()) }
+        .thenAnswer { invocation ->
+          batchUpdateEventGroupsResponse {
+            eventGroups +=
+              invocation.getArgument<BatchUpdateEventGroupsRequest>(0).requestsList.map {
+                it.eventGroup
+              }
+          }
+        }
       onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
         .thenAnswer {
           listEventGroupsResponse {
@@ -1143,8 +1218,8 @@ class EventGroupSyncTest {
             )
           runBlocking { eventGroupSync.sync().collect() }
 
-          verifyBlocking(eventGroupsMock, times(0)) { updateEventGroup(any()) }
-          verifyBlocking(eventGroupsMock, times(0)) { createEventGroup(any()) }
+          verifyBlocking(eventGroupsMock, times(0)) { batchUpdateEventGroups(any()) }
+          verifyBlocking(eventGroupsMock, times(0)) { batchCreateEventGroups(any()) }
         }
       }
 
@@ -1158,6 +1233,24 @@ class EventGroupSyncTest {
         .thenAnswer { invocation -> invocation.getArgument<UpdateEventGroupRequest>(0).eventGroup }
       onBlocking { createEventGroup(any<CreateEventGroupRequest>()) }
         .thenAnswer { invocation -> invocation.getArgument<CreateEventGroupRequest>(0).eventGroup }
+      onBlocking { batchCreateEventGroups(any<BatchCreateEventGroupsRequest>()) }
+        .thenAnswer { invocation ->
+          batchCreateEventGroupsResponse {
+            eventGroups +=
+              invocation.getArgument<BatchCreateEventGroupsRequest>(0).requestsList.map {
+                it.eventGroup
+              }
+          }
+        }
+      onBlocking { batchUpdateEventGroups(any<BatchUpdateEventGroupsRequest>()) }
+        .thenAnswer { invocation ->
+          batchUpdateEventGroupsResponse {
+            eventGroups +=
+              invocation.getArgument<BatchUpdateEventGroupsRequest>(0).requestsList.map {
+                it.eventGroup
+              }
+          }
+        }
       onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
         .thenAnswer {
           listEventGroupsResponse {
@@ -1234,9 +1327,16 @@ class EventGroupSyncTest {
             )
           runBlocking { eventGroupSync.sync().collect() }
 
-          val updateCaptor = argumentCaptor<UpdateEventGroupRequest>()
-          verifyBlocking(eventGroupsMock, times(1)) { updateEventGroup(updateCaptor.capture()) }
-          val updatedMetadata = updateCaptor.firstValue.eventGroup.eventGroupMetadata.entityMetadata
+          val updateCaptor = argumentCaptor<BatchUpdateEventGroupsRequest>()
+          verifyBlocking(eventGroupsMock, times(1)) {
+            batchUpdateEventGroups(updateCaptor.capture())
+          }
+          val updatedMetadata =
+            updateCaptor.firstValue.requestsList
+              .single()
+              .eventGroup
+              .eventGroupMetadata
+              .entityMetadata
           assertThat(updatedMetadata.fieldsMap.getValue("alpha").stringValue).isEqualTo("a")
           assertThat(updatedMetadata.fieldsMap.getValue("gamma").stringValue).isEqualTo("new")
         }
@@ -1252,6 +1352,24 @@ class EventGroupSyncTest {
         .thenAnswer { invocation -> invocation.getArgument<UpdateEventGroupRequest>(0).eventGroup }
       onBlocking { createEventGroup(any<CreateEventGroupRequest>()) }
         .thenAnswer { invocation -> invocation.getArgument<CreateEventGroupRequest>(0).eventGroup }
+      onBlocking { batchCreateEventGroups(any<BatchCreateEventGroupsRequest>()) }
+        .thenAnswer { invocation ->
+          batchCreateEventGroupsResponse {
+            eventGroups +=
+              invocation.getArgument<BatchCreateEventGroupsRequest>(0).requestsList.map {
+                it.eventGroup
+              }
+          }
+        }
+      onBlocking { batchUpdateEventGroups(any<BatchUpdateEventGroupsRequest>()) }
+        .thenAnswer { invocation ->
+          batchUpdateEventGroupsResponse {
+            eventGroups +=
+              invocation.getArgument<BatchUpdateEventGroupsRequest>(0).requestsList.map {
+                it.eventGroup
+              }
+          }
+        }
       onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
         .thenAnswer {
           listEventGroupsResponse {
@@ -1325,9 +1443,16 @@ class EventGroupSyncTest {
             )
           runBlocking { eventGroupSync.sync().collect() }
 
-          val updateCaptor = argumentCaptor<UpdateEventGroupRequest>()
-          verifyBlocking(eventGroupsMock, times(1)) { updateEventGroup(updateCaptor.capture()) }
-          val updatedMetadata = updateCaptor.firstValue.eventGroup.eventGroupMetadata.entityMetadata
+          val updateCaptor = argumentCaptor<BatchUpdateEventGroupsRequest>()
+          verifyBlocking(eventGroupsMock, times(1)) {
+            batchUpdateEventGroups(updateCaptor.capture())
+          }
+          val updatedMetadata =
+            updateCaptor.firstValue.requestsList
+              .single()
+              .eventGroup
+              .eventGroupMetadata
+              .entityMetadata
           assertThat(updatedMetadata.fieldsMap.getValue("alpha").stringValue).isEqualTo("new")
         }
       }
@@ -1342,6 +1467,24 @@ class EventGroupSyncTest {
         .thenAnswer { invocation -> invocation.getArgument<UpdateEventGroupRequest>(0).eventGroup }
       onBlocking { createEventGroup(any<CreateEventGroupRequest>()) }
         .thenAnswer { invocation -> invocation.getArgument<CreateEventGroupRequest>(0).eventGroup }
+      onBlocking { batchCreateEventGroups(any<BatchCreateEventGroupsRequest>()) }
+        .thenAnswer { invocation ->
+          batchCreateEventGroupsResponse {
+            eventGroups +=
+              invocation.getArgument<BatchCreateEventGroupsRequest>(0).requestsList.map {
+                it.eventGroup
+              }
+          }
+        }
+      onBlocking { batchUpdateEventGroups(any<BatchUpdateEventGroupsRequest>()) }
+        .thenAnswer { invocation ->
+          batchUpdateEventGroupsResponse {
+            eventGroups +=
+              invocation.getArgument<BatchUpdateEventGroupsRequest>(0).requestsList.map {
+                it.eventGroup
+              }
+          }
+        }
       onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
         .thenAnswer {
           listEventGroupsResponse {
@@ -1418,9 +1561,16 @@ class EventGroupSyncTest {
             )
           runBlocking { eventGroupSync.sync().collect() }
 
-          val updateCaptor = argumentCaptor<UpdateEventGroupRequest>()
-          verifyBlocking(eventGroupsMock, times(1)) { updateEventGroup(updateCaptor.capture()) }
-          val updatedMetadata = updateCaptor.firstValue.eventGroup.eventGroupMetadata.entityMetadata
+          val updateCaptor = argumentCaptor<BatchUpdateEventGroupsRequest>()
+          verifyBlocking(eventGroupsMock, times(1)) {
+            batchUpdateEventGroups(updateCaptor.capture())
+          }
+          val updatedMetadata =
+            updateCaptor.firstValue.requestsList
+              .single()
+              .eventGroup
+              .eventGroupMetadata
+              .entityMetadata
           assertThat(updatedMetadata.fieldsMap).containsKey("alpha")
           assertThat(updatedMetadata.fieldsMap).doesNotContainKey("beta")
         }
@@ -1444,13 +1594,11 @@ class EventGroupSyncTest {
         )
       val result = runBlocking { eventGroupSync.sync() }
       assertThat(result.toList().map { it.eventGroupResource to it.eventGroupReferenceId })
-        .isEqualTo(
-          listOf(
-            "dataProviders/data-provider-1/eventGroups/resource-id-1" to "reference-id-1",
-            "dataProviders/data-provider-2/eventGroups/resource-id-2" to "reference-id-2",
-            "dataProviders/data-provider-3/eventGroups/resource-id-3" to "reference-id-3",
-            "dataProviders/data-provider-3/eventGroups/resource-id-4" to "reference-id-1",
-          )
+        .containsExactly(
+          "dataProviders/data-provider-1/eventGroups/resource-id-1" to "reference-id-1",
+          "dataProviders/data-provider-2/eventGroups/resource-id-2" to "reference-id-2",
+          "dataProviders/data-provider-3/eventGroups/resource-id-3" to "reference-id-3",
+          "dataProviders/data-provider-3/eventGroups/resource-id-4" to "reference-id-1",
         )
     }
   }
@@ -1927,9 +2075,11 @@ class EventGroupSyncTest {
     verifyBlocking(clientAccountsServiceMock, times(1)) { listClientAccounts(any()) }
 
     // Verify that EventGroup was created with the resolved measurement consumer
-    val createCaptor = argumentCaptor<CreateEventGroupRequest>()
-    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(createCaptor.capture()) }
-    assertThat(createCaptor.firstValue.eventGroup.measurementConsumer)
+    val createCaptor = argumentCaptor<BatchCreateEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) {
+      batchCreateEventGroups(createCaptor.capture())
+    }
+    assertThat(createCaptor.firstValue.requestsList.single().eventGroup.measurementConsumer)
       .isEqualTo("measurementConsumers/measurement-consumer-1")
   }
 
@@ -1971,10 +2121,13 @@ class EventGroupSyncTest {
     verifyBlocking(clientAccountsServiceMock, times(1)) { listClientAccounts(any()) }
 
     // Verify that EventGroups were created for BOTH the direct MC and the looked-up MC
-    val createCaptor = argumentCaptor<CreateEventGroupRequest>()
-    verifyBlocking(eventGroupsServiceMock, times(2)) { createEventGroup(createCaptor.capture()) }
+    val createCaptor = argumentCaptor<BatchCreateEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) {
+      batchCreateEventGroups(createCaptor.capture())
+    }
 
-    val measurementConsumers = createCaptor.allValues.map { it.eventGroup.measurementConsumer }
+    val measurementConsumers =
+      createCaptor.firstValue.requestsList.map { it.eventGroup.measurementConsumer }
     assertThat(measurementConsumers)
       .containsExactly(
         "measurementConsumers/direct-consumer",
@@ -2022,7 +2175,7 @@ class EventGroupSyncTest {
     verifyBlocking(clientAccountsServiceMock, times(1)) { listClientAccounts(any()) }
 
     // Verify that EventGroup was NOT created
-    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
 
     // Verify no results were returned
     assertThat(result).isEmpty()
@@ -2065,10 +2218,13 @@ class EventGroupSyncTest {
     verifyBlocking(clientAccountsServiceMock, times(1)) { listClientAccounts(any()) }
 
     // Verify that EventGroups were created for BOTH measurement consumers
-    val createCaptor = argumentCaptor<CreateEventGroupRequest>()
-    verifyBlocking(eventGroupsServiceMock, times(2)) { createEventGroup(createCaptor.capture()) }
+    val createCaptor = argumentCaptor<BatchCreateEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) {
+      batchCreateEventGroups(createCaptor.capture())
+    }
 
-    val measurementConsumers = createCaptor.allValues.map { it.eventGroup.measurementConsumer }
+    val measurementConsumers =
+      createCaptor.firstValue.requestsList.map { it.eventGroup.measurementConsumer }
     assertThat(measurementConsumers)
       .containsExactly(
         "measurementConsumers/measurement-consumer-1",
@@ -2126,7 +2282,7 @@ class EventGroupSyncTest {
       assertThat(syncFailureMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(1)
 
       // Verify no EventGroup was created
-      verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+      verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
     }
   }
 
@@ -2274,7 +2430,7 @@ class EventGroupSyncTest {
       assertThat(invalidMetric).isNotNull()
       assertThat(invalidMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(1)
 
-      verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+      verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
     }
   }
 
@@ -2307,6 +2463,24 @@ class EventGroupSyncTest {
         .thenAnswer { invocation -> invocation.getArgument<UpdateEventGroupRequest>(0).eventGroup }
       onBlocking { createEventGroup(any<CreateEventGroupRequest>()) }
         .thenAnswer { invocation -> invocation.getArgument<CreateEventGroupRequest>(0).eventGroup }
+      onBlocking { batchCreateEventGroups(any<BatchCreateEventGroupsRequest>()) }
+        .thenAnswer { invocation ->
+          batchCreateEventGroupsResponse {
+            eventGroups +=
+              invocation.getArgument<BatchCreateEventGroupsRequest>(0).requestsList.map {
+                it.eventGroup
+              }
+          }
+        }
+      onBlocking { batchUpdateEventGroups(any<BatchUpdateEventGroupsRequest>()) }
+        .thenAnswer { invocation ->
+          batchUpdateEventGroupsResponse {
+            eventGroups +=
+              invocation.getArgument<BatchUpdateEventGroupsRequest>(0).requestsList.map {
+                it.eventGroup
+              }
+          }
+        }
       onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
         .thenAnswer {
           listEventGroupsResponse {
@@ -2392,7 +2566,7 @@ class EventGroupSyncTest {
 
           runBlocking { eventGroupSync.sync().collect() }
 
-          verifyBlocking(eventGroupsMock, times(0)) { updateEventGroup(any()) }
+          verifyBlocking(eventGroupsMock, times(0)) { batchUpdateEventGroups(any()) }
           verifyBlocking(eventGroupsMock, times(0)) { deleteEventGroup(any()) }
         }
       }
@@ -2608,14 +2782,16 @@ class EventGroupSyncTest {
 
     assertThat(results).hasSize(1)
 
-    val updateCaptor = argumentCaptor<UpdateEventGroupRequest>()
-    verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(updateCaptor.capture()) }
-    val updated = updateCaptor.firstValue.eventGroup
+    val updateCaptor = argumentCaptor<BatchUpdateEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) {
+      batchUpdateEventGroups(updateCaptor.capture())
+    }
+    val updated = updateCaptor.firstValue.requestsList.single().eventGroup
     assertThat(updated.eventGroupReferenceId).isEqualTo("new-ref-id")
     assertThat(updated.entityKey.entityType).isEqualTo("creative-id")
     assertThat(updated.entityKey.entityId).isEqualTo("edpa-eg-creative-id-1")
 
-    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
 
     val listCaptor = argumentCaptor<ListEventGroupsRequest>()
     verifyBlocking(eventGroupsServiceMock, times(1)) { listEventGroups(listCaptor.capture()) }
@@ -2685,12 +2861,14 @@ class EventGroupSyncTest {
 
     assertThat(results).hasSize(1)
 
-    val updateCaptor = argumentCaptor<UpdateEventGroupRequest>()
-    verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(updateCaptor.capture()) }
-    val updated = updateCaptor.firstValue.eventGroup
+    val updateCaptor = argumentCaptor<BatchUpdateEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) {
+      batchUpdateEventGroups(updateCaptor.capture())
+    }
+    val updated = updateCaptor.firstValue.requestsList.single().eventGroup
     assertThat(updated.eventGroupReferenceId).isEqualTo("ref-id-1")
 
-    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
 
     val failureMetric = getMetrics().firstOrNull { it.name == "edpa.event_group.sync_failure" }
     assertThat(failureMetric).isNull()
@@ -2698,7 +2876,9 @@ class EventGroupSyncTest {
 
   @Test
   fun `sync fails silently when entity key types not populated properly`() {
-    wheneverBlocking { eventGroupsServiceMock.createEventGroup(any<CreateEventGroupRequest>()) }
+    wheneverBlocking {
+        eventGroupsServiceMock.batchCreateEventGroups(any<BatchCreateEventGroupsRequest>())
+      }
       .thenAnswer {
         throw StatusException(
           Status.ALREADY_EXISTS.withDescription(
@@ -2744,8 +2924,8 @@ class EventGroupSyncTest {
 
     assertThat(results).isEmpty()
 
-    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
-    verifyBlocking(eventGroupsServiceMock, times(0)) { updateEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { batchCreateEventGroups(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchUpdateEventGroups(any()) }
 
     val listCaptor = argumentCaptor<ListEventGroupsRequest>()
     verifyBlocking(eventGroupsServiceMock, times(1)) { listEventGroups(listCaptor.capture()) }
