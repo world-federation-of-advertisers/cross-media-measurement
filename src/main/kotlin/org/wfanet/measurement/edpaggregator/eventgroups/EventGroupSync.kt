@@ -27,6 +27,7 @@ import kotlin.time.TimeSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
@@ -167,9 +168,8 @@ class EventGroupSync(
             )
           }
 
-      val edpEventGroupsList = eventGroups.toList()
-
-      for (eventGroup in edpEventGroupsList) {
+      // Collect the EDP EventGroups as a stream rather than materializing the full decoded list.
+      eventGroups.collect { eventGroup ->
         if (eventGroup.state == EventGroup.State.DELETED) {
           try {
             validateDeletedEventGroup(eventGroup)
@@ -183,7 +183,7 @@ class EventGroupSync(
                 ": Validation failed"
             }
             metrics.invalidEventGroupFailure.add(1, metricAttributes())
-            continue
+            return@collect
           }
 
           if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
@@ -199,7 +199,7 @@ class EventGroupSync(
               metrics.syncDeleted.add(1, metricAttributes())
             }
           }
-          continue
+          return@collect
         }
 
         try {
@@ -214,7 +214,7 @@ class EventGroupSync(
               ": Validation failed"
           }
           metrics.invalidEventGroupFailure.add(1, metricAttributes())
-          continue
+          return@collect
         }
 
         val measurementConsumerKeys: Set<MeasurementConsumerKey> =
@@ -230,7 +230,7 @@ class EventGroupSync(
                 ": No measurement consumer resolved"
             }
             metrics.syncFailure.add(1, metricAttributes())
-            continue
+            return@collect
           }
 
         for (measurementConsumerKey in measurementConsumerKeys) {
