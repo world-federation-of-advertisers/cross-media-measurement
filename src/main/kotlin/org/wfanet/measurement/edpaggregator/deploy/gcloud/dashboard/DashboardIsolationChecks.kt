@@ -159,7 +159,8 @@ class DashboardIsolationChecks(
 
   fun checkExternalQueryBypass(bq: BigQuery, edp: EdpConfig): List<CheckResult> {
     val results = mutableListOf<CheckResult>()
-    val connections = listOf("edp-aggregator-conn", "kingdom-conn", "reporting-conn")
+    val connections =
+      listOf("edp-aggregator-conn", "kingdom-conn", "reporting-conn", "reporting-postgres-conn")
     for (conn in connections) {
       try {
         bq.query(
@@ -497,7 +498,8 @@ class DashboardIsolationChecks(
     }
 
     // Verify only expected BigQuery connections exist
-    val expectedConnections = setOf("edp-aggregator-conn", "kingdom-conn", "reporting-conn")
+    val expectedConnections =
+      setOf("edp-aggregator-conn", "kingdom-conn", "reporting-conn", "reporting-postgres-conn")
     try {
       val result =
         bq.query(

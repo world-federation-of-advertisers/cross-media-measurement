@@ -12,9 +12,14 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- NOTE: These tables are empty until an upstream change persists report
--- event-group associations in a queryable form (BasicReportResultDetails is
--- never populated). Tracked in: https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/4084
+-- Event-group membership per report is derived from the report's campaign group
+-- (a ReportingSet). Those associations live in the reporting Postgres database
+-- (ReportingSets / ReportingSetEventGroups / EventGroups), so this query joins
+-- the reporting Spanner DB (report -> campaign group), the reporting Postgres DB
+-- (campaign group -> event groups + data provider), and the Kingdom Spanner DB
+-- (event group -> campaign/brand/entity metadata).
+-- NOTE: Only primitive campaign groups (direct ReportingSetEventGroups rows) are
+-- resolved; composite campaign groups would need set-expression resolution.
 
 MERGE INTO `${project_id}.${dataset}.${table_name}` T
 USING (
@@ -39,41 +44,53 @@ SELECT
 FROM (
   SELECT
     br.ExternalReportId,
-    JSON_VALUE(comp, '$.cmmsDataProviderId') AS CmmsDataProvider,
-    JSON_VALUE(eg, '$.cmmsEventGroupId') AS CmmsEventGroupId,
+    cg.CmmsDataProvider,
+    cg.CmmsEventGroupId,
     keg.CampaignName,
     keg.BrandName,
     keg.EntityType,
     keg.EntityId
   FROM (
-    SELECT
-      ExternalReportId,
-      details
-    FROM EXTERNAL_QUERY(
+    -- Reporting Spanner: report -> campaign group
+    SELECT * FROM EXTERNAL_QUERY(
       'projects/${project_id}/locations/${region}/connections/reporting-conn',
       '''SELECT
         br.ExternalReportId,
-        TO_JSON_STRING(TO_JSON(br.BasicReportResultDetails)) AS details
-      FROM BasicReports br''')
-  ) br,
-  UNNEST(JSON_QUERY_ARRAY(br.details, '$.resultGroups')) AS rg,
-  UNNEST(JSON_QUERY_ARRAY(rg, '$.results')) AS result,
-  UNNEST(JSON_QUERY_ARRAY(result, '$.metadata.reportingUnitSummary.reportingUnitComponentSummary')) AS comp,
-  UNNEST(JSON_QUERY_ARRAY(comp, '$.eventGroupSummaries')) AS eg
+        br.ExternalCampaignGroupId
+      FROM BasicReports br
+      WHERE br.State = 4''')
+  ) br
+  JOIN (
+    -- Reporting Postgres: campaign group -> event groups + data provider
+    SELECT * FROM EXTERNAL_QUERY(
+      'projects/${project_id}/locations/${region}/connections/reporting-postgres-conn',
+      '''SELECT
+        rs.externalreportingsetid AS ExternalCampaignGroupId,
+        eg.cmmsdataproviderid AS CmmsDataProvider,
+        eg.cmmseventgroupid AS CmmsEventGroupId
+      FROM reportingsets rs
+      JOIN reportingseteventgroups rseg
+        ON rs.measurementconsumerid = rseg.measurementconsumerid
+        AND rs.reportingsetid = rseg.reportingsetid
+      JOIN eventgroups eg
+        ON rseg.measurementconsumerid = eg.measurementconsumerid
+        AND rseg.eventgroupid = eg.eventgroupid
+      WHERE rs.setexpressionid IS NULL''')
+  ) cg
+    ON br.ExternalCampaignGroupId = cg.ExternalCampaignGroupId
   LEFT JOIN (
+    -- Kingdom Spanner: event group -> campaign/brand/entity metadata
     SELECT * FROM EXTERNAL_QUERY(
       'projects/${project_id}/locations/${region}/connections/kingdom-conn',
       '''SELECT
         eg.ExternalEventGroupId,
-        eg.MeasurementConsumerId,
-        JSON_VALUE(TO_JSON(eg.EventGroupDetails), '$.metadata.adMetadata.campaignMetadata.campaignName') AS CampaignName,
-        JSON_VALUE(TO_JSON(eg.EventGroupDetails), '$.metadata.adMetadata.campaignMetadata.brandName') AS BrandName,
         eg.EntityType,
-        eg.EntityId
+        eg.EntityId,
+        JSON_VALUE(TO_JSON(eg.EventGroupDetails), '$.metadata.adMetadata.campaignMetadata.campaignName') AS CampaignName,
+        JSON_VALUE(TO_JSON(eg.EventGroupDetails), '$.metadata.adMetadata.campaignMetadata.brandName') AS BrandName
       FROM EventGroups eg''')
   ) keg
-    ON JSON_VALUE(eg, '$.cmmsEventGroupId') = `${project_id}.dashboard.externalIdToApiId`(keg.ExternalEventGroupId)
-    AND JSON_VALUE(eg, '$.cmmsMeasurementConsumerId') = `${project_id}.dashboard.externalIdToApiId`(keg.MeasurementConsumerId)
+    ON cg.CmmsEventGroupId = `${project_id}.dashboard.externalIdToApiId`(keg.ExternalEventGroupId)
 ) base
 GROUP BY base.ExternalReportId, base.CmmsDataProvider
 %{ if include_platform_columns }

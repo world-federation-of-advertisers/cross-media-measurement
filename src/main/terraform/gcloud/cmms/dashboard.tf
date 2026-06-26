@@ -103,6 +103,30 @@ resource "google_bigquery_connection" "reporting" {
   }
 }
 
+# Cloud SQL (Postgres) connection to the reporting database. Used by
+# report_detail to resolve report -> campaign group -> event group
+# associations, which live in Postgres (ReportingSets / EventGroups), not
+# Spanner.
+resource "google_bigquery_connection" "reporting_postgres" {
+  connection_id = "reporting-postgres-conn"
+  project       = data.google_client_config.default.project
+  location      = data.google_client_config.default.region
+
+  cloud_sql {
+    # Reuses the reporting v2 Postgres instance (var.postgres_instance_name) and
+    # password (var.postgres_password), both supplied via GitHub vars/secrets in
+    # the same way as the Spanner connections. The "reporting-v2" database name
+    # is a literal, matching how the Spanner db names are written above.
+    instance_id = "${data.google_client_config.default.project}:${data.google_client_config.default.region}:${var.postgres_instance_name}"
+    database    = "reporting-v2"
+    type        = "POSTGRES"
+    credential {
+      username = "postgres"
+      password = var.postgres_password
+    }
+  }
+}
+
 data "google_project" "project" {
   project_id = data.google_client_config.default.project
 }
@@ -697,6 +721,22 @@ resource "google_bigquery_connection_iam_member" "terraform_reporting_conn" {
   connection_id = google_bigquery_connection.reporting.connection_id
   role          = "roles/bigquery.connectionUser"
   member        = "serviceAccount:${var.terraform_service_account}"
+}
+
+resource "google_bigquery_connection_iam_member" "terraform_reporting_postgres_conn" {
+  project       = data.google_client_config.default.project
+  location      = data.google_client_config.default.region
+  connection_id = google_bigquery_connection.reporting_postgres.connection_id
+  role          = "roles/bigquery.connectionUser"
+  member        = "serviceAccount:${var.terraform_service_account}"
+}
+
+# The BigQuery Connection service agent needs cloudsql.client to read the
+# reporting Postgres via the Cloud SQL connection.
+resource "google_project_iam_member" "reporting_postgres_conn_client" {
+  project = data.google_client_config.default.project
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
 }
 
 
