@@ -76,3 +76,9 @@ import %workspace%/maven.bazelrc
 import %workspace%/remote.bazelrc
 import %workspace%/results.bazelrc
 try-import %workspace%/auth.bazelrc
+
+# Bazel 8 flipped --incompatible_disallow_empty_glob to true by default. Several
+# packages have glob(['*.textproto']) that resolve to no files at HEAD because
+# the fixtures are generated/checked-in elsewhere. Restore Bazel 7 behavior here
+# rather than churning every BUILD file with allow_empty=True.
+common --incompatible_disallow_empty_glob=false
