@@ -325,6 +325,7 @@ class BasicReportProcessedResultsTransformationTest {
   fun `buildResultGroups creates ReportingSet components for custom groups`() {
     val customGroup1Id = "custom-group-1"
     val customGroup2Id = "custom-group-2"
+    val customGroupUnionId = "custom-group-union"
 
     val basicReport = basicReport {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -347,7 +348,6 @@ class BasicReportProcessedResultsTransformationTest {
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
             populationSize = true
-            // Reporting-unit aggregate metrics are requested but must be skipped for custom groups.
             reportingUnit =
               ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
                 cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
@@ -360,6 +360,7 @@ class BasicReportProcessedResultsTransformationTest {
                     reach = true
                     impressions = true
                   }
+                cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
               }
           }
         }
@@ -434,9 +435,48 @@ class BasicReportProcessedResultsTransformationTest {
                 }
             }
         },
+        // Result for the union composite over the two custom groups (the create side mints this).
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 3
+          dimension =
+            ReportingSetResultKt.dimension {
+              externalReportingSetId = customGroupUnionId
+              externalImpressionQualificationFilterId =
+                IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
+              metricFrequencySpec = metricFrequencySpec { total = true }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
+            }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  processedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
+                    }
+                }
+            }
+        },
       )
 
-    val resultGroups = buildResultGroups(basicReport, reportingSetResults, emptyMap(), emptyMap())
+    val compositeReportingSetIdBySetExpression =
+      mapOf(buildUnionSetExpression(listOf(customGroup1Id, customGroup2Id)) to customGroupUnionId)
+
+    val resultGroups =
+      buildResultGroups(
+        basicReport,
+        reportingSetResults,
+        emptyMap(),
+        compositeReportingSetIdBySetExpression,
+      )
 
     val expectedResultGroups =
       listOf(
@@ -479,7 +519,12 @@ class BasicReportProcessedResultsTransformationTest {
               metricSet =
                 ResultGroupKt.metricSet {
                   populationSize = 100
-                  // No reporting-unit aggregate metrics are populated for custom groups.
+                  reportingUnit =
+                    ResultGroupKt.MetricSetKt.reportingUnitMetricSet {
+                      cumulative = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
+                      stackedIncrementalReach += 10
+                      stackedIncrementalReach += 15 // 25 - 10
+                    }
                   reportingSetComponents +=
                     ResultGroupKt.MetricSetKt.reportingSetComponentMetricSetMapEntry {
                       externalReportingSetId = customGroup1Id
@@ -489,6 +534,10 @@ class BasicReportProcessedResultsTransformationTest {
                             ResultGroupKt.MetricSetKt.basicMetricSet {
                               reach = 10
                               impressions = 100
+                            }
+                          cumulativeUnique =
+                            ResultGroupKt.MetricSetKt.uniqueMetricSet {
+                              reach = 5 // 25 - 20
                             }
                         }
                     }
@@ -501,6 +550,10 @@ class BasicReportProcessedResultsTransformationTest {
                             ResultGroupKt.MetricSetKt.basicMetricSet {
                               reach = 20
                               impressions = 200
+                            }
+                          cumulativeUnique =
+                            ResultGroupKt.MetricSetKt.uniqueMetricSet {
+                              reach = 15 // 25 - 10
                             }
                         }
                     }
