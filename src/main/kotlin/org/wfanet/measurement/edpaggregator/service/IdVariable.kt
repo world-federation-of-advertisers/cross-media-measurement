@@ -32,6 +32,7 @@ internal enum class IdVariable {
   VID_LABELING_JOB,
   RANKER_JOB,
   RANK_INDEX_BLOB,
+  POOL_ASSIGNMENT_JOB,
   WORK_ITEM,
 }
 
