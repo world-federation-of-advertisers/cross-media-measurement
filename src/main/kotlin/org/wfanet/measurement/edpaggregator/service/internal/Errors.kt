@@ -23,6 +23,7 @@ import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState
+import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentState
 import org.wfanet.measurement.internal.edpaggregator.RankerState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionBatchState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
@@ -46,6 +47,9 @@ object Errors {
     RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
     RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
     RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+    POOL_ASSIGNMENT_JOB_NOT_FOUND,
+    POOL_ASSIGNMENT_JOB_STATE_INVALID,
+    POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
     RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
     RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
     VID_LABELING_JOB_NOT_FOUND,
@@ -86,6 +90,9 @@ object Errors {
     RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE("rawImpressionUploadModelLineState"),
     EXPECTED_RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATES("expectedRawImpressionUploadModelLineStates"),
     CONFLICTING_RAW_IMPRESSION_UPLOAD_RESOURCE_IDS("conflictingRawImpressionUploadResourceIds"),
+    POOL_ASSIGNMENT_JOB_RESOURCE_ID("poolAssignmentJobResourceId"),
+    POOL_ASSIGNMENT_JOB_STATE("poolAssignmentJobState"),
+    EXPECTED_POOL_ASSIGNMENT_JOB_STATES("expectedPoolAssignmentJobStates"),
     FILE_RESOURCE_ID("fileResourceId"),
     VID_LABELING_JOB_RESOURCE_ID("vidLabelingJobResourceId"),
     VID_LABELING_JOB_STATE("vidLabelingJobState"),
@@ -657,6 +664,53 @@ class RankIndexBlobAlreadyExistsException(
     mapOf(
       Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
       Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+    ),
+    cause,
+  )
+
+class PoolAssignmentJobNotFoundException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  poolAssignmentJobResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
+    "PoolAssignmentJob not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+      Errors.Metadata.POOL_ASSIGNMENT_JOB_RESOURCE_ID to poolAssignmentJobResourceId,
+    ),
+    cause,
+  )
+
+class PoolAssignmentJobAlreadyExistsException(cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
+    "PoolAssignmentJob already exists",
+    emptyMap(),
+    cause,
+  )
+
+class PoolAssignmentJobStateInvalidException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  poolAssignmentJobResourceId: String,
+  actualState: PoolAssignmentState,
+  expectedStates: Collection<PoolAssignmentState>,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
+    "PoolAssignmentJob state invalid: expected one of $expectedStates but was $actualState",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+      Errors.Metadata.POOL_ASSIGNMENT_JOB_RESOURCE_ID to poolAssignmentJobResourceId,
+      Errors.Metadata.POOL_ASSIGNMENT_JOB_STATE to actualState.name,
+      Errors.Metadata.EXPECTED_POOL_ASSIGNMENT_JOB_STATES to
+        expectedStates.joinToString(",") { state -> state.name },
     ),
     cause,
   )
