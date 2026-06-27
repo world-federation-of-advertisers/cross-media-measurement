@@ -44,7 +44,6 @@ import org.wfanet.measurement.internal.reporting.v2.ResultGroupSpec as InternalR
 import org.wfanet.measurement.internal.reporting.v2.basicReport as internalBasicReport
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails as internalBasicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.dataProviderKey as internalDataProviderKey
-import org.wfanet.measurement.internal.reporting.v2.reportingSetKey as internalReportingSetKey
 import org.wfanet.measurement.internal.reporting.v2.dimensionSpec as internalDimensionSpec
 import org.wfanet.measurement.internal.reporting.v2.eventFilter as internalEventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField as internalEventTemplateField
@@ -52,6 +51,7 @@ import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilte
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec as internalMetricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter as internalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
+import org.wfanet.measurement.internal.reporting.v2.reportingSetKey as internalReportingSetKey
 import org.wfanet.measurement.internal.reporting.v2.reportingUnit as internalReportingUnit
 import org.wfanet.measurement.internal.reporting.v2.resultGroupMetricSpec as internalResultGroupMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.resultGroupSpec as internalResultGroupSpec
