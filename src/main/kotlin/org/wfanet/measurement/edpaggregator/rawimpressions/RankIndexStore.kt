@@ -24,8 +24,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexMap
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
-import org.wfanet.measurement.storage.StorageClient
 
 /**
  * Reads and writes the per-subpool rank-index maps (the Phase-1 `RankIndexMap` blobs) as
@@ -52,7 +52,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @param storageClient the base (unencrypted) storage client for the vid-rank-map bucket.
  * @param kmsClient KMS client able to wrap/unwrap the EDP's KEK.
  */
-class RankIndexStore(storageClient: StorageClient, kmsClient: KmsClient) :
+class RankIndexStore(storageClient: ConditionalOperationStorageClient, kmsClient: KmsClient) :
   EncryptedRecordIoStore(storageClient, kmsClient) {
   /**
    * Writes [records] to [blobKey], one RecordIO record per emitted [RankIndexMap], envelope-
