@@ -45,6 +45,7 @@ import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
+import org.wfanet.measurement.internal.reporting.v2.reportingSetKey
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.reportingUnit
 import org.wfanet.measurement.internal.reporting.v2.resultGroup
@@ -307,6 +308,199 @@ class BasicReportProcessedResultsTransformationTest {
                           cumulativeUnique =
                             ResultGroupKt.MetricSetKt.uniqueMetricSet {
                               reach = 15 // 25 - 10
+                            }
+                        }
+                    }
+                }
+            }
+        }
+      )
+
+    assertThat(resultGroups)
+      .ignoringRepeatedFieldOrder()
+      .containsExactlyElementsIn(expectedResultGroups)
+  }
+
+  @Test
+  fun `buildResultGroups creates ReportingSet components for custom groups`() {
+    val customGroup1Id = "custom-group-1"
+    val customGroup2Id = "custom-group-2"
+
+    val basicReport = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      details = basicReportDetails {
+        impressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        effectiveImpressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        reportingInterval = REPORTING_INTERVAL
+        resultGroupSpecs += resultGroupSpec {
+          title = "result-group-1"
+          reportingUnit = reportingUnit {
+            reportingSetKeys =
+              ReportingUnitKt.reportingSetKeys {
+                reportingSetKeys += reportingSetKey { externalReportingSetId = customGroup1Id }
+                reportingSetKeys += reportingSetKey { externalReportingSetId = customGroup2Id }
+              }
+          }
+          metricFrequency = metricFrequencySpec { total = true }
+          dimensionSpec = dimensionSpec {
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.age_group" }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
+            // Reporting-unit aggregate metrics are requested but must be skipped for custom groups.
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                stackedIncrementalReach = true
+              }
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                cumulative =
+                  ResultGroupMetricSpecKt.basicMetricSetSpec {
+                    reach = true
+                    impressions = true
+                  }
+              }
+          }
+        }
+      }
+    }
+
+    val reportingSetResults =
+      listOf(
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 1
+          dimension =
+            ReportingSetResultKt.dimension {
+              externalReportingSetId = customGroup1Id
+              externalImpressionQualificationFilterId =
+                IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
+              metricFrequencySpec = metricFrequencySpec { total = true }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
+            }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  processedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 10
+                          impressions = 100
+                        }
+                    }
+                }
+            }
+        },
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 2
+          dimension =
+            ReportingSetResultKt.dimension {
+              externalReportingSetId = customGroup2Id
+              externalImpressionQualificationFilterId =
+                IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
+              metricFrequencySpec = metricFrequencySpec { total = true }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
+            }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  processedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 20
+                          impressions = 200
+                        }
+                    }
+                }
+            }
+        },
+      )
+
+    val resultGroups = buildResultGroups(basicReport, reportingSetResults, emptyMap(), emptyMap())
+
+    val expectedResultGroups =
+      listOf(
+        resultGroup {
+          title = "result-group-1"
+          results +=
+            ResultGroupKt.result {
+              metadata =
+                ResultGroupKt.metricMetadata {
+                  reportingUnitSummary =
+                    ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
+                      reportingUnitComponentSummary +=
+                        ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
+                          externalReportingSetId = customGroup1Id
+                        }
+                      reportingUnitComponentSummary +=
+                        ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
+                          externalReportingSetId = customGroup2Id
+                        }
+                    }
+                  cumulativeMetricStartTime = REPORTING_INTERVAL.effectiveReportStart.toTimestamp()
+                  metricEndTime =
+                    REPORTING_INTERVAL.effectiveReportStart
+                      .copy {
+                        year = REPORTING_INTERVAL.reportEnd.year
+                        month = REPORTING_INTERVAL.reportEnd.month
+                        day = REPORTING_INTERVAL.reportEnd.day
+                      }
+                      .toTimestamp()
+                  metricFrequencySpec = metricFrequencySpec { total = true }
+                  dimensionSpecSummary =
+                    ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
+                      groupings += eventTemplateField {
+                        path = "person.age_group"
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                      }
+                    }
+                  filter = IMPRESSION_QUALIFICATION_FILTER_1
+                }
+              metricSet =
+                ResultGroupKt.metricSet {
+                  populationSize = 100
+                  // No reporting-unit aggregate metrics are populated for custom groups.
+                  reportingSetComponents +=
+                    ResultGroupKt.MetricSetKt.reportingSetComponentMetricSetMapEntry {
+                      externalReportingSetId = customGroup1Id
+                      value =
+                        ResultGroupKt.MetricSetKt.componentMetricSet {
+                          cumulative =
+                            ResultGroupKt.MetricSetKt.basicMetricSet {
+                              reach = 10
+                              impressions = 100
+                            }
+                        }
+                    }
+                  reportingSetComponents +=
+                    ResultGroupKt.MetricSetKt.reportingSetComponentMetricSetMapEntry {
+                      externalReportingSetId = customGroup2Id
+                      value =
+                        ResultGroupKt.MetricSetKt.componentMetricSet {
+                          cumulative =
+                            ResultGroupKt.MetricSetKt.basicMetricSet {
+                              reach = 20
+                              impressions = 200
                             }
                         }
                     }

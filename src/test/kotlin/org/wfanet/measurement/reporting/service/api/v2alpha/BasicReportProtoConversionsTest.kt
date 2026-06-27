@@ -62,6 +62,82 @@ class BasicReportProtoConversionsTest {
     assertThat(componentSummary.eventGroupSummariesList).isEmpty()
   }
 
+  @Test
+  fun `toBasicReport maps reporting_set_components to ReportingSet-keyed components`() {
+    val customGroupId = "custom-group"
+    val internalBasicReport = internalBasicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalBasicReportId = "basic-report"
+      externalCampaignGroupId = "campaign-group"
+      resultDetails = basicReportResultDetails {
+        resultGroups += internalResultGroup {
+          title = "title"
+          results +=
+            InternalResultGroupKt.result {
+              metadata = InternalResultGroupKt.metricMetadata {}
+              metricSet =
+                InternalResultGroupKt.metricSet {
+                  reportingSetComponents +=
+                    InternalResultGroupKt.MetricSetKt.reportingSetComponentMetricSetMapEntry {
+                      externalReportingSetId = customGroupId
+                      value =
+                        InternalResultGroupKt.MetricSetKt.componentMetricSet {
+                          cumulative = InternalResultGroupKt.MetricSetKt.basicMetricSet { reach = 42 }
+                        }
+                    }
+                }
+            }
+        }
+      }
+    }
+
+    val basicReport =
+      internalBasicReport.toBasicReport(populateDeprecatedReportingUnitEventGroupSummaries = false)
+
+    val component =
+      basicReport.resultGroupsList.single().resultsList.single().metricSet.componentsList.single()
+    assertThat(component.key)
+      .isEqualTo(ReportingSetKey(CMMS_MEASUREMENT_CONSUMER_ID, customGroupId).toName())
+    assertThat(component.value.cumulative.reach).isEqualTo(42)
+  }
+
+  @Test
+  fun `toBasicReport sets component to ReportingSet name for custom-group component summary`() {
+    val customGroupId = "custom-group"
+    val internalBasicReport = internalBasicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalBasicReportId = "basic-report"
+      externalCampaignGroupId = "campaign-group"
+      resultDetails = basicReportResultDetails {
+        resultGroups += internalResultGroup {
+          title = "title"
+          results +=
+            InternalResultGroupKt.result {
+              metadata =
+                InternalResultGroupKt.metricMetadata {
+                  reportingUnitSummary =
+                    InternalResultGroupKt.MetricMetadataKt.reportingUnitSummary {
+                      reportingUnitComponentSummary +=
+                        InternalResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
+                          // No cmmsDataProviderId: this is a custom-group component.
+                          externalReportingSetId = customGroupId
+                        }
+                    }
+                }
+              metricSet = InternalResultGroupKt.metricSet {}
+            }
+        }
+      }
+    }
+
+    val basicReport =
+      internalBasicReport.toBasicReport(populateDeprecatedReportingUnitEventGroupSummaries = false)
+
+    val componentSummary = basicReport.onlyComponentSummary()
+    assertThat(componentSummary.component)
+      .isEqualTo(ReportingSetKey(CMMS_MEASUREMENT_CONSUMER_ID, customGroupId).toName())
+  }
+
   private fun BasicReport.onlyComponentSummary(): ReportingUnitComponentSummary {
     return resultGroupsList
       .single()
