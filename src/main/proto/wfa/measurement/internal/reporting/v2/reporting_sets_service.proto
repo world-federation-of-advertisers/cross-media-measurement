@@ -25,6 +25,16 @@ option java_multiple_files = true;
 service ReportingSets {
   rpc CreateReportingSet(CreateReportingSetRequest) returns (ReportingSet);
 
+  // Returns a campaign-group ReportingSet whose EventGroup set matches the one
+  // in the request, creating it if no such ReportingSet exists.
+  //
+  // Used to materialize the synthesized campaign group for a custom-group
+  // BasicReport. The read and the insert happen in a single serializable
+  // transaction, so concurrent and retried callers converge on a single
+  // ReportingSet rather than minting duplicates.
+  rpc GetOrCreateCampaignGroupReportingSet(
+      GetOrCreateCampaignGroupReportingSetRequest) returns (ReportingSet);
+
   rpc BatchGetReportingSets(BatchGetReportingSetsRequest)
       returns (BatchGetReportingSetsResponse);
 
@@ -33,6 +43,19 @@ service ReportingSets {
 }
 
 message CreateReportingSetRequest {
+  ReportingSet reporting_set = 1;
+  string external_reporting_set_id = 2;
+}
+
+message GetOrCreateCampaignGroupReportingSetRequest {
+  // The campaign-group ReportingSet to reuse-or-create.
+  //
+  // Must be a primitive, self-referencing campaign group: its
+  // `external_campaign_group_id` equals `external_reporting_set_id`, and it
+  // carries no filter. The server reuses an existing campaign-group
+  // ReportingSet for the same `MeasurementConsumer` whose EventGroup set is
+  // identical; otherwise it inserts this one. `external_reporting_set_id` is
+  // used only when a new ReportingSet is inserted.
   ReportingSet reporting_set = 1;
   string external_reporting_set_id = 2;
 }

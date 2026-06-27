@@ -271,103 +271,6 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
     }
   }
 
-  private suspend fun TransactionScope.insertReportingSetEventGroups(
-    measurementConsumerId: InternalId,
-    reportingSetId: InternalId,
-    eventGroups: List<ReportingSet.Primitive.EventGroupKey>,
-  ) {
-    // Map of Primitive Reporting Set EventGroupKey to internal EventGroup ID.
-    val eventGroupMap = mutableMapOf<ReportingSet.Primitive.EventGroupKey, InternalId>()
-
-    val cmmsEventGroupKeys: Collection<EventGroupReader.CmmsEventGroupKey> =
-      eventGroups.distinct().map {
-        EventGroupReader.CmmsEventGroupKey(
-          cmmsDataProviderId = it.cmmsDataProviderId,
-          cmmsEventGroupId = it.cmmsEventGroupId,
-        )
-      }
-
-    EventGroupReader(transactionContext).getByCmmsEventGroupKey(cmmsEventGroupKeys).collect {
-      eventGroupMap[
-        ReportingSetKt.PrimitiveKt.eventGroupKey {
-          cmmsDataProviderId = it.cmmsDataProviderId
-          cmmsEventGroupId = it.cmmsEventGroupId
-        }] = it.eventGroupId
-    }
-
-    val eventGroupBinders =
-      mutableListOf<ValuesListBoundStatement.ValuesListBoundStatementBuilder.() -> Unit>()
-
-    cmmsEventGroupKeys.forEach {
-      eventGroupMap.computeIfAbsent(
-        ReportingSetKt.PrimitiveKt.eventGroupKey {
-          cmmsDataProviderId = it.cmmsDataProviderId
-          cmmsEventGroupId = it.cmmsEventGroupId
-        }
-      ) {
-        val id = idGenerator.generateInternalId()
-        eventGroupBinders.add {
-          bindValuesParam(0, measurementConsumerId)
-          bindValuesParam(1, id)
-          bindValuesParam(2, it.cmmsDataProviderId)
-          bindValuesParam(3, it.cmmsEventGroupId)
-        }
-        id
-      }
-    }
-
-    val eventGroupsStatement: BoundStatement? =
-      if (eventGroupBinders.size > 0) {
-        valuesListBoundStatement(
-          valuesStartIndex = 0,
-          paramCount = 4,
-          """
-              INSERT INTO EventGroups (
-                MeasurementConsumerId,
-                EventGroupId,
-                CmmsDataProviderId,
-                CmmsEventGroupId
-              )
-              VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER
-              }
-              """,
-        ) {
-          eventGroupBinders.forEach { addValuesBinding(it) }
-        }
-      } else {
-        null
-      }
-
-    val reportingSetEventGroupsStatement =
-      valuesListBoundStatement(
-        valuesStartIndex = 0,
-        paramCount = 3,
-        """
-            INSERT INTO ReportingSetEventGroups (
-              MeasurementConsumerId,
-              ReportingSetId,
-              EventGroupId
-            )
-            VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
-            """,
-      ) {
-        eventGroupMap.values.forEach {
-          addValuesBinding {
-            bindValuesParam(0, measurementConsumerId)
-            bindValuesParam(1, reportingSetId)
-            bindValuesParam(2, it)
-          }
-        }
-      }
-
-    transactionContext.run {
-      if (eventGroupsStatement != null) {
-        executeStatement(eventGroupsStatement)
-      }
-      executeStatement(reportingSetEventGroupsStatement)
-    }
-  }
-
   /**
    * Returns the [Set] of external ReportingSet IDs referenced by the specified composite
    * [ReportingSet].
@@ -669,5 +572,108 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         weightedSubsetUnionPrimitiveReportingSetBasesValues,
       primitiveReportingSetBasisFiltersValuesList,
     )
+  }
+}
+
+/**
+ * Inserts the [eventGroups] of a primitive ReportingSet, creating any EventGroup rows that do not
+ * yet exist.
+ *
+ * Shared by [CreateReportingSet] and [GetOrCreateCampaignGroupReportingSet].
+ */
+internal suspend fun PostgresWriter.TransactionScope.insertReportingSetEventGroups(
+  measurementConsumerId: InternalId,
+  reportingSetId: InternalId,
+  eventGroups: List<ReportingSet.Primitive.EventGroupKey>,
+) {
+  // Map of Primitive Reporting Set EventGroupKey to internal EventGroup ID.
+  val eventGroupMap = mutableMapOf<ReportingSet.Primitive.EventGroupKey, InternalId>()
+
+  val cmmsEventGroupKeys: Collection<EventGroupReader.CmmsEventGroupKey> =
+    eventGroups.distinct().map {
+      EventGroupReader.CmmsEventGroupKey(
+        cmmsDataProviderId = it.cmmsDataProviderId,
+        cmmsEventGroupId = it.cmmsEventGroupId,
+      )
+    }
+
+  EventGroupReader(transactionContext).getByCmmsEventGroupKey(cmmsEventGroupKeys).collect {
+    eventGroupMap[
+      ReportingSetKt.PrimitiveKt.eventGroupKey {
+        cmmsDataProviderId = it.cmmsDataProviderId
+        cmmsEventGroupId = it.cmmsEventGroupId
+      }] = it.eventGroupId
+  }
+
+  val eventGroupBinders =
+    mutableListOf<ValuesListBoundStatement.ValuesListBoundStatementBuilder.() -> Unit>()
+
+  cmmsEventGroupKeys.forEach {
+    eventGroupMap.computeIfAbsent(
+      ReportingSetKt.PrimitiveKt.eventGroupKey {
+        cmmsDataProviderId = it.cmmsDataProviderId
+        cmmsEventGroupId = it.cmmsEventGroupId
+      }
+    ) {
+      val id = idGenerator.generateInternalId()
+      eventGroupBinders.add {
+        bindValuesParam(0, measurementConsumerId)
+        bindValuesParam(1, id)
+        bindValuesParam(2, it.cmmsDataProviderId)
+        bindValuesParam(3, it.cmmsEventGroupId)
+      }
+      id
+    }
+  }
+
+  val eventGroupsStatement: BoundStatement? =
+    if (eventGroupBinders.size > 0) {
+      valuesListBoundStatement(
+        valuesStartIndex = 0,
+        paramCount = 4,
+        """
+            INSERT INTO EventGroups (
+              MeasurementConsumerId,
+              EventGroupId,
+              CmmsDataProviderId,
+              CmmsEventGroupId
+            )
+            VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER
+            }
+            """,
+      ) {
+        eventGroupBinders.forEach { addValuesBinding(it) }
+      }
+    } else {
+      null
+    }
+
+  val reportingSetEventGroupsStatement =
+    valuesListBoundStatement(
+      valuesStartIndex = 0,
+      paramCount = 3,
+      """
+          INSERT INTO ReportingSetEventGroups (
+            MeasurementConsumerId,
+            ReportingSetId,
+            EventGroupId
+          )
+          VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
+          """,
+    ) {
+      eventGroupMap.values.forEach {
+        addValuesBinding {
+          bindValuesParam(0, measurementConsumerId)
+          bindValuesParam(1, reportingSetId)
+          bindValuesParam(2, it)
+        }
+      }
+    }
+
+  transactionContext.run {
+    if (eventGroupsStatement != null) {
+      executeStatement(eventGroupsStatement)
+    }
+    executeStatement(reportingSetEventGroupsStatement)
   }
 }
