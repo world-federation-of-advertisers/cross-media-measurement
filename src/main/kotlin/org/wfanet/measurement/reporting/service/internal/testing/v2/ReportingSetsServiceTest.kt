@@ -2534,7 +2534,10 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
               reportingSet = reportingSet {
                 cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
                 // Empty campaign group id is not self-referencing.
-                primitive = ReportingSetKt.primitive { eventGroupKeys += primitiveEventGroupKey("1235", "1236") }
+                primitive =
+                  ReportingSetKt.primitive {
+                    eventGroupKeys += primitiveEventGroupKey("1235", "1236")
+                  }
               }
             }
           )
@@ -2555,7 +2558,10 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
                 cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
                 externalCampaignGroupId = "campaign-group"
                 filter = "some-filter"
-                primitive = ReportingSetKt.primitive { eventGroupKeys += primitiveEventGroupKey("1235", "1236") }
+                primitive =
+                  ReportingSetKt.primitive {
+                    eventGroupKeys += primitiveEventGroupKey("1235", "1236")
+                  }
               }
             }
           )
@@ -2582,15 +2588,14 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
   private fun campaignGroupRequest(
     externalReportingSetId: String,
     eventGroupKeys: List<ReportingSet.Primitive.EventGroupKey>,
-  ) =
-    getOrCreateCampaignGroupReportingSetRequest {
-      this.externalReportingSetId = externalReportingSetId
-      reportingSet = reportingSet {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalCampaignGroupId = externalReportingSetId
-        primitive = ReportingSetKt.primitive { this.eventGroupKeys += eventGroupKeys }
-      }
+  ) = getOrCreateCampaignGroupReportingSetRequest {
+    this.externalReportingSetId = externalReportingSetId
+    reportingSet = reportingSet {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalCampaignGroupId = externalReportingSetId
+      primitive = ReportingSetKt.primitive { this.eventGroupKeys += eventGroupKeys }
     }
+  }
 
   private suspend fun reportingSetsForMc(): List<ReportingSet> =
     service
