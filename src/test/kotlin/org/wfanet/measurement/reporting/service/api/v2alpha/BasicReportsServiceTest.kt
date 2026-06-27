@@ -441,6 +441,7 @@ class BasicReportsServiceTest {
           name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
           campaignGroupDisplayName = campaignGroup.displayName
           state = BasicReport.State.RUNNING
+          effectiveCampaignGroup = this.campaignGroup
           reportingInterval =
             basicReport.reportingInterval.copy {
               effectiveReportStart = basicReport.reportingInterval.reportStart
@@ -1472,6 +1473,7 @@ class BasicReportsServiceTest {
           name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
           campaignGroupDisplayName = campaignGroup.displayName
           state = BasicReport.State.RUNNING
+          effectiveCampaignGroup = this.campaignGroup
           effectiveImpressionQualificationFilters += basicReport.impressionQualificationFiltersList
           reportingInterval =
             basicReport.reportingInterval.copy {
@@ -3086,6 +3088,7 @@ class BasicReportsServiceTest {
           name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
           campaignGroupDisplayName = campaignGroup.displayName
           state = BasicReport.State.RUNNING
+          effectiveCampaignGroup = this.campaignGroup
           reportingInterval =
             basicReport.reportingInterval.copy {
               effectiveReportStart = basicReport.reportingInterval.reportStart
@@ -3207,6 +3210,7 @@ class BasicReportsServiceTest {
           name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
           campaignGroupDisplayName = campaignGroup.displayName
           state = BasicReport.State.RUNNING
+          effectiveCampaignGroup = this.campaignGroup
           effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
             impressionQualificationFilter =
               ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
@@ -3340,6 +3344,7 @@ class BasicReportsServiceTest {
             name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
             campaignGroupDisplayName = campaignGroup.displayName
             state = BasicReport.State.RUNNING
+            effectiveCampaignGroup = this.campaignGroup
             reportingInterval =
               basicReport.reportingInterval.copy {
                 effectiveReportStart = basicReport.reportingInterval.reportStart
