@@ -440,7 +440,8 @@ class ResultsFulfiller(
               requisitionMetadataStub.listRequisitionMetadata(request)
             } catch (e: StatusException) {
               throw Exception(
-                "Error listing requisition metadata for group id: ${groupedRequisitions.groupId}",
+                "Error listing requisition metadata for dataProvider=$dataProvider, " +
+                  "groupId=${groupedRequisitions.groupId}: ${e.status}",
                 e,
               )
             }
