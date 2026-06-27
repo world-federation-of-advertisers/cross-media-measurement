@@ -410,7 +410,9 @@ object BasicReportProcessedResultsTransformation {
     }
   }
 
-  /** Mode-2 analog of [buildComponentReportingSetIdsByDataProviderIdMap], keyed by ReportingSet ID. */
+  /**
+   * Mode-2 analog of [buildComponentReportingSetIdsByDataProviderIdMap], keyed by ReportingSet ID.
+   */
   private fun buildComponentReportingSetIdsByReportingSetIdMap(
     reportingUnitReportingSetIds: List<String>,
     compositeReportingSetIdBySetExpression: Map<ReportingSet.SetExpression, String>,
@@ -441,9 +443,7 @@ object BasicReportProcessedResultsTransformation {
             null
           } else if (hasUniqueMetricSet) {
             compositeReportingSetIdBySetExpression.getValue(
-              buildUnionSetExpression(
-                reportingUnitReportingSetIds.filter { it != reportingSetId }
-              )
+              buildUnionSetExpression(reportingUnitReportingSetIds.filter { it != reportingSetId })
             )
           } else {
             null
