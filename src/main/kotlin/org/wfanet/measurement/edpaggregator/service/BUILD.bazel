@@ -15,6 +15,7 @@ kt_jvm_library(
     srcs = [
         "IdVariable.kt",
         "ImpressionMetadataKey.kt",
+        "PoolAssignmentJobKey.kt",
         "RankIndexBlobKey.kt",
         "RankerJobKey.kt",
         "RawImpressionMetadataKey.kt",
