@@ -37,6 +37,7 @@ object InternalApiServices {
       SpannerVidLabelingJobService(databaseClient, coroutineContext, idGenerator),
       SpannerRankerJobService(databaseClient, coroutineContext, idGenerator),
       SpannerRankIndexBlobService(databaseClient, coroutineContext, idGenerator),
+      SpannerPoolAssignmentJobService(databaseClient, coroutineContext, idGenerator),
     )
   }
 }
