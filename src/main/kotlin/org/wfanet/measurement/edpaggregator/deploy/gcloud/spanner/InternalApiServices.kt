@@ -33,6 +33,7 @@ object InternalApiServices {
       SpannerRawImpressionMetadataBatchService(databaseClient, coroutineContext, idGenerator),
       SpannerRawImpressionMetadataBatchFileService(databaseClient, coroutineContext, idGenerator),
       SpannerRawImpressionUploadService(databaseClient, coroutineContext, idGenerator),
+      SpannerPoolAssignmentJobService(databaseClient, coroutineContext, idGenerator),
     )
   }
 }
