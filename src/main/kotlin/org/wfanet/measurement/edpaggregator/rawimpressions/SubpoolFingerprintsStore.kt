@@ -24,7 +24,7 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolFingerprints
 import org.wfanet.measurement.edpaggregator.v1alpha.subpoolFingerprints
-import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 
 /**
  * Reads and writes the per-subpool `SubpoolFingerprints` maps as **RecordIO** blobs.
@@ -52,8 +52,10 @@ import org.wfanet.measurement.storage.StorageClient
  * @param storageClient the base (unencrypted) storage client for the subpool-map bucket.
  * @param kmsClient KMS client able to unwrap the EDP's KEK.
  */
-class SubpoolFingerprintsStore(storageClient: StorageClient, kmsClient: KmsClient) :
-  EncryptedRecordIoStore(storageClient, kmsClient) {
+class SubpoolFingerprintsStore(
+  storageClient: ConditionalOperationStorageClient,
+  kmsClient: KmsClient,
+) : EncryptedRecordIoStore(storageClient, kmsClient) {
   /** One shard's encrypted blob for a subpool, used as a merge input. */
   data class SubpoolBlob(val blobKey: String, val encryptedDek: EncryptedDek)
 
