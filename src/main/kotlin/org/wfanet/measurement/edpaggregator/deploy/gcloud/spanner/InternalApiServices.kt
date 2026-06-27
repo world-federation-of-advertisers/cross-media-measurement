@@ -34,6 +34,7 @@ object InternalApiServices {
       SpannerRawImpressionMetadataBatchFileService(databaseClient, coroutineContext, idGenerator),
       SpannerRawImpressionUploadService(databaseClient, coroutineContext, idGenerator),
       SpannerRawImpressionUploadFileService(databaseClient, coroutineContext, idGenerator),
+      SpannerRawImpressionUploadModelLineService(databaseClient, coroutineContext, idGenerator),
       SpannerVidLabelingJobService(databaseClient, coroutineContext, idGenerator),
       SpannerRankerJobService(databaseClient, coroutineContext, idGenerator),
       SpannerRankIndexBlobService(databaseClient, coroutineContext, idGenerator),
