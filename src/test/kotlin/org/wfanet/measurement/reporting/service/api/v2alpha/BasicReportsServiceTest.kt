@@ -9818,6 +9818,7 @@ class BasicReportsServiceTest {
               )
               .toName()
           campaignGroupDisplayName = INTERNAL_CAMPAIGN_GROUP.displayName
+          effectiveCampaignGroup = campaignGroup
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
             effectiveReportStart = dateTime { day = 3 }
@@ -10623,6 +10624,7 @@ class BasicReportsServiceTest {
               )
               .toName()
           campaignGroupDisplayName = INTERNAL_CAMPAIGN_GROUP.displayName
+          effectiveCampaignGroup = campaignGroup
           title = "title"
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
@@ -10886,6 +10888,7 @@ class BasicReportsServiceTest {
               )
               .toName()
           campaignGroupDisplayName = INTERNAL_CAMPAIGN_GROUP.displayName
+          effectiveCampaignGroup = campaignGroup
           title = "title"
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
@@ -11000,6 +11003,7 @@ class BasicReportsServiceTest {
                 )
                 .toName()
             campaignGroupDisplayName = INTERNAL_CAMPAIGN_GROUP.displayName
+            effectiveCampaignGroup = campaignGroup
             title = "title"
             reportingInterval = reportingInterval {
               reportStart = dateTime { day = 3 }
@@ -11113,6 +11117,7 @@ class BasicReportsServiceTest {
               )
               .toName()
           campaignGroupDisplayName = INTERNAL_CAMPAIGN_GROUP.displayName
+          effectiveCampaignGroup = campaignGroup
           title = "title"
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
@@ -11640,6 +11645,7 @@ class BasicReportsServiceTest {
                 )
                 .toName()
             campaignGroupDisplayName = INTERNAL_CAMPAIGN_GROUP.displayName
+            effectiveCampaignGroup = campaignGroup
             title = "title"
             reportingInterval = reportingInterval {
               reportStart = dateTime { day = 3 }
