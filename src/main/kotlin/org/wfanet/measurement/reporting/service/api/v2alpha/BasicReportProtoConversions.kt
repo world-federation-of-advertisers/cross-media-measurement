@@ -921,7 +921,8 @@ fun InternalMetricSet.toMetricSet(cmmsMeasurementConsumerId: String): MetricSet 
  * Converts the internal [InternalMetricSet.ComponentMetricSet] to the public
  * [MetricSet.ComponentMetricSet]. Shared by the DataProvider and ReportingSet component paths.
  */
-private fun InternalMetricSet.ComponentMetricSet.toComponentMetricSet(): MetricSet.ComponentMetricSet {
+private fun InternalMetricSet.ComponentMetricSet.toComponentMetricSet():
+  MetricSet.ComponentMetricSet {
   val source = this
   return ResultGroupKt.MetricSetKt.componentMetricSet {
     if (source.hasNonCumulative()) {

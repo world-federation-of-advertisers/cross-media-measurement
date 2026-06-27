@@ -82,7 +82,8 @@ class BasicReportProtoConversionsTest {
                       externalReportingSetId = customGroupId
                       value =
                         InternalResultGroupKt.MetricSetKt.componentMetricSet {
-                          cumulative = InternalResultGroupKt.MetricSetKt.basicMetricSet { reach = 42 }
+                          cumulative =
+                            InternalResultGroupKt.MetricSetKt.basicMetricSet { reach = 42 }
                         }
                     }
                 }
