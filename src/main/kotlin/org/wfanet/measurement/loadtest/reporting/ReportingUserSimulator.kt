@@ -205,6 +205,8 @@ class ReportingUserSimulator(
           name = basicReportKey.toName()
           state = BasicReport.State.SUCCEEDED
           effectiveModelLine = retrievedCompletedBasicReport.effectiveModelLine
+          // Server-derived: equals the caller-supplied campaign_group in DataProvider mode.
+          effectiveCampaignGroup = this.campaignGroup
         }
       )
     assertThat(retrievedCompletedBasicReport.reportingInterval)
