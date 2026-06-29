@@ -224,9 +224,10 @@ class VidLabelingDispatcherTest {
     )
   }
 
-  private fun createMockBlob(key: String): StorageClient.Blob {
+  private fun createMockBlob(key: String, size: Long = 100L): StorageClient.Blob {
     val blob: StorageClient.Blob = mock()
     whenever(blob.blobKey).thenReturn(key)
+    whenever(blob.size).thenReturn(size)
     return blob
   }
 
@@ -323,8 +324,8 @@ class VidLabelingDispatcherTest {
   @Test
   fun `upload creates a RawImpressionUploadFile for each blob`() =
     runBlocking<Unit> {
-      val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
-      val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet")
+      val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet", size = 111L)
+      val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet", size = 222L)
       whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2))
       stubRawImpressionUploadCreation()
       stubFullResolutionChain(MODEL_LINE_1)
@@ -347,6 +348,9 @@ class VidLabelingDispatcherTest {
           "file:///$bucket/$FOLDER_PREFIX/file1.parquet",
           "file:///$bucket/$FOLDER_PREFIX/file2.parquet",
         )
+      // size_bytes is populated from each blob's size in the storage listing.
+      assertThat(request.requestsList.map { it.rawImpressionUploadFile.sizeBytes })
+        .containsExactly(111L, 222L)
     }
 
   @Test
