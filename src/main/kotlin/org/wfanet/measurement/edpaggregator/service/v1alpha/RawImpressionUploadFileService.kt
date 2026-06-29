@@ -24,121 +24,126 @@ import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.edpaggregator.service.InvalidFieldValueException
-import org.wfanet.measurement.edpaggregator.service.RawImpressionMetadataBatchFileAlreadyExistsException
-import org.wfanet.measurement.edpaggregator.service.RawImpressionMetadataBatchFileKey
-import org.wfanet.measurement.edpaggregator.service.RawImpressionMetadataBatchFileNotFoundException
-import org.wfanet.measurement.edpaggregator.service.RawImpressionMetadataBatchKey
-import org.wfanet.measurement.edpaggregator.service.RawImpressionMetadataBatchNotFoundException
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadFileKey
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadFileNotFoundException
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
 import org.wfanet.measurement.edpaggregator.service.internal.Errors as InternalErrors
-import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionMetadataBatchFilesRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionMetadataBatchFilesResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.BatchDeleteRawImpressionMetadataBatchFilesRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.BatchDeleteRawImpressionMetadataBatchFilesResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionMetadataBatchFileRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.DeleteRawImpressionMetadataBatchFileRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionMetadataBatchFileRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionMetadataBatchFilesRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionMetadataBatchFilesResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFile
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineImplBase
-import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionMetadataBatchFilesResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteRawImpressionMetadataBatchFilesResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionMetadataBatchFilesResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionMetadataBatchFile
-import org.wfanet.measurement.internal.edpaggregator.BatchCreateRawImpressionMetadataBatchFilesResponse as InternalBatchCreateFilesResponse
-import org.wfanet.measurement.internal.edpaggregator.BatchDeleteRawImpressionMetadataBatchFilesResponse as InternalBatchDeleteFilesResponse
-import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionMetadataBatchFilesPageToken as InternalListFilesPageToken
-import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionMetadataBatchFilesResponse as InternalListFilesResponse
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchFile as InternalRawImpressionMetadataBatchFile
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineStub as InternalFileServiceStub
-import org.wfanet.measurement.internal.edpaggregator.batchCreateRawImpressionMetadataBatchFilesRequest as internalBatchCreateFilesRequest
-import org.wfanet.measurement.internal.edpaggregator.batchDeleteRawImpressionMetadataBatchFilesRequest as internalBatchDeleteFilesRequest
-import org.wfanet.measurement.internal.edpaggregator.createRawImpressionMetadataBatchFileRequest as internalCreateFileRequest
-import org.wfanet.measurement.internal.edpaggregator.deleteRawImpressionMetadataBatchFileRequest as internalDeleteFileRequest
-import org.wfanet.measurement.internal.edpaggregator.getRawImpressionMetadataBatchFileRequest as internalGetFileRequest
-import org.wfanet.measurement.internal.edpaggregator.listRawImpressionMetadataBatchFilesRequest as internalListFilesRequest
-import org.wfanet.measurement.internal.edpaggregator.rawImpressionMetadataBatchFile as internalFile
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadFilesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadFilesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchDeleteRawImpressionUploadFilesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchDeleteRawImpressionUploadFilesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadFileRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.DeleteRawImpressionUploadFileRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadFileRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteRawImpressionUploadFilesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
+import org.wfanet.measurement.internal.edpaggregator.BatchCreateRawImpressionUploadFilesResponse as InternalBatchCreateFilesResponse
+import org.wfanet.measurement.internal.edpaggregator.BatchDeleteRawImpressionUploadFilesResponse as InternalBatchDeleteFilesResponse
+import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadFilesPageToken as InternalListFilesPageToken
+import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadFilesRequestKt as InternalListFilesRequestKt
+import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadFilesResponse as InternalListFilesResponse
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFile as InternalRawImpressionUploadFile
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub as InternalFileServiceStub
+import org.wfanet.measurement.internal.edpaggregator.batchCreateRawImpressionUploadFilesRequest as internalBatchCreateFilesRequest
+import org.wfanet.measurement.internal.edpaggregator.batchDeleteRawImpressionUploadFilesRequest as internalBatchDeleteFilesRequest
+import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadFileRequest as internalCreateFileRequest
+import org.wfanet.measurement.internal.edpaggregator.deleteRawImpressionUploadFileRequest as internalDeleteFileRequest
+import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadFileRequest as internalGetFileRequest
+import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadFilesRequest as internalListFilesRequest
+import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadFile as internalFile
 
-class RawImpressionMetadataBatchFileService(
+/**
+ * Public V1Alpha implementation of the RawImpressionUploadFile service.
+ *
+ * Validates and translates public requests into [InternalFileServiceStub] calls, maps internal
+ * resource IDs to public resource names, and converts internal errors into the public error space.
+ */
+class RawImpressionUploadFileService(
   private val internalFileStub: InternalFileServiceStub,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
-) : RawImpressionMetadataBatchFileServiceCoroutineImplBase(coroutineContext) {
+) : RawImpressionUploadFileServiceCoroutineImplBase(coroutineContext) {
 
-  override suspend fun createRawImpressionMetadataBatchFile(
-    request: CreateRawImpressionMetadataBatchFileRequest
-  ): RawImpressionMetadataBatchFile {
+  override suspend fun createRawImpressionUploadFile(
+    request: CreateRawImpressionUploadFileRequest
+  ): RawImpressionUploadFile {
     if (request.parent.isEmpty()) {
       throw RequiredFieldNotSetException("parent")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val batchKey =
-      RawImpressionMetadataBatchKey.fromName(request.parent)
+    val uploadKey =
+      RawImpressionUploadKey.fromName(request.parent)
         ?: throw InvalidFieldValueException("parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    if (!request.hasRawImpressionMetadataBatchFile()) {
-      throw RequiredFieldNotSetException("raw_impression_metadata_batch_file")
+    if (!request.hasRawImpressionUploadFile()) {
+      throw RequiredFieldNotSetException("raw_impression_upload_file")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (request.rawImpressionMetadataBatchFile.blobUri.isEmpty()) {
-      throw RequiredFieldNotSetException("raw_impression_metadata_batch_file.blob_uri")
+    if (request.rawImpressionUploadFile.blobUri.isEmpty()) {
+      throw RequiredFieldNotSetException("raw_impression_upload_file.blob_uri")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (request.requestId.isNotEmpty()) {
-      try {
-        UUID.fromString(request.requestId)
-      } catch (e: IllegalArgumentException) {
-        throw InvalidFieldValueException("request_id", e)
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
+    if (request.rawImpressionUploadFile.sizeBytes == 0L) {
+      throw RequiredFieldNotSetException("raw_impression_upload_file.size_bytes")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val internalResponse: InternalRawImpressionMetadataBatchFile =
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    validateRequestId(request.requestId, "request_id")
+
+    val internalResponse: InternalRawImpressionUploadFile =
       try {
-        internalFileStub.createRawImpressionMetadataBatchFile(
+        internalFileStub.createRawImpressionUploadFile(
           internalCreateFileRequest {
-            dataProviderResourceId = batchKey.dataProviderId
-            batchResourceId = batchKey.rawImpressionMetadataBatchId
-            rawImpressionMetadataBatchFile = internalFile {
-              blobUri = request.rawImpressionMetadataBatchFile.blobUri
+            rawImpressionUploadFile = internalFile {
+              dataProviderResourceId = uploadKey.dataProviderId
+              rawImpressionUploadResourceId = uploadKey.rawImpressionUploadId
+              blobUri = request.rawImpressionUploadFile.blobUri
+              sizeBytes = request.rawImpressionUploadFile.sizeBytes
             }
             requestId = request.requestId
           }
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND ->
-            RawImpressionMetadataBatchNotFoundException(request.parent, e)
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND ->
+            RawImpressionUploadNotFoundException(request.parent, e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS ->
-            RawImpressionMetadataBatchFileAlreadyExistsException(
-                request.rawImpressionMetadataBatchFile.blobUri,
-                e,
-              )
-              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
           InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.ETAG_MISMATCH,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS ->
+            Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -146,20 +151,32 @@ class RawImpressionMetadataBatchFileService(
     return internalResponse.toPublic()
   }
 
-  override suspend fun batchCreateRawImpressionMetadataBatchFiles(
-    request: BatchCreateRawImpressionMetadataBatchFilesRequest
-  ): BatchCreateRawImpressionMetadataBatchFilesResponse {
+  override suspend fun batchCreateRawImpressionUploadFiles(
+    request: BatchCreateRawImpressionUploadFilesRequest
+  ): BatchCreateRawImpressionUploadFilesResponse {
     if (request.parent.isEmpty()) {
       throw RequiredFieldNotSetException("parent")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val batchKey =
-      RawImpressionMetadataBatchKey.fromName(request.parent)
+    val uploadKey =
+      RawImpressionUploadKey.fromName(request.parent)
         ?: throw InvalidFieldValueException("parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    val blobUriSet = mutableSetOf<String>()
+    if (request.requestsList.isEmpty()) {
+      throw RequiredFieldNotSetException("requests")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.requestsList.size > MAX_BATCH_CREATE_SIZE) {
+      throw InvalidFieldValueException("requests") {
+          "The number of requests (${request.requestsList.size}) exceeds the maximum of " +
+            "$MAX_BATCH_CREATE_SIZE"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
     val requestIdSet = mutableSetOf<String>()
 
     val internalRequests =
@@ -171,124 +188,62 @@ class RawImpressionMetadataBatchFileService(
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
-        if (!childRequest.hasRawImpressionMetadataBatchFile()) {
-          throw RequiredFieldNotSetException("requests.$index.raw_impression_metadata_batch_file")
+        if (!childRequest.hasRawImpressionUploadFile()) {
+          throw RequiredFieldNotSetException("requests.$index.raw_impression_upload_file")
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
-        val blobUri = childRequest.rawImpressionMetadataBatchFile.blobUri
+        val blobUri = childRequest.rawImpressionUploadFile.blobUri
         if (blobUri.isEmpty()) {
+          throw RequiredFieldNotSetException("requests.$index.raw_impression_upload_file.blob_uri")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
+        val sizeBytes = childRequest.rawImpressionUploadFile.sizeBytes
+        if (sizeBytes == 0L) {
           throw RequiredFieldNotSetException(
-              "requests.$index.raw_impression_metadata_batch_file.blob_uri"
+              "requests.$index.raw_impression_upload_file.size_bytes"
             )
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
-        if (!blobUriSet.add(blobUri)) {
-          throw InvalidFieldValueException(
-              "requests.$index.raw_impression_metadata_batch_file.blob_uri"
-            ) {
-              "blob uri $blobUri is duplicate in the batch of requests"
+        val requestId = childRequest.requestId
+        if (requestId.isEmpty()) {
+          throw RequiredFieldNotSetException("requests.$index.request_id")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+        validateRequestId(requestId, "requests.$index.request_id")
+        if (!requestIdSet.add(requestId)) {
+          throw InvalidFieldValueException("requests.$index.request_id") {
+              "request Id $requestId is duplicate in the batch of requests"
             }
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
-        val requestId = childRequest.requestId
-        if (requestId.isNotEmpty()) {
-          try {
-            UUID.fromString(requestId)
-          } catch (e: IllegalArgumentException) {
-            throw InvalidFieldValueException("requests.$index.request_id", e)
-              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-          }
-          if (!requestIdSet.add(requestId)) {
-            throw InvalidFieldValueException("requests.$index.request_id") {
-                "request Id $requestId is duplicate in the batch of requests"
-              }
-              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-          }
-        }
-
         internalCreateFileRequest {
-          dataProviderResourceId = batchKey.dataProviderId
-          batchResourceId = batchKey.rawImpressionMetadataBatchId
-          rawImpressionMetadataBatchFile = internalFile { this.blobUri = blobUri }
+          rawImpressionUploadFile = internalFile {
+            dataProviderResourceId = uploadKey.dataProviderId
+            rawImpressionUploadResourceId = uploadKey.rawImpressionUploadId
+            this.blobUri = blobUri
+            this.sizeBytes = sizeBytes
+          }
           this.requestId = requestId
         }
       }
 
     val internalResponse: InternalBatchCreateFilesResponse =
       try {
-        internalFileStub.batchCreateRawImpressionMetadataBatchFiles(
+        internalFileStub.batchCreateRawImpressionUploadFiles(
           internalBatchCreateFilesRequest {
-            dataProviderResourceId = batchKey.dataProviderId
-            batchResourceId = batchKey.rawImpressionMetadataBatchId
+            dataProviderResourceId = uploadKey.dataProviderId
+            rawImpressionUploadResourceId = uploadKey.rawImpressionUploadId
             requests += internalRequests
           }
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND ->
-            RawImpressionMetadataBatchNotFoundException(request.parent, e)
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS ->
-            RawImpressionMetadataBatchFileAlreadyExistsException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
-          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
-          InternalErrors.Reason.ETAG_MISMATCH,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
-        }
-      }
-
-    return batchCreateRawImpressionMetadataBatchFilesResponse {
-      rawImpressionMetadataBatchFiles +=
-        internalResponse.rawImpressionMetadataBatchFilesList.map { it.toPublic() }
-    }
-  }
-
-  override suspend fun getRawImpressionMetadataBatchFile(
-    request: GetRawImpressionMetadataBatchFileRequest
-  ): RawImpressionMetadataBatchFile {
-    if (request.name.isEmpty()) {
-      throw RequiredFieldNotSetException("name")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
-    val fileKey =
-      RawImpressionMetadataBatchFileKey.fromName(request.name)
-        ?: throw InvalidFieldValueException("name")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-
-    val internalResponse: InternalRawImpressionMetadataBatchFile =
-      try {
-        internalFileStub.getRawImpressionMetadataBatchFile(
-          internalGetFileRequest {
-            dataProviderResourceId = fileKey.dataProviderId
-            batchResourceId = fileKey.rawImpressionMetadataBatchId
-            fileResourceId = fileKey.fileId
-          }
-        )
-      } catch (e: StatusException) {
-        throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND ->
-            RawImpressionMetadataBatchFileNotFoundException(request.name, e)
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND ->
+            RawImpressionUploadNotFoundException(request.parent, e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
           InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
@@ -297,19 +252,78 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.ETAG_MISMATCH,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS ->
+            Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return batchCreateRawImpressionUploadFilesResponse {
+      rawImpressionUploadFiles +=
+        internalResponse.rawImpressionUploadFilesList.map { it.toPublic() }
+    }
+  }
+
+  override suspend fun getRawImpressionUploadFile(
+    request: GetRawImpressionUploadFileRequest
+  ): RawImpressionUploadFile {
+    if (request.name.isEmpty()) {
+      throw RequiredFieldNotSetException("name")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val fileKey =
+      RawImpressionUploadFileKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("name")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    val internalResponse: InternalRawImpressionUploadFile =
+      try {
+        internalFileStub.getRawImpressionUploadFile(
+          internalGetFileRequest {
+            dataProviderResourceId = fileKey.dataProviderId
+            rawImpressionUploadResourceId = fileKey.rawImpressionUploadId
+            fileResourceId = fileKey.fileId
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND ->
+            RawImpressionUploadFileNotFoundException(request.name, e)
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
+          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS ->
+            Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -317,16 +331,16 @@ class RawImpressionMetadataBatchFileService(
     return internalResponse.toPublic()
   }
 
-  override suspend fun listRawImpressionMetadataBatchFiles(
-    request: ListRawImpressionMetadataBatchFilesRequest
-  ): ListRawImpressionMetadataBatchFilesResponse {
+  override suspend fun listRawImpressionUploadFiles(
+    request: ListRawImpressionUploadFilesRequest
+  ): ListRawImpressionUploadFilesResponse {
     if (request.parent.isEmpty()) {
       throw RequiredFieldNotSetException("parent")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val batchKey =
-      RawImpressionMetadataBatchKey.fromName(request.parent)
+    val uploadKey =
+      RawImpressionUploadKey.fromName(request.parent)
         ?: throw InvalidFieldValueException("parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
@@ -354,29 +368,32 @@ class RawImpressionMetadataBatchFileService(
         }
       }
 
-    // Support AIP-159 wildcard "-" for listing across all batches.
-    val batchResourceId =
-      if (batchKey.rawImpressionMetadataBatchId == ResourceKey.WILDCARD_ID) {
+    // Support AIP-159 wildcard "-" for listing across all uploads.
+    val rawImpressionUploadResourceId =
+      if (uploadKey.rawImpressionUploadId == ResourceKey.WILDCARD_ID) {
         ""
       } else {
-        batchKey.rawImpressionMetadataBatchId
+        uploadKey.rawImpressionUploadId
       }
 
     val internalResponse: InternalListFilesResponse =
       try {
-        internalFileStub.listRawImpressionMetadataBatchFiles(
+        internalFileStub.listRawImpressionUploadFiles(
           internalListFilesRequest {
-            dataProviderResourceId = batchKey.dataProviderId
-            this.batchResourceId = batchResourceId
+            dataProviderResourceId = uploadKey.dataProviderId
+            this.rawImpressionUploadResourceId = rawImpressionUploadResourceId
             this.pageSize = pageSize
             if (internalPageToken != null) {
               pageToken = internalPageToken
             }
-            if (request.hasFilter() && request.filter.blobUriInList.isNotEmpty()) {
+            if (request.hasFilter()) {
               filter =
-                org.wfanet.measurement.internal.edpaggregator
-                  .ListRawImpressionMetadataBatchFilesRequestKt
-                  .filter { blobUriIn += request.filter.blobUriInList }
+                InternalListFilesRequestKt.filter {
+                  blobUriIn += request.filter.blobUriInList
+                  if (request.filter.hasCreateTimeIn()) {
+                    createTimeIn = request.filter.createTimeIn
+                  }
+                }
             }
             showDeleted = request.showDeleted
           }
@@ -392,57 +409,58 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.ETAG_MISMATCH,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS ->
+            Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
 
-    return listRawImpressionMetadataBatchFilesResponse {
-      rawImpressionMetadataBatchFiles +=
-        internalResponse.rawImpressionMetadataBatchFilesList.map { it.toPublic() }
+    return listRawImpressionUploadFilesResponse {
+      rawImpressionUploadFiles +=
+        internalResponse.rawImpressionUploadFilesList.map { it.toPublic() }
       if (internalResponse.hasNextPageToken()) {
         nextPageToken = internalResponse.nextPageToken.toByteArray().base64UrlEncode()
       }
     }
   }
 
-  override suspend fun deleteRawImpressionMetadataBatchFile(
-    request: DeleteRawImpressionMetadataBatchFileRequest
-  ): RawImpressionMetadataBatchFile {
+  override suspend fun deleteRawImpressionUploadFile(
+    request: DeleteRawImpressionUploadFileRequest
+  ): RawImpressionUploadFile {
     if (request.name.isEmpty()) {
       throw RequiredFieldNotSetException("name")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     val fileKey =
-      RawImpressionMetadataBatchFileKey.fromName(request.name)
+      RawImpressionUploadFileKey.fromName(request.name)
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    val internalResponse: InternalRawImpressionMetadataBatchFile =
+    val internalResponse: InternalRawImpressionUploadFile =
       try {
-        internalFileStub.deleteRawImpressionMetadataBatchFile(
+        internalFileStub.deleteRawImpressionUploadFile(
           internalDeleteFileRequest {
             dataProviderResourceId = fileKey.dataProviderId
-            batchResourceId = fileKey.rawImpressionMetadataBatchId
+            rawImpressionUploadResourceId = fileKey.rawImpressionUploadId
             fileResourceId = fileKey.fileId
           }
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND ->
-            RawImpressionMetadataBatchFileNotFoundException(request.name, e)
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND ->
+            RawImpressionUploadFileNotFoundException(request.name, e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
           InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
@@ -451,19 +469,20 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.ETAG_MISMATCH,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS ->
+            Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -471,68 +490,83 @@ class RawImpressionMetadataBatchFileService(
     return internalResponse.toPublic()
   }
 
-  override suspend fun batchDeleteRawImpressionMetadataBatchFiles(
-    request: BatchDeleteRawImpressionMetadataBatchFilesRequest
-  ): BatchDeleteRawImpressionMetadataBatchFilesResponse {
+  override suspend fun batchDeleteRawImpressionUploadFiles(
+    request: BatchDeleteRawImpressionUploadFilesRequest
+  ): BatchDeleteRawImpressionUploadFilesResponse {
     if (request.parent.isEmpty()) {
       throw RequiredFieldNotSetException("parent")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val batchKey =
-      RawImpressionMetadataBatchKey.fromName(request.parent)
+    val uploadKey =
+      RawImpressionUploadKey.fromName(request.parent)
         ?: throw InvalidFieldValueException("parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    if (request.namesList.isEmpty()) {
-      throw RequiredFieldNotSetException("names")
+    if (request.requestsList.isEmpty()) {
+      throw RequiredFieldNotSetException("requests")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.requestsList.size > MAX_BATCH_DELETE_SIZE) {
+      throw InvalidFieldValueException("requests") {
+          "The number of requests (${request.requestsList.size}) exceeds the maximum of " +
+            "$MAX_BATCH_DELETE_SIZE"
+        }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     val nameSet = HashSet<String>()
     val internalDeleteRequests =
-      request.namesList.mapIndexed { index, name ->
+      request.requestsList.mapIndexed { index, childRequest ->
+        val name = childRequest.name
         if (name.isEmpty()) {
-          throw RequiredFieldNotSetException("names.$index")
+          throw RequiredFieldNotSetException("requests.$index.name")
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
         val fileKey =
-          RawImpressionMetadataBatchFileKey.fromName(name)
-            ?: throw InvalidFieldValueException("names.$index")
+          RawImpressionUploadFileKey.fromName(name)
+            ?: throw InvalidFieldValueException("requests.$index.name")
               .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
         if (
-          fileKey.dataProviderId != batchKey.dataProviderId ||
-            fileKey.rawImpressionMetadataBatchId != batchKey.rawImpressionMetadataBatchId
+          fileKey.dataProviderId != uploadKey.dataProviderId ||
+            fileKey.rawImpressionUploadId != uploadKey.rawImpressionUploadId
         ) {
-          throw InvalidFieldValueException("names.$index") {
+          throw InvalidFieldValueException("requests.$index.name") {
               "File $name does not belong to parent ${request.parent}"
             }
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
         if (!nameSet.add(name)) {
-          throw InvalidFieldValueException("names.$index")
+          throw InvalidFieldValueException("requests.$index.name") {
+              "$it is duplicate in the batch of requests"
+            }
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
         internalDeleteFileRequest {
           dataProviderResourceId = fileKey.dataProviderId
-          batchResourceId = fileKey.rawImpressionMetadataBatchId
+          rawImpressionUploadResourceId = fileKey.rawImpressionUploadId
           fileResourceId = fileKey.fileId
         }
       }
 
     val internalResponse: InternalBatchDeleteFilesResponse =
       try {
-        internalFileStub.batchDeleteRawImpressionMetadataBatchFiles(
-          internalBatchDeleteFilesRequest { requests += internalDeleteRequests }
+        internalFileStub.batchDeleteRawImpressionUploadFiles(
+          internalBatchDeleteFilesRequest {
+            dataProviderResourceId = uploadKey.dataProviderId
+            rawImpressionUploadResourceId = uploadKey.rawImpressionUploadId
+            requests += internalDeleteRequests
+          }
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND ->
-            RawImpressionMetadataBatchFileNotFoundException.fromInternal(e)
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND ->
+            RawImpressionUploadFileNotFoundException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
           InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
@@ -541,47 +575,60 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.ETAG_MISMATCH,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS ->
+            Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
 
-    return batchDeleteRawImpressionMetadataBatchFilesResponse {
-      rawImpressionMetadataBatchFiles +=
-        internalResponse.rawImpressionMetadataBatchFilesList.map { it.toPublic() }
+    return batchDeleteRawImpressionUploadFilesResponse {
+      rawImpressionUploadFiles +=
+        internalResponse.rawImpressionUploadFilesList.map { it.toPublic() }
+    }
+  }
+
+  private fun validateRequestId(requestId: String, fieldName: String) {
+    try {
+      UUID.fromString(requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException(fieldName, e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
   }
 
   companion object {
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 100
+    private const val MAX_BATCH_CREATE_SIZE = 100
+    private const val MAX_BATCH_DELETE_SIZE = 1000
   }
 }
 
-/** Converts an internal [InternalRawImpressionMetadataBatchFile] to a public one. */
-fun InternalRawImpressionMetadataBatchFile.toPublic(): RawImpressionMetadataBatchFile {
+/** Converts an internal [InternalRawImpressionUploadFile] to a public one. */
+fun InternalRawImpressionUploadFile.toPublic(): RawImpressionUploadFile {
   val source = this
-  return rawImpressionMetadataBatchFile {
+  return rawImpressionUploadFile {
     name =
-      RawImpressionMetadataBatchFileKey(
+      RawImpressionUploadFileKey(
           source.dataProviderResourceId,
-          source.batchResourceId,
+          source.rawImpressionUploadResourceId,
           source.fileResourceId,
         )
         .toName()
     blobUri = source.blobUri
+    sizeBytes = source.sizeBytes
     createTime = source.createTime
     updateTime = source.updateTime
     if (source.hasDeleteTime()) {

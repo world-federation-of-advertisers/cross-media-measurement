@@ -67,13 +67,15 @@ class SpannerRawImpressionUploadService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     val requestId: String = request.requestId
-    if (requestId.isNotEmpty()) {
-      try {
-        UUID.fromString(requestId)
-      } catch (e: IllegalArgumentException) {
-        throw InvalidFieldValueException("request_id", e)
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
+    if (requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =

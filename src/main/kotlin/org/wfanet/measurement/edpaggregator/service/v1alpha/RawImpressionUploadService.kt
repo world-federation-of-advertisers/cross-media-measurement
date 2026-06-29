@@ -75,13 +75,15 @@ class RawImpressionUploadService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (request.requestId.isNotEmpty()) {
-      try {
-        UUID.fromString(request.requestId)
-      } catch (e: IllegalArgumentException) {
-        throw InvalidFieldValueException("request_id", e)
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     val internalResponse: InternalRawImpressionUpload =
@@ -115,7 +117,9 @@ class RawImpressionUploadService(
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -166,7 +170,9 @@ class RawImpressionUploadService(
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -263,7 +269,9 @@ class RawImpressionUploadService(
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }

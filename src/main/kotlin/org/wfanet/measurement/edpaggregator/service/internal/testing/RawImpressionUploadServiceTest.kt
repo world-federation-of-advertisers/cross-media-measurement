@@ -187,12 +187,37 @@ abstract class RawImpressionUploadServiceTest {
     }
 
   @Test
+  fun `createRawImpressionUpload throws INVALID_ARGUMENT if request_id not set`(): Unit =
+    runBlocking {
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRawImpressionUpload(
+            createRawImpressionUploadRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+          }
+        )
+    }
+
+  @Test
   fun `getRawImpressionUpload returns an upload`(): Unit = runBlocking {
     val created: RawImpressionUpload =
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -526,6 +551,7 @@ abstract class RawImpressionUploadServiceTest {
       createRawImpressionUploadRequest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+        requestId = UUID.randomUUID().toString()
       }
     )
 
