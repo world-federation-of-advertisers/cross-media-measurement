@@ -2886,6 +2886,15 @@ class EventGroupSyncTest {
           )
         )
       }
+    // The batch failure falls back to a per-item create, which fails the same way.
+    wheneverBlocking { eventGroupsServiceMock.createEventGroup(any<CreateEventGroupRequest>()) }
+      .thenAnswer {
+        throw StatusException(
+          Status.ALREADY_EXISTS.withDescription(
+            "EventGroup already exists with entity key (creative-id, edpa-eg-creative-id-1)"
+          )
+        )
+      }
 
     val sourceEventGroup = eventGroup {
       eventGroupReferenceId = "creative-id-edpa-eg-creative-id-1"
@@ -3013,6 +3022,80 @@ class EventGroupSyncTest {
         batchCreateEventGroups(createCaptor.capture())
       }
       assertThat(createCaptor.allValues.map { it.requestsList.size })
+        .containsExactly(50, 1)
+        .inOrder()
+    }
+  }
+
+  @Test
+  fun `flushes updates in multiple batches when exceeding MAX_BATCH_SIZE`() {
+    runBlocking {
+      // 51 existing EventGroups, all changed -> two batchUpdateEventGroups calls of 50 and 1.
+      wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
+        .thenAnswer {
+          listEventGroupsResponse {
+            eventGroups +=
+              (1..51).map { i ->
+                cmmsEventGroup {
+                  name = "dataProviders/data-provider-1/eventGroups/resource-$i"
+                  measurementConsumer = "measurementConsumers/measurement-consumer-1"
+                  eventGroupReferenceId = "update-ref-$i"
+                  mediaTypes += listOf(CmmsMediaType.OTHER)
+                  eventGroupMetadata = cmmsEventGroupMetadata {
+                    this.adMetadata = cmmsAdMetadata {
+                      this.campaignMetadata = cmmsCampaignMetadata {
+                        brandName = "old-brand"
+                        campaignName = "campaign-$i"
+                      }
+                    }
+                  }
+                  dataAvailabilityInterval = interval {
+                    startTime = timestamp { seconds = 200 }
+                    endTime = timestamp { seconds = 300 }
+                  }
+                }
+              }
+          }
+        }
+
+      val changedEventGroups =
+        (1..51).map { i ->
+          eventGroup {
+            eventGroupReferenceId = "update-ref-$i"
+            measurementConsumer = "measurementConsumers/measurement-consumer-1"
+            this.eventGroupMetadata = eventGroupMetadata {
+              this.adMetadata = adMetadata {
+                this.campaignMetadata = campaignMetadata {
+                  brand = "new-brand" // changed -> triggers an update
+                  campaign = "campaign-$i"
+                }
+              }
+            }
+            dataAvailabilityInterval = interval {
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
+            }
+            mediaTypes += listOf(MediaType.OTHER)
+          }
+        }
+
+      val eventGroupSync =
+        EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          clientAccountsStub,
+          changedEventGroups.asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+          entityKeyTypes = emptyList(),
+        )
+      eventGroupSync.sync().toList()
+
+      val updateCaptor = argumentCaptor<BatchUpdateEventGroupsRequest>()
+      verifyBlocking(eventGroupsServiceMock, times(2)) {
+        batchUpdateEventGroups(updateCaptor.capture())
+      }
+      assertThat(updateCaptor.allValues.map { it.requestsList.size })
         .containsExactly(50, 1)
         .inOrder()
     }

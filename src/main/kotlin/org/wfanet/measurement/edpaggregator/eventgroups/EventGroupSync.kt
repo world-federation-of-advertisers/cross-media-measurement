@@ -353,7 +353,8 @@ class EventGroupSync(
       }
     }
 
-    // Flush outside the per-item span once a buffer reaches the batch size.
+    // Flush once a buffer reaches the batch size. (Buffers may also be flushed mid-item inside the
+    // span above to avoid duplicate request_ids / resource names within a single batch.)
     if (pendingCreates.size >= MAX_BATCH_SIZE) {
       flushCreates(pendingCreates)
     }
@@ -384,7 +385,9 @@ class EventGroupSync(
         }
       } catch (e: Exception) {
         if (e is CancellationException) throw e
-        recordBatchFailure(e, pendingCreates)
+        // The whole batch RPC failed (e.g. one invalid sub-request). Fall back to per-item creates
+        // so a single bad EventGroup doesn't block the rest, matching the pre-batching resilience.
+        flushCreatesIndividually(pendingCreates, e)
         pendingCreates.clear()
         return
       }
@@ -400,6 +403,34 @@ class EventGroupSync(
       )
     }
     pendingCreates.clear()
+  }
+
+  /**
+   * Issues each buffered create as an individual RPC after a batch failure, isolating the bad
+   * item(s) so valid EventGroups still sync.
+   */
+  private suspend fun FlowCollector<MappedEventGroup>.flushCreatesIndividually(
+    pending: List<PendingWrite<CreateEventGroupRequest>>,
+    batchError: Exception,
+  ) {
+    logger.log(Level.WARNING, batchError) {
+      "Batch create of ${pending.size} Event Groups failed; retrying individually"
+    }
+    for (item in pending) {
+      try {
+        val syncedEventGroup = throttler.onReady { eventGroupsStub.createEventGroup(item.request) }
+        metrics.syncSuccess.add(1, metricAttributes())
+        emit(
+          mappedEventGroup {
+            eventGroupReferenceId = item.eventGroupReferenceId
+            eventGroupResource = syncedEventGroup.name
+          }
+        )
+      } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        recordItemFailure(e, item)
+      }
+    }
   }
 
   /**
@@ -424,7 +455,9 @@ class EventGroupSync(
         }
       } catch (e: Exception) {
         if (e is CancellationException) throw e
-        recordBatchFailure(e, pendingUpdates)
+        // The whole batch RPC failed (e.g. one invalid sub-request). Fall back to per-item updates
+        // so a single bad EventGroup doesn't block the rest, matching the pre-batching resilience.
+        flushUpdatesIndividually(pendingUpdates, e)
         pendingUpdates.clear()
         return
       }
@@ -443,29 +476,55 @@ class EventGroupSync(
   }
 
   /**
-   * Records a whole-batch failure as one [EventGroupSyncMetrics.syncFailure] per queued request.
+   * Issues each buffered update as an individual RPC after a batch failure, isolating the bad
+   * item(s) so valid EventGroups still sync.
    */
-  private fun recordBatchFailure(e: Exception, pending: List<PendingWrite<*>>) {
+  private suspend fun FlowCollector<MappedEventGroup>.flushUpdatesIndividually(
+    pending: List<PendingWrite<UpdateEventGroupRequest>>,
+    batchError: Exception,
+  ) {
+    logger.log(Level.WARNING, batchError) {
+      "Batch update of ${pending.size} Event Groups failed; retrying individually"
+    }
+    for (item in pending) {
+      try {
+        val syncedEventGroup = throttler.onReady { eventGroupsStub.updateEventGroup(item.request) }
+        metrics.syncSuccess.add(1, metricAttributes())
+        emit(
+          mappedEventGroup {
+            eventGroupReferenceId = item.eventGroupReferenceId
+            eventGroupResource = syncedEventGroup.name
+          }
+        )
+      } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        recordItemFailure(e, item)
+      }
+    }
+  }
+
+  /**
+   * Records a single failed sync as one [EventGroupSyncMetrics.syncFailure] with item attributes.
+   */
+  private fun recordItemFailure(e: Exception, item: PendingWrite<*>) {
     val errorType =
       if (e is StatusException || e.cause is StatusException) {
         (e as? StatusException ?: e.cause as StatusException).status.code.name
       } else {
         e.javaClass.simpleName
       }
-    for (item in pending) {
-      metrics.syncFailure.add(
-        1,
-        Attributes.builder()
-          .putAll(metricAttributes())
-          .put(AttributeKey.stringKey("error_type"), errorType)
-          .put(AttributeKey.stringKey("event_group_reference_id"), item.eventGroupReferenceId)
-          .put(AttributeKey.stringKey("entity_type"), item.entityType)
-          .put(AttributeKey.stringKey("entity_id"), item.entityId)
-          .build(),
-      )
-    }
+    metrics.syncFailure.add(
+      1,
+      Attributes.builder()
+        .putAll(metricAttributes())
+        .put(AttributeKey.stringKey("error_type"), errorType)
+        .put(AttributeKey.stringKey("event_group_reference_id"), item.eventGroupReferenceId)
+        .put(AttributeKey.stringKey("entity_type"), item.entityType)
+        .put(AttributeKey.stringKey("entity_id"), item.entityId)
+        .build(),
+    )
     logger.log(Level.SEVERE, e) {
-      "Failed to sync batch of ${pending.size} Event Groups: error_type=$errorType"
+      "Unable to sync Event Group ${item.eventGroupReferenceId}: error_type=$errorType"
     }
   }
 
