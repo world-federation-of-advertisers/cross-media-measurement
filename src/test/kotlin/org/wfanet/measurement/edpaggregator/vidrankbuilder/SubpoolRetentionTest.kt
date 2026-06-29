@@ -48,6 +48,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.R
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
@@ -176,7 +177,7 @@ class SubpoolRetentionTest {
     val throwingBlob: StorageClient.Blob = mock {
       onBlocking { delete() } doAnswer { throw IOException("transient GCS error") }
     }
-    val throwingStorage: StorageClient = mock {
+    val throwingStorage: ConditionalOperationStorageClient = mock {
       onBlocking { getBlob(any()) } doReturn throwingBlob
     }
     val rankStoreThatFailsDelete = RankIndexStore(throwingStorage, kmsClient)
