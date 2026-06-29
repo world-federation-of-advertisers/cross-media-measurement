@@ -385,8 +385,11 @@ private object VidLabelingJobEntity {
       },
       struct.getLong("RawImpressionUploadId"),
       struct.getLong("VidLabelingJobId"),
-      if (struct.isNull("MarkSucceededRequestId")) ""
-      else struct.getString("MarkSucceededRequestId"),
+      if (struct.isNull("MarkSucceededRequestId")) {
+        ""
+      } else {
+        struct.getString("MarkSucceededRequestId")
+      },
       if (struct.isNull("MarkFailedRequestId")) "" else struct.getString("MarkFailedRequestId"),
     )
   }
