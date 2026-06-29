@@ -22,6 +22,8 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.StringValue
 import com.google.protobuf.timestamp
 import com.google.type.interval
+import io.grpc.Status
+import io.grpc.StatusException
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.metrics.data.LongPointData
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
@@ -30,6 +32,7 @@ import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -43,6 +46,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
@@ -560,6 +564,81 @@ class RequisitionFetcherTest {
 
     assertThat(blobsList()).hasLength(n)
     assertThat(createRequisitionMetadataRequests).hasSize(n)
+  }
+
+  @Test
+  fun `fetchAndStoreRequisitions halves page size on RESOURCE_EXHAUSTED and retries`() =
+    runBlocking {
+      val r1 = TestRequisitionData.REQUISITION
+      val callCount = AtomicInteger(0)
+      val captured = mutableListOf<Int>()
+      whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer { invocation ->
+        val request = invocation.arguments[0] as ListRequisitionsRequest
+        captured += request.pageSize
+        val attempt = callCount.incrementAndGet()
+        if (attempt < 4) {
+          throw StatusException(Status.RESOURCE_EXHAUSTED.withDescription("too big"))
+        }
+        listRequisitionsResponse { requisitions += r1 }
+      }
+
+      createFetcher().fetchAndStoreRequisitions()
+
+      assertThat(captured).hasSize(4)
+      assertThat(captured[0]).isEqualTo(10)
+      assertThat(captured[1]).isEqualTo(5)
+      assertThat(captured[2]).isEqualTo(2)
+      assertThat(captured[3]).isEqualTo(1)
+      assertThat(blobsList()).hasLength(1)
+      assertThat(counterValue("edpa.requisition_fetcher.page_size_reductions")).isEqualTo(3)
+    }
+
+  @Test
+  fun `fetchAndStoreRequisitions surfaces RESOURCE_EXHAUSTED at minimum page size`() = runBlocking {
+    whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer {
+      throw StatusException(Status.RESOURCE_EXHAUSTED.withDescription("still too big"))
+    }
+
+    val e =
+      assertThrows(StatusException::class.java) {
+        runBlocking { createFetcher().fetchAndStoreRequisitions() }
+      }
+    assertThat(e.status.code).isEqualTo(Status.Code.RESOURCE_EXHAUSTED)
+  }
+
+  @Test
+  fun `fetchAndStoreRequisitions stays at reduced page size on subsequent pages`() = runBlocking {
+    val captured = mutableListOf<Int>()
+    val callCount = AtomicInteger(0)
+    whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer { invocation ->
+      val request = invocation.arguments[0] as ListRequisitionsRequest
+      captured += request.pageSize
+      val attempt = callCount.incrementAndGet()
+      when (attempt) {
+        1 -> throw StatusException(Status.RESOURCE_EXHAUSTED.withDescription("page 1 too big"))
+        2 ->
+          listRequisitionsResponse {
+            requisitions += TestRequisitionData.REQUISITION
+            nextPageToken = "more"
+          }
+        else -> listRequisitionsResponse { requisitions += TestRequisitionData.REQUISITION }
+      }
+    }
+
+    createFetcher().fetchAndStoreRequisitions()
+
+    assertThat(captured).containsExactly(10, 5, 5).inOrder()
+  }
+
+  private fun counterValue(name: String): Long {
+    val data =
+      metricReader
+        .collectAllMetrics()
+        .firstOrNull { it.name == name }
+        ?.longSumData
+        ?.points
+        ?.sumOf { (it as LongPointData).value } ?: 0L
+    return data
   }
 
   private class CountingThrottler : Throttler {

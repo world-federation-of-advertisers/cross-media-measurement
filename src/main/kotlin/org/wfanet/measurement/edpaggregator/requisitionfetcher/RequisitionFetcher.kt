@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.protobuf.Any
 import com.google.protobuf.Timestamp
+import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
@@ -34,7 +35,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
-import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
@@ -45,6 +45,7 @@ import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.common.api.grpc.listResourcesWithAdaptivePageSize
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.traceSuspending
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -116,7 +117,16 @@ class RequisitionFetcher(
     val requisitions: MutableList<Requisition> = mutableListOf(),
   )
 
-  /** Streams unfulfilled requisitions for [dataProviderName] and persists them to storage. */
+  /**
+   * Fetches and stores unfulfilled requisitions for the configured data provider.
+   *
+   * Streams `UNFULFILLED` [Requisition]s from the Kingdom, buffers them per `(reportId,
+   * updateTime)` tuple, dispatches each closed buffer onto a bounded channel, and processes each
+   * report in one of a fixed-size pool of worker coroutines. Per-report failures are logged and
+   * isolated so one bad report does not stop the run.
+   *
+   * @throws Exception if there is an error while listing requisitions from the Kingdom.
+   */
   suspend fun fetchAndStoreRequisitions() {
     logger.info("Executing requisitionFetchingWorkflow for $dataProviderName...")
     val startMark = TimeSource.Monotonic.markNow()
@@ -162,23 +172,43 @@ class RequisitionFetcher(
       totalFetched
     }
 
+  /**
+   * Streams requisitions from the Kingdom and dispatches per-report work units onto [channel].
+   *
+   * Maintains an [OpenBuffer] per `reportId` keyed on the report's current `updateTime`. A buffer
+   * is closed and dispatched when (a) the report's `updateTime` advances, (b) the buffer hits
+   * [maxBufferedRequisitionsPerReport], or (c) the stream ends. Requisitions whose
+   * [MeasurementSpec] cannot be parsed are refused to the Kingdom in line and not dispatched.
+   *
+   * @return the total number of requisitions consumed from the Kingdom stream.
+   */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private suspend fun produceWorkUnits(channel: Channel<ReportWorkUnit>): Long {
+    val startingPageSize = responsePageSize ?: KINGDOM_LIST_REQUISITIONS_DEFAULT_PAGE_SIZE
     val flow: Flow<Requisition> =
       requisitionsStub
-        .listResources { pageToken: String ->
+        .listResourcesWithAdaptivePageSize(
+          startingPageSize = startingPageSize,
+          minPageSize = MIN_LIST_REQUISITIONS_PAGE_SIZE,
+          onPageSizeReduced = { oldSize, newSize ->
+            logger.warning(
+              "ListRequisitions returned RESOURCE_EXHAUSTED at page_size=$oldSize for " +
+                "$dataProviderName; halving to $newSize and retrying"
+            )
+            metrics.pageSizeReductions.add(1, dataProviderAttrs)
+          },
+        ) { pageToken: String, pageSize: Int ->
           val request = listRequisitionsRequest {
             parent = dataProviderName
             filter = ListRequisitionsRequestKt.filter { states += Requisition.State.UNFULFILLED }
-            if (responsePageSize != null) {
-              pageSize = responsePageSize
-            }
+            this.pageSize = pageSize
             this.pageToken = pageToken
           }
-          val response: ListRequisitionsResponse =
+          val response =
             try {
               requisitionsStub.listRequisitions(request)
             } catch (e: StatusException) {
+              if (e.status.code == Status.Code.RESOURCE_EXHAUSTED) throw e
               throw Exception("Error listing requisitions", e)
             }
           ResourceList(response.requisitionsList, response.nextPageToken)
@@ -245,6 +275,11 @@ class RequisitionFetcher(
     return totalFetched
   }
 
+  /**
+   * Runs [processReportInner] for one [ReportWorkUnit] inside a trace span, isolating any failure
+   * to this report. [CancellationException] is rethrown; any other exception is logged and counted
+   * in [RequisitionFetcherMetrics.reportFailures].
+   */
   private suspend fun processReport(unit: ReportWorkUnit) {
     try {
       traceSuspending(
@@ -271,6 +306,21 @@ class RequisitionFetcher(
     }
   }
 
+  /**
+   * Persists [unit]'s requisitions for a single report.
+   *
+   * ### High-Level Flow
+   * 1. List existing [RequisitionMetadata] for the report.
+   * 2. For any STORED metadata whose blob is missing in [storageClient], rebuild the blob from
+   *    requisitions in this work unit that match the metadata's `cmmsRequisition` names.
+   * 3. For requisitions that are not yet recorded in metadata, validate them as a group (model-line
+   *    consistency, requisition-spec decryption). On invalid input, refuse each requisition to the
+   *    Kingdom and persist `REFUSED` metadata.
+   * 4. On valid input, group the requisitions in memory and **write the blob first**, then create
+   *    `STORED` metadata for each requisition. The blob-first ordering ensures a mid-run failure
+   *    can only leave a recoverable state (blob without metadata), never the wedge state (metadata
+   *    without blob).
+   */
   private suspend fun processReportInner(unit: ReportWorkUnit) {
     val existingMetadata = listRequisitionMetadataByReportId(unit.reportId)
     val storedByGroupId =
@@ -331,6 +381,13 @@ class RequisitionFetcher(
     }
   }
 
+  /**
+   * Validates a report's unregistered [requisitions] as a group.
+   *
+   * Returns the first [Requisition.Refusal] that should be applied to *every* requisition in the
+   * report, or `null` if all are valid. Surfaces individual requisition-spec parse failures as well
+   * as cross-requisition consistency failures (currently: mixed model lines).
+   */
   private fun validateForReport(
     reportId: String,
     requisitions: List<Requisition>,
@@ -354,6 +411,10 @@ class RequisitionFetcher(
     return null
   }
 
+  /**
+   * Refuses every requisition in [requisitions] to the Kingdom and persists corresponding `REFUSED`
+   * [RequisitionMetadata] entries under the shared [groupId].
+   */
   private suspend fun refuseUnregisteredAndPersist(
     requisitions: List<Requisition>,
     groupId: String,
@@ -370,6 +431,10 @@ class RequisitionFetcher(
     }
   }
 
+  /**
+   * Writes [grouped] to [storageClient]. Increments storage-write or storage-fail counters and
+   * rethrows on failure so the per-report worker can surface the error.
+   */
   private suspend fun writeBlob(grouped: GroupedRequisitions) {
     val blobKey = blobKey(grouped.groupId)
     try {
@@ -387,6 +452,10 @@ class RequisitionFetcher(
 
   private fun blobKey(groupId: String): String = "$storagePathPrefix/$groupId"
 
+  /**
+   * Returns the report ID embedded in [requisition]'s [MeasurementSpec], or `null` if the spec
+   * cannot be parsed or has no report set.
+   */
   private fun extractReportId(requisition: Requisition): String? {
     val measurementSpec: MeasurementSpec =
       try {
@@ -399,6 +468,10 @@ class RequisitionFetcher(
     return if (report.isBlank()) null else report
   }
 
+  /**
+   * Lists all [RequisitionMetadata] for a report by paging through the Requisition Metadata
+   * Service. Each page is gated by [metadataThrottler].
+   */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private suspend fun listRequisitionMetadataByReportId(
     reportId: String
@@ -422,6 +495,10 @@ class RequisitionFetcher(
     return results
   }
 
+  /**
+   * Creates a `STORED` [RequisitionMetadata] entry for [requisition] under [groupId], with a blob
+   * URI computed from [blobUriPrefix] and [storagePathPrefix].
+   */
   private suspend fun createRequisitionMetadata(
     requisition: Requisition,
     groupId: String,
@@ -442,6 +519,9 @@ class RequisitionFetcher(
     return requisitionMetadataStub.createRequisitionMetadata(request)
   }
 
+  /**
+   * Marks [metadata] as `REFUSED` with the given [message] via the Requisition Metadata Service.
+   */
   private suspend fun refuseRequisitionMetadata(metadata: RequisitionMetadata, message: String) {
     val request = refuseRequisitionMetadataRequest {
       name = metadata.name
@@ -472,6 +552,8 @@ class RequisitionFetcher(
     const val DEFAULT_MAX_BUFFERED_REQUISITIONS_PER_REPORT: Int = 1000
     const val DEFAULT_WORKER_COUNT: Int = 16
     const val DEFAULT_CHANNEL_CAPACITY: Int = 64
+    const val MIN_LIST_REQUISITIONS_PAGE_SIZE: Int = 1
+    private const val KINGDOM_LIST_REQUISITIONS_DEFAULT_PAGE_SIZE: Int = 10
 
     private fun compareTimestamps(a: Timestamp, b: Timestamp): Int {
       val cmpSeconds = a.seconds.compareTo(b.seconds)

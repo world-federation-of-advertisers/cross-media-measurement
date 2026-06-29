@@ -77,8 +77,9 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  * - `MAX_BUFFERED_REQUISITIONS_PER_REPORT`: Optional. Upper bound on the number of requisitions
  *   buffered for a single `(reportId, updateTime)` tuple before the buffer is dispatched and a new
  *   one is started. Default `1000`.
- * - `PAGE_SIZE`: Optional. Overrides the default number of requisitions fetched per page from the
- *   Kingdom.
+ * - `PAGE_SIZE`: Optional. Starting page size for `listRequisitions`. If a page exceeds the gRPC
+ *   inbound message size limit (gRPC `RESOURCE_EXHAUSTED`), the page size is halved and the page is
+ *   retried, down to a floor of 1.
  */
 class RequisitionFetcherFunction : HttpFunction {
 
@@ -116,6 +117,12 @@ class RequisitionFetcherFunction : HttpFunction {
     }
   }
 
+  /**
+   * Executes the requisition fetch workflow for a single data provider and aggregates telemetry.
+   *
+   * @param dataProviderConfig configuration for the data provider.
+   * @return a [Result] capturing success or the failure that occurred.
+   */
   private fun processDataProvider(dataProviderConfig: DataProviderRequisitionConfig): Result<Unit> =
     withDataProviderTelemetry(dataProviderConfig.dataProvider) {
       validateConfig(dataProviderConfig)
@@ -154,6 +161,13 @@ class RequisitionFetcherFunction : HttpFunction {
       }
     }
 
+  /**
+   * Creates a [RequisitionFetcher] instance for the given data provider configuration.
+   *
+   * @param dataProviderConfig The configuration for a single data provider.
+   * @return A fully initialized [RequisitionFetcher] ready to fetch and store requisitions for the
+   *   data provider.
+   */
   private fun createRequisitionFetcher(
     dataProviderConfig: DataProviderRequisitionConfig
   ): RequisitionFetcher {
@@ -205,6 +219,13 @@ class RequisitionFetcherFunction : HttpFunction {
     )
   }
 
+  /**
+   * Creates a [StorageClient] based on the current environment and the provided data provider
+   * configuration.
+   *
+   * @param dataProviderConfig The configuration object for a `DataProvider`.
+   * @return A [StorageClient] instance, either for local file system access or GCS access.
+   */
   private fun createStorageClient(
     dataProviderConfig: DataProviderRequisitionConfig
   ): StorageClient {
@@ -237,6 +258,14 @@ class RequisitionFetcherFunction : HttpFunction {
     }
   }
 
+  /**
+   * Creates an instrumented gRPC channel with mutual TLS and OpenTelemetry tracing.
+   *
+   * @param tlsParams The TLS security parameters containing certificate paths.
+   * @param target The gRPC target address.
+   * @param certHost Optional server name to verify in the TLS certificate.
+   * @return An instrumented gRPC channel ready for use with stubs.
+   */
   private fun createInstrumentedChannel(
     tlsParams: TransportLayerSecurityParams,
     target: String,
@@ -313,6 +342,15 @@ class RequisitionFetcherFunction : HttpFunction {
       }
     }
 
+    /**
+     * Loads [SigningCerts] from PEM-encoded certificate, private key, and trusted certificate
+     * collection files specified in the given [dataProviderConfig].
+     *
+     * @param transportLayerSecurityParams The connection param object.
+     * @return A [SigningCerts] instance loaded from the specified PEM files.
+     * @throws IllegalStateException if any of the required file paths are missing in the
+     *   configuration.
+     */
     private fun loadSigningCerts(
       transportLayerSecurityParams: TransportLayerSecurityParams
     ): SigningCerts {

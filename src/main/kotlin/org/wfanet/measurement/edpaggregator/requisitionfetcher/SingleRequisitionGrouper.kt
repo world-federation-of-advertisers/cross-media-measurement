@@ -70,6 +70,11 @@ class SingleRequisitionGrouper(
   )
 
   /** Returns one [GroupedRequisitions] per valid input [Requisition]. */
+  /**
+   * Returns one [GroupedRequisitions] per input [requisitions] entry, skipping any that cannot be
+   * grouped (e.g. spec decryption failure, inconsistent event-group selectors). Group IDs are
+   * generated randomly per requisition.
+   */
   suspend fun groupRequisitions(requisitions: List<Requisition>): List<GroupedRequisitions> {
     val result = mutableListOf<GroupedRequisitions>()
     for (requisition in requisitions) {
@@ -82,6 +87,10 @@ class SingleRequisitionGrouper(
   /**
    * Returns the [GroupedRequisitions] for a single [requisition], or `null` if the requisition's
    * spec or event groups are invalid.
+   */
+  /**
+   * Returns a single [GroupedRequisitions] for [requisition] under [groupId], or `null` if the
+   * requisition's spec or event groups cannot be resolved.
    */
   suspend fun groupSingle(requisition: Requisition, groupId: String): GroupedRequisitions? {
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.unpack()

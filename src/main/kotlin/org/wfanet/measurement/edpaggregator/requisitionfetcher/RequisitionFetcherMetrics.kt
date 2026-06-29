@@ -32,6 +32,7 @@ import org.wfanet.measurement.common.Instrumentation
  * - Number of per-report worker invocations that failed
  * - Number of times a per-report buffer was split because it hit the size cap
  * - Number of grouped-requisition blobs rebuilt from existing metadata during recovery
+ * - Number of `listRequisitions` page-size reductions performed after RESOURCE_EXHAUSTED
  */
 class RequisitionFetcherMetrics(meter: Meter = Instrumentation.meter) {
 
@@ -82,6 +83,15 @@ class RequisitionFetcherMetrics(meter: Meter = Instrumentation.meter) {
       .counterBuilder("edpa.requisition_fetcher.recovery_rebuilds")
       .setDescription("Number of grouped-requisition blobs rebuilt during recovery")
       .setUnit("{rebuild}")
+      .build()
+
+  val pageSizeReductions: LongCounter =
+    meter
+      .counterBuilder("edpa.requisition_fetcher.page_size_reductions")
+      .setDescription(
+        "Number of times the listRequisitions page size was halved in response to RESOURCE_EXHAUSTED"
+      )
+      .setUnit("{reduction}")
       .build()
 
   companion object {

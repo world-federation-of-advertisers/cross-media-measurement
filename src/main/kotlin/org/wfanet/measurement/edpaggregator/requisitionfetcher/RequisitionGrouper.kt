@@ -135,8 +135,17 @@ abstract class RequisitionGrouper(
   }
 
   /**
-   * Refuses a requisition to the Kingdom. Failures are caught and logged; this method does not
-   * surface refusal errors to the caller.
+   * Refuses a requisition to the Kingdom.
+   *
+   * ### High-Level Flow
+   * 1. Logs the refusal locally.
+   * 2. Sends a [refuseRequisitionRequest] via [RequisitionsCoroutineStub], paced by
+   *    [kingdomMutationThrottler].
+   * 3. Errors during refusal are caught and logged; this method does not surface refusal errors to
+   *    the caller.
+   *
+   * @param requisition The requisition to refuse.
+   * @param refusal The reason and message for the refusal.
    */
   suspend fun refuseRequisitionToCmms(requisition: Requisition, refusal: Requisition.Refusal) {
     try {

@@ -92,6 +92,11 @@ class RequisitionGrouperByReportId(
     return mergeGroupedRequisitions(perRequisitionGroups, groupId)
   }
 
+  /**
+   * Merges per-requisition [GroupedRequisitions] entries into a single [GroupedRequisitions] under
+   * [groupId]. Assumes all entries share the same model line; collection intervals on each event
+   * group are unioned via [unionIntervals].
+   */
   private fun mergeGroupedRequisitions(
     perRequisitionGroups: List<GroupedRequisitions>,
     groupId: String,
@@ -107,6 +112,10 @@ class RequisitionGrouperByReportId(
     }
   }
 
+  /**
+   * Combines event-group map entries across [groups], merging overlapping collection intervals and
+   * verifying that `event_group_reference_id` and `entity_key` are consistent for each event group.
+   */
   private fun buildEventGroupEntries(groups: List<GroupedRequisitions>): List<EventGroupMapEntry> =
     groups
       .flatMap { it.eventGroupMapList }
@@ -136,6 +145,10 @@ class RequisitionGrouperByReportId(
         }
       }
 
+  /**
+   * Merges overlapping or contiguous [intervals] into the minimal set of non-overlapping intervals,
+   * sorted by start time.
+   */
   private fun unionIntervals(intervals: List<Interval>): List<Interval> {
     val sorted = intervals.sortedBy { it.startTime.toInstant() }
     val result = mutableListOf<Interval>()
