@@ -61,6 +61,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
@@ -130,7 +131,8 @@ class VidLabelingDispatchSequencerTest {
   }
 
   private fun createSequencer(
-    numberOfShards: Int = NUMBER_OF_SHARDS
+    numberOfShards: Int = NUMBER_OF_SHARDS,
+    subpoolAssignerParamsTemplate: SubpoolAssignerParams = SUBPOOL_ASSIGNER_PARAMS_TEMPLATE,
   ): VidLabelingDispatchSequencer =
     VidLabelingDispatchSequencer(
       rawImpressionUploadStub = rawImpressionUploadStub,
@@ -142,7 +144,7 @@ class VidLabelingDispatchSequencerTest {
       modelLinesStub = modelLinesStub,
       dataProviderName = DATA_PROVIDER,
       vidLabelerParamsTemplate = VID_LABELER_PARAMS_TEMPLATE,
-      subpoolAssignerParamsTemplate = SUBPOOL_ASSIGNER_PARAMS_TEMPLATE,
+      subpoolAssignerParamsTemplate = subpoolAssignerParamsTemplate,
       queueName = QUEUE_NAME,
       poolAssignerQueueName = POOL_ASSIGNER_QUEUE_NAME,
       numberOfShards = numberOfShards,
@@ -606,6 +608,53 @@ class VidLabelingDispatchSequencerTest {
 
       assertThat(exception).hasMessageThat().contains("Error getting ModelLine")
       // The model line is never transitioned when its active window cannot be resolved.
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        markRawImpressionUploadModelLinePoolAssigning(any())
+      }
+    }
+
+  @Test
+  fun `dispatchNext fails fast when a memoized model line lacks vid_rank_map_storage_params`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = true)
+      val templateMissingVidRankMap =
+        SUBPOOL_ASSIGNER_PARAMS_TEMPLATE.copy { clearVidRankMapStorageParams() }
+
+      val exception =
+        assertFailsWith<Exception> {
+          createSequencer(subpoolAssignerParamsTemplate = templateMissingVidRankMap).dispatchNext()
+        }
+
+      assertThat(exception).hasMessageThat().contains("vid_rank_map_storage_params missing")
+      // Nothing is created or transitioned when a REQUIRED storage param is absent.
+      verifyBlocking(poolAssignmentJobService, never()) { batchCreatePoolAssignmentJobs(any()) }
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        markRawImpressionUploadModelLinePoolAssigning(any())
+      }
+    }
+
+  @Test
+  fun `dispatchNext fails fast when a memoized model line lacks subpool_map_storage_params`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = true)
+      val templateMissingSubpoolMap =
+        SUBPOOL_ASSIGNER_PARAMS_TEMPLATE.copy { clearSubpoolMapStorageParams() }
+
+      val exception =
+        assertFailsWith<Exception> {
+          createSequencer(subpoolAssignerParamsTemplate = templateMissingSubpoolMap).dispatchNext()
+        }
+
+      assertThat(exception).hasMessageThat().contains("subpool_map_storage_params missing")
+      verifyBlocking(poolAssignmentJobService, never()) { batchCreatePoolAssignmentJobs(any()) }
       verifyBlocking(rawImpressionUploadModelLineService, never()) {
         markRawImpressionUploadModelLinePoolAssigning(any())
       }
