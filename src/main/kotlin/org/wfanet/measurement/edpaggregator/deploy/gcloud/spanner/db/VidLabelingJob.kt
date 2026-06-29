@@ -23,9 +23,7 @@ import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
-import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -293,6 +291,7 @@ fun AsyncDatabaseClient.TransactionContext.insertVidLabelingJob(
   cmmsModelLines: List<String>,
   rawImpressionUploadFiles: List<String>,
   createRequestId: String,
+  etag: String,
 ) {
   bufferInsertMutation("VidLabelingJob") {
     set("DataProviderResourceId").to(dataProviderResourceId)
@@ -305,6 +304,7 @@ fun AsyncDatabaseClient.TransactionContext.insertVidLabelingJob(
       set("CreateRequestId").to(createRequestId)
     }
     set("State").to(State.VID_LABELING_STATE_CREATED)
+    set("Etag").to(etag)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
@@ -316,6 +316,7 @@ fun AsyncDatabaseClient.TransactionContext.updateVidLabelingJobState(
   rawImpressionUploadId: Long,
   vidLabelingJobId: Long,
   state: State,
+  etag: String,
   block: (Mutation.WriteBuilder.() -> Unit)? = null,
 ) {
   bufferUpdateMutation("VidLabelingJob") {
@@ -323,6 +324,7 @@ fun AsyncDatabaseClient.TransactionContext.updateVidLabelingJobState(
     set("RawImpressionUploadId").to(rawImpressionUploadId)
     set("VidLabelingJobId").to(vidLabelingJobId)
     set("State").to(state)
+    set("Etag").to(etag)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
     if (block != null) {
       block()
@@ -330,9 +332,9 @@ fun AsyncDatabaseClient.TransactionContext.updateVidLabelingJobState(
   }
 }
 
-// TODO(world-federation-of-advertisers/cross-media-measurement#3989): `MarkRequestId` is added and
-//  the unused `Etag` column is removed by base schema PR #3989. The reads/writes of `MarkRequestId`
-//  in BASE_SQL, buildResult, and the Mark RPCs only succeed once that PR is merged.
+// TODO(world-federation-of-advertisers/cross-media-measurement#3989): `MarkRequestId` is added by
+//  base schema PR #3989. The reads/writes of `MarkRequestId` in BASE_SQL, buildResult, and the Mark
+//  RPCs only succeed once that PR is merged.
 private object VidLabelingJobEntity {
   val BASE_SQL =
     """
@@ -370,7 +372,9 @@ private object VidLabelingJobEntity {
         if (!struct.isNull("ErrorMessage")) {
           errorMessage = struct.getString("ErrorMessage")
         }
-        etag = ETags.computeETag(struct.getTimestamp("UpdateTime").toProto().toInstant())
+        if (!struct.isNull("Etag")) {
+          etag = struct.getString("Etag")
+        }
       },
       struct.getLong("RawImpressionUploadId"),
       struct.getLong("VidLabelingJobId"),
