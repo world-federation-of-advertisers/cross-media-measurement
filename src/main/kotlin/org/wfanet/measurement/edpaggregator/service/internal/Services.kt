@@ -23,6 +23,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchS
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingJobServiceGrpcKt
 
 /** Edp Aggregator internal API services. */
 data class Services(
@@ -38,6 +39,7 @@ data class Services(
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase,
   val rawImpressionUploadFile:
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase,
+  val vidLabelingJob: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase,
 ) {
   fun toList(): List<BindableService> =
     listOf(
@@ -47,5 +49,6 @@ data class Services(
       rawImpressionMetadataBatchFile,
       rawImpressionUpload,
       rawImpressionUploadFile,
+      vidLabelingJob,
     )
 }
