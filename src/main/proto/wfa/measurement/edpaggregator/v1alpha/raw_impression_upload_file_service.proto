@@ -81,6 +81,9 @@ message CreateRawImpressionUploadFileRequest {
   // TCP reset or an exceeded deadline) would create a second, orphaned file.
   // Requiring it lets the server deduplicate retries, so a single logical file
   // is never created twice. Must be a UUID4 (RFC 4122) string.
+  // (-- api-linter: core::0133::request-required-fields=disabled
+  //     aip.dev/not-precedent: request_id is intentionally REQUIRED so the
+  //     server can deduplicate retries of this server-named resource. --)
   string request_id = 3 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_info).format = UUID4

@@ -75,13 +75,15 @@ class RawImpressionUploadService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (request.requestId.isNotEmpty()) {
-      try {
-        UUID.fromString(request.requestId)
-      } catch (e: IllegalArgumentException) {
-        throw InvalidFieldValueException("request_id", e)
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     val internalResponse: InternalRawImpressionUpload =
