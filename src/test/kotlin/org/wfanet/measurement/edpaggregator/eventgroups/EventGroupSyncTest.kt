@@ -3102,6 +3102,100 @@ class EventGroupSyncTest {
   }
 
   @Test
+  fun `flushes pending creates before processing a delete to preserve ordering`() {
+    runBlocking {
+      val callOrder = mutableListOf<String>()
+      // Existing EG matched by entity key so the DELETED row resolves to a delete RPC.
+      wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
+        .thenAnswer {
+          listEventGroupsResponse {
+            eventGroups += cmmsEventGroup {
+              name = "dataProviders/data-provider-1/eventGroups/to-delete"
+              measurementConsumer = "measurementConsumers/measurement-consumer-1"
+              eventGroupReferenceId = "delete-ref"
+              mediaTypes += listOf(CmmsMediaType.OTHER)
+              eventGroupMetadata = cmmsEventGroupMetadata {
+                this.adMetadata = cmmsAdMetadata {
+                  this.campaignMetadata = cmmsCampaignMetadata {
+                    brandName = "brand"
+                    campaignName = "campaign"
+                  }
+                }
+              }
+              dataAvailabilityInterval = interval {
+                startTime = timestamp { seconds = 200 }
+                endTime = timestamp { seconds = 300 }
+              }
+              this.entityKey = cmmsEntityKey {
+                entityType = "creative"
+                entityId = "del-1"
+              }
+            }
+          }
+        }
+      wheneverBlocking {
+          eventGroupsServiceMock.batchCreateEventGroups(any<BatchCreateEventGroupsRequest>())
+        }
+        .thenAnswer { invocation ->
+          callOrder.add("create")
+          batchCreateEventGroupsResponse {
+            eventGroups +=
+              invocation.getArgument<BatchCreateEventGroupsRequest>(0).requestsList.map {
+                it.eventGroup
+              }
+          }
+        }
+      wheneverBlocking { eventGroupsServiceMock.deleteEventGroup(any<DeleteEventGroupRequest>()) }
+        .thenAnswer { invocation ->
+          callOrder.add("delete")
+          invocation.getArgument<DeleteEventGroupRequest>(0)
+        }
+
+      val newCreate = eventGroup {
+        eventGroupReferenceId = "create-ref"
+        measurementConsumer = "measurementConsumers/measurement-consumer-1"
+        this.eventGroupMetadata = eventGroupMetadata {
+          this.adMetadata = adMetadata {
+            this.campaignMetadata = campaignMetadata {
+              brand = "brand"
+              campaign = "campaign"
+            }
+          }
+        }
+        dataAvailabilityInterval = interval {
+          startTime = timestamp { seconds = 200 }
+          endTime = timestamp { seconds = 300 }
+        }
+        mediaTypes += listOf(MediaType.OTHER)
+      }
+      val deletedEventGroup = eventGroup {
+        eventGroupReferenceId = "delete-ref"
+        measurementConsumer = "measurementConsumers/measurement-consumer-1"
+        state = State.DELETED
+        entityKey = entityKey {
+          entityType = "creative"
+          entityId = "del-1"
+        }
+      }
+
+      val eventGroupSync =
+        EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          clientAccountsStub,
+          listOf(newCreate, deletedEventGroup).asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+          entityKeyTypes = emptyList(),
+        )
+      eventGroupSync.sync().toList()
+
+      // The buffered create must be flushed before the delete executes.
+      assertThat(callOrder).containsExactly("create", "delete").inOrder()
+    }
+  }
+
+  @Test
   fun `does not place a duplicate request_id in a single create batch`() {
     runBlocking {
       // Two identical input rows -> same request_id; must not share one batch (kingdom rejects it).

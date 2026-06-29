@@ -200,6 +200,11 @@ class EventGroupSync(
       // Collect the EDP EventGroups as a stream rather than materializing the full decoded list.
       eventGroups.collect { eventGroup ->
         if (eventGroup.state == EventGroup.State.DELETED) {
+          // Deletes act as a barrier: flush queued creates/updates first so a buffered write is not
+          // reordered after a delete of the same EventGroup (which would NOT_FOUND or leave CMMS
+          // inconsistent with the input order).
+          flushCreates(pendingCreates)
+          flushUpdates(pendingUpdates)
           try {
             validateDeletedEventGroup(eventGroup)
           } catch (e: Exception) {
@@ -316,10 +321,9 @@ class EventGroupSync(
     // flush.
     val itemStartTime = TimeSource.Monotonic.markNow()
 
-    // Decide create / update / no-op inside the per-item span. This makes no RPCs, so the span
-    // reflects only this event group. All buffering and flushing happens after the span, so
-    // flushing
-    // a previously-queued batch is never attributed to the current item's span/trace.
+    // Decide create / update / no-op for this event group inside the per-item span. This makes no
+    // RPCs, so the span reflects only this item; buffering and flushing happen after the span, so a
+    // flushed batch is never attributed to the current item's span/trace.
     val action: WriteAction =
       withSpan(
         tracer,
