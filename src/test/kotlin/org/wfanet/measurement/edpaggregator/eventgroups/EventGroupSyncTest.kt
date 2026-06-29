@@ -2971,6 +2971,97 @@ class EventGroupSyncTest {
     assertThat(exception.message).contains("Malformed measurement_consumer")
   }
 
+  @Test
+  fun `flushes creates in multiple batches when exceeding MAX_BATCH_SIZE`() {
+    runBlocking {
+      // 51 new EventGroups -> two batchCreateEventGroups calls of 50 and 1.
+      val manyEventGroups =
+        (1..51).map { i ->
+          eventGroup {
+            eventGroupReferenceId = "batch-ref-$i"
+            measurementConsumer = "measurementConsumers/measurement-consumer-1"
+            this.eventGroupMetadata = eventGroupMetadata {
+              this.adMetadata = adMetadata {
+                this.campaignMetadata = campaignMetadata {
+                  brand = "brand"
+                  campaign = "campaign"
+                }
+              }
+            }
+            dataAvailabilityInterval = interval {
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
+            }
+            mediaTypes += listOf(MediaType.OTHER)
+          }
+        }
+
+      val eventGroupSync =
+        EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          clientAccountsStub,
+          manyEventGroups.asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+          entityKeyTypes = emptyList(),
+        )
+      eventGroupSync.sync().toList()
+
+      val createCaptor = argumentCaptor<BatchCreateEventGroupsRequest>()
+      verifyBlocking(eventGroupsServiceMock, times(2)) {
+        batchCreateEventGroups(createCaptor.capture())
+      }
+      assertThat(createCaptor.allValues.map { it.requestsList.size })
+        .containsExactly(50, 1)
+        .inOrder()
+    }
+  }
+
+  @Test
+  fun `does not place a duplicate request_id in a single create batch`() {
+    runBlocking {
+      // Two identical input rows -> same request_id; must not share one batch (kingdom rejects it).
+      val duplicated = eventGroup {
+        eventGroupReferenceId = "dup-ref"
+        measurementConsumer = "measurementConsumers/measurement-consumer-1"
+        this.eventGroupMetadata = eventGroupMetadata {
+          this.adMetadata = adMetadata {
+            this.campaignMetadata = campaignMetadata {
+              brand = "brand"
+              campaign = "campaign"
+            }
+          }
+        }
+        dataAvailabilityInterval = interval {
+          startTime = timestamp { seconds = 200 }
+          endTime = timestamp { seconds = 300 }
+        }
+        mediaTypes += listOf(MediaType.OTHER)
+      }
+
+      val eventGroupSync =
+        EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          clientAccountsStub,
+          listOf(duplicated, duplicated).asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+          entityKeyTypes = emptyList(),
+        )
+      eventGroupSync.sync().toList()
+
+      val createCaptor = argumentCaptor<BatchCreateEventGroupsRequest>()
+      verifyBlocking(eventGroupsServiceMock, times(2)) {
+        batchCreateEventGroups(createCaptor.capture())
+      }
+      createCaptor.allValues.forEach { batch ->
+        assertThat(batch.requestsList.map { it.requestId }).containsNoDuplicates()
+      }
+    }
+  }
+
   companion object {
     private val CAMPAIGNS =
       listOf(

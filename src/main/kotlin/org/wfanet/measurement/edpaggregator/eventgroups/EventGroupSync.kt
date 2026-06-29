@@ -318,9 +318,15 @@ class EventGroupSync(
         findExistingEventGroup(eventGroup, existingByKey, existingByEntityKey)
 
       if (existingEventGroup == null) {
-        pendingCreates.add(
-          PendingWrite(referenceId, entityType, entityId, buildCreateRequest(eventGroup))
-        )
+        val createRequest = buildCreateRequest(eventGroup)
+        // A duplicate request_id within a single BatchCreateEventGroups call is rejected by the
+        // kingdom, so flush first if this request_id is already buffered. Duplicate input rows then
+        // land in separate batches, where the kingdom dedupes by request_id (idempotent) instead of
+        // failing the whole batch.
+        if (pendingCreates.any { it.request.requestId == createRequest.requestId }) {
+          flushCreates(pendingCreates)
+        }
+        pendingCreates.add(PendingWrite(referenceId, entityType, entityId, createRequest))
       } else {
         val updatedEventGroup: CmmsEventGroup = updateEventGroup(existingEventGroup, eventGroup)
         if (updatedEventGroup == existingEventGroup) {
@@ -337,14 +343,12 @@ class EventGroupSync(
             }
           )
         } else {
-          pendingUpdates.add(
-            PendingWrite(
-              referenceId,
-              entityType,
-              entityId,
-              updateEventGroupRequest { this.eventGroup = updatedEventGroup },
-            )
-          )
+          val updateRequest = updateEventGroupRequest { this.eventGroup = updatedEventGroup }
+          // Likewise avoid two updates to the same EventGroup resource within one batch.
+          if (pendingUpdates.any { it.request.eventGroup.name == updatedEventGroup.name }) {
+            flushUpdates(pendingUpdates)
+          }
+          pendingUpdates.add(PendingWrite(referenceId, entityType, entityId, updateRequest))
         }
       }
     }
