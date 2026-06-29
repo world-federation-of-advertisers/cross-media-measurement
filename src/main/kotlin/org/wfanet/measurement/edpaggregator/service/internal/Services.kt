@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.service.internal
 import io.grpc.BindableService
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankerJobServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchFileServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt
@@ -39,6 +40,7 @@ data class Services(
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase,
   val vidLabelingJob: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase,
   val rankerJob: RankerJobServiceGrpcKt.RankerJobServiceCoroutineImplBase,
+  val rankIndexBlob: RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase,
 ) {
   fun toList(): List<BindableService> =
     listOf(
@@ -49,5 +51,6 @@ data class Services(
       rawImpressionUpload,
       vidLabelingJob,
       rankerJob,
+      rankIndexBlob,
     )
 }
