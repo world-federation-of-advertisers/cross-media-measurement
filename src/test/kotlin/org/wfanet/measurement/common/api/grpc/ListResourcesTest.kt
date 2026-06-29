@@ -52,7 +52,8 @@ class ListResourcesTest {
   }
 
   @Test
-  fun `listResourcesWithAdaptivePageSize halves on RESOURCE_EXHAUSTED and persists size`(): Unit = runBlocking {
+  fun `listResourcesWithAdaptivePageSize halves on RESOURCE_EXHAUSTED and persists size`(): Unit =
+    runBlocking {
       val stub = FakeStub()
       val pageSizesSeen = mutableListOf<Int>()
       val reductions = mutableListOf<Pair<Int, Int>>()
@@ -89,7 +90,8 @@ class ListResourcesTest {
     }
 
   @Test
-  fun `listResourcesWithAdaptivePageSize rethrows when minimum page size still fails`(): Unit = runBlocking {
+  fun `listResourcesWithAdaptivePageSize rethrows when minimum page size still fails`(): Unit =
+    runBlocking {
       val stub = FakeStub()
       val callCount = AtomicInteger(0)
 
@@ -112,7 +114,8 @@ class ListResourcesTest {
     }
 
   @Test
-  fun `listResourcesWithAdaptivePageSize does not retry non-RESOURCE_EXHAUSTED errors`(): Unit = runBlocking {
+  fun `listResourcesWithAdaptivePageSize does not retry non-RESOURCE_EXHAUSTED errors`(): Unit =
+    runBlocking {
       val stub = FakeStub()
       val callCount = AtomicInteger(0)
 

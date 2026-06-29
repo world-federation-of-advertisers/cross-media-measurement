@@ -260,7 +260,9 @@ class RequisitionFetcher(
           requisition,
           refusal {
             justification = Requisition.Refusal.Justification.SPEC_INVALID
-            message = "Unable to parse MeasurementSpec"
+            message =
+              "MeasurementSpec missing or has no reportingMetadata.report; unable to extract " +
+                "report id"
           },
         )
         return@collect
@@ -510,10 +512,8 @@ class RequisitionFetcher(
       requisitionGrouper.refuseRequisitionToCmms(requisition, refusal)
     }
     for (requisition in requisitions) {
-      metadataThrottler.onReady {
-        val metadata = createRequisitionMetadata(requisition, groupId)
-        refuseRequisitionMetadata(metadata, refusal.message)
-      }
+      val metadata = metadataThrottler.onReady { createRequisitionMetadata(requisition, groupId) }
+      metadataThrottler.onReady { refuseRequisitionMetadata(metadata, refusal.message) }
     }
   }
 
