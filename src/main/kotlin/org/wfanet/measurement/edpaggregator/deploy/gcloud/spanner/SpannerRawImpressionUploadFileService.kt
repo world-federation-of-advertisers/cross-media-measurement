@@ -132,6 +132,7 @@ class SpannerRawImpressionUploadFileService(
             rawImpressionUploadId,
             fileResourceId,
             file.blobUri,
+            file.sizeBytes,
             requestId,
           )
           rawImpressionUploadFile {
@@ -139,6 +140,7 @@ class SpannerRawImpressionUploadFileService(
             rawImpressionUploadResourceId = file.rawImpressionUploadResourceId
             this.fileResourceId = fileResourceId
             blobUri = file.blobUri
+            sizeBytes = file.sizeBytes
           }
         }
       } catch (e: RawImpressionUploadNotFoundException) {
@@ -157,9 +159,6 @@ class SpannerRawImpressionUploadFileService(
   override suspend fun batchCreateRawImpressionUploadFiles(
     request: BatchCreateRawImpressionUploadFilesRequest
   ): BatchCreateRawImpressionUploadFilesResponse {
-    if (request.requestsList.isEmpty()) {
-      return BatchCreateRawImpressionUploadFilesResponse.getDefaultInstance()
-    }
     if (request.dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("data_provider_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -167,6 +166,9 @@ class SpannerRawImpressionUploadFileService(
     if (request.rawImpressionUploadResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("raw_impression_upload_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.requestsList.isEmpty()) {
+      return BatchCreateRawImpressionUploadFilesResponse.getDefaultInstance()
     }
     val requestIdSet = mutableSetOf<String>()
     request.requestsList.forEachIndexed { index, subRequest ->
@@ -234,6 +236,7 @@ class SpannerRawImpressionUploadFileService(
               return@map existingByRequestId.getValue(subRequest.requestId).rawImpressionUploadFile
             }
             val blobUri: String = subRequest.rawImpressionUploadFile.blobUri
+            val sizeBytes: Long = subRequest.rawImpressionUploadFile.sizeBytes
             val fileId: Long =
               idGenerator.generateNewId { id ->
                 txn.rawImpressionUploadFileExists(
@@ -249,6 +252,7 @@ class SpannerRawImpressionUploadFileService(
               rawImpressionUploadId,
               fileResourceId,
               blobUri,
+              sizeBytes,
               subRequest.requestId,
             )
             rawImpressionUploadFile {
@@ -256,6 +260,7 @@ class SpannerRawImpressionUploadFileService(
               rawImpressionUploadResourceId = request.rawImpressionUploadResourceId
               this.fileResourceId = fileResourceId
               this.blobUri = blobUri
+              this.sizeBytes = sizeBytes
             }
           }
         }

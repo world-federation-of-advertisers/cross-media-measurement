@@ -94,6 +94,11 @@ class RawImpressionUploadFileService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    if (request.rawImpressionUploadFile.sizeBytes == 0L) {
+      throw RequiredFieldNotSetException("raw_impression_upload_file.size_bytes")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
     if (request.requestId.isEmpty()) {
       throw RequiredFieldNotSetException("request_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -108,6 +113,7 @@ class RawImpressionUploadFileService(
               dataProviderResourceId = uploadKey.dataProviderId
               rawImpressionUploadResourceId = uploadKey.rawImpressionUploadId
               blobUri = request.rawImpressionUploadFile.blobUri
+              sizeBytes = request.rawImpressionUploadFile.sizeBytes
             }
             requestId = request.requestId
           }
@@ -191,6 +197,14 @@ class RawImpressionUploadFileService(
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
+        val sizeBytes = childRequest.rawImpressionUploadFile.sizeBytes
+        if (sizeBytes == 0L) {
+          throw RequiredFieldNotSetException(
+              "requests.$index.raw_impression_upload_file.size_bytes"
+            )
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
         val requestId = childRequest.requestId
         if (requestId.isEmpty()) {
           throw RequiredFieldNotSetException("requests.$index.request_id")
@@ -209,6 +223,7 @@ class RawImpressionUploadFileService(
             dataProviderResourceId = uploadKey.dataProviderId
             rawImpressionUploadResourceId = uploadKey.rawImpressionUploadId
             this.blobUri = blobUri
+            this.sizeBytes = sizeBytes
           }
           this.requestId = requestId
         }
@@ -601,6 +616,7 @@ fun InternalRawImpressionUploadFile.toPublic(): RawImpressionUploadFile {
         )
         .toName()
     blobUri = source.blobUri
+    sizeBytes = source.sizeBytes
     createTime = source.createTime
     updateTime = source.updateTime
     if (source.hasDeleteTime()) {
