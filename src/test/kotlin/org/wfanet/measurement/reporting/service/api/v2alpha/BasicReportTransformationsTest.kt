@@ -2059,6 +2059,62 @@ class BasicReportTransformationsTest {
   }
 
   @Test
+  fun `single match-all IQF with dimension filter resolves to the dimension filter`() {
+    // Regression test for issue #4109: a single match-all IQF combined with a DimensionSpec filter
+    // must continue to resolve to the DimensionSpec filter alone. After the fix this flows through
+    // the empty-ImpressionQualificationFilter branch of buildCelExpressions rather than the
+    // pre-fix empty-list path, so pin the single-match-all contract explicitly.
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
+          metricFrequency = metricFrequencySpec { total = true }
+          dimensionSpec = dimensionSpec {
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              }
+            }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.gender"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              }
+          }
+        }
+      )
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsLists =
+          listOf(emptyList<ImpressionQualificationFilterSpec>()),
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+
+    val dimensionFilter = "person.age_group == 1 && person.gender == 1"
+    val allDetails = reportingSetMetricCalculationSpecDetailsMap.values.flatten()
+
+    // The reach metric uses the DimensionSpec filter alone (not "() && (...)").
+    assertThat(allDetails.any { it.filter == dimensionFilter && it.hasReachMetric() }).isTrue()
+    // No malformed expression is produced.
+    assertThat(allDetails.none { it.filter.contains("()") }).isTrue()
+  }
+
+  @Test
   fun `percent_reach transforms into reach MetricSpec and population MetricSpec`() {
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
