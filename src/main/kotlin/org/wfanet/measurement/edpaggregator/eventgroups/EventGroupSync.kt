@@ -103,6 +103,15 @@ private data class PendingWrite<T>(
   val request: T,
 )
 
+/** The write a queued EventGroup needs: a batched create, a batched update, or nothing. */
+private sealed interface WriteAction {
+  data class Create(val request: CreateEventGroupRequest) : WriteAction
+
+  data class Update(val request: UpdateEventGroupRequest) : WriteAction
+
+  object None : WriteAction
+}
+
 /*
  * Syncs event groups with the CMMS Public API.
  * 1. **Creates** any EventGroups that exist in the input flow but not in CMMS.
@@ -301,65 +310,77 @@ class EventGroupSync(
     val referenceId = eventGroup.eventGroupReferenceId
     val entityType = eventGroup.entityKey.entityType
     val entityId = eventGroup.entityKey.entityId
-    withSpan(
-      tracer,
-      "EventGroupSync.Item",
-      Attributes.of(
-        AttributeKey.stringKey("event_group_reference_id"),
-        referenceId,
-        AttributeKey.stringKey("data_provider_name"),
-        edpName,
-      ),
-      errorMessage = "Event Group sync failed",
-    ) { _ ->
-      val itemStartTime = TimeSource.Monotonic.markNow()
-      metrics.syncAttempts.add(1, metricAttributes())
-      val existingEventGroup: CmmsEventGroup? =
-        findExistingEventGroup(eventGroup, existingByKey, existingByEntityKey)
 
-      if (existingEventGroup == null) {
-        val createRequest = buildCreateRequest(eventGroup)
-        // A duplicate request_id within a single BatchCreateEventGroups call is rejected by the
-        // kingdom, so flush first if this request_id is already buffered. Duplicate input rows then
-        // land in separate batches, where the kingdom dedupes by request_id (idempotent) instead of
-        // failing the whole batch.
-        if (pendingCreates.any { it.request.requestId == createRequest.requestId }) {
-          flushCreates(pendingCreates)
-        }
-        pendingCreates.add(PendingWrite(referenceId, entityType, entityId, createRequest))
-      } else {
-        val updatedEventGroup: CmmsEventGroup = updateEventGroup(existingEventGroup, eventGroup)
-        if (updatedEventGroup == existingEventGroup) {
-          // Already up to date; emit the mapping without issuing a write RPC.
-          metrics.syncSuccess.add(1, metricAttributes())
-          metrics.syncLatency.record(
-            itemStartTime.elapsedNow().inWholeMilliseconds / 1000.0,
-            metricAttributes(),
-          )
-          emit(
-            mappedEventGroup {
-              eventGroupReferenceId = existingEventGroup.eventGroupReferenceId
-              eventGroupResource = existingEventGroup.name
-            }
-          )
+    // Decide create / update / no-op inside the per-item span. This makes no RPCs, so the span
+    // reflects only this event group. All buffering and flushing happens after the span, so
+    // flushing
+    // a previously-queued batch is never attributed to the current item's span/trace.
+    val action: WriteAction =
+      withSpan(
+        tracer,
+        "EventGroupSync.Item",
+        Attributes.of(
+          AttributeKey.stringKey("event_group_reference_id"),
+          referenceId,
+          AttributeKey.stringKey("data_provider_name"),
+          edpName,
+        ),
+        errorMessage = "Event Group sync failed",
+      ) { _ ->
+        val itemStartTime = TimeSource.Monotonic.markNow()
+        metrics.syncAttempts.add(1, metricAttributes())
+        val existingEventGroup: CmmsEventGroup? =
+          findExistingEventGroup(eventGroup, existingByKey, existingByEntityKey)
+
+        if (existingEventGroup == null) {
+          WriteAction.Create(buildCreateRequest(eventGroup))
         } else {
-          val updateRequest = updateEventGroupRequest { this.eventGroup = updatedEventGroup }
-          // Likewise avoid two updates to the same EventGroup resource within one batch.
-          if (pendingUpdates.any { it.request.eventGroup.name == updatedEventGroup.name }) {
-            flushUpdates(pendingUpdates)
+          val updatedEventGroup: CmmsEventGroup = updateEventGroup(existingEventGroup, eventGroup)
+          if (updatedEventGroup == existingEventGroup) {
+            // Already up to date; emit the mapping without issuing a write RPC.
+            metrics.syncSuccess.add(1, metricAttributes())
+            metrics.syncLatency.record(
+              itemStartTime.elapsedNow().inWholeMilliseconds / 1000.0,
+              metricAttributes(),
+            )
+            emit(
+              mappedEventGroup {
+                eventGroupReferenceId = existingEventGroup.eventGroupReferenceId
+                eventGroupResource = existingEventGroup.name
+              }
+            )
+            WriteAction.None
+          } else {
+            WriteAction.Update(updateEventGroupRequest { this.eventGroup = updatedEventGroup })
           }
-          pendingUpdates.add(PendingWrite(referenceId, entityType, entityId, updateRequest))
         }
       }
-    }
 
-    // Flush once a buffer reaches the batch size. (Buffers may also be flushed mid-item inside the
-    // span above to avoid duplicate request_ids / resource names within a single batch.)
-    if (pendingCreates.size >= MAX_BATCH_SIZE) {
-      flushCreates(pendingCreates)
-    }
-    if (pendingUpdates.size >= MAX_BATCH_SIZE) {
-      flushUpdates(pendingUpdates)
+    when (action) {
+      is WriteAction.Create -> {
+        // A duplicate request_id within one BatchCreateEventGroups call is rejected by the kingdom,
+        // so flush first if it is already buffered. Duplicate input rows then land in separate
+        // batches, where the kingdom dedupes by request_id (idempotent) instead of failing the
+        // batch.
+        if (pendingCreates.any { it.request.requestId == action.request.requestId }) {
+          flushCreates(pendingCreates)
+        }
+        pendingCreates.add(PendingWrite(referenceId, entityType, entityId, action.request))
+        if (pendingCreates.size >= MAX_BATCH_SIZE) {
+          flushCreates(pendingCreates)
+        }
+      }
+      is WriteAction.Update -> {
+        // Likewise avoid two updates to the same EventGroup resource within one batch.
+        if (pendingUpdates.any { it.request.eventGroup.name == action.request.eventGroup.name }) {
+          flushUpdates(pendingUpdates)
+        }
+        pendingUpdates.add(PendingWrite(referenceId, entityType, entityId, action.request))
+        if (pendingUpdates.size >= MAX_BATCH_SIZE) {
+          flushUpdates(pendingUpdates)
+        }
+      }
+      WriteAction.None -> {}
     }
   }
 
@@ -417,9 +438,14 @@ class EventGroupSync(
       "Batch create of ${pending.size} Event Groups failed; retrying individually"
     }
     for (item in pending) {
+      val itemStartTime = TimeSource.Monotonic.markNow()
       try {
         val syncedEventGroup = throttler.onReady { eventGroupsStub.createEventGroup(item.request) }
         metrics.syncSuccess.add(1, metricAttributes())
+        metrics.syncLatency.record(
+          itemStartTime.elapsedNow().inWholeMilliseconds / 1000.0,
+          metricAttributes(),
+        )
         emit(
           mappedEventGroup {
             eventGroupReferenceId = item.eventGroupReferenceId
@@ -487,9 +513,14 @@ class EventGroupSync(
       "Batch update of ${pending.size} Event Groups failed; retrying individually"
     }
     for (item in pending) {
+      val itemStartTime = TimeSource.Monotonic.markNow()
       try {
         val syncedEventGroup = throttler.onReady { eventGroupsStub.updateEventGroup(item.request) }
         metrics.syncSuccess.add(1, metricAttributes())
+        metrics.syncLatency.record(
+          itemStartTime.elapsedNow().inWholeMilliseconds / 1000.0,
+          metricAttributes(),
+        )
         emit(
           mappedEventGroup {
             eventGroupReferenceId = item.eventGroupReferenceId
