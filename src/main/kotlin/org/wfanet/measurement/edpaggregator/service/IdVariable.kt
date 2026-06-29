@@ -29,6 +29,7 @@ internal enum class IdVariable {
   RAW_IMPRESSION_METADATA_BATCH,
   RAW_IMPRESSION_UPLOAD,
   FILE,
+  VID_LABELING_JOB,
   WORK_ITEM,
 }
 
