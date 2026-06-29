@@ -421,6 +421,7 @@ abstract class RankerJobServiceTest {
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rankerJobResourceId = created.rankerJobResourceId
         etag = created.etag
+        requestId = UUID.randomUUID().toString()
       }
     )
 
@@ -499,6 +500,7 @@ abstract class RankerJobServiceTest {
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rankerJobResourceId = created.rankerJobResourceId
           etag = created.etag
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -516,6 +518,7 @@ abstract class RankerJobServiceTest {
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rankerJobResourceId = created.rankerJobResourceId
           etag = created.etag
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -534,6 +537,7 @@ abstract class RankerJobServiceTest {
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rankerJobResourceId = created1.rankerJobResourceId
           etag = created1.etag
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -551,6 +555,7 @@ abstract class RankerJobServiceTest {
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rankerJobResourceId = created1.rankerJobResourceId
         etag = created1.etag
+        requestId = UUID.randomUUID().toString()
       }
     )
 
@@ -561,6 +566,7 @@ abstract class RankerJobServiceTest {
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rankerJobResourceId = created2.rankerJobResourceId
           etag = created2.etag
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -579,6 +585,7 @@ abstract class RankerJobServiceTest {
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rankerJobResourceId = created.rankerJobResourceId
           etag = created.etag
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -628,6 +635,7 @@ abstract class RankerJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rankerJobResourceId = created.rankerJobResourceId
             etag = "wrong-etag"
+            requestId = UUID.randomUUID().toString()
           }
         )
       }
@@ -646,6 +654,7 @@ abstract class RankerJobServiceTest {
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rankerJobResourceId = created.rankerJobResourceId
           etag = created.etag
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -657,6 +666,7 @@ abstract class RankerJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rankerJobResourceId = created.rankerJobResourceId
             etag = response.rankerJob.etag
+            requestId = UUID.randomUUID().toString()
           }
         )
       }
@@ -674,11 +684,37 @@ abstract class RankerJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rankerJobResourceId = "nonexistent-job"
             etag = "some-etag"
+            requestId = UUID.randomUUID().toString()
           }
         )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `markRankerJobSucceeded throws INVALID_ARGUMENT for empty request_id`() = runBlocking {
+    val exception: StatusRuntimeException =
+      assertFailsWith<StatusRuntimeException> {
+        service.markRankerJobSucceeded(
+          markRankerJobSucceededRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rankerJobResourceId = "some-job"
+            etag = "some-etag"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+        }
+      )
   }
 
   @Test
@@ -722,6 +758,7 @@ abstract class RankerJobServiceTest {
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rankerJobResourceId = created.rankerJobResourceId
           etag = failed.etag
+          requestId = UUID.randomUUID().toString()
         }
       )
 

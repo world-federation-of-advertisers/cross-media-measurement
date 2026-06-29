@@ -206,7 +206,7 @@ message MarkRankerJobSucceededRequest {
   //
   // This field must be a UUID4 (RFC 4122) string.
   string request_id = 3 [
-    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = REQUIRED,
     (google.api.field_info).format = UUID4
   ];
 }

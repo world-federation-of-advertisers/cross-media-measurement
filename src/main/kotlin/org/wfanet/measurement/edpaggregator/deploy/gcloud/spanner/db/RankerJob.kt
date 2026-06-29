@@ -23,9 +23,7 @@ import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
-import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -413,7 +411,9 @@ private object RankerJobEntity {
         if (!struct.isNull("ErrorMessage")) {
           errorMessage = struct.getString("ErrorMessage")
         }
-        etag = ETags.computeETag(struct.getTimestamp("UpdateTime").toProto().toInstant())
+        if (!struct.isNull("Etag")) {
+          etag = struct.getString("Etag")
+        }
       },
       struct.getLong("RawImpressionUploadId"),
       struct.getLong("RankerJobId"),
