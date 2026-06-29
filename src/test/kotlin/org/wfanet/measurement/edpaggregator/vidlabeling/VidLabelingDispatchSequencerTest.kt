@@ -604,9 +604,10 @@ class VidLabelingDispatchSequencerTest {
         throw StatusException(Status.NOT_FOUND.withDescription("model line missing"))
       }
 
-      val exception = assertFailsWith<Exception> { createSequencer().dispatchNext() }
+      val exception = assertFailsWith<StatusException> { createSequencer().dispatchNext() }
 
-      assertThat(exception).hasMessageThat().contains("Error getting ModelLine")
+      // The gRPC Status.Code propagates intact (no opaque Exception wrap).
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
       // The model line is never transitioned when its active window cannot be resolved.
       verifyBlocking(rawImpressionUploadModelLineService, never()) {
         markRawImpressionUploadModelLinePoolAssigning(any())
