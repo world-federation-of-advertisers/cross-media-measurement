@@ -48,12 +48,21 @@ service RankerJobService {
   // Throws ABORTED if etag does not match the current resource
   // version (AIP-154). A retry with the same `request_id`
   // returns the original response without modifying state
-  // (AIP-155).
+  // (AIP-155); `request_id` must be derived deterministically so
+  // that retries share one (see its documentation), otherwise a
+  // retried call against an already-transitioned row fails with
+  // FAILED_PRECONDITION.
   rpc MarkRankerJobSucceeded(MarkRankerJobSucceededRequest)
       returns (MarkRankerJobSucceededResponse) {}
 
-  // Marks a `RankerJob` as `FAILED`. Throws
-  // FAILED_PRECONDITION if state is not CREATED or FAILED.
+  // Marks a `RankerJob` as `FAILED`. Throws FAILED_PRECONDITION
+  // if state is not CREATED or FAILED. Throws ABORTED if etag
+  // does not match the current resource version (AIP-154). A
+  // retry with the same `request_id` returns the original
+  // response without modifying state (AIP-155); `request_id` must
+  // be derived deterministically so that retries share one (see
+  // its documentation), otherwise a retried call against an
+  // already-transitioned row fails with FAILED_PRECONDITION.
   rpc MarkRankerJobFailed(MarkRankerJobFailedRequest) returns (RankerJob) {}
 }
 
@@ -200,9 +209,17 @@ message MarkRankerJobSucceededRequest {
   // The etag of the RankerJob for optimistic locking.
   string etag = 2 [(google.api.field_behavior) = REQUIRED];
 
-  // A request ID provided by the client to ensure idempotency
-  // on retry. A retry with the same `request_id` returns the
-  // original response without re-transitioning the resource.
+  // A request ID provided by the client to ensure idempotency on
+  // retry. A retry with the same `request_id` returns the original
+  // response without re-transitioning the resource.
+  //
+  // To survive retries (network blips, redeliveries, process
+  // restarts), derive this deterministically from the resource being
+  // marked — e.g. a UUID computed from its `name` and the operation —
+  // so that every attempt for the same logical mark uses the same
+  // `request_id` and shares one idempotent result. Generating a fresh
+  // UUID per attempt defeats AIP-155 and surfaces as
+  // FAILED_PRECONDITION on retry against an already-transitioned row.
   //
   // This field must be a UUID4 (RFC 4122) string.
   string request_id = 3 [
@@ -239,9 +256,17 @@ message MarkRankerJobFailedRequest {
   // Human-readable detail about the failure.
   string error_message = 3 [(google.api.field_behavior) = OPTIONAL];
 
-  // A request ID provided by the client to ensure idempotency
-  // on retry. A retry with the same `request_id` returns the
-  // original response without re-transitioning the resource.
+  // A request ID provided by the client to ensure idempotency on
+  // retry. A retry with the same `request_id` returns the original
+  // response without re-transitioning the resource.
+  //
+  // To survive retries (network blips, redeliveries, process
+  // restarts), derive this deterministically from the resource being
+  // marked — e.g. a UUID computed from its `name` and the operation —
+  // so that every attempt for the same logical mark uses the same
+  // `request_id` and shares one idempotent result. Generating a fresh
+  // UUID per attempt defeats AIP-155 and surfaces as
+  // FAILED_PRECONDITION on retry against an already-transitioned row.
   //
   // This field must be a UUID4 (RFC 4122) string.
   string request_id = 4 [
