@@ -30,8 +30,6 @@ object InternalApiServices {
     return Services(
       SpannerRequisitionMetadataService(databaseClient, coroutineContext, idGenerator),
       SpannerImpressionMetadataService(databaseClient, coroutineContext),
-      SpannerRawImpressionMetadataBatchService(databaseClient, coroutineContext, idGenerator),
-      SpannerRawImpressionMetadataBatchFileService(databaseClient, coroutineContext, idGenerator),
       SpannerRawImpressionUploadService(databaseClient, coroutineContext, idGenerator),
       SpannerRawImpressionUploadFileService(databaseClient, coroutineContext, idGenerator),
       SpannerRawImpressionUploadModelLineService(databaseClient, coroutineContext, idGenerator),
