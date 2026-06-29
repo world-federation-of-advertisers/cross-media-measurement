@@ -19,13 +19,9 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
-import com.google.cloud.storage.StorageOptions
-import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
 import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
-import io.opentelemetry.context.Context
-import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.time.Duration
@@ -42,30 +38,24 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams as ConfigTransportLayerSecurityParams
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
-import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
-import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
 import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
-import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
-import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingMonitor
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
-import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 /** Channel cache key using TLS params, target, and optional hostname override. */
 private data class ChannelKey(
@@ -75,19 +65,25 @@ private data class ChannelKey(
 )
 
 /**
- * Cloud Function that registers VID labeling uploads in the EDP Aggregator metadata store.
+ * Cloud Function that drives VID labeling dispatch sequencing and monitors pipeline health.
  *
- * Invoked when an EDP finishes uploading raw impressions and writes a "done" blob. The function
- * looks up the matching [VidLabelingConfig] for the data provider, resolves active model lines via
- * the VID Repository API, crawls the directory for raw impression files, and creates
- * `RawImpressionUpload`, `RawImpressionUploadFile`, and `RawImpressionUploadModelLine` records. It
- * then calls the shared [VidLabelingDispatchSequencer] to aggressively start pipeline work (the
- * "fast path") rather than waiting for the next `VidLabelingMonitorFunction` tick.
+ * Designed to be invoked on a schedule (e.g., every 30 minutes via Cloud Scheduler). For each
+ * configured [VidLabelingConfig] it builds one [VidLabelingMonitor] keyed on the config's
+ * `DataProvider` and runs it. Per DataProvider the monitor dispatches at most one `CREATED` upload
+ * when none are `ACTIVE`, and logs uploads stuck past the staleness SLA and model lines in `FAILED`
+ * at `SEVERE` for Cloud Monitoring alerting.
+ *
+ * Unlike [VidLabelingDispatcherFunction], this function is not triggered by a DataWatcher "done"
+ * blob and does not read storage; it lists uploads through the `RawImpressionUploadService`
+ * metadata API.
  *
  * ## Environment Variables
  * - `EDPA_CONFIG_STORAGE_BUCKET`: Required. URI prefix for the config storage bucket.
  * - `CONFIG_BLOB_KEY`: Required. Blob key for the [VidLabelingConfigs] textproto.
- * - `MODEL_LINES_TARGET`: Required. Target endpoint for the VID Repository ModelLines service.
+ * - `CONTROL_PLANE_TARGET`: Required. Target endpoint for the Secure Computation control plane.
+ * - `CONTROL_PLANE_CERT_HOST`: Optional. Overrides TLS authority for testing.
+ * - `MODEL_LINES_TARGET`: Required. Target endpoint for the VID Repository ModelLines service (used
+ *   to resolve the active window for memoized model lines).
  * - `MODEL_LINES_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `MODEL_ROLLOUTS_TARGET`: Required. Target endpoint for the VID Repository ModelRollouts
  *   service.
@@ -97,192 +93,163 @@ private data class ChannelKey(
  * - `RAW_IMPRESSION_UPLOAD_TARGET`: Required. Target endpoint for the `RawImpressionUploadService`,
  *   `RawImpressionUploadModelLineService`, and `PoolAssignmentJobService`.
  * - `RAW_IMPRESSION_UPLOAD_CERT_HOST`: Optional. Overrides TLS authority for testing.
- * - `CONTROL_PLANE_TARGET`: Required. Target endpoint for the Secure Computation control plane
- *   (`WorkItemsService`).
- * - `CONTROL_PLANE_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `VID_LABELER_QUEUE_NAME`: Required. Resource name of the Phase-2 VidLabeler Secure Computation
  *   queue.
  * - `POOL_ASSIGNER_QUEUE_NAME`: Required. Resource name of the Phase-0 SubpoolAssigner Secure
  *   Computation queue (memoized model lines).
  * - `CHANNEL_SHUTDOWN_DURATION_SECONDS`: Optional. gRPC channel shutdown timeout (default: 3s).
- * - `VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH`: Optional. Enables [FileSystemStorageClient] instead
- *   of GCS. Used only in testing.
  *
- * ## Request Headers
- * - `X-DataWatcher-Path`: Required. Full storage URI of the "done" blob.
- * - `X-DataWatcher-Generation`: Required. GCS object generation number of the "done" blob.
- * - `X-Override-Model-Lines`: Optional. Comma-separated list of model line resource names to use
- *   instead of querying the VID Repository API. Supports backfilling past data where the model line
- *   may no longer be in the active window.
+ * The staleness threshold (after which a non-terminal upload is flagged as stuck) is set per
+ * `DataProvider` via the `staleness_threshold` field on each [VidLabelingConfig].
+ *
+ * Configuration is loaded eagerly at class initialization via [runBlocking]. If the config blob is
+ * unavailable at startup, the Cloud Function class will fail to load (fail-fast).
  */
-class VidLabelingDispatcherFunction : HttpFunction {
+class VidLabelingMonitorFunction : HttpFunction {
   init {
     EdpaTelemetry.ensureInitialized()
   }
 
   override fun service(request: HttpRequest, response: HttpResponse) {
     try {
-      logger.fine("Starting VidLabelingDispatcherFunction")
+      logger.info("Starting VidLabelingMonitorFunction")
 
-      val dispatcherParams =
-        VidLabelingDispatcherParams.newBuilder()
-          .apply { JsonFormat.parser().merge(request.reader, this) }
-          .build()
-
-      val doneBlobPath =
-        request.getFirstHeader(DATA_WATCHER_PATH_HEADER).orElseThrow {
-          IllegalArgumentException("Missing required header: $DATA_WATCHER_PATH_HEADER")
-        }
-
-      val doneBlobGeneration: Long =
-        request
-          .getFirstHeader(DATA_WATCHER_GENERATION_HEADER)
-          .map { it.toLong() }
-          .orElseThrow {
-            IllegalArgumentException("Missing required header: $DATA_WATCHER_GENERATION_HEADER")
-          }
-
-      val overrideModelLines: List<String> =
-        request
-          .getFirstHeader(OVERRIDE_MODEL_LINES_HEADER)
-          .map { header -> header.split(",").map { it.trim() }.filter { it.isNotEmpty() } }
-          .orElse(emptyList())
-
-      val config: VidLabelingConfig =
-        vidLabelingConfigsByDataProvider[dispatcherParams.dataProvider]
-          ?: throw IllegalArgumentException(
-            "No VidLabelingConfig found for data provider: ${dispatcherParams.dataProvider}"
-          )
-
-      val storageClient: StorageClient = createStorageClient(doneBlobPath)
-      val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
-
-      val modelLinesStub =
-        ModelLinesGrpcKt.ModelLinesCoroutineStub(
-          createInstrumentedChannel(
-            config.modelLinesConnection,
-            modelLinesTarget,
-            modelLinesCertHost,
-            grpcTelemetry,
-          )
-        )
-
-      val modelRolloutsStub =
-        ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub(
-          createInstrumentedChannel(
-            config.modelRolloutsConnection,
-            modelRolloutsTarget,
-            modelRolloutsCertHost,
-            grpcTelemetry,
-          )
-        )
-
-      val modelShardsStub =
-        ModelShardsGrpcKt.ModelShardsCoroutineStub(
-          createInstrumentedChannel(
-            config.modelShardsConnection,
-            modelShardsTarget,
-            modelShardsCertHost,
-            grpcTelemetry,
-          )
-        )
-
-      val rawImpressionUploadChannel =
-        createInstrumentedChannel(
-          config.rawImpressionMetadataStorageConnection,
-          rawImpressionUploadTarget,
-          rawImpressionUploadCertHost,
-          grpcTelemetry,
-        )
-      val rawImpressionUploadStub =
-        RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(
-          rawImpressionUploadChannel
-        )
-      val rawImpressionUploadFilesStub =
-        RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
-          rawImpressionUploadChannel
-        )
-
-      val rawImpressionUploadModelLineStub =
-        RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
-          rawImpressionUploadChannel
-        )
-      // PoolAssignmentJobService is served by the same RawImpressionMetadata storage deployment.
-      val poolAssignmentJobStub =
-        PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
-          rawImpressionUploadChannel
-        )
-      val workItemsStub =
-        WorkItemsGrpcKt.WorkItemsCoroutineStub(
-          createInstrumentedChannel(
-            config.controlPlaneConnection,
-            controlPlaneTarget,
-            controlPlaneCertHost,
-            grpcTelemetry,
-          )
-        )
-
-      require(config.numberOfShards > 0) {
-        "number_of_shards must be positive for data provider: ${config.dataProvider}"
+      // HttpFunction.service is synchronous; runBlocking bridges to suspend functions.
+      val hasAnyIssues = runBlocking {
+        monitorConfigs.configsList.map { config -> runMonitorForConfig(config) }.any { it }
       }
-      val modelLineConfigs = convertModelLineConfigs(config.modelLineConfigsMap)
 
-      val dispatchSequencer =
-        VidLabelingDispatchSequencer(
-          rawImpressionUploadStub = rawImpressionUploadStub,
-          rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
-          workItemsStub = workItemsStub,
-          poolAssignmentJobStub = poolAssignmentJobStub,
-          modelRolloutsStub = modelRolloutsStub,
-          modelShardsStub = modelShardsStub,
-          modelLinesStub = modelLinesStub,
-          dataProviderName = config.dataProvider,
-          vidLabelerParamsTemplate = buildVidLabelerParamsTemplate(config),
-          subpoolAssignerParamsTemplate = buildSubpoolAssignerParamsTemplate(config),
-          queueName = vidLabelerQueueName,
-          poolAssignerQueueName = poolAssignerQueueName,
-          numberOfShards = config.numberOfShards,
-          modelLineConfigs = modelLineConfigs,
-        )
-
-      val dispatcher =
-        VidLabelingDispatcher(
-          storageClient = storageClient,
-          rawImpressionUploadStub = rawImpressionUploadStub,
-          rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
-          rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
-          modelLinesStub = modelLinesStub,
-          dispatchSequencer = dispatchSequencer,
-          dataProviderName = config.dataProvider,
-          modelSuiteName = config.modelSuite,
-          overrideModelLines = overrideModelLines,
-          modelLineConfigs = modelLineConfigs,
-        )
-
-      Tracing.withW3CTraceContext(request) {
-        runBlocking(Context.current().asContextElement()) {
-          dispatcher.upload(doneBlobPath, doneBlobGeneration)
-        }
+      if (hasAnyIssues) {
+        response.setStatusCode(500)
+        response.writer.write("VID labeling pipeline issues detected. See logs for details.")
+      } else {
+        response.setStatusCode(200)
+        response.writer.write("All VID labeling uploads healthy.")
       }
-    } catch (e: IllegalArgumentException) {
-      // Bad request: missing/invalid headers, malformed params, or an unknown data provider. These
-      // are caller errors, so return 4xx rather than letting the framework surface them as 500.
-      logger.log(Level.WARNING, "Rejecting request as bad input", e)
-      response.setStatusCode(400)
-      response.writer.write(e.message ?: "Bad request")
+    } catch (e: Exception) {
+      logger.log(Level.SEVERE, "Error in VidLabelingMonitorFunction", e)
+      response.setStatusCode(500)
+      response.writer.write("Internal error: ${e.message}")
     } finally {
       EdpaTelemetry.flush()
     }
   }
 
+  /**
+   * Builds and runs a [VidLabelingMonitor] for a single [config]'s DataProvider.
+   *
+   * @return `true` if the monitor reported stuck uploads or failed model lines for this config.
+   */
+  private suspend fun runMonitorForConfig(config: VidLabelingConfig): Boolean {
+    require(config.numberOfShards > 0) {
+      "number_of_shards must be positive for data provider: ${config.dataProvider}"
+    }
+    require(config.hasStalenessThreshold()) {
+      "staleness_threshold must be set for data provider: ${config.dataProvider}"
+    }
+
+    val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
+
+    val workItemsStub =
+      WorkItemsGrpcKt.WorkItemsCoroutineStub(
+        createInstrumentedChannel(
+          config.rawImpressionMetadataStorageConnection,
+          controlPlaneTarget,
+          controlPlaneCertHost,
+          grpcTelemetry,
+        )
+      )
+
+    val modelRolloutsStub =
+      ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub(
+        createInstrumentedChannel(
+          config.modelRolloutsConnection,
+          modelRolloutsTarget,
+          modelRolloutsCertHost,
+          grpcTelemetry,
+        )
+      )
+
+    val modelShardsStub =
+      ModelShardsGrpcKt.ModelShardsCoroutineStub(
+        createInstrumentedChannel(
+          config.modelShardsConnection,
+          modelShardsTarget,
+          modelShardsCertHost,
+          grpcTelemetry,
+        )
+      )
+
+    val modelLinesStub =
+      ModelLinesGrpcKt.ModelLinesCoroutineStub(
+        createInstrumentedChannel(
+          config.modelLinesConnection,
+          modelLinesTarget,
+          modelLinesCertHost,
+          grpcTelemetry,
+        )
+      )
+
+    val rawImpressionUploadChannel =
+      createInstrumentedChannel(
+        config.rawImpressionMetadataStorageConnection,
+        rawImpressionUploadTarget,
+        rawImpressionUploadCertHost,
+        grpcTelemetry,
+      )
+    val rawImpressionUploadStub =
+      RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(
+        rawImpressionUploadChannel
+      )
+    val rawImpressionUploadModelLineStub =
+      RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
+        rawImpressionUploadChannel
+      )
+    // PoolAssignmentJobService is served by the same RawImpressionMetadata storage deployment.
+    val poolAssignmentJobStub =
+      PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
+        rawImpressionUploadChannel
+      )
+    val dispatchSequencer =
+      VidLabelingDispatchSequencer(
+        rawImpressionUploadStub = rawImpressionUploadStub,
+        rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+        workItemsStub = workItemsStub,
+        poolAssignmentJobStub = poolAssignmentJobStub,
+        modelRolloutsStub = modelRolloutsStub,
+        modelShardsStub = modelShardsStub,
+        modelLinesStub = modelLinesStub,
+        dataProviderName = config.dataProvider,
+        vidLabelerParamsTemplate = buildVidLabelerParamsTemplate(config),
+        subpoolAssignerParamsTemplate = buildSubpoolAssignerParamsTemplate(config),
+        queueName = vidLabelerQueueName,
+        poolAssignerQueueName = poolAssignerQueueName,
+        numberOfShards = config.numberOfShards,
+        modelLineConfigs = convertModelLineConfigs(config.modelLineConfigsMap),
+      )
+
+    val monitor =
+      VidLabelingMonitor(
+        rawImpressionUploadStub = rawImpressionUploadStub,
+        rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+        dispatchSequencer = dispatchSequencer,
+        dataProviderName = config.dataProvider,
+        stalenessThreshold = config.stalenessThreshold.toDuration(),
+      )
+
+    val result = monitor.run()
+    if (result.dispatchedUpload != null) {
+      logger.info("Dispatched ${result.dispatchedUpload} for ${config.dataProvider}")
+    }
+    return result.hasIssues
+  }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
-    private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
-    private const val DATA_WATCHER_GENERATION_HEADER: String = "X-DataWatcher-Generation"
-    private const val OVERRIDE_MODEL_LINES_HEADER: String = "X-Override-Model-Lines"
-    private const val GOOGLE_PROJECT_ID_ENV = "GOOGLE_PROJECT_ID"
 
+    private val controlPlaneTarget: String = EnvVars.checkNotNullOrEmpty("CONTROL_PLANE_TARGET")
+    private val controlPlaneCertHost: String? = System.getenv("CONTROL_PLANE_CERT_HOST")
     private val modelLinesTarget: String = EnvVars.checkNotNullOrEmpty("MODEL_LINES_TARGET")
     private val modelLinesCertHost: String? = System.getenv("MODEL_LINES_CERT_HOST")
     private val modelRolloutsTarget: String = EnvVars.checkNotNullOrEmpty("MODEL_ROLLOUTS_TARGET")
@@ -293,8 +260,6 @@ class VidLabelingDispatcherFunction : HttpFunction {
       EnvVars.checkNotNullOrEmpty("RAW_IMPRESSION_UPLOAD_TARGET")
     private val rawImpressionUploadCertHost: String? =
       System.getenv("RAW_IMPRESSION_UPLOAD_CERT_HOST")
-    private val controlPlaneTarget: String = EnvVars.checkNotNullOrEmpty("CONTROL_PLANE_TARGET")
-    private val controlPlaneCertHost: String? = System.getenv("CONTROL_PLANE_CERT_HOST")
     private val vidLabelerQueueName: String = EnvVars.checkNotNullOrEmpty("VID_LABELER_QUEUE_NAME")
     private val poolAssignerQueueName: String =
       EnvVars.checkNotNullOrEmpty("POOL_ASSIGNER_QUEUE_NAME")
@@ -304,46 +269,22 @@ class VidLabelingDispatcherFunction : HttpFunction {
           ?: DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS
       )
 
-    private val fileSystemPath: String? = System.getenv("VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH")
-
     private val configBlobKey: String = EnvVars.checkNotNullOrEmpty("CONFIG_BLOB_KEY")
 
-    private val vidLabelingConfigs: VidLabelingConfigs by lazy {
-      runBlocking {
-        EdpAggregatorConfig.getConfigAsProtoMessage(
-          configBlobKey,
-          VidLabelingConfigs.getDefaultInstance(),
-        )
-      }
-    }
-
-    private val vidLabelingConfigsByDataProvider: Map<String, VidLabelingConfig> by lazy {
-      vidLabelingConfigs.configsList.associateBy { it.dataProvider }
+    /**
+     * Eagerly loaded at class init via [runBlocking]. Cloud Functions initialize the class on the
+     * framework's classloading thread before serving the first request, making this effectively the
+     * application startup phase. If the config blob is unavailable, the class will fail to load
+     * (fail-fast), causing the Cloud Function to reject all requests with a load error.
+     */
+    private val monitorConfigs: VidLabelingConfigs = runBlocking {
+      EdpAggregatorConfig.getConfigAsProtoMessage(
+        configBlobKey,
+        VidLabelingConfigs.getDefaultInstance(),
+      )
     }
 
     private val channelCache = ConcurrentHashMap<ChannelKey, ManagedChannel>()
-
-    private fun createStorageClient(doneBlobPath: String): StorageClient {
-      return if (!fileSystemPath.isNullOrEmpty()) {
-        FileSystemStorageClient(
-          File(EnvVars.checkIsPath("VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH"))
-        )
-      } else {
-        val doneBlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
-        GcsStorageClient(
-          StorageOptions.newBuilder()
-            .also { builder ->
-              val projectId = System.getenv(GOOGLE_PROJECT_ID_ENV)
-              if (!projectId.isNullOrEmpty()) {
-                builder.setProjectId(projectId)
-              }
-            }
-            .build()
-            .service,
-          doneBlobUri.bucket,
-        )
-      }
-    }
 
     private fun createPublicChannel(
       connectionParams: ConfigTransportLayerSecurityParams,
@@ -380,17 +321,6 @@ class VidLabelingDispatcherFunction : HttpFunction {
     ): Channel {
       val channel = getOrCreateChannel(connectionParams, target, hostName)
       return ClientInterceptors.intercept(channel, grpcTelemetry.newClientInterceptor())
-    }
-
-    private fun convertModelLineConfigs(
-      configModelLines: Map<String, VidLabelingConfig.ModelLineConfig>
-    ): Map<String, VidLabelerParams.ModelLineConfig> {
-      return configModelLines.mapValues { (_, configModelLine) ->
-        VidLabelerParamsKt.modelLineConfig {
-          labelerInputFieldMapping.putAll(configModelLine.labelerInputFieldMappingMap)
-          eventTemplateFieldMapping.putAll(configModelLine.eventTemplateFieldMappingMap)
-        }
-      }
     }
 
     private fun buildVidLabelerParamsTemplate(config: VidLabelingConfig): VidLabelerParams {
@@ -483,6 +413,17 @@ class VidLabelingDispatcherFunction : HttpFunction {
           clientCertResourcePath = config.rawImpressionMetadataStorageConnection.certFilePath
           clientPrivateKeyResourcePath =
             config.rawImpressionMetadataStorageConnection.privateKeyFilePath
+        }
+      }
+    }
+
+    private fun convertModelLineConfigs(
+      configModelLines: Map<String, VidLabelingConfig.ModelLineConfig>
+    ): Map<String, VidLabelerParams.ModelLineConfig> {
+      return configModelLines.mapValues { (_, configModelLine) ->
+        VidLabelerParamsKt.modelLineConfig {
+          labelerInputFieldMapping.putAll(configModelLine.labelerInputFieldMappingMap)
+          eventTemplateFieldMapping.putAll(configModelLine.eventTemplateFieldMappingMap)
         }
       }
     }
