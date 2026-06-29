@@ -133,12 +133,13 @@ class RankIndexBlobServiceTest {
     poolOffset: Long = 0L,
     blobType: RankIndexBlob.BlobType = RankIndexBlob.BlobType.SNAPSHOT,
     cmmsModelLine: String = CMMS_MODEL_LINE,
+    blobUri: String = "$BLOB_URI/$cmmsModelLine/$blobType/$poolOffset",
   ): RankIndexBlob {
     return rankIndexBlob {
       this.blobType = blobType
       this.cmmsModelLine = cmmsModelLine
       this.poolOffset = poolOffset
-      blobUri = BLOB_URI
+      this.blobUri = blobUri
       blobChecksum = BLOB_CHECKSUM
       encryptedDek = ENCRYPTED_DEK
       maxEventDate = MAX_EVENT_DATE
@@ -162,7 +163,7 @@ class RankIndexBlobServiceTest {
       assertThat(key.rawImpressionUploadId).isEqualTo(RAW_IMPRESSION_UPLOAD_ID)
       assertThat(blob.blobType).isEqualTo(RankIndexBlob.BlobType.SNAPSHOT)
       assertThat(blob.cmmsModelLine).isEqualTo(CMMS_MODEL_LINE)
-      assertThat(blob.blobUri).isEqualTo(BLOB_URI)
+      assertThat(blob.blobUri).isEqualTo(newPublicBlob().blobUri)
       assertThat(blob.encryptedDek).isEqualTo(ENCRYPTED_DEK)
       assertThat(blob.hasCreateTime()).isTrue()
       assertThat(blob.hasDeleteTime()).isFalse()
@@ -497,7 +498,7 @@ class RankIndexBlobServiceTest {
       service.createRankIndexBlob(
         createRankIndexBlobRequest {
           parent = RawImpressionUploadKey(DATA_PROVIDER_ID, SECOND_UPLOAD_ID).toName()
-          rankIndexBlob = newPublicBlob()
+          rankIndexBlob = newPublicBlob(poolOffset = 1L)
           requestId = UUID.randomUUID().toString()
         }
       )

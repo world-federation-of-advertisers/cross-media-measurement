@@ -63,36 +63,6 @@ suspend fun AsyncDatabaseClient.ReadContext.rankIndexBlobExists(
 }
 
 /**
- * Resolves a [RawImpressionUpload]'s internal ID from its resource ID.
- *
- * @return The internal `RawImpressionUploadId`, or `null` if not found
- */
-suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadIdForRankIndexBlob(
-  dataProviderResourceId: String,
-  rawImpressionUploadResourceId: String,
-): Long? {
-  val sql =
-    """
-    SELECT RawImpressionUploadId
-    FROM RawImpressionUpload
-    WHERE DataProviderResourceId = @dataProviderResourceId
-      AND RawImpressionUploadResourceId = @rawImpressionUploadResourceId
-    """
-      .trimIndent()
-
-  val row: Struct =
-    executeQuery(
-        statement(sql) {
-          bind("dataProviderResourceId").to(dataProviderResourceId)
-          bind("rawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
-        }
-      )
-      .singleOrNullIfEmpty() ?: return null
-
-  return row.getLong("RawImpressionUploadId")
-}
-
-/**
  * Reads a [RankIndexBlob] by its resource ID.
  *
  * @return The [RankIndexBlobResult], or `null` if not found
@@ -349,7 +319,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRankIndexBlob(
     set("BlobType").to(rankIndexBlob.blobType)
     set("PoolOffset").to(rankIndexBlob.poolOffset)
     set("BlobUri").to(rankIndexBlob.blobUri)
-    set("EncryptedDek").to(rankIndexBlob.encryptedDek.toByteString().toGcloudByteArray())
+    set("EncryptedDek").to(rankIndexBlob.encryptedDek)
     if (rankIndexBlob.hasMaxEventDate()) {
       set("MaxEventDate").to(rankIndexBlob.maxEventDate.toCloudDate())
     }
@@ -413,7 +383,7 @@ private object RankIndexBlobEntity {
         blobType = struct.getProtoEnum("BlobType", BlobType::forNumber)
         poolOffset = struct.getLong("PoolOffset")
         blobUri = struct.getString("BlobUri")
-        encryptedDek = EncryptedDek.parseFrom(struct.getBytes("EncryptedDek").toByteArray())
+        encryptedDek = struct.getProtoMessage("EncryptedDek", EncryptedDek.getDefaultInstance())
         if (!struct.isNull("MaxEventDate")) {
           maxEventDate = struct.getDate("MaxEventDate").toProtoDate()
         }

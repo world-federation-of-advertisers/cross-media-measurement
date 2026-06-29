@@ -33,7 +33,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRankInd
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRankIndexBlobsByRequestIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRankIndexBlobByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRankIndexBlobsByResourceIds
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadIdForRankIndexBlob
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRankIndexBlob
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rankIndexBlobExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRankIndexBlobs
@@ -104,10 +104,7 @@ class SpannerRankIndexBlobService(
           }
 
           val rawImpressionUploadId =
-            txn.getRawImpressionUploadIdForRankIndexBlob(
-              dataProviderResourceId,
-              rawImpressionUploadResourceId,
-            )
+            txn.getRawImpressionUploadId(dataProviderResourceId, rawImpressionUploadResourceId)
               ?: throw RawImpressionUploadNotFoundException(
                   dataProviderResourceId,
                   rawImpressionUploadResourceId,
@@ -211,10 +208,7 @@ class SpannerRankIndexBlobService(
       try {
         transactionRunner.run { txn ->
           val rawImpressionUploadId =
-            txn.getRawImpressionUploadIdForRankIndexBlob(
-              dataProviderResourceId,
-              rawImpressionUploadResourceId,
-            )
+            txn.getRawImpressionUploadId(dataProviderResourceId, rawImpressionUploadResourceId)
               ?: throw RawImpressionUploadNotFoundException(
                   dataProviderResourceId,
                   rawImpressionUploadResourceId,
