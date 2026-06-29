@@ -50,6 +50,8 @@ object Errors {
     RANKER_JOB_NOT_FOUND,
     RANKER_JOB_ALREADY_EXISTS,
     RANKER_JOB_STATE_INVALID,
+    RANK_INDEX_BLOB_NOT_FOUND,
+    RANK_INDEX_BLOB_ALREADY_EXISTS,
     REQUISITION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_ALREADY_EXISTS,
@@ -83,6 +85,7 @@ object Errors {
     RANKER_JOB_RESOURCE_ID("rankerJobResourceId"),
     RANKER_JOB_STATE("rankerJobState"),
     EXPECTED_RANKER_JOB_STATES("expectedRankerJobStates"),
+    RANK_INDEX_BLOB_RESOURCE_ID("rankIndexBlobResourceId"),
     FIELD_NAME("fieldName");
 
     companion object {
@@ -547,6 +550,38 @@ class RankerJobStateInvalidException(
       Errors.Metadata.RANKER_JOB_STATE to actualState.name,
       Errors.Metadata.EXPECTED_RANKER_JOB_STATES to
         expectedStates.joinToString(",") { state -> state.name },
+    ),
+    cause,
+  )
+
+class RankIndexBlobNotFoundException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  rankIndexBlobResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+    "RankIndexBlob with resource ID $rankIndexBlobResourceId for RawImpressionUpload $rawImpressionUploadResourceId of DataProvider $dataProviderResourceId not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+      Errors.Metadata.RANK_INDEX_BLOB_RESOURCE_ID to rankIndexBlobResourceId,
+    ),
+    cause,
+  )
+
+class RankIndexBlobAlreadyExistsException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+    "RankIndexBlob already exists for RawImpressionUpload $rawImpressionUploadResourceId of DataProvider $dataProviderResourceId",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
     ),
     cause,
   )
