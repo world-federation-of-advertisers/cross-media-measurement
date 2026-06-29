@@ -47,12 +47,16 @@ import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
+import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
@@ -90,13 +94,16 @@ private data class ChannelKey(
  * - `MODEL_ROLLOUTS_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `MODEL_SHARDS_TARGET`: Required. Target endpoint for the VID Repository ModelShards service.
  * - `MODEL_SHARDS_CERT_HOST`: Optional. Overrides TLS authority for testing.
- * - `RAW_IMPRESSION_UPLOAD_TARGET`: Required. Target endpoint for the `RawImpressionUploadService`
- *   and `RawImpressionUploadModelLineService`.
+ * - `RAW_IMPRESSION_UPLOAD_TARGET`: Required. Target endpoint for the `RawImpressionUploadService`,
+ *   `RawImpressionUploadModelLineService`, and `PoolAssignmentJobService`.
  * - `RAW_IMPRESSION_UPLOAD_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `CONTROL_PLANE_TARGET`: Required. Target endpoint for the Secure Computation control plane
  *   (`WorkItemsService`).
  * - `CONTROL_PLANE_CERT_HOST`: Optional. Overrides TLS authority for testing.
- * - `VID_LABELER_QUEUE_NAME`: Required. Resource name of the Secure Computation queue.
+ * - `VID_LABELER_QUEUE_NAME`: Required. Resource name of the Phase-2 VidLabeler Secure Computation
+ *   queue.
+ * - `POOL_ASSIGNER_QUEUE_NAME`: Required. Resource name of the Phase-0 SubpoolAssigner Secure
+ *   Computation queue (memoized model lines).
  * - `CHANNEL_SHUTDOWN_DURATION_SECONDS`: Optional. gRPC channel shutdown timeout (default: 3s).
  * - `VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH`: Optional. Enables [FileSystemStorageClient] instead
  *   of GCS. Used only in testing.
@@ -200,6 +207,11 @@ class VidLabelingDispatcherFunction : HttpFunction {
         RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
           rawImpressionUploadChannel
         )
+      // PoolAssignmentJobService is served by the same RawImpressionMetadata storage deployment.
+      val poolAssignmentJobStub =
+        PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
+          rawImpressionUploadChannel
+        )
       val workItemsStub =
         WorkItemsGrpcKt.WorkItemsCoroutineStub(
           createInstrumentedChannel(
@@ -220,11 +232,15 @@ class VidLabelingDispatcherFunction : HttpFunction {
           rawImpressionUploadStub = rawImpressionUploadStub,
           rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
           workItemsStub = workItemsStub,
+          poolAssignmentJobStub = poolAssignmentJobStub,
           modelRolloutsStub = modelRolloutsStub,
           modelShardsStub = modelShardsStub,
+          modelLinesStub = modelLinesStub,
           dataProviderName = config.dataProvider,
           vidLabelerParamsTemplate = buildVidLabelerParamsTemplate(config),
+          subpoolAssignerParamsTemplate = buildSubpoolAssignerParamsTemplate(config),
           queueName = vidLabelerQueueName,
+          poolAssignerQueueName = poolAssignerQueueName,
           numberOfShards = config.numberOfShards,
           modelLineConfigs = modelLineConfigs,
         )
@@ -280,6 +296,8 @@ class VidLabelingDispatcherFunction : HttpFunction {
     private val controlPlaneTarget: String = EnvVars.checkNotNullOrEmpty("CONTROL_PLANE_TARGET")
     private val controlPlaneCertHost: String? = System.getenv("CONTROL_PLANE_CERT_HOST")
     private val vidLabelerQueueName: String = EnvVars.checkNotNullOrEmpty("VID_LABELER_QUEUE_NAME")
+    private val poolAssignerQueueName: String =
+      EnvVars.checkNotNullOrEmpty("POOL_ASSIGNER_QUEUE_NAME")
     private val channelShutdownDuration =
       Duration.ofSeconds(
         System.getenv("CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLong()
@@ -399,6 +417,57 @@ class VidLabelingDispatcherFunction : HttpFunction {
         vidRepoConnection = transportLayerSecurityParams {
           clientCertResourcePath = config.vidRepoConnection.certFilePath
           clientPrivateKeyResourcePath = config.vidRepoConnection.privateKeyFilePath
+        }
+      }
+    }
+
+    /**
+     * Builds the template [SubpoolAssignerParams] carrying the storage + connection fields shared
+     * by every memoized Phase-0 WorkItem. The per-shard fields (model line, shard index, active
+     * window, pool assignment job) are filled in by the sequencer.
+     */
+    private fun buildSubpoolAssignerParamsTemplate(
+      config: VidLabelingConfig
+    ): SubpoolAssignerParams {
+      require(config.rawImpressionsStorageParams.hasGcs()) {
+        "VidLabelingConfig raw_impressions_storage_params must use GCS"
+      }
+      require(config.vidLabeledImpressionsStorageParams.hasGcs()) {
+        "VidLabelingConfig vid_labeled_impressions_storage_params must use GCS"
+      }
+      require(config.vidRankMapStorageParams.hasGcs()) {
+        "VidLabelingConfig vid_rank_map_storage_params must use GCS"
+      }
+      require(config.subpoolMapStorageParams.hasGcs()) {
+        "VidLabelingConfig subpool_map_storage_params must use GCS"
+      }
+
+      return subpoolAssignerParams {
+        dataProvider = config.dataProvider
+        rawImpressionStorageParams =
+          SubpoolAssignerParamsKt.storageParams {
+            gcsProjectId = config.rawImpressionsStorageParams.gcs.projectId
+            blobPrefix = "gs://${config.rawImpressionsStorageParams.gcs.bucketName}"
+          }
+        vidLabeledImpressionsStorageParams =
+          SubpoolAssignerParamsKt.storageParams {
+            gcsProjectId = config.vidLabeledImpressionsStorageParams.gcs.projectId
+            blobPrefix = "gs://${config.vidLabeledImpressionsStorageParams.gcs.bucketName}"
+          }
+        vidRankMapStorageParams =
+          SubpoolAssignerParamsKt.storageParams {
+            gcsProjectId = config.vidRankMapStorageParams.gcs.projectId
+            blobPrefix = "gs://${config.vidRankMapStorageParams.gcs.bucketName}"
+          }
+        subpoolMapStorageParams =
+          SubpoolAssignerParamsKt.storageParams {
+            gcsProjectId = config.subpoolMapStorageParams.gcs.projectId
+            blobPrefix = "gs://${config.subpoolMapStorageParams.gcs.bucketName}"
+          }
+        rawImpressionMetadataStorageConnection = transportLayerSecurityParams {
+          clientCertResourcePath = config.rawImpressionMetadataStorageConnection.certFilePath
+          clientPrivateKeyResourcePath =
+            config.rawImpressionMetadataStorageConnection.privateKeyFilePath
         }
       }
     }
