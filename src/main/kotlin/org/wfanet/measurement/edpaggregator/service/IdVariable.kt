@@ -30,6 +30,7 @@ internal enum class IdVariable {
   RAW_IMPRESSION_UPLOAD,
   FILE,
   VID_LABELING_JOB,
+  RANKER_JOB,
   WORK_ITEM,
 }
 
