@@ -59,6 +59,9 @@ CREATE UNIQUE INDEX RawImpressionUploadByResourceId
 CREATE UNIQUE NULL_FILTERED INDEX RawImpressionUploadByCreateRequestId
   ON RawImpressionUpload(DataProviderResourceId, CreateRequestId);
 
+CREATE UNIQUE INDEX RawImpressionUploadByDoneBlobUri
+  ON RawImpressionUpload(DataProviderResourceId, DoneBlobUri);
+
 CREATE INDEX RawImpressionUploadByCreateTime
   ON RawImpressionUpload(DataProviderResourceId, CreateTime, RawImpressionUploadId);
 

@@ -81,14 +81,17 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "spanner_raw_impression_upload_file_service",
-    srcs = ["SpannerRawImpressionUploadFileService.kt"],
+    name = "spanner_pool_assignment_job_service",
+    srcs = ["SpannerPoolAssignmentJobService.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/db",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:errors",
-        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_file_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_file_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:pool_assignment_job_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:pool_assignment_job_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:pool_assignment_state_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )
@@ -98,9 +101,9 @@ kt_jvm_library(
     srcs = ["InternalApiServices.kt"],
     deps = [
         ":spanner_impression_metadata_service",
+        ":spanner_pool_assignment_job_service",
         ":spanner_raw_impression_metadata_batch_file_service",
         ":spanner_raw_impression_metadata_batch_service",
-        ":spanner_raw_impression_upload_file_service",
         ":spanner_raw_impression_upload_service",
         ":spanner_requisition_metadata_service",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:services",
