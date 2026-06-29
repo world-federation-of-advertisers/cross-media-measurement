@@ -317,6 +317,9 @@ class RequisitionFetcherFunction : HttpFunction {
       EdpaTelemetry.ensureInitialized()
     }
 
+    /**
+     * OpenTelemetry gRPC instrumentation using the global instance initialized by [EdpaTelemetry].
+     */
     private val grpcTelemetry by lazy { GrpcTelemetry.create(Instrumentation.openTelemetry) }
 
     val pageSize = run {

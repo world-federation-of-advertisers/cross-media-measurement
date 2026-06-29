@@ -149,6 +149,18 @@ class SingleRequisitionGrouperTest {
   }
 
   @Test
+  fun `groupSingle does not populate entityKey when EventGroup has none`() = runBlocking {
+    eventGroupsServiceMock.stub {
+      onBlocking { getEventGroup(any()) }
+        .thenReturn(eventGroup { eventGroupReferenceId = "no-entity-key" })
+    }
+    val result = grouper.groupSingle(TestRequisitionData.REQUISITION, "some-group-id")
+    assertThat(result).isNotNull()
+    val entry = result!!.eventGroupMapList.single()
+    assertThat(entry.details.hasEntityKey()).isFalse()
+  }
+
+  @Test
   fun `groupSingle returns null when RequisitionSpec cannot be parsed`() = runBlocking {
     val bad =
       TestRequisitionData.REQUISITION.copy {

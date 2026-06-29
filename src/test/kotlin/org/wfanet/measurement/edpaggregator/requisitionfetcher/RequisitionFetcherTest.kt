@@ -641,6 +641,85 @@ class RequisitionFetcherTest {
     return data
   }
 
+  @Test
+  fun `metrics record storage writes and requisitions fetched counters`() = runBlocking {
+    val r1 = TestRequisitionData.REQUISITION
+    val r2 =
+      r1.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/second"
+        updateTime = timestamp { seconds = 1000 }
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2) })
+
+    createFetcher().fetchAndStoreRequisitions()
+
+    assertThat(counterValue("edpa.requisition_fetcher.storage_writes")).isEqualTo(2)
+    assertThat(counterValue("edpa.requisition_fetcher.requisitions_fetched")).isEqualTo(2)
+  }
+
+  @Test
+  fun `metrics record fetch latency`() = runBlocking {
+    createFetcher().fetchAndStoreRequisitions()
+
+    val histogramRecorded =
+      metricReader.collectAllMetrics().any { it.name == "edpa.requisition_fetcher.fetch_latency" }
+    assertThat(histogramRecorded).isTrue()
+  }
+
+  @Test
+  fun `existing metadata in any non-FULFILLED state still skips new registration`() = runBlocking {
+    val r1 = TestRequisitionData.REQUISITION
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += r1 })
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            cmmsRequisition = r1.name
+            groupId = "preexisting-group"
+            state = RequisitionMetadata.State.PROCESSING
+          }
+        }
+      )
+
+    createFetcher().fetchAndStoreRequisitions()
+
+    assertThat(createRequisitionMetadataRequests).isEmpty()
+  }
+
+  @Test
+  fun `recovery rebuilds multiple missing blobs in one run`() = runBlocking {
+    val r1 = TestRequisitionData.REQUISITION
+    val r2 = r1.copy { name = "${TestRequisitionData.EDP_NAME}/requisitions/second" }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2) })
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata +=
+            listOf(
+              requisitionMetadata {
+                cmmsRequisition = r1.name
+                groupId = "group-A"
+                state = RequisitionMetadata.State.STORED
+              },
+              requisitionMetadata {
+                cmmsRequisition = r2.name
+                groupId = "group-B"
+                state = RequisitionMetadata.State.STORED
+              },
+            )
+        }
+      )
+
+    createFetcher().fetchAndStoreRequisitions()
+
+    val writtenBlobNames = blobsList().map { it.name }.toSet()
+    assertThat(writtenBlobNames).containsExactly("group-A", "group-B")
+    assertThat(counterValue("edpa.requisition_fetcher.recovery_rebuilds")).isEqualTo(2)
+  }
+
   private class CountingThrottler : Throttler {
     val count = AtomicInteger(0)
 
