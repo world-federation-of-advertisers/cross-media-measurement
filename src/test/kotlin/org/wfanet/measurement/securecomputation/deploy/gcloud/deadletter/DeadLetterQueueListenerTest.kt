@@ -82,8 +82,7 @@ class DeadLetterQueueListenerTest {
 
     // Create the listener
     val listener =
-      DeadLetterQueueListener(
-        subscriptionId = subscriptionId,
+      deadLetterQueueListener(
         queueSubscriber = mockQueueSubscriber,
         parser = mockParser,
         workItemsStub = WorkItemsGrpcKt.WorkItemsCoroutineStub(channel),
@@ -114,8 +113,7 @@ class DeadLetterQueueListenerTest {
 
     // Create the listener
     val listener =
-      DeadLetterQueueListener(
-        subscriptionId = subscriptionId,
+      deadLetterQueueListener(
         queueSubscriber = mockQueueSubscriber,
         parser = mockParser,
         workItemsStub = mockWorkItemsStub,
@@ -161,10 +159,8 @@ class DeadLetterQueueListenerTest {
 
     // Create the listener
     val listener =
-      DeadLetterQueueListener(
-        subscriptionId = subscriptionId,
+      deadLetterQueueListener(
         queueSubscriber = mockQueueSubscriber,
-        parser = WorkItem.parser(),
         workItemsStub = mockWorkItemsStub,
       )
 
@@ -200,10 +196,8 @@ class DeadLetterQueueListenerTest {
 
     // Create the listener
     val listener =
-      DeadLetterQueueListener(
-        subscriptionId = subscriptionId,
+      deadLetterQueueListener(
         queueSubscriber = mockQueueSubscriber,
-        parser = WorkItem.parser(),
         workItemsStub = mockWorkItemsStub,
       )
 
@@ -244,10 +238,8 @@ class DeadLetterQueueListenerTest {
 
     // Create the listener
     val listener =
-      DeadLetterQueueListener(
-        subscriptionId = subscriptionId,
+      deadLetterQueueListener(
         queueSubscriber = mockQueueSubscriber,
-        parser = WorkItem.parser(),
         workItemsStub = mockWorkItemsStub,
       )
 
@@ -317,10 +309,8 @@ class DeadLetterQueueListenerTest {
 
     // Create the listener
     val listener =
-      DeadLetterQueueListener(
-        subscriptionId = subscriptionId,
+      deadLetterQueueListener(
         queueSubscriber = mockQueueSubscriber,
-        parser = WorkItem.parser(),
         workItemsStub = mockWorkItemsStub,
       )
 
@@ -367,10 +357,8 @@ class DeadLetterQueueListenerTest {
 
     // Create the listener
     val listener =
-      DeadLetterQueueListener(
-        subscriptionId = subscriptionId,
+      deadLetterQueueListener(
         queueSubscriber = mockQueueSubscriber,
-        parser = WorkItem.parser(),
         workItemsStub = mockWorkItemsStub,
       )
 
@@ -416,10 +404,8 @@ class DeadLetterQueueListenerTest {
 
     // Create the listener
     val listener =
-      DeadLetterQueueListener(
-        subscriptionId = subscriptionId,
+      deadLetterQueueListener(
         queueSubscriber = mockQueueSubscriber,
-        parser = WorkItem.parser(),
         workItemsStub = mockWorkItemsStub,
       )
 
@@ -470,10 +456,8 @@ class DeadLetterQueueListenerTest {
 
     // Create the listener
     val listener =
-      DeadLetterQueueListener(
-        subscriptionId = subscriptionId,
+      deadLetterQueueListener(
         queueSubscriber = mockQueueSubscriber,
-        parser = WorkItem.parser(),
         workItemsStub = mockWorkItemsStub,
       )
 
@@ -523,10 +507,8 @@ class DeadLetterQueueListenerTest {
 
     // Create the listener
     val listener =
-      DeadLetterQueueListener(
-        subscriptionId = subscriptionId,
+      deadLetterQueueListener(
         queueSubscriber = mockQueueSubscriber,
-        parser = WorkItem.parser(),
         workItemsStub = mockWorkItemsStub,
       )
 
@@ -588,10 +570,8 @@ class DeadLetterQueueListenerTest {
 
     // Create the listener
     val listener =
-      DeadLetterQueueListener(
-        subscriptionId = subscriptionId,
+      deadLetterQueueListener(
         queueSubscriber = mockQueueSubscriber,
-        parser = WorkItem.parser(),
         workItemsStub = mockWorkItemsStub,
       )
 
@@ -638,10 +618,8 @@ class DeadLetterQueueListenerTest {
 
     // Create the listener
     val listener =
-      DeadLetterQueueListener(
-        subscriptionId = subscriptionId,
+      deadLetterQueueListener(
         queueSubscriber = mockQueueSubscriber,
-        parser = WorkItem.parser(),
         workItemsStub = mockWorkItemsStub,
       )
 
@@ -687,10 +665,8 @@ class DeadLetterQueueListenerTest {
 
     // Create the listener
     val listener =
-      DeadLetterQueueListener(
-        subscriptionId = subscriptionId,
+      deadLetterQueueListener(
         queueSubscriber = mockQueueSubscriber,
-        parser = WorkItem.parser(),
         workItemsStub = mockWorkItemsStub,
       )
 
@@ -903,44 +879,6 @@ class DeadLetterQueueListenerTest {
     }
 
   @Test
-  fun `with null EDPA stubs only failWorkItem is called`() = runBlocking {
-    val appParams = subpoolAssignerParams {
-      rawImpressionUpload = UPLOAD
-      modelLine = MODEL_LINE
-      poolAssignmentJob = POOL_ASSIGNMENT_JOB
-    }
-    val workItem = workItemForAppParams(appParams.pack())
-    val mockQueueMessage =
-      mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
-    val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
-    val mockQueueSubscriber =
-      mock<QueueSubscriber> {
-        on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
-      }
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
-    val mockPoolAssignmentJobsStub = mock<PoolAssignmentJobServiceCoroutineStub>()
-
-    // EDPA stubs default to null, so no EDPA marking should occur.
-    val listener =
-      DeadLetterQueueListener(
-        subscriptionId = subscriptionId,
-        queueSubscriber = mockQueueSubscriber,
-        parser = WorkItem.parser(),
-        workItemsStub = mockWorkItemsStub,
-      )
-
-    val job = launch { listener.run() }
-    messageChannel.send(mockQueueMessage)
-
-    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
-    verify(mockQueueMessage, timeout(5000)).ack()
-    verifyNoInteractions(mockPoolAssignmentJobsStub)
-
-    messageChannel.close()
-    job.cancel()
-  }
-
-  @Test
   fun `phase-1 VidRankBuilderParams marks ranker job and model line failed`() = runBlocking {
     val appParams = vidRankBuilderParams {
       rawImpressionUpload = UPLOAD
@@ -1066,6 +1004,26 @@ class DeadLetterQueueListenerTest {
     messageChannel.close()
     job.cancel()
   }
+
+  /**
+   * Builds a listener for tests that don't exercise EDPA marking, filling the now-required EDPA
+   * stubs with bare mocks (the production constructor takes them as required, non-null params).
+   */
+  private fun deadLetterQueueListener(
+    queueSubscriber: QueueSubscriber,
+    workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub = mock(),
+    parser: Parser<WorkItem> = WorkItem.parser(),
+  ): DeadLetterQueueListener =
+    DeadLetterQueueListener(
+      subscriptionId = subscriptionId,
+      queueSubscriber = queueSubscriber,
+      parser = parser,
+      workItemsStub = workItemsStub,
+      poolAssignmentJobsStub = mock(),
+      rankerJobsStub = mock(),
+      vidLabelingJobsStub = mock(),
+      rawImpressionUploadModelLinesStub = mock(),
+    )
 
   private fun workItemForAppParams(appParams: com.google.protobuf.Any): WorkItem = workItem {
     name = workItemId
