@@ -3,6 +3,7 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 package(
     default_visibility = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:__pkg__",
     ],
 )
 
@@ -12,6 +13,7 @@ kt_jvm_library(
         "ImpressionMetadata.kt",
         "RawImpressionMetadataBatch.kt",
         "RawImpressionMetadataBatchFile.kt",
+        "RawImpressionUpload.kt",
         "RequisitionMetadata.kt",
         "RequisitionMetadataActions.kt",
     ],
@@ -28,6 +30,9 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_metadata_batch_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_metadata_batch_service_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_metadata_key_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_service_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_state_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:requisition_metadata_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:requisition_metadata_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",

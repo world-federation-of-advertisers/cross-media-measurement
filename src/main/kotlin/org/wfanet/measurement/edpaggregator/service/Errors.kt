@@ -34,6 +34,7 @@ object Errors {
     RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
     RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
     RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+    RAW_IMPRESSION_UPLOAD_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_ALREADY_EXISTS,
@@ -59,6 +60,7 @@ object Errors {
     IMPRESSION_METADATA("impressionMetadata"),
     RAW_IMPRESSION_METADATA_BATCH("rawImpressionMetadataBatch"),
     RAW_IMPRESSION_METADATA_BATCH_FILE("rawImpressionMetadataBatchFile"),
+    RAW_IMPRESSION_UPLOAD("rawImpressionUpload"),
     FIELD_NAME("fieldName"),
   }
 }
@@ -434,3 +436,16 @@ class RawImpressionMetadataBatchFileAlreadyExistsException(
     }
   }
 }
+
+/**
+ * Thrown when a
+ * [RawImpressionUpload][org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload] cannot be
+ * found by its resource name.
+ */
+class RawImpressionUploadNotFoundException(uploadResourceName: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+    "RawImpressionUpload $uploadResourceName not found",
+    mapOf(Errors.Metadata.RAW_IMPRESSION_UPLOAD to uploadResourceName),
+    cause,
+  )

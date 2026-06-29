@@ -109,6 +109,7 @@ class RawImpressionMetadataBatchService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
@@ -159,6 +160,7 @@ class RawImpressionMetadataBatchService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
@@ -241,6 +243,7 @@ class RawImpressionMetadataBatchService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
@@ -297,6 +300,7 @@ class RawImpressionMetadataBatchService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
@@ -348,6 +352,7 @@ class RawImpressionMetadataBatchService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
@@ -399,6 +404,7 @@ class RawImpressionMetadataBatchService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
