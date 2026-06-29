@@ -115,6 +115,7 @@ class RawImpressionUploadFileServiceTest {
         createRawImpressionUploadFileRequest {
           parent = uploadName
           rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -151,6 +152,7 @@ class RawImpressionUploadFileServiceTest {
     val request = createRawImpressionUploadFileRequest {
       parent = "dataProviders/dp1/rawImpressionUploads/nonexistent"
       rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+      requestId = UUID.randomUUID().toString()
     }
 
     val exception =
@@ -166,6 +168,7 @@ class RawImpressionUploadFileServiceTest {
         createRawImpressionUploadFileRequest {
           parent = uploadName
           rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -204,6 +207,7 @@ class RawImpressionUploadFileServiceTest {
         createRawImpressionUploadFileRequest {
           parent = uploadName
           rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -224,6 +228,7 @@ class RawImpressionUploadFileServiceTest {
         createRawImpressionUploadFileRequest {
           parent = uploadName
           rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -272,6 +277,7 @@ class RawImpressionUploadFileServiceTest {
         createRawImpressionUploadFileRequest {
           parent = uploadName
           rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+          requestId = UUID.randomUUID().toString()
         }
       )
     val file2 =
@@ -279,6 +285,7 @@ class RawImpressionUploadFileServiceTest {
         createRawImpressionUploadFileRequest {
           parent = uploadName
           rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_2 }
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -348,6 +355,61 @@ class RawImpressionUploadFileServiceTest {
     }
 
   @Test
+  fun `createRawImpressionUploadFile throws INVALID_ARGUMENT for missing request_id`() =
+    runBlocking {
+      val uploadName = createUpload()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          fileService.createRawImpressionUploadFile(
+            createRawImpressionUploadFileRequest {
+              parent = uploadName
+              rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateRawImpressionUploadFiles throws INVALID_ARGUMENT for missing request_id`() =
+    runBlocking {
+      val uploadName = createUpload()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          fileService.batchCreateRawImpressionUploadFiles(
+            batchCreateRawImpressionUploadFilesRequest {
+              parent = uploadName
+              requests += createRawImpressionUploadFileRequest {
+                parent = uploadName
+                rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.0.request_id"
+          }
+        )
+    }
+
+  @Test
   fun `listRawImpressionUploadFiles paginates using page token`() = runBlocking {
     val uploadName = createUpload()
     val createdNames =
@@ -357,6 +419,7 @@ class RawImpressionUploadFileServiceTest {
             createRawImpressionUploadFileRequest {
               parent = uploadName
               rawImpressionUploadFile = rawImpressionUploadFile { blobUri = "gs://bucket/file-$i" }
+              requestId = UUID.randomUUID().toString()
             }
           )
           .name
@@ -400,6 +463,7 @@ class RawImpressionUploadFileServiceTest {
         createRawImpressionUploadFileRequest {
           parent = uploadNameA
           rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+          requestId = UUID.randomUUID().toString()
         }
       )
     val fileB =
@@ -407,6 +471,7 @@ class RawImpressionUploadFileServiceTest {
         createRawImpressionUploadFileRequest {
           parent = uploadNameB
           rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_2 }
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -428,12 +493,14 @@ class RawImpressionUploadFileServiceTest {
       createRawImpressionUploadFileRequest {
         parent = uploadName
         rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+        requestId = UUID.randomUUID().toString()
       }
     )
     fileService.createRawImpressionUploadFile(
       createRawImpressionUploadFileRequest {
         parent = uploadName
         rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_2 }
+        requestId = UUID.randomUUID().toString()
       }
     )
 
@@ -456,12 +523,14 @@ class RawImpressionUploadFileServiceTest {
       createRawImpressionUploadFileRequest {
         parent = uploadName
         rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+        requestId = UUID.randomUUID().toString()
       }
     )
     fileService.createRawImpressionUploadFile(
       createRawImpressionUploadFileRequest {
         parent = uploadName
         rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_2 }
+        requestId = UUID.randomUUID().toString()
       }
     )
 
