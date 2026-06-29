@@ -1,0 +1,218 @@
+/*
+ * Copyright 2026 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.edpaggregator.tools
+
+import io.grpc.ManagedChannel
+import java.io.ByteArrayInputStream
+import java.io.File
+import java.io.FileInputStream
+import java.io.InputStream
+import java.time.Clock
+import java.time.Duration
+import java.util.concurrent.TimeUnit
+import java.util.logging.Logger
+import kotlin.system.exitProcess
+import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
+import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.common.grpc.TlsFlags
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.edpaggregator.eventgroupactivities.EventGroupActivitySync
+import org.wfanet.measurement.edpaggregator.eventgroupactivities.SpotDataParser
+import org.wfanet.measurement.edpaggregator.eventgroupactivities.SpotRecord
+import org.wfanet.measurement.edpaggregator.eventgroupactivities.SyncResult
+import org.wfanet.measurement.storage.SelectedStorageClient
+import picocli.CommandLine.ArgGroup
+import picocli.CommandLine.Command
+import picocli.CommandLine.Mixin
+import picocli.CommandLine.Option
+
+/** Source of the input data: exactly one of a GCS blob URI or a local file. */
+private class InputSource {
+  @Option(
+    names = ["--blob-uri"],
+    description = ["GCS gs:// URI of the JSON input"],
+    required = true,
+  )
+  var blobUri: String? = null
+    private set
+
+  @Option(names = ["--file"], description = ["Local path to the JSON input"], required = true)
+  var file: File? = null
+    private set
+}
+
+/**
+ * Command that synchronizes `EventGroupActivity` resources for a DataProvider against the CMMS
+ * Public API from a JSON spot-data file.
+ */
+@Command(
+  name = "SyncEventGroupActivities",
+  description = ["Syncs EventGroupActivities for a DataProvider from a JSON file"],
+  mixinStandardHelpOptions = true,
+)
+class SyncEventGroupActivities : Runnable {
+  @ArgGroup(exclusive = true, multiplicity = "1") private lateinit var inputSource: InputSource
+
+  @Mixin private lateinit var tlsFlags: TlsFlags
+
+  @Option(
+    names = ["--data-provider"],
+    description = ["DataProvider resource name, e.g. dataProviders/CqJcvwaa5tI"],
+    required = true,
+  )
+  private lateinit var dataProvider: String
+
+  @Option(
+    names = ["--kingdom-public-api-target"],
+    description = ["gRPC target (host:port) of the Kingdom public API"],
+    required = true,
+  )
+  private lateinit var kingdomPublicApiTarget: String
+
+  @Option(
+    names = ["--kingdom-public-api-cert-host"],
+    description = ["Expected hostname in the Kingdom public API's TLS certificate"],
+    required = false,
+  )
+  private var kingdomPublicApiCertHost: String? = null
+
+  @Option(
+    names = ["--throttler-minimum-interval"],
+    description =
+      [
+        "Minimum interval between gRPC calls. The sync makes one list call per EventGroup plus " +
+          "one batch call per 1000 created/deleted activities, so call volume is roughly " +
+          "proportional to the number of EventGroups."
+      ],
+    defaultValue = "100ms",
+  )
+  private lateinit var throttlerMinimumInterval: Duration
+
+  @Option(
+    names = ["--list-page-size"],
+    description = ["Page size used when listing existing EventGroupActivities"],
+    defaultValue = "50",
+  )
+  private var listPageSize: Int = 50
+
+  @Option(
+    names = ["--max-delete-fraction"],
+    description =
+      [
+        "Abort deletions for an EventGroup if the fraction of existing activities to delete " +
+          "exceeds this (safety guard for truncated input). 1.0 disables."
+      ],
+    defaultValue = "1.0",
+  )
+  private var maxDeleteFraction: Double = 1.0
+
+  @Option(
+    names = ["--dry-run"],
+    description = ["List and diff only; make no BatchUpdate/BatchDelete calls"],
+    defaultValue = "false",
+  )
+  private var dryRun: Boolean = false
+
+  @Option(
+    names = ["--gcs-project-id"],
+    description = ["GCP project ID for reading the --blob-uri"],
+    required = false,
+  )
+  private var gcsProjectId: String? = null
+
+  override fun run() {
+    val clientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = tlsFlags.certFile,
+        privateKeyFile = tlsFlags.privateKeyFile,
+        trustedCertCollectionFile = tlsFlags.certCollectionFile,
+      )
+    val channel: ManagedChannel =
+      buildMutualTlsChannel(kingdomPublicApiTarget, clientCerts, kingdomPublicApiCertHost)
+
+    val activitiesClient = EventGroupActivitiesCoroutineStub(channel)
+    val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
+    val sync =
+      EventGroupActivitySync(
+        eventGroupActivitiesClient = activitiesClient,
+        throttler = throttler,
+        dataProviderName = dataProvider,
+        listPageSize = listPageSize,
+        maxDeleteFraction = maxDeleteFraction,
+      )
+
+    // FIX 2: ensure the channel is always shut down, and only exit non-zero AFTER the finally runs
+    // (exitProcess would otherwise skip it).
+    val hasErrors: Boolean =
+      try {
+        val records: List<SpotRecord> = readInput().use { SpotDataParser.parseJson(it) }
+        logger.info("Parsed ${records.size} input records")
+
+        val result: SyncResult = runBlocking { sync.sync(records, dryRun = dryRun) }
+
+        println("Sync result:")
+        println("  totalInputRecords: ${result.totalInputRecords}")
+        println("  eventGroupsProcessed: ${result.eventGroupsProcessed}")
+        println("  activitiesCreated: ${result.activitiesCreated}")
+        println("  activitiesDeleted: ${result.activitiesDeleted}")
+        println("  activitiesUnchanged: ${result.activitiesUnchanged}")
+        println("  errors: ${result.errors.size}")
+        for (error in result.errors) {
+          println("    [${error.eventGroup}] ${error.message}")
+        }
+
+        result.errors.isNotEmpty()
+      } finally {
+        channel.shutdown()
+        channel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+      }
+
+    if (hasErrors) {
+      exitProcess(1)
+    }
+  }
+
+  /** Opens the input as a stream, from either the local file or the GCS blob. */
+  private fun readInput(): InputStream {
+    val localFile = inputSource.file
+    if (localFile != null) {
+      return FileInputStream(localFile)
+    }
+    val blobUri = checkNotNull(inputSource.blobUri)
+    val parsedBlobUri = SelectedStorageClient.parseBlobUri(blobUri)
+    val storageClient = SelectedStorageClient(blobUri = parsedBlobUri, projectId = gcsProjectId)
+    val bytes = runBlocking {
+      val blob =
+        storageClient.getBlob(parsedBlobUri.key) ?: error("Blob not found for URI: $blobUri")
+      blob.read().flatten()
+    }
+    return ByteArrayInputStream(bytes.toByteArray())
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    /** Maximum time to wait for the gRPC channel to terminate during shutdown. */
+    private const val SHUTDOWN_TIMEOUT_SECONDS = 30L
+  }
+}
+
+fun main(args: Array<String>) = commandLineMain(SyncEventGroupActivities(), args)
