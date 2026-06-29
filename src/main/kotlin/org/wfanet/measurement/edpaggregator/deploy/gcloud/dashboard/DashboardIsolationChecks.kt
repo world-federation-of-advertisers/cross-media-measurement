@@ -590,7 +590,17 @@ class DashboardIsolationChecks(
       )
     }
 
-    // Check data freshness — tables should be updated within the last 3 hours
+    return results
+  }
+
+  /**
+   * Verifies dashboard tables were refreshed recently. Freshness is not EDP-specific (a table's
+   * last-modified time is identical for every caller), and reading INFORMATION_SCHEMA.TABLE_OPTIONS
+   * requires dataset metadata access that EDP service accounts do not have, so this runs once as
+   * the platform service account rather than per-EDP.
+   */
+  fun checkFreshness(bq: BigQuery): List<CheckResult> {
+    val results = mutableListOf<CheckResult>()
     val stalenessThresholdHours = 3
     for (tableName in listOf("requisition_overview", "mc_details", "mc_details_edp")) {
       try {
@@ -598,41 +608,35 @@ class DashboardIsolationChecks(
           bq.query(
             QueryJobConfiguration.of(
               "SELECT TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), " +
-                "PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', " +
-                "option_value), HOUR) AS hours_stale " +
-                "FROM `$project.$dataset.INFORMATION_SCHEMA.TABLE_OPTIONS` " +
-                "WHERE table_name = '$tableName' AND option_name = 'last_modified_time'"
+                "TIMESTAMP_MILLIS(last_modified_time), HOUR) AS hours_stale " +
+                "FROM `$project.$dataset.__TABLES__` " +
+                "WHERE table_id = '$tableName'"
             )
           )
         val hoursStale = result.iterateAll().firstOrNull()?.get("hours_stale")?.longValue
         if (hoursStale != null && hoursStale <= stalenessThresholdHours) {
           results.add(
-            CheckResult(
-              "${edp.name}: $tableName freshness",
-              true,
-              "${edp.name}: $tableName updated $hoursStale hours ago",
-            )
+            CheckResult("$tableName freshness", true, "$tableName updated $hoursStale hours ago")
           )
         } else {
           results.add(
             CheckResult(
-              "${edp.name}: $tableName freshness",
+              "$tableName freshness",
               false,
-              "${edp.name}: $tableName is stale (${hoursStale ?: "unknown"} hours old)",
+              "$tableName is stale (${hoursStale ?: "unknown"} hours old)",
             )
           )
         }
       } catch (e: BigQueryException) {
         results.add(
           CheckResult(
-            "${edp.name}: $tableName freshness",
+            "$tableName freshness",
             false,
-            "${edp.name}: $tableName freshness check failed: ${e.message}",
+            "$tableName freshness check failed: ${e.message}",
           )
         )
       }
     }
-
     return results
   }
 }

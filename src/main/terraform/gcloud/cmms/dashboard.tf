@@ -841,3 +841,53 @@ resource "google_service_account_iam_member" "edp_sa_operator_token_creator" {
   member             = each.value.operator
 }
 
+# --- Read-only service account for the dashboard compliance check ---
+# Runs the compliance check from one fixed, least-privilege identity instead of
+# whatever human/ADC happens to invoke it. Operators impersonate this SA, which
+# in turn impersonates the per-EDP SAs for the isolation checks.
+resource "google_service_account" "dashboard_compliance" {
+  account_id   = "dashboard-compliance"
+  display_name = "Dashboard Compliance Check"
+  project      = data.google_client_config.default.project
+}
+
+resource "google_project_iam_custom_role" "dashboard_compliance" {
+  role_id     = "dashboardComplianceChecker"
+  project     = data.google_client_config.default.project
+  title       = "Dashboard Compliance Checker"
+  description = "Read-only access to verify dashboard EDP isolation."
+  permissions = [
+    "bigquery.jobs.create",
+    "bigquery.datasets.get",
+    "bigquery.tables.get",
+    "bigquery.tables.list",
+    "bigquery.routines.get",
+    "bigquery.routines.list",
+    "bigquery.rowAccessPolicies.list",
+    "bigquery.connections.get",
+    "bigquery.connections.list",
+  ]
+}
+
+resource "google_project_iam_member" "dashboard_compliance_role" {
+  project = data.google_client_config.default.project
+  role    = google_project_iam_custom_role.dashboard_compliance.id
+  member  = "serviceAccount:${google_service_account.dashboard_compliance.email}"
+}
+
+# Compliance SA impersonates each EDP SA to run the per-EDP isolation checks.
+resource "google_service_account_iam_member" "dashboard_compliance_impersonate_edp" {
+  for_each           = var.data_provider_resource_ids
+  service_account_id = google_service_account.edp_dashboard[each.key].name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.dashboard_compliance.email}"
+}
+
+# Operators impersonate the compliance SA to run the check by hand.
+resource "google_service_account_iam_member" "dashboard_compliance_operator_token_creator" {
+  for_each           = toset(var.dashboard_operators)
+  service_account_id = google_service_account.dashboard_compliance.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = each.value
+}
+
