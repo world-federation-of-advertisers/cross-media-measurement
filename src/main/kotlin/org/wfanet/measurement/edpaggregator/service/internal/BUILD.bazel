@@ -34,8 +34,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/edpaggregator:pool_assignment_job_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:rank_index_blob_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:ranker_job_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_metadata_batch_file_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_metadata_batch_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_file_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_model_line_state_kt_jvm_proto",
