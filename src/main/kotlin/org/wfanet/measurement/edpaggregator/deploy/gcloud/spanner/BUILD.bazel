@@ -103,6 +103,7 @@ kt_jvm_library(
         ":spanner_raw_impression_upload_file_service",
         ":spanner_raw_impression_upload_service",
         ":spanner_requisition_metadata_service",
+        ":spanner_vid_labeling_job_service",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:services",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
@@ -134,4 +135,21 @@ java_image(
     binary = ":InternalApiServer",
     main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.InternalApiServer",
     visibility = ["//src:docker_image_deployment"],
+)
+
+kt_jvm_library(
+    name = "spanner_vid_labeling_job_service",
+    srcs = ["SpannerVidLabelingJobService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:etags",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/db",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:errors",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:vid_labeling_job_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:vid_labeling_job_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:vid_labeling_state_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
 )
