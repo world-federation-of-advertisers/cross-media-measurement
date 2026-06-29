@@ -116,6 +116,9 @@ class RawImpressionMetadataBatchService(
           InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
           InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -171,6 +174,9 @@ class RawImpressionMetadataBatchService(
           InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
           InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -258,6 +264,9 @@ class RawImpressionMetadataBatchService(
           InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
           InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -319,6 +328,9 @@ class RawImpressionMetadataBatchService(
           InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
           InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -375,6 +387,9 @@ class RawImpressionMetadataBatchService(
           InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
           InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -431,6 +446,9 @@ class RawImpressionMetadataBatchService(
           InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
           InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }

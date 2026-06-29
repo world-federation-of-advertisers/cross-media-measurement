@@ -11,6 +11,7 @@ kt_jvm_library(
     name = "db",
     srcs = [
         "ImpressionMetadata.kt",
+        "RankerJob.kt",
         "RawImpressionMetadataBatch.kt",
         "RawImpressionMetadataBatchFile.kt",
         "RawImpressionUpload.kt",
@@ -25,6 +26,9 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:errors",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:impression_metadata_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:impression_metadata_service_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:ranker_job_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:ranker_job_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:ranker_state_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_batch_state_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_metadata_batch_file_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_metadata_batch_file_service_kt_jvm_proto",
