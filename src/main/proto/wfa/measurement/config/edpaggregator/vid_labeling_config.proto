@@ -101,14 +101,24 @@ message VidLabelingConfig {
   // rank-index blobs and to which it writes the new day-only + cumulative
   // rank-index blobs. Passed through to the Phase-0 SubpoolAssigner WorkItem
   // for memoized model lines.
+  //
+  // Optional because it is only consumed by the memoized (Phase-0/Phase-1)
+  // path: it is required only for EDPs that have at least one model line with
+  // memoized VID assignment enabled. An EDP whose model lines are all
+  // non-memoized may omit it.
   StorageParams vid_rank_map_storage_params = 14
-      [(google.api.field_behavior) = REQUIRED];
+      [(google.api.field_behavior) = OPTIONAL];
 
   // Storage to which the Phase-0 SubpoolAssigner writes per-(shard, subpool)
   // SubpoolFingerprints blobs. Passed through to the SubpoolAssigner WorkItem
   // for memoized model lines.
+  //
+  // Optional because it is only consumed by the memoized (Phase-0) path: it is
+  // required only for EDPs that have at least one model line with memoized VID
+  // assignment enabled. An EDP whose model lines are all non-memoized may omit
+  // it.
   StorageParams subpool_map_storage_params = 15
-      [(google.api.field_behavior) = REQUIRED];
+      [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Wrapper containing VID Labeling configurations for all EDPs.

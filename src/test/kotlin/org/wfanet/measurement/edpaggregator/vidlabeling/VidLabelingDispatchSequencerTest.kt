@@ -23,6 +23,7 @@ import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
 import java.time.Instant
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -549,6 +550,63 @@ class VidLabelingDispatchSequencerTest {
 
       verifyBlocking(poolAssignmentJobService, times(3)) { batchCreatePoolAssignmentJobs(any()) }
       verifyBlocking(workItemsService, times(120)) { createWorkItem(any()) }
+    }
+
+  @Test
+  fun `dispatchNext omits active_end_time for a model line with an open-ended window`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = true)
+      stubPoolAssignmentJobs()
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      stubMarkPoolAssigning()
+      // Model line with no active_end_time: an open-ended (unbounded) active window.
+      whenever(modelLinesService.getModelLine(any()))
+        .thenReturn(
+          modelLine {
+            name = MODEL_LINE
+            activeStartTime = ACTIVE_START_TIME
+          }
+        )
+
+      createSequencer().dispatchNext()
+
+      val captor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(captor.capture()) }
+      // Every shard's params carry active_start_time but leave active_end_time unset.
+      for (request in captor.allValues) {
+        val params =
+          request.workItem.workItemParams
+            .unpack<WorkItemParams>()
+            .appParams
+            .unpack<SubpoolAssignerParams>()
+        assertThat(params.activeStartTime).isEqualTo(ACTIVE_START_TIME)
+        assertThat(params.hasActiveEndTime()).isFalse()
+      }
+    }
+
+  @Test
+  fun `dispatchNext propagates a getModelLine failure for a memoized model line`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = true)
+      whenever(modelLinesService.getModelLine(any())).thenAnswer {
+        throw StatusException(Status.NOT_FOUND.withDescription("model line missing"))
+      }
+
+      val exception = assertFailsWith<Exception> { createSequencer().dispatchNext() }
+
+      assertThat(exception).hasMessageThat().contains("Error getting ModelLine")
+      // The model line is never transitioned when its active window cannot be resolved.
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        markRawImpressionUploadModelLinePoolAssigning(any())
+      }
     }
 
   @Test
