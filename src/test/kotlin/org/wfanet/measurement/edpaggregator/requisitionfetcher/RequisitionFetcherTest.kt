@@ -745,6 +745,140 @@ class RequisitionFetcherTest {
       delegate.listBlobs(prefix)
   }
 
+  @Test
+  fun `out-of-order updateTime within one report opens a new buffer`() = runBlocking {
+    val r1 = TestRequisitionData.REQUISITION.copy { updateTime = timestamp { seconds = 20 } }
+    val r2 =
+      TestRequisitionData.REQUISITION.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/foo2"
+        updateTime = timestamp { seconds = 10 }
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2) })
+
+    createFetcher().fetchAndStoreRequisitions()
+
+    assertThat(blobsList()).hasLength(2)
+    val groupIds = createRequisitionMetadataRequests.map { it.requisitionMetadata.groupId }.toSet()
+    assertThat(groupIds).hasSize(2)
+  }
+
+  @Test
+  fun `cap-split STORED recovery completes when all reqs arrive across units`() = runBlocking {
+    val groupId = "wedged-group-id"
+    val blobKey = "$STORAGE_PATH_PREFIX/$groupId"
+    val r1 = TestRequisitionData.REQUISITION.copy { updateTime = timestamp { seconds = 10 } }
+    val r2 =
+      TestRequisitionData.REQUISITION.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/foo2"
+        updateTime = timestamp { seconds = 20 }
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2) })
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata +=
+            listOf(
+              requisitionMetadata {
+                state = RequisitionMetadata.State.STORED
+                cmmsRequisition = r1.name
+                blobUri = "$BLOB_URI_PREFIX/$blobKey"
+                blobTypeUrl = "type"
+                this.groupId = groupId
+                report = "some-report"
+              },
+              requisitionMetadata {
+                state = RequisitionMetadata.State.STORED
+                cmmsRequisition = r2.name
+                blobUri = "$BLOB_URI_PREFIX/$blobKey"
+                blobTypeUrl = "type"
+                this.groupId = groupId
+                report = "some-report"
+              },
+            )
+        }
+      )
+
+    createFetcher().fetchAndStoreRequisitions()
+
+    val blob = storageClient.getBlob(blobKey)
+    assertThat(blob).isNotNull()
+    val parsed = Any.parseFrom(blob!!.read().flatten()).unpack(GroupedRequisitions::class.java)
+    assertThat(parsed.requisitionsList).hasSize(2)
+    assertThat(parsed.groupId).isEqualTo(groupId)
+    assertThat(createRequisitionMetadataRequests).isEmpty()
+    assertThat(counterValue("edpa.requisition_fetcher.recovery_rebuilds")).isEqualTo(1)
+  }
+
+  @Test
+  fun `recovery skipped and metric incremented when stream lacks required reqs`() = runBlocking {
+    val groupId = "incomplete-group-id"
+    val blobKey = "$STORAGE_PATH_PREFIX/$groupId"
+    val present = TestRequisitionData.REQUISITION
+    val missingName = "${TestRequisitionData.EDP_NAME}/requisitions/missing"
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += present })
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata +=
+            listOf(
+              requisitionMetadata {
+                state = RequisitionMetadata.State.STORED
+                cmmsRequisition = present.name
+                blobUri = "$BLOB_URI_PREFIX/$blobKey"
+                blobTypeUrl = "type"
+                this.groupId = groupId
+                report = "some-report"
+              },
+              requisitionMetadata {
+                state = RequisitionMetadata.State.STORED
+                cmmsRequisition = missingName
+                blobUri = "$BLOB_URI_PREFIX/$blobKey"
+                blobTypeUrl = "type"
+                this.groupId = groupId
+                report = "some-report"
+              },
+            )
+        }
+      )
+
+    createFetcher().fetchAndStoreRequisitions()
+
+    assertThat(storageClient.getBlob(blobKey)).isNull()
+    assertThat(counterValue("edpa.requisition_fetcher.recovery_rebuilds")).isEqualTo(0)
+    assertThat(counterValue("edpa.requisition_fetcher.recovery_skipped_incomplete")).isEqualTo(1)
+  }
+
+  @Test
+  fun `open buffer high water mark records peak distinct reportIds`() = runBlocking {
+    val reqs =
+      (1..5).map { idx ->
+        val spec =
+          TestRequisitionData.MEASUREMENT_SPEC.copy {
+            reportingMetadata =
+              org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata {
+                report = "report-$idx"
+              }
+          }
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/r-$idx"
+          measurementSpec =
+            org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec(
+              spec,
+              TestRequisitionData.MC_SIGNING_KEY,
+            )
+        }
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += reqs })
+
+    createFetcher(workerCount = 2).fetchAndStoreRequisitions()
+
+    assertThat(counterValue("edpa.requisition_fetcher.open_buffer_high_water_mark")).isEqualTo(5)
+  }
+
   companion object {
     init {
       EdpaTelemetry.ensureInitialized()

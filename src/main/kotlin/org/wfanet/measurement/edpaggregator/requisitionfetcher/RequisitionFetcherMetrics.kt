@@ -33,6 +33,9 @@ import org.wfanet.measurement.common.Instrumentation
  * - Number of times a per-report buffer was split because it hit the size cap
  * - Number of grouped-requisition blobs rebuilt from existing metadata during recovery
  * - Number of `listRequisitions` page-size reductions performed after RESOURCE_EXHAUSTED
+ * - Number of STORED groupIds whose recovery was skipped because the full requisition set was not
+ *   available in the stream
+ * - Peak count of distinct reportIds with open buffers during a single fetch run
  */
 class RequisitionFetcherMetrics(meter: Meter = Instrumentation.meter) {
 
@@ -92,6 +95,25 @@ class RequisitionFetcherMetrics(meter: Meter = Instrumentation.meter) {
         "Number of times the listRequisitions page size was halved in response to RESOURCE_EXHAUSTED"
       )
       .setUnit("{reduction}")
+      .build()
+
+  val recoverySkippedIncomplete: LongCounter =
+    meter
+      .counterBuilder("edpa.requisition_fetcher.recovery_skipped_incomplete")
+      .setDescription(
+        "Number of STORED-but-blob-missing groupIds the run could not rebuild because not all " +
+          "expected requisitions were available in the stream"
+      )
+      .setUnit("{group}")
+      .build()
+
+  val openBufferHighWaterMark: LongCounter =
+    meter
+      .counterBuilder("edpa.requisition_fetcher.open_buffer_high_water_mark")
+      .setDescription(
+        "Peak count of distinct reportIds with open buffers during a single fetch run"
+      )
+      .setUnit("{buffer}")
       .build()
 
   companion object {

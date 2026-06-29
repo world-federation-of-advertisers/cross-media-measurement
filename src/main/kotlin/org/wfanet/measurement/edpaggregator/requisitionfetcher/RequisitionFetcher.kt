@@ -17,9 +17,7 @@
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.protobuf.Any
-import com.google.protobuf.Timestamp
-import io.grpc.Status
-import io.grpc.StatusException
+import com.google.protobuf.util.Timestamps
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
@@ -113,8 +111,23 @@ class RequisitionFetcher(
 
   private class OpenBuffer(
     val reportId: String,
-    var currentUpdateTime: Timestamp,
+    var currentUpdateTime: com.google.protobuf.Timestamp,
     val requisitions: MutableList<Requisition> = mutableListOf(),
+  )
+
+  /**
+   * Per-worker accumulator for STORED metadata rows whose blob is missing.
+   *
+   * A wedged group's requisitions may arrive across multiple [ReportWorkUnit]s for the same
+   * reportId (different updateTimes, or buffer-cap splits). Per-report routing guarantees those
+   * units land on the same worker; the worker collects matching requisitions across units and
+   * rebuilds the blob only once the full expected set is present.
+   *
+   * Worker state, not shared.
+   */
+  private class PendingRecovery(
+    val expected: Set<String>,
+    val collected: MutableList<Requisition> = mutableListOf(),
   )
 
   /**
@@ -143,20 +156,27 @@ class RequisitionFetcher(
     traceSuspending(spanName = SPAN_FETCH_REQUISITIONS, attributes = dataProviderAttrs) {
       var totalFetched = 0L
       coroutineScope {
-        val channel = Channel<ReportWorkUnit>(channelCapacity)
+        // Per-worker channels keyed by reportId.hashCode().mod(workerCount). All work units for
+        // a given reportId land on the same worker, which lets the worker accumulate cross-unit
+        // state (notably PendingRecovery) without races against peer workers.
+        val perWorkerCapacity = (channelCapacity / workerCount).coerceAtLeast(1)
+        val channels: List<Channel<ReportWorkUnit>> =
+          List(workerCount) { Channel<ReportWorkUnit>(perWorkerCapacity) }
         val workers =
-          (0 until workerCount).map {
+          channels.map { ch ->
             launch {
-              for (unit in channel) {
-                processReport(unit)
+              val pendingRecovery = mutableMapOf<String, PendingRecovery>()
+              for (unit in ch) {
+                processReport(unit, pendingRecovery)
               }
+              finalizePendingRecovery(pendingRecovery)
             }
           }
 
         try {
-          totalFetched = produceWorkUnits(channel)
+          totalFetched = produceWorkUnits(channels)
         } finally {
-          channel.close()
+          channels.forEach { it.close() }
         }
         workers.forEach { it.join() }
       }
@@ -173,17 +193,27 @@ class RequisitionFetcher(
     }
 
   /**
-   * Streams requisitions from the Kingdom and dispatches per-report work units onto [channel].
+   * Streams requisitions from the Kingdom and dispatches per-report work units onto [channels].
    *
-   * Maintains an [OpenBuffer] per `reportId` keyed on the report's current `updateTime`. A buffer
-   * is closed and dispatched when (a) the report's `updateTime` advances, (b) the buffer hits
-   * [maxBufferedRequisitionsPerReport], or (c) the stream ends. Requisitions whose
+   * Maintains an [OpenBuffer] per `reportId`. The Kingdom does not guarantee per-report monotonic
+   * `updateTime` ordering in its `listRequisitions` response, so a buffer is closed and dispatched
+   * on (a) *any* change to the report's `updateTime` (forward or backward), (b) the buffer hitting
+   * [maxBufferedRequisitionsPerReport], or (c) the stream ending. Requisitions whose
    * [MeasurementSpec] cannot be parsed are refused to the Kingdom in line and not dispatched.
+   *
+   * Dispatch hashes `reportId` to a per-worker channel so all units for one report land on the same
+   * worker. The producer can backpressure on a hot report's channel while other workers keep
+   * draining.
+   *
+   * The `openBuffers` map is not pruned during streaming because Kingdom does not guarantee
+   * per-report contiguity; its size therefore grows with the count of distinct reportIds seen in
+   * the stream. Each entry is bounded by [maxBufferedRequisitionsPerReport] requisitions. Peak size
+   * is reported via [RequisitionFetcherMetrics.openBufferHighWaterMark] for observability.
    *
    * @return the total number of requisitions consumed from the Kingdom stream.
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  private suspend fun produceWorkUnits(channel: Channel<ReportWorkUnit>): Long {
+  private suspend fun produceWorkUnits(channels: List<Channel<ReportWorkUnit>>): Long {
     val startingPageSize = responsePageSize ?: KINGDOM_LIST_REQUISITIONS_DEFAULT_PAGE_SIZE
     val flow: Flow<Requisition> =
       requisitionsStub
@@ -204,19 +234,19 @@ class RequisitionFetcher(
             this.pageSize = pageSize
             this.pageToken = pageToken
           }
-          val response =
-            try {
-              requisitionsStub.listRequisitions(request)
-            } catch (e: StatusException) {
-              if (e.status.code == Status.Code.RESOURCE_EXHAUSTED) throw e
-              throw Exception("Error listing requisitions", e)
-            }
+          val response = requisitionsStub.listRequisitions(request)
           ResourceList(response.requisitionsList, response.nextPageToken)
         }
         .flattenConcat()
 
     val openBuffers = mutableMapOf<String, OpenBuffer>()
     var totalFetched = 0L
+    var openBufferHighWater = 0
+
+    suspend fun dispatch(buffer: OpenBuffer) {
+      val unit = ReportWorkUnit(buffer.reportId, buffer.requisitions.toList())
+      channels[channelIndexFor(buffer.reportId)].send(unit)
+    }
 
     flow.collect { requisition ->
       totalFetched += 1
@@ -240,11 +270,12 @@ class RequisitionFetcher(
             currentUpdateTime = requisition.updateTime,
             requisitions = mutableListOf(requisition),
           )
+        if (openBuffers.size > openBufferHighWater) openBufferHighWater = openBuffers.size
         return@collect
       }
 
-      if (compareTimestamps(requisition.updateTime, existing.currentUpdateTime) > 0) {
-        channel.send(ReportWorkUnit(existing.reportId, existing.requisitions.toList()))
+      if (Timestamps.compare(requisition.updateTime, existing.currentUpdateTime) != 0) {
+        dispatch(existing)
         openBuffers[reportId] =
           OpenBuffer(
             reportId = reportId,
@@ -256,7 +287,7 @@ class RequisitionFetcher(
 
       existing.requisitions.add(requisition)
       if (existing.requisitions.size >= maxBufferedRequisitionsPerReport) {
-        channel.send(ReportWorkUnit(existing.reportId, existing.requisitions.toList()))
+        dispatch(existing)
         metrics.bufferSplits.add(1, dataProviderAttrs)
         openBuffers[reportId] =
           OpenBuffer(
@@ -269,18 +300,25 @@ class RequisitionFetcher(
 
     for (buffer in openBuffers.values) {
       if (buffer.requisitions.isNotEmpty()) {
-        channel.send(ReportWorkUnit(buffer.reportId, buffer.requisitions.toList()))
+        dispatch(buffer)
       }
     }
+    metrics.openBufferHighWaterMark.add(openBufferHighWater.toLong(), dataProviderAttrs)
     return totalFetched
   }
+
+  private fun channelIndexFor(reportId: String): Int = reportId.hashCode().mod(workerCount)
 
   /**
    * Runs [processReportInner] for one [ReportWorkUnit] inside a trace span, isolating any failure
    * to this report. [CancellationException] is rethrown; any other exception is logged and counted
-   * in [RequisitionFetcherMetrics.reportFailures].
+   * in [RequisitionFetcherMetrics.reportFailures]. [pendingRecovery] is the per-worker accumulator
+   * shared across all units processed by this worker.
    */
-  private suspend fun processReport(unit: ReportWorkUnit) {
+  private suspend fun processReport(
+    unit: ReportWorkUnit,
+    pendingRecovery: MutableMap<String, PendingRecovery>,
+  ) {
     try {
       traceSuspending(
         spanName = SPAN_PROCESS_REPORT,
@@ -290,7 +328,7 @@ class RequisitionFetcher(
             .put(ATTR_REPORT_ID_KEY, unit.reportId)
             .build(),
       ) {
-        processReportInner(unit)
+        processReportInner(unit, pendingRecovery)
       }
     } catch (e: CancellationException) {
       throw e
@@ -311,8 +349,11 @@ class RequisitionFetcher(
    *
    * ### High-Level Flow
    * 1. List existing [RequisitionMetadata] for the report.
-   * 2. For any STORED metadata whose blob is missing in [storageClient], rebuild the blob from
-   *    requisitions in this work unit that match the metadata's `cmmsRequisition` names.
+   * 2. For any STORED metadata whose blob is missing in [storageClient], accumulate the matching
+   *    requisitions from this unit into [pendingRecovery] keyed by the existing `groupId`. When the
+   *    accumulator has collected every requisition the STORED group expects, rebuild the blob and
+   *    remove the entry. Partial accumulators stay until a later unit completes them, or are
+   *    surfaced as incomplete in [finalizePendingRecovery] when the channel closes.
    * 3. For requisitions that are not yet recorded in metadata, validate them as a group (model-line
    *    consistency, requisition-spec decryption). On invalid input, refuse each requisition to the
    *    Kingdom and persist `REFUSED` metadata.
@@ -321,7 +362,10 @@ class RequisitionFetcher(
    *    can only leave a recoverable state (blob without metadata), never the wedge state (metadata
    *    without blob).
    */
-  private suspend fun processReportInner(unit: ReportWorkUnit) {
+  private suspend fun processReportInner(
+    unit: ReportWorkUnit,
+    pendingRecovery: MutableMap<String, PendingRecovery>,
+  ) {
     val existingMetadata = listRequisitionMetadataByReportId(unit.reportId)
     val storedByGroupId =
       existingMetadata
@@ -331,23 +375,35 @@ class RequisitionFetcher(
     for ((existingGroupId, metadataList) in storedByGroupId) {
       val blobKey = blobKey(existingGroupId)
       if (storageClient.getBlob(blobKey) != null) continue
-      val requisitionNames = metadataList.mapTo(mutableSetOf()) { it.cmmsRequisition }
-      val matchingRequisitions = unit.requisitions.filter { it.name in requisitionNames }
-      if (matchingRequisitions.isEmpty()) continue
-      val rebuilt =
-        try {
-          requisitionGrouper.groupForReport(unit.reportId, matchingRequisitions, existingGroupId)
-        } catch (e: InconsistentEventGroupSelectorsException) {
-          logger.log(
-            Level.WARNING,
-            "Cannot rebuild missing blob for groupId=$existingGroupId report=${unit.reportId}",
-            e,
-          )
-          null
+      val expectedNames = metadataList.mapTo(mutableSetOf()) { it.cmmsRequisition }
+      val matchingHere = unit.requisitions.filter { it.name in expectedNames }
+      if (matchingHere.isEmpty() && existingGroupId !in pendingRecovery) continue
+
+      val pending =
+        pendingRecovery.getOrPut(existingGroupId) { PendingRecovery(expected = expectedNames) }
+      pending.collected += matchingHere
+
+      if (pending.collected.size >= pending.expected.size) {
+        val rebuilt =
+          try {
+            requisitionGrouper.groupForReport(
+              unit.reportId,
+              pending.collected.toList(),
+              existingGroupId,
+            )
+          } catch (e: InconsistentEventGroupSelectorsException) {
+            logger.log(
+              Level.WARNING,
+              "Cannot rebuild missing blob for groupId=$existingGroupId report=${unit.reportId}",
+              e,
+            )
+            null
+          }
+        if (rebuilt != null) {
+          writeBlob(rebuilt)
+          metrics.recoveryRebuilds.add(1, dataProviderAttrs)
         }
-      if (rebuilt != null) {
-        writeBlob(rebuilt)
-        metrics.recoveryRebuilds.add(1, dataProviderAttrs)
+        pendingRecovery.remove(existingGroupId)
       }
     }
 
@@ -372,12 +428,28 @@ class RequisitionFetcher(
         }
         refuseUnregisteredAndPersist(unregistered, groupId, refusal)
         return
-      }
-    if (grouped == null) return
+      } ?: return
 
     writeBlob(grouped)
     for (requisition in unregistered) {
       metadataThrottler.onReady { createRequisitionMetadata(requisition, groupId) }
+    }
+  }
+
+  /**
+   * Logs and counts every still-incomplete [PendingRecovery] at channel close. An incomplete entry
+   * means the stream did not contain every requisition advertised by the STORED metadata for the
+   * group — typically because some are no longer `UNFULFILLED` (e.g. FULFILLED elsewhere) — and
+   * therefore cannot be rebuilt from this run's data alone. Operator visibility, no automatic fix.
+   */
+  private fun finalizePendingRecovery(pendingRecovery: Map<String, PendingRecovery>) {
+    for ((groupId, pending) in pendingRecovery) {
+      logger.log(
+        Level.SEVERE,
+        "Recovery incomplete for groupId=$groupId: ${pending.collected.size}/" +
+          "${pending.expected.size} requisitions available; blob will remain missing",
+      )
+      metrics.recoverySkippedIncomplete.add(1, dataProviderAttrs)
     }
   }
 
@@ -399,10 +471,9 @@ class RequisitionFetcher(
         return e.refusal
       }
     }
-    val modelLine = requisitions.first().measurementSpec.unpack<MeasurementSpec>().modelLine
-    val mixedModelLines =
-      requisitions.any { it.measurementSpec.unpack<MeasurementSpec>().modelLine != modelLine }
-    if (mixedModelLines) {
+    val measurementSpecs = requisitions.map { it.measurementSpec.unpack<MeasurementSpec>() }
+    val modelLine = measurementSpecs.first().modelLine
+    if (measurementSpecs.any { it.modelLine != modelLine }) {
       return refusal {
         justification = Requisition.Refusal.Justification.UNFULFILLABLE
         message = "Report $reportId cannot contain multiple model lines"
@@ -554,10 +625,5 @@ class RequisitionFetcher(
     const val DEFAULT_CHANNEL_CAPACITY: Int = 64
     const val MIN_LIST_REQUISITIONS_PAGE_SIZE: Int = 1
     private const val KINGDOM_LIST_REQUISITIONS_DEFAULT_PAGE_SIZE: Int = 10
-
-    private fun compareTimestamps(a: Timestamp, b: Timestamp): Int {
-      val cmpSeconds = a.seconds.compareTo(b.seconds)
-      return if (cmpSeconds != 0) cmpSeconds else a.nanos.compareTo(b.nanos)
-    }
   }
 }

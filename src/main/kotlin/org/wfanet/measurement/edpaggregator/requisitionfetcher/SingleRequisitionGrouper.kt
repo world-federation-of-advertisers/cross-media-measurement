@@ -69,7 +69,6 @@ class SingleRequisitionGrouper(
     kingdomEventGroupThrottler = throttler,
   )
 
-  /** Returns one [GroupedRequisitions] per valid input [Requisition]. */
   /**
    * Returns one [GroupedRequisitions] per input [requisitions] entry, skipping any that cannot be
    * grouped (e.g. spec decryption failure, inconsistent event-group selectors). Group IDs are
@@ -84,10 +83,6 @@ class SingleRequisitionGrouper(
     return result
   }
 
-  /**
-   * Returns the [GroupedRequisitions] for a single [requisition], or `null` if the requisition's
-   * spec or event groups are invalid.
-   */
   /**
    * Returns a single [GroupedRequisitions] for [requisition] under [groupId], or `null` if the
    * requisition's spec or event groups cannot be resolved.

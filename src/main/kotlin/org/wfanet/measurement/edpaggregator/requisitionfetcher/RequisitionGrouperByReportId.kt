@@ -64,7 +64,6 @@ class RequisitionGrouperByReportId(
    * entity-key / reference-id presence. Throws if a per-requisition spec cannot be decrypted; the
    * caller is expected to have pre-validated the inputs.
    */
-  @Suppress("UNUSED_PARAMETER")
   suspend fun groupForReport(
     reportId: String,
     requisitions: List<Requisition>,
@@ -89,21 +88,22 @@ class RequisitionGrouperByReportId(
             }
         }
       }
-    return mergeGroupedRequisitions(perRequisitionGroups, groupId)
+    return mergeGroupedRequisitions(reportId, perRequisitionGroups, groupId)
   }
 
   /**
    * Merges per-requisition [GroupedRequisitions] entries into a single [GroupedRequisitions] under
    * [groupId]. Assumes all entries share the same model line; collection intervals on each event
-   * group are unioned via [unionIntervals].
+   * group are unioned via [unionIntervals]. [reportId] is threaded through for error context only.
    */
   private fun mergeGroupedRequisitions(
+    reportId: String,
     perRequisitionGroups: List<GroupedRequisitions>,
     groupId: String,
   ): GroupedRequisitions {
     val firstModelLine = perRequisitionGroups.first().modelLine
     val mergedRequisitions = perRequisitionGroups.flatMap { it.requisitionsList }
-    val eventGroupMapEntries = buildEventGroupEntries(perRequisitionGroups)
+    val eventGroupMapEntries = buildEventGroupEntries(reportId, perRequisitionGroups)
     return groupedRequisitions {
       modelLine = firstModelLine
       requisitions += mergedRequisitions
@@ -115,8 +115,12 @@ class RequisitionGrouperByReportId(
   /**
    * Combines event-group map entries across [groups], merging overlapping collection intervals and
    * verifying that `event_group_reference_id` and `entity_key` are consistent for each event group.
+   * [reportId] is included in `require()` failure messages for triage context.
    */
-  private fun buildEventGroupEntries(groups: List<GroupedRequisitions>): List<EventGroupMapEntry> =
+  private fun buildEventGroupEntries(
+    reportId: String,
+    groups: List<GroupedRequisitions>,
+  ): List<EventGroupMapEntry> =
     groups
       .flatMap { it.eventGroupMapList }
       .groupBy { it.eventGroup }
@@ -125,11 +129,13 @@ class RequisitionGrouperByReportId(
 
         val refIds = allDetails.map { it.eventGroupReferenceId }.distinct()
         require(refIds.size == 1) {
-          "Inconsistent event_group_reference_id for $eventGroupName: $refIds"
+          "Inconsistent event_group_reference_id for $eventGroupName in report $reportId: $refIds"
         }
 
         val entityKeys = allDetails.map { it.entityKey }.distinct()
-        require(entityKeys.size == 1) { "Inconsistent entity_key for $eventGroupName: $entityKeys" }
+        require(entityKeys.size == 1) {
+          "Inconsistent entity_key for $eventGroupName in report $reportId: $entityKeys"
+        }
 
         val intervals = allDetails.flatMap { it.collectionIntervalsList }
         val merged = unionIntervals(intervals)
@@ -150,6 +156,7 @@ class RequisitionGrouperByReportId(
    * sorted by start time.
    */
   private fun unionIntervals(intervals: List<Interval>): List<Interval> {
+    if (intervals.isEmpty()) return emptyList()
     val sorted = intervals.sortedBy { it.startTime.toInstant() }
     val result = mutableListOf<Interval>()
     var current = sorted.first()
