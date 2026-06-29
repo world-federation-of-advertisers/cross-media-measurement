@@ -93,13 +93,15 @@ class RankerJobService(
       throw RequiredFieldNotSetException("ranker_job.pool_offsets")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (request.requestId.isNotEmpty()) {
-      try {
-        UUID.fromString(request.requestId)
-      } catch (e: IllegalArgumentException) {
-        throw InvalidFieldValueException("request_id", e)
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     val internalResponse: InternalRankerJob =
@@ -162,17 +164,19 @@ class RankerJobService(
         throw RequiredFieldNotSetException("requests.$index.ranker_job.pool_offsets")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
-      if (createRequest.requestId.isNotEmpty()) {
-        try {
-          UUID.fromString(createRequest.requestId)
-        } catch (e: IllegalArgumentException) {
-          throw InvalidFieldValueException("requests.$index.request_id", e)
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
-        if (!seenRequestIds.add(createRequest.requestId)) {
-          throw InvalidFieldValueException("requests.$index.request_id")
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
+      if (createRequest.requestId.isEmpty()) {
+        throw RequiredFieldNotSetException("requests.$index.request_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      try {
+        UUID.fromString(createRequest.requestId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("requests.$index.request_id", e)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (!seenRequestIds.add(createRequest.requestId)) {
+        throw InvalidFieldValueException("requests.$index.request_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
 
@@ -375,6 +379,17 @@ class RankerJobService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
     val internalResponse: InternalRankerJob =
       try {
         internalRankerJobStub.markRankerJobFailed(
@@ -384,6 +399,7 @@ class RankerJobService(
             rankerJobResourceId = jobKey.rankerJobId
             etag = request.etag
             errorMessage = request.errorMessage
+            requestId = request.requestId
           }
         )
       } catch (e: StatusException) {

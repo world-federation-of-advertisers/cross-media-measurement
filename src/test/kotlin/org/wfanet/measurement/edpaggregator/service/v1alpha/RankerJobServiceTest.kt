@@ -155,6 +155,7 @@ class RankerJobServiceTest {
   @Test
   fun `createRankerJob throws INVALID_ARGUMENT for empty parent`() = runBlocking {
     val request = createRankerJobRequest {
+      requestId = UUID.randomUUID().toString()
       rankerJob = rankerJob {
         cmmsModelLine = CMMS_MODEL_LINE
         poolOffsets += POOL_OFFSETS
@@ -176,6 +177,7 @@ class RankerJobServiceTest {
   @Test
   fun `createRankerJob throws INVALID_ARGUMENT for malformed parent`() = runBlocking {
     val request = createRankerJobRequest {
+      requestId = UUID.randomUUID().toString()
       parent = "invalid-parent"
       rankerJob = rankerJob {
         cmmsModelLine = CMMS_MODEL_LINE
@@ -214,6 +216,7 @@ class RankerJobServiceTest {
   @Test
   fun `createRankerJob throws INVALID_ARGUMENT for empty cmmsModelLine`() = runBlocking {
     val request = createRankerJobRequest {
+      requestId = UUID.randomUUID().toString()
       parent = UPLOAD_KEY.toName()
       rankerJob = rankerJob { poolOffsets += POOL_OFFSETS }
     }
@@ -233,6 +236,7 @@ class RankerJobServiceTest {
   @Test
   fun `createRankerJob throws INVALID_ARGUMENT for empty pool_offsets`() = runBlocking {
     val request = createRankerJobRequest {
+      requestId = UUID.randomUUID().toString()
       parent = UPLOAD_KEY.toName()
       rankerJob = rankerJob { cmmsModelLine = CMMS_MODEL_LINE }
     }
@@ -279,12 +283,14 @@ class RankerJobServiceTest {
       val request = batchCreateRankerJobsRequest {
         parent = UPLOAD_KEY.toName()
         requests += createRankerJobRequest {
+          requestId = UUID.randomUUID().toString()
           rankerJob = rankerJob {
             cmmsModelLine = CMMS_MODEL_LINE
             poolOffsets += listOf(0L, 1L)
           }
         }
         requests += createRankerJobRequest {
+          requestId = UUID.randomUUID().toString()
           rankerJob = rankerJob {
             cmmsModelLine = CMMS_MODEL_LINE
             poolOffsets += listOf(2L, 3L)
@@ -303,6 +309,7 @@ class RankerJobServiceTest {
   fun `batchCreateRankerJobs throws INVALID_ARGUMENT for empty parent`() = runBlocking {
     val request = batchCreateRankerJobsRequest {
       requests += createRankerJobRequest {
+        requestId = UUID.randomUUID().toString()
         rankerJob = rankerJob {
           cmmsModelLine = CMMS_MODEL_LINE
           poolOffsets += POOL_OFFSETS
@@ -399,6 +406,7 @@ class RankerJobServiceTest {
       val created =
         service.createRankerJob(
           createRankerJobRequest {
+            requestId = UUID.randomUUID().toString()
             parent = UPLOAD_KEY.toName()
             rankerJob = rankerJob {
               cmmsModelLine = CMMS_MODEL_LINE
@@ -418,6 +426,7 @@ class RankerJobServiceTest {
     val created1 =
       service.createRankerJob(
         createRankerJobRequest {
+          requestId = UUID.randomUUID().toString()
           parent = UPLOAD_KEY.toName()
           rankerJob = rankerJob {
             cmmsModelLine = CMMS_MODEL_LINE
@@ -428,6 +437,7 @@ class RankerJobServiceTest {
     val created2 =
       service.createRankerJob(
         createRankerJobRequest {
+          requestId = UUID.randomUUID().toString()
           parent = UPLOAD_KEY.toName()
           rankerJob = rankerJob {
             cmmsModelLine = CMMS_MODEL_LINE
@@ -528,6 +538,7 @@ class RankerJobServiceTest {
     val created =
       service.createRankerJob(
         createRankerJobRequest {
+          requestId = UUID.randomUUID().toString()
           parent = UPLOAD_KEY.toName()
           rankerJob = rankerJob {
             cmmsModelLine = CMMS_MODEL_LINE
@@ -573,6 +584,7 @@ class RankerJobServiceTest {
     val created =
       service.createRankerJob(
         createRankerJobRequest {
+          requestId = UUID.randomUUID().toString()
           parent = UPLOAD_KEY.toName()
           rankerJob = rankerJob {
             cmmsModelLine = CMMS_MODEL_LINE
@@ -626,6 +638,7 @@ class RankerJobServiceTest {
     val created =
       service.createRankerJob(
         createRankerJobRequest {
+          requestId = UUID.randomUUID().toString()
           parent = UPLOAD_KEY.toName()
           rankerJob = rankerJob {
             cmmsModelLine = CMMS_MODEL_LINE
@@ -653,6 +666,7 @@ class RankerJobServiceTest {
     val created =
       service.createRankerJob(
         createRankerJobRequest {
+          requestId = UUID.randomUUID().toString()
           parent = UPLOAD_KEY.toName()
           rankerJob = rankerJob {
             cmmsModelLine = CMMS_MODEL_LINE
@@ -664,6 +678,7 @@ class RankerJobServiceTest {
     val failed =
       service.markRankerJobFailed(
         markRankerJobFailedRequest {
+          requestId = UUID.randomUUID().toString()
           name = created.name
           etag = created.etag
           errorMessage = "Something went wrong"
@@ -681,6 +696,7 @@ class RankerJobServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.markRankerJobFailed(
           markRankerJobFailedRequest {
+            requestId = UUID.randomUUID().toString()
             name = "invalid-name"
             etag = "some-etag"
           }
@@ -698,12 +714,37 @@ class RankerJobServiceTest {
   }
 
   @Test
+  fun `markRankerJobFailed throws INVALID_ARGUMENT for empty requestId`() = runBlocking {
+    val name = RankerJobKey(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID, "rankerJob-some").toName()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.markRankerJobFailed(
+          markRankerJobFailedRequest {
+            this.name = name
+            etag = "some-etag"
+          }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+        }
+      )
+  }
+
+  @Test
   fun `batchCreateRankerJobs throws INVALID_ARGUMENT when exceeding max batch size`() =
     runBlocking {
       val request = batchCreateRankerJobsRequest {
         parent = UPLOAD_KEY.toName()
         for (i in 0 until 51) {
           requests += createRankerJobRequest {
+            requestId = UUID.randomUUID().toString()
             rankerJob = rankerJob {
               cmmsModelLine = CMMS_MODEL_LINE
               poolOffsets += i.toLong()
@@ -765,6 +806,7 @@ class RankerJobServiceTest {
       val request = batchCreateRankerJobsRequest {
         parent = UPLOAD_KEY.toName()
         requests += createRankerJobRequest {
+          requestId = UUID.randomUUID().toString()
           parent = "dataProviders/other/rawImpressionUploads/other"
           rankerJob = rankerJob {
             cmmsModelLine = CMMS_MODEL_LINE
@@ -794,6 +836,7 @@ class RankerJobServiceTest {
       val firstJob =
         service.createRankerJob(
           createRankerJobRequest {
+            requestId = UUID.randomUUID().toString()
             parent = UPLOAD_KEY.toName()
             rankerJob = rankerJob {
               cmmsModelLine = CMMS_MODEL_LINE
@@ -804,6 +847,7 @@ class RankerJobServiceTest {
       val secondJob =
         service.createRankerJob(
           createRankerJobRequest {
+            requestId = UUID.randomUUID().toString()
             parent = RawImpressionUploadKey(DATA_PROVIDER_ID, SECOND_UPLOAD_ID).toName()
             rankerJob = rankerJob {
               cmmsModelLine = CMMS_MODEL_LINE
@@ -865,6 +909,7 @@ class RankerJobServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.markRankerJobFailed(
           markRankerJobFailedRequest {
+            requestId = UUID.randomUUID().toString()
             name = missingName
             etag = "some-etag"
           }
