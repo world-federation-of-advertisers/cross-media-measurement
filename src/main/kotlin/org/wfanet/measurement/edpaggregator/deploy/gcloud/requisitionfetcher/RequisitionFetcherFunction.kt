@@ -68,10 +68,17 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  * - `KINGDOM_TARGET`: Required. The gRPC target address for the Kingdom services.
  * - `KINGDOM_CERT_HOST`: Optional. The server name to verify in the Kingdom service's TLS
  *   certificate. Useful when the hostname in the certificate does not match the `KINGDOM_TARGET`.
- * - `GRPC_THROTTLER`: Required. A numeric value (in milliseconds) that defines the minimum interval
- *   between gRPC calls to Kingdom to avoid overwhelming the service.
+ * - `GRPC_REQUEST_INTERVAL`: Optional. Minimum interval between Kingdom mutation RPCs (e.g.
+ *   `refuseRequisition`). Default `1s`.
+ * - `KINGDOM_EVENT_GROUP_REQUEST_INTERVAL`: Optional. Minimum interval between Kingdom
+ *   `getEventGroup` RPCs. Default `50ms`.
+ * - `METADATA_REQUEST_INTERVAL`: Optional. Minimum interval between Requisition Metadata Service
+ *   RPCs. Default `100ms`.
+ * - `MAX_BUFFERED_REQUISITIONS_PER_REPORT`: Optional. Upper bound on the number of requisitions
+ *   buffered for a single `(reportId, updateTime)` tuple before the buffer is dispatched and a new
+ *   one is started. Default `1000`.
  * - `PAGE_SIZE`: Optional. Overrides the default number of requisitions fetched per page from the
- *   backend.
+ *   Kingdom.
  */
 class RequisitionFetcherFunction : HttpFunction {
 
@@ -82,7 +89,6 @@ class RequisitionFetcherFunction : HttpFunction {
     try {
       val errors = mutableListOf<String>()
       for (dataProviderConfig in requisitionFetcherConfig.configsList) {
-        // Keep per-provider failures as Result so we can process every config before responding.
         val result: Result<Unit> = processDataProvider(dataProviderConfig)
         val failure = result.exceptionOrNull()
         if (failure != null) {
@@ -110,12 +116,6 @@ class RequisitionFetcherFunction : HttpFunction {
     }
   }
 
-  /**
-   * Executes the requisition fetch workflow for a single data provider and aggregates telemetry.
-   *
-   * @param dataProviderConfig configuration for the data provider.
-   * @return a [Result] capturing success or the failure that occurred.
-   */
   private fun processDataProvider(dataProviderConfig: DataProviderRequisitionConfig): Result<Unit> =
     withDataProviderTelemetry(dataProviderConfig.dataProvider) {
       validateConfig(dataProviderConfig)
@@ -154,19 +154,11 @@ class RequisitionFetcherFunction : HttpFunction {
       }
     }
 
-  /**
-   * Creates a [RequisitionFetcher] instance for the given data provider configuration.
-   *
-   * @param dataProviderConfig The configuration for a single data provider.
-   * @return A fully initialized [RequisitionFetcher] ready to fetch and store requisitions for the
-   *   data provider.
-   */
   private fun createRequisitionFetcher(
     dataProviderConfig: DataProviderRequisitionConfig
   ): RequisitionFetcher {
     val storageClient = createStorageClient(dataProviderConfig)
     val requisitionBlobPrefix = createRequisitionBlobPrefix(dataProviderConfig)
-    // Create instrumented gRPC channels with mutual TLS and OpenTelemetry tracing
     val instrumentedCmmsChannel =
       createInstrumentedChannel(dataProviderConfig.cmmsConnection, kingdomTarget, kingdomCertHost)
     val instrumentedMetadataChannel =
@@ -184,39 +176,35 @@ class RequisitionFetcherFunction : HttpFunction {
 
     val requisitionsValidator = RequisitionsValidator(loadPrivateKey(edpPrivateKey))
 
+    val kingdomMutationThrottler = MinimumIntervalThrottler(Clock.systemUTC(), grpcRequestInterval)
+    val kingdomEventGroupThrottler =
+      MinimumIntervalThrottler(Clock.systemUTC(), kingdomEventGroupRequestInterval)
+    val metadataThrottler = MinimumIntervalThrottler(Clock.systemUTC(), metadataRequestInterval)
+
     val requisitionGrouper =
       RequisitionGrouperByReportId(
-        requisitionsValidator,
-        dataProviderConfig.dataProvider,
-        requisitionBlobPrefix,
-        requisitionMetadataStub,
-        storageClient,
-        pageSize,
-        dataProviderConfig.storagePathPrefix,
-        MinimumIntervalThrottler(Clock.systemUTC(), grpcRequestInterval),
-        eventGroupsStub,
-        requisitionsStub,
+        requisitionValidator = requisitionsValidator,
+        requisitionsClient = requisitionsStub,
+        eventGroupsClient = eventGroupsStub,
+        kingdomMutationThrottler = kingdomMutationThrottler,
+        kingdomEventGroupThrottler = kingdomEventGroupThrottler,
       )
 
     return RequisitionFetcher(
       requisitionsStub = requisitionsStub,
+      requisitionMetadataStub = requisitionMetadataStub,
       storageClient = storageClient,
       dataProviderName = dataProviderConfig.dataProvider,
       storagePathPrefix = dataProviderConfig.storagePathPrefix,
+      blobUriPrefix = requisitionBlobPrefix,
+      requisitionValidator = requisitionsValidator,
       requisitionGrouper = requisitionGrouper,
+      metadataThrottler = metadataThrottler,
       responsePageSize = pageSize,
+      maxBufferedRequisitionsPerReport = maxBufferedRequisitionsPerReport,
     )
   }
 
-  /**
-   * Creates a [StorageClient] based on the current environment and the provided data provider
-   * configuration.
-   *
-   * @param dataProviderConfig The configuration object for a `DataProvider`.
-   * @return A [StorageClient] instance, either for local file system access or GCS access.
-   */
-  // @TODO(@marcopremier): This function may share the logic of
-  // `ResultsFulfillerAppImpl.createStorageClient` method.
   private fun createStorageClient(
     dataProviderConfig: DataProviderRequisitionConfig
   ): StorageClient {
@@ -249,14 +237,6 @@ class RequisitionFetcherFunction : HttpFunction {
     }
   }
 
-  /**
-   * Creates an instrumented gRPC channel with mutual TLS and OpenTelemetry tracing.
-   *
-   * @param tlsParams The TLS security parameters containing certificate paths.
-   * @param target The gRPC target address.
-   * @param certHost Optional server name to verify in the TLS certificate.
-   * @return An instrumented gRPC channel ready for use with stubs.
-   */
   private fun createInstrumentedChannel(
     tlsParams: TransportLayerSecurityParams,
     target: String,
@@ -284,18 +264,30 @@ class RequisitionFetcherFunction : HttpFunction {
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
     private val metadataStorageCertHost: String? = System.getenv("METADATA_STORAGE_CERT_HOST")
     private val fileSystemPath: String? = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
-    private const val DEFAULT_GRCP_INTERVAL = "1s"
+
+    private const val DEFAULT_GRPC_REQUEST_INTERVAL = "1s"
+    private const val DEFAULT_KINGDOM_EVENT_GROUP_REQUEST_INTERVAL = "50ms"
+    private const val DEFAULT_METADATA_REQUEST_INTERVAL = "100ms"
+
     private val grpcRequestInterval: Duration =
-      (System.getenv("GRPC_REQUEST_INTERVAL") ?: DEFAULT_GRCP_INTERVAL).toDuration()
+      (System.getenv("GRPC_REQUEST_INTERVAL") ?: DEFAULT_GRPC_REQUEST_INTERVAL).toDuration()
+    private val kingdomEventGroupRequestInterval: Duration =
+      (System.getenv("KINGDOM_EVENT_GROUP_REQUEST_INTERVAL")
+          ?: DEFAULT_KINGDOM_EVENT_GROUP_REQUEST_INTERVAL)
+        .toDuration()
+    private val metadataRequestInterval: Duration =
+      (System.getenv("METADATA_REQUEST_INTERVAL") ?: DEFAULT_METADATA_REQUEST_INTERVAL).toDuration()
+
+    private val maxBufferedRequisitionsPerReport: Int =
+      System.getenv("MAX_BUFFERED_REQUISITIONS_PER_REPORT")?.toIntOrNull()
+        ?: RequisitionFetcher.DEFAULT_MAX_BUFFERED_REQUISITIONS_PER_REPORT
+
     private const val DEFAULT_PAGE_SIZE = 50
 
     init {
       EdpaTelemetry.ensureInitialized()
     }
 
-    /**
-     * OpenTelemetry gRPC instrumentation using the global instance initialized by [EdpaTelemetry].
-     */
     private val grpcTelemetry by lazy { GrpcTelemetry.create(Instrumentation.openTelemetry) }
 
     val pageSize = run {
@@ -321,15 +313,6 @@ class RequisitionFetcherFunction : HttpFunction {
       }
     }
 
-    /**
-     * Loads [SigningCerts] from PEM-encoded certificate, private key, and trusted certificate
-     * collection files specified in the given [dataProviderConfig].
-     *
-     * @param transportLayerSecurityParams The connection param object.
-     * @return A [SigningCerts] instance loaded from the specified PEM files.
-     * @throws IllegalStateException if any of the required file paths are missing in the
-     *   configuration.
-     */
     private fun loadSigningCerts(
       transportLayerSecurityParams: TransportLayerSecurityParams
     ): SigningCerts {

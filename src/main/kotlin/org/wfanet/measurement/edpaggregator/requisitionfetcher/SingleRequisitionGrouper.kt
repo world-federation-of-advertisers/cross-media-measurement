@@ -17,7 +17,7 @@
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.protobuf.Any
-import java.util.logging.Logger
+import java.util.UUID
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -30,54 +30,85 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventG
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 
 /**
- * Naively does not combine a set of requisition. Generally not recommended for production use
- * cases.
+ * Maps each input [Requisition] to its own [GroupedRequisitions] with no combining. Intended for
+ * debugging and test scenarios.
+ *
+ * Skips a requisition whose spec cannot be decrypted or whose event groups cannot be resolved
+ * consistently.
  */
 class SingleRequisitionGrouper(
-  private val requisitionValidator: RequisitionsValidator,
-  eventGroupsClient: EventGroupsCoroutineStub,
-  throttler: Throttler,
+  requisitionValidator: RequisitionsValidator,
   requisitionsClient: RequisitionsCoroutineStub,
-) : RequisitionGrouper(requisitionValidator, requisitionsClient, eventGroupsClient, throttler) {
+  eventGroupsClient: EventGroupsCoroutineStub,
+  kingdomMutationThrottler: Throttler,
+  kingdomEventGroupThrottler: Throttler,
+) :
+  RequisitionGrouper(
+    requisitionValidator,
+    requisitionsClient,
+    eventGroupsClient,
+    kingdomMutationThrottler,
+    kingdomEventGroupThrottler,
+  ) {
 
-  override suspend fun createGroupedRequisitions(
-    requisitions: List<Requisition>
-  ): List<GroupedRequisitions> {
-    val groupedRequisitions = mutableListOf<GroupedRequisitions>()
-    requisitions.forEach { requisition ->
-      val measurementSpec: MeasurementSpec = requisition.measurementSpec.unpack()
-      val spec =
-        try {
-          requisitionValidator.validateRequisitionSpec(requisition)
-        } catch (exception: Exception) {
-          return@forEach
-        }
-      // Get Event Group Map Entries
-      val eventGroupMapEntries =
-        try {
-          getEventGroupMapEntries(spec)
-        } catch (exception: Exception) {
-          return@forEach
-        }
-      groupedRequisitions.add(
-        groupedRequisitions {
-          modelLine = measurementSpec.modelLine
-          this.requisitions +=
-            GroupedRequisitionsKt.requisitionEntry { this.requisition = Any.pack(requisition) }
-          this.eventGroupMap +=
-            eventGroupMapEntries.map {
-              eventGroupMapEntry {
-                this.eventGroup = it.key
-                details = it.value
-              }
-            }
-        }
-      )
+  /**
+   * Backwards-compatible constructor that uses a single [throttler] for both Kingdom mutations and
+   * event-group reads. Prefer the primary constructor for new code so the two RPC families can be
+   * paced independently.
+   */
+  constructor(
+    requisitionValidator: RequisitionsValidator,
+    requisitionsClient: RequisitionsCoroutineStub,
+    eventGroupsClient: EventGroupsCoroutineStub,
+    throttler: Throttler,
+  ) : this(
+    requisitionValidator,
+    requisitionsClient,
+    eventGroupsClient,
+    kingdomMutationThrottler = throttler,
+    kingdomEventGroupThrottler = throttler,
+  )
+
+  /** Returns one [GroupedRequisitions] per valid input [Requisition]. */
+  suspend fun groupRequisitions(requisitions: List<Requisition>): List<GroupedRequisitions> {
+    val result = mutableListOf<GroupedRequisitions>()
+    for (requisition in requisitions) {
+      val grouped = groupSingle(requisition, UUID.randomUUID().toString()) ?: continue
+      result.add(grouped)
     }
-    return groupedRequisitions
+    return result
   }
 
-  companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
+  /**
+   * Returns the [GroupedRequisitions] for a single [requisition], or `null` if the requisition's
+   * spec or event groups are invalid.
+   */
+  suspend fun groupSingle(requisition: Requisition, groupId: String): GroupedRequisitions? {
+    val measurementSpec: MeasurementSpec = requisition.measurementSpec.unpack()
+    val spec =
+      try {
+        requisitionValidator.validateRequisitionSpec(requisition)
+      } catch (exception: InvalidRequisitionException) {
+        return null
+      }
+    val eventGroupMapEntries =
+      try {
+        getEventGroupMapEntries(spec)
+      } catch (exception: InconsistentEventGroupSelectorsException) {
+        return null
+      }
+    return groupedRequisitions {
+      modelLine = measurementSpec.modelLine
+      requisitions +=
+        GroupedRequisitionsKt.requisitionEntry { this.requisition = Any.pack(requisition) }
+      eventGroupMap +=
+        eventGroupMapEntries.map { (eventGroupName, entryDetails) ->
+          eventGroupMapEntry {
+            this.eventGroup = eventGroupName
+            details = entryDetails
+          }
+        }
+      this.groupId = groupId
+    }
   }
 }

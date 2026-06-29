@@ -17,10 +17,13 @@
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.type.interval
 import java.time.Clock
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
+import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -30,12 +33,14 @@ import org.wfanet.measurement.api.v2alpha.EventGroupKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.signedMessage
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
@@ -48,89 +53,78 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventG
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 
 @RunWith(JUnit4::class)
-class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
+class SingleRequisitionGrouperTest {
 
-  override val requisitionsServiceMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase by lazy {
+  private val requisitionsServiceMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase by lazy {
     mockService {}
   }
 
-  override val eventGroupsServiceMock: EventGroupsCoroutineImplBase by lazy {
-    mockService {
-      onBlocking { getEventGroup(any()) }
-        .thenAnswer { invocation ->
-          val request = invocation.getArgument<GetEventGroupRequest>(0)
-          eventGroup {
-            name = request.name
-            eventGroupReferenceId = "some-event-group-reference-id"
-          }
+  private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService {
+    onBlocking { getEventGroup(any()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<GetEventGroupRequest>(0)
+        eventGroup {
+          name = request.name
+          eventGroupReferenceId = "some-event-group-reference-id"
         }
-    }
+      }
   }
 
-  override val grpcTestServerRule = GrpcTestServerRule {
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
     addService(requisitionsServiceMock)
     addService(eventGroupsServiceMock)
   }
 
-  private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
-
-  private val requisitionValidator by lazy {
+  private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1L))
+  private val validator by lazy {
     RequisitionsValidator(privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey)
   }
-
-  override val requisitionGrouper: RequisitionGrouper by lazy {
-    SingleRequisitionGrouper(
-      requisitionValidator = requisitionValidator,
-      eventGroupsClient = eventGroupsStub,
-      requisitionsClient = requisitionsStub,
-      throttler = throttler,
-    )
-  }
-
-  private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub by lazy {
+  private val requisitionsStub by lazy {
     RequisitionsGrpcKt.RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
+  private val eventGroupsStub by lazy { EventGroupsCoroutineStub(grpcTestServerRule.channel) }
+  private lateinit var grouper: SingleRequisitionGrouper
 
-  private val eventGroupsStub: EventGroupsCoroutineStub by lazy {
-    EventGroupsCoroutineStub(grpcTestServerRule.channel)
+  @Before
+  fun setUp() {
+    grouper =
+      SingleRequisitionGrouper(
+        requisitionValidator = validator,
+        requisitionsClient = requisitionsStub,
+        eventGroupsClient = eventGroupsStub,
+        kingdomMutationThrottler = throttler,
+        kingdomEventGroupThrottler = throttler,
+      )
   }
 
   @Test
-  fun `able to map Requisition to GroupedRequisitions`() {
-    val groupedRequisitions: List<GroupedRequisitions> = runBlocking {
-      requisitionGrouper.groupRequisitions(
+  fun `groupRequisitions maps two requisitions to two GroupedRequisitions`() = runBlocking {
+    val result =
+      grouper.groupRequisitions(
         listOf(TestRequisitionData.REQUISITION, TestRequisitionData.REQUISITION)
       )
-    }
-    assertThat(groupedRequisitions).hasSize(2)
-    groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
+    assertThat(result).hasSize(2)
+    result.forEach { groupedRequisition ->
+      assertThat(groupedRequisition.groupId).isNotEmpty()
       assertThat(groupedRequisition.eventGroupMapList.single())
         .isEqualTo(
           eventGroupMapEntry {
-            eventGroup = "dataProviders/someDataProvider/eventGroups/name"
+            eventGroup = TestRequisitionData.EVENT_GROUP_NAME
             details = eventGroupDetails {
               eventGroupReferenceId = "some-event-group-reference-id"
-              collectionIntervals +=
-                listOf(
-                  interval {
-                    startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()
-                    endTime = TestRequisitionData.TIME_RANGE.endExclusive.toProtoTime()
-                  }
-                )
+              collectionIntervals += interval {
+                startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()
+                endTime = TestRequisitionData.TIME_RANGE.endExclusive.toProtoTime()
+              }
             }
           }
         )
-      assertThat(
-          groupedRequisition.requisitionsList
-            .map { it.requisition.unpack(Requisition::class.java) }
-            .single()
-        )
-        .isEqualTo(TestRequisitionData.REQUISITION)
     }
   }
 
   @Test
-  fun `entity key is populated when EventGroup has one`() {
+  fun `groupSingle populates entityKey when present`() = runBlocking {
     eventGroupsServiceMock.stub {
       onBlocking { getEventGroup(any()) }
         .thenAnswer { invocation ->
@@ -146,30 +140,30 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
           }
         }
     }
-    val groupedRequisitions: List<GroupedRequisitions> = runBlocking {
-      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION))
-    }
-    assertThat(groupedRequisitions).hasSize(1)
-    val details = groupedRequisitions[0].eventGroupMapList.single().details
+    val result = grouper.groupSingle(TestRequisitionData.REQUISITION, "g1")
+    assertThat(result).isNotNull()
+    val details = result!!.eventGroupMapList.single().details
     assertThat(details.hasEntityKey()).isTrue()
     assertThat(details.entityKey.entityType).isEqualTo("placement")
     assertThat(details.entityKey.entityId).isEqualTo("P-123")
   }
 
   @Test
-  fun `entity key is not populated when EventGroup does not have one`() {
-    val groupedRequisitions: List<GroupedRequisitions> = runBlocking {
-      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION))
-    }
-    assertThat(groupedRequisitions).hasSize(1)
-    val details = groupedRequisitions[0].eventGroupMapList.single().details
-    assertThat(details.hasEntityKey()).isFalse()
+  fun `groupSingle returns null when RequisitionSpec cannot be parsed`() = runBlocking {
+    val bad =
+      TestRequisitionData.REQUISITION.copy {
+        encryptedRequisitionSpec = encryptedMessage {
+          ciphertext = "some-invalid-spec".toByteStringUtf8()
+          typeUrl = ProtoReflection.getTypeUrl(RequisitionSpec.getDescriptor())
+        }
+      }
+    val result = grouper.groupSingle(bad, "g1")
+    assertThat(result).isNull()
   }
 
   @Test
-  fun `skips requisition when event groups have mixed entity key presence`() {
+  fun `groupSingle returns null on mixed entity key event groups`() = runBlocking {
     val secondEventGroupName = "${TestRequisitionData.EDP_NAME}/eventGroups/name2"
-
     eventGroupsServiceMock.stub {
       onBlocking { getEventGroup(any()) }
         .thenAnswer { invocation ->
@@ -181,7 +175,7 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
               entityKey =
                 EventGroupKt.entityKey {
                   entityType = "placement"
-                  entityId = "P-123"
+                  entityId = "P-1"
                 }
             }
           } else {
@@ -192,7 +186,6 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
           }
         }
     }
-
     val requisitionSpec =
       TestRequisitionData.REQUISITION_SPEC.copy {
         events =
@@ -230,10 +223,7 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
           )
       }
 
-    // SingleRequisitionGrouper catches exceptions and skips the requisition
-    val groupedRequisitions: List<GroupedRequisitions> = runBlocking {
-      requisitionGrouper.groupRequisitions(listOf(requisition))
-    }
-    assertThat(groupedRequisitions).isEmpty()
+    val result: GroupedRequisitions? = grouper.groupSingle(requisition, "g1")
+    assertThat(result).isNull()
   }
 }

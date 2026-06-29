@@ -29,6 +29,9 @@ import org.wfanet.measurement.common.Instrumentation
  * - Number of requisitions fetched from Kingdom
  * - Number of grouped requisitions written to storage
  * - Number of grouped requisitions that failed to write to storage
+ * - Number of per-report worker invocations that failed
+ * - Number of times a per-report buffer was split because it hit the size cap
+ * - Number of grouped-requisition blobs rebuilt from existing metadata during recovery
  */
 class RequisitionFetcherMetrics(meter: Meter = Instrumentation.meter) {
 
@@ -60,8 +63,28 @@ class RequisitionFetcherMetrics(meter: Meter = Instrumentation.meter) {
       .setUnit("{failure}")
       .build()
 
+  val reportFailures: LongCounter =
+    meter
+      .counterBuilder("edpa.requisition_fetcher.report_failures")
+      .setDescription("Number of per-report worker invocations that failed")
+      .setUnit("{failure}")
+      .build()
+
+  val bufferSplits: LongCounter =
+    meter
+      .counterBuilder("edpa.requisition_fetcher.buffer_splits")
+      .setDescription("Number of per-report buffers that were split at the size cap")
+      .setUnit("{split}")
+      .build()
+
+  val recoveryRebuilds: LongCounter =
+    meter
+      .counterBuilder("edpa.requisition_fetcher.recovery_rebuilds")
+      .setDescription("Number of grouped-requisition blobs rebuilt during recovery")
+      .setUnit("{rebuild}")
+      .build()
+
   companion object {
-    // Singleton instance for production use
     val Default = RequisitionFetcherMetrics()
   }
 }
