@@ -427,6 +427,8 @@ class VidLabelingJobService(
       InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
       InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
       InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+      InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+      InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
       null -> Status.INTERNAL.withCause(e).asRuntimeException()
       InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
       InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND ->

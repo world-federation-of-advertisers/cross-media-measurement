@@ -242,33 +242,3 @@ private fun buildRawImpressionUploadResult(struct: Struct): RawImpressionUploadR
     struct.getLong("RawImpressionUploadId"),
   )
 }
-
-/**
- * Resolves a [RawImpressionUpload]'s internal ID from its resource ID.
- *
- * @return the internal `RawImpressionUploadId`, or `null` if not found
- */
-suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadId(
-  dataProviderResourceId: String,
-  rawImpressionUploadResourceId: String,
-): Long? {
-  val sql =
-    """
-    SELECT RawImpressionUploadId
-    FROM RawImpressionUpload
-    WHERE DataProviderResourceId = @dataProviderResourceId
-      AND RawImpressionUploadResourceId = @rawImpressionUploadResourceId
-    """
-      .trimIndent()
-
-  val row: Struct =
-    executeQuery(
-        statement(sql) {
-          bind("dataProviderResourceId").to(dataProviderResourceId)
-          bind("rawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
-        }
-      )
-      .singleOrNullIfEmpty() ?: return null
-
-  return row.getLong("RawImpressionUploadId")
-}

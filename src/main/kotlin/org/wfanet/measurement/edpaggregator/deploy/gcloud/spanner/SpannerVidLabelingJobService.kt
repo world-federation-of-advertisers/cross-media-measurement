@@ -111,11 +111,6 @@ class SpannerVidLabelingJobService(
 
           val rawImpressionUploadId =
             txn.getRawImpressionUploadId(dataProviderResourceId, rawImpressionUploadResourceId)
-              ?: throw RawImpressionUploadNotFoundException(
-                  dataProviderResourceId,
-                  rawImpressionUploadResourceId,
-                )
-                .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
           val vidLabelingJobId =
             idGenerator.generateNewId { id ->
@@ -142,6 +137,8 @@ class SpannerVidLabelingJobService(
             clearUpdateTime()
           }
         }
+      } catch (e: RawImpressionUploadNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       } catch (e: SpannerException) {
         if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
           throw VidLabelingJobAlreadyExistsException(
@@ -236,11 +233,6 @@ class SpannerVidLabelingJobService(
         transactionRunner.run { txn ->
           val rawImpressionUploadId =
             txn.getRawImpressionUploadId(dataProviderResourceId, rawImpressionUploadResourceId)
-              ?: throw RawImpressionUploadNotFoundException(
-                  dataProviderResourceId,
-                  rawImpressionUploadResourceId,
-                )
-                .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
           val existingByRequestId: Map<String, VidLabelingJobResult> =
             txn.findVidLabelingJobsByCreateRequestIds(
@@ -281,6 +273,8 @@ class SpannerVidLabelingJobService(
             }
           }
         }
+      } catch (e: RawImpressionUploadNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       } catch (e: SpannerException) {
         if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
           throw VidLabelingJobAlreadyExistsException(
