@@ -20,8 +20,6 @@ import io.grpc.BindableService
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankerJobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlobServiceGrpcKt
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchFileServiceGrpcKt
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingJobServiceGrpcKt
@@ -32,10 +30,6 @@ data class Services(
     RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase,
   val impressionMetadata:
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase,
-  val rawImpressionMetadataBatch:
-    RawImpressionMetadataBatchServiceGrpcKt.RawImpressionMetadataBatchServiceCoroutineImplBase,
-  val rawImpressionMetadataBatchFile:
-    RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineImplBase,
   val rawImpressionUpload:
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase,
   val vidLabelingJob: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase,
@@ -46,8 +40,6 @@ data class Services(
     listOf(
       requisitionMetadata,
       impressionMetadata,
-      rawImpressionMetadataBatch,
-      rawImpressionMetadataBatchFile,
       rawImpressionUpload,
       vidLabelingJob,
       rankerJob,
