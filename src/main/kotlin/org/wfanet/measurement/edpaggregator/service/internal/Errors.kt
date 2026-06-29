@@ -41,6 +41,7 @@ object Errors {
     RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
     RAW_IMPRESSION_UPLOAD_NOT_FOUND,
     RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+    RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
     REQUISITION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_ALREADY_EXISTS,
@@ -417,5 +418,13 @@ class InvalidFieldValueException(
     Errors.Reason.INVALID_FIELD_VALUE,
     buildMessage(fieldName),
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
+    cause,
+  )
+
+class RawImpressionUploadFileAlreadyExistsException(cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+    "RawImpressionUploadFile already exists",
+    emptyMap(),
     cause,
   )

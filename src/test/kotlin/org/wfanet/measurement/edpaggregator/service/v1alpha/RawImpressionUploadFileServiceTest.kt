@@ -1019,6 +1019,35 @@ class RawImpressionUploadFileServiceTest {
         )
     }
 
+  @Test
+  fun `createRawImpressionUploadFile throws ALREADY_EXISTS for duplicate blob_uri`() = runBlocking {
+    val uploadName = createUpload()
+    fileService.createRawImpressionUploadFile(
+      createRawImpressionUploadFileRequest {
+        parent = uploadName
+        rawImpressionUploadFile = rawImpressionUploadFile {
+          sizeBytes = SIZE_BYTES
+          blobUri = BLOB_URI_1
+        }
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        fileService.createRawImpressionUploadFile(
+          createRawImpressionUploadFileRequest {
+            parent = uploadName
+            rawImpressionUploadFile = rawImpressionUploadFile {
+              sizeBytes = SIZE_BYTES
+              blobUri = BLOB_URI_1
+            }
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+  }
+
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
 

@@ -142,6 +142,8 @@ class RawImpressionUploadFileService(
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS ->
+            Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -262,6 +264,8 @@ class RawImpressionUploadFileService(
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS ->
+            Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -318,6 +322,8 @@ class RawImpressionUploadFileService(
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS ->
+            Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -414,6 +420,8 @@ class RawImpressionUploadFileService(
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS ->
+            Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -473,6 +481,8 @@ class RawImpressionUploadFileService(
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS ->
+            Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -577,6 +587,8 @@ class RawImpressionUploadFileService(
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS ->
+            Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }

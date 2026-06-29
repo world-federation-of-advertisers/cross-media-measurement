@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
+import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.Options
+import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Timestamp
 import io.grpc.Status
 import java.util.UUID
@@ -36,6 +38,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpr
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.softDeleteRawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.service.internal.DataProviderMismatchException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
+import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadFileAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadFileNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
@@ -145,6 +148,12 @@ class SpannerRawImpressionUploadFileService(
         }
       } catch (e: RawImpressionUploadNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      } catch (e: SpannerException) {
+        if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
+          throw RawImpressionUploadFileAlreadyExistsException(e)
+            .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+        }
+        throw e
       }
     if (result.hasCreateTime()) {
       return result
@@ -266,6 +275,12 @@ class SpannerRawImpressionUploadFileService(
         }
       } catch (e: RawImpressionUploadNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      } catch (e: SpannerException) {
+        if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
+          throw RawImpressionUploadFileAlreadyExistsException(e)
+            .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+        }
+        throw e
       }
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
     return batchCreateRawImpressionUploadFilesResponse {

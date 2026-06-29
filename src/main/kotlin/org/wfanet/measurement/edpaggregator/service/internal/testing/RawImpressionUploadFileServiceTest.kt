@@ -107,18 +107,22 @@ abstract class RawImpressionUploadFileServiceTest {
   }
 
   @Test
-  fun `createRawImpressionUploadFile allows duplicate blob_uri with different request_ids`() =
-    runBlocking {
-      val uploadId: String = createUpload()
-      val rid1: String = UUID.randomUUID().toString()
-      val rid2: String = UUID.randomUUID().toString()
-
-      val file1: RawImpressionUploadFile = createFile(uploadId, requestId = rid1)
-      val file2: RawImpressionUploadFile = createFile(uploadId, requestId = rid2)
-
-      assertThat(file1.fileResourceId).isNotEqualTo(file2.fileResourceId)
-      assertThat(file1.blobUri).isEqualTo(file2.blobUri)
-    }
+  fun `createRawImpressionUploadFile throws ALREADY_EXISTS for duplicate blob_uri`() = runBlocking {
+    val uploadId: String = createUpload()
+    createFile(uploadId, requestId = UUID.randomUUID().toString())
+    val exception: StatusRuntimeException =
+      assertFailsWith<StatusRuntimeException> {
+        createFile(uploadId, requestId = UUID.randomUUID().toString())
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS.name
+        }
+      )
+  }
 
   @Test
   fun `createRawImpressionUploadFile throws NOT_FOUND when upload not found`() = runBlocking {
