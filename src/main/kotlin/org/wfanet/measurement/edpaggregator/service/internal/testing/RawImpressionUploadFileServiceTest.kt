@@ -330,6 +330,39 @@ abstract class RawImpressionUploadFileServiceTest {
   }
 
   @Test
+  fun `batchCreateRawImpressionUploadFiles is partially idempotent with mixed request_ids`() =
+    runBlocking {
+      val uploadId: String = createUpload()
+      val existingRequestId: String = UUID.randomUUID().toString()
+      val existingFile: RawImpressionUploadFile =
+        createFile(uploadId, blobUri = "gs://bucket/existing", requestId = existingRequestId)
+
+      val response: BatchCreateRawImpressionUploadFilesResponse =
+        fileService.batchCreateRawImpressionUploadFiles(
+          batchCreateRawImpressionUploadFilesRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = uploadId
+            // Reuses an existing request_id: should return the previously created file.
+            requests += createRawImpressionUploadFileRequest {
+              rawImpressionUploadFile = rawImpressionUploadFile { blobUri = "gs://bucket/ignored" }
+              this.requestId = existingRequestId
+            }
+            // New request_id: should create a new file.
+            requests += createRawImpressionUploadFileRequest {
+              rawImpressionUploadFile = rawImpressionUploadFile { blobUri = "gs://bucket/new" }
+              this.requestId = UUID.randomUUID().toString()
+            }
+          }
+        )
+
+      assertThat(response.rawImpressionUploadFilesList).hasSize(2)
+      assertThat(response.rawImpressionUploadFilesList[0]).isEqualTo(existingFile)
+      assertThat(response.rawImpressionUploadFilesList[1].fileResourceId)
+        .isNotEqualTo(existingFile.fileResourceId)
+      assertThat(response.rawImpressionUploadFilesList[1].blobUri).isEqualTo("gs://bucket/new")
+    }
+
+  @Test
   fun `batchCreateRawImpressionUploadFiles throws INVALID_ARGUMENT for data_provider mismatch`() =
     runBlocking {
       val uploadId: String = createUpload()
