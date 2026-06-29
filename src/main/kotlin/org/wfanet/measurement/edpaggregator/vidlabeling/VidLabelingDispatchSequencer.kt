@@ -23,9 +23,12 @@ import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
 import org.wfanet.measurement.api.v2alpha.listModelShardsRequest
 import org.wfanet.measurement.common.api.grpc.ResourceList
@@ -34,15 +37,22 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.createPoolAssignmentJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLinePoolAssigningRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
+import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
@@ -62,23 +72,32 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  * `cmmsModelLine` running, which protects the cumulative rank index from concurrent Phase-1 runs;
  * different model lines proceed in parallel.
  *
- * This PR handles only the **non-memoized** (Phase-2 VidLabeler) path. Memoized model lines are
- * skipped pending follow-up (TODO(world-federation-of-advertisers/cross-media-measurement#4062)).
+ * Both paths are handled: a **memoized** model line dispatches Phase-0 (pre-creating a
+ * `PoolAssignmentJob` per shard, publishing one SubpoolAssigner `WorkItem` per shard on the
+ * [poolAssignerQueueName] queue, then transitioning to `POOL_ASSIGNING`); a **non-memoized** model
+ * line dispatches Phase-2 directly (one VidLabeler `WorkItem` per shard on [queueName], then
+ * transitioning to `LABELING`).
  *
  * Because the fast path and the monitor can run concurrently, two callers can momentarily both pick
  * the same model line. Each transition is therefore guarded by an etag compare-and-swap: the first
  * caller to call `Mark*` with the model line's etag wins, and the loser observes `ABORTED` (or
- * `FAILED_PRECONDITION` if the line already advanced) and no-ops. `WorkItem` creation is idempotent
- * (deterministic IDs), so the loser's redundant create calls are harmless.
+ * `FAILED_PRECONDITION` if the line already advanced) and no-ops. Every create is idempotent
+ * (deterministic `WorkItem` IDs; deterministic `PoolAssignmentJob` `request_id`s), so the loser's
+ * redundant create calls are harmless.
  *
  * @param rawImpressionUploadStub stub for `RawImpressionUploadService`.
  * @param rawImpressionUploadModelLineStub stub for `RawImpressionUploadModelLineService`.
  * @param workItemsStub stub for creating WorkItems via the Secure Computation API.
+ * @param poolAssignmentJobStub stub for `PoolAssignmentJobService` (memoized Phase-0).
  * @param modelRolloutsStub VID Repository ModelRollouts API.
  * @param modelShardsStub VID Repository ModelShards API.
+ * @param modelLinesStub VID Repository ModelLines API; used to resolve the memoized active window.
  * @param dataProviderName resource name of the `DataProvider` this sequencer dispatches for.
  * @param vidLabelerParamsTemplate template [VidLabelerParams] carrying storage + connection fields.
- * @param queueName resource name of the Secure Computation queue.
+ * @param subpoolAssignerParamsTemplate template [SubpoolAssignerParams] carrying the storage +
+ *   connection fields shared by every memoized Phase-0 WorkItem.
+ * @param queueName resource name of the Secure Computation queue for Phase-2 VidLabeler WorkItems.
+ * @param poolAssignerQueueName resource name of the queue for Phase-0 SubpoolAssigner WorkItems.
  * @param numberOfShards static number of shards per model line.
  * @param modelLineConfigs field-mapping configuration keyed by model line resource name.
  */
@@ -88,11 +107,16 @@ class VidLabelingDispatchSequencer(
   private val rawImpressionUploadModelLineStub:
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub,
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
+  private val poolAssignmentJobStub:
+    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub,
   private val modelRolloutsStub: ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub,
   private val modelShardsStub: ModelShardsGrpcKt.ModelShardsCoroutineStub,
+  private val modelLinesStub: ModelLinesGrpcKt.ModelLinesCoroutineStub,
   private val dataProviderName: String,
   private val vidLabelerParamsTemplate: VidLabelerParams,
+  private val subpoolAssignerParamsTemplate: SubpoolAssignerParams,
   private val queueName: String,
+  private val poolAssignerQueueName: String,
   private val numberOfShards: Int,
   private val modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig>,
 ) {
@@ -178,8 +202,7 @@ class VidLabelingDispatchSequencer(
    * the model line out of `CREATED` (which rolls the upload up to `ACTIVE`).
    *
    * @return true if the model line was activated (shard resolved and work attempted); false if it
-   *   was skipped (model shard unresolved, or memoized — see below), in which case it is left
-   *   `CREATED` for a later attempt.
+   *   was skipped (model shard unresolved), in which case it is left `CREATED` for a later attempt.
    */
   private suspend fun activateModelLine(
     uploadName: String,
@@ -194,17 +217,23 @@ class VidLabelingDispatchSequencer(
           return false
         }
 
-    // TODO(world-federation-of-advertisers/cross-media-measurement#4062): Dispatch the Phase-0
-    //   SubpoolAssigner WorkItem for memoized model lines. This PR handles only the non-memoized
-    //   (Phase-2 VidLabeler) path, so memoized model lines are skipped until that follow-up lands.
     if (shardInfo.memoizationEnabled) {
-      logger.warning(
-        "Skipping memoized model line ${modelLine.cmmsModelLine}: Phase-0 dispatch not yet " +
-          "implemented (see #4062)"
-      )
-      return false
+      dispatchMemoized(uploadName, modelLine, shardInfo)
+    } else {
+      dispatchNonMemoized(uploadName, modelLine, shardInfo)
     }
+    return true
+  }
 
+  /**
+   * Non-memoized (Phase-2) dispatch: one VidLabeler `WorkItem` per shard on [queueName], then
+   * transition the model line to `LABELING`.
+   */
+  private suspend fun dispatchNonMemoized(
+    uploadName: String,
+    modelLine: RawImpressionUploadModelLine,
+    shardInfo: ResolvedShardInfo,
+  ) {
     val uploadId: String =
       requireNotNull(RawImpressionUploadKey.fromName(uploadName)) {
           "Invalid RawImpressionUpload name: $uploadName"
@@ -220,7 +249,53 @@ class VidLabelingDispatchSequencer(
       )
     }
     markLabeling(modelLine.name, modelLine.etag)
-    return true
+  }
+
+  /**
+   * Memoized (Phase-0) dispatch: pre-create a `PoolAssignmentJob` per shard, publish one
+   * SubpoolAssigner `WorkItem` per shard on [poolAssignerQueueName] (each carrying the resource
+   * name of its pre-created job), then transition the model line to `POOL_ASSIGNING`.
+   *
+   * Mirrors [dispatchNonMemoized]'s create-then-mark order. Every create is idempotent
+   * (deterministic `request_id` for the jobs, deterministic `workItemId` for the WorkItems), so a
+   * caller that loses the per-model-line etag CAS at [markPoolAssigning] has only repeated harmless
+   * creates.
+   */
+  private suspend fun dispatchMemoized(
+    uploadName: String,
+    modelLine: RawImpressionUploadModelLine,
+    shardInfo: ResolvedShardInfo,
+  ) {
+    val modelLineConfig =
+      requireNotNull(modelLineConfigs[modelLine.cmmsModelLine]) {
+        "No ModelLineConfig found for model line: ${modelLine.cmmsModelLine}"
+      }
+    // The active window is read from the ModelLine so the TEE can drop out-of-window impressions.
+    val resolvedModelLine: ModelLine = getModelLine(modelLine.cmmsModelLine)
+
+    // Pre-create the shard rows first; the server assigns each a name we thread into its WorkItem.
+    val poolAssignmentJobsByShard: Map<Int, String> =
+      createPoolAssignmentJobs(uploadName, modelLine.cmmsModelLine)
+
+    val uploadId: String = uploadName.substringAfterLast("/")
+    for (shardIndex in 0 until numberOfShards) {
+      val poolAssignmentJob: String =
+        requireNotNull(poolAssignmentJobsByShard[shardIndex]) {
+          "BatchCreatePoolAssignmentJobs returned no job for shard $shardIndex of " +
+            modelLine.cmmsModelLine
+        }
+      createSubpoolAssignerWorkItem(
+        uploadName = uploadName,
+        modelLineName = modelLine.cmmsModelLine,
+        modelBlobPath = shardInfo.modelBlobPath,
+        resolvedModelLine = resolvedModelLine,
+        modelLineConfig = modelLineConfig,
+        poolAssignmentJob = poolAssignmentJob,
+        shardIndex = shardIndex,
+        uploadId = uploadId,
+      )
+    }
+    markPoolAssigning(modelLine.name, modelLine.etag)
   }
 
   /** Lists this DataProvider's uploads in [state]. */
@@ -423,8 +498,152 @@ class VidLabelingDispatchSequencer(
     }
   }
 
+  private suspend fun markPoolAssigning(modelLineName: String, etag: String) {
+    try {
+      rawImpressionUploadModelLineStub.markRawImpressionUploadModelLinePoolAssigning(
+        markRawImpressionUploadModelLinePoolAssigningRequest {
+          name = modelLineName
+          this.etag = etag
+        }
+      )
+    } catch (e: StatusException) {
+      if (isConcurrentClaimLoss(e)) {
+        logger.info(
+          "Skipping POOL_ASSIGNING for $modelLineName: ${e.status.code} (claimed by a concurrent " +
+            "dispatch)"
+        )
+        return
+      }
+      throw Exception("Error marking $modelLineName POOL_ASSIGNING", e)
+    }
+  }
+
+  /** Fetches the `ModelLine` to read its active window (`active_start_time`/`active_end_time`). */
+  private suspend fun getModelLine(modelLineName: String): ModelLine =
+    try {
+      modelLinesStub.getModelLine(getModelLineRequest { name = modelLineName })
+    } catch (e: StatusException) {
+      throw Exception("Error getting ModelLine $modelLineName", e)
+    }
+
+  /**
+   * Pre-creates one `PoolAssignmentJob` per shard for ([uploadName], [modelLineName]) via
+   * `BatchCreatePoolAssignmentJobs`, chunked to [POOL_ASSIGNMENT_JOB_BATCH_SIZE] (the server's
+   * batch limit).
+   *
+   * Idempotency is by AIP-155 `request_id` (deterministic per shard), so a redelivered batch
+   * returns the existing rows for shards already created and creates the rest — no `ALREADY_EXISTS`
+   * to ack.
+   *
+   * @return a map from shard index to the server-assigned `PoolAssignmentJob` resource name, used
+   *   to stamp `SubpoolAssignerParams.pool_assignment_job` on each shard's WorkItem.
+   */
+  private suspend fun createPoolAssignmentJobs(
+    uploadName: String,
+    modelLineName: String,
+  ): Map<Int, String> {
+    val jobsByShard = mutableMapOf<Int, String>()
+    for (shardChunk in (0 until numberOfShards).chunked(POOL_ASSIGNMENT_JOB_BATCH_SIZE)) {
+      val request = batchCreatePoolAssignmentJobsRequest {
+        parent = uploadName
+        for (shardIndex in shardChunk) {
+          requests += createPoolAssignmentJobRequest {
+            parent = uploadName
+            poolAssignmentJob = poolAssignmentJob {
+              cmmsModelLine = modelLineName
+              this.shardIndex = shardIndex
+            }
+            requestId = RequestIds.forPoolAssignmentJob(uploadName, modelLineName, shardIndex)
+          }
+        }
+      }
+      val response =
+        try {
+          poolAssignmentJobStub.batchCreatePoolAssignmentJobs(request)
+        } catch (e: StatusException) {
+          throw Exception(
+            "Error creating PoolAssignmentJobs for $modelLineName under $uploadName",
+            e,
+          )
+        }
+      for (job in response.poolAssignmentJobsList) {
+        jobsByShard[job.shardIndex] = job.name
+      }
+    }
+    return jobsByShard
+  }
+
+  /**
+   * Creates one Phase-0 SubpoolAssigner `WorkItem` on the [poolAssignerQueueName] queue for a
+   * single shard, packing a [SubpoolAssignerParams] that references the shard's pre-created
+   * [poolAssignmentJob].
+   *
+   * Idempotent on a deterministic [workItemId]: a retry returns `ALREADY_EXISTS` (handled below)
+   * rather than publishing a duplicate, exactly like [createWorkItem].
+   */
+  private suspend fun createSubpoolAssignerWorkItem(
+    uploadName: String,
+    modelLineName: String,
+    modelBlobPath: String,
+    resolvedModelLine: ModelLine,
+    modelLineConfig: VidLabelerParams.ModelLineConfig,
+    poolAssignmentJob: String,
+    shardIndex: Int,
+    uploadId: String,
+  ) {
+    val params = subpoolAssignerParams {
+      dataProvider = dataProviderName
+      rawImpressionStorageParams = subpoolAssignerParamsTemplate.rawImpressionStorageParams
+      vidLabeledImpressionsStorageParams =
+        subpoolAssignerParamsTemplate.vidLabeledImpressionsStorageParams
+      vidRankMapStorageParams = subpoolAssignerParamsTemplate.vidRankMapStorageParams
+      subpoolMapStorageParams = subpoolAssignerParamsTemplate.subpoolMapStorageParams
+      rawImpressionMetadataStorageConnection =
+        subpoolAssignerParamsTemplate.rawImpressionMetadataStorageConnection
+      rawImpressionUpload = uploadName
+      modelLine = modelLineName
+      this.modelBlobPath = modelBlobPath
+      activeStartTime = resolvedModelLine.activeStartTime
+      if (resolvedModelLine.hasActiveEndTime()) {
+        activeEndTime = resolvedModelLine.activeEndTime
+      }
+      this.shardIndex = shardIndex
+      totalShards = numberOfShards
+      labelerInputFieldMapping.putAll(modelLineConfig.labelerInputFieldMappingMap)
+      eventTemplateFieldMapping.putAll(modelLineConfig.eventTemplateFieldMappingMap)
+      this.poolAssignmentJob = poolAssignmentJob
+    }
+
+    val workItemId =
+      "subpool-assigner-$uploadId-${modelLineName.substringAfterLast("/")}-shard-$shardIndex"
+    val request = createWorkItemRequest {
+      this.workItemId = workItemId
+      workItem = workItem {
+        queue = poolAssignerQueueName
+        workItemParams = workItemParams { appParams = params.pack() }.pack()
+      }
+    }
+    try {
+      workItemsStub.createWorkItem(request)
+    } catch (e: StatusException) {
+      if (e.status.code == Status.Code.ALREADY_EXISTS) {
+        // A concurrent dispatch already created this WorkItem; the deterministic ID makes this a
+        // no-op. Safe to ignore.
+        logger.info("WorkItem $workItemId already exists; skipping (concurrent dispatch)")
+        return
+      }
+      throw Exception("Error creating WorkItem $workItemId", e)
+    }
+    logger.info(
+      "Created SubpoolAssigner WorkItem $workItemId for model line $modelLineName shard $shardIndex"
+    )
+  }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    /** Maximum `CreatePoolAssignmentJobRequest`s per `BatchCreatePoolAssignmentJobs` call. */
+    private const val POOL_ASSIGNMENT_JOB_BATCH_SIZE = 50
 
     /**
      * Model-line states that count as "running" for `(DataProvider, ModelLine)` serialization: a

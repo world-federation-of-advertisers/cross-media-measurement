@@ -96,6 +96,19 @@ message VidLabelingConfig {
   // for alerting.
   google.protobuf.Duration staleness_threshold = 13
       [(google.api.field_behavior) = REQUIRED];
+
+  // Storage from which the Phase-1 VidRankBuilder reads prior cumulative
+  // rank-index blobs and to which it writes the new day-only + cumulative
+  // rank-index blobs. Passed through to the Phase-0 SubpoolAssigner WorkItem
+  // for memoized model lines.
+  StorageParams vid_rank_map_storage_params = 14
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Storage to which the Phase-0 SubpoolAssigner writes per-(shard, subpool)
+  // SubpoolFingerprints blobs. Passed through to the SubpoolAssigner WorkItem
+  // for memoized model lines.
+  StorageParams subpool_map_storage_params = 15
+      [(google.api.field_behavior) = REQUIRED];
 }
 
 // Wrapper containing VID Labeling configurations for all EDPs.
