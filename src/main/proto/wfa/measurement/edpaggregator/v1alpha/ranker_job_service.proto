@@ -46,23 +46,13 @@ service RankerJobService {
   // returns the signal to the caller. Throws
   // FAILED_PRECONDITION if state is not CREATED or FAILED.
   // Throws ABORTED if etag does not match the current resource
-  // version (AIP-154). A retry with the same `request_id`
-  // returns the original response without modifying state
-  // (AIP-155); `request_id` must be derived deterministically so
-  // that retries share one (see its documentation), otherwise a
-  // retried call against an already-transitioned row fails with
-  // FAILED_PRECONDITION.
+  // version (AIP-154).
   rpc MarkRankerJobSucceeded(MarkRankerJobSucceededRequest)
       returns (MarkRankerJobSucceededResponse) {}
 
   // Marks a `RankerJob` as `FAILED`. Throws FAILED_PRECONDITION
   // if state is not CREATED or FAILED. Throws ABORTED if etag
-  // does not match the current resource version (AIP-154). A
-  // retry with the same `request_id` returns the original
-  // response without modifying state (AIP-155); `request_id` must
-  // be derived deterministically so that retries share one (see
-  // its documentation), otherwise a retried call against an
-  // already-transitioned row fails with FAILED_PRECONDITION.
+  // does not match the current resource version (AIP-154).
   rpc MarkRankerJobFailed(MarkRankerJobFailedRequest) returns (RankerJob) {}
 }
 
