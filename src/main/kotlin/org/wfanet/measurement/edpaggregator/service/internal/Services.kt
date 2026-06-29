@@ -18,12 +18,13 @@ package org.wfanet.measurement.edpaggregator.service.internal
 
 import io.grpc.BindableService
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt
-import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.RankerJobServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchFileServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchServiceGrpcKt
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingJobServiceGrpcKt
 
 /** Edp Aggregator internal API services. */
 data class Services(
@@ -37,8 +38,9 @@ data class Services(
     RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineImplBase,
   val rawImpressionUpload:
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase,
-  val rawImpressionUploadModelLine:
-    RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase,
+  val vidLabelingJob: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase,
+  val rankerJob: RankerJobServiceGrpcKt.RankerJobServiceCoroutineImplBase,
+  val rankIndexBlob: RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase,
 ) {
   fun toList(): List<BindableService> =
     listOf(
@@ -47,6 +49,8 @@ data class Services(
       rawImpressionMetadataBatch,
       rawImpressionMetadataBatchFile,
       rawImpressionUpload,
-      rawImpressionUploadModelLine,
+      vidLabelingJob,
+      rankerJob,
+      rankIndexBlob,
     )
 }

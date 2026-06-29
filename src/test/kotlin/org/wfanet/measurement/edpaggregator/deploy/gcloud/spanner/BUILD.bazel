@@ -93,15 +93,40 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "SpannerRawImpressionUploadModelLineServiceTest",
-    srcs = ["SpannerRawImpressionUploadModelLineServiceTest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerRawImpressionUploadModelLineServiceTest",
+    name = "SpannerRankIndexBlobServiceTest",
+    srcs = ["SpannerRankIndexBlobServiceTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerRankIndexBlobServiceTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:spanner_raw_impression_upload_model_line_service",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:spanner_rank_index_blob_service",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/testing:schemata",
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal/testing:raw_impression_upload_model_line_service_test",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal/testing:rank_index_blob_service_test",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_state_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
+
+spanner_emulator_test(
+    name = "SpannerRankerJobServiceTest",
+    srcs = ["SpannerRankerJobServiceTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerRankerJobServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:spanner_ranker_job_service",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/testing:schemata",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal/testing:ranker_job_service_test",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_state_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
+
+spanner_emulator_test(
+    name = "SpannerVidLabelingJobServiceTest",
+    srcs = ["SpannerVidLabelingJobServiceTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerVidLabelingJobServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:spanner_vid_labeling_job_service",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/testing:schemata",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal/testing:vid_labeling_job_service_test",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_state_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )

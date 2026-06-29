@@ -43,8 +43,6 @@ service RankerJobService {
   // Marks a `RankerJob` as `SUCCEEDED`. Throws
   // FAILED_PRECONDITION if state is not CREATED or FAILED.
   // Throws ABORTED if etag does not match (AIP-154).
-  // A retry with the same `request_id` returns the original
-  // response without modifying state (AIP-155).
   rpc MarkRankerJobSucceeded(MarkRankerJobSucceededRequest)
       returns (MarkRankerJobSucceededResponse);
 
@@ -195,4 +193,7 @@ message MarkRankerJobFailedRequest {
 
   // Human-readable detail about the failure.
   string error_message = 5;
+
+  // A request ID for retry idempotency.
+  string request_id = 6;
 }

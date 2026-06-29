@@ -27,6 +27,8 @@ import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionBatchState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState
+import org.wfanet.measurement.internal.edpaggregator.RankerState
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingState
 
 object Errors {
   const val DOMAIN = "internal.edpaggregator.halo-cmm.org"
@@ -42,8 +44,14 @@ object Errors {
     RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
     RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
     RAW_IMPRESSION_UPLOAD_NOT_FOUND,
-    RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
-    RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+    VID_LABELING_JOB_NOT_FOUND,
+    VID_LABELING_JOB_STATE_INVALID,
+    VID_LABELING_JOB_ALREADY_EXISTS,
+    RANKER_JOB_NOT_FOUND,
+    RANKER_JOB_ALREADY_EXISTS,
+    RANKER_JOB_STATE_INVALID,
+    RANK_INDEX_BLOB_NOT_FOUND,
+    RANK_INDEX_BLOB_ALREADY_EXISTS,
     REQUISITION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_ALREADY_EXISTS,
@@ -72,9 +80,13 @@ object Errors {
     RAW_IMPRESSION_UPLOAD_RESOURCE_ID("rawImpressionUploadResourceId"),
     FILE_RESOURCE_ID("fileResourceId"),
     RAW_IMPRESSION_UPLOAD_RESOURCE_ID("rawImpressionUploadResourceId"),
-    CMMS_MODEL_LINE("cmmsModelLine"),
-    RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE("rawImpressionUploadModelLineState"),
-    EXPECTED_RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATES("expectedRawImpressionUploadModelLineStates"),
+    VID_LABELING_JOB_RESOURCE_ID("vidLabelingJobResourceId"),
+    VID_LABELING_JOB_STATE("vidLabelingJobState"),
+    EXPECTED_VID_LABELING_JOB_STATES("expectedVidLabelingJobStates"),
+    RANKER_JOB_RESOURCE_ID("rankerJobResourceId"),
+    RANKER_JOB_STATE("rankerJobState"),
+    EXPECTED_RANKER_JOB_STATES("expectedRankerJobStates"),
+    RANK_INDEX_BLOB_RESOURCE_ID("rankIndexBlobResourceId"),
     FIELD_NAME("fieldName");
 
     companion object {
@@ -442,41 +454,142 @@ class RawImpressionUploadNotFoundException(
     cause,
   )
 
-class RawImpressionUploadModelLineNotFoundException(
+class VidLabelingJobNotFoundException(
   dataProviderResourceId: String,
   rawImpressionUploadResourceId: String,
-  cmmsModelLine: String,
+  vidLabelingJobResourceId: String,
   cause: Throwable? = null,
 ) :
   ServiceException(
-    Errors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
-    "RawImpressionUploadModelLine not found",
+    Errors.Reason.VID_LABELING_JOB_NOT_FOUND,
+    "VidLabelingJob not found",
     mapOf(
       Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
       Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
-      Errors.Metadata.CMMS_MODEL_LINE to cmmsModelLine,
+      Errors.Metadata.VID_LABELING_JOB_RESOURCE_ID to vidLabelingJobResourceId,
     ),
     cause,
   )
 
-class RawImpressionUploadModelLineStateInvalidException(
+class VidLabelingJobStateInvalidException(
   dataProviderResourceId: String,
   rawImpressionUploadResourceId: String,
-  cmmsModelLine: String,
-  actualState: RawImpressionUploadModelLineState,
-  expectedStates: Collection<RawImpressionUploadModelLineState>,
+  vidLabelingJobResourceId: String,
+  actualState: VidLabelingState,
+  expectedStates: Collection<VidLabelingState>,
   cause: Throwable? = null,
 ) :
   ServiceException(
-    Errors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
-    "RawImpressionUploadModelLine state invalid: expected one of $expectedStates but was $actualState",
+    Errors.Reason.VID_LABELING_JOB_STATE_INVALID,
+    "VidLabelingJob state invalid: expected one of $expectedStates but was $actualState",
     mapOf(
       Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
       Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
-      Errors.Metadata.CMMS_MODEL_LINE to cmmsModelLine,
-      Errors.Metadata.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE to actualState.name,
-      Errors.Metadata.EXPECTED_RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATES to
+      Errors.Metadata.VID_LABELING_JOB_RESOURCE_ID to vidLabelingJobResourceId,
+      Errors.Metadata.VID_LABELING_JOB_STATE to actualState.name,
+      Errors.Metadata.EXPECTED_VID_LABELING_JOB_STATES to
         expectedStates.joinToString(",") { state -> state.name },
+    ),
+    cause,
+  )
+
+class VidLabelingJobAlreadyExistsException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
+    "VidLabelingJob already exists",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+    ),
+    cause,
+  )
+
+class RankerJobNotFoundException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  rankerJobResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RANKER_JOB_NOT_FOUND,
+    "RankerJob not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+      Errors.Metadata.RANKER_JOB_RESOURCE_ID to rankerJobResourceId,
+    ),
+    cause,
+  )
+
+class RankerJobAlreadyExistsException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RANKER_JOB_ALREADY_EXISTS,
+    "RankerJob already exists",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+    ),
+    cause,
+  )
+
+class RankerJobStateInvalidException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  rankerJobResourceId: String,
+  actualState: RankerState,
+  expectedStates: Collection<RankerState>,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RANKER_JOB_STATE_INVALID,
+    "RankerJob state invalid: expected one of $expectedStates but was $actualState",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+      Errors.Metadata.RANKER_JOB_RESOURCE_ID to rankerJobResourceId,
+      Errors.Metadata.RANKER_JOB_STATE to actualState.name,
+      Errors.Metadata.EXPECTED_RANKER_JOB_STATES to
+        expectedStates.joinToString(",") { state -> state.name },
+    ),
+    cause,
+  )
+
+class RankIndexBlobNotFoundException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  rankIndexBlobResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+    "RankIndexBlob with resource ID $rankIndexBlobResourceId for RawImpressionUpload $rawImpressionUploadResourceId of DataProvider $dataProviderResourceId not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+      Errors.Metadata.RANK_INDEX_BLOB_RESOURCE_ID to rankIndexBlobResourceId,
+    ),
+    cause,
+  )
+
+class RankIndexBlobAlreadyExistsException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+    "RankIndexBlob already exists for RawImpressionUpload $rawImpressionUploadResourceId of DataProvider $dataProviderResourceId",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
     ),
     cause,
   )
