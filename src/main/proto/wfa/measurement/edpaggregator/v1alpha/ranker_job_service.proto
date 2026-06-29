@@ -74,7 +74,14 @@ message CreateRankerJobRequest {
 
   // A request ID provided by the client to ensure idempotency.
   //
-  // This field must be a UUID4 (RFC 4122) string.
+  // This field is REQUIRED, deviating from AIP-155 (which recommends request_id
+  // be optional): the job's resource name is assigned by the server, so the
+  // client has no other idempotency key. Without it, a retry after a lost
+  // response would create a second, orphaned job. Must be a UUID4 (RFC 4122)
+  // string.
+  // (-- api-linter: core::0133::request-required-fields=disabled
+  //     aip.dev/not-precedent: request_id is intentionally REQUIRED so the
+  //     server can deduplicate retries of this server-named resource. --)
   string request_id = 3 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_info).format = UUID4
@@ -182,6 +189,10 @@ message ListRankerJobsResponse {
 
   // A token to retrieve the next page of results.
   string next_page_token = 2;
+
+  // The total number of ranker jobs matching the request, irrespective of
+  // pagination.
+  int32 total_size = 3;
 }
 
 // Request message for the `MarkRankerJobSucceeded` method.

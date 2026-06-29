@@ -32,6 +32,7 @@ import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RankerJobResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countOtherNonSucceededRankerJobs
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countRankerJobs
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRankerJobByRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRankerJobsByRequestIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRankerJobByResourceId
@@ -111,11 +112,6 @@ class SpannerRankerJobService(
 
           val rawImpressionUploadId =
             txn.getRawImpressionUploadId(dataProviderResourceId, rawImpressionUploadResourceId)
-              ?: throw RawImpressionUploadNotFoundException(
-                  dataProviderResourceId,
-                  rawImpressionUploadResourceId,
-                )
-                .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
           val rankerJobId =
             idGenerator.generateNewId { id ->
@@ -142,6 +138,8 @@ class SpannerRankerJobService(
             clearUpdateTime()
           }
         }
+      } catch (e: RawImpressionUploadNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       } catch (e: SpannerException) {
         if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
           throw RankerJobAlreadyExistsException(
@@ -234,11 +232,6 @@ class SpannerRankerJobService(
         transactionRunner.run { txn ->
           val rawImpressionUploadId =
             txn.getRawImpressionUploadId(dataProviderResourceId, rawImpressionUploadResourceId)
-              ?: throw RawImpressionUploadNotFoundException(
-                  dataProviderResourceId,
-                  rawImpressionUploadResourceId,
-                )
-                .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
           val existingByRequestId: Map<String, RankerJobResult> =
             txn.findRankerJobsByRequestIds(
@@ -279,6 +272,8 @@ class SpannerRankerJobService(
             }
           }
         }
+      } catch (e: RawImpressionUploadNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       } catch (e: SpannerException) {
         if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
           throw RankerJobAlreadyExistsException(
@@ -356,6 +351,15 @@ class SpannerRankerJobService(
 
     val after = if (request.hasPageToken()) request.pageToken.after else null
 
+    val totalSize: Long =
+      databaseClient.singleUse().use { txn ->
+        txn.countRankerJobs(
+          request.dataProviderResourceId,
+          request.rawImpressionUploadResourceId.ifEmpty { null },
+          if (request.hasFilter()) request.filter else null,
+        )
+      }
+
     databaseClient.singleUse().use { txn ->
       val rows: Flow<RankerJobResult> =
         txn.readRankerJobs(
@@ -367,6 +371,7 @@ class SpannerRankerJobService(
         )
 
       return listRankerJobsResponse {
+        this.totalSize = totalSize.toInt()
         rows.collectIndexed { index, result ->
           if (index == pageSize) {
             val lastIncluded = rankerJobs.last()

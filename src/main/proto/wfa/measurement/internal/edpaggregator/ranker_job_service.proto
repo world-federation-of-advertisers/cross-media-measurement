@@ -138,6 +138,10 @@ message ListRankerJobsResponse {
 
   // A token to retrieve the next page of results.
   ListRankerJobsPageToken next_page_token = 2;
+
+  // The total number of ranker jobs matching the request, irrespective of
+  // pagination.
+  int32 total_size = 3;
 }
 
 // Page token for ListRankerJobs.

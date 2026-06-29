@@ -23,9 +23,9 @@ import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState
+import org.wfanet.measurement.internal.edpaggregator.RankerState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionBatchState
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState
-import org.wfanet.measurement.internal.edpaggregator.RankerState
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingState
 
 object Errors {

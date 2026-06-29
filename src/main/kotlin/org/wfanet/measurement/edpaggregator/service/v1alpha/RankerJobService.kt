@@ -307,6 +307,7 @@ class RankerJobService(
 
     return listRankerJobsResponse {
       rankerJobs += internalResponse.rankerJobsList.map { it.toPublic() }
+      totalSize = internalResponse.totalSize
       if (internalResponse.hasNextPageToken()) {
         nextPageToken = internalResponse.nextPageToken.toByteArray().base64UrlEncode()
       }
@@ -442,6 +443,8 @@ class RankerJobService(
         InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
         InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
         InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }

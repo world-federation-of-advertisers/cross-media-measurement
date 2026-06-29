@@ -421,6 +421,35 @@ class RankerJobServiceTest {
     }
 
   @Test
+  fun `listRankerJobs returns total_size ignoring pagination`() =
+    runBlocking<Unit> {
+      createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+      for (offset in 0L..2L) {
+        service.createRankerJob(
+          createRankerJobRequest {
+            requestId = UUID.randomUUID().toString()
+            parent = UPLOAD_KEY.toName()
+            rankerJob = rankerJob {
+              cmmsModelLine = CMMS_MODEL_LINE
+              poolOffsets += listOf(offset)
+            }
+          }
+        )
+      }
+
+      val response =
+        service.listRankerJobs(
+          listRankerJobsRequest {
+            parent = UPLOAD_KEY.toName()
+            pageSize = 1
+          }
+        )
+
+      assertThat(response.rankerJobsList).hasSize(1)
+      assertThat(response.totalSize).isEqualTo(3)
+    }
+
+  @Test
   fun `listRankerJobs respects page size and pagination`() = runBlocking {
     createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
     val created1 =

@@ -300,6 +300,76 @@ fun AsyncDatabaseClient.ReadContext.readRankerJobs(
   }
 }
 
+/**
+ * Counts the [RankerJob] rows matching the same predicate as [readRankerJobs], ignoring pagination.
+ *
+ * Used to populate `total_size` on the list response (AIP-132).
+ */
+suspend fun AsyncDatabaseClient.ReadContext.countRankerJobs(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String?,
+  filter: ListRankerJobsRequest.Filter?,
+): Long {
+  val sql = buildString {
+    appendLine("SELECT COUNT(*) AS Cnt")
+    appendLine("FROM RankerJob")
+    appendLine("JOIN RawImpressionUpload USING (DataProviderResourceId, RawImpressionUploadId)")
+
+    val conjuncts = mutableListOf("RankerJob.DataProviderResourceId = @dataProviderResourceId")
+
+    if (rawImpressionUploadResourceId != null) {
+      conjuncts.add(
+        "RawImpressionUpload.RawImpressionUploadResourceId = @rawImpressionUploadResourceId"
+      )
+    }
+
+    if (filter != null) {
+      if (filter.stateInList.isNotEmpty()) {
+        conjuncts.add("CAST(RankerJob.State AS INT64) IN UNNEST(@state_in)")
+      }
+      if (filter.hasCreateTimeIn()) {
+        if (filter.createTimeIn.hasStartTime()) {
+          conjuncts.add("RankerJob.CreateTime >= @createTimeStart")
+        }
+        if (filter.createTimeIn.hasEndTime()) {
+          conjuncts.add("RankerJob.CreateTime < @createTimeEnd")
+        }
+      }
+      if (filter.cmmsModelLine.isNotEmpty()) {
+        conjuncts.add("RankerJob.CmmsModelLine = @cmmsModelLine")
+      }
+    }
+
+    appendLine("WHERE " + conjuncts.joinToString(" AND "))
+  }
+
+  val query =
+    statement(sql) {
+      bind("dataProviderResourceId").to(dataProviderResourceId)
+      if (rawImpressionUploadResourceId != null) {
+        bind("rawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
+      }
+      if (filter != null) {
+        if (filter.stateInList.isNotEmpty()) {
+          bind("state_in").toInt64Array(filter.stateInList.map { it.number.toLong() })
+        }
+        if (filter.hasCreateTimeIn()) {
+          if (filter.createTimeIn.hasStartTime()) {
+            bind("createTimeStart").to(filter.createTimeIn.startTime.toGcloudTimestamp())
+          }
+          if (filter.createTimeIn.hasEndTime()) {
+            bind("createTimeEnd").to(filter.createTimeIn.endTime.toGcloudTimestamp())
+          }
+        }
+        if (filter.cmmsModelLine.isNotEmpty()) {
+          bind("cmmsModelLine").to(filter.cmmsModelLine)
+        }
+      }
+    }
+
+  return executeQuery(query, Options.tag("action=countRankerJobs")).single().getLong("Cnt")
+}
+
 /** Buffers an insert mutation for a [RankerJob] row. */
 fun AsyncDatabaseClient.TransactionContext.insertRankerJob(
   rawImpressionUploadId: Long,

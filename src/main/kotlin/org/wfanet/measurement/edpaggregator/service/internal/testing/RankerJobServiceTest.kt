@@ -446,6 +446,43 @@ abstract class RankerJobServiceTest {
   }
 
   @Test
+  fun `listRankerJobs returns total_size ignoring pagination`() = runBlocking {
+    for (i in 0..2) {
+      createRanker(i.toLong())
+    }
+
+    val response: ListRankerJobsResponse =
+      service.listRankerJobs(
+        listRankerJobsRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          pageSize = 2
+        }
+      )
+
+    assertThat(response.rankerJobsList).hasSize(2)
+    assertThat(response.totalSize).isEqualTo(3)
+  }
+
+  @Test
+  fun `listRankerJobs total_size respects filter`() = runBlocking {
+    createRanker(0L, cmmsModelLine = CMMS_MODEL_LINE)
+    createRanker(1L, cmmsModelLine = CMMS_MODEL_LINE_2)
+
+    val response: ListRankerJobsResponse =
+      service.listRankerJobs(
+        listRankerJobsRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          filter = ListRankerJobsRequestKt.filter { cmmsModelLine = CMMS_MODEL_LINE }
+        }
+      )
+
+    assertThat(response.rankerJobsList).hasSize(1)
+    assertThat(response.totalSize).isEqualTo(1)
+  }
+
+  @Test
   fun `listRankerJobs filters by state_in`() = runBlocking {
     val created: RankerJob = createRanker(0L)
     createRanker(1L)
