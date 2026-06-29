@@ -442,6 +442,8 @@ class RankerJobService(
         InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
         InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
         InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
+        InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+        InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }

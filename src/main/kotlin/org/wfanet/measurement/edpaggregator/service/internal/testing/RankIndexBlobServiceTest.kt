@@ -97,7 +97,7 @@ abstract class RankIndexBlobServiceTest {
       assertThat(blob.blobType).isEqualTo(BlobType.BLOB_TYPE_SNAPSHOT)
       assertThat(blob.cmmsModelLine).isEqualTo(CMMS_MODEL_LINE)
       assertThat(blob.poolOffset).isEqualTo(0L)
-      assertThat(blob.blobUri).isEqualTo(BLOB_URI)
+      assertThat(blob.blobUri).isEqualTo(newInternalBlob().blobUri)
       assertThat(blob.encryptedDek).isEqualTo(ENCRYPTED_DEK)
       assertThat(blob.createTime.toInstant()).isGreaterThan(startTime)
       assertThat(blob.hasDeleteTime()).isFalse()
@@ -1064,18 +1064,20 @@ abstract class RankIndexBlobServiceTest {
     blobType: BlobType = BlobType.BLOB_TYPE_SNAPSHOT,
     cmmsModelLine: String = CMMS_MODEL_LINE,
     poolOffset: Long = 0L,
-    blobUri: String = BLOB_URI,
+    blobUri: String? = null,
     uploadResourceId: String = RAW_IMPRESSION_UPLOAD_RESOURCE_ID,
     maxEventDate: Date? = null,
     requestId: String = UUID.randomUUID().toString(),
   ): RankIndexBlob {
+    val resolvedBlobUri =
+      blobUri ?: "$BLOB_URI/$uploadResourceId/$cmmsModelLine/$blobType/$poolOffset"
     return service.createRankIndexBlob(
       createRankIndexBlobRequest {
         this.requestId = requestId
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = uploadResourceId
         rankIndexBlob =
-          newInternalBlob(blobType, cmmsModelLine, poolOffset, blobUri).copy {
+          newInternalBlob(blobType, cmmsModelLine, poolOffset, resolvedBlobUri).copy {
             if (maxEventDate != null) {
               this.maxEventDate = maxEventDate
             }
@@ -1098,7 +1100,7 @@ abstract class RankIndexBlobServiceTest {
     blobType: BlobType = BlobType.BLOB_TYPE_SNAPSHOT,
     cmmsModelLine: String = CMMS_MODEL_LINE,
     poolOffset: Long = 0L,
-    blobUri: String = BLOB_URI,
+    blobUri: String = "$BLOB_URI/$cmmsModelLine/$blobType/$poolOffset",
   ): RankIndexBlob {
     return rankIndexBlob {
       this.blobType = blobType
