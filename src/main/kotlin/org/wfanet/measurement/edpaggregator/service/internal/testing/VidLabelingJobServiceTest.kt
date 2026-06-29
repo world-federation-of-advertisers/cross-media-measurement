@@ -703,6 +703,51 @@ abstract class VidLabelingJobServiceTest {
     }
 
   @Test
+  fun `markVidLabelingJobSucceeded clears error_message when retrying from FAILED`() =
+    runBlocking<Unit> {
+      val created: VidLabelingJob = createJob()
+
+      val failed: VidLabelingJob =
+        service.markVidLabelingJobFailed(
+          markVidLabelingJobFailedRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            vidLabelingJobResourceId = created.vidLabelingJobResourceId
+            etag = created.etag
+            errorMessage = "transient"
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      assertThat(failed.errorMessage).isEqualTo("transient")
+
+      val response: MarkVidLabelingJobSucceededResponse =
+        service.markVidLabelingJobSucceeded(
+          markVidLabelingJobSucceededRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            vidLabelingJobResourceId = created.vidLabelingJobResourceId
+            etag = failed.etag
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+
+      assertThat(response.vidLabelingJob.state)
+        .isEqualTo(VidLabelingState.VID_LABELING_STATE_SUCCEEDED)
+      assertThat(response.vidLabelingJob.errorMessage).isEmpty()
+
+      // The cleared error_message must also be persisted, not just reflected in the response copy.
+      val fetched: VidLabelingJob =
+        service.getVidLabelingJob(
+          getVidLabelingJobRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            vidLabelingJobResourceId = created.vidLabelingJobResourceId
+          }
+        )
+      assertThat(fetched.errorMessage).isEmpty()
+    }
+
+  @Test
   fun `markVidLabelingJobFailed is idempotent with same request_id`() =
     runBlocking<Unit> {
       val requestId = UUID.randomUUID().toString()
