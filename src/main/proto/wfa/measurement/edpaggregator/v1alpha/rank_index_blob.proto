@@ -27,10 +27,10 @@ option java_multiple_files = true;
 option java_outer_classname = "RankIndexBlobProto";
 
 // A pointer to a rank index blob in Cloud Storage, with its
-// encrypted DEK. Two rows per (upload, model line, subpool):
-// one DAY_ONLY and one SNAPSHOT. Snapshots are replaced each
-// upload; day-only blobs persist until aged out by the
-// retention policy.
+// encrypted DEK. Every upload (forward or backfill) writes two
+// rows per (upload, model line, subpool): one DAY_ONLY and one
+// SNAPSHOT. Day-only blobs persist until aged out by the
+// retention policy; snapshots are not pruned.
 message RankIndexBlob {
   option (google.api.resource) = {
     type: "edpaggregator.halo-cmm.org/RankIndexBlob"
@@ -92,8 +92,15 @@ message RankIndexBlob {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // The newest event date among the impressions in this blob.
-  // Only set for DAY_ONLY blobs; unset for SNAPSHOT blobs.
+  // The newest event date among the impressions covered by this
+  // blob. Set on both row types. On DAY_ONLY it is the dispatch's
+  // max event date (used by the retention sweep). On SNAPSHOT it
+  // is the newest event date represented in the cumulative state:
+  // for a forward upload, this upload's max event date; for a
+  // backfill, the prior snapshot's max event date (a backfill only
+  // adds older fingerprints, so the newest data is unchanged). Used
+  // as the snapshot-selection key to locate the prior/old snapshot
+  // for a given event date during backfill (see SubpoolRanker).
   google.type.Date max_event_date = 8 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.field_behavior) = IMMUTABLE
