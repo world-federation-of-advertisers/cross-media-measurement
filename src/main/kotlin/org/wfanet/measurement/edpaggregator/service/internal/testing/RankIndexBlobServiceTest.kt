@@ -104,7 +104,7 @@ abstract class RankIndexBlobServiceTest {
     }
 
   @Test
-  fun `createRankIndexBlob persists optional max_event_date and blob_checksum`() =
+  fun `createRankIndexBlob persists max_event_date and blob_checksum`() =
     runBlocking<Unit> {
       val blob: RankIndexBlob =
         service.createRankIndexBlob(
@@ -300,6 +300,58 @@ abstract class RankIndexBlobServiceTest {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `createRankIndexBlob throws INVALID_ARGUMENT if blob_checksum not set`() =
+    runBlocking<Unit> {
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRankIndexBlob(
+            createRankIndexBlobRequest {
+              requestId = UUID.randomUUID().toString()
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              rankIndexBlob = newInternalBlob().copy { clearBlobChecksum() }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "rank_index_blob.blob_checksum"
+          }
+        )
+    }
+
+  @Test
+  fun `createRankIndexBlob throws INVALID_ARGUMENT if max_event_date not set`() =
+    runBlocking<Unit> {
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRankIndexBlob(
+            createRankIndexBlobRequest {
+              requestId = UUID.randomUUID().toString()
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              rankIndexBlob = newInternalBlob().copy { clearMaxEventDate() }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "rank_index_blob.max_event_date"
+          }
+        )
     }
 
   @Test
@@ -1053,7 +1105,9 @@ abstract class RankIndexBlobServiceTest {
       this.cmmsModelLine = cmmsModelLine
       this.poolOffset = poolOffset
       this.blobUri = blobUri
+      blobChecksum = BLOB_CHECKSUM
       encryptedDek = ENCRYPTED_DEK
+      maxEventDate = MAX_EVENT_DATE
     }
   }
 
@@ -1064,6 +1118,7 @@ abstract class RankIndexBlobServiceTest {
     private const val CMMS_MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
     private const val CMMS_MODEL_LINE_2 = "modelProviders/mp1/modelSuites/ms1/modelLines/ml2"
     private const val BLOB_URI = "gs://bucket/rank-index-blob"
+    private val BLOB_CHECKSUM = "checksum".toByteStringUtf8()
     private val ENCRYPTED_DEK: EncryptedDek = encryptedDek {
       kekUri = "kms://kek"
       ciphertext = "ciphertext".toByteStringUtf8()

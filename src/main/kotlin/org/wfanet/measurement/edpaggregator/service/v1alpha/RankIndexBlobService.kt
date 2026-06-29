@@ -401,8 +401,20 @@ class RankIndexBlobService(
       throw RequiredFieldNotSetException("${fieldPathPrefix}rank_index_blob.blob_uri")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    // blob_checksum is REQUIRED: it is the corruption-detection mechanism validated on
+    // every cumulative-blob load, so the heal-rank-index recovery path depends on it.
+    if (request.rankIndexBlob.blobChecksum.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}rank_index_blob.blob_checksum")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     if (!request.rankIndexBlob.hasEncryptedDek()) {
       throw RequiredFieldNotSetException("${fieldPathPrefix}rank_index_blob.encrypted_dek")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    // max_event_date is REQUIRED on both blob types: DAY_ONLY uses it for retention,
+    // SNAPSHOT uses it as the backfill 'old snapshot' selection key.
+    if (!request.rankIndexBlob.hasMaxEventDate()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}rank_index_blob.max_event_date")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     // request_id is REQUIRED on every create so retries are safe (AIP-155).
