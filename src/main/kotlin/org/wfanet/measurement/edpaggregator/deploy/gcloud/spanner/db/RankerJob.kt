@@ -24,7 +24,9 @@ import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.single
+import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -44,7 +46,8 @@ data class RankerJobResult(
   val rankerJob: RankerJob,
   val rawImpressionUploadId: Long,
   val rankerJobId: Long,
-  val markRequestId: String,
+  val markSucceededRequestId: String,
+  val markFailedRequestId: String,
 )
 
 /** Returns whether a [RankerJob] with the specified keys exists. */
@@ -336,7 +339,6 @@ fun AsyncDatabaseClient.TransactionContext.insertRankerJob(
   cmmsModelLine: String,
   poolOffsets: List<Long>,
   createRequestId: String,
-  etag: String,
 ) {
   bufferInsertMutation("RankerJob") {
     set("DataProviderResourceId").to(dataProviderResourceId)
@@ -349,7 +351,6 @@ fun AsyncDatabaseClient.TransactionContext.insertRankerJob(
       set("CreateRequestId").to(createRequestId)
     }
     set("State").to(State.RANKER_STATE_CREATED)
-    set("Etag").to(etag)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
@@ -361,7 +362,6 @@ fun AsyncDatabaseClient.TransactionContext.updateRankerJobState(
   rawImpressionUploadId: Long,
   rankerJobId: Long,
   state: State,
-  etag: String,
   block: (Mutation.WriteBuilder.() -> Unit)? = null,
 ) {
   bufferUpdateMutation("RankerJob") {
@@ -369,7 +369,6 @@ fun AsyncDatabaseClient.TransactionContext.updateRankerJobState(
     set("RawImpressionUploadId").to(rawImpressionUploadId)
     set("RankerJobId").to(rankerJobId)
     set("State").to(state)
-    set("Etag").to(etag)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
     if (block != null) {
       block()
@@ -389,10 +388,10 @@ private object RankerJobEntity {
       RankerJob.CmmsModelLine,
       RankerJob.PoolOffsets,
       RankerJob.CreateRequestId,
-      RankerJob.MarkRequestId,
+      RankerJob.MarkSucceededRequestId,
+      RankerJob.MarkFailedRequestId,
       RankerJob.State,
       RankerJob.ErrorMessage,
-      RankerJob.Etag,
       RankerJob.CreateTime,
       RankerJob.UpdateTime,
     FROM
@@ -414,13 +413,13 @@ private object RankerJobEntity {
         if (!struct.isNull("ErrorMessage")) {
           errorMessage = struct.getString("ErrorMessage")
         }
-        if (!struct.isNull("Etag")) {
-          etag = struct.getString("Etag")
-        }
+        etag = ETags.computeETag(updateTime.toInstant())
       },
       struct.getLong("RawImpressionUploadId"),
       struct.getLong("RankerJobId"),
-      if (struct.isNull("MarkRequestId")) "" else struct.getString("MarkRequestId"),
+      if (struct.isNull("MarkSucceededRequestId")) ""
+      else struct.getString("MarkSucceededRequestId"),
+      if (struct.isNull("MarkFailedRequestId")) "" else struct.getString("MarkFailedRequestId"),
     )
   }
 }

@@ -925,6 +925,53 @@ abstract class RankerJobServiceTest {
   }
 
   @Test
+  fun `mark RPCs track succeeded and failed request_ids independently`() = runBlocking {
+    val requestId = UUID.randomUUID().toString()
+    val created: RankerJob = createRanker(0L)
+
+    // Mark FAILED then SUCCEEDED reusing the SAME request_id. Each Mark RPC keys idempotency on
+    // its own column, so the succeeded call must genuinely transition the job rather than replay
+    // the earlier failed mark.
+    val failed: RankerJob =
+      service.markRankerJobFailed(
+        markRankerJobFailedRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rankerJobResourceId = created.rankerJobResourceId
+          etag = created.etag
+          errorMessage = "transient"
+          this.requestId = requestId
+        }
+      )
+    assertThat(failed.state).isEqualTo(RankerState.RANKER_STATE_FAILED)
+
+    val response: MarkRankerJobSucceededResponse =
+      service.markRankerJobSucceeded(
+        markRankerJobSucceededRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rankerJobResourceId = created.rankerJobResourceId
+          etag = failed.etag
+          this.requestId = requestId
+        }
+      )
+    assertThat(response.rankerJob.state).isEqualTo(RankerState.RANKER_STATE_SUCCEEDED)
+
+    // The succeeded mark stays independently idempotent on its own request_id.
+    val replay: MarkRankerJobSucceededResponse =
+      service.markRankerJobSucceeded(
+        markRankerJobSucceededRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rankerJobResourceId = created.rankerJobResourceId
+          etag = response.rankerJob.etag
+          this.requestId = requestId
+        }
+      )
+    assertThat(replay).isEqualTo(response)
+  }
+
+  @Test
   fun `listRankerJobs filters by create_time_in`() = runBlocking {
     val created: RankerJob = createRanker(0L)
 
