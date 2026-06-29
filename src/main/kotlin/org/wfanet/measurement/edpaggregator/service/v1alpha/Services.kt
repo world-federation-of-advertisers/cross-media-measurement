@@ -21,6 +21,7 @@ import io.grpc.Channel
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchServiceGrpcKt.RawImpressionMetadataBatchServiceCoroutineImplBase
@@ -29,6 +30,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt as InternalImpressionMetadataServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.RankIndexBlobServiceGrpcKt as InternalRankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankerJobServiceGrpcKt as InternalRankerJobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchFileServiceGrpcKt as InternalRawImpressionMetadataBatchFileServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchServiceGrpcKt as InternalRawImpressionMetadataBatchServiceGrpcKt
@@ -46,6 +48,7 @@ data class Services(
   val rawImpressionUploadFile: RawImpressionUploadFileServiceCoroutineImplBase,
   val vidLabelingJob: VidLabelingJobServiceCoroutineImplBase,
   val rankerJob: RankerJobServiceCoroutineImplBase,
+  val rankIndexBlob: RankIndexBlobServiceCoroutineImplBase,
 ) {
   fun toList(): List<BindableService> =
     listOf(
@@ -57,6 +60,7 @@ data class Services(
       rawImpressionUploadFile,
       vidLabelingJob,
       rankerJob,
+      rankIndexBlob,
     )
 
   companion object {
@@ -90,6 +94,8 @@ data class Services(
         InternalVidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(internalApiChannel)
       val internalRankerJobStub =
         InternalRankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(internalApiChannel)
+      val internalRankIndexBlobStub =
+        InternalRankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(internalApiChannel)
 
       return Services(
         RequisitionMetadataService(internalRequisitionMetadataStub, coroutineContext),
@@ -100,6 +106,7 @@ data class Services(
         RawImpressionUploadFileService(internalUploadFileStub, coroutineContext),
         VidLabelingJobService(internalVidLabelingJobStub, coroutineContext),
         RankerJobService(internalRankerJobStub, coroutineContext),
+        RankIndexBlobService(internalRankIndexBlobStub, coroutineContext),
       )
     }
   }

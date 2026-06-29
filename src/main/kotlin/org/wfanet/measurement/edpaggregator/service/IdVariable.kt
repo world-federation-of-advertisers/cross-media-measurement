@@ -31,6 +31,7 @@ internal enum class IdVariable {
   FILE,
   VID_LABELING_JOB,
   RANKER_JOB,
+  RANK_INDEX_BLOB,
   WORK_ITEM,
 }
 

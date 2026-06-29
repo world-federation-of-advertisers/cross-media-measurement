@@ -68,7 +68,10 @@ message RankIndexBlob {
   ];
 
   // The pool offset this blob belongs to.
-  int64 pool_offset = 4 [
+  //
+  // `optional` so the server can distinguish unset from a valid `0` offset and
+  // enforce the REQUIRED field behavior; 0 is a valid pool offset.
+  optional int64 pool_offset = 4 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
@@ -80,9 +83,10 @@ message RankIndexBlob {
   ];
 
   // SHA-256 checksum of the plaintext blob payload. Used to
-  // detect corruption after decryption.
+  // detect corruption after decryption. Persisted at write and
+  // validated on every load, so it is required for both blob types.
   bytes blob_checksum = 6 [
-    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
 
@@ -92,17 +96,13 @@ message RankIndexBlob {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // The newest event date among the impressions covered by this
-  // blob. Set on both row types. On DAY_ONLY it is the dispatch's
-  // max event date (used by the retention sweep). On SNAPSHOT it
-  // is the newest event date represented in the cumulative state:
-  // for a forward upload, this upload's max event date; for a
-  // backfill, the prior snapshot's max event date (a backfill only
-  // adds older fingerprints, so the newest data is unchanged). Used
-  // as the snapshot-selection key to locate the prior/old snapshot
-  // for a given event date during backfill (see SubpoolRanker).
+  // The newest event date among the impressions in the blob (for DAY_ONLY) or
+  // represented in the cumulative (for SNAPSHOT, inherited from the prior
+  // snapshot on backfill). Required on both blob types — DAY_ONLY uses it for
+  // retention, SNAPSHOT uses it for backfill 'old snapshot' selection (see
+  // VidRankBuilder).
   google.type.Date max_event_date = 8 [
-    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
 
