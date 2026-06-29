@@ -781,6 +781,55 @@ abstract class VidLabelingJobServiceTest {
     }
 
   @Test
+  fun `mark RPCs track succeeded and failed request_ids independently`() =
+    runBlocking<Unit> {
+      val requestId = UUID.randomUUID().toString()
+      val created: VidLabelingJob = createJob()
+
+      // Mark FAILED then SUCCEEDED reusing the SAME request_id. Each Mark RPC keys idempotency on
+      // its own column, so the succeeded call must genuinely transition the job rather than replay
+      // the earlier failed mark.
+      val failed: VidLabelingJob =
+        service.markVidLabelingJobFailed(
+          markVidLabelingJobFailedRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            vidLabelingJobResourceId = created.vidLabelingJobResourceId
+            etag = created.etag
+            errorMessage = "transient"
+            this.requestId = requestId
+          }
+        )
+      assertThat(failed.state).isEqualTo(VidLabelingState.VID_LABELING_STATE_FAILED)
+
+      val response: MarkVidLabelingJobSucceededResponse =
+        service.markVidLabelingJobSucceeded(
+          markVidLabelingJobSucceededRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            vidLabelingJobResourceId = created.vidLabelingJobResourceId
+            etag = failed.etag
+            this.requestId = requestId
+          }
+        )
+      assertThat(response.vidLabelingJob.state)
+        .isEqualTo(VidLabelingState.VID_LABELING_STATE_SUCCEEDED)
+
+      // The succeeded mark stays independently idempotent on its own request_id.
+      val replay: MarkVidLabelingJobSucceededResponse =
+        service.markVidLabelingJobSucceeded(
+          markVidLabelingJobSucceededRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            vidLabelingJobResourceId = created.vidLabelingJobResourceId
+            etag = response.vidLabelingJob.etag
+            this.requestId = requestId
+          }
+        )
+      assertThat(replay).isEqualTo(response)
+    }
+
+  @Test
   fun `markVidLabelingJobFailed throws ABORTED for etag mismatch`() =
     runBlocking<Unit> {
       val created: VidLabelingJob = createJob()

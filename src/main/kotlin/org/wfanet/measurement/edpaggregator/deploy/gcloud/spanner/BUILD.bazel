@@ -128,6 +128,7 @@ kt_jvm_library(
     srcs = ["SpannerVidLabelingJobService.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:etags",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/db",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:errors",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:vid_labeling_job_kt_jvm_proto",
