@@ -27,7 +27,9 @@ import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
 import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.generateNewId
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RankerJobResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countOtherNonSucceededRankerJobs
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRankerJobByRequestId
@@ -124,8 +126,6 @@ class SpannerRankerJobService(
             }
 
           val resourceId = "$RANKER_JOB_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
-          val newEtag = UUID.randomUUID().toString()
-
           txn.insertRankerJob(
             rawImpressionUploadId = rawImpressionUploadId,
             rankerJobId = rankerJobId,
@@ -134,7 +134,6 @@ class SpannerRankerJobService(
             cmmsModelLine = job.cmmsModelLine,
             poolOffsets = job.poolOffsetsList,
             createRequestId = request.requestId,
-            etag = newEtag,
           )
 
           job.copy {
@@ -142,7 +141,6 @@ class SpannerRankerJobService(
             this.rawImpressionUploadResourceId = rawImpressionUploadResourceId
             rankerJobResourceId = resourceId
             state = State.RANKER_STATE_CREATED
-            etag = newEtag
             clearCreateTime()
             clearUpdateTime()
           }
@@ -166,6 +164,7 @@ class SpannerRankerJobService(
       createdJob.copy {
         createTime = commitTimestamp
         updateTime = commitTimestamp
+        etag = ETags.computeETag(commitTimestamp.toInstant())
       }
     }
   }
@@ -265,8 +264,6 @@ class SpannerRankerJobService(
                 }
 
               val resourceId = "$RANKER_JOB_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
-              val newEtag = UUID.randomUUID().toString()
-
               txn.insertRankerJob(
                 rawImpressionUploadId = rawImpressionUploadId,
                 rankerJobId = rankerJobId,
@@ -275,7 +272,6 @@ class SpannerRankerJobService(
                 cmmsModelLine = subRequest.rankerJob.cmmsModelLine,
                 poolOffsets = subRequest.rankerJob.poolOffsetsList,
                 createRequestId = subRequest.requestId,
-                etag = newEtag,
               )
 
               subRequest.rankerJob.copy {
@@ -283,7 +279,6 @@ class SpannerRankerJobService(
                 this.rawImpressionUploadResourceId = rawImpressionUploadResourceId
                 rankerJobResourceId = resourceId
                 state = State.RANKER_STATE_CREATED
-                etag = newEtag
                 clearCreateTime()
                 clearUpdateTime()
               }
@@ -312,6 +307,7 @@ class SpannerRankerJobService(
             result.copy {
               createTime = commitTimestamp
               updateTime = commitTimestamp
+              etag = ETags.computeETag(commitTimestamp.toInstant())
             }
           }
         }
@@ -441,7 +437,7 @@ class SpannerRankerJobService(
         // the original "last job out" call and any later replay can report completion.
         if (
           currentJob.state == State.RANKER_STATE_SUCCEEDED &&
-            result.markRequestId == request.requestId
+            result.markSucceededRequestId == request.requestId
         ) {
           return@run TransactionResult(
             currentJob,
@@ -463,16 +459,13 @@ class SpannerRankerJobService(
           currentJob = currentJob,
         )
 
-        val newEtag = UUID.randomUUID().toString()
-
         txn.updateRankerJobState(
           dataProviderResourceId = request.dataProviderResourceId,
           rawImpressionUploadId = result.rawImpressionUploadId,
           rankerJobId = result.rankerJobId,
           state = State.RANKER_STATE_SUCCEEDED,
-          etag = newEtag,
         ) {
-          set("MarkRequestId").to(request.requestId)
+          set("MarkSucceededRequestId").to(request.requestId)
           // Clear any error message from a prior FAILED attempt; it is only set while FAILED.
           set("ErrorMessage").to(null as String?)
         }
@@ -492,7 +485,6 @@ class SpannerRankerJobService(
           updatedJob =
             currentJob.copy {
               state = State.RANKER_STATE_SUCCEEDED
-              etag = newEtag
               clearErrorMessage()
               clearUpdateTime()
             },
@@ -506,7 +498,10 @@ class SpannerRankerJobService(
           txnResult.updatedJob
         } else {
           val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-          txnResult.updatedJob.copy { updateTime = commitTimestamp }
+          txnResult.updatedJob.copy {
+            updateTime = commitTimestamp
+            etag = ETags.computeETag(commitTimestamp.toInstant())
+          }
         }
       isLastJob = txnResult.isLastJob
     }
@@ -545,7 +540,8 @@ class SpannerRankerJobService(
 
         // Idempotency: if already failed by this same request_id, return as-is.
         if (
-          currentJob.state == State.RANKER_STATE_FAILED && result.markRequestId == request.requestId
+          currentJob.state == State.RANKER_STATE_FAILED &&
+            result.markFailedRequestId == request.requestId
         ) {
           return@run TransactionResult(currentJob, isReplay = true)
         }
@@ -557,24 +553,20 @@ class SpannerRankerJobService(
           currentJob = currentJob,
         )
 
-        val newEtag = UUID.randomUUID().toString()
-
         txn.updateRankerJobState(
           dataProviderResourceId = request.dataProviderResourceId,
           rawImpressionUploadId = result.rawImpressionUploadId,
           rankerJobId = result.rankerJobId,
           state = State.RANKER_STATE_FAILED,
-          etag = newEtag,
         ) {
           set("ErrorMessage").to(request.errorMessage)
-          set("MarkRequestId").to(request.requestId)
+          set("MarkFailedRequestId").to(request.requestId)
         }
 
         TransactionResult(
           currentJob.copy {
             state = State.RANKER_STATE_FAILED
             errorMessage = request.errorMessage
-            etag = newEtag
             clearUpdateTime()
           }
         )
@@ -584,7 +576,10 @@ class SpannerRankerJobService(
       txnResult.updatedJob
     } else {
       val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-      txnResult.updatedJob.copy { updateTime = commitTimestamp }
+      txnResult.updatedJob.copy {
+        updateTime = commitTimestamp
+        etag = ETags.computeETag(commitTimestamp.toInstant())
+      }
     }
   }
 
