@@ -424,6 +424,9 @@ class RequisitionFetcher(
         if (rebuilt != null) {
           writeBlob(rebuilt)
           metrics.recoveryRebuilds.add(1, dataProviderAttrs)
+          // No metadata mutated on the recovery path (the blob is rebuilt for already-existing
+          // STORED rows), so the worker-local metadataCache stays accurate and is intentionally
+          // not invalidated here.
         }
         pendingRecovery.remove(existingGroupId)
       }
@@ -434,31 +437,35 @@ class RequisitionFetcher(
     if (unregistered.isEmpty()) return
 
     val groupId = UUID.randomUUID().toString()
-    val invalidRefusal = validateForReport(unit.reportId, unregistered)
-    if (invalidRefusal != null) {
-      refuseUnregisteredAndPersist(unregistered, groupId, invalidRefusal)
-      metadataCache.remove(unit.reportId)
-      return
-    }
-
-    val grouped =
-      try {
-        requisitionGrouper.groupForReport(unit.reportId, unregistered, groupId)
-      } catch (e: InconsistentEventGroupSelectorsException) {
-        val refusal = refusal {
-          justification = Requisition.Refusal.Justification.UNFULFILLABLE
-          message = e.message ?: "Invalid event group configuration"
-        }
-        refuseUnregisteredAndPersist(unregistered, groupId, refusal)
-        metadataCache.remove(unit.reportId)
+    // Any persist path below mutates RequisitionMetadata for this report, so invalidate the
+    // worker-local cache unconditionally — including on partial-progress exceptions, where the
+    // cache otherwise retains a pre-failure snapshot that hides rows just persisted.
+    try {
+      val invalidRefusal = validateForReport(unit.reportId, unregistered)
+      if (invalidRefusal != null) {
+        refuseUnregisteredAndPersist(unregistered, groupId, invalidRefusal)
         return
-      } ?: return
+      }
 
-    writeBlob(grouped)
-    for (requisition in unregistered) {
-      metadataThrottler.onReady { createRequisitionMetadata(requisition, groupId) }
+      val grouped =
+        try {
+          requisitionGrouper.groupForReport(unit.reportId, unregistered, groupId)
+        } catch (e: InconsistentEventGroupSelectorsException) {
+          val refusal = refusal {
+            justification = Requisition.Refusal.Justification.UNFULFILLABLE
+            message = e.message ?: "Invalid event group configuration"
+          }
+          refuseUnregisteredAndPersist(unregistered, groupId, refusal)
+          return
+        } ?: return
+
+      writeBlob(grouped)
+      for (requisition in unregistered) {
+        metadataThrottler.onReady { createRequisitionMetadata(requisition, groupId) }
+      }
+    } finally {
+      metadataCache.remove(unit.reportId)
     }
-    metadataCache.remove(unit.reportId)
   }
 
   /**

@@ -40,6 +40,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.EventGroupKt
@@ -1001,6 +1002,286 @@ class RequisitionFetcherTest {
       }
     assertThat(names.toSet()).containsExactly(r1a.name, r2.name)
   }
+
+  @Test
+  fun `storage failure marks report failure and surfaces storageFails counter`() = runBlocking {
+    val r1 = TestRequisitionData.REQUISITION.copy { updateTime = timestamp { seconds = 10 } }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += r1 })
+
+    val mockStorageClient: StorageClient = mock()
+    whenever(mockStorageClient.getBlob(any())).thenReturn(null)
+    whenever(mockStorageClient.writeBlob(any<String>(), any<ByteString>())).thenAnswer {
+      throw RuntimeException("simulated storage write failure")
+    }
+
+    createFetcher(storageClient = mockStorageClient).fetchAndStoreRequisitions()
+
+    assertThat(counterValue("edpa.requisition_fetcher.storage_fails")).isEqualTo(1)
+    assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isEqualTo(1)
+    assertThat(counterValue("edpa.requisition_fetcher.storage_writes")).isEqualTo(0)
+    assertThat(createRequisitionMetadataRequests).isEmpty()
+  }
+
+  @Test
+  fun `metadata cache is invalidated when create throws partway through persist loop`() =
+    runBlocking {
+      val r1 =
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/r1"
+          updateTime = timestamp { seconds = 10 }
+        }
+      val r2 =
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/r2"
+          updateTime = timestamp { seconds = 20 }
+        }
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2) })
+
+      val listCalls = AtomicInteger(0)
+      val createCalls = AtomicInteger(0)
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenAnswer {
+        listCalls.incrementAndGet()
+        listRequisitionMetadataResponse {}
+      }
+      whenever(requisitionMetadataServiceMock.createRequisitionMetadata(any())).thenAnswer {
+        invocation ->
+        val count = createCalls.incrementAndGet()
+        if (count == 1) throw RuntimeException("simulated create failure")
+        createRequisitionMetadataRequests +=
+          invocation.getArgument<CreateRequisitionMetadataRequest>(0)
+        requisitionMetadata {
+          name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/m-$count"
+        }
+      }
+
+      createFetcher().fetchAndStoreRequisitions()
+
+      assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isEqualTo(1)
+      // The metadataCache.remove() in the finally is the load-bearing assertion: if it didn't
+      // fire, unit 2 would reuse the cached pre-failure snapshot and listCalls would stay at 1.
+      assertThat(listCalls.get()).isEqualTo(2)
+    }
+
+  @Test
+  fun `refuseUnregisteredAndPersist half-failure invalidates metadata cache`() = runBlocking {
+    // Mixed model lines trigger the refuse path. createRequisitionMetadata throws on its first
+    // call, mid-loop. The finally in processReportInner must still invalidate the cache so a
+    // second unit for the same report re-lists rather than reading the stale empty snapshot.
+    val measurementSpec2 =
+      TestRequisitionData.MEASUREMENT_SPEC.copy { modelLine = "other-model-line" }
+    val r1 = TestRequisitionData.REQUISITION.copy { updateTime = timestamp { seconds = 10 } }
+    val r2 =
+      TestRequisitionData.REQUISITION.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/r2"
+        measurementSpec = signMeasurementSpec(measurementSpec2, TestRequisitionData.MC_SIGNING_KEY)
+        updateTime = timestamp { seconds = 10 }
+      }
+    // Third requisition in a later unit for the same report — forces a second processReport call.
+    val r3 =
+      TestRequisitionData.REQUISITION.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/r3"
+        updateTime = timestamp { seconds = 20 }
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2, r3) })
+
+    val listCalls = AtomicInteger(0)
+    val createCalls = AtomicInteger(0)
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenAnswer {
+      listCalls.incrementAndGet()
+      listRequisitionMetadataResponse {}
+    }
+    whenever(requisitionMetadataServiceMock.createRequisitionMetadata(any())).thenAnswer {
+      invocation ->
+      val count = createCalls.incrementAndGet()
+      if (count == 1) throw RuntimeException("simulated create failure inside refuse loop")
+      createRequisitionMetadataRequests +=
+        invocation.getArgument<CreateRequisitionMetadataRequest>(0)
+      requisitionMetadata { name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/m-$count" }
+    }
+
+    createFetcher().fetchAndStoreRequisitions()
+
+    // The first unit's refuse loop threw → reportFailures incremented.
+    assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isAtLeast(1)
+    // The cache invalidate in finally fired, so unit 2 re-listed metadata.
+    assertThat(listCalls.get()).isEqualTo(2)
+  }
+
+  @Test
+  fun `recovery rebuild skipped when groupForReport throws InconsistentEventGroupSelectorsException`() =
+    runBlocking {
+      // Single requisition whose own spec references two event groups with mismatched
+      // entity-key presence — getEventGroupMapEntries → validateEventGroupSelectors throws
+      // InconsistentEventGroupSelectorsException, which the recovery loop catches and logs
+      // rather than letting it bubble up to processReport's outer catch.
+      val groupId = "wedged-group-id"
+      val blobKey = "$STORAGE_PATH_PREFIX/$groupId"
+      val secondEventGroupName = "${TestRequisitionData.EDP_NAME}/eventGroups/name2"
+      val mixedSpec =
+        TestRequisitionData.REQUISITION_SPEC.copy {
+          events =
+            RequisitionSpecKt.events {
+              eventGroups +=
+                RequisitionSpecKt.eventGroupEntry {
+                  key = TestRequisitionData.EVENT_GROUP_NAME
+                  value =
+                    RequisitionSpecKt.EventGroupEntryKt.value {
+                      collectionInterval = interval {
+                        startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()
+                        endTime = TestRequisitionData.TIME_RANGE.endExclusive.toProtoTime()
+                      }
+                    }
+                }
+              eventGroups +=
+                RequisitionSpecKt.eventGroupEntry {
+                  key = secondEventGroupName
+                  value =
+                    RequisitionSpecKt.EventGroupEntryKt.value {
+                      collectionInterval = interval {
+                        startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()
+                        endTime = TestRequisitionData.TIME_RANGE.endExclusive.toProtoTime()
+                      }
+                    }
+                }
+            }
+        }
+      val r1 =
+        TestRequisitionData.REQUISITION.copy {
+          encryptedRequisitionSpec =
+            encryptRequisitionSpec(
+              signedMessage { message = mixedSpec.pack() },
+              TestRequisitionData.DATA_PROVIDER_PUBLIC_KEY,
+            )
+          updateTime = timestamp { seconds = 10 }
+        }
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(listRequisitionsResponse { requisitions += r1 })
+      eventGroupsServiceMock.stub {
+        onBlocking { getEventGroup(any()) }
+          .thenAnswer { invocation ->
+            val request = invocation.getArgument<GetEventGroupRequest>(0)
+            if (request.name == TestRequisitionData.EVENT_GROUP_NAME) {
+              eventGroup {
+                name = request.name
+                eventGroupReferenceId = "ref-1"
+                entityKey =
+                  EventGroupKt.entityKey {
+                    entityType = "placement"
+                    entityId = "P-1"
+                  }
+              }
+            } else {
+              eventGroup {
+                name = request.name
+                eventGroupReferenceId = "ref-2"
+              }
+            }
+          }
+      }
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+        .thenReturn(
+          listRequisitionMetadataResponse {
+            requisitionMetadata += requisitionMetadata {
+              state = RequisitionMetadata.State.STORED
+              cmmsRequisition = r1.name
+              blobUri = "$BLOB_URI_PREFIX/$blobKey"
+              blobTypeUrl = "type"
+              this.groupId = groupId
+              report = "some-report"
+            }
+          }
+        )
+
+      createFetcher().fetchAndStoreRequisitions()
+
+      // Rebuild attempted but groupForReport threw → blob still missing, no rebuild counter, no
+      // incomplete counter (pendingRecovery removed on the rebuild-attempted path).
+      assertThat(storageClient.getBlob(blobKey)).isNull()
+      assertThat(counterValue("edpa.requisition_fetcher.recovery_rebuilds")).isEqualTo(0)
+      assertThat(counterValue("edpa.requisition_fetcher.recovery_skipped_incomplete")).isEqualTo(0)
+    }
+
+  @Test
+  fun `unparseable MeasurementSpec does not touch metadata service for that requisition`() =
+    runBlocking {
+      val bad =
+        TestRequisitionData.REQUISITION.copy {
+          measurementSpec = signedMessage {
+            message = StringValue.of("not a MeasurementSpec").pack()
+          }
+        }
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(listRequisitionsResponse { requisitions += bad })
+
+      val listCalls = AtomicInteger(0)
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenAnswer {
+        listCalls.incrementAndGet()
+        listRequisitionMetadataResponse {}
+      }
+
+      createFetcher().fetchAndStoreRequisitions()
+
+      assertThat(refuseRequisitionRequests).hasSize(1)
+      assertThat(createRequisitionMetadataRequests).isEmpty()
+      assertThat(refuseRequisitionMetadataRequests).isEmpty()
+      assertThat(listCalls.get()).isEqualTo(0)
+      assertThat(blobsList()).isEmpty()
+    }
+
+  @Test
+  fun `two units for one report land on the same worker under workerCount greater than one`() =
+    runBlocking {
+      // Two requisitions for the same report with different updateTimes → two units. Metadata
+      // lists both as STORED-but-blob-missing under one group; recovery requires both units on
+      // the same worker so the PendingRecovery accumulator completes across units. With
+      // workerCount=4 and reportId hashing, this proves per-report routing actually serializes.
+      val groupId = "wedged-multiworker-group"
+      val blobKey = "$STORAGE_PATH_PREFIX/$groupId"
+      val r1 =
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/r1"
+          updateTime = timestamp { seconds = 10 }
+        }
+      val r2 =
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/r2"
+          updateTime = timestamp { seconds = 20 }
+        }
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2) })
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+        .thenReturn(
+          listRequisitionMetadataResponse {
+            requisitionMetadata +=
+              listOf(
+                requisitionMetadata {
+                  state = RequisitionMetadata.State.STORED
+                  cmmsRequisition = r1.name
+                  blobUri = "$BLOB_URI_PREFIX/$blobKey"
+                  blobTypeUrl = "type"
+                  this.groupId = groupId
+                  report = "some-report"
+                },
+                requisitionMetadata {
+                  state = RequisitionMetadata.State.STORED
+                  cmmsRequisition = r2.name
+                  blobUri = "$BLOB_URI_PREFIX/$blobKey"
+                  blobTypeUrl = "type"
+                  this.groupId = groupId
+                  report = "some-report"
+                },
+              )
+          }
+        )
+
+      createFetcher(workerCount = 4).fetchAndStoreRequisitions()
+
+      assertThat(storageClient.getBlob(blobKey)).isNotNull()
+      assertThat(counterValue("edpa.requisition_fetcher.recovery_rebuilds")).isEqualTo(1)
+    }
 
   companion object {
     init {
