@@ -89,17 +89,34 @@ class DashboardViewIsolationLocalTest {
   }
 
   @Test
-  fun entityKeysAreEdpOnlyInReportDetail() {
-    // EntityTypes/EntityIds are EDP-specific and must appear only in the
-    // EDP variant of report_detail, never in the platform variant.
-    val sql = readSqlFile("report_detail.sql")
-    val edpRendered = render(sql, platformEnabled = false)
-    val platformRendered = render(sql, platformEnabled = true)
-
-    assertThat(edpRendered).contains("AS EntityTypes")
-    assertThat(edpRendered).contains("AS EntityIds")
-    assertThat(platformRendered).doesNotContain("AS EntityTypes")
-    assertThat(platformRendered).doesNotContain("AS EntityIds")
+  fun entityColumnsAreEdpOnly() {
+    // Entity columns are EDP-specific and must appear only in the EDP variant,
+    // never in the platform variant (per PR #3755 review: entity keys are
+    // EDP-specific data).
+    run {
+      val sql = readSqlFile("report_detail.sql")
+      assertThat(render(sql, platformEnabled = false)).contains("AS EntityTypes")
+      assertThat(render(sql, platformEnabled = false)).contains("AS EntityIds")
+      assertThat(render(sql, platformEnabled = true)).doesNotContain("AS EntityTypes")
+      assertThat(render(sql, platformEnabled = true)).doesNotContain("AS EntityIds")
+    }
+    // mc_details: match the outer ARRAY_AGG aggregations, since the inner
+    // EXTERNAL_QUERY also aliases EntityMetadata.
+    run {
+      val sql = readSqlFile("mc_details.sql")
+      val edp = render(sql, platformEnabled = false)
+      val platform = render(sql, platformEnabled = true)
+      val edpOnlyAggregations =
+        listOf(
+          "ARRAY_AGG(IFNULL(eg.EntityType, '')) AS EntityTypes",
+          "ARRAY_AGG(IFNULL(eg.EntityId, '')) AS EntityIds",
+          "ARRAY_AGG(IFNULL(eg.EntityMetadata, '')) AS EntityMetadata",
+        )
+      for (expr in edpOnlyAggregations) {
+        assertThat(edp).contains(expr)
+        assertThat(platform).doesNotContain(expr)
+      }
+    }
   }
 
   @Test

@@ -249,16 +249,6 @@ resource "google_bigquery_table" "mc_details" {
     "mode": "REPEATED"
   },
   {
-    "name": "EntityTypes",
-    "type": "STRING",
-    "mode": "REPEATED"
-  },
-  {
-    "name": "EntityIds",
-    "type": "STRING",
-    "mode": "REPEATED"
-  },
-  {
     "name": "CampaignNames",
     "type": "STRING",
     "mode": "REPEATED"
@@ -270,11 +260,6 @@ resource "google_bigquery_table" "mc_details" {
   },
   {
     "name": "EventTemplates",
-    "type": "STRING",
-    "mode": "REPEATED"
-  },
-  {
-    "name": "EntityMetadata",
     "type": "STRING",
     "mode": "REPEATED"
   },
