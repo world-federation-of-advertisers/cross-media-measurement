@@ -23,6 +23,7 @@ import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.single
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -198,44 +199,46 @@ suspend fun AsyncDatabaseClient.ReadContext.findRankerJobsByRequestIds(
   }
 }
 
-/** Reads [RankerJob] entries for the same (upload, model line) group. */
-suspend fun AsyncDatabaseClient.ReadContext.readRankerJobsForModelLine(
+/**
+ * Counts the [RankerJob] entries in the same (upload, model line) group that are not yet SUCCEEDED,
+ * excluding [excludeRankerJobId].
+ *
+ * This detects the "last job out" of a (upload, model line) in O(1) without materializing every
+ * sibling row. The current job's buffered state update is not visible within the same transaction,
+ * so it is excluded by ID rather than relying on its persisted state.
+ */
+suspend fun AsyncDatabaseClient.ReadContext.countOtherNonSucceededRankerJobs(
   dataProviderResourceId: String,
   rawImpressionUploadId: Long,
   cmmsModelLine: String,
-): List<RankerJobResult> {
+  excludeRankerJobId: Long,
+): Long {
   val sql =
     """
-    SELECT
-      RankerJob.RankerJobId,
-      RankerJob.State,
+    SELECT COUNT(*) AS Cnt
     FROM RankerJob
     WHERE RankerJob.DataProviderResourceId = @dataProviderResourceId
       AND RankerJob.RawImpressionUploadId = @rawImpressionUploadId
       AND RankerJob.CmmsModelLine = @cmmsModelLine
+      AND RankerJob.RankerJobId != @excludeRankerJobId
+      AND CAST(RankerJob.State AS INT64) != @succeededState
     """
       .trimIndent()
 
-  return buildList {
+  val row: Struct =
     executeQuery(
         statement(sql) {
           bind("dataProviderResourceId").to(dataProviderResourceId)
           bind("rawImpressionUploadId").to(rawImpressionUploadId)
           bind("cmmsModelLine").to(cmmsModelLine)
+          bind("excludeRankerJobId").to(excludeRankerJobId)
+          bind("succeededState").to(State.RANKER_STATE_SUCCEEDED.number.toLong())
         },
-        Options.tag("action=readRankerJobsForModelLine"),
+        Options.tag("action=countOtherNonSucceededRankerJobs"),
       )
-      .collect { row ->
-        add(
-          RankerJobResult(
-            rankerJob { state = row.getProtoEnum("State", State::forNumber) },
-            rawImpressionUploadId,
-            row.getLong("RankerJobId"),
-            "",
-          )
-        )
-      }
-  }
+      .single()
+
+  return row.getLong("Cnt")
 }
 
 /** Reads [RankerJob] entries with filtering and pagination. */
