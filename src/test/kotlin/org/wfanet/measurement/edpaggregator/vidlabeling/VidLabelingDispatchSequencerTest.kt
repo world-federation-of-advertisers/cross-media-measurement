@@ -296,6 +296,7 @@ class VidLabelingDispatchSequencerTest {
     stubUploads(created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW)))
     stubModelLines(createdModelLine())
     stubShardResolution(memoized = false)
+    stubModelLine()
     whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
     stubMarkTransitions()
 
@@ -351,6 +352,7 @@ class VidLabelingDispatchSequencerTest {
         )
       )
       stubShardResolution(memoized = false)
+      stubModelLine()
       whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
       stubMarkTransitions()
 
@@ -618,6 +620,7 @@ class VidLabelingDispatchSequencerTest {
       stubUploads(created = listOf(newer, older))
       stubModelLines(createdModelLine())
       stubShardResolution(memoized = false)
+      stubModelLine()
       whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
       stubMarkTransitions()
 
@@ -644,6 +647,66 @@ class VidLabelingDispatchSequencerTest {
     }
 
   @Test
+  fun `dispatchNext threads the model line active window into each non-memoized WorkItem`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = false)
+      stubModelLine()
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      stubMarkTransitions()
+
+      createSequencer().dispatchNext()
+
+      val captor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(captor.capture()) }
+      val modelLineConfig =
+        captor.firstValue.workItem.workItemParams
+          .unpack<WorkItemParams>()
+          .appParams
+          .unpack<VidLabelerParams>()
+          .modelLineConfigsMap
+          .getValue(MODEL_LINE)
+      assertThat(modelLineConfig.activeStartTime).isEqualTo(ACTIVE_START_TIME)
+      assertThat(modelLineConfig.activeEndTime).isEqualTo(ACTIVE_END_TIME)
+    }
+
+  @Test
+  fun `dispatchNext omits active_end_time for an open-ended non-memoized model line`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = false)
+      whenever(modelLinesService.getModelLine(any()))
+        .thenReturn(
+          modelLine {
+            name = MODEL_LINE
+            activeStartTime = ACTIVE_START_TIME
+          }
+        )
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      stubMarkTransitions()
+
+      createSequencer().dispatchNext()
+
+      val captor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(captor.capture()) }
+      val modelLineConfig =
+        captor.firstValue.workItem.workItemParams
+          .unpack<WorkItemParams>()
+          .appParams
+          .unpack<VidLabelerParams>()
+          .modelLineConfigsMap
+          .getValue(MODEL_LINE)
+      assertThat(modelLineConfig.activeStartTime).isEqualTo(ACTIVE_START_TIME)
+      assertThat(modelLineConfig.hasActiveEndTime()).isFalse()
+    }
+
+  @Test
   fun `dispatchNext passes the model line etag on the Mark request`() =
     runBlocking<Unit> {
       stubUploads(
@@ -651,6 +714,7 @@ class VidLabelingDispatchSequencerTest {
       )
       stubModelLines(createdModelLine())
       stubShardResolution(memoized = false)
+      stubModelLine()
       whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
       stubMarkTransitions()
 
@@ -671,6 +735,7 @@ class VidLabelingDispatchSequencerTest {
       )
       stubModelLines(createdModelLine())
       stubShardResolution(memoized = false)
+      stubModelLine()
       whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
       // Another concurrent dispatcher claimed the model line first: the etag CAS fails with
       // ABORTED.
@@ -691,6 +756,7 @@ class VidLabelingDispatchSequencerTest {
       )
       stubModelLines(createdModelLine())
       stubShardResolution(memoized = false)
+      stubModelLine()
       whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
       whenever(rawImpressionUploadModelLineService.markRawImpressionUploadModelLineLabeling(any()))
         .thenAnswer {
@@ -710,6 +776,7 @@ class VidLabelingDispatchSequencerTest {
       )
       stubModelLines(createdModelLine())
       stubShardResolution(memoized = false)
+      stubModelLine()
       // A concurrent dispatcher created the WorkItem with the same deterministic ID first.
       whenever(workItemsService.createWorkItem(any())).thenAnswer {
         throw StatusException(Status.ALREADY_EXISTS.withDescription("work item exists"))
