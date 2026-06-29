@@ -94,3 +94,16 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
     ],
 )
+
+kt_jvm_test(
+    name = "RawImpressionFileBinPackerTest",
+    srcs = ["RawImpressionFileBinPackerTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileBinPackerTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:raw_impression_file_bin_packer",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_file_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
