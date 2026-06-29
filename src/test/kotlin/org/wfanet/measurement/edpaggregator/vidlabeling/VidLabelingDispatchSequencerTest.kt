@@ -439,6 +439,7 @@ class VidLabelingDispatchSequencerTest {
           .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
         assertThat(params.activeStartTime).isEqualTo(ACTIVE_START_TIME)
         assertThat(params.activeEndTime).isEqualTo(ACTIVE_END_TIME)
+        assertThat(params.modelStorageParams.blobPrefix).isEqualTo("gs://model-bucket")
       }
     }
 
@@ -934,6 +935,11 @@ class VidLabelingDispatchSequencerTest {
         SubpoolAssignerParamsKt.storageParams {
           gcsProjectId = "test-project"
           blobPrefix = "gs://subpool-map-bucket"
+        }
+      modelStorageParams =
+        SubpoolAssignerParamsKt.storageParams {
+          gcsProjectId = "test-project"
+          blobPrefix = "gs://model-bucket"
         }
       rawImpressionMetadataStorageConnection = transportLayerSecurityParams {
         clientCertResourcePath = "cert"

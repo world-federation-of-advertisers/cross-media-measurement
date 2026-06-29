@@ -111,6 +111,12 @@ message SubpoolAssignerParams {
   // Phase-2 WorkItem).
   string model_blob_path = 9 [(google.api.field_behavior) = REQUIRED];
 
+  // Cloud Storage for the compiled VID model blob named by `model_blob_path`.
+  // The compiled model lives in its own GCS project, separate from the
+  // impression and map storage above, so it carries a dedicated project here.
+  StorageParams model_storage_params = 17
+      [(google.api.field_behavior) = REQUIRED];
+
   // Inclusive start of the model line's active window. Impressions whose
   // event timestamp is before this point are dropped before labeling.
   // Mirrors `ModelLine.active_start_time` from the public API.

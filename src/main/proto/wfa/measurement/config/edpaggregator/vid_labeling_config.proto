@@ -119,6 +119,18 @@ message VidLabelingConfig {
   // it.
   StorageParams subpool_map_storage_params = 15
       [(google.api.field_behavior) = OPTIONAL];
+
+  // Storage holding the compiled VID model blobs for this EDP. The compiled
+  // model lives in its own GCS project, separate from the impression/map
+  // storage above. Passed through to the SubpoolAssigner WorkItem for memoized
+  // model lines.
+  //
+  // Optional because it is only consumed by the memoized (Phase-0) path: it is
+  // required only for EDPs that have at least one model line with memoized VID
+  // assignment enabled. An EDP whose model lines are all non-memoized may omit
+  // it.
+  StorageParams model_storage_params = 16
+      [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Wrapper containing VID Labeling configurations for all EDPs.
