@@ -1,15 +1,9 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
-filegroup(
-    name = "textproto_files",
-    srcs = glob(["*.textproto"]),
-)
-
 kt_jvm_test(
     name = "AccessTest",
     srcs = ["AccessTest.kt"],
     data = [
-        "textproto_files",
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],

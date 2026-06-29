@@ -14,8 +14,12 @@ kt_jvm_library(
     srcs = [
         "IdVariable.kt",
         "ImpressionMetadataKey.kt",
+        "RankIndexBlobKey.kt",
+        "RankerJobKey.kt",
         "RawImpressionMetadataKey.kt",
+        "RawImpressionUploadKey.kt",
         "RequisitionMetadataKey.kt",
+        "VidLabelingJobKey.kt",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",

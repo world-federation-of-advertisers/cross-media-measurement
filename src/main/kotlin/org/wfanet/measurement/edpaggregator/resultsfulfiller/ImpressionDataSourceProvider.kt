@@ -125,7 +125,11 @@ class ImpressionDataSourceProvider(
               }
             )
           } catch (e: StatusException) {
-            throw Exception("Error listing ImpressionMetadata", e)
+            throw Exception(
+              "Error listing ImpressionMetadata for dataProvider=$dataProvider, " +
+                "modelLine=$reportModelLine, selector=$selector, period=$period: ${e.status}",
+              e,
+            )
           }
         ResourceList(response.impressionMetadataList, response.nextPageToken)
       }
