@@ -639,6 +639,292 @@ class RawImpressionUploadFileServiceTest {
         )
     }
 
+  @Test
+  fun `batchDeleteRawImpressionUploadFiles throws INVALID_ARGUMENT for empty requests`() =
+    runBlocking {
+      val uploadName = createUpload()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          fileService.batchDeleteRawImpressionUploadFiles(
+            batchDeleteRawImpressionUploadFilesRequest { parent = uploadName }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests"
+          }
+        )
+    }
+
+  @Test
+  fun `batchDeleteRawImpressionUploadFiles throws INVALID_ARGUMENT for duplicate name`() =
+    runBlocking {
+      val uploadName = createUpload()
+      val file =
+        fileService.createRawImpressionUploadFile(
+          createRawImpressionUploadFileRequest {
+            parent = uploadName
+            rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          fileService.batchDeleteRawImpressionUploadFiles(
+            batchDeleteRawImpressionUploadFilesRequest {
+              parent = uploadName
+              requests += deleteRawImpressionUploadFileRequest { name = file.name }
+              requests += deleteRawImpressionUploadFileRequest { name = file.name }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.1.name"
+          }
+        )
+    }
+
+  @Test
+  fun `batchDeleteRawImpressionUploadFiles throws INVALID_ARGUMENT when name does not belong to parent`() =
+    runBlocking {
+      val uploadName = createUpload()
+      val otherUploadName = createUpload()
+      val otherFile =
+        fileService.createRawImpressionUploadFile(
+          createRawImpressionUploadFileRequest {
+            parent = otherUploadName
+            rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          fileService.batchDeleteRawImpressionUploadFiles(
+            batchDeleteRawImpressionUploadFilesRequest {
+              parent = uploadName
+              requests += deleteRawImpressionUploadFileRequest { name = otherFile.name }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.0.name"
+          }
+        )
+    }
+
+  @Test
+  fun `batchDeleteRawImpressionUploadFiles throws NOT_FOUND for nonexistent file`() = runBlocking {
+    val uploadName = createUpload()
+    val uploadKey = assertNotNull(RawImpressionUploadKey.fromName(uploadName))
+    val missingName =
+      RawImpressionUploadFileKey(
+          uploadKey.dataProviderId,
+          uploadKey.rawImpressionUploadId,
+          "nonexistent",
+        )
+        .toName()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        fileService.batchDeleteRawImpressionUploadFiles(
+          batchDeleteRawImpressionUploadFilesRequest {
+            parent = uploadName
+            requests += deleteRawImpressionUploadFileRequest { name = missingName }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `listRawImpressionUploadFiles throws INVALID_ARGUMENT for negative page_size`() =
+    runBlocking {
+      val uploadName = createUpload()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          fileService.listRawImpressionUploadFiles(
+            listRawImpressionUploadFilesRequest {
+              parent = uploadName
+              pageSize = -1
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
+          }
+        )
+    }
+
+  @Test
+  fun `listRawImpressionUploadFiles excludes soft-deleted files by default`() = runBlocking {
+    val uploadName = createUpload()
+    val file1 =
+      fileService.createRawImpressionUploadFile(
+        createRawImpressionUploadFileRequest {
+          parent = uploadName
+          rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    val file2 =
+      fileService.createRawImpressionUploadFile(
+        createRawImpressionUploadFileRequest {
+          parent = uploadName
+          rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_2 }
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    fileService.deleteRawImpressionUploadFile(
+      deleteRawImpressionUploadFileRequest { name = file1.name }
+    )
+
+    val response =
+      fileService.listRawImpressionUploadFiles(
+        listRawImpressionUploadFilesRequest { parent = uploadName }
+      )
+
+    assertThat(response.rawImpressionUploadFilesList.map { it.name }).containsExactly(file2.name)
+    Unit
+  }
+
+  @Test
+  fun `listRawImpressionUploadFiles includes soft-deleted files when show_deleted is true`() =
+    runBlocking {
+      val uploadName = createUpload()
+      val file1 =
+        fileService.createRawImpressionUploadFile(
+          createRawImpressionUploadFileRequest {
+            parent = uploadName
+            rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_1 }
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      val file2 =
+        fileService.createRawImpressionUploadFile(
+          createRawImpressionUploadFileRequest {
+            parent = uploadName
+            rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI_2 }
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      fileService.deleteRawImpressionUploadFile(
+        deleteRawImpressionUploadFileRequest { name = file1.name }
+      )
+
+      val response =
+        fileService.listRawImpressionUploadFiles(
+          listRawImpressionUploadFilesRequest {
+            parent = uploadName
+            showDeleted = true
+          }
+        )
+
+      assertThat(response.rawImpressionUploadFilesList.map { it.name })
+        .containsExactly(file1.name, file2.name)
+      Unit
+    }
+
+  @Test
+  fun `batchCreateRawImpressionUploadFiles throws INVALID_ARGUMENT when batch exceeds max size`() =
+    runBlocking {
+      val uploadName = createUpload()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          fileService.batchCreateRawImpressionUploadFiles(
+            batchCreateRawImpressionUploadFilesRequest {
+              parent = uploadName
+              // One more than the maximum of 100 allowed per batch.
+              repeat(101) { i ->
+                requests += createRawImpressionUploadFileRequest {
+                  parent = uploadName
+                  rawImpressionUploadFile = rawImpressionUploadFile {
+                    blobUri = "gs://bucket/file-$i"
+                  }
+                  requestId = UUID.randomUUID().toString()
+                }
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests"
+          }
+        )
+    }
+
+  @Test
+  fun `batchDeleteRawImpressionUploadFiles throws INVALID_ARGUMENT when batch exceeds max size`() =
+    runBlocking {
+      val uploadName = createUpload()
+      val uploadKey = assertNotNull(RawImpressionUploadKey.fromName(uploadName))
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          fileService.batchDeleteRawImpressionUploadFiles(
+            batchDeleteRawImpressionUploadFilesRequest {
+              parent = uploadName
+              // One more than the maximum of 1000 allowed per batch.
+              repeat(1001) { i ->
+                requests += deleteRawImpressionUploadFileRequest {
+                  name =
+                    RawImpressionUploadFileKey(
+                        uploadKey.dataProviderId,
+                        uploadKey.rawImpressionUploadId,
+                        "file-$i",
+                      )
+                      .toName()
+                }
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests"
+          }
+        )
+    }
+
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
 
