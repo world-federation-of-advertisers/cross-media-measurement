@@ -97,9 +97,10 @@ message RankIndexBlob {
   ];
 
   // The newest event date among the impressions in the blob (for DAY_ONLY) or
-  // represented in the cumulative (for SNAPSHOT, inherited from the prior snapshot
-  // on backfill). Required on both blob types — DAY_ONLY uses it for retention,
-  // SNAPSHOT uses it for backfill 'old snapshot' selection (see VidRankBuilder).
+  // represented in the cumulative (for SNAPSHOT, inherited from the prior
+  // snapshot on backfill). Required on both blob types — DAY_ONLY uses it for
+  // retention, SNAPSHOT uses it for backfill 'old snapshot' selection (see
+  // VidRankBuilder).
   google.type.Date max_event_date = 8 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE

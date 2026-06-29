@@ -98,8 +98,8 @@ kt_jvm_library(
     srcs = ["InternalApiServices.kt"],
     deps = [
         ":spanner_impression_metadata_service",
-        ":spanner_ranker_job_service",
         ":spanner_rank_index_blob_service",
+        ":spanner_ranker_job_service",
         ":spanner_raw_impression_metadata_batch_file_service",
         ":spanner_raw_impression_metadata_batch_service",
         ":spanner_raw_impression_upload_file_service",
