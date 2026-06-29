@@ -23,6 +23,7 @@ import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.single
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -280,6 +281,48 @@ fun AsyncDatabaseClient.ReadContext.readVidLabelingJobs(
   return executeQuery(query, Options.tag("action=readVidLabelingJobs")).map { row ->
     VidLabelingJobEntity.buildResult(row)
   }
+}
+
+/**
+ * Counts the [VidLabelingJob] entries under the same upload that cover [cmmsModelLine] and are not
+ * yet SUCCEEDED, excluding [excludeVidLabelingJobId].
+ *
+ * This detects whether a model line is complete in O(1) per model line, without materializing every
+ * job row for the upload. The current job's buffered state update is not visible within the same
+ * transaction, so it is excluded by ID rather than relying on its persisted state.
+ */
+suspend fun AsyncDatabaseClient.ReadContext.countOtherNonSucceededVidLabelingJobsForModelLine(
+  dataProviderResourceId: String,
+  rawImpressionUploadId: Long,
+  cmmsModelLine: String,
+  excludeVidLabelingJobId: Long,
+): Long {
+  val sql =
+    """
+    SELECT COUNT(*) AS Cnt
+    FROM VidLabelingJob
+    WHERE VidLabelingJob.DataProviderResourceId = @dataProviderResourceId
+      AND VidLabelingJob.RawImpressionUploadId = @rawImpressionUploadId
+      AND @cmmsModelLine IN UNNEST(VidLabelingJob.CmmsModelLines)
+      AND VidLabelingJob.VidLabelingJobId != @excludeVidLabelingJobId
+      AND CAST(VidLabelingJob.State AS INT64) != @succeededState
+    """
+      .trimIndent()
+
+  val row: Struct =
+    executeQuery(
+        statement(sql) {
+          bind("dataProviderResourceId").to(dataProviderResourceId)
+          bind("rawImpressionUploadId").to(rawImpressionUploadId)
+          bind("cmmsModelLine").to(cmmsModelLine)
+          bind("excludeVidLabelingJobId").to(excludeVidLabelingJobId)
+          bind("succeededState").to(State.VID_LABELING_STATE_SUCCEEDED.number.toLong())
+        },
+        Options.tag("action=countOtherNonSucceededVidLabelingJobsForModelLine"),
+      )
+      .single()
+
+  return row.getLong("Cnt")
 }
 
 /** Buffers an insert mutation for a [VidLabelingJob] row. */
