@@ -33,6 +33,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.random.Random
 import kotlinx.coroutines.flow.filter
+import org.projectnessie.cel.Env
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.access.client.v1alpha.withForwardedTrustedCredentials
@@ -88,6 +89,7 @@ import org.wfanet.measurement.reporting.service.api.CampaignGroupInvalidExceptio
 import org.wfanet.measurement.reporting.service.api.DataProviderNotFoundForCampaignGroupException
 import org.wfanet.measurement.reporting.service.api.EventTemplateFieldInvalidException
 import org.wfanet.measurement.reporting.service.api.FieldUnimplementedException
+import org.wfanet.measurement.reporting.service.api.ImpressionQualificationFilterInvalidCelException
 import org.wfanet.measurement.reporting.service.api.ImpressionQualificationFilterNotFoundException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.ModelLineNotActiveException
@@ -125,7 +127,7 @@ class BasicReportsService(
   private val internalMetricCalculationSpecsStub: InternalMetricCalculationSpecsCoroutineStub,
   private val reportsStub: ReportsCoroutineStub,
   private val kingdomModelLinesStub: KingdomModelLinesCoroutineStub,
-  private val eventMessageDescriptor: EventMessageDescriptor?,
+  private val eventMessageDescriptor: EventMessageDescriptor,
   private val metricSpecConfig: MetricSpecConfig,
   private val secureRandom: Random,
   private val authorization: Authorization,
@@ -135,6 +137,8 @@ class BasicReportsService(
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   data class ZonedHour(val hour: Int, val zoneId: ZoneId)
+
+  private val filterEnv: Env = buildCelEnvironment(eventMessageDescriptor.descriptor)
 
   private sealed class ReportingSetMapKey {
     data class Composite(val composite: ReportingSet.Composite) : ReportingSetMapKey()
@@ -149,8 +153,19 @@ class BasicReportsService(
     val nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
   )
 
+  /**
+   * A custom-IQF spec list tagged with its position in
+   * `basic_report.impression_qualification_filters`. Carries the index alongside the spec list so
+   * that the downstream Sourced... construction does not need to zip two parallel lists by position
+   * -- a coupling that would silently break under a future reorder of either list.
+   */
+  private data class IndexedCustomImpressionQualificationFilterSpec(
+    val requestIndex: Int,
+    val specs: List<ImpressionQualificationFilterSpec>,
+  )
+
   override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport {
-    val eventTemplateFieldsByPath = eventMessageDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
+    val eventTemplateFieldsByPath = eventMessageDescriptor.eventTemplateFieldsByPath
 
     if (request.basicReport.campaignGroup.isEmpty()) {
       throw RequiredFieldNotSetException("basic_report.campaign_group")
@@ -288,11 +303,12 @@ class BasicReportsService(
           it.impressionQualificationFilter to filterSpecs
         }
 
-    val customFilterSpecs: List<List<ImpressionQualificationFilterSpec>> = buildList {
+    val customFilterSpecs: List<IndexedCustomImpressionQualificationFilterSpec> = buildList {
       addAll(
-        effectiveReportingImpressionQualificationFilters
-          .filter { it.hasCustom() }
-          .map { customIqf ->
+        request.basicReport.impressionQualificationFiltersList
+          .withIndex()
+          .filter { it.value.hasCustom() }
+          .map { (requestIndex, customIqf) ->
             val normalizedCustomSpecs: Iterable<ImpressionQualificationFilterSpec> =
               normalizeImpressionQualificationFilterSpecs(customIqf.custom.filterSpecList)
 
@@ -309,12 +325,95 @@ class BasicReportsService(
                   .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
               }
             }
-            customIqf.custom.filterSpecList
+            IndexedCustomImpressionQualificationFilterSpec(
+              requestIndex = requestIndex,
+              specs = customIqf.custom.filterSpecList,
+            )
           }
       )
     }
 
+    // Tag each effective IQF's filter specs with its provenance so CEL-validation failures inside
+    // buildReportingSetMetricCalculationSpecDetailsMap can be routed back to a meaningful error
+    // site: user-supplied entries to INVALID_ARGUMENT with the request index, server-configured
+    // base IQFs to INTERNAL. The request-index for user entries is the position in
+    // `request.basicReport.impression_qualification_filters` -- NOT the position in the merged
+    // effective list, which prepends base IQFs and reorders.
+    //
+    // Named IQFs: build a (name -> request index) map once and look up by name, so the source
+    // construction does not silently depend on `effectiveReportingImpressionQualificationFilters`
+    // preserving request order.
+    //
+    // Custom IQFs: take the index directly from `customFilterSpecs`, which carries the request
+    // index alongside the spec list (see [IndexedCustomImpressionQualificationFilterSpec]).
+    val namedRequestIndexByName: Map<String, Int> =
+      request.basicReport.impressionQualificationFiltersList
+        .withIndex()
+        .filter { it.value.hasImpressionQualificationFilter() }
+        .associate { (index, iqf) -> iqf.impressionQualificationFilter to index }
+    val sourcedImpressionQualificationFilterSpecs: List<SourcedImpressionQualificationFilterSpecs> =
+      buildList {
+        for ((name, specs) in impressionQualificationFilterSpecsByName) {
+          val source =
+            if (name in baseImpressionQualificationFilterNames) {
+              ImpressionQualificationFilterSpecsSource.Base(
+                externalImpressionQualificationFilterId =
+                  impressionQualificationFilterKeyByName
+                    .getValue(name)
+                    .impressionQualificationFilterId
+              )
+            } else {
+              ImpressionQualificationFilterSpecsSource.Named(
+                requestIndex = namedRequestIndexByName.getValue(name),
+                impressionQualificationFilterName = name,
+              )
+            }
+          add(SourcedImpressionQualificationFilterSpecs(specs, source))
+        }
+        for (indexedCustom in customFilterSpecs) {
+          add(
+            SourcedImpressionQualificationFilterSpecs(
+              specs = indexedCustom.specs,
+              source =
+                ImpressionQualificationFilterSpecsSource.Custom(
+                  requestIndex = indexedCustom.requestIndex
+                ),
+            )
+          )
+        }
+      }
+
     val createReportRequestId = UUID.randomUUID().toString()
+
+    // CEL compile-check the generated filter strings BEFORE the internal create call below. A
+    // bad-CEL request must surface as a failure on `createBasicReport` and leave no internal
+    // BasicReport row -- the EDP requisition path would otherwise fail at fulfillment time with
+    // an opaque "does not evaluate to a boolean" error against a row that the user thought
+    // succeeded. Any future refactor that reorders these blocks (or pushes CEL validation into a
+    // post-create step) reintroduces the orphan-row bug PR #4077 was written to prevent. The
+    // exception routing (Custom -> INVALID_ARGUMENT, Base/Named -> INTERNAL) is enforced inside
+    // `validateImpressionQualificationFilterCel` -- see its KDoc for the rationale.
+    val reportingSetsMetricCalculationSpecDetailsMap:
+      Map<ReportingSet, List<InternalMetricCalculationSpec.Details>> =
+      try {
+        buildReportingSetMetricCalculationSpecDetailsMap(
+          campaignGroupName = request.basicReport.campaignGroup,
+          impressionQualificationFilterSpecs = sourcedImpressionQualificationFilterSpecs,
+          dataProviderPrimitiveReportingSetMap =
+            reportingSetMaps.primitiveReportingSetsByDataProvider,
+          resultGroupSpecs = request.basicReport.resultGroupSpecsList,
+          eventTemplateFieldsByPath = eventTemplateFieldsByPath,
+          env = filterEnv,
+        )
+      } catch (e: InvalidFieldValueException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      } catch (e: ImpressionQualificationFilterInvalidCelException) {
+        // Thrown by the transformer when a base or named IQF generated invalid CEL -- a server
+        // configuration error, not user input. Map to INTERNAL with the IQF id and CEL issue
+        // exposed as `errorInfo` metadata so operators can route on a structured reason rather
+        // than parsing a free-text description.
+        throw e.asStatusRuntimeException(Status.Code.INTERNAL)
+      }
 
     val createdInternalBasicReport =
       try {
@@ -363,18 +462,6 @@ class BasicReportsService(
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
-
-    val reportingSetsMetricCalculationSpecDetailsMap:
-      Map<ReportingSet, List<InternalMetricCalculationSpec.Details>> =
-      buildReportingSetMetricCalculationSpecDetailsMap(
-        campaignGroupName = request.basicReport.campaignGroup,
-        impressionQualificationFilterSpecsLists =
-          impressionQualificationFilterSpecsByName.values + customFilterSpecs,
-        dataProviderPrimitiveReportingSetMap =
-          reportingSetMaps.primitiveReportingSetsByDataProvider,
-        resultGroupSpecs = request.basicReport.resultGroupSpecsList,
-        eventTemplateFieldsByPath = eventTemplateFieldsByPath,
-      )
 
     val report: Report =
       try {

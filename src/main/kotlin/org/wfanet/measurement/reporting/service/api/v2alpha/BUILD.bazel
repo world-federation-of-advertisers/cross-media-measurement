@@ -301,10 +301,15 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "cel_filtering_methods",
-    srcs = ["CelFilteringMethods.kt"],
+    srcs = [
+        "CelFilterValidation.kt",
+        "CelFilteringMethods.kt",
+    ],
     deps = [
         "//imports/java/org/projectnessie/cel",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:errors",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
@@ -326,9 +331,11 @@ kt_jvm_library(
     deps = [
         ":basic_report_proto_conversions",
         ":basic_report_transformations",
+        ":cel_filtering_methods",
         ":create_basic_report_request_validation",
         ":proto_conversions",
         ":resource_key",
+        "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:authorization",
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:trusted_principal_auth_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
@@ -359,7 +366,10 @@ kt_jvm_library(
     name = "basic_report_transformations",
     srcs = ["BasicReportTransformations.kt"],
     deps = [
+        ":cel_filtering_methods",
+        "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_message_descriptor",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:errors",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:basic_report_proto_conversions",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:normalization",

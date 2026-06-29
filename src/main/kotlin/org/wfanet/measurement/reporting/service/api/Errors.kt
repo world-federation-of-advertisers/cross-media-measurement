@@ -43,6 +43,7 @@ object Errors {
     INVALID_METRIC_STATE_TRANSITION,
     ARGUMENT_CHANGED_IN_REQUEST_FOR_NEXT_PAGE,
     IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+    IMPRESSION_QUALIFICATION_FILTER_INVALID_CEL,
     MODEL_LINE_NOT_FOUND,
     MODEL_LINE_NOT_ACTIVE,
     DATA_PROVIDER_NOT_FOUND_FOR_CAMPAIGN_GROUP,
@@ -60,6 +61,7 @@ object Errors {
     REPORTING_SET("reportingSet"),
     FIELD_NAME("fieldName"),
     IMPRESSION_QUALIFICATION_FILTER("impressionQualificationFilter"),
+    CEL_ISSUE("celIssue"),
     MODEL_LINE("modelLine"),
     DATA_PROVIDER("dataProvider"),
     EVENT_TEMPLATE_FIELD_PATH("eventTemplateFieldPath"),
@@ -313,5 +315,27 @@ class EventTemplateFieldInvalidException(
     Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID,
     buildMessage(eventTemplateFieldPath),
     mapOf(Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH to eventTemplateFieldPath),
+    cause,
+  )
+
+/**
+ * A CEL filter string generated for an
+ * [org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilter] from a server-controlled
+ * source (a base IQF from `--base-impression-qualification-filters`, or a registry-resolved named
+ * IQF) failed to compile or returned a non-boolean. Indicates a server misconfiguration; callers
+ * should map to `Status.INTERNAL`.
+ */
+class ImpressionQualificationFilterInvalidCelException(
+  impressionQualificationFilter: String,
+  celIssue: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_INVALID_CEL,
+    "ImpressionQualificationFilter $impressionQualificationFilter generated invalid CEL: $celIssue",
+    mapOf(
+      Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER to impressionQualificationFilter,
+      Errors.Metadata.CEL_ISSUE to celIssue,
+    ),
     cause,
   )
