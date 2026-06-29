@@ -218,6 +218,11 @@ class RequisitionFetcher(
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private suspend fun produceWorkUnits(channels: List<Channel<ReportWorkUnit>>): Long {
+    // Invariant: Kingdom's internal streamRequisitions (which ListRequisitions proxies to) orders
+    // pages globally by `UpdateTime ASC, ExternalDataProviderId ASC, ExternalRequisitionId ASC`
+    // (see Kingdom's StreamRequisitions query). The streaming buffer scheme relies on this for
+    // memory bounding: as the global updateTime advances, each open per-report buffer closes the
+    // next time a requisition with a different updateTime arrives.
     val startingPageSize = responsePageSize ?: KINGDOM_LIST_REQUISITIONS_DEFAULT_PAGE_SIZE
     val flow: Flow<Requisition> =
       requisitionsStub
