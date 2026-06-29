@@ -946,6 +946,62 @@ class RequisitionFetcherTest {
     assertThat(groupIds).hasSize(4)
   }
 
+  @Test
+  fun `recovery deduplicates requisitions that appear in multiple units`(): Unit = runBlocking {
+    val groupId = "wedged-group-id"
+    val blobKey = "$STORAGE_PATH_PREFIX/$groupId"
+    // Same requisition appears twice in the stream under different updateTimes (Kingdom-side
+    // drift), so the producer dispatches it in two work units. The second requisition belongs to
+    // the same wedged group. Without dedup, the rebuilt blob would include three RequisitionEntry
+    // protos for two distinct requisitions, and the size check could complete the rebuild before
+    // all distinct requisitions have arrived.
+    val r1a = TestRequisitionData.REQUISITION.copy { updateTime = timestamp { seconds = 10 } }
+    val r1b = TestRequisitionData.REQUISITION.copy { updateTime = timestamp { seconds = 20 } }
+    val r2 =
+      TestRequisitionData.REQUISITION.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/foo2"
+        updateTime = timestamp { seconds = 20 }
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += listOf(r1a, r1b, r2) })
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata +=
+            listOf(
+              requisitionMetadata {
+                state = RequisitionMetadata.State.STORED
+                cmmsRequisition = r1a.name
+                blobUri = "$BLOB_URI_PREFIX/$blobKey"
+                blobTypeUrl = "type"
+                this.groupId = groupId
+                report = "some-report"
+              },
+              requisitionMetadata {
+                state = RequisitionMetadata.State.STORED
+                cmmsRequisition = r2.name
+                blobUri = "$BLOB_URI_PREFIX/$blobKey"
+                blobTypeUrl = "type"
+                this.groupId = groupId
+                report = "some-report"
+              },
+            )
+        }
+      )
+
+    createFetcher().fetchAndStoreRequisitions()
+
+    val blob = storageClient.getBlob(blobKey)
+    assertThat(blob).isNotNull()
+    val parsed = Any.parseFrom(blob!!.read().flatten()).unpack(GroupedRequisitions::class.java)
+    assertThat(parsed.requisitionsList).hasSize(2)
+    val names =
+      parsed.requisitionsList.map {
+        it.requisition.unpack(org.wfanet.measurement.api.v2alpha.Requisition::class.java).name
+      }
+    assertThat(names.toSet()).containsExactly(r1a.name, r2.name)
+  }
+
   companion object {
     init {
       EdpaTelemetry.ensureInitialized()

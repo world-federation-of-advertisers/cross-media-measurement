@@ -123,11 +123,17 @@ class RequisitionFetcher(
    * units land on the same worker; the worker collects matching requisitions across units and
    * rebuilds the blob only once the full expected set is present.
    *
+   * [collected] is keyed by [Requisition.getName] so that re-emissions of the same requisition
+   * across units (e.g. Kingdom-side `updateTime` drift between pages causing the same requisition
+   * to appear twice in the stream) are deduplicated. Without this, [collected]'s `size` could reach
+   * [expected]`.size` while still missing distinct requisitions, triggering a premature rebuild
+   * that writes a blob inconsistent with the metadata it shadows.
+   *
    * Worker state, not shared.
    */
   private class PendingRecovery(
     val expected: Set<String>,
-    val collected: MutableList<Requisition> = mutableListOf(),
+    val collected: MutableMap<String, Requisition> = mutableMapOf(),
   )
 
   /**
@@ -396,7 +402,7 @@ class RequisitionFetcher(
       // zero matching requisitions for the group.
       val pending =
         pendingRecovery.getOrPut(existingGroupId) { PendingRecovery(expected = expectedNames) }
-      pending.collected += matchingHere
+      matchingHere.forEach { pending.collected.putIfAbsent(it.name, it) }
       if (pending.collected.isEmpty()) continue
 
       if (pending.collected.size >= pending.expected.size) {
@@ -404,7 +410,7 @@ class RequisitionFetcher(
           try {
             requisitionGrouper.groupForReport(
               unit.reportId,
-              pending.collected.toList(),
+              pending.collected.values.toList(),
               existingGroupId,
             )
           } catch (e: InconsistentEventGroupSelectorsException) {
