@@ -89,6 +89,7 @@ kt_jvm_library(
         ":spanner_raw_impression_metadata_batch_service",
         ":spanner_raw_impression_upload_service",
         ":spanner_requisition_metadata_service",
+        ":spanner_vid_labeling_job_service",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:services",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
