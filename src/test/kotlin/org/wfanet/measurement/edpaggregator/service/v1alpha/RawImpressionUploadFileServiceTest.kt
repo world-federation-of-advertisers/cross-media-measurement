@@ -24,6 +24,7 @@ import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
@@ -88,11 +89,13 @@ class RawImpressionUploadFileServiceTest {
 
   /** Seeds a parent [RawImpressionUpload] and returns its resource name. */
   private suspend fun createUpload(): String {
+    val rawImpressionUploadId: Long = uploadIdCounter.incrementAndGet()
     val uploadResourceId: String = UUID.randomUUID().toString()
     spannerDatabase.databaseClient.readWriteTransaction().run { txn ->
       txn.bufferInsertMutation("RawImpressionUpload") {
         set("DataProviderResourceId").to(DATA_PROVIDER_ID)
-        set("RawImpressionUploadId").to(uploadResourceId)
+        set("RawImpressionUploadId").to(rawImpressionUploadId)
+        set("RawImpressionUploadResourceId").to(uploadResourceId)
         set("DoneBlobUri").to("gs://bucket/done")
         set("State").to(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED)
         set("CreateTime").to(Value.COMMIT_TIMESTAMP)
@@ -574,5 +577,6 @@ class RawImpressionUploadFileServiceTest {
     private const val BLOB_URI_1 = "gs://bucket/file1"
     private const val BLOB_URI_2 = "gs://bucket/file2"
     private val FAR_FUTURE = timestamp { seconds = 4102444800L }
+    private val uploadIdCounter = AtomicLong(0L)
   }
 }

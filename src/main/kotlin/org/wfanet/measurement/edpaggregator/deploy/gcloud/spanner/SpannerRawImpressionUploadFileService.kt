@@ -22,11 +22,15 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
+import kotlinx.coroutines.flow.map
+import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.common.generateNewId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RawImpressionUploadFileResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findExistingUploadFilesByRequestIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadFileByResourceId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getUploadFilesByResourceIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUploadFile
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadFileExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploadFiles
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.softDeleteRawImpressionUploadFile
@@ -59,6 +63,7 @@ import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadFile
 class SpannerRawImpressionUploadFileService(
   private val databaseClient: AsyncDatabaseClient,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
+  private val idGenerator: IdGenerator = IdGenerator.Default,
 ) : RawImpressionUploadFileServiceCoroutineImplBase(coroutineContext) {
 
   override suspend fun createRawImpressionUploadFile(
@@ -87,35 +92,33 @@ class SpannerRawImpressionUploadFileService(
     val result: RawImpressionUploadFile =
       try {
         transactionRunner.run { txn ->
-          if (
-            !txn.rawImpressionUploadExists(
+          val rawImpressionUploadId: Long =
+            txn.getRawImpressionUploadId(
               file.dataProviderResourceId,
               file.rawImpressionUploadResourceId,
             )
-          ) {
-            throw RawImpressionUploadNotFoundException(
-              file.dataProviderResourceId,
-              file.rawImpressionUploadResourceId,
-            )
-          }
-          val existingByRequestId: Map<String, RawImpressionUploadFile> =
+          val existingByRequestId: Map<String, RawImpressionUploadFileResult> =
             txn.findExistingUploadFilesByRequestIds(
               file.dataProviderResourceId,
-              file.rawImpressionUploadResourceId,
+              rawImpressionUploadId,
               listOf(requestId),
             )
           if (existingByRequestId.containsKey(requestId)) {
-            return@run existingByRequestId.getValue(requestId)
+            return@run existingByRequestId.getValue(requestId).rawImpressionUploadFile
           }
-          val fileResourceId: String =
-            generateFileResourceId(
-              txn,
-              file.dataProviderResourceId,
-              file.rawImpressionUploadResourceId,
-            )
+          val fileId: Long =
+            idGenerator.generateNewId { id ->
+              txn.rawImpressionUploadFileExists(
+                file.dataProviderResourceId,
+                rawImpressionUploadId,
+                id,
+              )
+            }
+          val fileResourceId: String = UUID.randomUUID().toString()
           txn.insertRawImpressionUploadFile(
+            fileId,
             file.dataProviderResourceId,
-            file.rawImpressionUploadResourceId,
+            rawImpressionUploadId,
             fileResourceId,
             file.blobUri,
             requestId,
@@ -199,21 +202,15 @@ class SpannerRawImpressionUploadFileService(
     val results: List<RawImpressionUploadFile> =
       try {
         transactionRunner.run { txn ->
-          if (
-            !txn.rawImpressionUploadExists(
+          val rawImpressionUploadId: Long =
+            txn.getRawImpressionUploadId(
               request.dataProviderResourceId,
               request.rawImpressionUploadResourceId,
             )
-          ) {
-            throw RawImpressionUploadNotFoundException(
-              request.dataProviderResourceId,
-              request.rawImpressionUploadResourceId,
-            )
-          }
-          val existingByRequestId: Map<String, RawImpressionUploadFile> =
+          val existingByRequestId: Map<String, RawImpressionUploadFileResult> =
             txn.findExistingUploadFilesByRequestIds(
               request.dataProviderResourceId,
-              request.rawImpressionUploadResourceId,
+              rawImpressionUploadId,
               request.requestsList.map { it.requestId },
             )
           request.requestsList.map { subRequest ->
@@ -221,18 +218,22 @@ class SpannerRawImpressionUploadFileService(
               subRequest.requestId.isNotEmpty() &&
                 existingByRequestId.containsKey(subRequest.requestId)
             ) {
-              return@map existingByRequestId.getValue(subRequest.requestId)
+              return@map existingByRequestId.getValue(subRequest.requestId).rawImpressionUploadFile
             }
             val blobUri: String = subRequest.rawImpressionUploadFile.blobUri
-            val fileResourceId: String =
-              generateFileResourceId(
-                txn,
-                request.dataProviderResourceId,
-                request.rawImpressionUploadResourceId,
-              )
+            val fileId: Long =
+              idGenerator.generateNewId { id ->
+                txn.rawImpressionUploadFileExists(
+                  request.dataProviderResourceId,
+                  rawImpressionUploadId,
+                  id,
+                )
+              }
+            val fileResourceId: String = UUID.randomUUID().toString()
             txn.insertRawImpressionUploadFile(
+              fileId,
               request.dataProviderResourceId,
-              request.rawImpressionUploadResourceId,
+              rawImpressionUploadId,
               fileResourceId,
               blobUri,
               subRequest.requestId,
@@ -281,11 +282,13 @@ class SpannerRawImpressionUploadFileService(
     }
     return try {
       databaseClient.singleUse().use { txn ->
-        txn.getRawImpressionUploadFileByResourceId(
-          request.dataProviderResourceId,
-          request.rawImpressionUploadResourceId,
-          request.fileResourceId,
-        )
+        txn
+          .getRawImpressionUploadFileByResourceId(
+            request.dataProviderResourceId,
+            request.rawImpressionUploadResourceId,
+            request.fileResourceId,
+          )
+          .rawImpressionUploadFile
       }
     } catch (e: RawImpressionUploadFileNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
@@ -315,14 +318,16 @@ class SpannerRawImpressionUploadFileService(
       if (request.hasPageToken()) request.pageToken.after else null
     databaseClient.singleUse().use { txn ->
       val fileFlow: Flow<RawImpressionUploadFile> =
-        txn.readRawImpressionUploadFiles(
-          request.dataProviderResourceId,
-          request.rawImpressionUploadResourceId,
-          request.filter,
-          pageSize + 1,
-          request.showDeleted,
-          after,
-        )
+        txn
+          .readRawImpressionUploadFiles(
+            request.dataProviderResourceId,
+            request.rawImpressionUploadResourceId,
+            request.filter,
+            pageSize + 1,
+            request.showDeleted,
+            after,
+          )
+          .map { it.rawImpressionUploadFile }
       return listRawImpressionUploadFilesResponse {
         fileFlow.collectIndexed { index, file ->
           if (index == pageSize) {
@@ -371,13 +376,13 @@ class SpannerRawImpressionUploadFileService(
     val deletedFile: RawImpressionUploadFile =
       try {
         transactionRunner.run { txn ->
-          val result: RawImpressionUploadFile =
+          val result: RawImpressionUploadFileResult =
             txn.getRawImpressionUploadFileByResourceId(
               request.dataProviderResourceId,
               request.rawImpressionUploadResourceId,
               request.fileResourceId,
             )
-          if (result.hasDeleteTime()) {
+          if (result.rawImpressionUploadFile.hasDeleteTime()) {
             throw RawImpressionUploadFileNotFoundException(
               request.dataProviderResourceId,
               request.rawImpressionUploadResourceId,
@@ -386,10 +391,10 @@ class SpannerRawImpressionUploadFileService(
           }
           txn.softDeleteRawImpressionUploadFile(
             request.dataProviderResourceId,
-            request.rawImpressionUploadResourceId,
-            request.fileResourceId,
+            result.rawImpressionUploadId,
+            result.fileId,
           )
-          result.copy {
+          result.rawImpressionUploadFile.copy {
             clearUpdateTime()
             clearDeleteTime()
           }
@@ -455,15 +460,16 @@ class SpannerRawImpressionUploadFileService(
     val deletedList: List<RawImpressionUploadFile> =
       try {
         transactionRunner.run { txn ->
-          val existingByResourceId: Map<String, RawImpressionUploadFile> =
+          val existingByResourceId: Map<String, RawImpressionUploadFileResult> =
             txn.getUploadFilesByResourceIds(
               request.dataProviderResourceId,
               request.rawImpressionUploadResourceId,
               request.requestsList.map { it.fileResourceId },
             )
           request.requestsList.map { subRequest ->
-            val result: RawImpressionUploadFile? = existingByResourceId[subRequest.fileResourceId]
-            if (result == null || result.hasDeleteTime()) {
+            val result: RawImpressionUploadFileResult? =
+              existingByResourceId[subRequest.fileResourceId]
+            if (result == null || result.rawImpressionUploadFile.hasDeleteTime()) {
               throw RawImpressionUploadFileNotFoundException(
                 request.dataProviderResourceId,
                 request.rawImpressionUploadResourceId,
@@ -472,10 +478,10 @@ class SpannerRawImpressionUploadFileService(
             }
             txn.softDeleteRawImpressionUploadFile(
               request.dataProviderResourceId,
-              request.rawImpressionUploadResourceId,
-              subRequest.fileResourceId,
+              result.rawImpressionUploadId,
+              result.fileId,
             )
-            result
+            result.rawImpressionUploadFile
           }
         }
       } catch (e: RawImpressionUploadFileNotFoundException) {
@@ -501,24 +507,6 @@ class SpannerRawImpressionUploadFileService(
       throw InvalidFieldValueException(fieldName, e)
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-  }
-
-  private suspend fun generateFileResourceId(
-    txn: AsyncDatabaseClient.TransactionContext,
-    dataProviderResourceId: String,
-    rawImpressionUploadResourceId: String,
-  ): String {
-    var fileResourceId: String = UUID.randomUUID().toString()
-    while (
-      txn.rawImpressionUploadFileExists(
-        dataProviderResourceId,
-        rawImpressionUploadResourceId,
-        fileResourceId,
-      )
-    ) {
-      fileResourceId = UUID.randomUUID().toString()
-    }
-    return fileResourceId
   }
 
   companion object {
