@@ -166,10 +166,14 @@ class RequisitionFetcher(
           channels.map { ch ->
             launch {
               val pendingRecovery = mutableMapOf<String, PendingRecovery>()
-              for (unit in ch) {
-                processReport(unit, pendingRecovery)
+              val metadataCache = mutableMapOf<String, List<RequisitionMetadata>>()
+              try {
+                for (unit in ch) {
+                  processReport(unit, pendingRecovery, metadataCache)
+                }
+              } finally {
+                finalizePendingRecovery(pendingRecovery)
               }
-              finalizePendingRecovery(pendingRecovery)
             }
           }
 
@@ -303,7 +307,7 @@ class RequisitionFetcher(
         dispatch(buffer)
       }
     }
-    metrics.openBufferHighWaterMark.add(openBufferHighWater.toLong(), dataProviderAttrs)
+    metrics.openBufferHighWaterMark.record(openBufferHighWater.toLong(), dataProviderAttrs)
     return totalFetched
   }
 
@@ -318,6 +322,7 @@ class RequisitionFetcher(
   private suspend fun processReport(
     unit: ReportWorkUnit,
     pendingRecovery: MutableMap<String, PendingRecovery>,
+    metadataCache: MutableMap<String, List<RequisitionMetadata>>,
   ) {
     try {
       traceSuspending(
@@ -328,7 +333,7 @@ class RequisitionFetcher(
             .put(ATTR_REPORT_ID_KEY, unit.reportId)
             .build(),
       ) {
-        processReportInner(unit, pendingRecovery)
+        processReportInner(unit, pendingRecovery, metadataCache)
       }
     } catch (e: CancellationException) {
       throw e
@@ -365,8 +370,10 @@ class RequisitionFetcher(
   private suspend fun processReportInner(
     unit: ReportWorkUnit,
     pendingRecovery: MutableMap<String, PendingRecovery>,
+    metadataCache: MutableMap<String, List<RequisitionMetadata>>,
   ) {
-    val existingMetadata = listRequisitionMetadataByReportId(unit.reportId)
+    val existingMetadata =
+      metadataCache.getOrPut(unit.reportId) { listRequisitionMetadataByReportId(unit.reportId) }
     val storedByGroupId =
       existingMetadata
         .filter { it.state == RequisitionMetadata.State.STORED }
@@ -377,11 +384,13 @@ class RequisitionFetcher(
       if (storageClient.getBlob(blobKey) != null) continue
       val expectedNames = metadataList.mapTo(mutableSetOf()) { it.cmmsRequisition }
       val matchingHere = unit.requisitions.filter { it.name in expectedNames }
-      if (matchingHere.isEmpty() && existingGroupId !in pendingRecovery) continue
-
+      // Always enter the wedged group into pendingRecovery so finalizePendingRecovery can surface
+      // it via the recovery_skipped_incomplete counter — including the case where this run sees
+      // zero matching requisitions for the group.
       val pending =
         pendingRecovery.getOrPut(existingGroupId) { PendingRecovery(expected = expectedNames) }
       pending.collected += matchingHere
+      if (pending.collected.isEmpty()) continue
 
       if (pending.collected.size >= pending.expected.size) {
         val rebuilt =
@@ -415,6 +424,7 @@ class RequisitionFetcher(
     val invalidRefusal = validateForReport(unit.reportId, unregistered)
     if (invalidRefusal != null) {
       refuseUnregisteredAndPersist(unregistered, groupId, invalidRefusal)
+      metadataCache.remove(unit.reportId)
       return
     }
 
@@ -427,6 +437,7 @@ class RequisitionFetcher(
           message = e.message ?: "Invalid event group configuration"
         }
         refuseUnregisteredAndPersist(unregistered, groupId, refusal)
+        metadataCache.remove(unit.reportId)
         return
       } ?: return
 
@@ -434,6 +445,7 @@ class RequisitionFetcher(
     for (requisition in unregistered) {
       metadataThrottler.onReady { createRequisitionMetadata(requisition, groupId) }
     }
+    metadataCache.remove(unit.reportId)
   }
 
   /**
@@ -444,8 +456,9 @@ class RequisitionFetcher(
    */
   private fun finalizePendingRecovery(pendingRecovery: Map<String, PendingRecovery>) {
     for ((groupId, pending) in pendingRecovery) {
+      val level = if (pending.collected.isEmpty()) Level.SEVERE else Level.WARNING
       logger.log(
-        Level.SEVERE,
+        level,
         "Recovery incomplete for groupId=$groupId: ${pending.collected.size}/" +
           "${pending.expected.size} requisitions available; blob will remain missing",
       )
@@ -464,6 +477,8 @@ class RequisitionFetcher(
     reportId: String,
     requisitions: List<Requisition>,
   ): Requisition.Refusal? {
+    // MeasurementSpec is guaranteed parseable here: the stream producer's extractReportId
+    // already unpacked and discarded any requisition with an unparseable spec.
     for (requisition in requisitions) {
       try {
         requisitionValidator.validateRequisitionSpec(requisition)

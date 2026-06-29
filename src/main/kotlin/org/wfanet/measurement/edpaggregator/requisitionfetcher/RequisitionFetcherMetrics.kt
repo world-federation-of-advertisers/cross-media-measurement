@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import io.opentelemetry.api.metrics.DoubleHistogram
 import io.opentelemetry.api.metrics.LongCounter
+import io.opentelemetry.api.metrics.LongHistogram
 import io.opentelemetry.api.metrics.Meter
 import org.wfanet.measurement.common.Instrumentation
 
@@ -107,9 +108,10 @@ class RequisitionFetcherMetrics(meter: Meter = Instrumentation.meter) {
       .setUnit("{group}")
       .build()
 
-  val openBufferHighWaterMark: LongCounter =
+  val openBufferHighWaterMark: LongHistogram =
     meter
-      .counterBuilder("edpa.requisition_fetcher.open_buffer_high_water_mark")
+      .histogramBuilder("edpa.requisition_fetcher.open_buffer_high_water_mark")
+      .ofLongs()
       .setDescription(
         "Peak count of distinct reportIds with open buffers during a single fetch run"
       )

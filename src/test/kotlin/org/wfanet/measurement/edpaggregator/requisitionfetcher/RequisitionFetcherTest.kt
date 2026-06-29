@@ -630,6 +630,15 @@ class RequisitionFetcherTest {
     assertThat(captured).containsExactly(10, 5, 5).inOrder()
   }
 
+  private fun histogramSumValue(name: String): Long {
+    return metricReader
+      .collectAllMetrics()
+      .firstOrNull { it.name == name }
+      ?.histogramData
+      ?.points
+      ?.sumOf { it.sum.toLong() } ?: 0L
+  }
+
   private fun counterValue(name: String): Long {
     val data =
       metricReader
@@ -876,7 +885,65 @@ class RequisitionFetcherTest {
 
     createFetcher(workerCount = 2).fetchAndStoreRequisitions()
 
-    assertThat(counterValue("edpa.requisition_fetcher.open_buffer_high_water_mark")).isEqualTo(5)
+    assertThat(histogramSumValue("edpa.requisition_fetcher.open_buffer_high_water_mark"))
+      .isEqualTo(5)
+  }
+
+  @Test
+  fun `recovery counter increments when zero matching requisitions arrive for a STORED group`() =
+    runBlocking {
+      val groupId = "fully-orphaned-group"
+      val blobKey = "$STORAGE_PATH_PREFIX/$groupId"
+      val unrelated =
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/unrelated"
+        }
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(listRequisitionsResponse { requisitions += unrelated })
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenAnswer {
+        invocation ->
+        val request = invocation.arguments[0] as ListRequisitionMetadataRequest
+        val report = request.filter.report
+        if (report.isBlank()) {
+          listRequisitionMetadataResponse {}
+        } else {
+          listRequisitionMetadataResponse {
+            requisitionMetadata += requisitionMetadata {
+              state = RequisitionMetadata.State.STORED
+              cmmsRequisition = "${TestRequisitionData.EDP_NAME}/requisitions/never-in-stream"
+              blobUri = "$BLOB_URI_PREFIX/$blobKey"
+              blobTypeUrl = "type"
+              this.groupId = groupId
+              this.report = report
+            }
+          }
+        }
+      }
+
+      createFetcher().fetchAndStoreRequisitions()
+
+      assertThat(storageClient.getBlob(blobKey)).isNull()
+      assertThat(counterValue("edpa.requisition_fetcher.recovery_skipped_incomplete")).isEqualTo(1)
+      assertThat(counterValue("edpa.requisition_fetcher.recovery_rebuilds")).isEqualTo(0)
+    }
+
+  @Test
+  fun `interleaved updateTime ordering produces one blob per distinct timestamp`() = runBlocking {
+    val reqs =
+      listOf(10L, 50L, 5L, 30L).mapIndexed { idx, t ->
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/r$idx"
+          updateTime = timestamp { seconds = t }
+        }
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += reqs })
+
+    createFetcher().fetchAndStoreRequisitions()
+
+    assertThat(blobsList()).hasLength(4)
+    val groupIds = createRequisitionMetadataRequests.map { it.requisitionMetadata.groupId }.toSet()
+    assertThat(groupIds).hasSize(4)
   }
 
   companion object {
