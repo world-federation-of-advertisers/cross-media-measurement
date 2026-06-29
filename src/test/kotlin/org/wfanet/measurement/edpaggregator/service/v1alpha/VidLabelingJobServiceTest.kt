@@ -627,6 +627,7 @@ class VidLabelingJobServiceTest {
           markVidLabelingJobSucceededRequest {
             name = created.name
             etag = created.etag
+            requestId = UUID.randomUUID().toString()
           }
         )
 
@@ -691,6 +692,31 @@ class VidLabelingJobServiceTest {
     }
 
   @Test
+  fun `markVidLabelingJobSucceeded throws INVALID_ARGUMENT for empty requestId`() =
+    runBlocking<Unit> {
+      val name = VidLabelingJobKey(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID, "some-job").toName()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.markVidLabelingJobSucceeded(
+            markVidLabelingJobSucceededRequest {
+              this.name = name
+              etag = "some-etag"
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+          }
+        )
+    }
+
+  @Test
   fun `markVidLabelingJobFailed transitions state`() =
     runBlocking<Unit> {
       createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
@@ -711,6 +737,7 @@ class VidLabelingJobServiceTest {
             name = created.name
             etag = created.etag
             errorMessage = "Something went wrong"
+            requestId = UUID.randomUUID().toString()
           }
         )
 
@@ -748,6 +775,31 @@ class VidLabelingJobServiceTest {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] = "name"
+          }
+        )
+    }
+
+  @Test
+  fun `markVidLabelingJobFailed throws INVALID_ARGUMENT for empty requestId`() =
+    runBlocking<Unit> {
+      val name = VidLabelingJobKey(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID, "some-job").toName()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.markVidLabelingJobFailed(
+            markVidLabelingJobFailedRequest {
+              this.name = name
+              etag = "some-etag"
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
           }
         )
     }

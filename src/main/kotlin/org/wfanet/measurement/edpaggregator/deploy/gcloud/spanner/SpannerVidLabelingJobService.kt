@@ -28,9 +28,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
-import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.generateNewId
-import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.VidLabelingJobResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findVidLabelingJobByRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findVidLabelingJobsByRequestIds
@@ -127,6 +125,7 @@ class SpannerVidLabelingJobService(
             }
 
           val resourceId = "$VID_LABELING_JOB_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
+          val newEtag = UUID.randomUUID().toString()
 
           txn.insertVidLabelingJob(
             rawImpressionUploadId = rawImpressionUploadId,
@@ -136,6 +135,7 @@ class SpannerVidLabelingJobService(
             cmmsModelLines = job.cmmsModelLinesList,
             rawImpressionUploadFiles = job.rawImpressionUploadFilesList,
             createRequestId = request.requestId,
+            etag = newEtag,
           )
 
           job.copy {
@@ -143,9 +143,9 @@ class SpannerVidLabelingJobService(
             this.rawImpressionUploadResourceId = rawImpressionUploadResourceId
             vidLabelingJobResourceId = resourceId
             state = State.VID_LABELING_STATE_CREATED
+            etag = newEtag
             clearCreateTime()
             clearUpdateTime()
-            clearEtag()
           }
         }
       } catch (e: SpannerException) {
@@ -167,7 +167,6 @@ class SpannerVidLabelingJobService(
       createdJob.copy {
         createTime = commitTimestamp
         updateTime = commitTimestamp
-        etag = ETags.computeETag(commitTimestamp.toInstant())
       }
     }
   }
@@ -267,6 +266,7 @@ class SpannerVidLabelingJobService(
                 }
 
               val resourceId = "$VID_LABELING_JOB_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
+              val newEtag = UUID.randomUUID().toString()
 
               txn.insertVidLabelingJob(
                 rawImpressionUploadId = rawImpressionUploadId,
@@ -276,6 +276,7 @@ class SpannerVidLabelingJobService(
                 cmmsModelLines = subRequest.vidLabelingJob.cmmsModelLinesList,
                 rawImpressionUploadFiles = subRequest.vidLabelingJob.rawImpressionUploadFilesList,
                 createRequestId = subRequest.requestId,
+                etag = newEtag,
               )
 
               subRequest.vidLabelingJob.copy {
@@ -283,9 +284,9 @@ class SpannerVidLabelingJobService(
                 this.rawImpressionUploadResourceId = rawImpressionUploadResourceId
                 vidLabelingJobResourceId = resourceId
                 state = State.VID_LABELING_STATE_CREATED
+                etag = newEtag
                 clearCreateTime()
                 clearUpdateTime()
-                clearEtag()
               }
             }
           }
@@ -303,7 +304,6 @@ class SpannerVidLabelingJobService(
       }
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-    val computedEtag = ETags.computeETag(commitTimestamp.toInstant())
     return batchCreateVidLabelingJobsResponse {
       vidLabelingJobs +=
         results.map { result ->
@@ -313,7 +313,6 @@ class SpannerVidLabelingJobService(
             result.copy {
               createTime = commitTimestamp
               updateTime = commitTimestamp
-              etag = computedEtag
             }
           }
         }
@@ -470,11 +469,14 @@ class SpannerVidLabelingJobService(
           currentJob = currentJob,
         )
 
+        val newEtag = UUID.randomUUID().toString()
+
         txn.updateVidLabelingJobState(
           dataProviderResourceId = request.dataProviderResourceId,
           rawImpressionUploadId = result.rawImpressionUploadId,
           vidLabelingJobId = result.vidLabelingJobId,
           state = State.VID_LABELING_STATE_SUCCEEDED,
+          etag = newEtag,
         ) {
           // TODO(world-federation-of-advertisers/cross-media-measurement#3989): added by base PR
           set("MarkRequestId").to(request.requestId)
@@ -501,8 +503,8 @@ class SpannerVidLabelingJobService(
           updatedJob =
             currentJob.copy {
               state = State.VID_LABELING_STATE_SUCCEEDED
+              etag = newEtag
               clearUpdateTime()
-              clearEtag()
             },
           completedModelLines = completedModelLines,
         )
@@ -514,10 +516,7 @@ class SpannerVidLabelingJobService(
           txnResult.updatedJob
         } else {
           val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-          txnResult.updatedJob.copy {
-            updateTime = commitTimestamp
-            etag = ETags.computeETag(commitTimestamp.toInstant())
-          }
+          txnResult.updatedJob.copy { updateTime = commitTimestamp }
         }
 
       if (txnResult.completedModelLines.isNotEmpty()) {
@@ -578,11 +577,14 @@ class SpannerVidLabelingJobService(
           currentJob = currentJob,
         )
 
+        val newEtag = UUID.randomUUID().toString()
+
         txn.updateVidLabelingJobState(
           dataProviderResourceId = request.dataProviderResourceId,
           rawImpressionUploadId = result.rawImpressionUploadId,
           vidLabelingJobId = result.vidLabelingJobId,
           state = State.VID_LABELING_STATE_FAILED,
+          etag = newEtag,
         ) {
           set("ErrorMessage").to(request.errorMessage)
           // TODO(world-federation-of-advertisers/cross-media-measurement#3989): added by base PR
@@ -593,8 +595,8 @@ class SpannerVidLabelingJobService(
           currentJob.copy {
             state = State.VID_LABELING_STATE_FAILED
             errorMessage = request.errorMessage
+            etag = newEtag
             clearUpdateTime()
-            clearEtag()
           }
         )
       }
@@ -603,10 +605,7 @@ class SpannerVidLabelingJobService(
       txnResult.updatedJob
     } else {
       val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-      txnResult.updatedJob.copy {
-        updateTime = commitTimestamp
-        etag = ETags.computeETag(commitTimestamp.toInstant())
-      }
+      txnResult.updatedJob.copy { updateTime = commitTimestamp }
     }
   }
 
@@ -637,13 +636,15 @@ class SpannerVidLabelingJobService(
       throw RequiredFieldNotSetException("etag")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (requestId.isNotEmpty()) {
-      try {
-        UUID.fromString(requestId)
-      } catch (e: IllegalArgumentException) {
-        throw InvalidFieldValueException("request_id", e)
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
+    if (requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
   }
 
@@ -724,7 +725,7 @@ class SpannerVidLabelingJobService(
   }
 
   companion object {
-    private const val VID_LABELING_JOB_RESOURCE_ID_PREFIX = "vlj"
+    private const val VID_LABELING_JOB_RESOURCE_ID_PREFIX = "vidLabelingJob"
     private const val MAX_PAGE_SIZE = 100
     private const val MAX_BATCH_SIZE = 50
     private const val DEFAULT_PAGE_SIZE = 50
