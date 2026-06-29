@@ -344,9 +344,9 @@ fun buildCelExpressions(
       if (dimensionSpecExpression.isNotEmpty()) {
         for (impressionQualificationSpecsFilter in impressionQualificationFilterSpecExpressions) {
           if (impressionQualificationSpecsFilter.isEmpty()) {
-            // A match-all ImpressionQualificationFilter (empty expression, e.g. AMI) combined with a
-            // DimensionSpec filter is just the DimensionSpec filter. Emitting it directly avoids a
-            // malformed "() && (...)" expression (issue #4109).
+            // A match-all ImpressionQualificationFilter (empty expression, e.g. AMI) combined
+            // with a DimensionSpec filter is just the DimensionSpec filter. Emitting it directly
+            // avoids a malformed "() && (...)" expression (issue #4109).
             add(dimensionSpecExpression)
           } else {
             add("($impressionQualificationSpecsFilter) && ($dimensionSpecExpression)")

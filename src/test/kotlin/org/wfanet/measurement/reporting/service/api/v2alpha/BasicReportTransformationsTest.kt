@@ -48,6 +48,9 @@ import org.wfanet.measurement.reporting.v2alpha.resultGroupSpec
 
 @RunWith(JUnit4::class)
 class BasicReportTransformationsTest {
+  private fun MetricCalculationSpec.Details.hasReachMetric(): Boolean =
+    metricSpecsList.any { it.hasReach() }
+
   @Test
   fun `weekly resultGroupSpec with reportingUnitMetricSetSpec transforms into correct map`() {
     val dataProviderPrimitiveReportingSetMap = buildMap {
@@ -1986,19 +1989,14 @@ class BasicReportTransformationsTest {
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
       )
 
+    val nonEmptyIqfFilter =
+      "(banner_ad != null && banner_ad.viewable == true) || (video_ad != null && video_ad.viewed_fraction == 1.0)"
     val allDetails = reportingSetMetricCalculationSpecDetailsMap.values.flatten()
+
     // The match-all IQF must still produce a reach metric under the empty (match-all) filter.
-    assertThat(allDetails.any { it.filter.isEmpty() && it.metricSpecsList.any { spec -> spec.hasReach() } })
-      .isTrue()
-    // The non-empty IQF reach metric is still present and not combined with any dimension filter.
-    assertThat(
-        allDetails.any {
-          it.filter ==
-            "(banner_ad != null && banner_ad.viewable == true) || (video_ad != null && video_ad.viewed_fraction == 1.0)" &&
-            it.metricSpecsList.any { spec -> spec.hasReach() }
-        }
-      )
-      .isTrue()
+    assertThat(allDetails.any { it.filter.isEmpty() && it.hasReachMetric() }).isTrue()
+    // The non-empty IQF reach metric is present and not combined with any dimension filter.
+    assertThat(allDetails.any { it.filter == nonEmptyIqfFilter && it.hasReachMetric() }).isTrue()
   }
 
   @Test
@@ -2047,26 +2045,17 @@ class BasicReportTransformationsTest {
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
       )
 
+    val dimensionFilter = "person.age_group == 1 && person.gender == 1"
+    val combinedFilter =
+      "((banner_ad != null && banner_ad.viewable == true) || (video_ad != null && video_ad.viewed_fraction == 1.0)) && (person.age_group == 1 && person.gender == 1)"
     val allDetails = reportingSetMetricCalculationSpecDetailsMap.values.flatten()
+
     // The match-all IQF reach metric uses the DimensionSpec filter alone (not "() && (...)").
-    assertThat(
-        allDetails.any {
-          it.filter == "person.age_group == 1 && person.gender == 1" &&
-            it.metricSpecsList.any { spec -> spec.hasReach() }
-        }
-      )
-      .isTrue()
+    assertThat(allDetails.any { it.filter == dimensionFilter && it.hasReachMetric() }).isTrue()
     // No malformed expression is produced.
     assertThat(allDetails.none { it.filter.contains("()") }).isTrue()
     // The non-empty IQF reach metric is still correctly combined with the dimension filter.
-    assertThat(
-        allDetails.any {
-          it.filter ==
-            "((banner_ad != null && banner_ad.viewable == true) || (video_ad != null && video_ad.viewed_fraction == 1.0)) && (person.age_group == 1 && person.gender == 1)" &&
-            it.metricSpecsList.any { spec -> spec.hasReach() }
-        }
-      )
-      .isTrue()
+    assertThat(allDetails.any { it.filter == combinedFilter && it.hasReachMetric() }).isTrue()
   }
 
   @Test
