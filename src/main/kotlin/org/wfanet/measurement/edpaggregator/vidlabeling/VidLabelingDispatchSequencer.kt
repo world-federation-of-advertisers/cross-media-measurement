@@ -319,19 +319,15 @@ class VidLabelingDispatchSequencer(
     rawImpressionUploadStub
       .listResources { pageToken: String ->
         val response =
-          try {
-            rawImpressionUploadStub.listRawImpressionUploads(
-              listRawImpressionUploadsRequest {
-                parent = dataProviderName
-                filter = ListRawImpressionUploadsRequestKt.filter { stateIn += state }
-                if (pageToken.isNotEmpty()) {
-                  this.pageToken = pageToken
-                }
+          rawImpressionUploadStub.listRawImpressionUploads(
+            listRawImpressionUploadsRequest {
+              parent = dataProviderName
+              filter = ListRawImpressionUploadsRequestKt.filter { stateIn += state }
+              if (pageToken.isNotEmpty()) {
+                this.pageToken = pageToken
               }
-            )
-          } catch (e: StatusException) {
-            throw Exception("Error listing RawImpressionUploads for $dataProviderName", e)
-          }
+            }
+          )
         ResourceList(response.rawImpressionUploadsList, response.nextPageToken)
       }
       .flattenConcat()
@@ -343,18 +339,14 @@ class VidLabelingDispatchSequencer(
     rawImpressionUploadModelLineStub
       .listResources { pageToken: String ->
         val response =
-          try {
-            rawImpressionUploadModelLineStub.listRawImpressionUploadModelLines(
-              listRawImpressionUploadModelLinesRequest {
-                parent = uploadName
-                if (pageToken.isNotEmpty()) {
-                  this.pageToken = pageToken
-                }
+          rawImpressionUploadModelLineStub.listRawImpressionUploadModelLines(
+            listRawImpressionUploadModelLinesRequest {
+              parent = uploadName
+              if (pageToken.isNotEmpty()) {
+                this.pageToken = pageToken
               }
-            )
-          } catch (e: StatusException) {
-            throw Exception("Error listing RawImpressionUploadModelLines for $uploadName", e)
-          }
+            }
+          )
         ResourceList(response.rawImpressionUploadModelLinesList, response.nextPageToken)
       }
       .flattenConcat()
@@ -367,18 +359,14 @@ class VidLabelingDispatchSequencer(
       modelRolloutsStub
         .listResources { pageToken: String ->
           val response =
-            try {
-              modelRolloutsStub.listModelRollouts(
-                listModelRolloutsRequest {
-                  parent = modelLineName
-                  if (pageToken.isNotEmpty()) {
-                    this.pageToken = pageToken
-                  }
+            modelRolloutsStub.listModelRollouts(
+              listModelRolloutsRequest {
+                parent = modelLineName
+                if (pageToken.isNotEmpty()) {
+                  this.pageToken = pageToken
                 }
-              )
-            } catch (e: StatusException) {
-              throw Exception("Error listing model rollouts for $modelLineName", e)
-            }
+              }
+            )
           ResourceList(response.modelRolloutsList, response.nextPageToken)
         }
         .flattenConcat()
@@ -398,21 +386,14 @@ class VidLabelingDispatchSequencer(
       modelShardsStub
         .listResources { pageToken: String ->
           val response =
-            try {
-              modelShardsStub.listModelShards(
-                listModelShardsRequest {
-                  parent = dataProviderName
-                  if (pageToken.isNotEmpty()) {
-                    this.pageToken = pageToken
-                  }
+            modelShardsStub.listModelShards(
+              listModelShardsRequest {
+                parent = dataProviderName
+                if (pageToken.isNotEmpty()) {
+                  this.pageToken = pageToken
                 }
-              )
-            } catch (e: StatusException) {
-              throw Exception(
-                "Error listing model shards for $dataProviderName release $modelReleaseName",
-                e,
-              )
-            }
+              }
+            )
           ResourceList(response.modelShardsList, response.nextPageToken)
         }
         .flattenConcat()
@@ -494,7 +475,7 @@ class VidLabelingDispatchSequencer(
         logger.info("WorkItem $workItemId already exists; skipping (concurrent dispatch)")
         return
       }
-      throw Exception("Error creating WorkItem $workItemId", e)
+      throw e
     }
     logger.info("Created WorkItem $workItemId for model line $modelLineName shard $shardIndex")
   }
@@ -515,7 +496,7 @@ class VidLabelingDispatchSequencer(
         )
         return
       }
-      throw Exception("Error marking $modelLineName LABELING", e)
+      throw e
     }
   }
 
@@ -535,17 +516,13 @@ class VidLabelingDispatchSequencer(
         )
         return
       }
-      throw Exception("Error marking $modelLineName POOL_ASSIGNING", e)
+      throw e
     }
   }
 
   /** Fetches the `ModelLine` to read its active window (`active_start_time`/`active_end_time`). */
   private suspend fun getModelLine(modelLineName: String): ModelLine =
-    try {
-      modelLinesStub.getModelLine(getModelLineRequest { name = modelLineName })
-    } catch (e: StatusException) {
-      throw Exception("Error getting ModelLine $modelLineName", e)
-    }
+    modelLinesStub.getModelLine(getModelLineRequest { name = modelLineName })
 
   /**
    * Pre-creates one `PoolAssignmentJob` per shard for ([uploadName], [modelLineName]) via
@@ -578,15 +555,7 @@ class VidLabelingDispatchSequencer(
           }
         }
       }
-      val response =
-        try {
-          poolAssignmentJobStub.batchCreatePoolAssignmentJobs(request)
-        } catch (e: StatusException) {
-          throw Exception(
-            "Error creating PoolAssignmentJobs for $modelLineName under $uploadName",
-            e,
-          )
-        }
+      val response = poolAssignmentJobStub.batchCreatePoolAssignmentJobs(request)
       for (job in response.poolAssignmentJobsList) {
         jobsByShard[job.shardIndex] = job.name
       }
@@ -649,7 +618,7 @@ class VidLabelingDispatchSequencer(
         logger.info("WorkItem $workItemId already exists; skipping (concurrent dispatch)")
         return
       }
-      throw Exception("Error creating WorkItem $workItemId", e)
+      throw e
     }
     logger.info(
       "Created SubpoolAssigner WorkItem $workItemId for model line $modelLineName shard $shardIndex"
