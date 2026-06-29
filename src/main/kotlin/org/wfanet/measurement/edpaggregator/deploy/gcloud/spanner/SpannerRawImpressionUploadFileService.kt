@@ -159,6 +159,9 @@ class SpannerRawImpressionUploadFileService(
   override suspend fun batchCreateRawImpressionUploadFiles(
     request: BatchCreateRawImpressionUploadFilesRequest
   ): BatchCreateRawImpressionUploadFilesResponse {
+    if (request.requestsList.isEmpty()) {
+      return BatchCreateRawImpressionUploadFilesResponse.getDefaultInstance()
+    }
     if (request.dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("data_provider_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -166,9 +169,6 @@ class SpannerRawImpressionUploadFileService(
     if (request.rawImpressionUploadResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("raw_impression_upload_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-    if (request.requestsList.isEmpty()) {
-      return BatchCreateRawImpressionUploadFilesResponse.getDefaultInstance()
     }
     val requestIdSet = mutableSetOf<String>()
     request.requestsList.forEachIndexed { index, subRequest ->
