@@ -153,17 +153,16 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "PoolAssignmentJobServiceTest",
-    srcs = ["PoolAssignmentJobServiceTest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.service.v1alpha.PoolAssignmentJobServiceTest",
+    name = "RawImpressionUploadModelLineServiceTest",
+    srcs = ["RawImpressionUploadModelLineServiceTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.service.v1alpha.RawImpressionUploadModelLineServiceTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:spanner_pool_assignment_job_service",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:spanner_raw_impression_upload_model_line_service",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/testing:schemata",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:pool_assignment_job_service",
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:pool_assignment_job_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/internal/edpaggregator:pool_assignment_job_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_model_line_state_kt_jvm_proto",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:raw_impression_upload_model_line_service",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_state_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",

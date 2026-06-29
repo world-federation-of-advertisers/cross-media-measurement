@@ -124,8 +124,8 @@ message GetRawImpressionUploadModelLineRequest {
   // Resource ID of the parent upload.
   string raw_impression_upload_resource_id = 2;
 
-  // The CMMS model line resource name.
-  string cmms_model_line = 3;
+  // Resource ID of this record.
+  string raw_impression_upload_model_line_resource_id = 3;
 }
 
 // Request message for ListRawImpressionUploadModelLines.
@@ -189,8 +189,8 @@ message MarkRawImpressionUploadModelLinePoolAssigningRequest {
   // Resource ID of the parent upload.
   string raw_impression_upload_resource_id = 2;
 
-  // The CMMS model line resource name.
-  string cmms_model_line = 3;
+  // Resource ID of this record.
+  string raw_impression_upload_model_line_resource_id = 3;
 
   // Entity tag for optimistic concurrency control.
   string etag = 4;
@@ -204,8 +204,8 @@ message MarkRawImpressionUploadModelLineRankingRequest {
   // Resource ID of the parent upload.
   string raw_impression_upload_resource_id = 2;
 
-  // The CMMS model line resource name.
-  string cmms_model_line = 3;
+  // Resource ID of this record.
+  string raw_impression_upload_model_line_resource_id = 3;
 
   // Entity tag for optimistic concurrency control.
   string etag = 4;
@@ -219,8 +219,8 @@ message MarkRawImpressionUploadModelLineLabelingRequest {
   // Resource ID of the parent upload.
   string raw_impression_upload_resource_id = 2;
 
-  // The CMMS model line resource name.
-  string cmms_model_line = 3;
+  // Resource ID of this record.
+  string raw_impression_upload_model_line_resource_id = 3;
 
   // Entity tag for optimistic concurrency control.
   string etag = 4;
@@ -234,8 +234,8 @@ message MarkRawImpressionUploadModelLineCompletedRequest {
   // Resource ID of the parent upload.
   string raw_impression_upload_resource_id = 2;
 
-  // The CMMS model line resource name.
-  string cmms_model_line = 3;
+  // Resource ID of this record.
+  string raw_impression_upload_model_line_resource_id = 3;
 
   // Entity tag for optimistic concurrency control.
   string etag = 4;
@@ -249,8 +249,8 @@ message MarkRawImpressionUploadModelLineFailedRequest {
   // Resource ID of the parent upload.
   string raw_impression_upload_resource_id = 2;
 
-  // The CMMS model line resource name.
-  string cmms_model_line = 3;
+  // Resource ID of this record.
+  string raw_impression_upload_model_line_resource_id = 3;
 
   // Human-readable detail about the failure.
   string error_message = 4;

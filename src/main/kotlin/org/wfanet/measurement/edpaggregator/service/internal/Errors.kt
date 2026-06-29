@@ -25,6 +25,7 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionBatchState
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState
 
 object Errors {
@@ -41,9 +42,8 @@ object Errors {
     RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
     RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
     RAW_IMPRESSION_UPLOAD_NOT_FOUND,
-    POOL_ASSIGNMENT_JOB_NOT_FOUND,
-    POOL_ASSIGNMENT_JOB_STATE_INVALID,
-    POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
+    RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+    RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
     REQUISITION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_ALREADY_EXISTS,
@@ -72,9 +72,9 @@ object Errors {
     RAW_IMPRESSION_UPLOAD_RESOURCE_ID("rawImpressionUploadResourceId"),
     FILE_RESOURCE_ID("fileResourceId"),
     RAW_IMPRESSION_UPLOAD_RESOURCE_ID("rawImpressionUploadResourceId"),
-    POOL_ASSIGNMENT_JOB_RESOURCE_ID("poolAssignmentJobResourceId"),
-    POOL_ASSIGNMENT_JOB_STATE("poolAssignmentJobState"),
-    EXPECTED_POOL_ASSIGNMENT_JOB_STATES("expectedPoolAssignmentJobStates"),
+    CMMS_MODEL_LINE("cmmsModelLine"),
+    RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE("rawImpressionUploadModelLineState"),
+    EXPECTED_RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATES("expectedRawImpressionUploadModelLineStates"),
     FIELD_NAME("fieldName");
 
     companion object {
@@ -442,48 +442,40 @@ class RawImpressionUploadNotFoundException(
     cause,
   )
 
-class PoolAssignmentJobNotFoundException(
+class RawImpressionUploadModelLineNotFoundException(
   dataProviderResourceId: String,
   rawImpressionUploadResourceId: String,
-  poolAssignmentJobResourceId: String,
+  cmmsModelLine: String,
   cause: Throwable? = null,
 ) :
   ServiceException(
-    Errors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
-    "PoolAssignmentJob not found",
+    Errors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+    "RawImpressionUploadModelLine not found",
     mapOf(
       Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
       Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
-      Errors.Metadata.POOL_ASSIGNMENT_JOB_RESOURCE_ID to poolAssignmentJobResourceId,
+      Errors.Metadata.CMMS_MODEL_LINE to cmmsModelLine,
     ),
     cause,
   )
 
-class PoolAssignmentJobAlreadyExistsException(cause: Throwable? = null) :
-  ServiceException(
-    Errors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
-    "PoolAssignmentJob already exists",
-    emptyMap(),
-    cause,
-  )
-
-class PoolAssignmentJobStateInvalidException(
+class RawImpressionUploadModelLineStateInvalidException(
   dataProviderResourceId: String,
   rawImpressionUploadResourceId: String,
-  poolAssignmentJobResourceId: String,
-  actualState: PoolAssignmentState,
-  expectedStates: Collection<PoolAssignmentState>,
+  cmmsModelLine: String,
+  actualState: RawImpressionUploadModelLineState,
+  expectedStates: Collection<RawImpressionUploadModelLineState>,
   cause: Throwable? = null,
 ) :
   ServiceException(
-    Errors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
-    "PoolAssignmentJob state invalid: expected one of $expectedStates but was $actualState",
+    Errors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+    "RawImpressionUploadModelLine state invalid: expected one of $expectedStates but was $actualState",
     mapOf(
       Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
       Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
-      Errors.Metadata.POOL_ASSIGNMENT_JOB_RESOURCE_ID to poolAssignmentJobResourceId,
-      Errors.Metadata.POOL_ASSIGNMENT_JOB_STATE to actualState.name,
-      Errors.Metadata.EXPECTED_POOL_ASSIGNMENT_JOB_STATES to
+      Errors.Metadata.CMMS_MODEL_LINE to cmmsModelLine,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE to actualState.name,
+      Errors.Metadata.EXPECTED_RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATES to
         expectedStates.joinToString(",") { state -> state.name },
     ),
     cause,

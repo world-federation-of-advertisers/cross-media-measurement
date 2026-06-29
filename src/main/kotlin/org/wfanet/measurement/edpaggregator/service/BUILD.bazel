@@ -17,6 +17,7 @@ kt_jvm_library(
         "PoolAssignmentJobKey.kt",
         "RawImpressionMetadataKey.kt",
         "RawImpressionUploadKey.kt",
+        "RawImpressionUploadModelLineKey.kt",
         "RequisitionMetadataKey.kt",
     ],
     deps = [
