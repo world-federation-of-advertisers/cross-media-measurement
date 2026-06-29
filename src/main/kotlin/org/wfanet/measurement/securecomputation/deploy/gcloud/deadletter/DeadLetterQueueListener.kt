@@ -67,19 +67,18 @@ import org.wfanet.measurement.securecomputation.service.Errors
  * After failing the WorkItem it also marks the EDP-Aggregator resource(s) that the WorkItem's phase
  * params reference (the per-phase job and the parent `RawImpressionUploadModelLine`) FAILED, so a
  * TEE that exhausts its retries surfaces as a terminal failure on the EDPA side too. This EDPA
- * marking is best-effort and only attempted when the EDPA stubs are configured; the worker apps
- * still self-mark FAILED on a non-retry-exhausting failure today, but that self-marking should be
- * removed once this DLQ path lands (cleanup tracked separately).
+ * marking is best-effort; the worker apps still self-mark FAILED on a non-retry-exhausting failure
+ * today, but that self-marking should be removed once this DLQ path lands (cleanup tracked
+ * separately).
  *
  * @param subscriptionId The subscription ID for the dead letter queue.
  * @param queueSubscriber A client that manages connections and interactions with the queue.
  * @param parser Parser used to parse serialized queue messages into WorkItem instances.
  * @param workItemsStub gRPC stub for calling the WorkItems service to fail work items.
- * @param poolAssignmentJobsStub Optional EDPA stub used to mark Phase-0 `PoolAssignmentJob`s
- *   FAILED.
- * @param rankerJobsStub Optional EDPA stub used to mark Phase-1 `RankerJob`s FAILED.
- * @param vidLabelingJobsStub Optional EDPA stub used to mark Phase-2 `VidLabelingJob`s FAILED.
- * @param rawImpressionUploadModelLinesStub Optional EDPA stub used to resolve and mark the parent
+ * @param poolAssignmentJobsStub EDPA stub used to mark Phase-0 `PoolAssignmentJob`s FAILED.
+ * @param rankerJobsStub EDPA stub used to mark Phase-1 `RankerJob`s FAILED.
+ * @param vidLabelingJobsStub EDPA stub used to mark Phase-2 `VidLabelingJob`s FAILED.
+ * @param rawImpressionUploadModelLinesStub EDPA stub used to resolve and mark the parent
  *   `RawImpressionUploadModelLine` FAILED.
  */
 class DeadLetterQueueListener(
@@ -87,20 +86,11 @@ class DeadLetterQueueListener(
   private val queueSubscriber: QueueSubscriber,
   private val parser: Parser<WorkItem>,
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
-  private val poolAssignmentJobsStub: PoolAssignmentJobServiceCoroutineStub? = null,
-  private val rankerJobsStub: RankerJobServiceCoroutineStub? = null,
-  private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub? = null,
-  private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub? =
-    null,
+  private val poolAssignmentJobsStub: PoolAssignmentJobServiceCoroutineStub,
+  private val rankerJobsStub: RankerJobServiceCoroutineStub,
+  private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
+  private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
 ) : AutoCloseable {
-
-  /** Whether the EDPA stubs are configured, enabling EDPA resource marking. */
-  private val edpaConfigured: Boolean
-    get() =
-      poolAssignmentJobsStub != null &&
-        rankerJobsStub != null &&
-        vidLabelingJobsStub != null &&
-        rawImpressionUploadModelLinesStub != null
 
   /** Starts the listener by subscribing to the dead letter queue. */
   suspend fun run() {
@@ -190,15 +180,10 @@ class DeadLetterQueueListener(
    *   line; otherwise (non-memoized) the parent model line only,
    * - anything else (e.g. `ResultsFulfiller` params) -> no EDPA marking.
    *
-   * Entirely skipped when the EDPA stubs are not configured. Every call is best-effort and never
-   * throws: a failure to mark an EDPA resource must not re-nack an already-terminal dead-letter
-   * message.
+   * Every call is best-effort and never throws: a failure to mark an EDPA resource must not re-nack
+   * an already-terminal dead-letter message.
    */
   private suspend fun markEdpaResourcesFailed(workItem: WorkItem) {
-    if (!edpaConfigured) {
-      logger.fine("EDPA stubs not configured; skipping EDPA marking for ${workItem.name}")
-      return
-    }
     val appParams =
       try {
         workItem.workItemParams.unpack(WorkItemParams::class.java).appParams
@@ -266,7 +251,7 @@ class DeadLetterQueueListener(
     if (name.isEmpty()) return
     try {
       val job =
-        poolAssignmentJobsStub!!.getPoolAssignmentJob(
+        poolAssignmentJobsStub.getPoolAssignmentJob(
           getPoolAssignmentJobRequest { this.name = name }
         )
       if (
@@ -276,7 +261,7 @@ class DeadLetterQueueListener(
         logger.info("PoolAssignmentJob $name already terminal (${job.state}); skipping FAILED mark")
         return
       }
-      poolAssignmentJobsStub!!.markPoolAssignmentJobFailed(
+      poolAssignmentJobsStub.markPoolAssignmentJobFailed(
         markPoolAssignmentJobFailedRequest {
           this.name = name
           this.etag = job.etag
@@ -301,12 +286,12 @@ class DeadLetterQueueListener(
   private suspend fun markRankerJobFailedBestEffort(name: String, errorMessage: String) {
     if (name.isEmpty()) return
     try {
-      val job = rankerJobsStub!!.getRankerJob(getRankerJobRequest { this.name = name })
+      val job = rankerJobsStub.getRankerJob(getRankerJobRequest { this.name = name })
       if (job.state == RankerJob.State.SUCCEEDED || job.state == RankerJob.State.FAILED) {
         logger.info("RankerJob $name already terminal (${job.state}); skipping FAILED mark")
         return
       }
-      rankerJobsStub!!.markRankerJobFailed(
+      rankerJobsStub.markRankerJobFailed(
         markRankerJobFailedRequest {
           this.name = name
           this.etag = job.etag
@@ -332,13 +317,12 @@ class DeadLetterQueueListener(
   private suspend fun markVidLabelingJobFailedBestEffort(name: String, errorMessage: String) {
     if (name.isEmpty()) return
     try {
-      val job =
-        vidLabelingJobsStub!!.getVidLabelingJob(getVidLabelingJobRequest { this.name = name })
+      val job = vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { this.name = name })
       if (job.state == VidLabelingJob.State.SUCCEEDED || job.state == VidLabelingJob.State.FAILED) {
         logger.info("VidLabelingJob $name already terminal (${job.state}); skipping FAILED mark")
         return
       }
-      vidLabelingJobsStub!!.markVidLabelingJobFailed(
+      vidLabelingJobsStub.markVidLabelingJobFailed(
         markVidLabelingJobFailedRequest {
           this.name = name
           this.etag = job.etag
@@ -383,7 +367,7 @@ class DeadLetterQueueListener(
         )
         return
       }
-      rawImpressionUploadModelLinesStub!!.markRawImpressionUploadModelLineFailed(
+      rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineFailed(
         markRawImpressionUploadModelLineFailedRequest {
           name = parent.name
           // `etag` is REQUIRED. Reuse the one already returned by getParentModelLine's List (the
@@ -419,7 +403,7 @@ class DeadLetterQueueListener(
     cmmsModelLine: String,
   ): RawImpressionUploadModelLine? {
     var parentRow: RawImpressionUploadModelLine? = null
-    rawImpressionUploadModelLinesStub!!
+    rawImpressionUploadModelLinesStub
       .listResources { pageToken: String ->
         val response =
           listRawImpressionUploadModelLines(
