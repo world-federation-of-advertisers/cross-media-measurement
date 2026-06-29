@@ -57,36 +57,6 @@ suspend fun AsyncDatabaseClient.ReadContext.vidLabelingJobExists(
 }
 
 /**
- * Resolves a [RawImpressionUpload]'s internal ID from its resource ID.
- *
- * @return The internal `RawImpressionUploadId`, or `null` if not found
- */
-suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadIdForVidLabeling(
-  dataProviderResourceId: String,
-  rawImpressionUploadResourceId: String,
-): Long? {
-  val sql =
-    """
-    SELECT RawImpressionUploadId
-    FROM RawImpressionUpload
-    WHERE DataProviderResourceId = @dataProviderResourceId
-      AND RawImpressionUploadResourceId = @rawImpressionUploadResourceId
-    """
-      .trimIndent()
-
-  val row: Struct =
-    executeQuery(
-        statement(sql) {
-          bind("dataProviderResourceId").to(dataProviderResourceId)
-          bind("rawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
-        }
-      )
-      .singleOrNullIfEmpty() ?: return null
-
-  return row.getLong("RawImpressionUploadId")
-}
-
-/**
  * Reads a [VidLabelingJob] by its resource ID.
  *
  * @return The [VidLabelingJobResult], or `null` if not found
@@ -123,7 +93,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getVidLabelingJobByResourceId(
 }
 
 /** Finds an existing [VidLabelingJob] by request ID for idempotency. */
-suspend fun AsyncDatabaseClient.ReadContext.findVidLabelingJobByRequestId(
+suspend fun AsyncDatabaseClient.ReadContext.findVidLabelingJobByCreateRequestId(
   dataProviderResourceId: String,
   rawImpressionUploadResourceId: String,
   requestId: String,
@@ -157,7 +127,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findVidLabelingJobByRequestId(
 }
 
 /** Finds existing [VidLabelingJob] entries by request IDs for batch idempotency. */
-suspend fun AsyncDatabaseClient.ReadContext.findVidLabelingJobsByRequestIds(
+suspend fun AsyncDatabaseClient.ReadContext.findVidLabelingJobsByCreateRequestIds(
   dataProviderResourceId: String,
   rawImpressionUploadResourceId: String,
   requestIds: List<String>,
@@ -184,7 +154,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findVidLabelingJobsByRequestIds(
           bind("rawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
           bind("createRequestIds").toStringArray(requestIds)
         },
-        Options.tag("action=findVidLabelingJobsByRequestIds"),
+        Options.tag("action=findVidLabelingJobsByCreateRequestIds"),
       )
       .collect { row ->
         val result = VidLabelingJobEntity.buildResult(row)

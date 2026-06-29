@@ -31,9 +31,9 @@ import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.VidLabelingJobResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countOtherNonSucceededVidLabelingJobsForModelLine
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findVidLabelingJobByRequestId
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findVidLabelingJobsByRequestIds
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadIdForVidLabeling
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findVidLabelingJobByCreateRequestId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findVidLabelingJobsByCreateRequestIds
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingJobByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertVidLabelingJob
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readVidLabelingJobs
@@ -98,7 +98,7 @@ class SpannerVidLabelingJobService(
       try {
         transactionRunner.run { txn ->
           val existing =
-            txn.findVidLabelingJobByRequestId(
+            txn.findVidLabelingJobByCreateRequestId(
               dataProviderResourceId,
               rawImpressionUploadResourceId,
               request.requestId,
@@ -108,10 +108,7 @@ class SpannerVidLabelingJobService(
           }
 
           val rawImpressionUploadId =
-            txn.getRawImpressionUploadIdForVidLabeling(
-              dataProviderResourceId,
-              rawImpressionUploadResourceId,
-            )
+            txn.getRawImpressionUploadId(dataProviderResourceId, rawImpressionUploadResourceId)
               ?: throw RawImpressionUploadNotFoundException(
                   dataProviderResourceId,
                   rawImpressionUploadResourceId,
@@ -239,10 +236,7 @@ class SpannerVidLabelingJobService(
       try {
         transactionRunner.run { txn ->
           val rawImpressionUploadId =
-            txn.getRawImpressionUploadIdForVidLabeling(
-              dataProviderResourceId,
-              rawImpressionUploadResourceId,
-            )
+            txn.getRawImpressionUploadId(dataProviderResourceId, rawImpressionUploadResourceId)
               ?: throw RawImpressionUploadNotFoundException(
                   dataProviderResourceId,
                   rawImpressionUploadResourceId,
@@ -250,7 +244,7 @@ class SpannerVidLabelingJobService(
                 .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
           val existingByRequestId: Map<String, VidLabelingJobResult> =
-            txn.findVidLabelingJobsByRequestIds(
+            txn.findVidLabelingJobsByCreateRequestIds(
               dataProviderResourceId,
               rawImpressionUploadResourceId,
               request.requestsList.map { it.requestId },

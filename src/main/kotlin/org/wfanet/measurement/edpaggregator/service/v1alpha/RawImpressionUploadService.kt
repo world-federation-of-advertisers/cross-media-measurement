@@ -120,6 +120,9 @@ class RawImpressionUploadService(
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
+          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
+          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -173,6 +176,9 @@ class RawImpressionUploadService(
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
+          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
+          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -272,6 +278,9 @@ class RawImpressionUploadService(
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
+          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
+          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
