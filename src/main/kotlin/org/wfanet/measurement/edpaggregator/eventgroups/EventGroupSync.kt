@@ -23,6 +23,7 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Tracer
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -100,6 +101,7 @@ private data class PendingWrite<T>(
   val eventGroupReferenceId: String,
   val entityType: String,
   val entityId: String,
+  val startTime: TimeMark,
   val request: T,
 )
 
@@ -310,6 +312,9 @@ class EventGroupSync(
     val referenceId = eventGroup.eventGroupReferenceId
     val entityType = eventGroup.entityKey.entityType
     val entityId = eventGroup.entityKey.entityId
+    // Per-item start, captured before queueing so latency includes time spent buffered before
+    // flush.
+    val itemStartTime = TimeSource.Monotonic.markNow()
 
     // Decide create / update / no-op inside the per-item span. This makes no RPCs, so the span
     // reflects only this event group. All buffering and flushing happens after the span, so
@@ -327,7 +332,6 @@ class EventGroupSync(
         ),
         errorMessage = "Event Group sync failed",
       ) { _ ->
-        val itemStartTime = TimeSource.Monotonic.markNow()
         metrics.syncAttempts.add(1, metricAttributes())
         val existingEventGroup: CmmsEventGroup? =
           findExistingEventGroup(eventGroup, existingByKey, existingByEntityKey)
@@ -365,7 +369,9 @@ class EventGroupSync(
         if (pendingCreates.any { it.request.requestId == action.request.requestId }) {
           flushCreates(pendingCreates)
         }
-        pendingCreates.add(PendingWrite(referenceId, entityType, entityId, action.request))
+        pendingCreates.add(
+          PendingWrite(referenceId, entityType, entityId, itemStartTime, action.request)
+        )
         if (pendingCreates.size >= MAX_BATCH_SIZE) {
           flushCreates(pendingCreates)
         }
@@ -375,7 +381,9 @@ class EventGroupSync(
         if (pendingUpdates.any { it.request.eventGroup.name == action.request.eventGroup.name }) {
           flushUpdates(pendingUpdates)
         }
-        pendingUpdates.add(PendingWrite(referenceId, entityType, entityId, action.request))
+        pendingUpdates.add(
+          PendingWrite(referenceId, entityType, entityId, itemStartTime, action.request)
+        )
         if (pendingUpdates.size >= MAX_BATCH_SIZE) {
           flushUpdates(pendingUpdates)
         }
@@ -393,7 +401,6 @@ class EventGroupSync(
     if (pendingCreates.isEmpty()) {
       return
     }
-    val syncStartTime = TimeSource.Monotonic.markNow()
     val response =
       try {
         throttler.onReady {
@@ -412,10 +419,12 @@ class EventGroupSync(
         pendingCreates.clear()
         return
       }
-    val syncLatency = syncStartTime.elapsedNow().inWholeMilliseconds / 1000.0
     response.eventGroupsList.forEachIndexed { index, syncedEventGroup ->
       metrics.syncSuccess.add(1, metricAttributes())
-      metrics.syncLatency.record(syncLatency, metricAttributes())
+      metrics.syncLatency.record(
+        pendingCreates[index].startTime.elapsedNow().inWholeMilliseconds / 1000.0,
+        metricAttributes(),
+      )
       emit(
         mappedEventGroup {
           eventGroupReferenceId = pendingCreates[index].eventGroupReferenceId
@@ -438,12 +447,11 @@ class EventGroupSync(
       "Batch create of ${pending.size} Event Groups failed; retrying individually"
     }
     for (item in pending) {
-      val itemStartTime = TimeSource.Monotonic.markNow()
       try {
         val syncedEventGroup = throttler.onReady { eventGroupsStub.createEventGroup(item.request) }
         metrics.syncSuccess.add(1, metricAttributes())
         metrics.syncLatency.record(
-          itemStartTime.elapsedNow().inWholeMilliseconds / 1000.0,
+          item.startTime.elapsedNow().inWholeMilliseconds / 1000.0,
           metricAttributes(),
         )
         emit(
@@ -468,7 +476,6 @@ class EventGroupSync(
     if (pendingUpdates.isEmpty()) {
       return
     }
-    val syncStartTime = TimeSource.Monotonic.markNow()
     val response =
       try {
         throttler.onReady {
@@ -487,10 +494,12 @@ class EventGroupSync(
         pendingUpdates.clear()
         return
       }
-    val syncLatency = syncStartTime.elapsedNow().inWholeMilliseconds / 1000.0
     response.eventGroupsList.forEachIndexed { index, syncedEventGroup ->
       metrics.syncSuccess.add(1, metricAttributes())
-      metrics.syncLatency.record(syncLatency, metricAttributes())
+      metrics.syncLatency.record(
+        pendingUpdates[index].startTime.elapsedNow().inWholeMilliseconds / 1000.0,
+        metricAttributes(),
+      )
       emit(
         mappedEventGroup {
           eventGroupReferenceId = pendingUpdates[index].eventGroupReferenceId
@@ -513,12 +522,11 @@ class EventGroupSync(
       "Batch update of ${pending.size} Event Groups failed; retrying individually"
     }
     for (item in pending) {
-      val itemStartTime = TimeSource.Monotonic.markNow()
       try {
         val syncedEventGroup = throttler.onReady { eventGroupsStub.updateEventGroup(item.request) }
         metrics.syncSuccess.add(1, metricAttributes())
         metrics.syncLatency.record(
-          itemStartTime.elapsedNow().inWholeMilliseconds / 1000.0,
+          item.startTime.elapsedNow().inWholeMilliseconds / 1000.0,
           metricAttributes(),
         )
         emit(
