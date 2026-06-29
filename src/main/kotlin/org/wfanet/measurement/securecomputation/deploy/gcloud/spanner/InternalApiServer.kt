@@ -109,11 +109,11 @@ class InternalApiServer : Runnable {
     description =
       [
         "Path to the EDP-Aggregator client TLS certificate (PEM) used for the metadata-storage " +
-          "mTLS channel. Optional; when unset the DLQ listeners do not mark EDPA resources FAILED."
+          "mTLS channel."
       ],
-    required = false,
+    required = true,
   )
-  private var edpaTlsCertFile: File? = null
+  private lateinit var edpaTlsCertFile: File
 
   @CommandLine.Option(
     names = ["--edpa-tls-key-file"],
@@ -122,9 +122,9 @@ class InternalApiServer : Runnable {
         "Path to the EDP-Aggregator client TLS private key (PEM) used for the metadata-storage " +
           "mTLS channel."
       ],
-    required = false,
+    required = true,
   )
-  private var edpaTlsKeyFile: File? = null
+  private lateinit var edpaTlsKeyFile: File
 
   @CommandLine.Option(
     names = ["--metadata-storage-cert-collection-file"],
@@ -133,16 +133,16 @@ class InternalApiServer : Runnable {
         "Path to the trusted root certificate collection (PEM) for the EDP-Aggregator " +
           "metadata-storage public API."
       ],
-    required = false,
+    required = true,
   )
-  private var metadataStorageCertCollectionFile: File? = null
+  private lateinit var metadataStorageCertCollectionFile: File
 
   @CommandLine.Option(
     names = ["--metadata-storage-public-api-target"],
     description = ["gRPC target of the EDP-Aggregator metadata-storage public API server."],
-    required = false,
+    required = true,
   )
-  private var metadataStoragePublicApiTarget: String? = null
+  private lateinit var metadataStoragePublicApiTarget: String
 
   @CommandLine.Option(
     names = ["--metadata-storage-public-api-cert-host"],
@@ -166,7 +166,7 @@ class InternalApiServer : Runnable {
   override fun run() {
     val queuesConfig = parseTextProto(queuesConfigFile, QueuesConfig.getDefaultInstance())
     val queueMapping = QueueMapping(queuesConfig)
-    val edpaStubs: EdpaStubs? = buildEdpaStubs()
+    val edpaStubs: EdpaStubs = buildEdpaStubs()
 
     runBlocking {
       spannerFlags.usingSpanner { spanner ->
@@ -185,35 +185,45 @@ class InternalApiServer : Runnable {
 
         val serverJob = async { server.start().blockUntilShutdown() }
 
-        // Run one DLQ listener per dead-letter subscription (e.g. one per phase queue), each in its
-        // own coroutine.
-        val deadLetterListenerJobs: List<Deferred<Unit>> =
-          deadLetterSubscriptionIds.map { subscriptionId ->
-            val subscriber =
-              Subscriber(
-                projectId = googleProjectId,
-                googlePubSubClient = googlePubSubClient,
-                maxMessages = 10,
-                pullIntervalMillis = 100,
-                blockingContext = Dispatchers.IO,
-              )
-            val deadLetterListener =
-              createDeadLetterQueueListener(
-                spannerWorkItemsService = spannerWorkItemsService,
-                subscriptionId = subscriptionId,
-                queueSubscriber = subscriber,
-                edpaStubs = edpaStubs,
-              )
-            async {
-              try {
-                deadLetterListener.run()
-              } finally {
-                deadLetterListener.close()
+        // A single in-process server + channel + WorkItems stub is shared by every DLQ listener:
+        // they all route to the same SpannerWorkItemsService, so one loopback server suffices, and
+        // it is shut down below instead of leaking one server per subscription.
+        val (inProcessServer, inProcessChannel) = createInProcessServer(spannerWorkItemsService)
+        val workItemsStub = WorkItemsGrpcKt.WorkItemsCoroutineStub(inProcessChannel)
+        try {
+          // Run one DLQ listener per dead-letter subscription (e.g. one per phase queue), each in
+          // its own coroutine.
+          val deadLetterListenerJobs: List<Deferred<Unit>> =
+            deadLetterSubscriptionIds.map { subscriptionId ->
+              val subscriber =
+                Subscriber(
+                  projectId = googleProjectId,
+                  googlePubSubClient = googlePubSubClient,
+                  maxMessages = 10,
+                  pullIntervalMillis = 100,
+                  blockingContext = Dispatchers.IO,
+                )
+              val deadLetterListener =
+                createDeadLetterQueueListener(
+                  workItemsStub = workItemsStub,
+                  subscriptionId = subscriptionId,
+                  queueSubscriber = subscriber,
+                  edpaStubs = edpaStubs,
+                )
+              async {
+                try {
+                  deadLetterListener.run()
+                } finally {
+                  deadLetterListener.close()
+                }
               }
             }
-          }
 
-        awaitAll(serverJob, *deadLetterListenerJobs.toTypedArray())
+          awaitAll(serverJob, *deadLetterListenerJobs.toTypedArray())
+        } finally {
+          inProcessChannel.shutdown()
+          inProcessServer.shutdown()
+        }
       }
     }
   }
@@ -228,27 +238,22 @@ class InternalApiServer : Runnable {
 
   /**
    * Builds the [EdpaStubs] from a mutual-TLS channel to the EDP-Aggregator metadata-storage public
-   * API, or `null` when the channel is not configured (so existing deployments without the EDPA
-   * flags still start; the DLQ listeners then fall back to failWorkItem-only).
+   * API. The TLS cert/key, trusted root collection, and API target are required flags, so the EDPA
+   * resource-marking path is always enabled.
    */
-  private fun buildEdpaStubs(): EdpaStubs? {
-    val certFile = edpaTlsCertFile
-    val keyFile = edpaTlsKeyFile
-    val trustedCertCollectionFile = metadataStorageCertCollectionFile
-    val target = metadataStoragePublicApiTarget
-    if (
-      certFile == null || keyFile == null || trustedCertCollectionFile == null || target == null
-    ) {
-      return null
-    }
+  private fun buildEdpaStubs(): EdpaStubs {
     val clientCerts =
       SigningCerts.fromPemFiles(
-        certificateFile = certFile,
-        privateKeyFile = keyFile,
-        trustedCertCollectionFile = trustedCertCollectionFile,
+        certificateFile = edpaTlsCertFile,
+        privateKeyFile = edpaTlsKeyFile,
+        trustedCertCollectionFile = metadataStorageCertCollectionFile,
       )
     val channel: Channel =
-      buildMutualTlsChannel(target, clientCerts, metadataStoragePublicApiCertHost)
+      buildMutualTlsChannel(
+        metadataStoragePublicApiTarget,
+        clientCerts,
+        metadataStoragePublicApiCertHost,
+      )
     return EdpaStubs(
       poolAssignmentJobsStub = PoolAssignmentJobServiceCoroutineStub(channel),
       rankerJobsStub = RankerJobServiceCoroutineStub(channel),
@@ -276,22 +281,20 @@ class InternalApiServer : Runnable {
   }
 
   private fun createDeadLetterQueueListener(
-    spannerWorkItemsService: SpannerWorkItemsService,
+    workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
     subscriptionId: String,
     queueSubscriber: QueueSubscriber,
-    edpaStubs: EdpaStubs?,
+    edpaStubs: EdpaStubs,
   ): DeadLetterQueueListener {
-    val (_, channel) = createInProcessServer(spannerWorkItemsService)
-
     return DeadLetterQueueListener(
       subscriptionId = subscriptionId,
       queueSubscriber = queueSubscriber,
       parser = WorkItem.parser(),
-      workItemsStub = WorkItemsGrpcKt.WorkItemsCoroutineStub(channel),
-      poolAssignmentJobsStub = edpaStubs?.poolAssignmentJobsStub,
-      rankerJobsStub = edpaStubs?.rankerJobsStub,
-      vidLabelingJobsStub = edpaStubs?.vidLabelingJobsStub,
-      rawImpressionUploadModelLinesStub = edpaStubs?.rawImpressionUploadModelLinesStub,
+      workItemsStub = workItemsStub,
+      poolAssignmentJobsStub = edpaStubs.poolAssignmentJobsStub,
+      rankerJobsStub = edpaStubs.rankerJobsStub,
+      vidLabelingJobsStub = edpaStubs.vidLabelingJobsStub,
+      rawImpressionUploadModelLinesStub = edpaStubs.rawImpressionUploadModelLinesStub,
     )
   }
 
