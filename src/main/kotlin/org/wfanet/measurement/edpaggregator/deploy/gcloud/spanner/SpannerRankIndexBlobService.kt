@@ -105,11 +105,6 @@ class SpannerRankIndexBlobService(
 
           val rawImpressionUploadId =
             txn.getRawImpressionUploadId(dataProviderResourceId, rawImpressionUploadResourceId)
-              ?: throw RawImpressionUploadNotFoundException(
-                  dataProviderResourceId,
-                  rawImpressionUploadResourceId,
-                )
-                .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
           insertNewRankIndexBlob(
             txn,
@@ -120,6 +115,8 @@ class SpannerRankIndexBlobService(
             request.rankIndexBlob,
           )
         }
+      } catch (e: RawImpressionUploadNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       } catch (e: SpannerException) {
         if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
           throw RankIndexBlobAlreadyExistsException(
@@ -209,11 +206,6 @@ class SpannerRankIndexBlobService(
         transactionRunner.run { txn ->
           val rawImpressionUploadId =
             txn.getRawImpressionUploadId(dataProviderResourceId, rawImpressionUploadResourceId)
-              ?: throw RawImpressionUploadNotFoundException(
-                  dataProviderResourceId,
-                  rawImpressionUploadResourceId,
-                )
-                .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
           val existingByRequestId: Map<String, RankIndexBlobResult> =
             txn.findRankIndexBlobsByRequestIds(
@@ -238,6 +230,8 @@ class SpannerRankIndexBlobService(
             }
           }
         }
+      } catch (e: RawImpressionUploadNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       } catch (e: SpannerException) {
         if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
           throw RankIndexBlobAlreadyExistsException(
