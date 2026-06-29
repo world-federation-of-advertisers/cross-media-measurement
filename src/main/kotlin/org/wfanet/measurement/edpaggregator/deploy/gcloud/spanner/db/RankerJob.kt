@@ -64,36 +64,6 @@ suspend fun AsyncDatabaseClient.ReadContext.rankerJobExists(
 }
 
 /**
- * Resolves a [RawImpressionUpload]'s internal ID from its resource ID.
- *
- * @return The internal `RawImpressionUploadId`, or `null` if not found
- */
-suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadIdForRanker(
-  dataProviderResourceId: String,
-  rawImpressionUploadResourceId: String,
-): Long? {
-  val sql =
-    """
-    SELECT RawImpressionUploadId
-    FROM RawImpressionUpload
-    WHERE DataProviderResourceId = @dataProviderResourceId
-      AND RawImpressionUploadResourceId = @rawImpressionUploadResourceId
-    """
-      .trimIndent()
-
-  val row: Struct =
-    executeQuery(
-        statement(sql) {
-          bind("dataProviderResourceId").to(dataProviderResourceId)
-          bind("rawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
-        }
-      )
-      .singleOrNullIfEmpty() ?: return null
-
-  return row.getLong("RawImpressionUploadId")
-}
-
-/**
  * Reads a [RankerJob] by its resource ID.
  *
  * @return The [RankerJobResult], or `null` if not found

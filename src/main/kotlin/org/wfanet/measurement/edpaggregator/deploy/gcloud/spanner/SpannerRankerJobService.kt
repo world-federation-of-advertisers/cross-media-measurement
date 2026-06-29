@@ -35,7 +35,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countOtherN
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRankerJobByRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRankerJobsByRequestIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRankerJobByResourceId
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadIdForRanker
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRankerJob
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rankerJobExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRankerJobs
@@ -110,10 +110,7 @@ class SpannerRankerJobService(
           }
 
           val rawImpressionUploadId =
-            txn.getRawImpressionUploadIdForRanker(
-              dataProviderResourceId,
-              rawImpressionUploadResourceId,
-            )
+            txn.getRawImpressionUploadId(dataProviderResourceId, rawImpressionUploadResourceId)
               ?: throw RawImpressionUploadNotFoundException(
                   dataProviderResourceId,
                   rawImpressionUploadResourceId,
@@ -236,10 +233,7 @@ class SpannerRankerJobService(
       try {
         transactionRunner.run { txn ->
           val rawImpressionUploadId =
-            txn.getRawImpressionUploadIdForRanker(
-              dataProviderResourceId,
-              rawImpressionUploadResourceId,
-            )
+            txn.getRawImpressionUploadId(dataProviderResourceId, rawImpressionUploadResourceId)
               ?: throw RawImpressionUploadNotFoundException(
                   dataProviderResourceId,
                   rawImpressionUploadResourceId,
