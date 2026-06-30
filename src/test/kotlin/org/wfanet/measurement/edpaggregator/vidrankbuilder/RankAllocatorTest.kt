@@ -332,6 +332,20 @@ class RankAllocatorTest {
     assertThat(allocator.lastSeenOf(2)).isEqualTo(90) // kept, not lowered to 80
   }
 
+  @Test
+  fun `initialCapacity pre-sizes both the cumulative and day-only maps`() {
+    // 1000 entries -> next power of two (1024) slots; both maps are pre-sized together so loading a
+    // prior snapshot does not start from the 16-slot default and resize repeatedly.
+    val presized =
+      RankAllocator(poolOffset = 7L, rankedSize = 100, eventDay = EVENT_DAY, initialCapacity = 1000)
+    assertThat(presized.mapCapacities()).isEqualTo(Pair(1024L, 1024L))
+
+    // Without an explicit capacity, both maps stay at the minimum.
+    val default = RankAllocator(poolOffset = 7L, rankedSize = 100, eventDay = EVENT_DAY)
+    assertThat(default.mapCapacities())
+      .isEqualTo(Pair(Bytes12IntMap.MIN_CAPACITY, Bytes12IntMap.MIN_CAPACITY))
+  }
+
   private data class Entry(val hi: Long, val lo: Int, val rank: Int, val day: Int)
 
   private fun packFingerprint(hi: Long, lo: Int): com.google.protobuf.ByteString {
