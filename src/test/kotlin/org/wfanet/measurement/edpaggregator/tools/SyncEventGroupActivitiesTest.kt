@@ -220,8 +220,9 @@ class SyncEventGroupActivitiesTest {
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, ::main)
 
-    // Guard records a SyncError, so the CLI exits non-zero.
-    CommandLineTesting.assertThat(capturedOutput).status().isNotEqualTo(0)
+    // A tripped guard is intentional partial work, not a failure, so the CLI exits zero while
+    // skipping the deletes.
+    CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(0)
     verifyBlocking(activitiesServiceMock, never()) { batchDeleteEventGroupActivities(any()) }
   }
 

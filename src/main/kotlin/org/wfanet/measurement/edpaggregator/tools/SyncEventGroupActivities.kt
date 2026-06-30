@@ -17,7 +17,6 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import io.grpc.ManagedChannel
-import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.InputStream
@@ -26,6 +25,7 @@ import java.time.Duration
 import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 import kotlin.system.exitProcess
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
 import org.wfanet.measurement.common.commandLineMain
@@ -159,39 +159,44 @@ class SyncEventGroupActivities : Runnable {
         maxDeleteFraction = maxDeleteFraction,
       )
 
-    // FIX 2: ensure the channel is always shut down, and only exit non-zero AFTER the finally runs
-    // (exitProcess would otherwise skip it).
-    val hasErrors: Boolean =
+    // Always shut down the channel; only exit non-zero AFTER the finally runs, since exitProcess
+    // would otherwise skip it. A tripped max-delete-fraction guard is intentional partial work, not
+    // a failure, so only runtime (RPC) failures drive the non-zero exit.
+    val hasFailures: Boolean =
       try {
-        val records: List<SpotRecord> = readInput().use { SpotDataParser.parseJson(it) }
-        logger.info("Parsed ${records.size} input records")
+        runBlocking {
+          val records: Flow<SpotRecord> = SpotDataParser.parseJson(readInput())
+          val result: SyncResult = sync.sync(records, dryRun = dryRun)
 
-        val result: SyncResult = runBlocking { sync.sync(records, dryRun = dryRun) }
+          println("Sync result:")
+          println("  totalInputRecords: ${result.totalInputRecords}")
+          println("  eventGroupsSucceeded: ${result.eventGroupsSucceeded}")
+          println("  eventGroupsGuardSkipped: ${result.eventGroupsGuardSkipped}")
+          println("  eventGroupsFailed: ${result.eventGroupsFailed}")
+          println("  activitiesCreated: ${result.activitiesCreated}")
+          println("  activitiesDeleted: ${result.activitiesDeleted}")
+          println("  activitiesUnchanged: ${result.activitiesUnchanged}")
+          for (skip in result.guardSkipped) {
+            logger.warning("Guard-skipped deletes [${skip.eventGroup}]: ${skip.message}")
+          }
+          for (error in result.errors) {
+            logger.warning("Sync error [${error.eventGroup}]: ${error.message}")
+          }
 
-        println("Sync result:")
-        println("  totalInputRecords: ${result.totalInputRecords}")
-        println("  eventGroupsProcessed: ${result.eventGroupsProcessed}")
-        println("  activitiesCreated: ${result.activitiesCreated}")
-        println("  activitiesDeleted: ${result.activitiesDeleted}")
-        println("  activitiesUnchanged: ${result.activitiesUnchanged}")
-        println("  errors: ${result.errors.size}")
-        for (error in result.errors) {
-          println("    [${error.eventGroup}] ${error.message}")
+          result.eventGroupsFailed > 0
         }
-
-        result.errors.isNotEmpty()
       } finally {
         channel.shutdown()
         channel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
       }
 
-    if (hasErrors) {
+    if (hasFailures) {
       exitProcess(1)
     }
   }
 
   /** Opens the input as a stream, from either the local file or the GCS blob. */
-  private fun readInput(): InputStream {
+  private suspend fun readInput(): InputStream {
     val localFile = inputSource.file
     if (localFile != null) {
       return FileInputStream(localFile)
@@ -199,12 +204,8 @@ class SyncEventGroupActivities : Runnable {
     val blobUri = checkNotNull(inputSource.blobUri)
     val parsedBlobUri = SelectedStorageClient.parseBlobUri(blobUri)
     val storageClient = SelectedStorageClient(blobUri = parsedBlobUri, projectId = gcsProjectId)
-    val bytes = runBlocking {
-      val blob =
-        storageClient.getBlob(parsedBlobUri.key) ?: error("Blob not found for URI: $blobUri")
-      blob.read().flatten()
-    }
-    return ByteArrayInputStream(bytes.toByteArray())
+    val blob = storageClient.getBlob(parsedBlobUri.key) ?: error("Blob not found for URI: $blobUri")
+    return blob.read().flatten().newInput()
   }
 
   companion object {
