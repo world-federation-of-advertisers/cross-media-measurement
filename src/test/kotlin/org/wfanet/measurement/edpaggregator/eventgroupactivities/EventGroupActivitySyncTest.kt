@@ -109,14 +109,14 @@ class EventGroupActivitySyncTest {
 
   private fun newSync(
     throttler: Throttler = newThrottler(),
-    maxDeleteFraction: Double = 1.0,
+    deleteMode: DeleteMode = DeleteMode.FULL,
   ): EventGroupActivitySync =
     EventGroupActivitySync(
       eventGroupActivitiesClient = activitiesStub,
       throttler = throttler,
       dataProviderName = DATA_PROVIDER,
       listPageSize = LIST_PAGE_SIZE,
-      maxDeleteFraction = maxDeleteFraction,
+      deleteMode = deleteMode,
       // Fast backoff so retry tests do not sleep for the production default.
       retryBackoff = ExponentialBackoff(initialDelay = JavaDuration.ofMillis(1)),
     )
@@ -137,6 +137,7 @@ class EventGroupActivitySyncTest {
     assertThat(result.activitiesCreated).isEqualTo(5)
     assertThat(result.activitiesDeleted).isEqualTo(0)
     assertThat(result.activitiesUnchanged).isEqualTo(0)
+    assertThat(result.activitiesWouldDelete).isEqualTo(0)
     assertThat(result.errors).isEmpty()
     verifyBlocking(activitiesServiceMock, times(1)) {
       batchUpdateEventGroupActivities(
@@ -207,7 +208,6 @@ class EventGroupActivitySyncTest {
     val result = runBlocking { newSync().sync(records.asFlow()) }
 
     assertThat(result.eventGroupsSucceeded).isEqualTo(3)
-    assertThat(result.eventGroupsGuardSkipped).isEqualTo(0)
     assertThat(result.eventGroupsFailed).isEqualTo(0)
     assertThat(result.activitiesCreated).isEqualTo(4)
     assertThat(result.errors).isEmpty()
@@ -407,23 +407,56 @@ class EventGroupActivitySyncTest {
   }
 
   @Test
-  fun `sync skips deletes when delete fraction exceeds max`() {
-    val existing = (1..10).map { LocalDate.of(2026, 1, it).toString() }
-    stubExistingDates("eg1", existing)
-    // File keeps only 2 of the 10 existing dates -> 8/10 = 0.8 > 0.5.
-    val records = existing.take(2).map { spotRecord("eg1", it) }
+  fun `sync with SKIP_DELETES applies creates but not deletes`() {
+    stubExistingDates("eg1", listOf("2026-01-01", "2026-01-02", "2026-01-03"))
+    // File keeps one existing date, drops two (would-delete), and adds one new date (create).
+    val records = listOf(spotRecord("eg1", "2026-01-01"), spotRecord("eg1", "2026-01-04"))
 
-    val result = runBlocking { newSync(maxDeleteFraction = 0.5).sync(records.asFlow()) }
+    val result = runBlocking {
+      newSync(deleteMode = DeleteMode.SKIP_DELETES).sync(records.asFlow())
+    }
 
+    assertThat(result.activitiesCreated).isEqualTo(1)
     assertThat(result.activitiesDeleted).isEqualTo(0)
-    assertThat(result.eventGroupsGuardSkipped).isEqualTo(1)
-    assertThat(result.eventGroupsSucceeded).isEqualTo(0)
+    assertThat(result.activitiesWouldDelete).isEqualTo(2)
+    assertThat(result.activitiesUnchanged).isEqualTo(1)
+    assertThat(result.eventGroupsSucceeded).isEqualTo(1)
     assertThat(result.eventGroupsFailed).isEqualTo(0)
     assertThat(result.errors).isEmpty()
-    assertThat(result.guardSkipped).hasSize(1)
-    assertThat(result.guardSkipped.single().eventGroup).isEqualTo("$DATA_PROVIDER/eventGroups/eg1")
-    assertThat(result.guardSkipped.single().message).contains("max delete fraction")
-    verifyBlocking(activitiesServiceMock, times(0)) { batchDeleteEventGroupActivities(any()) }
+    verifyBlocking(activitiesServiceMock, times(1)) { batchUpdateEventGroupActivities(any()) }
+    verifyBlocking(activitiesServiceMock, never()) { batchDeleteEventGroupActivities(any()) }
+  }
+
+  @Test
+  fun `sync with DRY_RUN_DELETES applies creates but not deletes`() {
+    stubExistingDates("eg1", listOf("2026-01-01", "2026-01-02", "2026-01-03"))
+    val records = listOf(spotRecord("eg1", "2026-01-01"), spotRecord("eg1", "2026-01-04"))
+
+    val result = runBlocking {
+      newSync(deleteMode = DeleteMode.DRY_RUN_DELETES).sync(records.asFlow())
+    }
+
+    assertThat(result.activitiesCreated).isEqualTo(1)
+    assertThat(result.activitiesDeleted).isEqualTo(0)
+    assertThat(result.activitiesWouldDelete).isEqualTo(2)
+    assertThat(result.activitiesUnchanged).isEqualTo(1)
+    assertThat(result.eventGroupsSucceeded).isEqualTo(1)
+    assertThat(result.errors).isEmpty()
+    verifyBlocking(activitiesServiceMock, times(1)) { batchUpdateEventGroupActivities(any()) }
+    verifyBlocking(activitiesServiceMock, never()) { batchDeleteEventGroupActivities(any()) }
+  }
+
+  @Test
+  fun `sync with FULL applies deletes`() {
+    stubExistingDates("eg1", listOf("2026-01-01", "2026-01-02", "2026-01-03"))
+    val records = listOf(spotRecord("eg1", "2026-01-01"))
+
+    val result = runBlocking { newSync(deleteMode = DeleteMode.FULL).sync(records.asFlow()) }
+
+    assertThat(result.activitiesDeleted).isEqualTo(2)
+    assertThat(result.activitiesWouldDelete).isEqualTo(0)
+    assertThat(result.eventGroupsSucceeded).isEqualTo(1)
+    verifyBlocking(activitiesServiceMock, times(1)) { batchDeleteEventGroupActivities(any()) }
   }
 
   @Test
@@ -448,7 +481,6 @@ class EventGroupActivitySyncTest {
       assertFailsWith<IllegalArgumentException> { runBlocking { newSync().sync(records) } }
 
     assertThat(exception).hasMessageThat().contains("wildcard")
-    // No list/batch RPC is issued when up-front validation rejects the input.
     verifyBlocking(activitiesServiceMock, never()) { listEventGroupActivities(any()) }
     verifyBlocking(activitiesServiceMock, never()) { batchUpdateEventGroupActivities(any()) }
     verifyBlocking(activitiesServiceMock, never()) { batchDeleteEventGroupActivities(any()) }
@@ -517,7 +549,6 @@ class EventGroupActivitySyncTest {
 
     runBlocking { newSync(throttler).sync(records.asFlow()) }
 
-    // At least one list call plus one batch update call.
     assertThat(onReadyCount).isAtLeast(2)
   }
 

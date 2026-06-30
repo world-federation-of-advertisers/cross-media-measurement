@@ -62,16 +62,27 @@ import org.wfanet.measurement.edpaggregator.telemetry.withSpan
  */
 data class SpotRecord(val parent: String, val eventGroupActivityDate: Instant)
 
+/**
+ * Controls how the sync applies deletes (activities present in the Kingdom but absent from input).
+ */
+enum class DeleteMode {
+  /** Apply both creates and deletes. */
+  FULL,
+  /** Apply creates only; never delete. Computed deletes are counted and metered but not applied. */
+  SKIP_DELETES,
+  /** Apply creates; compute deletes and report them without applying. */
+  DRY_RUN_DELETES,
+}
+
 /** Aggregate result of an [EventGroupActivitySync.sync] run. */
 data class SyncResult(
   val totalInputRecords: Int,
   val eventGroupsSucceeded: Int,
-  val eventGroupsGuardSkipped: Int,
   val eventGroupsFailed: Int,
   val activitiesCreated: Int,
   val activitiesDeleted: Int,
   val activitiesUnchanged: Int,
-  val guardSkipped: List<SyncError>,
+  val activitiesWouldDelete: Int,
   val errors: List<SyncError>,
 )
 
@@ -101,11 +112,11 @@ data class SyncError(val eventGroup: String, val message: String, val cause: Thr
  *   Every input record's [SpotRecord.parent] must be an EventGroup under this DataProvider.
  * @property listPageSize page size used when listing existing activities.
  * @property batchSize maximum number of activities per batch update/delete request.
- * @property maxDeleteFraction data-loss guard. If, for a single EventGroup, the fraction of
- *   existing activities that would be deleted exceeds this value, the deletions for that EventGroup
- *   are skipped (creates are still applied) and a [SyncError] is recorded. A value of `1.0`
- *   disables the guard. This protects against truncated or partial input files causing mass
- *   deletions.
+ * @property deleteMode controls whether computed deletes are applied. [DeleteMode.FULL] applies
+ *   both creates and deletes. [DeleteMode.SKIP_DELETES] and [DeleteMode.DRY_RUN_DELETES] apply
+ *   creates only and never delete; the computed delete count is reported via
+ *   [SyncResult.activitiesWouldDelete] and metered. This protects against truncated or partial
+ *   input files causing mass deletions.
  * @property maxAttempts maximum number of attempts (including the first) for each gRPC call when it
  *   fails with a transient status (UNAVAILABLE or DEADLINE_EXCEEDED).
  * @property retryBackoff exponential backoff used between transient retries.
@@ -117,7 +128,7 @@ class EventGroupActivitySync(
   private val dataProviderName: String,
   private val listPageSize: Int,
   private val batchSize: Int = 1000,
-  private val maxDeleteFraction: Double = 1.0,
+  private val deleteMode: DeleteMode = DeleteMode.FULL,
   private val maxAttempts: Int = 3,
   private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
   private val tracer: Tracer = GlobalOpenTelemetry.getTracer("wfa.edpa"),
@@ -180,11 +191,10 @@ class EventGroupActivitySync(
       var activitiesCreated = 0
       var activitiesDeleted = 0
       var activitiesUnchanged = 0
+      var activitiesWouldDelete = 0
       var eventGroupsSucceeded = 0
-      var eventGroupsGuardSkipped = 0
       var eventGroupsFailed = 0
       val errors = mutableListOf<SyncError>()
-      val guardSkips = mutableListOf<SyncError>()
 
       // 2. Process each EventGroup, sorted for determinism.
       for (eventGroupName in datesByEventGroup.keys.sorted()) {
@@ -198,51 +208,51 @@ class EventGroupActivitySync(
           val existingDates: Set<LocalDate> = listExistingDates(eventGroupName)
 
           val datesToCreate: Set<LocalDate> = fileDates - existingDates
-          var datesToDelete: Set<LocalDate> = existingDates - fileDates
+          val datesToDelete: Set<LocalDate> = existingDates - fileDates
           val unchanged: Int = fileDates.intersect(existingDates).size
 
-          val deleteFraction: Double =
-            if (existingDates.isEmpty()) 0.0 else datesToDelete.size.toDouble() / existingDates.size
-          var guardSkipped = false
-          if (existingDates.isNotEmpty() && deleteFraction > maxDeleteFraction) {
-            val percent = (deleteFraction * 100).toInt()
-            val message =
-              "Deletion of ${datesToDelete.size}/${existingDates.size} ($percent%) exceeds max " +
-                "delete fraction $maxDeleteFraction; skipping deletes"
-            logger.warning { "EventGroup $eventGroupName: $message" }
-            guardSkips.add(SyncError(eventGroupName, message, null))
-            metrics.deletesSkippedGuard.add(1, metricAttributes())
-            datesToDelete = emptySet()
-            guardSkipped = true
-          }
+          val applyDeletes: Boolean = deleteMode == DeleteMode.FULL
 
           logger.info(
             "EventGroup $eventGroupName: ${datesToCreate.size} to create, " +
-              "${datesToDelete.size} to delete, $unchanged unchanged (dryRun=$dryRun)"
+              "${datesToDelete.size} to delete, $unchanged unchanged (dryRun=$dryRun, " +
+              "deleteMode=$deleteMode)"
           )
 
           if (!dryRun) {
             for (batch in datesToCreate.sorted().chunked(batchSize)) {
               upsertBatch(eventGroupKey, eventGroupName, batch)
             }
-            for (batch in datesToDelete.sorted().chunked(batchSize)) {
-              deleteBatch(eventGroupKey, eventGroupName, batch)
+            if (applyDeletes) {
+              for (batch in datesToDelete.sorted().chunked(batchSize)) {
+                deleteBatch(eventGroupKey, eventGroupName, batch)
+              }
             }
           }
 
           activitiesCreated += datesToCreate.size
-          activitiesDeleted += datesToDelete.size
           activitiesUnchanged += unchanged
-          metrics.activitiesCreated.add(datesToCreate.size.toLong(), metricAttributes())
-          metrics.activitiesDeleted.add(datesToDelete.size.toLong(), metricAttributes())
-          metrics.activitiesUnchanged.add(unchanged.toLong(), metricAttributes())
-          if (guardSkipped) {
-            eventGroupsGuardSkipped++
-            metrics.eventGroupsProcessed.add(1, eventGroupsAttributes("guard_skipped"))
+          if (applyDeletes) {
+            activitiesDeleted += datesToDelete.size
           } else {
-            eventGroupsSucceeded++
-            metrics.eventGroupsProcessed.add(1, eventGroupsAttributes("success"))
+            activitiesWouldDelete += datesToDelete.size
+            if (datesToDelete.isNotEmpty()) {
+              metrics.wouldDeleteCount.add(
+                datesToDelete.size.toLong(),
+                Attributes.builder()
+                  .putAll(metricAttributes())
+                  .put(AttributeKey.stringKey("mode"), deleteMode.name.lowercase())
+                  .build(),
+              )
+            }
           }
+          metrics.activitiesCreated.add(datesToCreate.size.toLong(), metricAttributes())
+          if (applyDeletes) {
+            metrics.activitiesDeleted.add(datesToDelete.size.toLong(), metricAttributes())
+          }
+          metrics.activitiesUnchanged.add(unchanged.toLong(), metricAttributes())
+          eventGroupsSucceeded++
+          metrics.eventGroupsProcessed.add(1, eventGroupsAttributes("success"))
         } catch (e: CancellationException) {
           throw e
         } catch (e: Exception) {
@@ -269,12 +279,11 @@ class EventGroupActivitySync(
       SyncResult(
         totalInputRecords = totalInputRecords,
         eventGroupsSucceeded = eventGroupsSucceeded,
-        eventGroupsGuardSkipped = eventGroupsGuardSkipped,
         eventGroupsFailed = eventGroupsFailed,
         activitiesCreated = activitiesCreated,
         activitiesDeleted = activitiesDeleted,
         activitiesUnchanged = activitiesUnchanged,
-        guardSkipped = guardSkips,
+        activitiesWouldDelete = activitiesWouldDelete,
         errors = errors,
       )
     }
