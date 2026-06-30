@@ -201,13 +201,12 @@ class MemoizedRankIndexTest {
   }
 
   @Test
-  fun `load builds an empty index when there are no snapshots`() {
-    val index = runBlocking {
-      MemoizedRankIndex.load(stubReturning(emptyList()), rankStore, DP, MODEL_LINE)
+  fun `load throws when there are no snapshots`() {
+    // The memoized path resolves the labeled-output KEK from the loaded rank-index blobs, so zero
+    // snapshots is a hard error: there is no key to wrap the output with.
+    assertFailsWith<IllegalStateException> {
+      runBlocking { MemoizedRankIndex.load(stubReturning(emptyList()), rankStore, DP, MODEL_LINE) }
     }
-
-    assertThat(index.subpoolCount).isEqualTo(0)
-    assertThat(index.lookup(digestOf(fp(0x11)))).isEmpty()
   }
 
   @Test

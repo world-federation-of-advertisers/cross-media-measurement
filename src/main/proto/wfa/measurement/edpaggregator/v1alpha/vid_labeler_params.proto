@@ -19,6 +19,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/edpaggregator/v1alpha/labeled_impression.proto";
 import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -85,6 +86,17 @@ message VidLabelerParams {
     // the public API.
     google.protobuf.Timestamp active_end_time = 4
         [(google.api.field_behavior) = OPTIONAL];
+
+    // Config-storage blob URI of the FileDescriptorSet for the EventTemplate
+    // types (mirrors ResultsFulfiller's event-template descriptor). Required to
+    // build the labeled-output event.
+    string event_template_descriptor_blob_uri = 5
+        [(google.api.field_behavior) = OPTIONAL];
+
+    // Full proto name of the event message within that FileDescriptorSet that
+    // event_template_field_mapping targets.
+    string event_template_type_name = 6
+        [(google.api.field_behavior) = OPTIONAL];
   }
 
   // Map from model line resource name to its configuration.
@@ -125,6 +137,27 @@ message VidLabelerParams {
   // `VidRankBuilder` last-`RankerJob`-out (one WorkItem per `VidLabelingJob`).
   // Mutually exclusive with [raw_impression_upload].
   MemoizedParams memoized_params = 11 [(google.api.field_behavior) = OPTIONAL];
+
+  // Input raw-impression blob URI -> that file's entity keys and (legacy) event
+  // group reference id, resolved by the VID Labeling Dispatcher from the file's
+  // EventGroup. Keyed by the blob URI the TEE already reads
+  // (`RawImpressionUploadFile.blob_uri`) so the labeler resolves a file's entity
+  // keys by the file it is processing, not by the deprecated
+  // `event_group_reference_id` footer field. Looked up per file by the converter.
+  map<string, InputFileEntityKeys> entity_keys_by_input_blob_uri = 12
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Entity keys (and legacy event group reference id) for a single input file's
+  // EventGroup (map values cannot be repeated).
+  message InputFileEntityKeys {
+    // Entity keys of the EventGroup that produced this file. Canonical selector.
+    repeated LabeledImpression.EntityKey entity_keys = 1;
+
+    // Reference id of the EventGroup that produced this file. Legacy: retained
+    // only to populate the (still REQUIRED) `LabeledImpression
+    // .event_group_reference_id` on output; `entity_keys` is canonical.
+    string event_group_reference_id = 2;
+  }
 
   // Parameters specific to the memoized rank-index Phase-2 path.
   message MemoizedParams {
