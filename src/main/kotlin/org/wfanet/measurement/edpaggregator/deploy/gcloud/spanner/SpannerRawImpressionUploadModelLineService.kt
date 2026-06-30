@@ -32,6 +32,7 @@ import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RawImpressionUploadModelLineResult
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countInProgressModelLinesForModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countNonCompletedRawImpressionUploadModelLines
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpressionUploadModelLineByRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpressionUploadModelLinesByRequestIds
@@ -570,6 +571,27 @@ class SpannerRawImpressionUploadModelLineService(
             .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         }
 
+        // One upload in-flight per (DataProvider, cmms_model_line): concurrent Phase-1 rankers
+        // would corrupt the shared cumulative rank index.
+        if (nextState in PROCESSING_STATES) {
+          val concurrent =
+            txn.countInProgressModelLinesForModelLine(
+              dataProviderResourceId,
+              result.rawImpressionUploadModelLine.cmmsModelLine,
+              excludeRawImpressionUploadId = result.rawImpressionUploadId,
+            )
+          if (concurrent > 0L) {
+            throw RawImpressionUploadModelLineStateInvalidException(
+                dataProviderResourceId,
+                rawImpressionUploadResourceId,
+                rawImpressionUploadModelLineResourceId,
+                result.rawImpressionUploadModelLine.state,
+                validPreviousStates,
+              )
+              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          }
+        }
+
         val clearError = nextState != State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED
 
         txn.updateRawImpressionUploadModelLineState(
@@ -674,5 +696,12 @@ class SpannerRawImpressionUploadModelLineService(
     private const val MAX_PAGE_SIZE = 100
     private const val MAX_BATCH_SIZE = 50
     private const val DEFAULT_PAGE_SIZE = 50
+
+    private val PROCESSING_STATES =
+      setOf(
+        State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
+        State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
+        State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
+      )
   }
 }
