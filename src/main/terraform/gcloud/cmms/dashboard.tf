@@ -864,6 +864,7 @@ resource "google_project_iam_custom_role" "dashboard_compliance" {
     "bigquery.routines.get",
     "bigquery.routines.list",
     "bigquery.rowAccessPolicies.list",
+    "bigquery.rowAccessPolicies.getIamPolicy",
     "bigquery.connections.get",
     "bigquery.connections.list",
   ]

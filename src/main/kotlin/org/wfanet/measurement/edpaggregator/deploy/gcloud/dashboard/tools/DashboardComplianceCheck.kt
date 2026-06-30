@@ -105,7 +105,7 @@ class DashboardComplianceCheck : Runnable {
     report(checks.checkUdfOutputValidation(bq))
     println()
     println("[Drift Detection]")
-    report(checks.checkDriftDetection(bq))
+    report(checks.checkDriftDetection(bq, edps))
     println()
     println("[Data Freshness]")
     report(checks.checkFreshness(bq))
