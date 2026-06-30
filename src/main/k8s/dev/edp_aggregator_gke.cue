@@ -88,7 +88,7 @@ edpAggregator: #EdpAggregator & {
 		"--config-file=/etc/halo-cmms/edp-aggregator/config/event-group-activity-sync-config-edp7.textproto",
 		"--tls-cert-file=/etc/halo-cmms/edp-aggregator/edp7-tls/tls.crt",
 		"--tls-key-file=/etc/halo-cmms/edp-aggregator/edp7-tls/tls.key",
-		"--cert-collection-file=/etc/halo-cmms/edp-aggregator/config/trusted_certs.pem",
+		"--cert-collection-file=/etc/halo-cmms/edp-aggregator/config/kingdom_root.pem",
 		"--list-page-size=1000",
 		"--throttler-minimum-interval=100ms",
 		"--dry-run",
