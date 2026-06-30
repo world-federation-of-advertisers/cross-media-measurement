@@ -112,8 +112,9 @@ message SubpoolAssignerParams {
   string model_blob_path = 9 [(google.api.field_behavior) = REQUIRED];
 
   // Cloud Storage for the compiled VID model blob named by `model_blob_path`.
-  // The compiled model lives in its own GCS project, separate from the
-  // impression and map storage above, so it carries a dedicated project here.
+  // The compiled model lives in its own Cloud Storage project, separate from
+  // the impression and map storage above, so it carries a dedicated project
+  // here.
   StorageParams model_storage_params = 17
       [(google.api.field_behavior) = REQUIRED];
 
