@@ -16,3 +16,4 @@ configMapGenerator:
   - name: edp-aggregator-config
     files:
     - trusted_certs.pem
+    - event-group-activity-sync-config-edp7.textproto

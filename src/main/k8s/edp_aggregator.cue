@@ -169,6 +169,13 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 		spec: {
 			concurrencyPolicy: "Forbid"
 			schedule:          _syncEventGroupActivitiesCronSchedule
+			jobTemplate: spec: template: spec: {
+				_mounts: {
+					"edp-aggregator-config": #ConfigMapMount & {
+						volumeMount: mountPath: "\(MountRoot)/config"
+					}
+				}
+			}
 		}
 	}
 	cronJobs: {

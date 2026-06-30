@@ -94,15 +94,6 @@ KINGDOM_K8S_SETTINGS = struct(
     system_api_address_name = "$(kingdom_system_api_address_name)",
 )
 
-# Settings for EDP Aggregator Kubernetes deployments. Per-EDP
-# sync_event_group_activities values flow from GitHub environment variables;
-# empty defaults mean no CronJob is generated for that EDP on that environment.
-EDP_AGGREGATOR_K8S_SETTINGS = struct(
-    sync_event_group_activities_edp7_data_provider = "$(sync_event_group_activities_edp7_data_provider)",
-    sync_event_group_activities_edp7_blob_uri = "$(sync_event_group_activities_edp7_blob_uri)",
-    sync_event_group_activities_gcs_project = "$(sync_event_group_activities_gcs_project)",
-)
-
 # Settings for Duchy Kubernetes deployments.
 DUCHY_K8S_SETTINGS = struct(
     certificate_id = "$(duchy_cert_id)",
