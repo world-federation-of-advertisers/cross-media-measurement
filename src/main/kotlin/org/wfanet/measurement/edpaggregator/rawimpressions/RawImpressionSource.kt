@@ -245,9 +245,10 @@ class RawImpressionSource(
    * performed here. Callers that need unique digests (e.g. Phase 0's subpool map keyed by
    * [EventIdDigest]) are responsible for de-duplicating in their [BlobSink].
    *
-   * @param openSink mints a fresh [BlobSink] for one input file, given its `blobUri`. Called once
-   *   per file. The returned sink's [BlobSink.processBatch] is invoked concurrently (see
-   *   [BlobSink]); any state shared across files captured by this lambda must be concurrency-safe.
+   * @param openSink mints a fresh [BlobSink] for one input file, given its `blobUri` and the file's
+   *   plaintext Parquet footer key-value metadata (read once per file). Called once per file. The
+   *   returned sink's [BlobSink.processBatch] is invoked concurrently (see [BlobSink]); any state
+   *   shared across files captured by this lambda must be concurrency-safe.
    */
   /**
    * Reads the schema of the upload's first input file and fails if any column the mapping needs is
@@ -278,7 +279,9 @@ class RawImpressionSource(
     )
   }
 
-  suspend fun streamBlobs(openSink: suspend (blobUri: String) -> BlobSink) {
+  suspend fun streamBlobs(
+    openSink: suspend (blobUri: String, footerMetadata: Map<String, String>) -> BlobSink
+  ) {
     val blobUris = discoverBlobUris()
     logger.info(
       "Starting raw-impression read of ${blobUris.size} file(s) for shard " +
@@ -309,20 +312,24 @@ class RawImpressionSource(
    */
   private suspend fun processBlob(
     blobUri: String,
-    openSink: suspend (blobUri: String) -> BlobSink,
+    openSink: suspend (blobUri: String, footerMetadata: Map<String, String>) -> BlobSink,
     cpuDispatcher: CoroutineDispatcher,
     inFlight: Semaphore,
     progress: ProgressTracker,
   ) {
     val startTime: TimeSource.Monotonic.ValueTimeMark = TimeSource.Monotonic.markNow()
     logger.fine { "Reading raw-impression file $blobUri" }
-    val sink = openSink(blobUri)
+    val parquetBlob =
+      parquetStorageClient.getBlob(blobUri) ?: error("Raw-impression blob not found: $blobUri")
+    // Read the file's plaintext footer key-value metadata once and hand it to the sink factory; the
+    // Phase-2 sink derives its entity keys from it ("Option Y"). Phase-0/1 sinks ignore it.
+    val sink = openSink(blobUri, parquetBlob.readKeyValueMetadata())
     var primary: Throwable? = null
     try {
       // The per-file scope owns this file's batch jobs; it returns the reader's
       // tallies after reading finishes AND after every launched batch has joined.
       val counts = coroutineScope {
-        readEventsFromBlob(blobUri) { batch ->
+        readEventsFromBlob(blobUri, parquetBlob) { batch ->
           // Backpressure: suspend the reader once maxInFlightBatches are in
           // flight. The permit is held until this batch finishes (release in the
           // finally — load-bearing; missing it would deadlock the reader).
@@ -378,10 +385,9 @@ class RawImpressionSource(
    */
   private suspend fun readEventsFromBlob(
     blobUri: String,
+    parquetBlob: ParquetStorageClient.ParquetBlob,
     onBatch: suspend (List<ParquetDigestedEvent>) -> Unit,
   ): FileCounts {
-    val parquetBlob =
-      parquetStorageClient.getBlob(blobUri) ?: error("Raw-impression blob not found: $blobUri")
     var read = 0L
     var droppedOtherShard = 0L
     var emitted = 0L

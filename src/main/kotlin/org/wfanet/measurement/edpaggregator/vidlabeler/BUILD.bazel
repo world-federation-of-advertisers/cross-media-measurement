@@ -49,6 +49,7 @@ kt_jvm_library(
     name = "vid_labeling",
     srcs = [
         "EventMessageMapper.kt",
+        "FileEntityKeys.kt",
         "ImpressionConverter.kt",
         "ParquetImpressionConverter.kt",
         "VidLabeler.kt",
@@ -70,6 +71,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeler_params_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//imports/java/com/google/gson",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/com/google/protobuf/util",
         "@wfa_common_jvm//imports/java/io/opentelemetry/api",
