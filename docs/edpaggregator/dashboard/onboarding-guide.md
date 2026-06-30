@@ -255,9 +255,26 @@ The free tier authenticates with the **human's** Google identity, not a
 service account. Because only `edp-<name>-dashboard` is named in the row
 access policy, an EDP human user would see **0 rows** by default. To use the
 free tier, an operator must add the EDP's human Google accounts (or a Google
-Group) as grantees on the EDP's row access policy. The dashboard Terraform
-does not do this today; treat it as an explicit operator action when an EDP
-asks for free-tier access.
+Group) as grantees on the EDP's row access policy via `bq`:
+
+```shell
+# Add EDP humans to each of the 3 EDP-visible tables' row access policies.
+# Re-run for every (table, EDP) pair where Free-tier access is needed.
+bq update \
+  --project_id=DASHBOARD_PROJECT \
+  --row_access_policy=DASHBOARD_PROJECT.dashboard.requisition_overview.<EDP>_filter \
+  --grantee="group:<edp-name>-dashboard-users@example.com" \
+  --grantee="user:<analyst>@<edp-domain>"
+```
+
+**Caveat — this is wiped on the next `terraform apply`.** The dashboard
+Terraform manages each row access policy via `google_bigquery_row_access_policy`
+with a fixed grantee list (the per-EDP service account only). When Terraform
+re-asserts the policy on the next deploy, manually-added human grantees are
+removed. Until the dashboard module accepts a `per_edp_human_grantees` input
+(not yet on the roadmap), free-tier setups require the operator to re-run
+the `bq update` commands above after every dashboard Terraform apply.
+**Prefer Looker Studio Pro whenever feasible** to avoid this drift.
 
 Once the policy is updated:
 
