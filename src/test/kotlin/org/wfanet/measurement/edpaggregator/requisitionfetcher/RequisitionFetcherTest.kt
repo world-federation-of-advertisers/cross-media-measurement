@@ -909,6 +909,42 @@ class RequisitionFetcherTest {
   }
 
   @Test
+  fun `watermark eviction bounds open buffer count to one across many advancing updateTimes`() =
+    runBlocking {
+      // 10 distinct reports each at a distinct updateTime. Under Kingdom's UpdateTime ASC
+      // ordering, each new report's updateTime advances the watermark and evicts every older
+      // buffer. So at any moment the map should hold at most one buffer — open_buffer_high_water
+      // should be 1, not 10.
+      val reqs =
+        (1..10).map { idx ->
+          val spec =
+            TestRequisitionData.MEASUREMENT_SPEC.copy {
+              reportingMetadata =
+                org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata {
+                  report = "report-$idx"
+                }
+            }
+          TestRequisitionData.REQUISITION.copy {
+            name = "${TestRequisitionData.EDP_NAME}/requisitions/r-$idx"
+            measurementSpec =
+              org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec(
+                spec,
+                TestRequisitionData.MC_SIGNING_KEY,
+              )
+            updateTime = timestamp { seconds = idx.toLong() }
+          }
+        }
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(listRequisitionsResponse { requisitions += reqs })
+
+      createFetcher().fetchAndStoreRequisitions()
+
+      assertThat(histogramSumValue("edpa.requisition_fetcher.open_buffer_high_water_mark"))
+        .isEqualTo(1)
+      assertThat(blobsList()).hasLength(10)
+    }
+
+  @Test
   fun `open buffer high water mark records peak distinct reportIds`() = runBlocking {
     val reqs =
       (1..5).map { idx ->

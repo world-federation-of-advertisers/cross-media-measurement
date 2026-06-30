@@ -221,10 +221,16 @@ class RequisitionFetcher(
    * worker. The producer can backpressure on a hot report's channel while other workers keep
    * draining.
    *
-   * The `openBuffers` map is not pruned during streaming because Kingdom does not guarantee
-   * per-report contiguity; its size therefore grows with the count of distinct reportIds seen in
-   * the stream. Each entry is bounded by [maxBufferedRequisitionsPerReport] requisitions. Peak size
-   * is reported via [RequisitionFetcherMetrics.openBufferHighWaterMark] for observability.
+   * The `openBuffers` map is pruned as the stream's `updateTime` cursor advances: any buffer whose
+   * `currentUpdateTime` is strictly less than the incoming requisition's `updateTime` is dispatched
+   * and removed before the new requisition is buffered. This is provably safe under the global
+   * `UpdateTime ASC` ordering — once the cursor moves past T, no later requisition can have
+   * `updateTime ≤ T`, so older buffers are complete and cannot grow further. Peak `openBuffers`
+   * size is therefore bounded by the count of reports sharing the *current* `updateTime` (typically
+   * 1 under one-COMMIT_TIMESTAMP-per-Measurement semantics, occasionally a few). Both the map
+   * cardinality and the total buffered bytes are reported via
+   * [RequisitionFetcherMetrics.openBufferHighWaterMark] and
+   * [RequisitionFetcherMetrics.bufferedBytesHighWaterMark].
    *
    * @return the total number of requisitions consumed from the Kingdom stream.
    */
@@ -282,6 +288,20 @@ class RequisitionFetcher(
       channels[channelIndexFor(buffer.reportId)].send(unit)
     }
 
+    // Watermark eviction: dispatch and remove any buffer strictly older than the incoming
+    // requisition's updateTime. Safe under Kingdom's `UpdateTime ASC` ordering — once the cursor
+    // moves past T, no later requisition can have updateTime ≤ T, so older buffers cannot grow.
+    suspend fun evictBuffersOlderThan(watermark: com.google.protobuf.Timestamp) {
+      val iterator = openBuffers.entries.iterator()
+      while (iterator.hasNext()) {
+        val buffer = iterator.next().value
+        if (Timestamps.compare(buffer.currentUpdateTime, watermark) < 0) {
+          if (buffer.requisitions.isNotEmpty()) dispatch(buffer)
+          iterator.remove()
+        }
+      }
+    }
+
     flow.collect { requisition ->
       totalFetched += 1
       val reportId = extractReportId(requisition)
@@ -297,6 +317,8 @@ class RequisitionFetcher(
         )
         return@collect
       }
+
+      evictBuffersOlderThan(requisition.updateTime)
 
       val requisitionBytes = requisition.serializedSize.toLong()
 
