@@ -36,7 +36,7 @@ import org.wfanet.virtualpeople.core.labeler.LabelingMode
  * only its per-call builder, so [emit] is safe to call concurrently from [SubpoolAssignmentSink]'s
  * batch workers.
  */
-class LabelerPoolEmitLabeler(private val labeler: Labeler) : PoolEmitLabeler {
+class VirtualPeoplePoolEmitLabeler(private val labeler: Labeler) : PoolEmitLabeler {
   override fun emit(input: LabelerInput): List<Long> =
     labeler.label(input, LabelingMode.POOL_IDENTITY).poolAssignmentsList.map { it.poolOffset }
 
@@ -44,10 +44,10 @@ class LabelerPoolEmitLabeler(private val labeler: Labeler) : PoolEmitLabeler {
 
   companion object {
     /**
-     * Builds a [LabelerPoolEmitLabeler] from the binary-serialized [CompiledNode] root of a
+     * Builds a [VirtualPeoplePoolEmitLabeler] from the binary-serialized [CompiledNode] root of a
      * compiled VID model (the `model_blob_path` payload).
      */
-    fun fromCompiledNodeBlob(modelBlob: ByteString): LabelerPoolEmitLabeler =
-      LabelerPoolEmitLabeler(Labeler.build(CompiledNode.parseFrom(modelBlob)))
+    fun fromCompiledNodeBlob(modelBlob: ByteString): VirtualPeoplePoolEmitLabeler =
+      VirtualPeoplePoolEmitLabeler(Labeler.build(CompiledNode.parseFrom(modelBlob)))
   }
 }
