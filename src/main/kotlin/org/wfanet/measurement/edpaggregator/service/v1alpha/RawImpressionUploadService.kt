@@ -128,6 +128,8 @@ class RawImpressionUploadService(
           InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
           InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
           InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS ->
+            Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -189,6 +191,8 @@ class RawImpressionUploadService(
           InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
           InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
           InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS ->
+            Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -296,6 +300,8 @@ class RawImpressionUploadService(
           InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
           InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
           InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS ->
+            Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }

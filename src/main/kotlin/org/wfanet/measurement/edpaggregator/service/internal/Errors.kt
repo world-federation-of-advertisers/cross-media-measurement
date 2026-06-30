@@ -42,6 +42,7 @@ object Errors {
     RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
     RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
     RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+    RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
     RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
     RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
     VID_LABELING_JOB_NOT_FOUND,
@@ -289,6 +290,17 @@ class RawImpressionUploadNotFoundException(
       Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
       Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
     ),
+    cause,
+  )
+
+class RawImpressionUploadAlreadyExistsException(
+  dataProviderResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
+    "RawImpressionUpload already exists for DataProvider $dataProviderResourceId",
+    mapOf(Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId),
     cause,
   )
 
