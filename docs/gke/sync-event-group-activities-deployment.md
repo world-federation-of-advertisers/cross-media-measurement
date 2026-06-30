@@ -8,9 +8,11 @@ on a schedule to reconcile a JSON "spot-data" input file in GCS against the
 `EventGroupActivity` resources for a single `DataProvider` in the Kingdom. It
 runs in the existing EDP Aggregator GKE cluster.
 
-One CronJob is generated per EDP entry in
-[`_syncEventGroupActivitiesArgs`](../../src/main/k8s/dev/edp_aggregator_gke.cue),
-so a DataProvider that does not need this reconciliation just has no entry.
+The same Kustomization deploys cleanly across dev, head, and qa. Per-EDP
+values (DataProvider, spot-data blob URI, GCS project) come from GitHub
+environment variables — set them in **Settings → Environments → `<env>` →
+Variables**. If the variables are unset on an environment, no CronJob is
+generated for that EDP on that environment.
 
 For background on the underlying sync semantics (idempotency, per-EventGroup
 isolation, retries, max-delete safety guard, dry-run mode), see the KDoc on
@@ -25,14 +27,13 @@ sync CronJob ships inside the same Kustomization and reuses the same
 
 1.  An EDP Aggregator deployment exists in the target environment per the
     [deployment guide](../edpaggregator/deployment-guide.md). The
-    `edp-aggregator` K8s Secret containing the EDP's TLS cert/key and the
-    Kingdom's root cert must already be present.
+    `edp-aggregator` K8s Secret containing the EDP's TLS cert/key
+    (`edp7_tls.pem`, `edp7_tls.key`) and the Kingdom's root cert
+    (`kingdom_root.pem`) must already be present.
 2.  The EDP has a registered `DataProvider` in the Kingdom and at least one
     `EventGroup`.
 3.  A spot-data JSON file is produced by an upstream pipeline and written to a
-    known GCS object — e.g.
-    `gs://secure-computation-storage-<env>-bucket/edp/<edp>/spot-data.json`.
-    Schema is a JSON array of records, each:
+    known GCS object. Schema is a JSON array of records, each:
 
     ```json
     {"parent": "dataProviders/<dp>/eventGroups/<eg>", "event_group_activity_date": "2026-06-30T00:00:00Z"}
@@ -47,67 +48,65 @@ sync CronJob ships inside the same Kustomization and reuses the same
     used by the EDP Aggregator pods has `roles/storage.objectViewer` on the
     spot-data bucket.
 
-## Configure the per-EDP CronJob
+## Configure GitHub environment variables
 
-Edit
-[`src/main/k8s/dev/edp_aggregator_gke.cue`](../../src/main/k8s/dev/edp_aggregator_gke.cue)
-to add or remove entries in `_syncEventGroupActivitiesArgs`. One entry per EDP,
-keyed by a short identifier (the generated CronJob name is
-`sync-event-group-activities-<key>`).
+In **GitHub → Settings → Environments → `<env>` → Variables**, set:
 
-```cue
-_syncEventGroupActivitiesArgs: {
-    "edp7": [
-        "--data-provider=dataProviders/T5RryPMNong",
-        "--blob-uri=gs://secure-computation-storage-dev-bucket/edp/edp7/spot-data.json",
-        "--gcs-project-id=halo-cmm-dev",
-        "--kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443",
-        "--kingdom-public-api-cert-host=localhost",
-        "--tls-cert-file=/var/run/secrets/files/edp7_tls.pem",
-        "--tls-key-file=/var/run/secrets/files/edp7_tls.key",
-        "--cert-collection-file=/var/run/secrets/files/kingdom_root.pem",
-        "--list-page-size=1000",
-        "--throttler-minimum-interval=100ms",
-        "--dry-run",
-    ]
-}
-```
+| Variable | Purpose | Example |
+|---|---|---|
+| `KINGDOM_PUBLIC_API_TARGET` | gRPC target of the Kingdom public API | `public.kingdom.dev.halo-cmm.org:8443` |
+| `SYNC_EVENT_GROUP_ACTIVITIES_EDP7_DATA_PROVIDER` | DataProvider resource name for edp7 | `dataProviders/T5RryPMNong` |
+| `SYNC_EVENT_GROUP_ACTIVITIES_EDP7_BLOB_URI` | GCS URI of the edp7 spot-data JSON | `gs://secure-computation-storage-dev-bucket/edp/edp7/spot-data.json` |
+| `SYNC_EVENT_GROUP_ACTIVITIES_GCS_PROJECT` | GCP project to read the blob from | `halo-cmm-dev` |
 
-The cert paths must reference files already present in the `edp-aggregator`
-Secret. The TLS cert/key are the per-EDP credentials the Kingdom recognizes for
-that DataProvider; the cert-collection-file is the Kingdom's root.
+`KINGDOM_PUBLIC_API_TARGET` is already used by other EDPA components; reuse it.
+Leave any of the per-EDP variables unset to skip the CronJob on that
+environment.
 
-The schedule is shared across all per-EDP entries and defaults to daily at
-06:00 UTC. Override per-environment with:
+To add more EDPs, define analogous `SYNC_EVENT_GROUP_ACTIVITIES_<edp>_*`
+variables, extend
+[`build/variables.bzl`](../../build/variables.bzl)'s
+`EDP_AGGREGATOR_K8S_SETTINGS` struct, add the entries to
+[`src/main/k8s/dev/BUILD.bazel`](../../src/main/k8s/dev/BUILD.bazel)'s
+`cue_dump` call, and add a matching `if` block in
+[`src/main/k8s/dev/edp_aggregator_gke.cue`](../../src/main/k8s/dev/edp_aggregator_gke.cue).
 
-```cue
-_syncEventGroupActivitiesCronSchedule: "0 6 * * *"
-```
+## Deploy
 
-## First Deploy: Run in Dry-Run
-
-For the first deploy, leave `--dry-run` in the args. The CronJob will list the
-existing activities, compute the diff against the input file, and log what it
-*would* do without issuing any batch create/delete RPCs. This validates the
-wiring (image, secrets, GCS read, Kingdom mTLS, throttling) without any risk
-of mutating activity state.
-
-Build and apply the updated Kustomization following the existing
-[EDP Aggregator deployment](../edpaggregator/deployment-guide.md) flow:
+The CronJob is part of the standard EDP Aggregator Kustomization, so it ships
+through the normal deploy workflows:
 
 ```shell
-bazel build //src/main/k8s/dev:edp_aggregator_gke.tar \
-  --define container_registry=ghcr.io \
-  --define image_repo_prefix=world-federation-of-advertisers \
-  --define image_tag=<your-tag> \
-  --define google_cloud_project=<gcp-project> \
-  --define spanner_instance=<spanner-instance>
+gh workflow run configure-edp-aggregator.yml \
+  -f environment=<env> \
+  -f image-tag=<tag> \
+  -f apply=true
 ```
 
-Extract the archive and `kubectl apply -k` it the same way you do for the rest
-of the EDP Aggregator.
+Or via the full pipeline:
 
-After the next scheduled run completes, inspect the pod logs:
+```shell
+gh workflow run update-cmms.yml \
+  -f environment=<env> \
+  -f apply=true
+```
+
+## Validate the First Deploy with Dry-Run
+
+The initial CUE has `--dry-run` baked into the args. The first deployed
+CronJob lists the existing activities, computes the diff against the input
+file, and logs what it *would* do without issuing any batch create/delete
+RPCs. This validates the wiring (image, secrets, GCS read, Kingdom mTLS,
+throttling) without any risk of mutating activity state.
+
+To trigger a run immediately instead of waiting for the schedule:
+
+```shell
+kubectl create job --from=cronjob/sync-event-group-activities-edp7-cronjob \
+  sync-event-group-activities-edp7-manual-$(date +%s)
+```
+
+Inspect the pod logs:
 
 ```shell
 kubectl logs -l app=sync-event-group-activities-edp7-app --tail=200
@@ -119,18 +118,11 @@ counts, and zero `eventGroupsFailed`. If `eventGroupsGuardSkipped > 0`, the
 max-delete-fraction safety guard tripped — confirm the input file is complete
 before removing `--dry-run`.
 
-To trigger a run immediately instead of waiting for the schedule:
-
-```shell
-kubectl create job --from=cronjob/sync-event-group-activities-edp7-cronjob \
-  sync-event-group-activities-edp7-manual-$(date +%s)
-```
-
 ## Switch to Non-Dry-Run
 
-Once the dry-run results look right, remove `--dry-run` from the args, rebuild
-the Kustomization, and re-apply. The next scheduled run will create / delete
-activities.
+Once the dry-run results look right, remove `--dry-run` from
+[`edp_aggregator_gke.cue`](../../src/main/k8s/dev/edp_aggregator_gke.cue) and
+re-deploy. The next scheduled run will create / delete activities.
 
 ## Monitoring
 
@@ -151,13 +143,6 @@ A run exits non-zero only when `eventGroupsFailed > 0` (an RPC failure during
 list/batch). Guard-skipped runs exit zero — alert on the
 `deletes_skipped_guard` counter, not the K8s Job failure count.
 
-## Adding More EDPs
-
-Add another entry to `_syncEventGroupActivitiesArgs` with a distinct key and
-distinct `--data-provider` / `--tls-cert-file` / `--tls-key-file` / `--blob-uri`
-values. Re-apply. K8s `concurrencyPolicy: Forbid` is per-CronJob, so the EDPs
-do not interfere with each other.
-
 ## Troubleshooting
 
 -   **Pod CrashLoopBackOff with TLS errors:** the per-EDP `tls-cert-file` /
@@ -165,11 +150,15 @@ do not interfere with each other.
     `edp-aggregator` Secret. List with
     `kubectl get secret edp-aggregator -o jsonpath='{.data}' | jq 'keys'`.
 -   **`Blob not found for URI:`** the spot-data file does not exist at the
-    configured `--blob-uri`. Check the upstream pipeline. The CronJob does not
-    create a placeholder.
+    configured `SYNC_EVENT_GROUP_ACTIVITIES_EDP7_BLOB_URI`. Check the upstream
+    pipeline. The CronJob does not create a placeholder.
 -   **`Record parent ... is not an EventGroup under DataProvider`:** the input
     file contains records for a different DataProvider, or has a malformed
     parent. This aborts the entire sync; fix the input upstream.
 -   **`eventGroupsGuardSkipped > 0`:** for one or more EventGroups, the
     deletion fraction exceeded `--max-delete-fraction` (default 1.0, disabled).
     Tune the flag if your input is expected to fluctuate, or fix the input.
+-   **No CronJob present after deploy:** the
+    `SYNC_EVENT_GROUP_ACTIVITIES_<edp>_DATA_PROVIDER` environment variable is
+    unset for this environment. Setting it (and the matching `_BLOB_URI` /
+    `_GCS_PROJECT` variables) and re-deploying generates the CronJob.

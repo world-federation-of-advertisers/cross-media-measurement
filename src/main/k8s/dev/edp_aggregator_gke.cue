@@ -17,6 +17,13 @@ package k8s
 _secretName:           string @tag("secret_name")
 _systemApiAddressName: "edp-aggregator-system"
 
+// Per-EDP sync-event-group-activities config (one set per EDP). Empty by
+// default so envs without the spot-data pipeline produce no CronJob.
+_syncEventGroupActivitiesEdp7DataProvider: string | *"" @tag("sync_event_group_activities_edp7_data_provider")
+_syncEventGroupActivitiesEdp7BlobUri:      string | *"" @tag("sync_event_group_activities_edp7_blob_uri")
+_syncEventGroupActivitiesGcsProject:       string | *"" @tag("sync_event_group_activities_gcs_project")
+_kingdomPublicApiTarget:                   string | *"" @tag("kingdom_public_api_target")
+
 // Name of K8s service account for the internal API server.
 #InternalEdpAggregatorServerServiceAccount: "internal-edp-aggregator-server"
 
@@ -69,18 +76,19 @@ edpAggregator: #EdpAggregator & {
 		"edp-aggregator-system-api-server": _ipAddressName: _systemApiAddressName
 	}
 
-	// Per-EDP arg lists for sync-event-group-activities. Schedule defaults to
-	// daily at 06:00 UTC (see edp_aggregator.cue _syncEventGroupActivitiesCronSchedule).
-	//
-	// Initial defaults run with --dry-run so the cronjob proves out the wiring
-	// without mutating activity state in the Kingdom. Switch to non-dry-run after
-	// validating against the input.
-	_syncEventGroupActivitiesArgs: {
-		"edp7": [
-			"--data-provider=dataProviders/T5RryPMNong",
-			"--blob-uri=gs://secure-computation-storage-dev-bucket/edp/edp7/spot-data.json",
-			"--gcs-project-id=halo-cmm-dev",
-			"--kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443",
+	// Per-EDP arg lists for sync-event-group-activities. Values flow from
+	// environment variables (set per env in GitHub Settings -> Environments ->
+	// <env> -> Variables) so the same overlay deploys cleanly across dev, head,
+	// and qa. An EDP entry is generated only when its data_provider tag is
+	// non-empty, so envs that have not configured the spot-data pipeline yet
+	// produce no CronJob for that EDP. Schedule defaults to daily at 06:00 UTC
+	// (see edp_aggregator.cue _syncEventGroupActivitiesCronSchedule).
+	if _syncEventGroupActivitiesEdp7DataProvider != "" {
+		_syncEventGroupActivitiesArgs: "edp7": [
+			"--data-provider=\(_syncEventGroupActivitiesEdp7DataProvider)",
+			"--blob-uri=\(_syncEventGroupActivitiesEdp7BlobUri)",
+			"--gcs-project-id=\(_syncEventGroupActivitiesGcsProject)",
+			"--kingdom-public-api-target=\(_kingdomPublicApiTarget)",
 			"--kingdom-public-api-cert-host=localhost",
 			"--tls-cert-file=/var/run/secrets/files/edp7_tls.pem",
 			"--tls-key-file=/var/run/secrets/files/edp7_tls.key",

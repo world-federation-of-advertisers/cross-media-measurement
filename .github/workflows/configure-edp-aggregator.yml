@@ -88,6 +88,10 @@ jobs:
         IMAGE_TAG: ${{ inputs.image-tag }}
         SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
         GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
+        KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
+        SYNC_EVENT_GROUP_ACTIVITIES_EDP7_DATA_PROVIDER: ${{ vars.SYNC_EVENT_GROUP_ACTIVITIES_EDP7_DATA_PROVIDER }}
+        SYNC_EVENT_GROUP_ACTIVITIES_EDP7_BLOB_URI: ${{ vars.SYNC_EVENT_GROUP_ACTIVITIES_EDP7_BLOB_URI }}
+        SYNC_EVENT_GROUP_ACTIVITIES_GCS_PROJECT: ${{ vars.SYNC_EVENT_GROUP_ACTIVITIES_GCS_PROJECT }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -96,6 +100,10 @@ jobs:
         build --define "image_tag=$IMAGE_TAG"
         build --define "google_cloud_project=$GCLOUD_PROJECT"
         build --define "spanner_instance=$SPANNER_INSTANCE"
+        build --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
+        build --define "sync_event_group_activities_edp7_data_provider=$SYNC_EVENT_GROUP_ACTIVITIES_EDP7_DATA_PROVIDER"
+        build --define "sync_event_group_activities_edp7_blob_uri=$SYNC_EVENT_GROUP_ACTIVITIES_EDP7_BLOB_URI"
+        build --define "sync_event_group_activities_gcs_project=$SYNC_EVENT_GROUP_ACTIVITIES_GCS_PROJECT"
         EOF
 
     - name: Set up Bazel
