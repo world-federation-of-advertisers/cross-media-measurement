@@ -361,8 +361,19 @@ class RequisitionFetcher(
   /**
    * Runs [processReportInner] for one [ReportWorkUnit] inside a trace span, isolating any failure
    * to this report. [CancellationException] is rethrown; any other exception is logged and counted
-   * in [RequisitionFetcherMetrics.reportFailures]. [pendingRecovery] is the per-worker accumulator
-   * shared across all units processed by this worker.
+   * in [RequisitionFetcherMetrics.reportFailures] with an `error_type` label, and the run continues
+   * with the next unit.
+   *
+   * The intentional swallow keeps one bad report from poisoning the whole run. Per-report failures
+   * are not fatal because the requisitions remain `UNFULFILLED` in the Kingdom: the next scheduled
+   * invocation re-streams them and re-runs the report from scratch, self-healing transient failures
+   * (metadata-service `UNAVAILABLE`, Spanner `ABORTED`, GCS hiccup) on the next run.
+   *
+   * Operationally: the `report_failures` counter (with `error_type` label) is the alerting signal.
+   * A non-transient exception type (e.g. `IllegalStateException`, `NullPointerException`) recurring
+   * on the same `(data_provider, report_id)` across multiple runs is the smoking gun for a code bug
+   * that won't self-heal. Transient exception types (`StatusException` with `UNAVAILABLE` /
+   * `ABORTED` / `DEADLINE_EXCEEDED`) recovering on the next run are normal and should not page.
    */
   private suspend fun processReport(
     unit: ReportWorkUnit,
@@ -388,6 +399,7 @@ class RequisitionFetcher(
         Attributes.builder()
           .put(ATTR_DATA_PROVIDER_KEY, dataProviderName)
           .put(ATTR_REPORT_ID_KEY, unit.reportId)
+          .put(ATTR_ERROR_TYPE_KEY, errorTypeName(e))
           .build(),
       )
       logger.log(Level.SEVERE, "Failed to process report ${unit.reportId} for $dataProviderName", e)
@@ -566,6 +578,14 @@ class RequisitionFetcher(
     reportId: String,
     refusal: Requisition.Refusal,
   ) {
+    metrics.reportRefusals.add(
+      1,
+      Attributes.builder()
+        .put(ATTR_DATA_PROVIDER_KEY, dataProviderName)
+        .put(ATTR_REPORT_ID_KEY, reportId)
+        .put(ATTR_JUSTIFICATION_KEY, refusal.justification.name)
+        .build(),
+    )
     for (requisition in requisitions) {
       requisitionGrouper.refuseRequisitionToCmms(requisition, refusal)
     }
@@ -724,6 +744,12 @@ class RequisitionFetcher(
     private val ATTR_REQUISITION_COUNT_KEY =
       AttributeKey.longKey("edpa.requisition_fetcher.requisition_count")
     private val ATTR_REPORT_ID_KEY = AttributeKey.stringKey("edpa.report_id")
+    private val ATTR_ERROR_TYPE_KEY = AttributeKey.stringKey("edpa.requisition_fetcher.error_type")
+    private val ATTR_JUSTIFICATION_KEY =
+      AttributeKey.stringKey("edpa.requisition_fetcher.justification")
+
+    private fun errorTypeName(e: Throwable): String =
+      e::class.simpleName ?: e::class.java.simpleName ?: e::class.java.name
 
     private const val SPAN_FETCH_REQUISITIONS = "edpa.requisition_fetcher.requisition_fetch"
     private const val SPAN_PROCESS_REPORT = "edpa.requisition_fetcher.process_report"

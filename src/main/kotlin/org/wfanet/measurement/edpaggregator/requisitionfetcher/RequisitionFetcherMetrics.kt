@@ -75,6 +75,16 @@ class RequisitionFetcherMetrics(meter: Meter = Instrumentation.meter) {
       .setUnit("{failure}")
       .build()
 
+  val reportRefusals: LongCounter =
+    meter
+      .counterBuilder("edpa.requisition_fetcher.report_refusals")
+      .setDescription(
+        "Number of reports refused with a permanent Refusal justification (operator-visible " +
+          "alternative to silent per-report logging)"
+      )
+      .setUnit("{report}")
+      .build()
+
   val bufferSplits: LongCounter =
     meter
       .counterBuilder("edpa.requisition_fetcher.buffer_splits")
