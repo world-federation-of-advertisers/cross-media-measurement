@@ -76,9 +76,9 @@ edpAggregator: #EdpAggregator & {
 	// _syncEventGroupActivitiesCronSchedule).
 	_syncEventGroupActivitiesArgs: "edp7": [
 		"--config-file=/etc/halo-cmms/edp-aggregator/config/event-group-activity-sync-config-edp7.textproto",
-		"--tls-cert-file=/var/run/secrets/files/edp7_tls.pem",
-		"--tls-key-file=/var/run/secrets/files/edp7_tls.key",
-		"--cert-collection-file=/var/run/secrets/files/kingdom_root.pem",
+		"--tls-cert-file=/etc/halo-cmms/edp-aggregator/edp7-tls/tls.crt",
+		"--tls-key-file=/etc/halo-cmms/edp-aggregator/edp7-tls/tls.key",
+		"--cert-collection-file=/etc/halo-cmms/edp-aggregator/config/trusted_certs.pem",
 		"--list-page-size=1000",
 		"--throttler-minimum-interval=100ms",
 		"--dry-run",

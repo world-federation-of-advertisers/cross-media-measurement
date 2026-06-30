@@ -115,6 +115,7 @@ jobs:
         bazelisk build
         //src/main/k8s/dev:edp_aggregator.tar
         //src/main/k8s/testing/secretfiles:edp_aggregator_tls_files.tar
+        //src/main/k8s/testing/secretfiles:edp7_tls_files.tar
         //src/main/k8s/testing/secretfiles:edp_aggregator_trusted_certs.pem
 
     - name: Make Kustomization dir
@@ -129,6 +130,11 @@ jobs:
       run: >
         tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/edp_aggregator_tls_files.tar"
         -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_tls"
+
+    - name: Extract edp7 tls files archive
+      run: >
+        tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/edp7_tls_files.tar"
+        -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp7_tls"
 
     - name: Copy trusted certs
       run: >
