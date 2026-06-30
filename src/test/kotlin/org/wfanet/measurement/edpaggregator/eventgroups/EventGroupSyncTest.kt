@@ -3239,6 +3239,154 @@ class EventGroupSyncTest {
     }
   }
 
+  @Test
+  fun `pairs created EventGroups to mappings by key when batch response is reordered`() {
+    runBlocking {
+      // Return the batch response in REVERSED order, with a resource name derived from the
+      // reference id, to prove the fetcher pairs by key rather than by list position.
+      wheneverBlocking {
+          eventGroupsServiceMock.batchCreateEventGroups(any<BatchCreateEventGroupsRequest>())
+        }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<BatchCreateEventGroupsRequest>(0)
+          batchCreateEventGroupsResponse {
+            eventGroups +=
+              request.requestsList.reversed().map { subRequest ->
+                cmmsEventGroup {
+                  name = "resource-for-${subRequest.eventGroup.eventGroupReferenceId}"
+                  eventGroupReferenceId = subRequest.eventGroup.eventGroupReferenceId
+                  measurementConsumer = subRequest.eventGroup.measurementConsumer
+                }
+              }
+          }
+        }
+
+      val newGroups =
+        listOf("ng-a", "ng-b", "ng-c").map { refId ->
+          eventGroup {
+            eventGroupReferenceId = refId
+            measurementConsumer = "measurementConsumers/measurement-consumer-1"
+            this.eventGroupMetadata = eventGroupMetadata {
+              this.adMetadata = adMetadata {
+                this.campaignMetadata = campaignMetadata {
+                  brand = "brand"
+                  campaign = "campaign"
+                }
+              }
+            }
+            dataAvailabilityInterval = interval {
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
+            }
+            mediaTypes += listOf(MediaType.OTHER)
+          }
+        }
+
+      val eventGroupSync =
+        EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          clientAccountsStub,
+          newGroups.asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+          entityKeyTypes = emptyList(),
+        )
+      val result =
+        eventGroupSync.sync().toList().map { it.eventGroupReferenceId to it.eventGroupResource }
+
+      assertThat(result)
+        .containsExactly(
+          "ng-a" to "resource-for-ng-a",
+          "ng-b" to "resource-for-ng-b",
+          "ng-c" to "resource-for-ng-c",
+        )
+    }
+  }
+
+  @Test
+  fun `pairs updated EventGroups to mappings by name when batch response is reordered`() {
+    runBlocking {
+      wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
+        .thenAnswer {
+          listEventGroupsResponse {
+            eventGroups +=
+              listOf("ua", "ub", "uc").map { refId ->
+                cmmsEventGroup {
+                  name = "dataProviders/data-provider-1/eventGroups/res-$refId"
+                  measurementConsumer = "measurementConsumers/measurement-consumer-1"
+                  eventGroupReferenceId = refId
+                  mediaTypes += listOf(CmmsMediaType.OTHER)
+                  eventGroupMetadata = cmmsEventGroupMetadata {
+                    this.adMetadata = cmmsAdMetadata {
+                      this.campaignMetadata = cmmsCampaignMetadata {
+                        brandName = "old-brand"
+                        campaignName = "campaign"
+                      }
+                    }
+                  }
+                  dataAvailabilityInterval = interval {
+                    startTime = timestamp { seconds = 200 }
+                    endTime = timestamp { seconds = 300 }
+                  }
+                }
+              }
+          }
+        }
+      // Reversed response; request eventGroups carry their resource name, so by-name pairing holds.
+      wheneverBlocking {
+          eventGroupsServiceMock.batchUpdateEventGroups(any<BatchUpdateEventGroupsRequest>())
+        }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<BatchUpdateEventGroupsRequest>(0)
+          batchUpdateEventGroupsResponse {
+            eventGroups += request.requestsList.reversed().map { it.eventGroup }
+          }
+        }
+
+      val changedGroups =
+        listOf("ua", "ub", "uc").map { refId ->
+          eventGroup {
+            eventGroupReferenceId = refId
+            measurementConsumer = "measurementConsumers/measurement-consumer-1"
+            this.eventGroupMetadata = eventGroupMetadata {
+              this.adMetadata = adMetadata {
+                this.campaignMetadata = campaignMetadata {
+                  brand = "new-brand" // changed -> triggers an update
+                  campaign = "campaign"
+                }
+              }
+            }
+            dataAvailabilityInterval = interval {
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
+            }
+            mediaTypes += listOf(MediaType.OTHER)
+          }
+        }
+
+      val eventGroupSync =
+        EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          clientAccountsStub,
+          changedGroups.asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+          entityKeyTypes = emptyList(),
+        )
+      val result =
+        eventGroupSync.sync().toList().map { it.eventGroupReferenceId to it.eventGroupResource }
+
+      assertThat(result)
+        .containsExactly(
+          "ua" to "dataProviders/data-provider-1/eventGroups/res-ua",
+          "ub" to "dataProviders/data-provider-1/eventGroups/res-ub",
+          "uc" to "dataProviders/data-provider-1/eventGroups/res-uc",
+        )
+    }
+  }
+
   companion object {
     private val CAMPAIGNS =
       listOf(

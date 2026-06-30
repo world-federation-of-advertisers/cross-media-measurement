@@ -408,12 +408,24 @@ class EventGroupSync(
     val response =
       try {
         throttler.onReady {
-          eventGroupsStub.batchCreateEventGroups(
-            batchCreateEventGroupsRequest {
-              parent = edpName
-              requests += pendingCreates.map { it.request }
-            }
-          )
+          withSpan(
+            tracer,
+            "EventGroupSync.BatchCreate",
+            Attributes.of(
+              AttributeKey.longKey("batch_size"),
+              pendingCreates.size.toLong(),
+              AttributeKey.stringKey("data_provider_name"),
+              edpName,
+            ),
+            errorMessage = "BatchCreateEventGroups failed",
+          ) { _ ->
+            eventGroupsStub.batchCreateEventGroups(
+              batchCreateEventGroupsRequest {
+                parent = edpName
+                requests += pendingCreates.map { it.request }
+              }
+            )
+          }
         }
       } catch (e: Exception) {
         if (e is CancellationException) throw e
@@ -423,15 +435,32 @@ class EventGroupSync(
         pendingCreates.clear()
         return
       }
-    response.eventGroupsList.forEachIndexed { index, syncedEventGroup ->
+    // Pair responses to requests by (referenceId, measurementConsumer) rather than list position,
+    // since the batch response order is not guaranteed. The per-batch dedup guard keeps this key
+    // unique within the batch.
+    val pendingByKey =
+      pendingCreates.associateBy {
+        EventGroupKey(
+          it.request.eventGroup.eventGroupReferenceId,
+          it.request.eventGroup.measurementConsumer,
+        )
+      }
+    response.eventGroupsList.forEach { syncedEventGroup ->
+      val item =
+        pendingByKey.getValue(
+          EventGroupKey(
+            syncedEventGroup.eventGroupReferenceId,
+            syncedEventGroup.measurementConsumer,
+          )
+        )
       metrics.syncSuccess.add(1, metricAttributes())
       metrics.syncLatency.record(
-        pendingCreates[index].startTime.elapsedNow().inWholeMilliseconds / 1000.0,
+        item.startTime.elapsedNow().inWholeMilliseconds / 1000.0,
         metricAttributes(),
       )
       emit(
         mappedEventGroup {
-          eventGroupReferenceId = pendingCreates[index].eventGroupReferenceId
+          eventGroupReferenceId = item.eventGroupReferenceId
           eventGroupResource = syncedEventGroup.name
         }
       )
@@ -483,12 +512,24 @@ class EventGroupSync(
     val response =
       try {
         throttler.onReady {
-          eventGroupsStub.batchUpdateEventGroups(
-            batchUpdateEventGroupsRequest {
-              parent = edpName
-              requests += pendingUpdates.map { it.request }
-            }
-          )
+          withSpan(
+            tracer,
+            "EventGroupSync.BatchUpdate",
+            Attributes.of(
+              AttributeKey.longKey("batch_size"),
+              pendingUpdates.size.toLong(),
+              AttributeKey.stringKey("data_provider_name"),
+              edpName,
+            ),
+            errorMessage = "BatchUpdateEventGroups failed",
+          ) { _ ->
+            eventGroupsStub.batchUpdateEventGroups(
+              batchUpdateEventGroupsRequest {
+                parent = edpName
+                requests += pendingUpdates.map { it.request }
+              }
+            )
+          }
         }
       } catch (e: Exception) {
         if (e is CancellationException) throw e
@@ -498,15 +539,19 @@ class EventGroupSync(
         pendingUpdates.clear()
         return
       }
-    response.eventGroupsList.forEachIndexed { index, syncedEventGroup ->
+    // Pair responses to requests by EventGroup resource name (unique within the batch via the dedup
+    // guard) rather than list position, since the batch response order is not guaranteed.
+    val pendingByName = pendingUpdates.associateBy { it.request.eventGroup.name }
+    response.eventGroupsList.forEach { syncedEventGroup ->
+      val item = pendingByName.getValue(syncedEventGroup.name)
       metrics.syncSuccess.add(1, metricAttributes())
       metrics.syncLatency.record(
-        pendingUpdates[index].startTime.elapsedNow().inWholeMilliseconds / 1000.0,
+        item.startTime.elapsedNow().inWholeMilliseconds / 1000.0,
         metricAttributes(),
       )
       emit(
         mappedEventGroup {
-          eventGroupReferenceId = pendingUpdates[index].eventGroupReferenceId
+          eventGroupReferenceId = item.eventGroupReferenceId
           eventGroupResource = syncedEventGroup.name
         }
       )
