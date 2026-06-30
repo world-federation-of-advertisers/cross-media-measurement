@@ -203,33 +203,32 @@ following files:
 
 1.  [`src/main/k8s/dev/edp_aggregator_gke.cue`](../../src/main/k8s/dev/edp_aggregator_gke.cue)
     — add a sibling entry to `_syncEventGroupActivitiesArgs` keyed by the
-    new EDP name, referencing `event-group-activity-sync-config-<edp>.textproto`
-    and the new EDP's TLS cert/key paths.
-2.  [`src/main/k8s/edp_aggregator.cue`](../../src/main/k8s/edp_aggregator.cue)
-    — the CronJob template's `_mounts` block currently hardcodes
-    `"edp7-tls"`; add a parallel mount for the new EDP's Secret. (This
-    block applies to every per-EDP CronJob today, so the hardcoded
-    `edp7-tls` name will need to either move into the per-EDP override
-    or get duplicated.)
-3.  [`src/main/k8s/testing/secretfiles/BUILD.bazel`](../../src/main/k8s/testing/secretfiles/BUILD.bazel)
+    new EDP name, with `tlsSecret: "<edp>-tls"` and an `args` list
+    referencing `event-group-activity-sync-config-<edp>.textproto` and the
+    new EDP's TLS cert/key paths under `/etc/halo-cmms/edp-aggregator/<edp>-tls/`.
+    The shared `_mounts` block in
+    [`edp_aggregator.cue`](../../src/main/k8s/edp_aggregator.cue) reads
+    `tlsSecret` from each entry and mounts the right Secret automatically;
+    no change needed there.
+2.  [`src/main/k8s/testing/secretfiles/BUILD.bazel`](../../src/main/k8s/testing/secretfiles/BUILD.bazel)
     — add a new `<edp>_tls_files` `pkg_files` + `pkg_tar` +
     `kustomization_dir` chain mirroring `edp7_tls`.
-4.  Add `<edp>_tls_kustomization.yaml` (secretGenerator) in both
+3.  Add `<edp>_tls_kustomization.yaml` (secretGenerator) in both
     `src/main/k8s/testing/secretfiles/` and `src/main/k8s/dev/`.
-5.  [`src/main/k8s/dev/BUILD.bazel`](../../src/main/k8s/dev/BUILD.bazel)
+4.  [`src/main/k8s/dev/BUILD.bazel`](../../src/main/k8s/dev/BUILD.bazel)
     — add a `kustomization_dir` entry for `<edp>_tls` and add it to the
     `edp_aggregator` kustomization's deps.
-6.  [`src/main/k8s/dev/edp_aggregator_config_kustomization.yaml`](../../src/main/k8s/dev/edp_aggregator_config_kustomization.yaml)
+5.  [`src/main/k8s/dev/edp_aggregator_config_kustomization.yaml`](../../src/main/k8s/dev/edp_aggregator_config_kustomization.yaml)
     — add the new EDP's textproto filename to the `configMapGenerator.files`
     list.
-7.  [`configure-edp-aggregator.yml`](../../.github/workflows/configure-edp-aggregator.yml)
+6.  [`configure-edp-aggregator.yml`](../../.github/workflows/configure-edp-aggregator.yml)
     — duplicate the "Extract edp7 tls files archive" step for the new
     EDP, and duplicate the "Write sync-event-group-activities config
     (edp7)" step pulling from
     `EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT`.
-8.  Define `EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT` on each
+7.  Define `EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT` on each
     environment's GitHub Variables.
-9.  If the new EDP uses a different GCP SA for GCS access, either add a
+8.  If the new EDP uses a different GCP SA for GCS access, either add a
     second SA to the dev overlay or change `_iamServiceAccountName` on
     `#SyncEventGroupActivitiesServiceAccount` (currently shared across
     all per-EDP CronJobs).
