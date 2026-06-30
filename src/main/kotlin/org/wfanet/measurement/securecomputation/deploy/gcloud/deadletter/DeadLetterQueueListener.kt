@@ -296,10 +296,10 @@ class DeadLetterQueueListener(
           this.name = name
           this.etag = job.etag
           this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
-          // TODO(#4052): MarkRankerJobFailedRequest gains a REQUIRED `request_id` field in #4052
-          // (absent on the current base, which is why it is not set here). Once this PR is
-          // re-parented onto #4052, set requestId = deterministicUuid("MarkRankerJobFailed:$name")
-          // for AIP-155 idempotency on Pub/Sub redelivery, mirroring MarkVidLabelingJobFailed.
+          // AIP-155 idempotency on Pub/Sub redelivery: derived deterministically from the resource
+          // + operation so every attempt for the same mark shares one idempotent result (mirrors
+          // MarkVidLabelingJobFailed).
+          requestId = deterministicUuid("MarkRankerJobFailed:$name")
         }
       )
       logger.info("Marked RankerJob $name FAILED from dead-letter queue")
@@ -441,8 +441,8 @@ class DeadLetterQueueListener(
      * Derives a deterministic UUID4 from [seed], stable across redeliveries, for use as an AIP-155
      * `request_id`. Computed from an MD5 digest of the seed with the RFC-4122 version (4) and
      * variant bits forced, so it satisfies a field's `format = UUID4`. Copied from
-     * `SubpoolAssigner.deterministicUuid`. Used for the `MarkVidLabelingJobFailed` request_id (the
-     * only Mark RPC with a `request_id` field) so a redelivery is idempotent.
+     * `SubpoolAssigner.deterministicUuid`. Used for the Mark RPC request_ids that carry one
+     * (`MarkVidLabelingJobFailed`, `MarkRankerJobFailed`) so a redelivery is idempotent.
      */
     fun deterministicUuid(seed: String): String {
       val bytes = MessageDigest.getInstance("MD5").digest(seed.toByteArray(Charsets.UTF_8))
