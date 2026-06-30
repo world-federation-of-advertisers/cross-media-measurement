@@ -121,9 +121,9 @@ message VidLabelingConfig {
       [(google.api.field_behavior) = OPTIONAL];
 
   // Storage holding the compiled VID model blobs for this EDP. The compiled
-  // model lives in its own GCS project, separate from the impression/map
-  // storage above. Passed through to the SubpoolAssigner WorkItem for memoized
-  // model lines.
+  // model lives in its own Cloud Storage project, separate from the
+  // impression/map storage above. Passed through to the SubpoolAssigner
+  // WorkItem for memoized model lines.
   //
   // Optional because it is only consumed by the memoized (Phase-0) path: it is
   // required only for EDPs that have at least one model line with memoized VID
