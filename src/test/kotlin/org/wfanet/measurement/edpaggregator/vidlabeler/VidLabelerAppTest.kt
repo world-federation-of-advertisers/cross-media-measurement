@@ -215,7 +215,7 @@ class VidLabelerAppTest {
       // The model is loaded up-front by VidLabeler.label(); the converter never runs because the
       // (mocked) RawImpressionUploadFileService returns no files, so there are no events to label.
       loadAssigner = loadAssigner,
-      buildImpressionConverter = { _, _, _ ->
+      buildImpressionConverter = { _, _ ->
         ImpressionConverter { _, _, _ -> error("impressionConverter should not be invoked") }
       },
       metrics = metrics,
