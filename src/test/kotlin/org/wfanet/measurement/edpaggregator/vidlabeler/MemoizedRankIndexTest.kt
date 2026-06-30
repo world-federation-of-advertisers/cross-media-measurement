@@ -26,6 +26,7 @@ import com.google.protobuf.timestamp
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -279,6 +280,55 @@ class MemoizedRankIndexTest {
         }
       )
       .containsExactly(1000L, 1000L)
+  }
+
+  @Test
+  fun `load throws when records in a blob disagree on ranked_size`() {
+    val blobKey = "ranks/pool10/up1"
+    val record1 = rankIndexMap {
+      poolOffset = 10L
+      rankedSize = 1000
+      fingerprints = ByteString.copyFrom(fp(0x11))
+      ranks += 5
+    }
+    val record2 =
+      record1.copy {
+        rankedSize = 2000
+        fingerprints = ByteString.copyFrom(fp(0x22))
+      }
+    val checksum = runBlocking { rankStore.writeBlob(blobKey, dek, flowOf(record1, record2)) }
+    val row = rankIndexBlob {
+      poolOffset = 10L
+      blobType = RankIndexBlob.BlobType.SNAPSHOT
+      cmmsModelLine = MODEL_LINE
+      blobUri = blobKey
+      encryptedDek = dek
+      blobChecksum = checksum
+      createTime = timestamp { seconds = 1L }
+    }
+
+    assertFailsWith<IllegalStateException> {
+      runBlocking { MemoizedRankIndex.load(stubReturning(listOf(row)), rankStore, DP, MODEL_LINE) }
+    }
+  }
+
+  @Test
+  fun `load throws when a blob has no records`() {
+    val blobKey = "ranks/pool10/up1"
+    val checksum = runBlocking { rankStore.writeBlob(blobKey, dek, emptyFlow()) }
+    val row = rankIndexBlob {
+      poolOffset = 10L
+      blobType = RankIndexBlob.BlobType.SNAPSHOT
+      cmmsModelLine = MODEL_LINE
+      blobUri = blobKey
+      encryptedDek = dek
+      blobChecksum = checksum
+      createTime = timestamp { seconds = 1L }
+    }
+
+    assertFailsWith<IllegalStateException> {
+      runBlocking { MemoizedRankIndex.load(stubReturning(listOf(row)), rankStore, DP, MODEL_LINE) }
+    }
   }
 
   companion object {
