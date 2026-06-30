@@ -53,19 +53,27 @@ import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
@@ -97,6 +105,12 @@ class VidLabelingMonitorTest {
     mockService()
   private val modelShardsService: ModelShardsGrpcKt.ModelShardsCoroutineImplBase = mockService()
   private val modelLinesService: ModelLinesGrpcKt.ModelLinesCoroutineImplBase = mockService()
+  private val rawImpressionUploadFileService:
+    RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase =
+    mockService()
+  private val vidLabelingJobService:
+    VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase =
+    mockService()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -107,6 +121,8 @@ class VidLabelingMonitorTest {
     addService(modelRolloutsService)
     addService(modelShardsService)
     addService(modelLinesService)
+    addService(rawImpressionUploadFileService)
+    addService(vidLabelingJobService)
   }
 
   private val rawImpressionUploadStub by lazy {
@@ -133,6 +149,14 @@ class VidLabelingMonitorTest {
   }
   private val modelLinesStub by lazy {
     ModelLinesGrpcKt.ModelLinesCoroutineStub(grpcTestServerRule.channel)
+  }
+  private val rawImpressionUploadFileStub by lazy {
+    RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
+      grpcTestServerRule.channel
+    )
+  }
+  private val vidLabelingJobStub by lazy {
+    VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val fixedClock: Clock = Clock.fixed(FIXED_NOW, ZoneId.of("UTC"))
@@ -191,6 +215,9 @@ class VidLabelingMonitorTest {
       poolAssignerQueueName = POOL_ASSIGNER_QUEUE_NAME,
       numberOfShards = NUMBER_OF_SHARDS,
       modelLineConfigs = MODEL_LINE_CONFIGS,
+      rawImpressionUploadFileStub = rawImpressionUploadFileStub,
+      vidLabelingJobStub = vidLabelingJobStub,
+      maxFileBatchSizeBytes = MAX_FILE_BATCH_SIZE_BYTES,
     )
 
   private fun createMonitor(): VidLabelingMonitor =
@@ -286,6 +313,35 @@ class VidLabelingMonitorTest {
       .thenReturn(rawImpressionUploadModelLine {})
   }
 
+  /**
+   * Stubs the non-memoized fan-out RPCs: `listRawImpressionUploadFiles` returns [NUMBER_OF_SHARDS]
+   * files each sized at the batch threshold (one batch per file), and `batchCreateVidLabelingJobs`
+   * echoes one job per request named `${parent}/vidLabelingJobs/job-$i`.
+   */
+  private suspend fun stubNonMemoizedFilesAndJobs() {
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any())).thenAnswer {
+      invocation ->
+      val parent = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0).parent
+      listRawImpressionUploadFilesResponse {
+        for (i in 0 until NUMBER_OF_SHARDS) {
+          rawImpressionUploadFiles += rawImpressionUploadFile {
+            name = "$parent/rawImpressionUploadFiles/file-$i"
+            sizeBytes = MAX_FILE_BATCH_SIZE_BYTES
+          }
+        }
+      }
+    }
+    whenever(vidLabelingJobService.batchCreateVidLabelingJobs(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<BatchCreateVidLabelingJobsRequest>(0)
+      batchCreateVidLabelingJobsResponse {
+        for ((i, createRequest) in request.requestsList.withIndex()) {
+          vidLabelingJobs +=
+            createRequest.vidLabelingJob.copy { name = "${request.parent}/vidLabelingJobs/job-$i" }
+        }
+      }
+    }
+  }
+
   private fun upload(id: String, state: RawImpressionUpload.State, createdAt: Instant) =
     rawImpressionUpload {
       name = "$DATA_PROVIDER/rawImpressionUploads/$id"
@@ -304,6 +360,7 @@ class VidLabelingMonitorTest {
     stubUploads(created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW)))
     stubModelLines(createdModelLine())
     stubShardResolution(memoized = false)
+    stubNonMemoizedFilesAndJobs()
     whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
     stubMarkTransitions()
 
@@ -499,6 +556,7 @@ class VidLabelingMonitorTest {
     private const val QUEUE_NAME = "queues/vid-labeler-queue"
     private const val POOL_ASSIGNER_QUEUE_NAME = "queues/pool-assigner-queue"
     private const val NUMBER_OF_SHARDS = 2
+    private const val MAX_FILE_BATCH_SIZE_BYTES = 1000L
 
     private val FIXED_NOW: Instant = Instant.parse("2026-06-03T12:00:00Z")
     private val STALENESS_THRESHOLD: Duration = Duration.ofHours(24)

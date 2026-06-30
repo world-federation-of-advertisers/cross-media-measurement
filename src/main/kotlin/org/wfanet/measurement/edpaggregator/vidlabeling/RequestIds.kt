@@ -55,5 +55,15 @@ object RequestIds {
   fun forPoolAssignmentJob(uploadName: String, modelLineName: String, shardIndex: Int): String =
     fromKey("poolAssignmentJob:$uploadName:$modelLineName:$shardIndex")
 
+  /**
+   * `request_id` for creating a non-memoized Phase-2 `VidLabelingJob`.
+   *
+   * Keyed on [uploadName], the **sorted** [modelLineNames] bundled into the job, and [batchIndex]
+   * so a redelivered bundle reuses the existing rows, while a later-added model line (a different
+   * bundle set) creates its own jobs instead of colliding with the existing bundle's rows.
+   */
+  fun forVidLabelingJob(uploadName: String, modelLineNames: List<String>, batchIndex: Int): String =
+    fromKey("vidLabelingJob:$uploadName:${modelLineNames.sorted().joinToString(",")}:$batchIndex")
+
   private fun fromKey(key: String): String = UUID.nameUUIDFromBytes(key.toByteArray()).toString()
 }

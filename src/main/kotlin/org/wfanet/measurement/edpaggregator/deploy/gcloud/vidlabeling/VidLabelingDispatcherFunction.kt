@@ -56,6 +56,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
@@ -212,6 +213,9 @@ class VidLabelingDispatcherFunction : HttpFunction {
         PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
           rawImpressionUploadChannel
         )
+      // VidLabelingJobService is served by the same RawImpressionMetadata storage deployment.
+      val vidLabelingJobStub =
+        VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(rawImpressionUploadChannel)
       val workItemsStub =
         WorkItemsGrpcKt.WorkItemsCoroutineStub(
           createInstrumentedChannel(
@@ -243,6 +247,9 @@ class VidLabelingDispatcherFunction : HttpFunction {
           poolAssignerQueueName = poolAssignerQueueName,
           numberOfShards = config.numberOfShards,
           modelLineConfigs = modelLineConfigs,
+          rawImpressionUploadFileStub = rawImpressionUploadFilesStub,
+          vidLabelingJobStub = vidLabelingJobStub,
+          maxFileBatchSizeBytes = config.maxFileBatchSizeBytes,
         )
 
       val dispatcher =

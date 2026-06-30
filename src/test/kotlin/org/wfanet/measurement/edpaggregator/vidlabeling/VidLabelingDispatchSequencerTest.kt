@@ -47,12 +47,15 @@ import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreatePoolAssignmentJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLinePoolAssigningRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
@@ -60,12 +63,16 @@ import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
@@ -88,6 +95,12 @@ class VidLabelingDispatchSequencerTest {
   private val poolAssignmentJobService:
     PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase =
     mockService()
+  private val rawImpressionUploadFileService:
+    RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase =
+    mockService()
+  private val vidLabelingJobService:
+    VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase =
+    mockService()
   private val modelRolloutsService: ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase =
     mockService()
   private val modelShardsService: ModelShardsGrpcKt.ModelShardsCoroutineImplBase = mockService()
@@ -102,6 +115,8 @@ class VidLabelingDispatchSequencerTest {
     addService(modelRolloutsService)
     addService(modelShardsService)
     addService(modelLinesService)
+    addService(rawImpressionUploadFileService)
+    addService(vidLabelingJobService)
   }
 
   private val rawImpressionUploadStub by lazy {
@@ -129,6 +144,14 @@ class VidLabelingDispatchSequencerTest {
   private val modelLinesStub by lazy {
     ModelLinesGrpcKt.ModelLinesCoroutineStub(grpcTestServerRule.channel)
   }
+  private val rawImpressionUploadFileStub by lazy {
+    RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
+      grpcTestServerRule.channel
+    )
+  }
+  private val vidLabelingJobStub by lazy {
+    VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(grpcTestServerRule.channel)
+  }
 
   private fun createSequencer(
     numberOfShards: Int = NUMBER_OF_SHARDS,
@@ -149,6 +172,9 @@ class VidLabelingDispatchSequencerTest {
       poolAssignerQueueName = POOL_ASSIGNER_QUEUE_NAME,
       numberOfShards = numberOfShards,
       modelLineConfigs = MODEL_LINE_CONFIGS,
+      rawImpressionUploadFileStub = rawImpressionUploadFileStub,
+      vidLabelingJobStub = vidLabelingJobStub,
+      maxFileBatchSizeBytes = MAX_FILE_BATCH_SIZE_BYTES,
     )
 
   /**
@@ -230,6 +256,37 @@ class VidLabelingDispatchSequencerTest {
       .thenReturn(rawImpressionUploadModelLine {})
   }
 
+  /**
+   * Stubs the non-memoized fan-out RPCs: `listRawImpressionUploadFiles` returns [NUMBER_OF_SHARDS]
+   * files each sized at the batch threshold (so the bin-packer opens one batch per file), and
+   * `batchCreateVidLabelingJobs` echoes one job per request named
+   * `${parent}/vidLabelingJobs/job-$i` (preserving the request's `cmms_model_lines` +
+   * `raw_impression_upload_files`).
+   */
+  private suspend fun stubNonMemoizedFilesAndJobs() {
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any())).thenAnswer {
+      invocation ->
+      val parent = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0).parent
+      listRawImpressionUploadFilesResponse {
+        for (i in 0 until NUMBER_OF_SHARDS) {
+          rawImpressionUploadFiles += rawImpressionUploadFile {
+            name = "$parent/rawImpressionUploadFiles/file-$i"
+            sizeBytes = MAX_FILE_BATCH_SIZE_BYTES
+          }
+        }
+      }
+    }
+    whenever(vidLabelingJobService.batchCreateVidLabelingJobs(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<BatchCreateVidLabelingJobsRequest>(0)
+      batchCreateVidLabelingJobsResponse {
+        for ((i, createRequest) in request.requestsList.withIndex()) {
+          vidLabelingJobs +=
+            createRequest.vidLabelingJob.copy { name = "${request.parent}/vidLabelingJobs/job-$i" }
+        }
+      }
+    }
+  }
+
   /** Stubs `getModelLine` to return a model line with the fixed active window. */
   private suspend fun stubModelLine() {
     whenever(modelLinesService.getModelLine(any()))
@@ -299,6 +356,7 @@ class VidLabelingDispatchSequencerTest {
     stubModelLines(createdModelLine())
     stubShardResolution(memoized = false)
     stubModelLine()
+    stubNonMemoizedFilesAndJobs()
     whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
     stubMarkTransitions()
 
@@ -355,6 +413,7 @@ class VidLabelingDispatchSequencerTest {
       )
       stubShardResolution(memoized = false)
       stubModelLine()
+      stubNonMemoizedFilesAndJobs()
       whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
       stubMarkTransitions()
 
@@ -672,6 +731,7 @@ class VidLabelingDispatchSequencerTest {
       stubModelLines(createdModelLine())
       stubShardResolution(memoized = false)
       stubModelLine()
+      stubNonMemoizedFilesAndJobs()
       whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
       stubMarkTransitions()
 
@@ -682,12 +742,10 @@ class VidLabelingDispatchSequencerTest {
       // WorkItem IDs embed the dispatched upload id.
       val captor = argumentCaptor<CreateWorkItemRequest>()
       verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(captor.capture()) }
+      // One WorkItem per bin-packed VidLabelingJob; the ID is derived from the job resource id.
       assertThat(captor.allValues.map { it.workItemId })
-        .containsExactly(
-          "vid-labeling-upload-old-ml1-shard-0",
-          "vid-labeling-upload-old-ml1-shard-1",
-        )
-      // The WorkItem's VidLabelerParams carries the RawImpressionUpload resource name.
+        .containsExactly("vid-labeling-job-0", "vid-labeling-job-1")
+      // The WorkItem's VidLabelerParams carries the RawImpressionUpload resource name + its job.
       val vidLabelerParams =
         captor.firstValue.workItem.workItemParams
           .unpack<WorkItemParams>()
@@ -695,6 +753,45 @@ class VidLabelingDispatchSequencerTest {
           .unpack<VidLabelerParams>()
       assertThat(vidLabelerParams.rawImpressionUpload)
         .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-old")
+      assertThat(vidLabelerParams.vidLabelingJob)
+        .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-old/vidLabelingJobs/job-0")
+    }
+
+  @Test
+  fun `dispatchNext bundles all non-memoized model lines of an upload into shared jobs`() =
+    runBlocking<Unit> {
+      val created = upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW)
+      stubUploads(created = listOf(created))
+      stubModelLinesByParent(
+        mapOf(
+          created.name to
+            listOf(
+              modelLine(created.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED),
+              modelLine(created.name, MODEL_LINE_2, RawImpressionUploadModelLine.State.CREATED),
+            )
+        )
+      )
+      stubShardResolution(memoized = false)
+      stubModelLine()
+      stubNonMemoizedFilesAndJobs()
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      stubMarkTransitions()
+
+      createSequencer().dispatchNext()
+
+      // One set of bin-packed jobs is shared across both model lines (NOT one set per line): each
+      // created VidLabelingJob lists both model lines, with one WorkItem per job.
+      val jobCaptor = argumentCaptor<BatchCreateVidLabelingJobsRequest>()
+      verifyBlocking(vidLabelingJobService) { batchCreateVidLabelingJobs(jobCaptor.capture()) }
+      for (createRequest in jobCaptor.firstValue.requestsList) {
+        assertThat(createRequest.vidLabelingJob.cmmsModelLinesList)
+          .containsExactly(MODEL_LINE, MODEL_LINE_2)
+      }
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(any()) }
+      // Each bundled model line is transitioned to LABELING.
+      verifyBlocking(rawImpressionUploadModelLineService, times(2)) {
+        markRawImpressionUploadModelLineLabeling(any())
+      }
     }
 
   @Test
@@ -706,6 +803,7 @@ class VidLabelingDispatchSequencerTest {
       stubModelLines(createdModelLine())
       stubShardResolution(memoized = false)
       stubModelLine()
+      stubNonMemoizedFilesAndJobs()
       whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
       stubMarkTransitions()
 
@@ -732,6 +830,7 @@ class VidLabelingDispatchSequencerTest {
       )
       stubModelLines(createdModelLine())
       stubShardResolution(memoized = false)
+      stubNonMemoizedFilesAndJobs()
       whenever(modelLinesService.getModelLine(any()))
         .thenReturn(
           modelLine {
@@ -766,6 +865,7 @@ class VidLabelingDispatchSequencerTest {
       stubModelLines(createdModelLine())
       stubShardResolution(memoized = false)
       stubModelLine()
+      stubNonMemoizedFilesAndJobs()
       whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
       stubMarkTransitions()
 
@@ -787,6 +887,7 @@ class VidLabelingDispatchSequencerTest {
       stubModelLines(createdModelLine())
       stubShardResolution(memoized = false)
       stubModelLine()
+      stubNonMemoizedFilesAndJobs()
       whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
       // Another concurrent dispatcher claimed the model line first: the etag CAS fails with
       // ABORTED.
@@ -808,6 +909,7 @@ class VidLabelingDispatchSequencerTest {
       stubModelLines(createdModelLine())
       stubShardResolution(memoized = false)
       stubModelLine()
+      stubNonMemoizedFilesAndJobs()
       whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
       whenever(rawImpressionUploadModelLineService.markRawImpressionUploadModelLineLabeling(any()))
         .thenAnswer {
@@ -828,6 +930,7 @@ class VidLabelingDispatchSequencerTest {
       stubModelLines(createdModelLine())
       stubShardResolution(memoized = false)
       stubModelLine()
+      stubNonMemoizedFilesAndJobs()
       // A concurrent dispatcher created the WorkItem with the same deterministic ID first.
       whenever(workItemsService.createWorkItem(any())).thenAnswer {
         throw StatusException(Status.ALREADY_EXISTS.withDescription("work item exists"))
@@ -890,6 +993,7 @@ class VidLabelingDispatchSequencerTest {
     private const val QUEUE_NAME = "queues/vid-labeler-queue"
     private const val POOL_ASSIGNER_QUEUE_NAME = "queues/pool-assigner-queue"
     private const val NUMBER_OF_SHARDS = 2
+    private const val MAX_FILE_BATCH_SIZE_BYTES = 1000L
     private const val ETAG = "W/\"abc123\""
 
     private val FIXED_NOW: Instant = Instant.parse("2026-06-03T12:00:00Z")

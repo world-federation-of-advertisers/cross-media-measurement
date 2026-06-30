@@ -44,12 +44,14 @@ import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
@@ -222,6 +224,13 @@ class VidLabelingMonitorFunction : HttpFunction {
       PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
         rawImpressionUploadChannel
       )
+    val rawImpressionUploadFileStub =
+      RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
+        rawImpressionUploadChannel
+      )
+    // VidLabelingJobService is served by the same RawImpressionMetadata storage deployment.
+    val vidLabelingJobStub =
+      VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(rawImpressionUploadChannel)
     val dispatchSequencer =
       VidLabelingDispatchSequencer(
         rawImpressionUploadStub = rawImpressionUploadStub,
@@ -238,6 +247,9 @@ class VidLabelingMonitorFunction : HttpFunction {
         poolAssignerQueueName = poolAssignerQueueName,
         numberOfShards = config.numberOfShards,
         modelLineConfigs = convertModelLineConfigs(config.modelLineConfigsMap),
+        rawImpressionUploadFileStub = rawImpressionUploadFileStub,
+        vidLabelingJobStub = vidLabelingJobStub,
+        maxFileBatchSizeBytes = config.maxFileBatchSizeBytes,
       )
 
     val monitor =
