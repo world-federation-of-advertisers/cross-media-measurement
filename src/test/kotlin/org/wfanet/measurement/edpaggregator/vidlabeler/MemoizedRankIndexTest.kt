@@ -23,6 +23,7 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -39,6 +40,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexMap
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
@@ -167,6 +169,56 @@ class MemoizedRankIndexTest {
     assertThat(index.subpoolCount).isEqualTo(1)
     assertThat(index.lookup(digestOf(fpA)).map { it.poolOffset to it.localRank })
       .containsExactly(10L to 5L)
+  }
+
+  @Test
+  fun `load merges snapshots across pages`() {
+    val fpA = fp(0x11)
+    val fpB = fp(0x22)
+    val page1 = listRankIndexBlobsResponse {
+      rankIndexBlobs +=
+        seedSnapshot("ranks/pool10/up1", poolOffset = 10L, fpA, rank = 5, createTimeSeconds = 1L)
+      nextPageToken = "page-2"
+    }
+    val page2 = listRankIndexBlobsResponse {
+      rankIndexBlobs +=
+        seedSnapshot("ranks/pool20/up1", poolOffset = 20L, fpB, rank = 7, createTimeSeconds = 1L)
+    }
+    val stub: RankIndexBlobServiceCoroutineStub = mock {
+      onBlocking { listRankIndexBlobs(any(), any()) }.doReturn(page1, page2)
+    }
+
+    val index = runBlocking { MemoizedRankIndex.load(stub, rankStore, DP, MODEL_LINE) }
+
+    assertThat(index.subpoolCount).isEqualTo(2)
+    assertThat(index.lookup(digestOf(fpA)).map { it.poolOffset to it.localRank })
+      .containsExactly(10L to 5L)
+    assertThat(index.lookup(digestOf(fpB)).map { it.poolOffset to it.localRank })
+      .containsExactly(20L to 7L)
+  }
+
+  @Test
+  fun `load builds an empty index when there are no snapshots`() {
+    val index = runBlocking {
+      MemoizedRankIndex.load(stubReturning(emptyList()), rankStore, DP, MODEL_LINE)
+    }
+
+    assertThat(index.subpoolCount).isEqualTo(0)
+    assertThat(index.lookup(digestOf(fp(0x11)))).isEmpty()
+  }
+
+  @Test
+  fun `load throws when a blob checksum does not match`() {
+    val corrupted =
+      seedSnapshot("ranks/pool10/up1", 10L, fp(0x11), rank = 5, createTimeSeconds = 1L).copy {
+        blobChecksum = ByteString.copyFromUtf8("not-the-real-checksum")
+      }
+
+    assertFailsWith<IllegalStateException> {
+      runBlocking {
+        MemoizedRankIndex.load(stubReturning(listOf(corrupted)), rankStore, DP, MODEL_LINE)
+      }
+    }
   }
 
   companion object {
