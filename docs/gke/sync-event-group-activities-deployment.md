@@ -191,35 +191,48 @@ during list/batch). Guard-skipped runs exit zero — alert on the
 
 ## Adding More EDPs
 
-The current wiring is specific to edp7; adding a new EDP touches multiple
-files:
+The wiring is currently hardcoded for `edp7`. Adding a second EDP means
+duplicating the `edp7` cluster across the files listed below — there's no
+loop or matrix to extend. This is intentional until a second EDP is
+actually needed; a real parameterization (CUE loop over a list of EDP
+names driving secret mounts, textproto filenames, and workflow steps) is
+its own follow-up refactor.
 
-1.  **Add a new entry** to `_syncEventGroupActivitiesArgs` in
-    [`edp_aggregator_gke.cue`](../../src/main/k8s/dev/edp_aggregator_gke.cue),
-    keyed by a short identifier and referencing
-    `event-group-activity-sync-config-<edp>.textproto` as the
-    `--config-file` and the EDP's own TLS cert/key paths.
-2.  **Add a new per-EDP TLS Secret pipeline** mirroring `edp7_tls`:
-    -   `<edp>_tls_files` `pkg_files` + `pkg_tar` in
-        [`src/main/k8s/testing/secretfiles/BUILD.bazel`](../../src/main/k8s/testing/secretfiles/BUILD.bazel)
-    -   `<edp>_tls_kustomization.yaml` (secretGenerator) in both
-        `src/main/k8s/testing/secretfiles/` and `src/main/k8s/dev/`
-    -   `kustomization_dir` entry + dep in
-        [`src/main/k8s/dev/BUILD.bazel`](../../src/main/k8s/dev/BUILD.bazel)
-    -   Workflow build target + extract step in
-        [`configure-edp-aggregator.yml`](../../.github/workflows/configure-edp-aggregator.yml)
-3.  **Add the textproto filename** to
-    [`edp_aggregator_config_kustomization.yaml`](../../src/main/k8s/dev/edp_aggregator_config_kustomization.yaml)'s
-    `configMapGenerator.files` list.
-4.  **Add a workflow step** to
-    [`configure-edp-aggregator.yml`](../../.github/workflows/configure-edp-aggregator.yml)
-    that writes the new EDP's `EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT`
-    env var into the staged config dir.
-5.  **Define** `EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT` on each env.
-6.  **If the new EDP uses a different GCP SA** for GCS access, either add a
+To add `edp8` today, copy each occurrence of `edp7` / `EDP7` in the
+following files:
+
+1.  [`src/main/k8s/dev/edp_aggregator_gke.cue`](../../src/main/k8s/dev/edp_aggregator_gke.cue)
+    — add a sibling entry to `_syncEventGroupActivitiesArgs` keyed by the
+    new EDP name, referencing `event-group-activity-sync-config-<edp>.textproto`
+    and the new EDP's TLS cert/key paths.
+2.  [`src/main/k8s/edp_aggregator.cue`](../../src/main/k8s/edp_aggregator.cue)
+    — the CronJob template's `_mounts` block currently hardcodes
+    `"edp7-tls"`; add a parallel mount for the new EDP's Secret. (This
+    block applies to every per-EDP CronJob today, so the hardcoded
+    `edp7-tls` name will need to either move into the per-EDP override
+    or get duplicated.)
+3.  [`src/main/k8s/testing/secretfiles/BUILD.bazel`](../../src/main/k8s/testing/secretfiles/BUILD.bazel)
+    — add a new `<edp>_tls_files` `pkg_files` + `pkg_tar` +
+    `kustomization_dir` chain mirroring `edp7_tls`.
+4.  Add `<edp>_tls_kustomization.yaml` (secretGenerator) in both
+    `src/main/k8s/testing/secretfiles/` and `src/main/k8s/dev/`.
+5.  [`src/main/k8s/dev/BUILD.bazel`](../../src/main/k8s/dev/BUILD.bazel)
+    — add a `kustomization_dir` entry for `<edp>_tls` and add it to the
+    `edp_aggregator` kustomization's deps.
+6.  [`src/main/k8s/dev/edp_aggregator_config_kustomization.yaml`](../../src/main/k8s/dev/edp_aggregator_config_kustomization.yaml)
+    — add the new EDP's textproto filename to the `configMapGenerator.files`
+    list.
+7.  [`configure-edp-aggregator.yml`](../../.github/workflows/configure-edp-aggregator.yml)
+    — duplicate the "Extract edp7 tls files archive" step for the new
+    EDP, and duplicate the "Write sync-event-group-activities config
+    (edp7)" step pulling from
+    `EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT`.
+8.  Define `EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT` on each
+    environment's GitHub Variables.
+9.  If the new EDP uses a different GCP SA for GCS access, either add a
     second SA to the dev overlay or change `_iamServiceAccountName` on
-    `#SyncEventGroupActivitiesServiceAccount` (currently shared across all
-    per-EDP CronJobs).
+    `#SyncEventGroupActivitiesServiceAccount` (currently shared across
+    all per-EDP CronJobs).
 
 ## Troubleshooting
 
