@@ -279,6 +279,140 @@ locals {
       secret_mappings     = ""
       uber_jar_path       = var.data_availability_monitor_uber_jar_path
     }
+    vid_labeling_dispatcher = {
+      function_name       = "vid-labeling-dispatcher"
+      entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingDispatcherFunction"
+      extra_env_vars      = "${var.vid_labeling_dispatcher_env_var},CONFIG_BLOB_KEY=${local.vid_labeling_dispatcher_config.destination},EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}"
+      secret_mappings     = var.vid_labeling_dispatcher_secret_mapping
+      uber_jar_path       = var.vid_labeling_dispatcher_uber_jar_path
+    }
+    vid_labeling_monitor = {
+      function_name       = "vid-labeling-monitor"
+      entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingMonitorFunction"
+      extra_env_vars      = "${var.vid_labeling_monitor_env_var},CONFIG_BLOB_KEY=${local.vid_labeling_monitor_config.destination},EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}"
+      secret_mappings     = var.vid_labeling_monitor_secret_mapping
+      uber_jar_path       = var.vid_labeling_monitor_uber_jar_path
+    }
+  }
+
+  vid_labeling_dispatcher_config = {
+    local_path  = var.vid_labeling_dispatcher_config_file_path
+    destination = "vid-labeling-dispatcher-config.textproto"
+  }
+
+  vid_labeling_monitor_config = {
+    local_path  = var.vid_labeling_monitor_config_file_path
+    destination = "vid-labeling-monitor-config.textproto"
+  }
+
+  vid_labeling_monitor_scheduler_config = {
+    schedule                  = "*/5 * * * *" # Every 5 minutes
+    time_zone                 = "UTC"
+    name                      = "vid-labeling-monitor-scheduler"
+    function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/vid-labeling-monitor"
+    scheduler_sa_display_name = "VID Labeling Monitor Scheduler"
+    scheduler_sa_description  = "Service account for Cloud Scheduler to trigger the VID labeling monitor"
+    scheduler_job_description = "Scheduled job to sequence VID labeling dispatch and monitor pipeline health"
+    scheduler_job_name        = "vid-labeling-monitor"
+  }
+
+  # Shared TEE-app flags (from BaseTeeAppRunner) reused by the three VID Labeling
+  # workers. Per-app flags (subscription id, downstream queue) are appended in
+  # vid_labeling_workers below.
+  vid_labeling_common_app_flags = [
+    "--edpa-tls-cert-secret-id", "edpa-tee-app-tls-pem",
+    "--edpa-tls-cert-file-path", "/tmp/edpa_certs/edpa_tee_app_tls.pem",
+    "--edpa-tls-key-secret-id", "edpa-tee-app-tls-key",
+    "--edpa-tls-key-file-path", "/tmp/edpa_certs/edpa_tee_app_tls.key",
+    "--secure-computation-cert-collection-secret-id", "securecomputation-root-ca",
+    "--secure-computation-cert-collection-file-path", "/tmp/edpa_certs/secure_computation_root.pem",
+    "--metadata-storage-cert-collection-secret-id", "edpaggregator-root-ca",
+    "--metadata-storage-cert-collection-file-path", "/tmp/edpa_certs/edp_aggregator_root.pem",
+    "--secure-computation-public-api-target", var.secure_computation_public_api_target,
+    "--metadata-storage-public-api-target", var.metadata_storage_public_api_target,
+    "--google-project-id", data.google_client_config.default.project,
+  ]
+
+  # Phase 0/1/2 TEE applications. Queue resource ids match queues_config.textproto
+  # and each app's --*-queue / --subscription-id flags.
+  vid_labeling_workers = {
+    subpool_assigner = {
+      queue = {
+        topic_name            = "subpool-assigner-queue"
+        subscription_name     = "subpool-assigner-subscription"
+        ack_deadline_seconds  = 600
+        max_delivery_attempts = 5
+      }
+      worker = {
+        instance_template_name        = "subpool-assigner-template"
+        base_instance_name            = "subpool-assigner"
+        managed_instance_group_name   = "subpool-assigner-mig"
+        mig_service_account_name      = "subpool-assigner-sa"
+        single_instance_assignment    = 1
+        min_replicas                  = 0
+        max_replicas                  = 64
+        machine_type                  = "c4d-standard-32"
+        java_tool_options             = "-Xmx96G"
+        docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/subpool_assigner:${var.image_tag}"
+        tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/subpool_assigner"
+        mig_distribution_policy_zones = ["us-central1-a"]
+        app_flags = concat(local.vid_labeling_common_app_flags, [
+          "--subscription-id", "subpool-assigner-subscription",
+          "--vid-rank-builder-queue", "vid-rank-builder-queue",
+        ])
+      }
+    }
+    vid_rank_builder = {
+      queue = {
+        topic_name            = "vid-rank-builder-queue"
+        subscription_name     = "vid-rank-builder-subscription"
+        ack_deadline_seconds  = 600
+        max_delivery_attempts = 5
+      }
+      worker = {
+        instance_template_name        = "vid-rank-builder-template"
+        base_instance_name            = "vid-rank-builder"
+        managed_instance_group_name   = "vid-rank-builder-mig"
+        mig_service_account_name      = "vid-rank-builder-sa"
+        single_instance_assignment    = 1
+        min_replicas                  = 0
+        max_replicas                  = 64
+        machine_type                  = "n2d-highmem-16"
+        java_tool_options             = "-Xmx96G"
+        docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_rank_builder:${var.image_tag}"
+        tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_rank_builder"
+        mig_distribution_policy_zones = ["us-central1-a"]
+        app_flags = concat(local.vid_labeling_common_app_flags, [
+          "--subscription-id", "vid-rank-builder-subscription",
+          "--vid-labeler-queue", "vid-labeler-queue",
+        ])
+      }
+    }
+    vid_labeler = {
+      queue = {
+        topic_name            = "vid-labeler-queue"
+        subscription_name     = "vid-labeler-subscription"
+        ack_deadline_seconds  = 600
+        max_delivery_attempts = 5
+      }
+      worker = {
+        instance_template_name        = "vid-labeler-template"
+        base_instance_name            = "vid-labeler"
+        managed_instance_group_name   = "vid-labeler-mig"
+        mig_service_account_name      = "vid-labeler-sa"
+        single_instance_assignment    = 1
+        min_replicas                  = 0
+        max_replicas                  = 64
+        machine_type                  = "n2d-highmem-16"
+        java_tool_options             = "-Xmx96G"
+        docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_labeler:${var.image_tag}"
+        tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_labeler"
+        mig_distribution_policy_zones = ["us-central1-a"]
+        app_flags = concat(local.vid_labeling_common_app_flags, [
+          "--subscription-id", "vid-labeler-subscription",
+        ])
+      }
+    }
   }
 
 }
@@ -331,5 +465,11 @@ module "edp_aggregator" {
   data_availability_monitor_service_account_name = "edpa-data-avail-monitor"
   data_availability_monitor_config                = local.data_availability_monitor_config
   data_availability_monitor_scheduler_config      = local.data_availability_monitor_scheduler_config
+  vid_labeling_workers                            = local.vid_labeling_workers
+  vid_labeling_dispatcher_service_account_name    = "edpa-vid-labeling-dispatcher"
+  vid_labeling_monitor_service_account_name       = "edpa-vid-labeling-monitor"
+  vid_labeling_dispatcher_config                  = local.vid_labeling_dispatcher_config
+  vid_labeling_monitor_config                     = local.vid_labeling_monitor_config
+  vid_labeling_monitor_scheduler_config           = local.vid_labeling_monitor_scheduler_config
   spanner_instance                              = google_spanner_instance.spanner_instance
 }
