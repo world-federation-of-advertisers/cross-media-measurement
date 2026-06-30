@@ -118,25 +118,39 @@ class MemoizedRankIndexTest {
     }
 
     assertThat(index.subpoolCount).isEqualTo(2)
-    index.lookup(digestOf(fpA))!!.let {
-      assertThat(it.poolOffset).isEqualTo(10L)
-      assertThat(it.localRank).isEqualTo(5L)
-    }
-    index.lookup(digestOf(fpB))!!.let {
-      assertThat(it.poolOffset).isEqualTo(20L)
-      assertThat(it.localRank).isEqualTo(7L)
-    }
+    assertThat(index.lookup(digestOf(fpA)).map { it.poolOffset to it.localRank })
+      .containsExactly(10L to 5L)
+    assertThat(index.lookup(digestOf(fpB)).map { it.poolOffset to it.localRank })
+      .containsExactly(20L to 7L)
   }
 
   @Test
-  fun `lookup returns null for an unseen fingerprint`() {
+  fun `lookup returns all subpool ranks for a multi-subpool fingerprint`() {
+    val fpX = fp(0x33)
+    // The same fingerprint is ranked in two different subpools (it routed to each across uploads).
+    val rows =
+      listOf(
+        seedSnapshot("ranks/pool10/up1", poolOffset = 10L, fpX, rank = 3, createTimeSeconds = 1L),
+        seedSnapshot("ranks/pool20/up1", poolOffset = 20L, fpX, rank = 8, createTimeSeconds = 1L),
+      )
+
+    val index = runBlocking {
+      MemoizedRankIndex.load(stubReturning(rows), rankStore, DP, MODEL_LINE)
+    }
+
+    assertThat(index.lookup(digestOf(fpX)).map { it.poolOffset to it.localRank })
+      .containsExactly(10L to 3L, 20L to 8L)
+  }
+
+  @Test
+  fun `lookup returns empty for an unseen fingerprint`() {
     val rows =
       listOf(seedSnapshot("ranks/pool10/up1", 10L, fp(0x11), rank = 5, createTimeSeconds = 1L))
     val index = runBlocking {
       MemoizedRankIndex.load(stubReturning(rows), rankStore, DP, MODEL_LINE)
     }
 
-    assertThat(index.lookup(digestOf(fp(0x99)))).isNull()
+    assertThat(index.lookup(digestOf(fp(0x99)))).isEmpty()
   }
 
   @Test
@@ -151,7 +165,8 @@ class MemoizedRankIndexTest {
     }
 
     assertThat(index.subpoolCount).isEqualTo(1)
-    assertThat(index.lookup(digestOf(fpA))!!.localRank).isEqualTo(5L)
+    assertThat(index.lookup(digestOf(fpA)).map { it.poolOffset to it.localRank })
+      .containsExactly(10L to 5L)
   }
 
   companion object {
