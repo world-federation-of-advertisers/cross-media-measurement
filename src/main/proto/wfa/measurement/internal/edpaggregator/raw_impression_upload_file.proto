@@ -44,4 +44,7 @@ message RawImpressionUploadFile {
 
   // The timestamp when this file was soft-deleted.
   google.protobuf.Timestamp delete_time = 7;
+
+  // Size of the raw impression file in bytes.
+  int64 size_bytes = 8;
 }

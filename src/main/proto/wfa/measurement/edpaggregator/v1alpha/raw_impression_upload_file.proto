@@ -42,6 +42,15 @@ message RawImpressionUploadFile {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
+  // Size of the raw impression file in bytes.
+  //
+  // Must be greater than zero. Consumed by the Phase-1 ranker to bin-pack files
+  // into VID labeling jobs.
+  int64 size_bytes = 6 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
   // The timestamp when this file was created.
   google.protobuf.Timestamp create_time = 3
       [(google.api.field_behavior) = OUTPUT_ONLY];
