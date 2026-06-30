@@ -52,7 +52,7 @@ gcloud iam service-accounts add-iam-policy-binding \
   --member="serviceAccount:halo-cmm-<env>.svc.id.goog[default/sync-event-group-activities]"
 ```
 
-(Currently performed out-of-band; should be moved into Terraform.)
+(Currently performed out-of-band; tracked for Terraformization in #4127.)
 
 If using a different GCP SA per environment, update the
 `_iamServiceAccountName` for `#SyncEventGroupActivitiesServiceAccount` in
