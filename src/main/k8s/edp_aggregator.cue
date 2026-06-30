@@ -159,7 +159,22 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 				}
 			}
 		}
+		for edp, _ in _syncEventGroupActivitiesArgs {
+			"sync-event-group-activities-\(edp)": {
+				_app_label: "sync-event-group-activities-\(edp)-app"
+				_egresses: {
+					// Needs to call out to GCS (read spot-data input) and the
+					// Kingdom public API (list/create/delete EventGroupActivities).
+					any: {}
+				}
+			}
+		}
 	}
+
+	// K8s ServiceAccount that the CronJob pods run as. Set in the overlay
+	// (e.g. dev/edp_aggregator_gke.cue) and bound via Workload Identity to a
+	// GCP SA that has storage.objectViewer on the spot-data bucket.
+	_syncEventGroupActivitiesServiceAccountName: string
 
 	cronJobs: [Name=_]: #CronJob & {
 		_name:       Name
@@ -181,7 +196,8 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 		spec: {
 			concurrencyPolicy: "Forbid"
 			schedule:          _syncEventGroupActivitiesCronSchedule
-			jobTemplate: spec: template: spec: {
+			jobTemplate: spec: template: spec: #ServiceAccountPodSpec & {
+				serviceAccountName: _syncEventGroupActivitiesServiceAccountName
 				_mounts: {
 					"edp-aggregator-config": #ConfigMapMount & {
 						volumeMount: mountPath: "\(MountRoot)/config"

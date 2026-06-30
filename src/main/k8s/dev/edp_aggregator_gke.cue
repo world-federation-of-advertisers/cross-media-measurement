@@ -20,6 +20,11 @@ _systemApiAddressName: "edp-aggregator-system"
 // Name of K8s service account for the internal API server.
 #InternalEdpAggregatorServerServiceAccount: "internal-edp-aggregator-server"
 
+// Name of K8s service account for the sync-event-group-activities CronJob.
+// Bound via Workload Identity to the edpa-event-group-sync GCP SA (which has
+// storage.objectAdmin on the spot-data bucket).
+#SyncEventGroupActivitiesServiceAccount: "sync-event-group-activities"
+
 #SystemServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "25m"
@@ -51,6 +56,9 @@ edpAggregator: #EdpAggregator & {
 		"\(#InternalEdpAggregatorServerServiceAccount)": #WorkloadIdentityServiceAccount & {
 			_iamServiceAccountName: "edp-aggregator-internal"
 		}
+		"\(#SyncEventGroupActivitiesServiceAccount)": #WorkloadIdentityServiceAccount & {
+			_iamServiceAccountName: "edpa-event-group-sync"
+		}
 	}
 
 	configMaps: "java": #JavaConfigMap
@@ -68,6 +76,8 @@ edpAggregator: #EdpAggregator & {
 	services: {
 		"edp-aggregator-system-api-server": _ipAddressName: _systemApiAddressName
 	}
+
+	_syncEventGroupActivitiesServiceAccountName: #SyncEventGroupActivitiesServiceAccount
 
 	// Per-EDP arg lists for sync-event-group-activities. Each EDP has an entry
 	// here; the textproto config for that EDP is staged into the edp-aggregator
