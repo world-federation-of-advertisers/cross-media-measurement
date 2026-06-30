@@ -198,7 +198,10 @@ class VidLabelerAppTest {
   private fun createApp(
     kmsClients: Map<String, KmsClient> = mapOf(DATA_PROVIDER_NAME to kmsClient),
     encryptKekUris: Map<String, String> = mapOf(DATA_PROVIDER_NAME to kekUri),
-    loadAssigner: suspend (modelBlobUri: String) -> VidAssigner = { mockVidAssigner },
+    loadAssigner: suspend (modelStorageConfig: StorageConfig, modelBlobUri: String) -> VidAssigner =
+      { _, _ ->
+        mockVidAssigner
+      },
     metrics: VidLabelerAppMetrics = VidLabelerAppMetrics(),
   ): VidLabelerApp {
     return VidLabelerApp(
@@ -258,6 +261,11 @@ class VidLabelerAppTest {
           VidLabelerParamsKt.storageParams {
             gcsProjectId = "test-project"
             impressionsBlobPrefix = "file:///rank-map/blobs"
+          }
+        modelStorageParams =
+          VidLabelerParamsKt.storageParams {
+            gcsProjectId = "test-model-project"
+            impressionsBlobPrefix = "file:///models"
           }
       }
   }
@@ -745,7 +753,7 @@ class VidLabelerAppTest {
     val loadCount = AtomicInteger(0)
     val app =
       createApp(
-        loadAssigner = {
+        loadAssigner = { _, _ ->
           loadCount.incrementAndGet()
           mockVidAssigner
         }
