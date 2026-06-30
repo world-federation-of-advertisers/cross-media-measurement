@@ -692,6 +692,14 @@ class RequisitionFetcher(
    * transaction, leaving zero metadata rows. Either way ResultsFulfiller never sees a blob whose
    * `requisitionsList` references a name with no corresponding metadata row.
    *
+   * Sizing assumption: this issues one Spanner read-write transaction per call. Spanner's
+   * per-transaction mutation limit (~80k mutations, rows × index entries) caps the safe batch at
+   * roughly 13k metadata rows. Reports are bounded by an upstream invariant to ≤10k requisitions,
+   * comfortably under that limit. If that upstream bound is ever raised above ~10k, this call needs
+   * to chunk into multiple sub-batches (each its own atomic transaction; the cross-run
+   * `unregistered` pre-check and STORED-recovery path together handle the partial-progress state a
+   * mid-chunk failure would leave).
+   *
    * No-op when [requisitions] is empty.
    */
   private suspend fun batchCreateRequisitionMetadataForGroup(
