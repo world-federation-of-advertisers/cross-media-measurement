@@ -25,10 +25,15 @@ option java_multiple_files = true;
 service ReportingSets {
   rpc CreateReportingSet(CreateReportingSetRequest) returns (ReportingSet);
 
-  // Returns a campaign-group ReportingSet whose EventGroup set matches the one
-  // in the request, creating it if no such ReportingSet exists.
+  // Returns the `ReportingSet` that represents the request's Campaign Group if
+  // an equivalent one already exists for the `MeasurementConsumer`, or creates a
+  // new one if it does not.
   //
-  // Used to materialize the synthesized campaign group for a custom-group
+  // Two Campaign Groups are equivalent if they represent the same set of
+  // `EventGroup`s. The synthesized Campaign Group has no filter, so only
+  // filter-less Campaign Groups are eligible for reuse (see `reporting_set`).
+  //
+  // Used to materialize the synthesized Campaign Group for a custom-group
   // BasicReport. The read and the insert happen in a single serializable
   // transaction, so concurrent and retried callers converge on a single
   // ReportingSet rather than minting duplicates.
@@ -48,15 +53,18 @@ message CreateReportingSetRequest {
 }
 
 message GetOrCreateCampaignGroupReportingSetRequest {
-  // The campaign-group ReportingSet to reuse-or-create.
+  // The `ReportingSet` representing the Campaign Group to reuse-or-create.
   //
-  // Must be a primitive, self-referencing campaign group: its
-  // `external_campaign_group_id` equals `external_reporting_set_id`, and it
-  // carries no filter. The server reuses an existing campaign-group
-  // ReportingSet for the same `MeasurementConsumer` whose EventGroup set is
-  // identical; otherwise it inserts this one. `external_reporting_set_id` is
-  // used only when a new ReportingSet is inserted.
+  // Must be a valid Campaign Group: a primitive `ReportingSet` that references
+  // itself as its own Campaign Group (`external_campaign_group_id` ==
+  // `external_reporting_set_id`). Since the synthesized Campaign Group is the
+  // union of the custom groups' `EventGroup`s, it additionally has no filter; an
+  // existing Campaign Group is reused only if it represents the same
+  // `EventGroup` set and likewise has no filter.
   ReportingSet reporting_set = 1;
+
+  // Resource ID to assign if a new `ReportingSet` is inserted. Unused when an
+  // equivalent Campaign Group already exists.
   string external_reporting_set_id = 2;
 }
 

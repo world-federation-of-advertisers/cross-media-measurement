@@ -577,15 +577,16 @@ class ReportingSetReader(private val readContext: ReadContext) {
   }
 
   /**
-   * Reads a campaign-group ReportingSet whose EventGroup set exactly equals [eventGroupKeys], for
-   * reuse of a synthesized campaign group.
+   * Reads the [ReportingSet] representing a Campaign Group equivalent to a synthesized Campaign
+   * Group over [eventGroupKeys], for reuse.
    *
-   * A ReportingSet matches only if it:
+   * A synthesized Campaign Group is the filter-less union of the custom groups' EventGroups, so a
+   * ReportingSet is considered equivalent only if it:
    * * belongs to [measurementConsumerId],
-   * * is a campaign group (`CampaignGroupId == ReportingSetId`),
+   * * represents a Campaign Group (`CampaignGroupId == ReportingSetId`),
    * * is primitive (`SetExpressionId IS NULL`),
-   * * has no filter, and
-   * * has exactly the EventGroups in [eventGroupKeys] and no others.
+   * * has no filter (Campaign Groups are otherwise permitted to have one), and
+   * * references exactly the EventGroups in [eventGroupKeys] and no others.
    *
    * Display name is not part of the identity, so a matching ReportingSet may carry one.
    *
