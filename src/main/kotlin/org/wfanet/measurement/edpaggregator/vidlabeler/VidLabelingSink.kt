@@ -92,7 +92,8 @@ import org.wfanet.virtualpeople.common.copy
  * @param inputBlobUri URI of the raw-impression file this sink consumes.
  * @param modelLineContexts model lines to label with, each with its [ActiveWindow] and
  *   [VidAssigner].
- * @param impressionConverter converts a Parquet row into a [ConvertedImpression] (schema seam).
+ * @param impressionConverter converts a Parquet row into a [ConvertedImpression] (schema seam),
+ *   resolving the file's entity keys from [inputBlobUri].
  * @param encryptKmsClient encrypt/decrypt KMS client for the labeled output.
  * @param encryptKekUri KEK URI for generating per-output DEKs.
  * @param outputStorageParams GCS project + blob prefix for labeled output.
@@ -142,7 +143,7 @@ class VidLabelingSink(
     for (digestedEvent in events) {
       for (context in modelLineContexts) {
         try {
-          val converted = impressionConverter.convert(digestedEvent, context.config)
+          val converted = impressionConverter.convert(digestedEvent, context.config, inputBlobUri)
           if (converted == null) {
             metrics.impressionsDroppedCounter.add(
               1,

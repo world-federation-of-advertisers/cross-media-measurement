@@ -19,7 +19,6 @@ package org.wfanet.measurement.edpaggregator.rawimpressions
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Descriptors.FieldDescriptor.JavaType
-import com.google.protobuf.Message
 import org.wfanet.measurement.edpaggregator.v1alpha.AgeRange
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.storage.ParquetValue
@@ -37,16 +36,19 @@ import org.wfanet.virtualpeople.common.LabelerInput
  * * [LabelerInputFieldMapping.getAgeRange]: fill an age `{min_age, max_age}` sub-message from a
  *   single int column, a min/max column pair, or a string bucket looked up in an operator-defined
  *   `bucket_table` (any label, e.g. "18-24" or "65 and over" -> `{min_age, max_age}`).
- * * [LabelerInputFieldMapping.getCompositeIdentity]: set the leaf from the first non-null of
- *   several columns (identity fallback).
+ * * [LabelerInputFieldMapping.getCompositeIdentity]: set the leaf from the first non-null of several
+ *   columns (identity fallback).
  *
+ * Scalar path resolution and value coercion are delegated to [ProtoRowProjector] (shared with the
+ * event-template and entity-key mappers); this class adds the enum/age/composite sources on top.
  * Columns absent from the row, or whose [ParquetValue] is NULL (`KIND_NOT_SET`), are skipped,
  * leaving the corresponding proto field unset. Field paths and sources are resolved to descriptors
  * once at construction, and required field paths (e.g. `event_id.id`) are enforced there so a
  * misconfigured model line fails fast rather than emitting empty-id impressions.
  *
  * Note: `event_template_field_mapping` is intentionally NOT handled here; those fields target the
- * EDP's event-template message, whose descriptor is only known once the compiled model is loaded.
+ * EDP's event-template message, whose descriptor is only known once the compiled model is loaded
+ * (see [org.wfanet.measurement.edpaggregator.vidlabeler.EventMessageMapper]).
  */
 class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
   private fun interface Applier {
@@ -84,9 +86,9 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
   /**
    * Every raw-impression column this mapping reads, mapped to the set of [ParquetValue] kinds the
    * mapper accepts for it. Used for first-file schema-drift validation (see
-   * [validateColumnsAgainstSchema]) so a renamed/typo'd column (missing) or a column whose type
-   * changed (incompatible kind) fails loud at file open rather than silently leaving the target
-   * field unset — or throwing on every row — during labeling.
+   * [validateColumnsAgainstSchema]) so a renamed/typo'd column (missing) or a retyped column
+   * (incompatible kind) fails loud at file open rather than silently unsetting the target field — or
+   * throwing on every row — during labeling.
    */
   fun referencedColumnKinds(): Map<String, Set<KindCase>> = referencedColumnKinds
 
@@ -95,18 +97,7 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
     // digest is over empty bytes and every row collides into one fingerprint.
     private val REQUIRED_FIELD_PATHS = listOf("event_id.id")
 
-    // Parquet kinds coercible to a Long by [asLong] (integral leaves + age columns).
-    private val INTEGRAL_KINDS =
-      setOf(
-        KindCase.INT32_VALUE,
-        KindCase.INT64_VALUE,
-        KindCase.UINT32_VALUE,
-        KindCase.UINT64_VALUE,
-        KindCase.TIMESTAMP_VALUE,
-      )
-    // Parquet kinds coercible to a Double by [asDouble] (floating leaves).
-    private val FLOATING_KINDS =
-      setOf(KindCase.FLOAT_VALUE, KindCase.DOUBLE_VALUE, KindCase.INT32_VALUE, KindCase.INT64_VALUE)
+    private val ROOT: Descriptor = LabelerInput.getDescriptor()
 
     private fun buildApplier(
       mapping: LabelerInputFieldMapping,
@@ -117,17 +108,21 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
       return when (mapping.sourceCase) {
         LabelerInputFieldMapping.SourceCase.SCALAR -> {
           val column = mapping.scalar.column
-          val path = resolveScalarPath(fieldPath)
-          record(columnKinds, column, acceptedKinds(path.last()))
+          val path = ProtoRowProjector.resolvePath(ROOT, fieldPath)
+          record(columnKinds, column, ProtoRowProjector.acceptedKinds(path.last()))
           Applier { row, builder ->
             val value = presentValue(row, column) ?: return@Applier
-            setLeaf(builder, path, convert(value, path.last(), column))
+            ProtoRowProjector.setLeaf(
+              builder,
+              path,
+              ProtoRowProjector.convert(value, path.last(), column),
+            )
           }
         }
         LabelerInputFieldMapping.SourceCase.ENUM_LOOKUP -> {
           val lookup = mapping.enumLookup
           val column = lookup.column
-          val path = resolveScalarPath(fieldPath)
+          val path = ProtoRowProjector.resolvePath(ROOT, fieldPath)
           val leaf = path.last()
           require(leaf.javaType == JavaType.ENUM) {
             "enum_lookup target '$fieldPath' must be an enum field"
@@ -135,7 +130,10 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
           record(columnKinds, column, setOf(KindCase.STRING_VALUE))
           Applier { row, builder ->
             val value = presentValue(row, column) ?: return@Applier
-            val raw = requireKind(value, column, KindCase.STRING_VALUE) { it.stringValue }
+            require(value.kindCase == KindCase.STRING_VALUE) {
+              "enum_lookup column '$column' (${value.kindCase}) must be a string"
+            }
+            val raw = value.stringValue
             if (raw.isEmpty()) return@Applier
             val enumName =
               lookup.lookupTableMap[raw]
@@ -146,15 +144,15 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
                 )
             val enumValue =
               requireNotNull(leaf.enumType.findValueByName(enumName)) {
-                "enum_lookup maps '$raw' to '$enumName', which is not a ${leaf.enumType.name} value " +
-                  "($fieldPath)"
+                "enum_lookup maps '$raw' to '$enumName', which is not a ${leaf.enumType.name} " +
+                  "value ($fieldPath)"
               }
-            setLeaf(builder, path, enumValue)
+            ProtoRowProjector.setLeaf(builder, path, enumValue)
           }
         }
         LabelerInputFieldMapping.SourceCase.AGE_RANGE -> {
           val ageRange = mapping.ageRange
-          val path = resolveMessagePath(fieldPath)
+          val path = ProtoRowProjector.resolvePath(ROOT, fieldPath, allowMessageLeaf = true)
           for (column in ageRangeColumns(ageRange, fieldPath)) {
             record(columnKinds, column, ageColumnKinds(ageRange))
           }
@@ -165,14 +163,18 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
           require(composite.columnsList.isNotEmpty()) {
             "composite_identity for '$fieldPath' must list at least one column"
           }
-          val path = resolveScalarPath(fieldPath)
+          val path = ProtoRowProjector.resolvePath(ROOT, fieldPath)
           for (column in composite.columnsList) {
-            record(columnKinds, column, acceptedKinds(path.last()))
+            record(columnKinds, column, ProtoRowProjector.acceptedKinds(path.last()))
           }
           Applier { row, builder ->
             for (column in composite.columnsList) {
               val value = presentValue(row, column) ?: continue
-              setLeaf(builder, path, convert(value, path.last(), column))
+              ProtoRowProjector.setLeaf(
+                builder,
+                path,
+                ProtoRowProjector.convert(value, path.last(), column),
+              )
               return@Applier
             }
           }
@@ -184,9 +186,7 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
       }
     }
 
-    /**
-     * Records [column] -> the kinds accepted for it, intersecting when a column is mapped twice.
-     */
+    /** Records [column] -> the kinds accepted for it, intersecting when a column is mapped twice. */
     private fun record(
       columnKinds: MutableMap<String, Set<KindCase>>,
       column: String,
@@ -195,41 +195,16 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
       columnKinds[column] = columnKinds[column]?.let { it intersect kinds } ?: kinds
     }
 
-    /** The [ParquetValue.KindCase]s [convert] accepts for the leaf field [fd]. */
-    private fun acceptedKinds(fd: FieldDescriptor): Set<KindCase> =
-      when (fd.javaType) {
-        JavaType.INT,
-        JavaType.LONG -> INTEGRAL_KINDS
-        JavaType.FLOAT,
-        JavaType.DOUBLE -> FLOATING_KINDS
-        JavaType.BOOLEAN -> setOf(KindCase.BOOL_VALUE)
-        JavaType.STRING -> setOf(KindCase.STRING_VALUE)
-        JavaType.BYTE_STRING -> setOf(KindCase.BYTES_VALUE)
-        JavaType.ENUM -> setOf(KindCase.STRING_VALUE, KindCase.INT32_VALUE, KindCase.UINT32_VALUE)
-        else ->
-          throw IllegalArgumentException(
-            "Unsupported leaf field type ${fd.javaType} for ${fd.fullName}"
-          )
-      }
-
     /** The [ParquetValue.KindCase]s accepted for an [ageRange]'s source column(s). */
     private fun ageColumnKinds(ageRange: AgeRange): Set<KindCase> =
       when (ageRange.sourceCase) {
         AgeRange.SourceCase.BUCKET_LOOKUP -> setOf(KindCase.STRING_VALUE)
-        else -> INTEGRAL_KINDS
+        else -> ProtoRowProjector.INTEGRAL_KINDS
       }
 
     /** The row's [ParquetValue] for [column], or null when the column is absent or SQL NULL. */
     private fun presentValue(row: Map<String, ParquetValue>, column: String): ParquetValue? =
       row[column]?.takeIf { it.kindCase != KindCase.KIND_NOT_SET }
-
-    private fun setLeaf(builder: LabelerInput.Builder, path: List<FieldDescriptor>, value: Any) {
-      var owner: Message.Builder = builder
-      for (i in 0 until path.size - 1) {
-        owner = owner.getFieldBuilder(path[i])
-      }
-      owner.setField(path.last(), value)
-    }
 
     private fun ageRangeColumns(ageRange: AgeRange, fieldPath: String): List<String> =
       when (ageRange.sourceCase) {
@@ -252,7 +227,7 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
           AgeRange.SourceCase.SINGLE_AGE_COLUMN -> {
             val column = ageRange.singleAgeColumn
             val value = presentValue(row, column) ?: return
-            val age = asLong(value, column).toIntExact(column)
+            val age = age(value, column)
             age to age
           }
           AgeRange.SourceCase.MIN_MAX_COLUMNS -> {
@@ -261,14 +236,17 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
             val minValue = presentValue(row, minColumn)
             val maxValue = presentValue(row, maxColumn)
             if (minValue == null && maxValue == null) return
-            val min = minValue?.let { asLong(it, minColumn).toIntExact(minColumn) } ?: 0
-            val max = maxValue?.let { asLong(it, maxColumn).toIntExact(maxColumn) } ?: 0
+            val min = minValue?.let { age(it, minColumn) } ?: 0
+            val max = maxValue?.let { age(it, maxColumn) } ?: 0
             min to max
           }
           AgeRange.SourceCase.BUCKET_LOOKUP -> {
             val lookup = ageRange.bucketLookup
             val value = presentValue(row, lookup.column) ?: return
-            val key = requireKind(value, lookup.column, KindCase.STRING_VALUE) { it.stringValue }
+            require(value.kindCase == KindCase.STRING_VALUE) {
+              "age bucket column '${lookup.column}' (${value.kindCase}) must be a string"
+            }
+            val key = value.stringValue
             if (key.isEmpty()) return
             val bucket =
               lookup.bucketTableMap[key]
@@ -283,7 +261,7 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
           }
           AgeRange.SourceCase.SOURCE_NOT_SET -> return
         }
-      var owner: Message.Builder = builder
+      var owner: com.google.protobuf.Message.Builder = builder
       for (i in 0 until path.size - 1) {
         owner = owner.getFieldBuilder(path[i])
       }
@@ -294,147 +272,18 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
       owner.setField(path.last(), ageBuilder.build())
     }
 
+    /** Reads a non-negative age from an integral [value], via the shared coercion. */
+    private fun age(value: ParquetValue, column: String): Int {
+      val longValue = ProtoRowProjector.asLong(value, column)
+      require(longValue in 0L..Int.MAX_VALUE.toLong()) {
+        "Column '$column' age $longValue is out of range for a uint32 age field"
+      }
+      return longValue.toInt()
+    }
+
     private fun requireField(descriptor: Descriptor, name: String): FieldDescriptor =
       requireNotNull(descriptor.findFieldByName(name)) {
         "age message ${descriptor.fullName} has no '$name' field"
       }
-
-    /** Resolves a dot-separated [fieldPath] whose leaf is a singular scalar or enum field. */
-    private fun resolveScalarPath(fieldPath: String): List<FieldDescriptor> =
-      resolvePath(fieldPath) { field ->
-        require(!field.isRepeated && field.javaType != JavaType.MESSAGE) {
-          "Leaf segment in '$fieldPath' must be a singular scalar or enum field"
-        }
-      }
-
-    /** Resolves a dot-separated [fieldPath] whose leaf is a singular message field (e.g. age). */
-    private fun resolveMessagePath(fieldPath: String): List<FieldDescriptor> =
-      resolvePath(fieldPath) { field ->
-        require(!field.isRepeated && field.javaType == JavaType.MESSAGE) {
-          "Leaf segment in '$fieldPath' must be a singular message field"
-        }
-      }
-
-    private inline fun resolvePath(
-      fieldPath: String,
-      validateLeaf: (FieldDescriptor) -> Unit,
-    ): List<FieldDescriptor> {
-      require(fieldPath.isNotEmpty()) { "Empty labeler-input field path" }
-      val segments = fieldPath.split('.')
-      val path = ArrayList<FieldDescriptor>(segments.size)
-      var current: Descriptor = LabelerInput.getDescriptor()
-      for ((index, name) in segments.withIndex()) {
-        val field =
-          requireNotNull(current.findFieldByName(name)) {
-            "Unknown field '$name' in labeler-input field path '$fieldPath'"
-          }
-        val isLast = index == segments.size - 1
-        if (!isLast) {
-          require(field.javaType == JavaType.MESSAGE && !field.isRepeated) {
-            "Intermediate segment '$name' in '$fieldPath' must be a singular message field"
-          }
-          current = field.messageType
-        } else {
-          validateLeaf(field)
-        }
-        path.add(field)
-      }
-      return path
-    }
-
-    /**
-     * Converts a [ParquetValue] to the Java value expected by [Message.Builder.setField] for [fd].
-     */
-    private fun convert(value: ParquetValue, fd: FieldDescriptor, column: String): Any {
-      return when (fd.javaType) {
-        JavaType.INT -> {
-          val longValue = asLong(value, column)
-          if (fd.type == FieldDescriptor.Type.UINT32 || fd.type == FieldDescriptor.Type.FIXED32) {
-            require(longValue in 0L..0xFFFFFFFFL) {
-              "Column '$column' value $longValue is out of range for unsigned 32-bit field " +
-                fd.fullName
-            }
-            longValue.toInt()
-          } else {
-            longValue.toIntExact(column)
-          }
-        }
-        JavaType.LONG -> asLong(value, column)
-        JavaType.FLOAT -> asDouble(value, column).toFloat()
-        JavaType.DOUBLE -> asDouble(value, column)
-        JavaType.BOOLEAN -> requireKind(value, column, KindCase.BOOL_VALUE) { it.boolValue }
-        JavaType.STRING -> requireKind(value, column, KindCase.STRING_VALUE) { it.stringValue }
-        JavaType.BYTE_STRING -> requireKind(value, column, KindCase.BYTES_VALUE) { it.bytesValue }
-        JavaType.ENUM -> {
-          when (value.kindCase) {
-            KindCase.STRING_VALUE ->
-              requireNotNull(fd.enumType.findValueByName(value.stringValue)) {
-                "Column '$column' value '${value.stringValue}' is not a ${fd.enumType.name} enum name"
-              }
-            KindCase.INT32_VALUE,
-            KindCase.UINT32_VALUE ->
-              requireNotNull(
-                fd.enumType.findValueByNumber(asLong(value, column).toIntExact(column))
-              ) {
-                "Column '$column' has no ${fd.enumType.name} enum value for number"
-              }
-            else ->
-              throw IllegalArgumentException(
-                "Column '$column' (${value.kindCase}) cannot map to enum field ${fd.fullName}"
-              )
-          }
-        }
-        else ->
-          throw IllegalArgumentException(
-            "Unsupported leaf field type ${fd.javaType} for ${fd.fullName} (column '$column')"
-          )
-      }
-    }
-
-    /** Coerces an integral / timestamp [ParquetValue] to a [Long]. */
-    private fun asLong(value: ParquetValue, column: String): Long =
-      when (value.kindCase) {
-        KindCase.INT32_VALUE -> value.int32Value.toLong()
-        KindCase.INT64_VALUE -> value.int64Value
-        KindCase.UINT32_VALUE -> value.uint32Value.toLong() and 0xFFFFFFFFL
-        KindCase.UINT64_VALUE -> value.uint64Value
-        KindCase.TIMESTAMP_VALUE ->
-          value.timestampValue.seconds * 1_000_000L + value.timestampValue.nanos / 1_000L
-        else ->
-          throw IllegalArgumentException(
-            "Column '$column' (${value.kindCase}) is not an integral value"
-          )
-      }
-
-    private fun asDouble(value: ParquetValue, column: String): Double =
-      when (value.kindCase) {
-        KindCase.FLOAT_VALUE -> value.floatValue.toDouble()
-        KindCase.DOUBLE_VALUE -> value.doubleValue
-        KindCase.INT32_VALUE -> value.int32Value.toDouble()
-        KindCase.INT64_VALUE -> value.int64Value.toDouble()
-        else ->
-          throw IllegalArgumentException(
-            "Column '$column' (${value.kindCase}) is not a floating-point value"
-          )
-      }
-
-    private inline fun <T> requireKind(
-      value: ParquetValue,
-      column: String,
-      expected: KindCase,
-      extract: (ParquetValue) -> T,
-    ): T {
-      require(value.kindCase == expected) {
-        "Column '$column' (${value.kindCase}) does not match expected $expected"
-      }
-      return extract(value)
-    }
-
-    private fun Long.toIntExact(column: String): Int {
-      require(this in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) {
-        "Column '$column' value $this overflows a 32-bit int field"
-      }
-      return toInt()
-    }
   }
 }
