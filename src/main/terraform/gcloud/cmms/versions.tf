@@ -18,6 +18,10 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 6.50.0"
     }
+    google-beta = {
+      source  = "hashicorp/google-beta"
+      version = "~> 6.50.0"
+    }
     postgresql = {
       source  = "cyrilgdn/postgresql"
       version = "~> 1.19.0"

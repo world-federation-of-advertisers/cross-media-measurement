@@ -485,6 +485,18 @@ resource "google_service_account_iam_member" "terraform_sa_act_as_self" {
   member             = "serviceAccount:${var.terraform_service_account}"
 }
 
+# Terraform SA needs roleAdmin to manage the dashboardComplianceChecker custom
+# role. Mirrors terraform_sa_act_as_self above. Without this, terraform fails
+# on a fresh project with: "Unable to verify whether custom project role ...
+# already exists and must be undeleted" (the get-before-create call returns
+# 403 to the terraform SA).
+resource "google_project_iam_member" "terraform_role_admin" {
+  project = data.google_client_config.default.project
+  role    = "roles/iam.roleAdmin"
+  member  = "serviceAccount:${var.terraform_service_account}"
+}
+
+
 # --- Scheduled Queries (materialize Spanner data into BigQuery tables) ---
 
 resource "google_bigquery_data_transfer_config" "requisition_overview" {
@@ -716,12 +728,26 @@ resource "google_bigquery_connection_iam_member" "terraform_reporting_postgres_c
   member        = "serviceAccount:${var.terraform_service_account}"
 }
 
+# Force-provision the BigQuery Connection service agent. This service-managed
+# service account ("service-${project_number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com")
+# is created on-demand by GCP the first time a project uses the BigQuery
+# Connection API. Without this resource, the IAM bindings below fail on a
+# freshly-bootstrapped project with: "Service account
+# service-${project_number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com
+# does not exist."
+resource "google_project_service_identity" "bigqueryconnection" {
+  provider = google-beta
+  project  = data.google_client_config.default.project
+  service  = "bigqueryconnection.googleapis.com"
+}
+
 # The BigQuery Connection service agent needs cloudsql.client to read the
 # reporting Postgres via the Cloud SQL connection.
 resource "google_project_iam_member" "reporting_postgres_conn_client" {
   project = data.google_client_config.default.project
   role    = "roles/cloudsql.client"
   member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
+  depends_on = [google_project_service_identity.bigqueryconnection]
 }
 
 
@@ -734,6 +760,7 @@ resource "google_spanner_database_iam_member" "edp_aggregator_conn_reader" {
   database = "edp-aggregator"
   role     = "roles/spanner.databaseReaderWithDataBoost"
   member   = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
+  depends_on = [google_project_service_identity.bigqueryconnection]
 }
 
 resource "google_spanner_database_iam_member" "kingdom_conn_reader" {
@@ -742,6 +769,7 @@ resource "google_spanner_database_iam_member" "kingdom_conn_reader" {
   database = "kingdom"
   role     = "roles/spanner.databaseReaderWithDataBoost"
   member   = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
+  depends_on = [google_project_service_identity.bigqueryconnection]
 }
 
 resource "google_spanner_database_iam_member" "reporting_conn_reader" {
@@ -750,6 +778,7 @@ resource "google_spanner_database_iam_member" "reporting_conn_reader" {
   database = "reporting"
   role     = "roles/spanner.databaseReaderWithDataBoost"
   member   = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
+  depends_on = [google_project_service_identity.bigqueryconnection]
 }
 
 # Terraform SA needs dataEditor on dashboard dataset for scheduled query writes
@@ -868,6 +897,7 @@ resource "google_project_iam_custom_role" "dashboard_compliance" {
     "bigquery.connections.get",
     "bigquery.connections.list",
   ]
+  depends_on = [google_project_iam_member.terraform_role_admin]
 }
 
 resource "google_project_iam_member" "dashboard_compliance_role" {
