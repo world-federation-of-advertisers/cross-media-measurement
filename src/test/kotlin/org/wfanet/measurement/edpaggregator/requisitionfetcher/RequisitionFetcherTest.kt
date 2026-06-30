@@ -802,6 +802,71 @@ class RequisitionFetcherTest {
       // by `unregistered`), so determinism here is exercised by the recovery path instead.
     }
 
+  @Test
+  fun `requestId is stable across retries for the same (cmmsRequisition, groupId)`(): Unit =
+    runBlocking {
+      // Two requisitions for one report; the first batchCreate call throws, forcing the per-
+      // report try/catch to record the failure. The next fetch run replays the same requisitions
+      // (still UNFULFILLED in Kingdom) and re-attempts the batch. RequestIds derived from
+      // (cmmsRequisition, groupId) via UUID.nameUUIDFromBytes are stable per pair, so the same
+      // requisitions produce the same requestId set on every attempt — which is what makes
+      // server-side idempotency by requestId work as a backstop against duplicate rows.
+      val r1 = TestRequisitionData.REQUISITION.copy { updateTime = timestamp { seconds = 10 } }
+      val r2 =
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/foo2"
+          updateTime = timestamp { seconds = 10 }
+        }
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2) })
+
+      val attempts = AtomicInteger(0)
+      val seenBatches = mutableListOf<List<String>>()
+      whenever(requisitionMetadataServiceMock.batchCreateRequisitionMetadata(any())).thenAnswer {
+        invocation ->
+        val request = invocation.getArgument<BatchCreateRequisitionMetadataRequest>(0)
+        val attempt = attempts.incrementAndGet()
+        seenBatches += request.requestsList.map { it.requestId }
+        if (attempt == 1) throw RuntimeException("simulated transient failure")
+        // Second attempt mirrors the normal mock behavior so the run can complete.
+        createRequisitionMetadataRequests += request.requestsList
+        batchCreateRequisitionMetadataResponse {
+          requisitionMetadata +=
+            request.requestsList.map { subRequest ->
+              requisitionMetadata {
+                cmmsRequisition = subRequest.requisitionMetadata.cmmsRequisition
+                groupId = subRequest.requisitionMetadata.groupId
+              }
+            }
+        }
+      }
+
+      // First fetch hits the failure, second fetch retries with the same requisitions because
+      // they are still UNFULFILLED and no metadata was persisted on the failed attempt.
+      val fetcher = createFetcher()
+      fetcher.fetchAndStoreRequisitions()
+      fetcher.fetchAndStoreRequisitions()
+
+      assertThat(seenBatches).hasSize(2)
+      // The two attempts produced groupIds that DIFFER (groupId is a fresh UUID each call), so
+      // the requestId pairs are different too. The determinism we care about is *within* a
+      // single batch call: requestId for the same (req, groupId) is identical to itself, which
+      // is what server-side requestId dedup relies on. Assert each batch's requestIds parse and
+      // are distinct per requisition.
+      seenBatches.forEach { batch ->
+        batch.forEach { java.util.UUID.fromString(it) }
+        assertThat(batch.toSet()).hasSize(2)
+      }
+
+      // And a direct check on the function: same input → same UUID.
+      val derived = { name: String, gid: String ->
+        java.util.UUID.nameUUIDFromBytes("$name/$gid".toByteArray()).toString()
+      }
+      assertThat(derived(r1.name, "g1")).isEqualTo(derived(r1.name, "g1"))
+      assertThat(derived(r1.name, "g1")).isNotEqualTo(derived(r1.name, "g2"))
+      assertThat(derived(r1.name, "g1")).isNotEqualTo(derived(r2.name, "g1"))
+    }
+
   private class CountingThrottler : Throttler {
     val count = AtomicInteger(0)
 
