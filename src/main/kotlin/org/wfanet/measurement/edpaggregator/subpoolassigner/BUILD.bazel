@@ -14,8 +14,8 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "labeler_pool_emit_labeler",
-    srcs = ["LabelerPoolEmitLabeler.kt"],
+    name = "virtual_people_pool_emit_labeler",
+    srcs = ["VirtualPeoplePoolEmitLabeler.kt"],
     deps = [
         ":pool_emit_labeler",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
