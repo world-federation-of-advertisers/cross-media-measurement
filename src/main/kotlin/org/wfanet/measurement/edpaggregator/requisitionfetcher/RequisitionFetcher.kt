@@ -742,9 +742,12 @@ class RequisitionFetcher(
                   requisitionMetadata = buildRequisitionMetadata(requisition, groupId, reportId)
                   // Deterministic so a same-run retry of the same batch is server-side
                   // idempotent: matching requestId returns the existing row instead of
-                  // ALREADY_EXISTS on (cmmsRequisition, groupId). See server dedup paths in
-                  // RequisitionMetadata.kt:425-475.
-                  requestId = "${requisition.name}/$groupId"
+                  // ALREADY_EXISTS on (cmmsRequisition, groupId). The server requires
+                  // request_id to parse as a UUID (RequisitionMetadataService.kt
+                  // validateRequisitionMetadataRequest), so derive a UUID v3 from the
+                  // (cmmsRequisition, groupId) pair via name-based hashing — stable per pair.
+                  requestId =
+                    UUID.nameUUIDFromBytes("${requisition.name}/$groupId".toByteArray()).toString()
                 }
               }
           }

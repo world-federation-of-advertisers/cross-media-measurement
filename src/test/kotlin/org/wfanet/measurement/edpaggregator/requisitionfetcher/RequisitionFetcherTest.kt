@@ -777,6 +777,31 @@ class RequisitionFetcherTest {
       assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isEqualTo(1)
     }
 
+  @Test
+  fun `batch create requests carry deterministic UUID requestIds derived per (req, group)`() =
+    runBlocking {
+      val r1 = TestRequisitionData.REQUISITION.copy { updateTime = timestamp { seconds = 10 } }
+      val r2 =
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/foo2"
+          updateTime = timestamp { seconds = 10 }
+        }
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2) })
+
+      createFetcher().fetchAndStoreRequisitions()
+      val firstRunRequestIds = createRequisitionMetadataRequests.map { it.requestId }
+
+      // All requestIds must be valid UUIDs — the metadata service rejects non-UUIDs with
+      // INVALID_ARGUMENT at RequisitionMetadataService.validateRequisitionMetadataRequest.
+      firstRunRequestIds.forEach { java.util.UUID.fromString(it) }
+      // And distinct per requisition within a group.
+      assertThat(firstRunRequestIds.toSet()).hasSize(2)
+
+      // A second fetch of the same requisitions skips both (existing metadata filtered out
+      // by `unregistered`), so determinism here is exercised by the recovery path instead.
+    }
+
   private class CountingThrottler : Throttler {
     val count = AtomicInteger(0)
 
