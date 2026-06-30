@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.crypto.tink.KmsClient
 import java.util.logging.Logger
+import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
@@ -83,6 +84,13 @@ class VidLabeler(
       }
     logger.info("Labeling shard with ${contexts.size} model line(s)")
 
+    // One semaphore per WorkItem (this is one label() call per WorkItem), shared across every
+    // per-file sink. All of a WorkItem's files belong to the same DataProvider and wrap their
+    // output
+    // DEKs against the same KEK, so this caps concurrent KMS key setup across the WorkItem's whole
+    // group fan-out (nModelLines x nFiles) and keeps the shared KEK under Cloud KMS rate limits.
+    val encryptionKeySemaphore = Semaphore(VidLabelingSink.DEFAULT_ENCRYPTION_KEY_PARALLELISM)
+
     // TODO(world-federation-of-advertisers/cross-media-measurement#4010): Switch to file-batching
     // contract. RawImpressionSource currently shards by fingerprint; once VidLabelerApp is wired
     // up, pass VidLabelingJob.raw_impression_upload_files directly and remove fingerprint sharding.
@@ -97,6 +105,7 @@ class VidLabeler(
         storageConfig = storageConfig,
         dataProvider = dataProvider,
         metrics = metrics,
+        encryptionKeySemaphore = encryptionKeySemaphore,
       )
     }
     // TODO(world-federation-of-advertisers/cross-media-measurement#4010): Call
