@@ -26,12 +26,12 @@ import org.wfanet.virtualpeople.common.eventId
 import org.wfanet.virtualpeople.common.labelerInput
 
 @RunWith(JUnit4::class)
-class LabelerPoolEmitLabelerTest {
+class VirtualPeoplePoolEmitLabelerTest {
 
-  private fun build(protoText: String): LabelerPoolEmitLabeler {
+  private fun build(protoText: String): VirtualPeoplePoolEmitLabeler {
     val root = CompiledNode.newBuilder()
     TextFormat.merge(protoText, root)
-    return LabelerPoolEmitLabeler.fromCompiledNodeBlob(root.build().toByteString())
+    return VirtualPeoplePoolEmitLabeler.fromCompiledNodeBlob(root.build().toByteString())
   }
 
   @Test
