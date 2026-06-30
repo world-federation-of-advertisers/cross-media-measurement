@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.subpoolassigner
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.TextFormat
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -61,5 +62,82 @@ class VirtualPeoplePoolEmitLabelerTest {
       )
 
     assertThat(offsets).containsExactly(100L)
+  }
+
+  @Test
+  fun `rankedSize returns the ranked_size of the pool offset`() {
+    val labeler =
+      build(
+        """
+        name: "Root"
+        ranked_population_node {
+          pools { population_offset: 100 total_population: 500 }
+          random_seed: "seed"
+          ranked_size: 200
+          unranked_mode: DISJOINT
+        }
+        """
+          .trimIndent()
+      )
+
+    assertThat(labeler.rankedSize(100L)).isEqualTo(200)
+  }
+
+  @Test
+  fun `rankedSize traverses branch nodes to every ranked leaf`() {
+    val labeler =
+      build(
+        """
+        name: "Root"
+        branch_node {
+          branches {
+            node {
+              ranked_population_node {
+                pools { population_offset: 10 total_population: 100 }
+                random_seed: "a"
+                ranked_size: 40
+                unranked_mode: DISJOINT
+              }
+            }
+            chance: 0.5
+          }
+          branches {
+            node {
+              ranked_population_node {
+                pools { population_offset: 20 total_population: 100 }
+                random_seed: "b"
+                ranked_size: 50
+                unranked_mode: DISJOINT
+              }
+            }
+            chance: 0.5
+          }
+          random_seed: "root"
+        }
+        """
+          .trimIndent()
+      )
+
+    assertThat(labeler.rankedSize(10L)).isEqualTo(40)
+    assertThat(labeler.rankedSize(20L)).isEqualTo(50)
+  }
+
+  @Test
+  fun `rankedSize throws for an unknown pool offset`() {
+    val labeler =
+      build(
+        """
+        name: "Root"
+        ranked_population_node {
+          pools { population_offset: 100 total_population: 500 }
+          random_seed: "seed"
+          ranked_size: 200
+          unranked_mode: DISJOINT
+        }
+        """
+          .trimIndent()
+      )
+
+    assertFailsWith<IllegalArgumentException> { labeler.rankedSize(999L) }
   }
 }
