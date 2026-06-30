@@ -70,6 +70,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
@@ -98,6 +99,9 @@ class VidLabelingDispatcherTest {
   private val poolAssignmentJobService:
     PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase =
     mockService()
+  private val vidLabelingJobService:
+    VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase =
+    mockService()
   private val storageClient: StorageClient = mock()
 
   @get:Rule
@@ -110,6 +114,7 @@ class VidLabelingDispatcherTest {
     addService(rawImpressionUploadModelLineService)
     addService(workItemsService)
     addService(poolAssignmentJobService)
+    addService(vidLabelingJobService)
   }
 
   private val poolAssignmentJobStub by lazy {
@@ -148,6 +153,10 @@ class VidLabelingDispatcherTest {
 
   private val workItemsStub by lazy {
     WorkItemsGrpcKt.WorkItemsCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private val vidLabelingJobStub by lazy {
+    VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val fixedClock: Clock = Clock.fixed(FIXED_NOW, ZoneId.of("UTC"))
@@ -200,6 +209,9 @@ class VidLabelingDispatcherTest {
       poolAssignerQueueName = POOL_ASSIGNER_QUEUE_NAME,
       numberOfShards = NUMBER_OF_SHARDS,
       modelLineConfigs = modelLineConfigs,
+      rawImpressionUploadFileStub = rawImpressionUploadFilesStub,
+      vidLabelingJobStub = vidLabelingJobStub,
+      maxFileBatchSizeBytes = MAX_FILE_BATCH_SIZE_BYTES,
     )
   }
 
@@ -745,6 +757,7 @@ class VidLabelingDispatcherTest {
     private const val RAW_IMPRESSION_UPLOAD_ID = "upload-abc123"
     private const val DONE_BLOB_GENERATION = 12345L
     private const val NUMBER_OF_SHARDS = 2
+    private const val MAX_FILE_BATCH_SIZE_BYTES = 1000L
     private const val QUEUE_NAME = "queues/vid-labeler"
     private const val POOL_ASSIGNER_QUEUE_NAME = "queues/pool-assigner"
 
