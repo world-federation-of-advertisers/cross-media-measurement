@@ -34,6 +34,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -85,6 +87,15 @@ import org.wfanet.virtualpeople.common.copy
  * @param storageConfig storage configuration built from [outputStorageParams].
  * @param dataProvider resource name of the `DataProvider`, used for metric attribution.
  * @param metrics OpenTelemetry instruments for labeling rate, drops, and errors.
+ * @param encryptionKeySemaphore bounds concurrent per-group KMS key-setup work. It must be **shared
+ *   across all sinks of one WorkItem** (one model line generates one output group per file, and the
+ *   non-memoized path bundles many model lines, so a WorkItem fans out `nModelLines * nFiles`
+ *   groups — each doing a KMS roundtrip to wrap its output DEK). Because every file in a WorkItem
+ *   belongs to the same `DataProvider` and therefore wraps against the same KEK, an unbounded
+ *   fan-out would burst that one KEK past Cloud KMS's per-project rate limits. [VidLabeler] owns
+ *   the per-WorkItem instance (one `VidLabeler.label()` call per WorkItem) and passes it to every
+ *   sink; the permit covers only the short key-setup phase, never the long streaming write, so it
+ *   can never stall a started blob stream.
  */
 class VidLabelingSink(
   private val inputBlobUri: String,
@@ -96,6 +107,7 @@ class VidLabelingSink(
   private val storageConfig: StorageConfig,
   private val dataProvider: String,
   private val metrics: VidLabelerMetrics,
+  private val encryptionKeySemaphore: Semaphore,
 ) : RawImpressionSource.BlobSink {
 
   /**
@@ -134,11 +146,14 @@ class VidLabelingSink(
             continue
           }
 
-          // Memoized path: attach the impression's pre-computed rank(s) (keyed by its EventIdDigest)
-          // so the model's RankedPopulationNode leaf derives a collision-free VID via Feistel. All of
+          // Memoized path: attach the impression's pre-computed rank(s) (keyed by its
+          // EventIdDigest)
+          // so the model's RankedPopulationNode leaf derives a collision-free VID via Feistel. All
+          // of
           // the fingerprint's per-subpool ranks are attached (a fingerprint can route to several
           // subpools across impressions); the leaf selects the one matching its own pool_offset. No
-          // match (overflow / unseen) leaves the input untouched and the leaf falls back to hashing.
+          // match (overflow / unseen) leaves the input untouched and the leaf falls back to
+          // hashing.
           val ranks = context.rankIndex?.lookup(digestedEvent.digest).orEmpty()
           val labelerInput =
             if (ranks.isEmpty()) {
@@ -258,25 +273,31 @@ class VidLabelingSink(
     }
 
     private suspend fun runWriter() {
-      val serializedEncryptionKey =
-        EncryptedStorage.generateSerializedEncryptionKey(
-          encryptKmsClient,
-          encryptKekUri,
-          TINK_KEY_TEMPLATE,
-        )
-      outputEncryptedDek = encryptedDek {
-        kekUri = encryptKekUri
-        ciphertext = serializedEncryptionKey
-        protobufFormat = EncryptedDek.ProtobufFormat.BINARY
-        typeUrl = TINK_KEYSET_TYPE_URL
-      }
+      // Generate-and-wrap the output DEK (a KMS roundtrip) and build the envelope-encrypting
+      // client under [encryptionKeySemaphore] so the WorkItem's group fan-out cannot burst the
+      // shared KEK past Cloud KMS rate limits. The permit guards only this short setup, not the
+      // streaming write below, so holding it can never stall another group's blob stream.
       val aeadStorageClient =
-        SelectedStorageClient(
-            SelectedStorageClient.parseBlobUri(outputBlobUri),
-            storageConfig.rootDirectory,
-            storageConfig.projectId,
-          )
-          .withEnvelopeEncryption(encryptKmsClient, encryptKekUri, serializedEncryptionKey)
+        encryptionKeySemaphore.withPermit {
+          val serializedEncryptionKey =
+            EncryptedStorage.generateSerializedEncryptionKey(
+              encryptKmsClient,
+              encryptKekUri,
+              TINK_KEY_TEMPLATE,
+            )
+          outputEncryptedDek = encryptedDek {
+            kekUri = encryptKekUri
+            ciphertext = serializedEncryptionKey
+            protobufFormat = EncryptedDek.ProtobufFormat.BINARY
+            typeUrl = TINK_KEYSET_TYPE_URL
+          }
+          SelectedStorageClient(
+              SelectedStorageClient.parseBlobUri(outputBlobUri),
+              storageConfig.rootDirectory,
+              storageConfig.projectId,
+            )
+            .withEnvelopeEncryption(encryptKmsClient, encryptKekUri, serializedEncryptionKey)
+        }
       try {
         // TODO(world-federation-of-advertisers/cross-media-measurement#3999): Add ifGenerationMatch
         // (write-if-absent) to prevent overwrite races on Pub/Sub redelivery.
@@ -381,6 +402,14 @@ class VidLabelingSink(
   companion object {
     private val logger = Logger.getLogger(VidLabelingSink::class.java.name)
 
+    /**
+     * Default permit count for the per-WorkItem [encryptionKeySemaphore]: the maximum number of
+     * output-group DEKs wrapped against a `DataProvider`'s KEK concurrently across all of a
+     * WorkItem's files. Sized to comfortably stay under Cloud KMS per-project request quotas while
+     * keeping key setup off the critical path. Mirrors
+     * `MemoizedRankIndex.DEFAULT_READER_PARALLELISM` on the read side.
+     */
+    const val DEFAULT_ENCRYPTION_KEY_PARALLELISM = 16
     private const val NANOS_PER_SECOND = 1_000_000_000L
     private const val TINK_KEY_TEMPLATE = "AES128_GCM_HKDF_1MB"
     private const val TINK_KEYSET_TYPE_URL = "type.googleapis.com/google.crypto.tink.Keyset"
