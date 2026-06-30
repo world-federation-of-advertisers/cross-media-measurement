@@ -35,3 +35,25 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
     ],
 )
+
+kt_jvm_test(
+    name = "BaseVidLabelingTeeAppRunnerTest",
+    srcs = ["BaseVidLabelingTeeAppRunnerTest.kt"],
+    # BaseTeeAppRunner static-init runs EdpaTelemetry autoconfigure; disable the OTel SDK so the
+    # in-process runner constructs without an OTLP exporter on the test classpath.
+    jvm_flags = ["-Dotel.sdk.disabled=true"],
+    test_class = "org.wfanet.measurement.edpaggregator.BaseVidLabelingTeeAppRunnerTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:base_vid_labeling_tee_app_runner",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//imports/java/org/apache/hadoop:hadoop_client_api",
+        "@wfa_common_jvm//imports/java/org/apache/hadoop:hadoop_client_runtime",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:parquet_storage_client",
+        "@wfa_common_jvm//src/main/proto/wfa/measurement/storage:parquet_row_kt_jvm_proto",
+    ],
+)
