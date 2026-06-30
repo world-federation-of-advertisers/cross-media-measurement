@@ -206,6 +206,132 @@ class RankAllocatorTest {
     assertThat(allocator.overflow).isEqualTo(1)
   }
 
+  @Test
+  fun `assignBackfill allocates a new rank for a fingerprint in neither snapshot`() {
+    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100, eventDay = EVENT_DAY)
+
+    val label = allocator.assignBackfill(1L, 0, oldRank = Bytes12IntMap.NOT_PRESENT)
+
+    assertThat(label).isEqualTo(0)
+    assertThat(allocator.get(1L, 0)).isEqualTo(0)
+    assertThat(allocator.allocated).isEqualTo(1)
+    assertThat(allocator.backfillReusedOldRank).isEqualTo(0)
+  }
+
+  @Test
+  fun `assignBackfill takes a free old rank back into both the cumulative and day-only`() =
+    runBlocking<Unit> {
+      val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100, eventDay = EVENT_DAY)
+      allocator.loadEntry(2L, 0, rank = 0, lastSeenDay = 90) // someone else at rank 0; rank 5 free
+
+      val label = allocator.assignBackfill(1L, 0, oldRank = 5)
+
+      assertThat(label).isEqualTo(5)
+      assertThat(allocator.get(1L, 0)).isEqualTo(5) // cumulative took the old rank back
+      assertThat(allocator.allocated).isEqualTo(1)
+      assertThat(allocator.backfillReusedOldRank).isEqualTo(1)
+      assertThat(allocator.backfillRankCollisions).isEqualTo(0)
+      assertThat(allocator.streamDayOnlyChunks().toList().flatMap { it.ranksList })
+        .containsExactly(5)
+    }
+
+  @Test
+  fun `assignBackfill labels with the old rank but takes a fresh cumulative rank when it is taken`() {
+    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100, eventDay = EVENT_DAY)
+    allocator.loadEntry(2L, 0, rank = 5, lastSeenDay = 90) // a different fp already holds rank 5
+
+    val label = allocator.assignBackfill(1L, 0, oldRank = 5)
+
+    assertThat(label).isEqualTo(5) // day-only still labels with the original rank
+    assertThat(allocator.get(1L, 0)).isEqualTo(0) // cumulative gets a fresh free rank instead
+    assertThat(allocator.allocated).isEqualTo(1)
+    assertThat(allocator.backfillReusedOldRank).isEqualTo(1)
+    assertThat(allocator.backfillRankCollisions).isEqualTo(0) // not in the latest snapshot
+  }
+
+  @Test
+  fun `assignBackfill keeps the latest rank when the fingerprint has no old rank`() {
+    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100, eventDay = EVENT_DAY)
+    allocator.loadEntry(1L, 0, rank = 2, lastSeenDay = 90)
+
+    val label = allocator.assignBackfill(1L, 0, oldRank = Bytes12IntMap.NOT_PRESENT)
+
+    assertThat(label).isEqualTo(2)
+    assertThat(allocator.get(1L, 0)).isEqualTo(2)
+    assertThat(allocator.renewed).isEqualTo(1)
+    assertThat(allocator.backfillReusedOldRank).isEqualTo(0)
+    // last_seen is refreshed upward to the dispatch's eventDay (never lowered).
+    assertThat(allocator.lastSeenOf(2)).isEqualTo(EVENT_DAY)
+  }
+
+  @Test
+  fun `assignBackfill keeps the latest rank and labels with the matching old rank`() =
+    runBlocking<Unit> {
+      val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100, eventDay = EVENT_DAY)
+      allocator.loadEntry(1L, 0, rank = 5, lastSeenDay = 90) // latest rank == old rank
+
+      val label = allocator.assignBackfill(1L, 0, oldRank = 5)
+
+      assertThat(label).isEqualTo(5)
+      assertThat(allocator.get(1L, 0)).isEqualTo(5)
+      assertThat(allocator.renewed).isEqualTo(1)
+      assertThat(allocator.backfillReusedOldRank).isEqualTo(1)
+      assertThat(allocator.backfillRankCollisions).isEqualTo(0) // old == latest, no divergence
+      assertThat(allocator.streamDayOnlyChunks().toList().flatMap { it.ranksList })
+        .containsExactly(5)
+    }
+
+  @Test
+  fun `assignBackfill counts a collision when the old rank differs from the latest rank`() =
+    runBlocking<Unit> {
+      val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100, eventDay = EVENT_DAY)
+      allocator.loadEntry(1L, 0, rank = 8, lastSeenDay = 90) // latest rank 8, old rank 5
+
+      val label = allocator.assignBackfill(1L, 0, oldRank = 5)
+
+      assertThat(label).isEqualTo(5) // day-only labels with the old rank
+      assertThat(allocator.get(1L, 0)).isEqualTo(8) // cumulative keeps the latest rank
+      assertThat(allocator.renewed).isEqualTo(1)
+      assertThat(allocator.backfillReusedOldRank).isEqualTo(1)
+      assertThat(allocator.backfillRankCollisions).isEqualTo(1)
+      assertThat(allocator.streamDayOnlyChunks().toList().flatMap { it.ranksList })
+        .containsExactly(5)
+    }
+
+  @Test
+  fun `assignBackfill overflows when the subpool is full and the fingerprint is new`() {
+    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 1, eventDay = EVENT_DAY)
+    allocator.loadEntry(2L, 0, rank = 0, lastSeenDay = 90) // subpool full
+
+    val label = allocator.assignBackfill(1L, 0, oldRank = Bytes12IntMap.NOT_PRESENT)
+
+    assertThat(label).isNull()
+    assertThat(allocator.overflow).isEqualTo(1)
+  }
+
+  @Test
+  fun `assignBackfill treats an out-of-range old rank as no old rank`() {
+    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 3, eventDay = EVENT_DAY)
+
+    // oldRank 9 is outside [0, 3) (e.g. ranked_size shrank): ignored, fingerprint allocated fresh.
+    val label = allocator.assignBackfill(1L, 0, oldRank = 9)
+
+    assertThat(label).isEqualTo(0)
+    assertThat(allocator.get(1L, 0)).isEqualTo(0)
+    assertThat(allocator.backfillReusedOldRank).isEqualTo(0)
+  }
+
+  @Test
+  fun `assignBackfill never lowers last_seen with an older backfill date`() {
+    // eventDay 80 is the (older) backfill date; the fingerprint's stored recency is the newer 90.
+    val allocator = RankAllocator(poolOffset = 7L, rankedSize = 100, eventDay = 80)
+    allocator.loadEntry(1L, 0, rank = 2, lastSeenDay = 90)
+
+    allocator.assignBackfill(1L, 0, oldRank = Bytes12IntMap.NOT_PRESENT)
+
+    assertThat(allocator.lastSeenOf(2)).isEqualTo(90) // kept, not lowered to 80
+  }
+
   private data class Entry(val hi: Long, val lo: Int, val rank: Int, val day: Int)
 
   private fun packFingerprint(hi: Long, lo: Int): com.google.protobuf.ByteString {

@@ -157,9 +157,317 @@ class PostProcessReportResult:
         request = self._create_add_processed_result_values_requests(
             report_summaries, all_updated_measurements)
 
+        # Snaps cross-window equality identities that may have been broken by
+        # per-RSR rounding (e.g. whole_campaign.reach vs. last_cumulative_week
+        # .reach).
+        # TODO(world-federation-of-advertisers/cross-media-measurement#4059):
+        # Add a Rule 5 snap pass here (or in a sibling helper) for
+        # `ami >= [custom, mrc]` across IQF-varying RSRs that share
+        # (reporting_set, venn_region, grouping, event_filters,
+        # metric_frequency_spec).
+        if request is not None:
+            self._reconcile_cross_window_identities(request,
+                                                    reporting_set_results)
+
         logging.info("Successfully added all processed results.")
 
         return request
+
+    @staticmethod
+    def _dimension_key_excluding_metric_frequency_spec(
+            rsr: ReportingSetResult) -> tuple:
+        """Returns a hashable identity key for an RSR's Dimension, ignoring
+        the metric_frequency_spec selector.
+
+        Two RSRs that differ only in metric_frequency_spec describe the same
+        underlying slice (one whole-campaign, the other weekly cumulative) and
+        must agree on the metric values their solver-declared identities
+        require.
+
+        Keys on the server-computed `grouping_dimension_fingerprint` and
+        `filter_fingerprint` (populated by SpannerReportResultsService and
+        used by the `ReportingSetResultsByDimensions` UNIQUE INDEX as the
+        authoritative dim identity). This avoids relying on
+        `SerializeToString()` of nested messages, which Python protobuf does
+        not guarantee deterministic across map iteration orders.
+        """
+        iqf_field = rsr.dimension.WhichOneof(
+            'impression_qualification_filter')
+        if iqf_field == 'external_impression_qualification_filter_id':
+            iqf_key = (
+                'external',
+                rsr.dimension.external_impression_qualification_filter_id)
+        elif iqf_field == 'custom':
+            iqf_key = ('custom', rsr.dimension.custom)
+        else:
+            # Unreachable for valid persisted data: SpannerReportResults
+            # Service.validate() rejects RSRs whose IQF oneof is unset.
+            # Reaching here means either that validator was bypassed or
+            # a new IQF variant was added to the proto without updating
+            # this dim-key code -- in the latter case a silent fall
+            # through to a generic 'none' key would collide a new-variant
+            # RSR with an unset-IQF RSR (or each other), causing
+            # mis-reconciliation. Fail loud so the proto-evolution
+            # contributor is forced to update this function.
+            raise ValueError(
+                f"Unknown impression_qualification_filter oneof variant "
+                f"{iqf_field!r} on ReportingSetResult "
+                f"{rsr.external_reporting_set_result_id}; update "
+                "_dimension_key_excluding_metric_frequency_spec to "
+                "handle the new variant.")
+
+        return (
+            rsr.dimension.external_reporting_set_id,
+            rsr.dimension.venn_diagram_region_type,
+            iqf_key,
+            rsr.grouping_dimension_fingerprint,
+            rsr.filter_fingerprint,
+        )
+
+    def _reconcile_cross_window_identities(
+        self,
+        request: AddProcessedResultValuesRequest,
+        reporting_set_results: list[ReportingSetResult],
+    ) -> None:
+        """Reconciles cumulative-reach identities across the
+        whole-campaign and weekly RSRs of each underlying dimension.
+
+        Runs three passes per dim, each enforcing an Issue #4049
+        invariant that independent per-RSR rounding can otherwise
+        break:
+
+        1. Cross-window snap. whole_campaign.reach and the last
+           weekly cumulative reach are constrained to be equal by
+           the QP solver (report.py:_add_cumulative_whole_campaign
+           _relations_to_spec) but rounded independently in
+           post_process_report_summary_v2.process(); the solver
+           TOLERANCE (0.1) can amplify into a 1-unit integer drift.
+           Snap both sides to min(whole_campaign.reach,
+           last_weekly.reach) so neither is pulled upward, which
+           would risk re-breaking sum(k_plus_reach) <= impressions
+           (Rule 4). Skipped (as a no-op) when the values already
+           agree.
+
+        2. Derived-field recompute. _snap_cumulative_reach routes
+           every mutation through _recompute_derived_fields -- the
+           same helper compute_basic_metric_set uses -- so
+           percent_reach, percent_k_plus_reach, average_frequency,
+           and grps stay consistent with the snapped reach. The
+           two derivation paths (construction and mutation) never
+           drift.
+
+        3. Rule 1 sweep. Walks the weekly series newest-to-oldest
+           and clamps any earlier window whose reach exceeds its
+           successor's. Runs unconditionally (not just after a
+           snap-down) so a pre-existing cumulative non-decreasing
+           violation is fixed even when the cross-window snap was
+           a no-op. _snap_cumulative_reach only lowers values, so
+           Rule 4 stays intact and derived fields stay consistent.
+
+        Skip semantics:
+        - Empty total RSR, empty weekly RSR, either side's reach <= 0,
+          or missing population_size: this dim has no cross-window
+          identity to reconcile; warn (where the cause is data-model
+          incomplete) and continue with the next dim.
+
+        Raise semantics (data-model violations that imply upstream
+        corruption -- see Issue #4056):
+        - Two RSRs share dim key + selector kind: the post-processor
+          collapsed two cadences' solver inputs into one and shipped
+          values that do not correspond to either RSR's own
+          measurements. PR #4057 rejects the input shape that
+          produces this; reaching here means the validator was
+          bypassed.
+        - total RSR has > 1 reporting windows: _group_results_by_
+          window misbehaved. A "total" selector covers the full
+          reporting interval, so exactly one window is the data-
+          model contract.
+
+        TODO(world-federation-of-advertisers/cross-media-measurement
+        #4059): Add a Rule 5 snap pass for ami >= [custom, mrc]
+        across IQF-varying RSRs sharing (reporting_set, venn_region,
+        grouping, event_filters, metric_frequency_spec).
+        """
+        # Group reporting_set_result IDs by dimension (excluding the
+        # weekly/total selector) so we can match a whole_campaign RSR
+        # to its corresponding weekly RSR. The dim-key collision case
+        # (same dim + same selector kind, distinct full
+        # metric_frequency values) raises in the loop body below --
+        # see the docstring's "Raise semantics" section.
+        dim_to_rsrs: dict[tuple, dict[str, int | None]] = {}
+        # Population is needed for the derived-field recompute on each snap.
+        population_by_rsr_id: dict[int, int] = {}
+        for rsr in reporting_set_results:
+            population_by_rsr_id[rsr.external_reporting_set_result_id] = (
+                rsr.population_size)
+            dim = rsr.dimension
+            selector = dim.metric_frequency_spec.WhichOneof('selector')
+            if selector not in ('total', 'weekly'):
+                continue
+            key = self._dimension_key_excluding_metric_frequency_spec(rsr)
+            bucket = dim_to_rsrs.setdefault(key, {})
+            if selector in bucket:
+                # Two RSRs that share both the dim key (excluding
+                # metric_frequency_spec) AND the selector kind imply the
+                # upstream data was already corrupted: the post-processor
+                # groups solver input by (impression_filter,
+                # edp_combination) only, so two cadences for the same slice
+                # (e.g. weekly=MONDAY and weekly=TUESDAY) silently
+                # overwrite each other and both RSRs receive processed
+                # values derived from one cadence's solver run -- not just
+                # a 1-unit drift but values that do not correspond to that
+                # RSR's own measurements (Issue #4056). PR #4057 rejects
+                # the only known input shape that produces this at the API
+                # layer, so reaching this branch means the validator was
+                # bypassed or a new input path was added without going
+                # through it. Either way it is a bug and the report should
+                # fail rather than ship inconsistent data.
+                raise ValueError(
+                    "Multiple ReportingSetResults share dimension key "
+                    f"with selector={selector} (ids {bucket[selector]} "
+                    f"and {rsr.external_reporting_set_result_id}); the "
+                    "post-processor cannot disambiguate cadences for the "
+                    "same slice. See Issue #4056.")
+            bucket[selector] = rsr.external_reporting_set_result_id
+
+        for selectors in dim_to_rsrs.values():
+            total_id = selectors.get('total')
+            weekly_id = selectors.get('weekly')
+            if total_id is None or weekly_id is None:
+                continue
+            total = request.reporting_set_results.get(total_id)
+            weekly = request.reporting_set_results.get(weekly_id)
+            if total is None or weekly is None:
+                continue
+            if not total.reporting_window_results:
+                # A 'total' RSR with no reporting windows means the spec
+                # was set but the request-builder had nothing to write
+                # (e.g. all of cumulative_results / non_cumulative_results
+                # / whole_campaign_result were empty for this RSR). There
+                # is no cross-window identity to reconcile in that case --
+                # same category as the whole_reach <= 0 skip below.
+                continue
+            if len(total.reporting_window_results) > 1:
+                # A 'total' selector reports over the full reporting
+                # interval, so _group_results_by_window must produce
+                # exactly one window key. More than one means that helper
+                # itself misbehaved -- a data-model violation, not a
+                # legitimate config. Fail rather than ship un-reconciled
+                # data that hides the upstream bug.
+                raise ValueError(
+                    f"Total-selector ReportingSetResult {total_id} has "
+                    f"{len(total.reporting_window_results)} reporting "
+                    "windows (expected 1); _group_results_by_window must "
+                    "produce one window for a 'total' selector.")
+            if not weekly.reporting_window_results:
+                logging.warning(
+                    "Weekly-selector ReportingSetResult %d has no reporting "
+                    "windows; skipping cross-window reconciliation for this "
+                    "dimension.", weekly_id)
+                continue
+            # Sort once and reuse: last_weekly is the highest-end-date
+            # entry, and the Rule 1 sweep below walks the same list
+            # newest-to-oldest. Duplicate end dates would themselves
+            # be a data-model violation; sorted()[-1] resolves ties
+            # to the last duplicate, max() would resolve to the first
+            # -- academic, since the sweep treats them as equal anyway.
+            sorted_weekly = sorted(
+                weekly.reporting_window_results,
+                key=lambda w: (w.key.end.year, w.key.end.month, w.key.end.day),
+            )
+            last_weekly = sorted_weekly[-1]
+            whole = total.reporting_window_results[0]
+            whole_reach = whole.value.cumulative_results.reach
+            last_weekly_reach = last_weekly.value.cumulative_results.reach
+            # reach is a scalar int64 with proto default 0; we cannot
+            # distinguish 'absent' from 'real zero'. If either side has
+            # reach <= 0 (e.g. the total-selector spec did not request
+            # whole-campaign cumulative reach but did request impressions /
+            # GRPs / etc.), snapping to min(...) would zero out the other
+            # sides legitimate reach and cascade through k_plus_reach /
+            # percent_reach / average_frequency. Skip: there is no
+            # cross-window reach identity to reconcile when one side has
+            # no cumulative reach measurement.
+            if whole_reach <= 0 or last_weekly_reach <= 0:
+                logging.info(
+                    'Skipping cross-window reach reconciliation for dim '
+                    '(total=%d weekly=%d): one side has no positive '
+                    'cumulative reach (whole=%d, last_weekly=%d).',
+                    total_id, weekly_id, whole_reach, last_weekly_reach)
+                continue
+            # Population gates everything below: both the cross-window
+            # snap and the Rule 1 sweep mutate via _snap_cumulative_reach,
+            # which needs population to recompute derived fields.
+            total_population = population_by_rsr_id.get(total_id, 0)
+            weekly_population = population_by_rsr_id.get(weekly_id, 0)
+            if total_population <= 0 or weekly_population <= 0:
+                logging.warning(
+                    "Missing population_size for RSR (total=%d weekly=%d); "
+                    "skipping cross-window reconciliation for this dimension.",
+                    total_id, weekly_id)
+                continue
+            # Cross-window snap. Skipping when the values already agree
+            # avoids spurious mutation traffic; the Rule 1 sweep below
+            # runs either way so pre-existing weekly monotonicity
+            # violations (not introduced by the snap) are still caught.
+            if whole_reach != last_weekly_reach:
+                snapped_reach = min(whole_reach, last_weekly_reach)
+                self._snap_cumulative_reach(
+                    whole.value.cumulative_results, snapped_reach,
+                    total_population)
+                self._snap_cumulative_reach(
+                    last_weekly.value.cumulative_results, snapped_reach,
+                    weekly_population)
+            # Rule 1 sweep: walk weekly windows newest-to-oldest and
+            # clamp any earlier window whose reach exceeds its
+            # successor's. Runs unconditionally (not just after a
+            # snap-down) so a pre-existing cumulative non-decreasing
+            # violation in the weekly series is fixed even when the
+            # cross-window reaches happened to agree.
+            # _snap_cumulative_reach only lowers values, so Rule 4
+            # (sum(k_plus_reach) <= impressions) stays intact and
+            # derived fields stay consistent.
+            for i in range(len(sorted_weekly) - 2, -1, -1):
+                later = sorted_weekly[i + 1].value.cumulative_results
+                earlier = sorted_weekly[i].value.cumulative_results
+                if earlier.reach > later.reach:
+                    self._snap_cumulative_reach(earlier, later.reach,
+                                                weekly_population)
+
+    @staticmethod
+    def _snap_cumulative_reach(
+            cumulative_results: BasicMetricSet, snapped_reach: int,
+            population: int) -> None:
+        """Snaps reach (and k_plus_reach[0]) to snapped_reach on one side of a
+        cross-window pair. Re-clamps the rest of k_plus_reach forward so that
+        lowering k_plus_reach[0] does not break the non-increasing invariant
+        established by compute_basic_metric_set (Issue #4049 Rule 3 +
+        k_plus_reach monotonicity). The clamp only lowers buckets, so it
+        cannot re-break sum(k_plus_reach) <= impressions (Rule 4) either.
+
+        After mutating the raw values, derived fields (percent_reach,
+        percent_k_plus_reach, average_frequency, grps) are recomputed from
+        the same helper compute_basic_metric_set uses, so the two derivation
+        paths stay in lock-step (Issue #4049).
+        """
+        cumulative_results.reach = snapped_reach
+        k_plus_reach = cumulative_results.k_plus_reach
+        if k_plus_reach:
+            k_plus_reach[0] = snapped_reach
+            # Unconditional forward-clamp: take min() at every position
+            # rather than breaking when the local pair is already
+            # non-increasing. The early-break form is only safe when the
+            # input is itself non-increasing -- a precondition the helper
+            # currently has (every BasicMetricSet here was built by
+            # compute_basic_metric_set, which enforces it) but the
+            # docstring promises general-purpose forward-clamping. A
+            # future caller passing an unprocessed BasicMetricSet would
+            # silently leak a Rule 3 / monotonicity violation past the
+            # break. Unconditional min() removes the precondition for
+            # the same O(n) cost.
+            for i in range(1, len(k_plus_reach)):
+                k_plus_reach[i] = min(k_plus_reach[i], k_plus_reach[i - 1])
+        _recompute_derived_fields(cumulative_results, population)
 
     def _get_report_result(
             self, cmms_measurement_consumer_id: str,
@@ -505,14 +813,9 @@ def compute_basic_metric_set(
 
     if reach is not None:
         basic_metric_set.reach = reach
-        basic_metric_set.percent_reach = reach / population * 100
 
     if impressions is not None:
         basic_metric_set.impressions = impressions
-        basic_metric_set.grps = impressions / population * 100
-        if basic_metric_set.reach > 0:
-            basic_metric_set.average_frequency = (impressions /
-                                                  basic_metric_set.reach)
 
     if frequency_values is not None:
         k_plus_reach_values = [
@@ -581,7 +884,32 @@ def compute_basic_metric_set(
                         "impressions by this residue.",
                         excess, reach, impressions)
         basic_metric_set.k_plus_reach.extend(k_plus_reach_values)
-        basic_metric_set.percent_k_plus_reach.extend(
-            [val / population * 100 for val in k_plus_reach_values])
 
+    _recompute_derived_fields(basic_metric_set, population)
     return basic_metric_set
+
+
+def _recompute_derived_fields(bms: BasicMetricSet, population: int) -> None:
+    """Single source of truth for BasicMetricSet derived fields.
+
+    percent_X = X / population * 100; average_frequency = impressions / reach;
+    percent_k_plus_reach is rebuilt from k_plus_reach. Call after any
+    mutation of reach, impressions, or k_plus_reach so the two derivation
+    paths (construction in compute_basic_metric_set and post-construction
+    mutation in _snap_cumulative_reach) stay in lock-step (Issue #4049).
+
+    Always assigns (rather than only-on-truthy), so a drop of reach or
+    impressions to zero clears the now-stale percent / average_frequency
+    rather than leaving the old value behind.
+    """
+    if population <= 0:
+        raise ValueError("Population must be a positive number.")
+    bms.percent_reach = bms.reach / population * 100 if bms.reach else 0
+    bms.grps = (bms.impressions / population * 100) if bms.impressions else 0
+    if bms.reach and bms.impressions:
+        bms.average_frequency = bms.impressions / bms.reach
+    else:
+        bms.average_frequency = 0
+    del bms.percent_k_plus_reach[:]
+    bms.percent_k_plus_reach.extend(
+        v / population * 100 for v in bms.k_plus_reach)
