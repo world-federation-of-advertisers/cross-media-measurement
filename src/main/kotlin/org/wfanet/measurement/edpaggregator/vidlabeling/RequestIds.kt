@@ -55,5 +55,14 @@ object RequestIds {
   fun forPoolAssignmentJob(uploadName: String, modelLineName: String, shardIndex: Int): String =
     fromKey("poolAssignmentJob:$uploadName:$modelLineName:$shardIndex")
 
+  /**
+   * `request_id` for marking a `VidLabelingJob` SUCCEEDED.
+   *
+   * Keyed on [vidLabelingJobName] so a Pub/Sub redelivery of the same job's completion reuses the
+   * same id and the server returns the cached result instead of re-transitioning the resource.
+   */
+  fun forMarkVidLabelingJobSucceeded(vidLabelingJobName: String): String =
+    fromKey("markVidLabelingJobSucceeded:$vidLabelingJobName")
+
   private fun fromKey(key: String): String = UUID.nameUUIDFromBytes(key.toByteArray()).toString()
 }
