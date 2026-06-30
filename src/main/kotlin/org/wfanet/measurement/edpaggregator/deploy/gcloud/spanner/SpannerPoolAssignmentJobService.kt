@@ -105,6 +105,13 @@ class SpannerPoolAssignmentJobService(
                 request.requestId,
               )
             if (existing != null) {
+              if (
+                existing.poolAssignmentJob.cmmsModelLine != job.cmmsModelLine ||
+                  existing.poolAssignmentJob.shardIndex != job.shardIndex
+              ) {
+                throw PoolAssignmentJobAlreadyExistsException()
+                  .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+              }
               return@run existing.poolAssignmentJob
             }
           }
@@ -257,6 +264,14 @@ class SpannerPoolAssignmentJobService(
           request.requestsList.map { subRequest ->
             val existing = existingByRequestId[subRequest.requestId]
             if (existing != null) {
+              if (
+                existing.poolAssignmentJob.cmmsModelLine !=
+                  subRequest.poolAssignmentJob.cmmsModelLine ||
+                  existing.poolAssignmentJob.shardIndex != subRequest.poolAssignmentJob.shardIndex
+              ) {
+                throw PoolAssignmentJobAlreadyExistsException()
+                  .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+              }
               existing.poolAssignmentJob
             } else {
               val poolAssignmentJobId =
@@ -395,6 +410,15 @@ class SpannerPoolAssignmentJobService(
     }
   }
 
+  /**
+   * Marks a [PoolAssignmentJob] SUCCEEDED.
+   *
+   * Idempotency contract gap: while `request_id` remains OPTIONAL, a caller that omits it gets
+   * non-idempotent behavior — on retry the replay short-circuit is skipped, the state is already
+   * SUCCEEDED (not in the valid previous states), and the call returns `FAILED_PRECONDITION`.
+   * Callers MUST pass a deterministic non-empty `request_id` until it is made REQUIRED. See
+   * [#4078](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/4078).
+   */
   override suspend fun markPoolAssignmentJobSucceeded(
     request: MarkPoolAssignmentJobSucceededRequest
   ): MarkPoolAssignmentJobSucceededResponse {
