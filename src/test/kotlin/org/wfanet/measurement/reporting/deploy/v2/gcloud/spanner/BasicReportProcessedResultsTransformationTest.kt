@@ -322,10 +322,10 @@ class BasicReportProcessedResultsTransformationTest {
   }
 
   @Test
-  fun `buildResultGroups creates ReportingSet components for custom groups`() {
-    val customGroup1Id = "custom-group-1"
-    val customGroup2Id = "custom-group-2"
-    val customGroupUnionId = "custom-group-union"
+  fun `buildResultGroups creates ReportingSet components for a ReportingSet reporting unit`() {
+    val componentReportingSet1Id = "component-reporting-set-1"
+    val componentReportingSet2Id = "component-reporting-set-2"
+    val unionReportingSetId = "union-reporting-set"
 
     val basicReport = basicReport {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -338,8 +338,8 @@ class BasicReportProcessedResultsTransformationTest {
           reportingUnit = reportingUnit {
             reportingSetKeys =
               ReportingUnitKt.reportingSetKeys {
-                reportingSetKeys += reportingSetKey { externalReportingSetId = customGroup1Id }
-                reportingSetKeys += reportingSetKey { externalReportingSetId = customGroup2Id }
+                reportingSetKeys += reportingSetKey { externalReportingSetId = componentReportingSet1Id }
+                reportingSetKeys += reportingSetKey { externalReportingSetId = componentReportingSet2Id }
               }
           }
           metricFrequency = metricFrequencySpec { total = true }
@@ -375,7 +375,7 @@ class BasicReportProcessedResultsTransformationTest {
           externalReportingSetResultId = 1
           dimension =
             ReportingSetResultKt.dimension {
-              externalReportingSetId = customGroup1Id
+              externalReportingSetId = componentReportingSet1Id
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { total = true }
@@ -408,7 +408,7 @@ class BasicReportProcessedResultsTransformationTest {
           externalReportingSetResultId = 2
           dimension =
             ReportingSetResultKt.dimension {
-              externalReportingSetId = customGroup2Id
+              externalReportingSetId = componentReportingSet2Id
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { total = true }
@@ -435,14 +435,15 @@ class BasicReportProcessedResultsTransformationTest {
                 }
             }
         },
-        // Result for the union composite over the two custom groups (the create side mints this).
+        // Result for the union composite over the two component ReportingSets (the create side
+        // mints this).
         reportingSetResult {
           cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
           externalReportResultId = EXTERNAL_REPORT_RESULT_ID
           externalReportingSetResultId = 3
           dimension =
             ReportingSetResultKt.dimension {
-              externalReportingSetId = customGroupUnionId
+              externalReportingSetId = unionReportingSetId
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { total = true }
@@ -468,7 +469,7 @@ class BasicReportProcessedResultsTransformationTest {
       )
 
     val compositeReportingSetIdBySetExpression =
-      mapOf(buildUnionSetExpression(listOf(customGroup1Id, customGroup2Id)) to customGroupUnionId)
+      mapOf(buildUnionSetExpression(listOf(componentReportingSet1Id, componentReportingSet2Id)) to unionReportingSetId)
 
     val resultGroups =
       buildResultGroups(
@@ -490,11 +491,11 @@ class BasicReportProcessedResultsTransformationTest {
                     ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
-                          externalReportingSetId = customGroup1Id
+                          externalReportingSetId = componentReportingSet1Id
                         }
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
-                          externalReportingSetId = customGroup2Id
+                          externalReportingSetId = componentReportingSet2Id
                         }
                     }
                   cumulativeMetricStartTime = REPORTING_INTERVAL.effectiveReportStart.toTimestamp()
@@ -527,7 +528,7 @@ class BasicReportProcessedResultsTransformationTest {
                     }
                   reportingSetComponents +=
                     ResultGroupKt.MetricSetKt.reportingSetComponentMetricSetMapEntry {
-                      externalReportingSetId = customGroup1Id
+                      externalReportingSetId = componentReportingSet1Id
                       value =
                         ResultGroupKt.MetricSetKt.componentMetricSet {
                           cumulative =
@@ -543,7 +544,7 @@ class BasicReportProcessedResultsTransformationTest {
                     }
                   reportingSetComponents +=
                     ResultGroupKt.MetricSetKt.reportingSetComponentMetricSetMapEntry {
-                      externalReportingSetId = customGroup2Id
+                      externalReportingSetId = componentReportingSet2Id
                       value =
                         ResultGroupKt.MetricSetKt.componentMetricSet {
                           cumulative =

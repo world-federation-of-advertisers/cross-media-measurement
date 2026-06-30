@@ -29,12 +29,19 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingImpressionQualifica
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
+import org.wfanet.measurement.internal.reporting.v2.ReportingUnit
 import org.wfanet.measurement.internal.reporting.v2.ResultGroup
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupSpec
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.resultGroup
+
+/** The type of the resources that a [ReportingUnit]'s components reference. */
+private enum class ReportingUnitComponentType {
+  DATA_PROVIDER,
+  REPORTING_SET,
+}
 
 object BasicReportProcessedResultsTransformation {
   /**
@@ -86,79 +93,92 @@ object BasicReportProcessedResultsTransformation {
 
     return buildList {
       for (resultGroupSpec in basicReport.details.resultGroupSpecsList) {
+        val reportingUnitComponentType =
+          when (resultGroupSpec.reportingUnit.componentsCase) {
+            ReportingUnit.ComponentsCase.DATA_PROVIDER_KEYS ->
+              ReportingUnitComponentType.DATA_PROVIDER
+            ReportingUnit.ComponentsCase.REPORTING_SET_KEYS ->
+              ReportingUnitComponentType.REPORTING_SET
+            ReportingUnit.ComponentsCase.COMPONENTS_NOT_SET ->
+              throw IllegalArgumentException("ReportingUnit components not set")
+          }
+
         val reportingUnitDataProviderIds =
           resultGroupSpec.reportingUnit.dataProviderKeys.dataProviderKeysList.map {
             it.cmmsDataProviderId
           }
-
-        // Mode 2 (custom groups): the reporting_unit components are user-defined ReportingSets
-        // rather than DataProviders. Exactly one of the two lists is populated for a given spec.
         val reportingUnitReportingSetIds =
           resultGroupSpec.reportingUnit.reportingSetKeys.reportingSetKeysList.map {
             it.externalReportingSetId
           }
-        val isCustomGroup = reportingUnitReportingSetIds.isNotEmpty()
 
         // ReportingUnitSummary will be the same for every Result in the ResultGroup.
         val reportingUnitSummary: ResultGroup.MetricMetadata.ReportingUnitSummary =
-          if (isCustomGroup) {
-            buildReportingUnitSummaryForCustomGroups(reportingUnitReportingSetIds)
-          } else {
-            buildReportingUnitSummary(
-              basicReport,
-              reportingUnitDataProviderIds,
-              primitiveInfoByDataProviderId,
-            )
+          when (reportingUnitComponentType) {
+            ReportingUnitComponentType.DATA_PROVIDER ->
+              buildReportingUnitSummary(
+                basicReport,
+                reportingUnitDataProviderIds,
+                primitiveInfoByDataProviderId,
+              )
+            ReportingUnitComponentType.REPORTING_SET ->
+              buildReportingUnitSummaryForReportingSetComponents(reportingUnitReportingSetIds)
           }
 
         // The reporting-unit union / incremental / unique composites are keyed by component
-        // ExternalReportingSetID: the per-DataProvider primitive ID in Mode 1, the custom-group
-        // ReportingSet ID in Mode 2. If the value is blank, it wouldn't be used.
+        // ExternalReportingSetID: the per-DataProvider primitive ID for DataProvider components,
+        // the ReportingSet ID for ReportingSet components. Blank when unused.
         val reportingUnitReportingSetId: String =
-          if (isCustomGroup)
-            getReportingUnitReportingSetIdForCustomGroups(
-              reportingUnitReportingSetIds,
-              compositeReportingSetIdBySetExpression,
-              resultGroupSpec,
-            )
-          else
-            getReportingUnitReportingSetId(
-              reportingUnitDataProviderIds,
-              primitiveInfoByDataProviderId,
-              compositeReportingSetIdBySetExpression,
-              resultGroupSpec,
-            )
+          when (reportingUnitComponentType) {
+            ReportingUnitComponentType.DATA_PROVIDER ->
+              getReportingUnitReportingSetId(
+                reportingUnitDataProviderIds,
+                primitiveInfoByDataProviderId,
+                compositeReportingSetIdBySetExpression,
+                resultGroupSpec,
+              )
+            ReportingUnitComponentType.REPORTING_SET ->
+              getReportingUnitReportingSetIdForReportingSetComponents(
+                reportingUnitReportingSetIds,
+                compositeReportingSetIdBySetExpression,
+                resultGroupSpec,
+              )
+          }
 
         // ExternalReportingSetIDs for StackedIncrementalReach.
         val incrementalReportingSetIds: List<String> =
-          if (isCustomGroup)
-            buildIncrementalReportingSetIdListForCustomGroups(
-              reportingUnitReportingSetIds,
-              compositeReportingSetIdBySetExpression,
-              resultGroupSpec,
-            )
-          else
-            buildIncrementalReportingSetIdList(
-              reportingUnitDataProviderIds,
-              primitiveInfoByDataProviderId,
-              compositeReportingSetIdBySetExpression,
-              resultGroupSpec,
-            )
+          when (reportingUnitComponentType) {
+            ReportingUnitComponentType.DATA_PROVIDER ->
+              buildIncrementalReportingSetIdList(
+                reportingUnitDataProviderIds,
+                primitiveInfoByDataProviderId,
+                compositeReportingSetIdBySetExpression,
+                resultGroupSpec,
+              )
+            ReportingUnitComponentType.REPORTING_SET ->
+              buildIncrementalReportingSetIdListForReportingSetComponents(
+                reportingUnitReportingSetIds,
+                compositeReportingSetIdBySetExpression,
+                resultGroupSpec,
+              )
+          }
 
         val componentReportingSetIdsByComponentId: Map<String, ComponentReportingSetIds> =
-          if (isCustomGroup)
-            buildComponentReportingSetIdsByReportingSetIdMap(
-              reportingUnitReportingSetIds,
-              compositeReportingSetIdBySetExpression,
-              resultGroupSpec,
-            )
-          else
-            buildComponentReportingSetIdsByDataProviderIdMap(
-              reportingUnitDataProviderIds,
-              primitiveInfoByDataProviderId,
-              compositeReportingSetIdBySetExpression,
-              resultGroupSpec,
-            )
+          when (reportingUnitComponentType) {
+            ReportingUnitComponentType.DATA_PROVIDER ->
+              buildComponentReportingSetIdsByDataProviderIdMap(
+                reportingUnitDataProviderIds,
+                primitiveInfoByDataProviderId,
+                compositeReportingSetIdBySetExpression,
+                resultGroupSpec,
+              )
+            ReportingUnitComponentType.REPORTING_SET ->
+              buildComponentReportingSetIdsByReportingSetIdMap(
+                reportingUnitReportingSetIds,
+                compositeReportingSetIdBySetExpression,
+                resultGroupSpec,
+              )
+          }
 
         val resultGroup = resultGroup {
           title = resultGroupSpec.title
@@ -174,6 +194,7 @@ object BasicReportProcessedResultsTransformation {
                 reportingImpressionQualificationFilterByExternalId,
               customReportingImpressionQualificationFilter =
                 customReportingImpressionQualificationFilter,
+              reportingUnitComponentType = reportingUnitComponentType,
               reportingUnitDataProviderIds = reportingUnitDataProviderIds,
               reportingUnitReportingSetIds = reportingUnitReportingSetIds,
               componentReportingSetIdsByComponentId = componentReportingSetIdsByComponentId,
@@ -217,13 +238,13 @@ object BasicReportProcessedResultsTransformation {
   }
 
   /**
-   * Builds a [ResultGroup.MetricMetadata.ReportingUnitSummary] for a custom-group (Mode 2)
-   * ReportingUnit, where each component is a user-defined ReportingSet.
+   * Builds a [ResultGroup.MetricMetadata.ReportingUnitSummary] for a ReportingUnit whose components
+   * are ReportingSets.
    *
    * Only [ReportingUnitComponentSummary.external_reporting_set_id] is set; the DataProvider fields
    * are left empty and no EventGroup summaries are emitted.
    */
-  private fun buildReportingUnitSummaryForCustomGroups(
+  private fun buildReportingUnitSummaryForReportingSetComponents(
     reportingUnitReportingSetIds: List<String>
   ): ResultGroup.MetricMetadata.ReportingUnitSummary {
     return ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
@@ -359,11 +380,11 @@ object BasicReportProcessedResultsTransformation {
   }
 
   /**
-   * Mode-2 analog of [getReportingUnitReportingSetId]. The custom-group components are themselves
+   * ReportingSet-component analog of [getReportingUnitReportingSetId]. The components are themselves
    * ReportingSets, so each component's ExternalReportingSetID is used directly (no per-DataProvider
    * primitive indirection).
    */
-  private fun getReportingUnitReportingSetIdForCustomGroups(
+  private fun getReportingUnitReportingSetIdForReportingSetComponents(
     reportingUnitReportingSetIds: List<String>,
     compositeReportingSetIdBySetExpression: Map<ReportingSet.SetExpression, String>,
     resultGroupSpec: ResultGroupSpec,
@@ -383,8 +404,8 @@ object BasicReportProcessedResultsTransformation {
     }
   }
 
-  /** Mode-2 analog of [buildIncrementalReportingSetIdList]. */
-  private fun buildIncrementalReportingSetIdListForCustomGroups(
+  /** ReportingSet-component analog of [buildIncrementalReportingSetIdList]. */
+  private fun buildIncrementalReportingSetIdListForReportingSetComponents(
     reportingUnitReportingSetIds: List<String>,
     compositeReportingSetIdBySetExpression: Map<ReportingSet.SetExpression, String>,
     resultGroupSpec: ResultGroupSpec,
@@ -411,7 +432,8 @@ object BasicReportProcessedResultsTransformation {
   }
 
   /**
-   * Mode-2 analog of [buildComponentReportingSetIdsByDataProviderIdMap], keyed by ReportingSet ID.
+   * ReportingSet-component analog of [buildComponentReportingSetIdsByDataProviderIdMap], keyed by
+   * ReportingSet ID.
    */
   private fun buildComponentReportingSetIdsByReportingSetIdMap(
     reportingUnitReportingSetIds: List<String>,
@@ -492,6 +514,7 @@ object BasicReportProcessedResultsTransformation {
     reportingImpressionQualificationFilterByExternalId:
       Map<String, ReportingImpressionQualificationFilter>,
     customReportingImpressionQualificationFilter: ReportingImpressionQualificationFilter,
+    reportingUnitComponentType: ReportingUnitComponentType,
     reportingUnitDataProviderIds: List<String>,
     reportingUnitReportingSetIds: List<String>,
     componentReportingSetIdsByComponentId: Map<String, ComponentReportingSetIds>,
@@ -578,33 +601,38 @@ object BasicReportProcessedResultsTransformation {
             }
 
             if (resultGroupSpec.resultGroupMetricSpec.hasComponent()) {
-              if (reportingUnitReportingSetIds.isEmpty()) {
-                // Mode 1: DataProvider components, keyed by DataProvider ID.
-                for (dataProviderId in reportingUnitDataProviderIds) {
-                  components +=
-                    ResultGroupKt.MetricSetKt.dataProviderComponentMetricSetMapEntry {
-                      key = dataProviderId
-                      value =
-                        buildComponentMetricSet(
-                          resultGroupSpec.resultGroupMetricSpec.component,
-                          componentReportingSetIdsByComponentId.getValue(dataProviderId),
-                          reportingWindowResults.value.reportResultValuesByExternalReportingSetId,
-                        )
-                    }
+              when (reportingUnitComponentType) {
+                ReportingUnitComponentType.DATA_PROVIDER -> {
+                  // Keyed by DataProvider ID.
+                  for (dataProviderId in reportingUnitDataProviderIds) {
+                    components +=
+                      ResultGroupKt.MetricSetKt.dataProviderComponentMetricSetMapEntry {
+                        key = dataProviderId
+                        value =
+                          buildComponentMetricSet(
+                            resultGroupSpec.resultGroupMetricSpec.component,
+                            componentReportingSetIdsByComponentId.getValue(dataProviderId),
+                            reportingWindowResults.value
+                              .reportResultValuesByExternalReportingSetId,
+                          )
+                      }
+                  }
                 }
-              } else {
-                // Mode 2: custom-group ReportingSet components, keyed by external ReportingSet ID.
-                for (reportingSetId in reportingUnitReportingSetIds) {
-                  reportingSetComponents +=
-                    ResultGroupKt.MetricSetKt.reportingSetComponentMetricSetMapEntry {
-                      externalReportingSetId = reportingSetId
-                      value =
-                        buildComponentMetricSet(
-                          resultGroupSpec.resultGroupMetricSpec.component,
-                          componentReportingSetIdsByComponentId.getValue(reportingSetId),
-                          reportingWindowResults.value.reportResultValuesByExternalReportingSetId,
-                        )
-                    }
+                ReportingUnitComponentType.REPORTING_SET -> {
+                  // Keyed by external ReportingSet ID.
+                  for (reportingSetId in reportingUnitReportingSetIds) {
+                    reportingSetComponents +=
+                      ResultGroupKt.MetricSetKt.reportingSetComponentMetricSetMapEntry {
+                        externalReportingSetId = reportingSetId
+                        value =
+                          buildComponentMetricSet(
+                            resultGroupSpec.resultGroupMetricSpec.component,
+                            componentReportingSetIdsByComponentId.getValue(reportingSetId),
+                            reportingWindowResults.value
+                              .reportResultValuesByExternalReportingSetId,
+                          )
+                      }
+                  }
                 }
               }
             }
