@@ -77,7 +77,7 @@ class VidLabeler(
         ModelLineContext(
           modelLine = spec.modelLine,
           activeWindow = spec.activeWindow,
-          assigner = vidModelLoader.getAssigner(spec.modelBlobUri),
+          assigner = vidModelLoader.getAssigner(spec.modelStorageConfig, spec.modelBlobUri),
           config = spec.config,
           rankIndex = spec.rankIndex,
         )
@@ -143,6 +143,7 @@ class VidLabeler(
  *
  * @property modelLine model line resource name.
  * @property modelBlobUri URI of the compiled-model blob, loaded via [VidModelLoader].
+ * @property modelStorageConfig storage config (GCS project) of the compiled-model blob's bucket.
  * @property activeWindow the model line's active interval, for event-time filtering.
  * @property config the model line's field-mapping configuration.
  * @property rankIndex the memoized rank index for this model line, or `null` for the non-memoized
@@ -152,6 +153,7 @@ class VidLabeler(
 data class ModelLineSpec(
   val modelLine: String,
   val modelBlobUri: String,
+  val modelStorageConfig: StorageConfig,
   val activeWindow: ActiveWindow,
   val config: VidLabelerParams.ModelLineConfig,
   val rankIndex: MemoizedRankIndex? = null,
