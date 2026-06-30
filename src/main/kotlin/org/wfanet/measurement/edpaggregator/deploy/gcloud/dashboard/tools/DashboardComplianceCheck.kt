@@ -56,6 +56,13 @@ class DashboardComplianceCheck : Runnable {
   @CommandLine.Option(names = ["--region"], required = true, description = ["BigQuery region"])
   private lateinit var region: String
 
+  @CommandLine.Option(
+    names = ["--impersonate-service-account"],
+    required = false,
+    description = ["Service account to run all checks as (defaults to ADC if unset)"],
+  )
+  private var impersonateServiceAccount: String? = null
+
   private val edps by lazy {
     edpFlags.map { flag ->
       val (name, resourceId) = flag.split(":", limit = 2)
@@ -98,7 +105,10 @@ class DashboardComplianceCheck : Runnable {
     report(checks.checkUdfOutputValidation(bq))
     println()
     println("[Drift Detection]")
-    report(checks.checkDriftDetection(bq))
+    report(checks.checkDriftDetection(bq, edps))
+    println()
+    println("[Data Freshness]")
+    report(checks.checkFreshness(bq))
     println()
 
     val total = passed + failed
@@ -125,11 +135,18 @@ class DashboardComplianceCheck : Runnable {
   }
 
   private val credentials: GoogleCredentials by lazy {
-    GoogleCredentials.getApplicationDefault()
-      .createScoped(
+    val scopes =
+      arrayOf(
         "https://www.googleapis.com/auth/bigquery",
         "https://www.googleapis.com/auth/cloud-platform",
       )
+    val adc = GoogleCredentials.getApplicationDefault().createScoped(*scopes)
+    val target = impersonateServiceAccount
+    if (target.isNullOrEmpty()) {
+      adc
+    } else {
+      ImpersonatedCredentials.create(adc, target, null, scopes.toList(), 300)
+    }
   }
 
   private fun bigQueryDefault(): BigQuery {

@@ -26,6 +26,8 @@ import io.opentelemetry.sdk.metrics.export.MetricReader
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.io.File
+import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.test.assertFailsWith
@@ -41,15 +43,15 @@ import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.EDP_IMPRESSION_PATH_ATTR
-import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor.Companion.MODEL_LINE_ATTR
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitorMetrics.EDP_IMPRESSION_PATH_ATTR
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitorMetrics.MODEL_LINE_ATTR
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata as V1AlphaImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata as v1alphaImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
-import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
 class DataAvailabilityMonitorTest {
@@ -142,25 +144,41 @@ class DataAvailabilityMonitorTest {
   }
 
   private fun createDoneBlob(
-    storageClient: FileSystemStorageClient,
+    storageClient: InMemoryStorageClient,
     modelLine: String,
     date: String,
+    synced: Boolean = true,
   ): Unit = runBlocking {
     val path = "$EDP_IMPRESSION_PATH/model-line/$modelLine/$date/done"
     storageClient.writeBlob(path, ByteString.copyFromUtf8("done"))
+    if (synced) {
+      storageClient.updateBlobMetadata(
+        path,
+        metadata =
+          mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE),
+      )
+    }
   }
 
   private fun createDataFile(
-    storageClient: FileSystemStorageClient,
+    storageClient: InMemoryStorageClient,
     modelLine: String,
     date: String,
+    synced: Boolean = true,
   ): Unit = runBlocking {
-    val path = "$EDP_IMPRESSION_PATH/model-line/$modelLine/$date/data_campaign_1"
+    val path = "$EDP_IMPRESSION_PATH/model-line/$modelLine/$date/metadata_campaign_1.binpb"
     storageClient.writeBlob(path, ByteString.copyFromUtf8("data"))
+    if (synced) {
+      storageClient.updateBlobMetadata(
+        path,
+        metadata =
+          mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE),
+      )
+    }
   }
 
-  private fun createStorageClient(): FileSystemStorageClient {
-    return FileSystemStorageClient(tempFolder.root)
+  private fun createStorageClient(): InMemoryStorageClient {
+    return InMemoryStorageClient()
   }
 
   private fun ensureDirectories(modelLine: String, date: String) {
@@ -195,6 +213,7 @@ class DataAvailabilityMonitorTest {
         maxStaleDays = 3,
         timeZone = TIME_ZONE,
         clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
         spuriousDeletionLookbackDays = null,
       )
     assertThat(result.statuses).hasSize(1)
@@ -239,6 +258,7 @@ class DataAvailabilityMonitorTest {
         maxStaleDays = 3,
         timeZone = TIME_ZONE,
         clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
         spuriousDeletionLookbackDays = null,
       )
 
@@ -271,6 +291,7 @@ class DataAvailabilityMonitorTest {
         maxStaleDays = 3,
         timeZone = TIME_ZONE,
         clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
         spuriousDeletionLookbackDays = null,
       )
 
@@ -302,6 +323,7 @@ class DataAvailabilityMonitorTest {
         maxStaleDays = 3,
         timeZone = TIME_ZONE,
         clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
         spuriousDeletionLookbackDays = null,
       )
 
@@ -342,6 +364,7 @@ class DataAvailabilityMonitorTest {
         maxStaleDays = 3,
         timeZone = TIME_ZONE,
         clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
         spuriousDeletionLookbackDays = null,
       )
 
@@ -372,6 +395,7 @@ class DataAvailabilityMonitorTest {
         maxStaleDays = 3,
         timeZone = TIME_ZONE,
         clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
         spuriousDeletionLookbackDays = null,
       )
     val status = result.statuses.single()
@@ -403,6 +427,7 @@ class DataAvailabilityMonitorTest {
         maxStaleDays = 3,
         timeZone = TIME_ZONE,
         clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
         spuriousDeletionLookbackDays = null,
       )
 
@@ -434,6 +459,7 @@ class DataAvailabilityMonitorTest {
         maxStaleDays = 3,
         timeZone = TIME_ZONE,
         clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
         spuriousDeletionLookbackDays = null,
       )
 
@@ -464,7 +490,7 @@ class DataAvailabilityMonitorTest {
         dataProviderName = null,
       )
 
-    val result = monitor.checkGaps()
+    val result = monitor.checkGaps(unprocessedDoneThreshold = Duration.ofHours(24))
 
     val status = result.statuses.single()
     assertThat(status.gapDates).isEmpty()
@@ -495,7 +521,7 @@ class DataAvailabilityMonitorTest {
         dataProviderName = null,
       )
 
-    val result = monitor.checkGaps()
+    val result = monitor.checkGaps(unprocessedDoneThreshold = Duration.ofHours(24))
 
     val status = result.statuses.single()
     assertThat(status.gapDates)
@@ -516,7 +542,7 @@ class DataAvailabilityMonitorTest {
         dataProviderName = null,
       )
 
-    val result = monitor.checkGaps()
+    val result = monitor.checkGaps(unprocessedDoneThreshold = Duration.ofHours(24))
     val status = result.statuses.single()
     assertThat(status.gapDates).isNull()
     assertThat(status.isStale).isNull()
@@ -548,7 +574,7 @@ class DataAvailabilityMonitorTest {
         dataProviderName = null,
       )
 
-    val result = monitor.checkGaps()
+    val result = monitor.checkGaps(unprocessedDoneThreshold = Duration.ofHours(24))
 
     val status = result.statuses.single()
     assertThat(status.gapDates).isEmpty()
@@ -577,7 +603,7 @@ class DataAvailabilityMonitorTest {
         dataProviderName = null,
       )
 
-    val result = monitor.checkGaps()
+    val result = monitor.checkGaps(unprocessedDoneThreshold = Duration.ofHours(24))
     assertThat(result.statuses.single().zeroImpressionDates).isEmpty()
   }
 
@@ -609,6 +635,7 @@ class DataAvailabilityMonitorTest {
         maxStaleDays = 3,
         timeZone = TIME_ZONE,
         clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
         spuriousDeletionLookbackDays = null,
       )
     val status = result.statuses.single()
@@ -639,7 +666,7 @@ class DataAvailabilityMonitorTest {
         dataProviderName = null,
       )
 
-    val result = monitor.checkGaps()
+    val result = monitor.checkGaps(unprocessedDoneThreshold = Duration.ofHours(24))
     val status = result.statuses.single()
     assertThat(status.latestDate).isEqualTo(LocalDate.of(2026, 3, 15))
     assertThat(status.gapDates).isEmpty()
@@ -672,6 +699,7 @@ class DataAvailabilityMonitorTest {
         maxStaleDays = 3,
         timeZone = TIME_ZONE,
         clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
         spuriousDeletionLookbackDays = null,
       )
 
@@ -701,6 +729,7 @@ class DataAvailabilityMonitorTest {
         maxStaleDays = 0,
         timeZone = TIME_ZONE,
         clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
         spuriousDeletionLookbackDays = null,
       )
     }
@@ -772,6 +801,7 @@ class DataAvailabilityMonitorTest {
         maxStaleDays = 3,
         timeZone = TIME_ZONE,
         clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
         spuriousDeletionLookbackDays = null,
       )
 
@@ -798,7 +828,7 @@ class DataAvailabilityMonitorTest {
         dataProviderName = null,
       )
 
-    val result = monitor.checkGaps()
+    val result = monitor.checkGaps(unprocessedDoneThreshold = Duration.ofHours(24))
 
     val status = result.statuses.single()
     assertThat(status.gapDates).isEmpty()
@@ -835,6 +865,7 @@ class DataAvailabilityMonitorTest {
         maxStaleDays = 3,
         timeZone = TIME_ZONE,
         clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
         spuriousDeletionLookbackDays = null,
       )
 
@@ -868,7 +899,7 @@ class DataAvailabilityMonitorTest {
         dataProviderName = null,
       )
 
-    val result = monitor.checkGaps()
+    val result = monitor.checkGaps(unprocessedDoneThreshold = Duration.ofHours(24))
 
     val status = result.statuses.single()
     assertThat(status.datesWithoutDoneBlob).containsExactly(LocalDate.of(2026, 3, 14))
@@ -911,6 +942,7 @@ class DataAvailabilityMonitorTest {
         maxStaleDays = 3,
         timeZone = TIME_ZONE,
         clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
         spuriousDeletionLookbackDays = null,
       )
 
@@ -947,6 +979,7 @@ class DataAvailabilityMonitorTest {
       maxStaleDays = 3,
       timeZone = TIME_ZONE,
       clock = { TODAY },
+      unprocessedDoneThreshold = Duration.ofHours(24),
       spuriousDeletionLookbackDays = null,
     )
 
@@ -993,6 +1026,7 @@ class DataAvailabilityMonitorTest {
       maxStaleDays = 3,
       timeZone = TIME_ZONE,
       clock = { TODAY },
+      unprocessedDoneThreshold = Duration.ofHours(24),
       spuriousDeletionLookbackDays = null,
     )
 
@@ -1029,7 +1063,7 @@ class DataAvailabilityMonitorTest {
         dataProviderName = null,
       )
 
-    monitor.checkGaps()
+    monitor.checkGaps(unprocessedDoneThreshold = Duration.ofHours(24))
 
     val metrics = collectMetrics()
     val dateCountMetric = metrics.find { it.name == DATE_COUNT_METRIC }
@@ -1068,6 +1102,7 @@ class DataAvailabilityMonitorTest {
       maxStaleDays = 3,
       timeZone = TIME_ZONE,
       clock = { TODAY },
+      unprocessedDoneThreshold = Duration.ofHours(24),
       spuriousDeletionLookbackDays = null,
     )
 
@@ -1091,50 +1126,13 @@ class DataAvailabilityMonitorTest {
   }
 
   @Test
-  fun `checkFullStatus detects late-arriving data after done blob`(): Unit = runBlocking {
-    val storageClient = createStorageClient()
-
-    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
-    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-
-    val doneFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "done")
-    val dataFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "data_campaign_1")
-    dataFile.setLastModified(doneFile.lastModified() + 2000)
-
-    val monitor =
-      DataAvailabilityMonitor(
-        storageClient = storageClient,
-        edpImpressionPath = EDP_IMPRESSION_PATH,
-        activeModelLines = setOf(MODEL_LINE_A),
-        impressionMetadataStub = null,
-        dataProviderName = null,
-      )
-
-    val result =
-      monitor.checkFullStatus(
-        maxStaleDays = 3,
-        timeZone = TIME_ZONE,
-        clock = { TODAY },
-        spuriousDeletionLookbackDays = null,
-      )
-
-    val status = result.statuses.single()
-    assertThat(status.lateArrivingDates).containsExactly(LocalDate.of(2026, 3, 15))
-  }
-
-  @Test
-  fun `checkFullStatus reports no late-arriving data when files arrive before done blob`(): Unit =
+  fun `checkFullStatus detects late-arriving data when metadata blob lacks marker`(): Unit =
     runBlocking {
       val storageClient = createStorageClient()
 
       ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
-      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
       createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-
-      val doneFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "done")
-      val dataFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "data_campaign_1")
-      doneFile.setLastModified(dataFile.lastModified() + 2000)
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15", synced = false)
 
       val monitor =
         DataAvailabilityMonitor(
@@ -1150,6 +1148,38 @@ class DataAvailabilityMonitorTest {
           maxStaleDays = 3,
           timeZone = TIME_ZONE,
           clock = { TODAY },
+          unprocessedDoneThreshold = Duration.ofHours(24),
+          spuriousDeletionLookbackDays = null,
+        )
+
+      val status = result.statuses.single()
+      assertThat(status.lateArrivingDates).containsExactly(LocalDate.of(2026, 3, 15))
+    }
+
+  @Test
+  fun `checkFullStatus reports no late-arriving data when all metadata blobs are marked`(): Unit =
+    runBlocking {
+      val storageClient = createStorageClient()
+
+      ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+      val monitor =
+        DataAvailabilityMonitor(
+          storageClient = storageClient,
+          edpImpressionPath = EDP_IMPRESSION_PATH,
+          activeModelLines = setOf(MODEL_LINE_A),
+          impressionMetadataStub = null,
+          dataProviderName = null,
+        )
+
+      val result =
+        monitor.checkFullStatus(
+          maxStaleDays = 3,
+          timeZone = TIME_ZONE,
+          clock = { TODAY },
+          unprocessedDoneThreshold = Duration.ofHours(24),
           spuriousDeletionLookbackDays = null,
         )
 
@@ -1158,16 +1188,19 @@ class DataAvailabilityMonitorTest {
     }
 
   @Test
-  fun `checkGaps detects late-arriving data after done blob`(): Unit = runBlocking {
+  fun `checkFullStatus ignores non-metadata files in date folder`(): Unit = runBlocking {
     val storageClient = createStorageClient()
 
     ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
     createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    // A synced metadata blob so the date is otherwise healthy.
     createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-
-    val doneFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "done")
-    val dataFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "data_campaign_1")
-    dataFile.setLastModified(doneFile.lastModified() + 2000)
+    // Unrelated blob (no "metadata" substring in filename, no marker) should not be flagged
+    // even though it lacks the synced-by marker.
+    storageClient.writeBlob(
+      "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-15/junk_file",
+      ByteString.copyFromUtf8("x"),
+    )
 
     val monitor =
       DataAvailabilityMonitor(
@@ -1178,7 +1211,37 @@ class DataAvailabilityMonitorTest {
         dataProviderName = null,
       )
 
-    val result = monitor.checkGaps()
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
+        spuriousDeletionLookbackDays = null,
+      )
+
+    val status = result.statuses.single()
+    assertThat(status.lateArrivingDates).isEmpty()
+  }
+
+  @Test
+  fun `checkGaps detects late-arriving data when metadata blob lacks marker`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15", synced = false)
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
+      )
+
+    val result = monitor.checkGaps(unprocessedDoneThreshold = Duration.ofHours(24))
 
     val status = result.statuses.single()
     assertThat(status.lateArrivingDates).containsExactly(LocalDate.of(2026, 3, 15))
@@ -1190,11 +1253,7 @@ class DataAvailabilityMonitorTest {
 
     ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
     createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-
-    val doneFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "done")
-    val dataFile = getFile(MODEL_LINE_A.modelLineId, "2026-03-15", "data_campaign_1")
-    dataFile.setLastModified(doneFile.lastModified() + 2000)
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15", synced = false)
 
     val monitor =
       DataAvailabilityMonitor(
@@ -1209,6 +1268,7 @@ class DataAvailabilityMonitorTest {
       maxStaleDays = 3,
       timeZone = TIME_ZONE,
       clock = { TODAY },
+      unprocessedDoneThreshold = Duration.ofHours(24),
       spuriousDeletionLookbackDays = null,
     )
 
@@ -1239,6 +1299,7 @@ class DataAvailabilityMonitorTest {
           maxStaleDays = 3,
           timeZone = TIME_ZONE,
           clock = { TODAY },
+          unprocessedDoneThreshold = Duration.ofHours(24),
           spuriousDeletionLookbackDays = 90,
         )
       }
@@ -1270,6 +1331,7 @@ class DataAvailabilityMonitorTest {
         maxStaleDays = 3,
         timeZone = TIME_ZONE,
         clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
         spuriousDeletionLookbackDays = 90,
       )
 
@@ -1299,6 +1361,7 @@ class DataAvailabilityMonitorTest {
         maxStaleDays = 3,
         timeZone = TIME_ZONE,
         clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
         spuriousDeletionLookbackDays = 90,
       )
 
@@ -1328,6 +1391,7 @@ class DataAvailabilityMonitorTest {
         maxStaleDays = 3,
         timeZone = TIME_ZONE,
         clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
         spuriousDeletionLookbackDays = 90,
       )
 
@@ -1360,11 +1424,146 @@ class DataAvailabilityMonitorTest {
       maxStaleDays = 3,
       timeZone = TIME_ZONE,
       clock = { TODAY },
+      unprocessedDoneThreshold = Duration.ofHours(24),
       spuriousDeletionLookbackDays = 90,
     )
 
     val metrics = collectMetrics()
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_SPURIOUS_DELETION))
+      .isEqualTo(1)
+  }
+
+  @Test
+  fun `checkFullStatus does not flag late-arrival when done blob lacks marker`(): Unit =
+    runBlocking {
+      val storageClient = createStorageClient()
+
+      ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15", synced = false)
+      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15", synced = false)
+
+      val monitor =
+        DataAvailabilityMonitor(
+          storageClient = storageClient,
+          edpImpressionPath = EDP_IMPRESSION_PATH,
+          activeModelLines = setOf(MODEL_LINE_A),
+          impressionMetadataStub = null,
+          dataProviderName = null,
+          clock = { Instant.parse("2026-03-15T12:00:00Z") },
+        )
+
+      val result =
+        monitor.checkFullStatus(
+          maxStaleDays = 3,
+          timeZone = TIME_ZONE,
+          clock = { TODAY },
+          unprocessedDoneThreshold = Duration.ofHours(24),
+          spuriousDeletionLookbackDays = null,
+        )
+
+      val status = result.statuses.single()
+      // Done blob lacks the marker, so the late-arrival check is suppressed regardless of
+      // whether metadata blobs are marked.
+      assertThat(status.lateArrivingDates).isEmpty()
+    }
+
+  @Test
+  fun `checkFullStatus flags unprocessed done when done blob is older than threshold and lacks marker`():
+    Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15", synced = false)
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
+        // Done blob was created at "now" by InMemoryStorageClient; advance clock 25h.
+        clock = { Instant.now().plus(Duration.ofHours(25)) },
+      )
+
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
+        spuriousDeletionLookbackDays = null,
+      )
+
+    val status = result.statuses.single()
+    assertThat(status.unprocessedDoneDates).containsExactly(LocalDate.of(2026, 3, 15))
+    assertThat(status.lateArrivingDates).isEmpty()
+    assertThat(status.healthyDates).isEmpty()
+  }
+
+  @Test
+  fun `checkFullStatus does not flag unprocessed done when done blob is younger than threshold`():
+    Unit = runBlocking {
+    val storageClient = createStorageClient()
+
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15", synced = false)
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
+        // Done blob created at "now"; clock is "now" too, so age is 0.
+        clock = { Instant.now() },
+      )
+
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
+        spuriousDeletionLookbackDays = null,
+      )
+
+    val status = result.statuses.single()
+    assertThat(status.unprocessedDoneDates).isEmpty()
+    // Healthy: hasData = true, no late arrivals, no unprocessed done.
+    assertThat(status.healthyDates).containsExactly(LocalDate.of(2026, 3, 15))
+  }
+
+  @Test
+  fun `checkFullStatus emits unprocessed_done metric`(): Unit = runBlocking {
+    val storageClient = createStorageClient()
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15", synced = false)
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
+        clock = { Instant.now().plus(Duration.ofHours(25)) },
+      )
+
+    monitor.checkFullStatus(
+      maxStaleDays = 3,
+      timeZone = TIME_ZONE,
+      clock = { TODAY },
+      unprocessedDoneThreshold = Duration.ofHours(24),
+      spuriousDeletionLookbackDays = null,
+    )
+
+    val metrics = collectMetrics()
+    assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_UNPROCESSED_DONE))
       .isEqualTo(1)
   }
 }

@@ -1,0 +1,111 @@
+/*
+ * Copyright 2026 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.edpaggregator.vidrankbuilder
+
+import io.opentelemetry.api.metrics.LongCounter
+import io.opentelemetry.api.metrics.LongHistogram
+import io.opentelemetry.api.metrics.Meter
+import org.wfanet.measurement.common.Instrumentation
+
+/**
+ * OpenTelemetry instruments for the Phase-1 ranker ([SubpoolRanker] / [VidRankBuilder]).
+ *
+ * Mirrors `SubpoolAssignerMetrics`: counters integrate with `EdpaTelemetry` so rank-allocation
+ * rates surface on operator dashboards. The in-process [SubpoolRanker.Result] tallies are kept
+ * separately for the completion log because OpenTelemetry counters are not readable in-process.
+ *
+ * @param meter the OpenTelemetry [Meter] used to create instruments.
+ */
+class VidRankBuilderMetrics(meter: Meter = Instrumentation.meter) {
+  /** Ranks newly assigned to never-before-seen fingerprints. */
+  val ranksAllocatedCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.vid_rank_builder.ranks_allocated")
+      .setDescription("Ranks newly assigned to never-before-seen fingerprints")
+      .build()
+
+  /** Already-ranked fingerprints re-observed this dispatch (rank preserved). */
+  val ranksRenewedCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.vid_rank_builder.ranks_renewed")
+      .setDescription("Already-ranked fingerprints re-observed this dispatch")
+      .build()
+
+  /** Ranks freed by the retention pass. */
+  val ranksFreedCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.vid_rank_builder.ranks_freed")
+      .setDescription("Ranks freed by the retention pass")
+      .build()
+
+  /** Fingerprints left unranked because their subpool reached `ranked_size`. */
+  val overflowFingerprintsCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.vid_rank_builder.overflow_fingerprints")
+      .setDescription("Fingerprints left unranked because the subpool was full")
+      .build()
+
+  /** Subpools ranked. */
+  val subpoolsRankedCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.vid_rank_builder.subpools_ranked")
+      .setDescription("Number of subpools ranked")
+      .build()
+
+  /** Backfilled fingerprints given back the rank they held in an older snapshot. */
+  val backfillReusedOldRankCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.vid_rank_builder.backfill_reused_old_rank")
+      .setDescription("Backfilled fingerprints reassigned the rank from their old snapshot")
+      .build()
+
+  /**
+   * Backfilled fingerprints reassigned an old rank that the latest snapshot had already re-handed
+   * to a different fingerprint — the accepted reach-undercount sizing.
+   */
+  val backfillRankCollisionsCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.vid_rank_builder.backfill_rank_collisions")
+      .setDescription(
+        "Backfilled fingerprints whose reused old rank differs from their rank in the latest snapshot"
+      )
+      .build()
+
+  /**
+   * Fingerprint count of the old snapshot loaded for a backfill. A backfill holds two in-heap maps
+   * (latest cumulative + old snapshot), which can OOM the ranker at India scale (see
+   * [SubpoolRanker]); this lets ops alert on growth before the load dies.
+   */
+  val backfillOldSnapshotEntriesHistogram: LongHistogram =
+    meter
+      .histogramBuilder("edpa.vid_rank_builder.backfill_old_snapshot_entries")
+      .ofLongs()
+      .setDescription("Fingerprint count of the old snapshot loaded for a backfill")
+      .setUnit("{fingerprints}")
+      .build()
+
+  /**
+   * Backfills rejected because the dispatch is older than the retention window (the original rank
+   * has already aged out — Problem 3). The ranker fails the dispatch loudly rather than silently
+   * re-ranking still-tracked fingerprints; this counts how often that happens.
+   */
+  val outOfRetentionBackfillCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.vid_rank_builder.out_of_retention_backfill")
+      .setDescription("Backfills rejected for being older than the retention window")
+      .build()
+}

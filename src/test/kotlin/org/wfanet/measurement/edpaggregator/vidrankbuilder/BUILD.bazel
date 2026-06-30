@@ -1,0 +1,79 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+package(default_testonly = True)
+
+kt_jvm_test(
+    name = "RankAllocatorTest",
+    srcs = ["RankAllocatorTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidrankbuilder.RankAllocatorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:event_id_digest_bytes",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:last_seen_day_bytes",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:rank_allocator",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_map_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_test(
+    name = "EventIdDigestBytesTest",
+    srcs = ["EventIdDigestBytesTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidrankbuilder.EventIdDigestBytesTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:event_id_digest_bytes",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "SubpoolRetentionTest",
+    srcs = ["SubpoolRetentionTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidrankbuilder.SubpoolRetentionTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:rank_index_store",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:subpool_retention",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_map_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:date_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "SubpoolRankerTest",
+    srcs = ["SubpoolRankerTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidrankbuilder.SubpoolRankerTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:rank_index_store",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:subpool_fingerprints_store",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:event_id_digest_bytes",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:last_seen_day_bytes",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:subpool_ranker",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:subpool_retention",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_map_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:date_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
+    ],
+)

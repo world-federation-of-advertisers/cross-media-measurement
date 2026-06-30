@@ -319,25 +319,25 @@ class InProcessEdpAggregatorComponents(
 
       val requisitionGrouper =
         RequisitionGrouperByReportId(
-          requisitionsValidator,
-          edpResourceName,
-          "$REQUISITION_STORAGE_PREFIX-$edpAggregatorShortName",
-          requisitionMetadataClient,
-          subscribingStorageClient,
-          50,
-          "$REQUISITION_STORAGE_PREFIX-$edpAggregatorShortName",
-          throttler,
-          eventGroupsClient,
-          requisitionsClient,
+          requisitionValidator = requisitionsValidator,
+          requisitionsClient = requisitionsClient,
+          eventGroupsClient = eventGroupsClient,
+          kingdomMutationThrottler = throttler,
+          kingdomEventGroupThrottler = throttler,
         )
 
       val requisitionFetcher =
         RequisitionFetcher(
-          requisitionsClient,
-          subscribingStorageClient,
-          edpResourceName,
-          "$REQUISITION_STORAGE_PREFIX-$edpAggregatorShortName",
-          requisitionGrouper,
+          requisitionsStub = requisitionsClient,
+          requisitionMetadataStub = requisitionMetadataClient,
+          storageClient = subscribingStorageClient,
+          dataProviderName = edpResourceName,
+          storagePathPrefix = "$REQUISITION_STORAGE_PREFIX-$edpAggregatorShortName",
+          blobUriPrefix = "file:///$REQUISITION_STORAGE_PREFIX-$edpAggregatorShortName",
+          requisitionValidator = requisitionsValidator,
+          requisitionGrouper = requisitionGrouper,
+          metadataThrottler = throttler,
+          responsePageSize = 50,
         )
       backgroundScope.launch {
         while (true) {

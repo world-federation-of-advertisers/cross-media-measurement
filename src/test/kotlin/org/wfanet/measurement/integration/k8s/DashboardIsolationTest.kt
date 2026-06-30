@@ -61,7 +61,7 @@ class DashboardIsolationTest {
 
   @Test
   fun driftDetection() {
-    val results = checks.checkDriftDetection(bigQuery)
+    val results = checks.checkDriftDetection(bigQuery, listOf(edp))
     val failures = results.filter { !it.passed }
     assertWithMessage(failures.joinToString("\n") { it.message }).that(failures).isEmpty()
   }

@@ -19,12 +19,16 @@ SELECT
   `${project_id}.dashboard.externalIdToApiId`(dp.ExternalDataProviderId) AS CmmsDataProvider,
   COUNT(*) AS EventGroupCount,
   ARRAY_AGG(IFNULL(eg.ProvidedEventGroupId, '')) AS ProvidedEventGroupIds,
+%{ if !include_platform_columns }
   ARRAY_AGG(IFNULL(eg.EntityType, '')) AS EntityTypes,
   ARRAY_AGG(IFNULL(eg.EntityId, '')) AS EntityIds,
+%{ endif }
   ARRAY_AGG(IFNULL(eg.CampaignName, '')) AS CampaignNames,
   ARRAY_AGG(IFNULL(eg.BrandName, '')) AS BrandNames,
   ARRAY_AGG(IFNULL(eg.EventTemplates, '')) AS EventTemplates,
+%{ if !include_platform_columns }
   ARRAY_AGG(IFNULL(eg.EntityMetadata, '')) AS EntityMetadata,
+%{ endif }
   ARRAY_AGG(IFNULL(mt.MediaTypes, '')) AS MediaTypes,
   ARRAY_AGG(IFNULL(ca.AccountIds, '')) AS AccountIds,
   MIN(eg.DataAvailabilityStartTime) AS DataAvailabilityStartTime,

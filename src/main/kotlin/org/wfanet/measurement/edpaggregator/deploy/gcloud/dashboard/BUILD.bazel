@@ -5,6 +5,8 @@ kt_jvm_library(
     srcs = ["DashboardIsolationChecks.kt"],
     visibility = ["//visibility:public"],
     deps = [
+        "@maven//:com_google_auth_google_auth_library_credentials",
         "@maven//:com_google_cloud_google_cloud_bigquery",
+        "@wfa_common_jvm//imports/java/com/google/gson",
     ],
 )

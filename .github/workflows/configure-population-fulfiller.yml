@@ -14,6 +14,11 @@
 
 name: "Configure Population Requisition Fulfiller"
 
+run-name: >-
+  Configure Population Requisition Fulfiller [${{ inputs.environment }}] |
+  apply=${{ inputs.apply }},
+  image-tag=${{ inputs.existing-image-tag }}
+
 on:
   workflow_call:
     inputs:

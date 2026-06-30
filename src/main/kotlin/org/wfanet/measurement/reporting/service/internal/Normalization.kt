@@ -19,10 +19,14 @@ package org.wfanet.measurement.reporting.service.internal
 import com.google.common.collect.Ordering
 import com.google.common.hash.Hashing
 import java.util.logging.Logger
+import org.wfanet.measurement.internal.reporting.v2.DimensionSpec
+import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt
 import org.wfanet.measurement.internal.reporting.v2.EventFilter
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.MetricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
+import org.wfanet.measurement.internal.reporting.v2.ReportingUnit
+import org.wfanet.measurement.internal.reporting.v2.ReportingUnitKt
 import org.wfanet.measurement.internal.reporting.v2.copy
 
 object Normalization {
@@ -56,6 +60,62 @@ object Normalization {
         }
       }
       .sortedWith(eventFilterComparator)
+  }
+
+  /**
+   * Returns a normalized copy of [reportingUnit] with components sorted.
+   *
+   * `ReportingUnit.components` is semantically a set (order does not affect downstream metric
+   * calculation), so order-only differences must not produce distinct dim keys.
+   *
+   * Only the `dataProviderKeys` variant is implemented today (the BasicReport path). The
+   * `reportingSetKeys` variant is reserved for AdvancedReport and currently has no caller; a future
+   * AdvancedReport normalization path must extend this function rather than rely on the
+   * silent-passthrough that the old early `if (hasDataProviderKeys())` shape allowed -- that would
+   * silently un-normalize AdvancedReport input and reintroduce the order-sensitive dim-key bug
+   * PR #4057 was written to prevent.
+   */
+  fun normalizeReportingUnit(reportingUnit: ReportingUnit): ReportingUnit {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    return when (reportingUnit.componentsCase) {
+      ReportingUnit.ComponentsCase.DATA_PROVIDER_KEYS ->
+        reportingUnit.copy {
+          dataProviderKeys =
+            ReportingUnitKt.dataProviderKeys {
+              dataProviderKeys +=
+                reportingUnit.dataProviderKeys.dataProviderKeysList.sortedBy {
+                  it.cmmsDataProviderId
+                }
+            }
+        }
+      ReportingUnit.ComponentsCase.COMPONENTS_NOT_SET -> reportingUnit
+      ReportingUnit.ComponentsCase.REPORTING_SET_KEYS ->
+        throw IllegalArgumentException(
+          "normalizeReportingUnit does not yet handle the reportingSetKeys variant; " +
+            "extend this function (sort by a stable key) when adding an AdvancedReport caller."
+        )
+    }
+  }
+
+  /**
+   * Returns a normalized copy of [dimensionSpec]: filters normalized via [normalizeEventFilters],
+   * grouping field paths sorted lexicographically.
+   *
+   * `DimensionSpec.filters` is a conjunction (AND), so order is not semantically meaningful.
+   * `Grouping.eventTemplateFields` is documented as containing each field path at most once and is
+   * consumed as a set downstream. Order-only differences must not produce distinct dim keys.
+   */
+  fun normalizeDimensionSpec(dimensionSpec: DimensionSpec): DimensionSpec {
+    return dimensionSpec.copy {
+      filters.clear()
+      filters += normalizeEventFilters(dimensionSpec.filtersList)
+      if (hasGrouping()) {
+        grouping =
+          DimensionSpecKt.grouping {
+            eventTemplateFields += dimensionSpec.grouping.eventTemplateFieldsList.sorted()
+          }
+      }
+    }
   }
 
   /** Computes the fingerprint of [metricFrequencySpec]. */

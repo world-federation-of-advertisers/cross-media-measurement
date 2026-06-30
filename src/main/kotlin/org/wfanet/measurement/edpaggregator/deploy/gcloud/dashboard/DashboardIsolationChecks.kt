@@ -19,6 +19,14 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard
 import com.google.cloud.bigquery.BigQuery
 import com.google.cloud.bigquery.BigQueryException
 import com.google.cloud.bigquery.QueryJobConfiguration
+import com.google.cloud.bigquery.TableId
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
+import java.io.IOException
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 
 class DashboardIsolationChecks(
   private val project: String,
@@ -227,7 +235,7 @@ class DashboardIsolationChecks(
     return results
   }
 
-  fun checkDriftDetection(bq: BigQuery): List<CheckResult> {
+  fun checkDriftDetection(bq: BigQuery, edps: List<EdpConfig>): List<CheckResult> {
     val results = mutableListOf<CheckResult>()
 
     // Check expected tables exist
@@ -389,12 +397,9 @@ class DashboardIsolationChecks(
             "CmmsDataProvider",
             "EventGroupCount",
             "ProvidedEventGroupIds",
-            "EntityTypes",
-            "EntityIds",
             "CampaignNames",
             "BrandNames",
             "EventTemplates",
-            "EntityMetadata",
             "MediaTypes",
             "AccountIds",
             "DataAvailabilityStartTime",
@@ -457,24 +462,39 @@ class DashboardIsolationChecks(
       results.add(CheckResult("schema", false, "Cannot check schema: ${e.message}"))
     }
 
-    // Verify row access policies exist on EDP-visible tables
-    for (tableName in listOf("requisition_overview", "mc_details_edp", "report_detail_edp")) {
+    // Verify row access policies are present and correctly scoped on the EDP
+    // tables. BigQuery has no INFORMATION_SCHEMA view for policies, so list them
+    // via the REST API. Each table must have a platform_full_access (TRUE) policy
+    // plus a per-EDP filter referencing that EDP's resource id. (Behavioral
+    // isolation checks cover predicate drift too; this is the explicit structural
+    // assertion.)
+    val edpTableColumns =
+      mapOf(
+        "requisition_overview" to "DataProviderResourceId",
+        "mc_details_edp" to "CmmsDataProvider",
+        "report_detail_edp" to "CmmsDataProvider",
+      )
+    for ((tableName, column) in edpTableColumns) {
       try {
-        val result =
-          bq.query(
-            QueryJobConfiguration.of(
-              "SELECT policy_name, filter_predicate, grantee_list " +
-                "FROM `$project.region-$region.INFORMATION_SCHEMA.ROW_ACCESS_POLICIES` " +
-                "WHERE table_name = '$tableName'"
-            )
-          )
-        val policyCount = result.iterateAll().count()
-        if (policyCount > 0) {
+        val predicates =
+          listRowAccessPolicyPredicates(bq, tableName)
+            .map { it.replace(" ", "").lowercase() }
+            .toSet()
+        val missing = mutableListOf<String>()
+        if ("true" !in predicates) {
+          missing.add("platform_full_access (TRUE)")
+        }
+        for (edp in edps) {
+          if ("$column='${edp.resourceId}'".lowercase() !in predicates) {
+            missing.add("$column = '${edp.resourceId}'")
+          }
+        }
+        if (missing.isEmpty()) {
           results.add(
             CheckResult(
               "Policies $tableName",
               true,
-              "Row access policies exist on $tableName ($policyCount policies)",
+              "Row access policies correct on $tableName (${predicates.size} policies)",
             )
           )
         } else {
@@ -482,11 +502,11 @@ class DashboardIsolationChecks(
             CheckResult(
               "Policies $tableName",
               false,
-              "No row access policies on $tableName — EDP isolation not enforced",
+              "$tableName missing expected row access policies: $missing",
             )
           )
         }
-      } catch (e: BigQueryException) {
+      } catch (e: Exception) {
         results.add(
           CheckResult(
             "Policies $tableName",
@@ -497,17 +517,49 @@ class DashboardIsolationChecks(
       }
     }
 
-    // Verify only expected BigQuery connections exist
+    // EDP-isolated tables must grant access only to service accounts — never
+    // human users or groups (operators are intentionally excluded from these
+    // tables). Catches grantee tampering that the predicate check cannot see.
+    for (tableName in listOf("mc_details_edp", "report_detail_edp")) {
+      try {
+        val grantees = listRowAccessPolicyGrantees(bq, tableName)
+        val nonServiceAccounts =
+          grantees.filter { it.startsWith("user:") || it.startsWith("group:") }
+        if (nonServiceAccounts.isEmpty()) {
+          results.add(
+            CheckResult(
+              "Grantees $tableName",
+              true,
+              "$tableName granted only to service accounts (${grantees.size} grantees)",
+            )
+          )
+        } else {
+          results.add(
+            CheckResult(
+              "Grantees $tableName",
+              false,
+              "$tableName has non-service-account grantees: $nonServiceAccounts",
+            )
+          )
+        }
+      } catch (e: Exception) {
+        results.add(
+          CheckResult(
+            "Grantees $tableName",
+            false,
+            "Cannot check grantees on $tableName: ${e.message}",
+          )
+        )
+      }
+    }
+
+    // Verify only expected BigQuery connections exist. BigQuery exposes no
+    // INFORMATION_SCHEMA view for connections, so list them via the Connection
+    // REST API.
     val expectedConnections =
       setOf("edp-aggregator-conn", "kingdom-conn", "reporting-conn", "reporting-postgres-conn")
     try {
-      val result =
-        bq.query(
-          QueryJobConfiguration.of(
-            "SELECT connection_id FROM `$project.region-$region.INFORMATION_SCHEMA.CONNECTIONS`"
-          )
-        )
-      val actualConnections = result.iterateAll().map { it["connection_id"].stringValue }.toSet()
+      val actualConnections = listConnections(bq)
       val unexpected = actualConnections - expectedConnections
       if (unexpected.isEmpty()) {
         results.add(
@@ -519,14 +571,10 @@ class DashboardIsolationChecks(
         )
       } else {
         results.add(
-          CheckResult(
-            "Connection inventory",
-            false,
-            "Unexpected connections found: $unexpected (share same Spanner SA)",
-          )
+          CheckResult("Connection inventory", false, "Unexpected connections found: $unexpected")
         )
       }
-    } catch (e: BigQueryException) {
+    } catch (e: Exception) {
       results.add(
         CheckResult("Connection inventory", false, "Cannot check connections: ${e.message}")
       )
@@ -593,49 +641,168 @@ class DashboardIsolationChecks(
       )
     }
 
-    // Check data freshness — tables should be updated within the last 3 hours
+    return results
+  }
+
+  /** Sends an authenticated request and parses the JSON body, failing on a non-2xx response. */
+  private fun sendForJson(client: HttpClient, request: HttpRequest): JsonObject {
+    val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+    if (response.statusCode() !in 200..299) {
+      throw IOException("HTTP ${response.statusCode()} from ${request.uri()}: ${response.body()}")
+    }
+    return JsonParser.parseString(response.body()).asJsonObject
+  }
+
+  /** Builds a GET (or empty POST) request to [url] with the client's auth headers applied. */
+  private fun authorizedRequest(
+    credentials: com.google.auth.Credentials,
+    url: String,
+    post: Boolean = false,
+  ): HttpRequest {
+    val uri = URI(url)
+    val builder = HttpRequest.newBuilder(uri)
+    if (post) {
+      builder.header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.noBody())
+    } else {
+      builder.GET()
+    }
+    for ((name, values) in credentials.getRequestMetadata(uri)) {
+      for (value in values) {
+        builder.header(name, value)
+      }
+    }
+    return builder.build()
+  }
+
+  /**
+   * Lists the IAM grantees across all of a table's row access policies via the REST API (one
+   * getIamPolicy call per policy). Used to verify EDP tables grant only service accounts.
+   */
+  private fun listRowAccessPolicyGrantees(bq: BigQuery, tableName: String): Set<String> {
+    val credentials = bq.options.credentials
+    val client = HttpClient.newHttpClient()
+    val base =
+      "https://bigquery.googleapis.com/bigquery/v2/projects/$project/datasets/$dataset/tables/$tableName/rowAccessPolicies"
+    val policyIds = mutableListOf<String>()
+    var pageToken: String? = null
+    do {
+      val url = if (pageToken.isNullOrEmpty()) base else "$base?pageToken=$pageToken"
+      val json = sendForJson(client, authorizedRequest(credentials, url))
+      json.getAsJsonArray("rowAccessPolicies")?.forEach { element ->
+        policyIds.add(
+          element.asJsonObject.getAsJsonObject("rowAccessPolicyReference").get("policyId").asString
+        )
+      }
+      pageToken = json.get("nextPageToken")?.asString
+    } while (!pageToken.isNullOrEmpty())
+
+    val grantees = mutableSetOf<String>()
+    for (policyId in policyIds) {
+      val json =
+        sendForJson(
+          client,
+          authorizedRequest(credentials, "$base/$policyId:getIamPolicy", post = true),
+        )
+      json.getAsJsonArray("bindings")?.forEach { binding ->
+        binding.asJsonObject.getAsJsonArray("members")?.forEach { grantees.add(it.asString) }
+      }
+    }
+    return grantees
+  }
+
+  /**
+   * Lists the filter predicates of a table's row access policies via the REST API. BigQuery exposes
+   * no INFORMATION_SCHEMA view for policies, so this calls the management API directly (handles
+   * pagination).
+   */
+  private fun listRowAccessPolicyPredicates(bq: BigQuery, tableName: String): Set<String> {
+    val credentials = bq.options.credentials
+    val client = HttpClient.newHttpClient()
+    val base =
+      "https://bigquery.googleapis.com/bigquery/v2/projects/$project/datasets/$dataset/tables/$tableName/rowAccessPolicies"
+    val predicates = mutableSetOf<String>()
+    var pageToken: String? = null
+    do {
+      val url = if (pageToken.isNullOrEmpty()) base else "$base?pageToken=$pageToken"
+      val json = sendForJson(client, authorizedRequest(credentials, url))
+      json.getAsJsonArray("rowAccessPolicies")?.forEach { element ->
+        predicates.add(element.asJsonObject.get("filterPredicate")?.asString ?: "")
+      }
+      pageToken = json.get("nextPageToken")?.asString
+    } while (!pageToken.isNullOrEmpty())
+    return predicates
+  }
+
+  /**
+   * Lists BigQuery connection IDs in the dataset's region via the Connection REST API. BigQuery
+   * exposes no INFORMATION_SCHEMA view for connections, so this calls the management API directly
+   * (handles pagination).
+   */
+  private fun listConnections(bq: BigQuery): Set<String> {
+    val credentials = bq.options.credentials
+    val client = HttpClient.newHttpClient()
+    val base =
+      "https://bigqueryconnection.googleapis.com/v1/projects/$project/locations/$region/connections"
+    val ids = mutableSetOf<String>()
+    var pageToken: String? = null
+    do {
+      val url = if (pageToken.isNullOrEmpty()) base else "$base?pageToken=$pageToken"
+      val json = sendForJson(client, authorizedRequest(credentials, url))
+      json.getAsJsonArray("connections")?.forEach { element ->
+        ids.add(element.asJsonObject.get("name").asString.substringAfterLast("/"))
+      }
+      pageToken = json.get("nextPageToken")?.asString
+    } while (!pageToken.isNullOrEmpty())
+    return ids
+  }
+
+  /**
+   * Verifies dashboard tables were refreshed recently. Freshness is not EDP-specific (a table's
+   * last-modified time is identical for every caller), so this runs once as the platform service
+   * account rather than per-EDP. Reads last-modified time from table metadata (tables.get) rather
+   * than querying __TABLES__/TABLE_OPTIONS, which require data-level access.
+   */
+  fun checkFreshness(bq: BigQuery): List<CheckResult> {
+    val results = mutableListOf<CheckResult>()
     val stalenessThresholdHours = 3
     for (tableName in listOf("requisition_overview", "mc_details", "mc_details_edp")) {
       try {
-        val result =
-          bq.query(
-            QueryJobConfiguration.of(
-              "SELECT TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), " +
-                "PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', " +
-                "option_value), HOUR) AS hours_stale " +
-                "FROM `$project.$dataset.INFORMATION_SCHEMA.TABLE_OPTIONS` " +
-                "WHERE table_name = '$tableName' AND option_name = 'last_modified_time'"
-            )
-          )
-        val hoursStale = result.iterateAll().firstOrNull()?.get("hours_stale")?.longValue
-        if (hoursStale != null && hoursStale <= stalenessThresholdHours) {
+        val table = bq.getTable(TableId.of(project, dataset, tableName))
+        val lastModified = table?.lastModifiedTime
+        if (lastModified == null) {
           results.add(
             CheckResult(
-              "${edp.name}: $tableName freshness",
-              true,
-              "${edp.name}: $tableName updated $hoursStale hours ago",
+              "$tableName freshness",
+              false,
+              "$tableName not found or missing last-modified time",
             )
+          )
+          continue
+        }
+        val hoursStale = (System.currentTimeMillis() - lastModified) / (1000L * 60L * 60L)
+        if (hoursStale <= stalenessThresholdHours) {
+          results.add(
+            CheckResult("$tableName freshness", true, "$tableName updated $hoursStale hours ago")
           )
         } else {
           results.add(
             CheckResult(
-              "${edp.name}: $tableName freshness",
+              "$tableName freshness",
               false,
-              "${edp.name}: $tableName is stale (${hoursStale ?: "unknown"} hours old)",
+              "$tableName is stale (${hoursStale ?: "unknown"} hours old)",
             )
           )
         }
       } catch (e: BigQueryException) {
         results.add(
           CheckResult(
-            "${edp.name}: $tableName freshness",
+            "$tableName freshness",
             false,
-            "${edp.name}: $tableName freshness check failed: ${e.message}",
+            "$tableName freshness check failed: ${e.message}",
           )
         )
       }
     }
-
     return results
   }
 }

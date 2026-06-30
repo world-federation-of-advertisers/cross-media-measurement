@@ -543,6 +543,267 @@ class EventGroupSyncFunctionTest() {
   }
 
   @Test
+  fun `sync registersUnregisteredEventGroups using JSON format with snake_case field name`() {
+    // Production writes the top-level repeated field as snake_case `event_groups` (the format that
+    // triggered the OOM). Ensure it is parsed the same as the camelCase `eventGroups` spelling.
+    val newCampaign =
+      """
+        {
+          "event_groups": [
+            {
+              "eventGroupReferenceId": "reference-id-4",
+              "eventGroupMetadata": {
+                "adMetadata": {
+                  "campaignMetadata": {
+                    "brand": "brand-2",
+                    "campaign": "campaign-2"
+                  }
+                }
+              },
+              "dataAvailabilityInterval": {
+                "startTime": "1970-01-01T00:03:20Z",
+                "endTime": "1970-01-01T00:05:00Z"
+              },
+              "measurementConsumer": "measurementConsumers/measurement-consumer-2",
+              "mediaTypes": ["OTHER"]
+            },
+            {
+              "eventGroupReferenceId": "reference-id-5",
+              "eventGroupMetadata": {
+                "adMetadata": {
+                  "campaignMetadata": {
+                    "brand": "brand-2",
+                    "campaign": "campaign-3"
+                  }
+                }
+              },
+              "dataAvailabilityInterval": {
+                "startTime": "1970-01-01T00:03:20Z",
+                "endTime": "1970-01-01T00:05:00Z"
+              },
+              "measurementConsumer": "measurementConsumers/measurement-consumer-2",
+              "mediaTypes": ["OTHER"]
+            }
+           ]
+          }
+    """
+        .trimIndent()
+
+    val config = eventGroupSyncConfig {
+      dataProvider = "some-data-provider"
+      eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.json"
+      eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
+      this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+      eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
+    }
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = eventGroupSyncConfigs { configs += config }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+
+    File("${tempFolder.root}/some/path").mkdirs()
+    File("${tempFolder.root}/some/other/path").mkdirs()
+    val port = runBlocking {
+      startFunction(
+        mapOf(
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+        )
+      )
+    }
+
+    val url = "http://localhost:$port"
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    runBlocking {
+      storageClient.writeBlob(
+        "some/path/campaigns-blob-uri.json",
+        flowOf(ByteString.copyFromUtf8(newCampaign)),
+      )
+    }
+
+    val client = HttpClient.newHttpClient()
+    val getRequest =
+      HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
+        .build()
+    val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
+
+    assertThat(getResponse.statusCode()).isEqualTo(200)
+    verifyBlocking(eventGroupsServiceMock, times(2)) { createEventGroup(any()) }
+    val mappedData = runBlocking {
+      MesosRecordIoStorageClient(storageClient)
+        .getBlob("some/other/path/event-groups-map-uri")!!
+        .read()
+        .map { MappedEventGroup.parseFrom(it) }
+        .toList()
+        .map { it.eventGroupReferenceId to it.eventGroupResource }
+    }
+    assertThat(mappedData)
+      .isEqualTo(
+        listOf(
+          "reference-id-4" to "resource-name-for-reference-id-4",
+          "reference-id-5" to "resource-name-for-reference-id-5",
+        )
+      )
+  }
+
+  @Test
+  fun `sync throws for JSON with zero event groups`() {
+    val newCampaign =
+      """
+        {
+          "event_groups": []
+        }
+    """
+        .trimIndent()
+
+    val config = eventGroupSyncConfig {
+      dataProvider = "some-data-provider"
+      eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.json"
+      eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
+      this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+      eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
+    }
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = eventGroupSyncConfigs { configs += config }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+
+    File("${tempFolder.root}/some/path").mkdirs()
+    File("${tempFolder.root}/some/other/path").mkdirs()
+    val port = runBlocking {
+      startFunction(
+        mapOf(
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+        )
+      )
+    }
+
+    val url = "http://localhost:$port"
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    runBlocking {
+      storageClient.writeBlob(
+        "some/path/campaigns-blob-uri.json",
+        flowOf(ByteString.copyFromUtf8(newCampaign)),
+      )
+    }
+
+    val client = HttpClient.newHttpClient()
+    val getRequest =
+      HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
+        .build()
+    val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
+
+    assertThat(getResponse.statusCode()).isEqualTo(500)
+    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+  }
+
+  @Test
+  fun `sync ignores unknown top-level fields in JSON`() {
+    // Unknown top-level fields are skipped rather than causing the whole upload to fail.
+    val newCampaign =
+      """
+        {
+          "unexpectedTopLevelField": "ignored",
+          "event_groups": [
+            {
+              "eventGroupReferenceId": "reference-id-4",
+              "eventGroupMetadata": {
+                "adMetadata": {
+                  "campaignMetadata": {
+                    "brand": "brand-2",
+                    "campaign": "campaign-2"
+                  }
+                }
+              },
+              "dataAvailabilityInterval": {
+                "startTime": "1970-01-01T00:03:20Z",
+                "endTime": "1970-01-01T00:05:00Z"
+              },
+              "measurementConsumer": "measurementConsumers/measurement-consumer-2",
+              "mediaTypes": ["OTHER"]
+            }
+           ]
+          }
+    """
+        .trimIndent()
+
+    val config = eventGroupSyncConfig {
+      dataProvider = "some-data-provider"
+      eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.json"
+      eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
+      this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+      eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
+    }
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = eventGroupSyncConfigs { configs += config }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+
+    File("${tempFolder.root}/some/path").mkdirs()
+    File("${tempFolder.root}/some/other/path").mkdirs()
+    val port = runBlocking {
+      startFunction(
+        mapOf(
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+        )
+      )
+    }
+
+    val url = "http://localhost:$port"
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    runBlocking {
+      storageClient.writeBlob(
+        "some/path/campaigns-blob-uri.json",
+        flowOf(ByteString.copyFromUtf8(newCampaign)),
+      )
+    }
+
+    val client = HttpClient.newHttpClient()
+    val getRequest =
+      HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
+        .build()
+    val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
+
+    assertThat(getResponse.statusCode()).isEqualTo(200)
+    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
+    val mappedData = runBlocking {
+      MesosRecordIoStorageClient(storageClient)
+        .getBlob("some/other/path/event-groups-map-uri")!!
+        .read()
+        .map { MappedEventGroup.parseFrom(it) }
+        .toList()
+        .map { it.eventGroupReferenceId to it.eventGroupResource }
+    }
+    assertThat(mappedData).isEqualTo(listOf("reference-id-4" to "resource-name-for-reference-id-4"))
+  }
+
+  @Test
   fun `sync registersUnregisteredEventGroups with path from data watcher with legacy config sent over the wire as params`() {
     val newCampaign = eventGroup {
       eventGroupReferenceId = "reference-id-4"

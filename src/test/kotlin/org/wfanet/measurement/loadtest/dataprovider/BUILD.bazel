@@ -209,3 +209,50 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
+
+kt_jvm_test(
+    name = "LabelerInputDataGenerationTest",
+    srcs = ["LabelerInputDataGenerationTest.kt"],
+    data = [
+        "//src/main/proto/wfa/measurement/loadtest/dataprovider:specs",
+    ],
+    test_class = "org.wfanet.measurement.loadtest.dataprovider.LabelerInputDataGenerationTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeler_input_data_generation",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:labeler_input_event_group_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:date_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:demographic_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_test(
+    name = "LabelerInputSpecConverterTest",
+    srcs = ["LabelerInputSpecConverterTest.kt"],
+    data = [
+        "expected_converted_population_spec.textproto",
+        "expected_converted_synthetic_spec.textproto",
+        "//src/main/proto/wfa/measurement/loadtest/dataprovider:specs",
+        "//src/main/resources/testing/labeler:reference_test_model",
+    ],
+    test_class = "org.wfanet.measurement.loadtest.dataprovider.LabelerInputSpecConverterTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeler_input_data_generation",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeler_input_spec_converter",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:labeler_input_event_group_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/market/v1:market_event_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:date_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:demographic_kt_jvm_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_kt_jvm_proto",
+        "@wfa_virtual_people_core_serving//src/main/kotlin/org/wfanet/virtualpeople/core/labeler",
+    ],
+)
