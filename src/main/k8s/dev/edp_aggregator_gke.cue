@@ -91,6 +91,5 @@ edpAggregator: #EdpAggregator & {
 		"--cert-collection-file=/etc/halo-cmms/edp-aggregator/config/kingdom_root.pem",
 		"--list-page-size=1000",
 		"--throttler-minimum-interval=100ms",
-		"--dry-run",
 	]
 }
