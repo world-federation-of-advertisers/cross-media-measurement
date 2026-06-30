@@ -165,7 +165,10 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 		_name:       Name
 		_secretName: _edpAggregatorSecretName
 		_system:     "edp-aggregator"
-		_container: image: _images["sync-event-group-activities"]
+		_container: {
+			image: _images["sync-event-group-activities"]
+			_javaOptions: maxHeapSize: "256M"
+		}
 		spec: {
 			concurrencyPolicy: "Forbid"
 			schedule:          _syncEventGroupActivitiesCronSchedule
