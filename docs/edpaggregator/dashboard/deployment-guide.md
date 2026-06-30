@@ -47,12 +47,34 @@ Before deploying the dashboard, ensure the following are in place:
 1.  The CMMS Terraform configuration is deployed (Kingdom, Reporting, EDP
     Aggregator Spanner databases exist).
 2.  The Reporting v2 Postgres database is deployed and accessible.
-3.  The Terraform service account has the following project-level roles:
-    *   `roles/bigquery.admin` (or sufficient permissions to create datasets,
-        tables, connections, scheduled queries, and row access policies)
-    *   `roles/iam.serviceAccountAdmin` (to create per-EDP service accounts)
+3.  The Terraform service account has the following project-level roles
+    (granted out-of-band — Terraform does not bootstrap its own credentials):
+    *   `roles/bigquery.admin` — create datasets, tables, connections,
+        scheduled queries, row access policies.
+    *   `roles/iam.serviceAccountAdmin` — create per-EDP service accounts and
+        the `dashboard-compliance` SA.
+    *   `roles/resourcemanager.projectIamAdmin` — grant project-level IAM
+        bindings, including the self-grants below.
+    *   `roles/iam.roleAdmin` — manage the `dashboardComplianceChecker`
+        custom project role. Without this, the first `terraform apply` fails
+        on a fresh project with: "Unable to verify whether custom project
+        role projects/<project>/roles/dashboardComplianceChecker already
+        exists and must be undeleted." (The Terraform code in PR #4126 adds
+        a self-grant so this only needs to be granted once initially; on
+        subsequent applies Terraform maintains it.)
 4.  Proto bundles are registered in Kingdom and Reporting Spanner databases
     (required for `TO_JSON()` decoding).
+5.  The BigQuery Connection service agent
+    (`service-${project_number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com`)
+    exists. GCP creates this service-managed agent on demand the first time
+    a project uses the BigQuery Connection API. PR #4126 force-provisions it
+    via `google_project_service_identity`; on environments without that
+    change deployed, run once before the first apply:
+    ```shell
+    gcloud beta services identity create \
+      --service=bigqueryconnection.googleapis.com \
+      --project=MY_PROJECT
+    ```
 
 ## Step 1: Configure Terraform Variables
 
@@ -85,6 +107,12 @@ edp_aggregator_spanner_project  = "my-edpa-project"
 edp_aggregator_spanner_instance = "halo-cmms"
 ```
 
+The fourth BigQuery connection — `reporting-postgres-conn` (Cloud SQL
+Postgres) — reuses the base CMMS Postgres instance configured by the
+Reporting v2 module (`postgres_instance_name` / `postgres_password`, see
+prerequisite 2). There are no separate Postgres variables specific to the
+dashboard.
+
 ### Optional Variables
 
 ```hcl
@@ -95,11 +123,24 @@ dashboard_deletion_protection = false
 
 ### GitHub Actions Environment Variables
 
-If using the CI workflow, set the following in your GitHub environment:
+If using the CI workflow, set the following in your GitHub environment. The
+`terraform-cmms-v2.yml` workflow's "Write dashboard tfvars" step reads
+`DATA_PROVIDER_RESOURCE_IDS` and `DASHBOARD_OPERATORS` to generate the
+`dashboard.auto.tfvars` Terraform consumes; without them the deploy writes an
+empty/invalid tfvars and fails. `DASHBOARD_EDP_CONFIG` is used by the
+isolation test matrix; `DASHBOARD_DELETION_PROTECTION` is optional.
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `DASHBOARD_EDP_CONFIG` | JSON array of EDP configs for the CI test matrix | `[{"name":"edp1","resource_id":"AbCdEf_12345"},{"name":"edp2","resource_id":"GhIjKl_67890"}]` |
+| Variable | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `DATA_PROVIDER_RESOURCE_IDS` | yes | JSON object mapping EDP short name → DataProviderResourceId, consumed by the Terraform `data_provider_resource_ids` map var | `{"edp1":"AbCdEf_12345","edp2":"GhIjKl_67890"}` |
+| `DASHBOARD_OPERATORS` | yes | JSON array of `user:` / `group:` IAM members granted operator access (impersonation, platform-table reads) | `["group:edpa-dashboard-operators@example.com"]` |
+| `DASHBOARD_EDP_CONFIG` | yes | JSON array of EDP configs for the CI isolation test matrix | `[{"name":"edp1","resource_id":"AbCdEf_12345"},{"name":"edp2","resource_id":"GhIjKl_67890"}]` |
+| `DASHBOARD_DELETION_PROTECTION` | no (default `true`) | Set `"false"` in dev to allow table recreation | `"false"` |
+
+Pre-existing CMMS environment variables (`GOOGLE_CLOUD_PROJECT`,
+`SPANNER_INSTANCE`, `POSTGRES_INSTANCE_NAME`, `POSTGRES_PASSWORD`) are
+already consumed by the broader workflow and do not need to be re-added for
+the dashboard.
 
 ## Step 2: Deploy with Terraform
 
@@ -129,19 +170,17 @@ queries run hourly via MERGE. To populate tables immediately:
 
 ```shell
 # List dashboard transfer configs
-gcloud transfer configs list \
-  --project=MY_PROJECT \
-  --transfer-location=us-central1 \
-  --filter="displayName:Dashboard" \
-  --format="value(name)"
+bq ls --transfer_config --transfer_location=us-central1 --project_id=MY_PROJECT \
+  --filter='dataSourceIds:scheduled_query'
 
-# Trigger a manual run for each config
+# Trigger a manual run for each config. CONFIG_RESOURCE_NAME is the
+# `projects/.../locations/.../transferConfigs/...` value from `bq ls`.
 RUN_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-gcloud transfer runs create \
-  --project=MY_PROJECT \
-  --config=CONFIG_NAME \
-  --run-time="$RUN_TIME"
+bq mk --transfer_run --run_time="$RUN_TIME" CONFIG_RESOURCE_NAME
 ```
+
+`gcloud transfer` is the *Storage* Transfer Service and does not manage
+BigQuery scheduled queries — use `bq` as shown above.
 
 ### Verify Tables Are Populated
 
@@ -157,15 +196,24 @@ All 5 tables should have rows after the scheduled queries complete.
 
 The `DashboardComplianceCheck` CLI verifies the security posture of the
 deployed dashboard. Run it after initial deployment and periodically thereafter.
+Impersonate the least-privilege `dashboard-compliance` service account (created
+by Terraform in `dashboard.tf`) rather than running as a human user or the
+broader operator SA — the dedicated SA's `dashboardComplianceChecker` custom
+role grants only what the check needs.
 
 ```shell
 bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard/tools:DashboardComplianceCheck -- \
+  --impersonate-service-account=dashboard-compliance@MY_PROJECT.iam.gserviceaccount.com \
   --project=MY_PROJECT \
   --region=us-central1 \
   --edp=edp1:AbCdEf_12345 \
   --edp=edp2:GhIjKl_67890 \
   --edp=edp3:MnOpQr_24680
 ```
+
+To impersonate, your account needs `roles/iam.serviceAccountTokenCreator` on
+the `dashboard-compliance` SA. The dashboard Terraform grants this to every
+member of `dashboard_operators`.
 
 The compliance check verifies:
 
@@ -186,7 +234,9 @@ After Terraform deploys and other cloud tests generate data, the workflow:
 1.  Triggers all dashboard scheduled queries
 2.  Waits for completion
 3.  Runs `DashboardIsolationTest` as each EDP (via Workload Identity Federation)
-4.  Runs `DashboardComplianceCheck` as the Terraform SA (via impersonation)
+4.  Runs `DashboardComplianceCheck` impersonating
+    `dashboard-compliance@PROJECT.iam.gserviceaccount.com` (the least-privilege
+    SA, not the broader operator/terraform SA)
 
 Ensure the GitHub environment has the required variables (`DASHBOARD_EDP_CONFIG`,
 `GOOGLE_CLOUD_PROJECT`, `BIGQUERY_REGION`, `TF_SERVICE_ACCOUNT`,
@@ -232,12 +282,17 @@ Ensure the GitHub environment has the required variables (`DASHBOARD_EDP_CONFIG`
 ### Monitoring
 
 *   **Scheduled query failures**: Check the BigQuery Data Transfer Service
-    console or query `INFORMATION_SCHEMA.JOBS` for errors.
+    console or query `INFORMATION_SCHEMA.JOBS_BY_PROJECT` (requires
+    `bigquery.jobs.listAll`) for errors. `INFORMATION_SCHEMA.JOBS` shows only
+    the current user's own jobs; scheduled queries run as the transfer
+    service account and will not appear there. To also catch transfer- or
+    config-level failures that never produce a query job, inspect the
+    transfer run history with `bq show --transfer_run`.
 *   **Stale data**: The compliance check's staleness threshold is 3 hours. If
     data is older, investigate scheduled query logs.
 *   **Row access policy drift**: The compliance check verifies policies exist
-    on every run. File a follow-up issue (#3930) to wire the compliance check
-    into Cloud Scheduler for daily automated runs.
+    on every run. Automated daily runs via Cloud Scheduler are tracked in
+    #3930.
 
 ## Troubleshooting
 

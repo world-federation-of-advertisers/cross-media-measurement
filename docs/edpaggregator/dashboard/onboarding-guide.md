@@ -30,8 +30,18 @@ Each EDP gets a dedicated Google Cloud service account that provides access to
 ### Step 1: Get the EDP's DataProviderResourceId
 
 The `DataProviderResourceId` is the base64url-encoded API resource ID for the
-EDP's `DataProvider` in the Kingdom. You can find it by querying the Kingdom
-API:
+EDP's `DataProvider` in the Kingdom. The `v2alpha` `DataProvidersService`
+does not expose `ListDataProviders`, so look it up from the source of truth
+where it's already recorded:
+
+*   **`EDPA_EDPS_CONFIG` GitHub environment variable** — each entry has a
+    `data_provider: "dataProviders/<id>"` field. The portion after the slash
+    is the resource ID.
+*   The EDP's registration record (whatever you used during the initial
+    `DataProvider` creation).
+
+If the full resource name is already known, you can confirm the EDP exists
+with:
 
 ```shell
 MeasurementSystem \
@@ -40,7 +50,7 @@ MeasurementSystem \
   --cert-collection-file=secretfiles/kingdom_root.pem \
   --kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
   data-providers \
-  list
+  get --name=dataProviders/AbCdEf_12345
 ```
 
 The resource ID is the last segment of the `DataProvider` resource name
@@ -132,19 +142,45 @@ Federation, a service account key, or impersonation from their own GCP project.
 
 ### Option A: Programmatic Access (BigQuery Client)
 
-Use the BigQuery client library with your dashboard service account credentials.
+Authenticate **without** downloading service-account keys whenever possible.
+Downloaded keys are a long-lived credential and are called out as a top risk
+in #3930's threat model.
 
-#### Python Example
+In preference order:
+
+1.  **Service account impersonation** (the EDP has a Google identity in any
+    GCP project). The operator grants the EDP's user/SA
+    `roles/iam.serviceAccountTokenCreator` on
+    `edp-<name>-dashboard@PROJECT.iam.gserviceaccount.com`, then the EDP
+    impersonates it.
+2.  **Workload Identity Federation** (the EDP runs outside GCP, e.g. AWS or
+    on-prem). The CMMS terraform already provisions
+    `edp-workload-identity-pool` / `edp-aws-workload-identity-pool` for each
+    EDP's main SA. Reusing these for the dashboard requires one additional
+    IAM binding — grant the EDP's federated principalSet
+    `roles/iam.workloadIdentityUser` (or `serviceAccountTokenCreator`) on
+    `edp-<name>-dashboard`. The dashboard Terraform does not create this
+    binding today; have an operator add it before the EDP onboards.
+3.  **Downloaded service-account key** — last resort, only if neither of the
+    above is feasible. If used, scope tightly, store in a secret manager,
+    and rotate on a schedule.
+
+#### Python Example (impersonation)
 
 ```python
+from google.auth import default, impersonated_credentials
 from google.cloud import bigquery
-from google.oauth2 import service_account
 
-credentials = service_account.Credentials.from_service_account_file(
-    'edp-dashboard-key.json',
-    scopes=['https://www.googleapis.com/auth/bigquery']
+source_credentials, _ = default(
+    scopes=['https://www.googleapis.com/auth/cloud-platform']
 )
-client = bigquery.Client(project='DASHBOARD_PROJECT', credentials=credentials)
+target_credentials = impersonated_credentials.Credentials(
+    source_credentials=source_credentials,
+    target_principal='edp-edp4-dashboard@DASHBOARD_PROJECT.iam.gserviceaccount.com',
+    target_scopes=['https://www.googleapis.com/auth/bigquery'],
+    lifetime=3600,
+)
+client = bigquery.Client(project='DASHBOARD_PROJECT', credentials=target_credentials)
 
 query = """
 SELECT
@@ -156,44 +192,81 @@ FROM `DASHBOARD_PROJECT.dashboard.requisition_overview`
 ORDER BY CmmsCreateTime DESC
 LIMIT 100
 """
-results = client.query(query).result()
-for row in results:
+for row in client.query(query).result():
     print(row)
 ```
 
-#### bq CLI
+#### bq CLI (impersonation)
 
 ```shell
-# Authenticate as the dashboard service account
-gcloud auth activate-service-account \
-  edp-edp4-dashboard@PROJECT.iam.gserviceaccount.com \
-  --key-file=edp-dashboard-key.json
+# Once: have your operator grant your Google identity
+#   roles/iam.serviceAccountTokenCreator on the dashboard SA.
 
-# Query requisition overview
+export CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT=\
+edp-edp4-dashboard@DASHBOARD_PROJECT.iam.gserviceaccount.com
+
 bq query --project_id=DASHBOARD_PROJECT --nouse_legacy_sql \
   'SELECT * FROM `DASHBOARD_PROJECT.dashboard.requisition_overview` LIMIT 10'
 
-# Query event group details
 bq query --project_id=DASHBOARD_PROJECT --nouse_legacy_sql \
   'SELECT CmmsDataProvider, EventGroupCount, EntityTypes, EntityIds, CampaignNames, MediaTypes
    FROM `DASHBOARD_PROJECT.dashboard.mc_details_edp`'
 
-# Query report details
 bq query --project_id=DASHBOARD_PROJECT --nouse_legacy_sql \
   'SELECT ExternalReportId, EventGroupCount, CmmsEventGroupIds, EntityTypes
    FROM `DASHBOARD_PROJECT.dashboard.report_detail_edp`'
 ```
 
+#### Last resort: service-account key
+
+If keyless auth isn't feasible:
+
+```python
+from google.cloud import bigquery
+from google.oauth2 import service_account
+
+credentials = service_account.Credentials.from_service_account_file(
+    'edp-dashboard-key.json',  # treat as a secret; rotate
+    scopes=['https://www.googleapis.com/auth/bigquery'],
+)
+client = bigquery.Client(project='DASHBOARD_PROJECT', credentials=credentials)
+```
+
 ### Option B: Looker Studio
+
+Looker Studio comes in two flavors with different authentication models —
+choose based on what you have access to:
+
+#### Looker Studio Pro (recommended)
+
+Pro lets a data source run as a service account, which is what the dashboard
+RAP grants. The EDP sees their own data without any policy changes.
+
+1.  Open Looker Studio Pro and create a new report.
+2.  Add a BigQuery data source.
+3.  In the data source settings, configure it to run as
+    `edp-<name>-dashboard@DASHBOARD_PROJECT.iam.gserviceaccount.com`.
+4.  Select the project, dataset `dashboard`, and one of the accessible tables.
+5.  Build visualizations. Row access policies filter automatically.
+
+#### Free Looker Studio
+
+The free tier authenticates with the **human's** Google identity, not a
+service account. Because only `edp-<name>-dashboard` is named in the row
+access policy, an EDP human user would see **0 rows** by default. To use the
+free tier, an operator must add the EDP's human Google accounts (or a Google
+Group) as grantees on the EDP's row access policy. The dashboard Terraform
+does not do this today; treat it as an explicit operator action when an EDP
+asks for free-tier access.
+
+Once the policy is updated:
 
 1.  Open [Looker Studio](https://lookerstudio.google.com/) and create a new
     report.
-2.  Add a BigQuery data source.
-3.  Authenticate as the dashboard service account (or use a service account
-    with Looker Studio access).
-4.  Select the project, dataset `dashboard`, and one of the accessible tables.
-5.  Build visualizations. Row access policies filter automatically — the EDP
-    sees only their own data.
+2.  Add a BigQuery data source for the dashboard dataset.
+3.  Select "Viewer's credentials" so each viewer's identity is used for row
+    filtering.
+4.  Build visualizations.
 
 ### Available Fields
 
