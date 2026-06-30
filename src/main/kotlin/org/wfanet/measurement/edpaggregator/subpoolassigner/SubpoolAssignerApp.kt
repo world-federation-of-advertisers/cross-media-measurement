@@ -75,6 +75,8 @@ import org.wfanet.measurement.storage.ParquetStorageClient
  *   the per-(shard, subpool) `SubpoolFingerprints` blobs.
  * @param getRawImpressionsStorageConfig Lambda to obtain the [StorageConfig] for reading the
  *   raw-impression files uploaded by the EDP.
+ * @param getModelStorageConfig Lambda to obtain the [StorageConfig] for reading the compiled VID
+ *   model blob (which lives in its own GCS project).
  * @param rawImpressionUploadsStub Stub for the `RawImpressionUpload` metadata-storage service.
  * @param rawImpressionUploadModelLinesStub Stub for the `RawImpressionUploadModelLine`
  *   metadata-storage service.
@@ -83,7 +85,8 @@ import org.wfanet.measurement.storage.ParquetStorageClient
  *   whether it is the last shard out.
  * @param rawImpressionUploadFilesStub Stub for discovering this upload's raw-impression files.
  *   Built by the runner from `raw_impression_metadata_storage_connection`.
- * @param buildParquetStorageClient Builds a [ParquetStorageClient] for the raw-impressions storage.
+ * @param buildParquetStorageClient Builds a [ParquetStorageClient] for the raw-impressions storage,
+ *   PME-decrypting raw impressions via the per-EDP [KmsClient].
  * @param buildSubpoolMapStorageClient Builds a [StorageClient] for the subpool-map storage.
  * @param loadPoolEmitLabeler Loads the compiled VID model in pool-emit mode from a
  *   `model_blob_path`.
@@ -100,28 +103,17 @@ class SubpoolAssignerApp(
   private val kmsClients: Map<String, KmsClient>,
   private val getSubpoolMapStorageConfig: (StorageParams) -> StorageConfig,
   private val getRawImpressionsStorageConfig: (StorageParams) -> StorageConfig,
+  private val getModelStorageConfig: (StorageParams) -> StorageConfig,
   private val rawImpressionUploadsStub: RawImpressionUploadServiceCoroutineStub,
   private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
   private val rankerJobsStub: RankerJobServiceCoroutineStub,
   private val poolAssignmentJobsStub: PoolAssignmentJobServiceCoroutineStub,
-  // The following collaborators are defaulted so the runner (which supplies the production
-  // wiring)
-  // can be filled in separately; the defaults throw if invoked, but keep the app constructible.
-  private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub? = null,
-  private val buildParquetStorageClient: (StorageConfig) -> ParquetStorageClient = {
-    TODO("Wire ParquetStorageClient construction from StorageConfig in SubpoolAssignerAppRunner")
-  },
-  private val buildSubpoolMapStorageClient: (StorageConfig) -> ConditionalOperationStorageClient = {
-    TODO(
-      "Wire subpool-map StorageClient construction from StorageConfig in SubpoolAssignerAppRunner"
-    )
-  },
-  private val loadPoolEmitLabeler: (modelBlobPath: String) -> PoolEmitLabeler = {
-    TODO("Load the compiled VID model in pool-emit mode (C++/JNI) in SubpoolAssignerAppRunner")
-  },
-  private val getSubpoolMapKekUri: (dataProvider: String) -> String = {
-    TODO("Resolve the subpool-map KEK URI for the DataProvider in SubpoolAssignerAppRunner")
-  },
+  private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
+  private val buildParquetStorageClient: (StorageConfig, KmsClient) -> ParquetStorageClient,
+  private val buildSubpoolMapStorageClient: (StorageConfig) -> ConditionalOperationStorageClient,
+  private val loadPoolEmitLabeler:
+    suspend (modelStorageConfig: StorageConfig, modelBlobPath: String) -> PoolEmitLabeler,
+  private val getSubpoolMapKekUri: (dataProvider: String) -> String,
   private val eventIdDigestExtractor: EventIdDigestExtractor = EventIdDigestExtractor(),
 ) :
   BaseTeeApplication(
@@ -140,14 +132,11 @@ class SubpoolAssignerApp(
     require(dataProvider.isNotEmpty()) { "data_provider must not be empty" }
     require(params.hasRawImpressionStorageParams()) { "raw_impression_storage_params must be set" }
     require(params.hasSubpoolMapStorageParams()) { "subpool_map_storage_params must be set" }
+    require(params.hasModelStorageParams()) { "model_storage_params must be set" }
     require(params.totalShards > 0) { "total_shards must be > 0" }
 
     val kmsClient =
       requireNotNull(kmsClients[dataProvider]) { "KMS client not found for $dataProvider" }
-    val filesStub =
-      requireNotNull(rawImpressionUploadFilesStub) {
-        "RawImpressionUploadFileService stub not configured"
-      }
 
     // The raw event-id column is the raw-impression field mapped to LabelerInput's `event_id.id`.
     // The memoized digest path needs a single column to hash, so this entry must be a plain scalar
@@ -170,9 +159,10 @@ class SubpoolAssignerApp(
       RawImpressionSource(
         parquetStorageClient =
           buildParquetStorageClient(
-            getRawImpressionsStorageConfig(params.rawImpressionStorageParams)
+            getRawImpressionsStorageConfig(params.rawImpressionStorageParams),
+            kmsClient,
           ),
-        rawImpressionUploadFilesStub = filesStub,
+        rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
         rawImpressionUpload = params.rawImpressionUpload,
         eventIdColumn = eventIdColumn,
         shardIndex = params.shardIndex,
@@ -200,30 +190,31 @@ class SubpoolAssignerApp(
     // ranker_job, subpool_map_blob_uris, max_event_date) on top of this template.
     val vidRankBuilderParamsTemplate = buildVidRankBuilderParamsTemplate(params)
 
-    loadPoolEmitLabeler(params.modelBlobPath).use { labeler ->
-      SubpoolAssigner(
-          rawImpressionSource = rawImpressionSource,
-          mapper = mapper,
-          labeler = labeler,
-          activeWindow = activeWindow,
-          store = store,
-          kekUri = getSubpoolMapKekUri(dataProvider),
-          blobPrefix = params.subpoolMapStorageParams.blobPrefix,
-          poolAssignmentJobsStub = poolAssignmentJobsStub,
-          rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesStub,
-          rankerJobsStub = rankerJobsStub,
-          rawImpressionUploadsStub = rawImpressionUploadsStub,
-          workItemsStub = workItemsClient,
-          rawImpressionUpload = params.rawImpressionUpload,
-          modelLine = params.modelLine,
-          poolAssignmentJob = params.poolAssignmentJob,
-          shardIndex = params.shardIndex,
-          totalShards = params.totalShards,
-          vidRankBuilderQueue = vidRankBuilderQueue,
-          vidRankBuilderParamsTemplate = vidRankBuilderParamsTemplate,
-        )
-        .assign()
-    }
+    loadPoolEmitLabeler(getModelStorageConfig(params.modelStorageParams), params.modelBlobPath)
+      .use { labeler ->
+        SubpoolAssigner(
+            rawImpressionSource = rawImpressionSource,
+            mapper = mapper,
+            labeler = labeler,
+            activeWindow = activeWindow,
+            store = store,
+            kekUri = getSubpoolMapKekUri(dataProvider),
+            blobPrefix = params.subpoolMapStorageParams.blobPrefix,
+            poolAssignmentJobsStub = poolAssignmentJobsStub,
+            rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesStub,
+            rankerJobsStub = rankerJobsStub,
+            rawImpressionUploadsStub = rawImpressionUploadsStub,
+            workItemsStub = workItemsClient,
+            rawImpressionUpload = params.rawImpressionUpload,
+            modelLine = params.modelLine,
+            poolAssignmentJob = params.poolAssignmentJob,
+            shardIndex = params.shardIndex,
+            totalShards = params.totalShards,
+            vidRankBuilderQueue = vidRankBuilderQueue,
+            vidRankBuilderParamsTemplate = vidRankBuilderParamsTemplate,
+          )
+          .assign()
+      }
   }
 
   companion object {
@@ -252,6 +243,7 @@ class SubpoolAssignerApp(
           params.vidLabeledImpressionsStorageParams.toVidRankBuilderStorageParams()
         subpoolMapStorageParams = params.subpoolMapStorageParams.toVidRankBuilderStorageParams()
         vidRankMapStorageParams = params.vidRankMapStorageParams.toVidRankBuilderStorageParams()
+        modelStorageParams = params.modelStorageParams.toVidRankBuilderStorageParams()
         rawImpressionUpload = params.rawImpressionUpload
         modelLine = params.modelLine
         modelBlobPath = params.modelBlobPath
