@@ -89,7 +89,6 @@ proto_library(
     srcs = ["vid_labeler_params.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
-        ":labeled_impression_proto",
         ":transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
@@ -110,6 +109,7 @@ proto_library(
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
         ":transport_layer_security_params_proto",
+        ":vid_labeler_params_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:timestamp_proto",
@@ -129,9 +129,11 @@ proto_library(
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
         ":encrypted_dek_proto",
+        ":vid_labeler_params_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_googleapis//google/type:date_proto",
+        "@com_google_protobuf//:timestamp_proto",
     ],
 )
 
