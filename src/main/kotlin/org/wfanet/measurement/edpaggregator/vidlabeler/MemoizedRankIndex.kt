@@ -1,0 +1,183 @@
+/*
+ * Copyright 2026 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.edpaggregator.vidlabeler
+
+import java.util.logging.Logger
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import org.wfanet.measurement.common.api.ResourceKey
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest
+import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
+import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
+import org.wfanet.virtualpeople.common.RankAssignment
+import org.wfanet.virtualpeople.common.rankAssignment
+
+/**
+ * In-memory per-subpool rank index for the memoized Phase-2 VID labeling path.
+ *
+ * Holds one [Bytes12IntMap] (`fingerprint -> rank`) per subpool, built once per WorkItem from the
+ * current cumulative `SNAPSHOT` rank-index blobs of a `(dataProvider, modelLine)`. For each
+ * impression the labeler looks up the impression's 12-byte [EventIdDigest] (the same key the
+ * Phase-0 `SubpoolAssigner` and Phase-1 `VidRankBuilder` use) and, when the fingerprint holds a
+ * rank, emits a [RankAssignment] for the owning subpool. The caller attaches it to the
+ * `LabelerInput` so the model's `RankedPopulationNode` leaf derives a collision-free VID via
+ * Feistel; a miss leaves the input untouched and the leaf falls back to the hash path.
+ *
+ * Built once and read-only thereafter: [lookup] only reads the underlying [Bytes12IntMap]s, so it
+ * is safe to call concurrently from the reader's CPU pool even though [Bytes12IntMap] is not safe
+ * for concurrent *mutation*.
+ *
+ * @property mapsByPoolOffset the per-subpool `fingerprint -> rank` maps, keyed by `pool_offset`.
+ */
+class MemoizedRankIndex
+private constructor(private val mapsByPoolOffset: Map<Long, Bytes12IntMap>) {
+
+  /** Number of subpools loaded. Exposed for diagnostics / tests. */
+  val subpoolCount: Int
+    get() = mapsByPoolOffset.size
+
+  /**
+   * Returns the [RankAssignment] for [digest] — the `(pool_offset, local_rank)` of the first
+   * subpool whose map holds the fingerprint — or `null` when the fingerprint holds no rank in any
+   * subpool (an overflow / unseen fingerprint, which the labeler hashes instead).
+   */
+  fun lookup(digest: EventIdDigest): RankAssignment? {
+    for ((poolOffset, map) in mapsByPoolOffset) {
+      val rank = map.get(digest.high, digest.low)
+      if (rank != Bytes12IntMap.NOT_PRESENT) {
+        return rankAssignment {
+          this.poolOffset = poolOffset
+          localRank = rank.toLong()
+        }
+      }
+    }
+    return null
+  }
+
+  companion object {
+    private val logger = Logger.getLogger(MemoizedRankIndex::class.java.name)
+
+    /** Default number of subpool blobs decrypted/built concurrently. */
+    const val DEFAULT_READER_PARALLELISM: Int = 16
+
+    private const val NANOS_PER_SECOND = 1_000_000_000L
+    private const val FINGERPRINT_BYTES = Bytes12IntMap.FINGERPRINT_BYTE_WIDTH
+
+    /**
+     * Loads the current rank index for [modelLine] under [dataProvider].
+     *
+     * Discovery mirrors the Phase-1 ranker's prior-snapshot resolution: list every non-deleted
+     * `SNAPSHOT` blob for the `(dataProvider, modelLine)` across all uploads and keep, per
+     * `pool_offset`, the one with the greatest `create_time` (the current cumulative state — a
+     * backfill writes a `SNAPSHOT` too, so newest `create_time` is always the most complete). Each
+     * selected blob is then decrypted and decoded into a [Bytes12IntMap], up to [readerParallelism]
+     * blobs at a time.
+     *
+     * @param rankIndexBlobsStub stub used to locate the per-subpool `SNAPSHOT` blob pointers.
+     * @param rankIndexStore reads + decrypts the rank-index blob bytes (keyed to the vid-rank-map
+     *   storage).
+     * @param dataProvider the EDP resource name (`dataProviders/{dp}`).
+     * @param modelLine the model line being labeled.
+     */
+    suspend fun load(
+      rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
+      rankIndexStore: RankIndexStore,
+      dataProvider: String,
+      modelLine: String,
+      readerParallelism: Int = DEFAULT_READER_PARALLELISM,
+    ): MemoizedRankIndex {
+      val latestByPoolOffset = LinkedHashMap<Long, RankIndexBlob>()
+      rankIndexBlobsStub
+        .listResources { pageToken: String ->
+          val response =
+            listRankIndexBlobs(
+              listRankIndexBlobsRequest {
+                parent = "$dataProvider/rawImpressionUploads/${ResourceKey.WILDCARD_ID}"
+                filter =
+                  ListRankIndexBlobsRequestKt.filter {
+                    blobType = RankIndexBlob.BlobType.SNAPSHOT
+                    cmmsModelLine = modelLine
+                  }
+                this.pageToken = pageToken
+              }
+            )
+          ResourceList(response.rankIndexBlobsList, response.nextPageToken)
+        }
+        .collect { page ->
+          for (blob in page) {
+            val current = latestByPoolOffset[blob.poolOffset]
+            if (
+              current == null || blob.createTime.toComparable() > current.createTime.toComparable()
+            ) {
+              latestByPoolOffset[blob.poolOffset] = blob
+            }
+          }
+        }
+
+      val semaphore = Semaphore(readerParallelism.coerceAtLeast(1))
+      val maps: Map<Long, Bytes12IntMap> = coroutineScope {
+        latestByPoolOffset.values
+          .map { blob ->
+            async {
+              semaphore.withPermit { blob.poolOffset to readSubpoolMap(rankIndexStore, blob) }
+            }
+          }
+          .awaitAll()
+          .toMap()
+      }
+      logger.info("Loaded memoized rank index for $modelLine: ${maps.size} subpool(s)")
+      return MemoizedRankIndex(maps)
+    }
+
+    /**
+     * Decrypts [blob] and decodes its packed `(fingerprint, rank)` records into a [Bytes12IntMap].
+     */
+    private suspend fun readSubpoolMap(
+      rankIndexStore: RankIndexStore,
+      blob: RankIndexBlob,
+    ): Bytes12IntMap {
+      val map = Bytes12IntMap()
+      rankIndexStore.readBlob(blob.blobUri, blob.encryptedDek, blob.blobChecksum).collect { record
+        ->
+        val fingerprints = record.fingerprints
+        val ranks = record.ranksList
+        var offset = 0
+        for (i in ranks.indices) {
+          map.put(
+            fingerprints.substring(offset, offset + FINGERPRINT_BYTES).toByteArray(),
+            ranks[i],
+          )
+          offset += FINGERPRINT_BYTES
+        }
+      }
+      return map
+    }
+
+    private fun com.google.protobuf.Timestamp.toComparable(): Long =
+      seconds * NANOS_PER_SECOND + nanos
+  }
+}

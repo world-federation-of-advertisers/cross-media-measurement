@@ -54,9 +54,17 @@ message VidLabelerParams {
   StorageParams vid_labeled_impressions_storage_params = 3
       [(google.api.field_behavior) = REQUIRED];
 
-  // Connection used by TEE App to access the VID Repo.
+  // Connection used by the TEE app to access the VID Repo.
+  //
+  // Configuration-dependent, not path-dependent: one labeler serves both the
+  // non-memoized and memoized model-line configurations. Required for the
+  // non-memoized configuration, which resolves VIDs against the VID Repo. Unset
+  // for the memoized configuration ([memoized_params] set), which derives each
+  // VID from its memoized rank using the compiled model at
+  // [MemoizedParams.model_blob_path] and never calls the VID Repo (an overflow
+  // / unseen fingerprint falls back to the locally-computed hash path).
   TransportLayerSecurityParams vid_repo_connection = 4
-      [(google.api.field_behavior) = REQUIRED];
+      [(google.api.field_behavior) = OPTIONAL];
 
   // Message representing the configuration for a model line.
   message ModelLineConfig {
@@ -137,4 +145,23 @@ message VidLabelerParams {
     (google.api.field_behavior) = OPTIONAL,
     (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
   ];
+
+  // Parameters for the memoized rank-index Phase-2 path.
+  //
+  // Its presence selects the memoized path: the TEE resolves the per-subpool
+  // rank-index blobs from the `RankIndexBlobService` (gRPC) for the upload and
+  // derives each VID from its memoized rank, instead of the non-memoized
+  // hash-only path. The shared payload (`vid_labeling_job`, `model_lines`,
+  // `model_blob_paths`, `model_storage_params`) lives at the top level for both
+  // paths; this message carries only the memoized-specific storage.
+  MemoizedParams memoized_params = 11 [(google.api.field_behavior) = OPTIONAL];
+
+  // Parameters specific to the memoized rank-index Phase-2 path.
+  message MemoizedParams {
+    // Storage holding the rank-index blobs. The TEE resolves the individual
+    // blob URIs from the `RankIndexBlobService`; this supplies the project +
+    // blob prefix needed to read their bytes.
+    StorageParams vid_rank_map_storage_params = 1
+        [(google.api.field_behavior) = REQUIRED];
+  }
 }
