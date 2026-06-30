@@ -92,8 +92,9 @@ import org.wfanet.virtualpeople.common.copy
  * @param inputBlobUri URI of the raw-impression file this sink consumes.
  * @param modelLineContexts model lines to label with, each with its [ActiveWindow] and
  *   [VidAssigner].
- * @param impressionConverter converts a Parquet row into a [ConvertedImpression] (schema seam),
- *   resolving the file's entity keys from [inputBlobUri].
+ * @param impressionConverter converts a Parquet row into a [ConvertedImpression] (schema seam).
+ * @param fileEntityKeys this file's entity keys (and event group reference id), read from its
+ *   plaintext Parquet footer and applied to every impression converted from the file.
  * @param encryptKmsClient encrypt/decrypt KMS client for the labeled output.
  * @param encryptKekUri KEK URI for generating per-output DEKs.
  * @param outputStorageParams GCS project + blob prefix for labeled output.
@@ -114,6 +115,7 @@ class VidLabelingSink(
   private val inputBlobUri: String,
   private val modelLineContexts: List<ModelLineContext>,
   private val impressionConverter: ImpressionConverter,
+  private val fileEntityKeys: FileEntityKeys,
   private val encryptKmsClient: KmsClient,
   private val encryptKekUri: String,
   private val outputStorageParams: VidLabelerParams.StorageParams,
@@ -143,7 +145,7 @@ class VidLabelingSink(
     for (digestedEvent in events) {
       for (context in modelLineContexts) {
         try {
-          val converted = impressionConverter.convert(digestedEvent, context.config, inputBlobUri)
+          val converted = impressionConverter.convert(digestedEvent, context.config, fileEntityKeys)
           if (converted == null) {
             metrics.impressionsDroppedCounter.add(
               1,
