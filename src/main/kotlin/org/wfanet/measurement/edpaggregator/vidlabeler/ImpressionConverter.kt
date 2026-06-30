@@ -37,14 +37,14 @@ fun interface ImpressionConverter {
   /**
    * Converts [event]'s row for the model line described by [config].
    *
-   * @param inputBlobUri the raw-impression file this row came from, used to resolve the file's
-   *   entity keys (and legacy event group reference id) from the dispatcher-provided per-file map.
+   * @param fileEntityKeys the entity keys (and event group reference id) of the raw-impression file
+   *   this row came from, read from the file's plaintext Parquet footer ("Option Y").
    * @return the [ConvertedImpression], or `null` to skip this row for this model line.
    */
   fun convert(
     event: ParquetDigestedEvent,
     config: VidLabelerParams.ModelLineConfig,
-    inputBlobUri: String,
+    fileEntityKeys: FileEntityKeys,
   ): ConvertedImpression?
 }
 

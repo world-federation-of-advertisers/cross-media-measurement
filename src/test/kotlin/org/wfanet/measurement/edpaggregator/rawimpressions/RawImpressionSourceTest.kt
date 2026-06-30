@@ -160,7 +160,7 @@ class RawImpressionSourceTest {
     opened: ConcurrentLinkedQueue<String>? = null,
     committed: ConcurrentLinkedQueue<String>? = null,
     closed: ConcurrentLinkedQueue<String>? = null,
-  ): suspend (String) -> RawImpressionSource.BlobSink = { blobUri ->
+  ): suspend (String, Map<String, String>) -> RawImpressionSource.BlobSink = { blobUri, _ ->
     opened?.add(blobUri)
     object : RawImpressionSource.BlobSink {
       override suspend fun processBatch(events: List<ParquetDigestedEvent>) {

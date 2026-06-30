@@ -119,11 +119,8 @@ class VidLabelerAppRunner : BaseTeeAppRunner() {
               .getBlob(blobUri.key) ?: error("Compiled-model blob not found: $modelBlobUri")
           VirtualPeopleVidAssigner.fromCompiledNodeBlob(modelBlob.read().flatten())
         },
-        buildImpressionConverter = { _, config, entityKeysByInputBlobUri ->
-          ParquetImpressionConverter(
-            eventDescriptor = resolveEventDescriptor(config),
-            entityKeysByInputBlobUri = entityKeysByInputBlobUri,
-          )
+        buildImpressionConverter = { _, config ->
+          ParquetImpressionConverter(eventDescriptor = resolveEventDescriptor(config))
         },
       )
 
