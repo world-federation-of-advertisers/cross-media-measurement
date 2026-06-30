@@ -42,6 +42,7 @@ import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
+import org.wfanet.measurement.internal.reporting.v2.ensureSynthesizedCampaignGroupReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
@@ -2291,6 +2292,322 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
+
+  @Test
+  fun `ensureSynthesizedCampaignGroupReportingSet creates a campaign group when none exists`() =
+    runBlocking {
+      createMeasurementConsumer()
+      val eventGroupKeys =
+        listOf(primitiveEventGroupKey("1235", "1236"), primitiveEventGroupKey("2235", "2236"))
+
+      val response =
+        service.ensureSynthesizedCampaignGroupReportingSet(
+          campaignGroupRequest("campaign-group", eventGroupKeys)
+        )
+
+      assertThat(response.externalReportingSetId).isEqualTo("campaign-group")
+      // Self-referencing campaign group.
+      assertThat(response.externalCampaignGroupId).isEqualTo("campaign-group")
+      assertThat(response.primitive.eventGroupKeysList).containsExactlyElementsIn(eventGroupKeys)
+
+      // Retrievable like any MC-owned ReportingSet.
+      val fetched =
+        service
+          .batchGetReportingSets(
+            batchGetReportingSetsRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalReportingSetIds += response.externalReportingSetId
+            }
+          )
+          .reportingSetsList
+          .single()
+      assertThat(fetched).isEqualTo(response)
+    }
+
+  @Test
+  fun `ensureSynthesizedCampaignGroupReportingSet reuses existing campaign group for same EventGroup set`() =
+    runBlocking {
+      createMeasurementConsumer()
+      val eventGroupKeys =
+        listOf(primitiveEventGroupKey("1235", "1236"), primitiveEventGroupKey("2235", "2236"))
+
+      val first =
+        service.ensureSynthesizedCampaignGroupReportingSet(
+          campaignGroupRequest("campaign-group-1", eventGroupKeys)
+        )
+      val second =
+        service.ensureSynthesizedCampaignGroupReportingSet(
+          campaignGroupRequest("campaign-group-2", eventGroupKeys)
+        )
+
+      // The second request reuses the first ReportingSet rather than minting a new one.
+      assertThat(second).isEqualTo(first)
+      assertThat(second.externalReportingSetId).isEqualTo("campaign-group-1")
+      assertThat(reportingSetsForMc()).hasSize(1)
+    }
+
+  @Test
+  fun `ensureSynthesizedCampaignGroupReportingSet reuses existing campaign group regardless of EventGroup order`() =
+    runBlocking {
+      createMeasurementConsumer()
+      val eventGroupA = primitiveEventGroupKey("1235", "1236")
+      val eventGroupB = primitiveEventGroupKey("2235", "2236")
+
+      val first =
+        service.ensureSynthesizedCampaignGroupReportingSet(
+          campaignGroupRequest("campaign-group-1", listOf(eventGroupA, eventGroupB))
+        )
+      val second =
+        service.ensureSynthesizedCampaignGroupReportingSet(
+          campaignGroupRequest("campaign-group-2", listOf(eventGroupB, eventGroupA))
+        )
+
+      assertThat(second.externalReportingSetId).isEqualTo(first.externalReportingSetId)
+      assertThat(reportingSetsForMc()).hasSize(1)
+    }
+
+  @Test
+  fun `ensureSynthesizedCampaignGroupReportingSet creates distinct campaign group for different EventGroup set`() =
+    runBlocking {
+      createMeasurementConsumer()
+      val eventGroupA = primitiveEventGroupKey("1235", "1236")
+      val eventGroupB = primitiveEventGroupKey("2235", "2236")
+
+      val first =
+        service.ensureSynthesizedCampaignGroupReportingSet(
+          campaignGroupRequest("campaign-group-1", listOf(eventGroupA))
+        )
+      // A superset is a different universe and must not reuse the subset's ReportingSet.
+      val second =
+        service.ensureSynthesizedCampaignGroupReportingSet(
+          campaignGroupRequest("campaign-group-2", listOf(eventGroupA, eventGroupB))
+        )
+
+      assertThat(second.externalReportingSetId).isNotEqualTo(first.externalReportingSetId)
+      assertThat(reportingSetsForMc()).hasSize(2)
+    }
+
+  @Test
+  fun `ensureSynthesizedCampaignGroupReportingSet reuses a campaign group created via createReportingSet`() =
+    runBlocking {
+      createMeasurementConsumer()
+      val eventGroupKeys = listOf(primitiveEventGroupKey("1235", "1236"))
+      val created =
+        service.createReportingSet(
+          createReportingSetRequest {
+            externalReportingSetId = "caller-campaign-group"
+            reportingSet = reportingSet {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalCampaignGroupId = this@createReportingSetRequest.externalReportingSetId
+              primitive = ReportingSetKt.primitive { this.eventGroupKeys += eventGroupKeys }
+            }
+          }
+        )
+
+      // Content-based match reuses any matching campaign group, however it was created.
+      val response =
+        service.ensureSynthesizedCampaignGroupReportingSet(
+          campaignGroupRequest("synthesized-campaign-group", eventGroupKeys)
+        )
+
+      assertThat(response.externalReportingSetId).isEqualTo(created.externalReportingSetId)
+      assertThat(reportingSetsForMc()).hasSize(1)
+    }
+
+  @Test
+  fun `ensureSynthesizedCampaignGroupReportingSet does not reuse a filtered campaign group`() =
+    runBlocking {
+      createMeasurementConsumer()
+      val eventGroupKeys = listOf(primitiveEventGroupKey("1235", "1236"))
+      // A campaign group with a filter is a different (filtered) universe.
+      service.createReportingSet(
+        createReportingSetRequest {
+          externalReportingSetId = "filtered-campaign-group"
+          reportingSet = reportingSet {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalCampaignGroupId = this@createReportingSetRequest.externalReportingSetId
+            filter = "some-filter"
+            primitive = ReportingSetKt.primitive { this.eventGroupKeys += eventGroupKeys }
+          }
+        }
+      )
+
+      val response =
+        service.ensureSynthesizedCampaignGroupReportingSet(
+          campaignGroupRequest("synthesized-campaign-group", eventGroupKeys)
+        )
+
+      assertThat(response.externalReportingSetId).isEqualTo("synthesized-campaign-group")
+      assertThat(reportingSetsForMc()).hasSize(2)
+    }
+
+  @Test
+  fun `ensureSynthesizedCampaignGroupReportingSet does not reuse a non-campaign-group ReportingSet`() =
+    runBlocking {
+      createMeasurementConsumer()
+      val eventGroupA = primitiveEventGroupKey("1235", "1236")
+      val eventGroupB = primitiveEventGroupKey("2235", "2236")
+      // A campaign group spanning a superset.
+      service.createReportingSet(
+        createReportingSetRequest {
+          externalReportingSetId = "universe"
+          reportingSet = reportingSet {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalCampaignGroupId = this@createReportingSetRequest.externalReportingSetId
+            primitive =
+              ReportingSetKt.primitive {
+                eventGroupKeys += eventGroupA
+                eventGroupKeys += eventGroupB
+              }
+          }
+        }
+      )
+      // A custom group (primitive, but NOT self-referencing) under that campaign group.
+      service.createReportingSet(
+        createReportingSetRequest {
+          externalReportingSetId = "custom-group"
+          reportingSet = reportingSet {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalCampaignGroupId = "universe"
+            primitive = ReportingSetKt.primitive { eventGroupKeys += eventGroupA }
+          }
+        }
+      )
+
+      // Even though the custom group has the same EventGroup set, it is not a campaign group.
+      val response =
+        service.ensureSynthesizedCampaignGroupReportingSet(
+          campaignGroupRequest("synthesized", listOf(eventGroupA))
+        )
+
+      assertThat(response.externalReportingSetId).isEqualTo("synthesized")
+      assertThat(reportingSetsForMc()).hasSize(3)
+    }
+
+  @Test
+  fun `ensureSynthesizedCampaignGroupReportingSet throws INVALID_ARGUMENT when not primitive`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.ensureSynthesizedCampaignGroupReportingSet(
+            ensureSynthesizedCampaignGroupReportingSetRequest {
+              externalReportingSetId = "campaign-group"
+              reportingSet = reportingSet {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                externalCampaignGroupId = "campaign-group"
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `ensureSynthesizedCampaignGroupReportingSet throws INVALID_ARGUMENT when EventGroups empty`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.ensureSynthesizedCampaignGroupReportingSet(
+            ensureSynthesizedCampaignGroupReportingSetRequest {
+              externalReportingSetId = "campaign-group"
+              reportingSet = reportingSet {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                externalCampaignGroupId = "campaign-group"
+                primitive = ReportingSetKt.primitive {}
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `ensureSynthesizedCampaignGroupReportingSet throws INVALID_ARGUMENT when not self-referencing`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.ensureSynthesizedCampaignGroupReportingSet(
+            ensureSynthesizedCampaignGroupReportingSetRequest {
+              externalReportingSetId = "campaign-group"
+              reportingSet = reportingSet {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                // Empty campaign group id is not self-referencing.
+                primitive =
+                  ReportingSetKt.primitive {
+                    eventGroupKeys += primitiveEventGroupKey("1235", "1236")
+                  }
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `ensureSynthesizedCampaignGroupReportingSet throws INVALID_ARGUMENT when filter is set`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.ensureSynthesizedCampaignGroupReportingSet(
+            ensureSynthesizedCampaignGroupReportingSetRequest {
+              externalReportingSetId = "campaign-group"
+              reportingSet = reportingSet {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                externalCampaignGroupId = "campaign-group"
+                filter = "some-filter"
+                primitive =
+                  ReportingSetKt.primitive {
+                    eventGroupKeys += primitiveEventGroupKey("1235", "1236")
+                  }
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  private suspend fun createMeasurementConsumer() {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+  }
+
+  private fun primitiveEventGroupKey(
+    cmmsDataProviderId: String,
+    cmmsEventGroupId: String,
+  ): ReportingSet.Primitive.EventGroupKey =
+    ReportingSetKt.PrimitiveKt.eventGroupKey {
+      this.cmmsDataProviderId = cmmsDataProviderId
+      this.cmmsEventGroupId = cmmsEventGroupId
+    }
+
+  private fun campaignGroupRequest(
+    externalReportingSetId: String,
+    eventGroupKeys: List<ReportingSet.Primitive.EventGroupKey>,
+  ) = ensureSynthesizedCampaignGroupReportingSetRequest {
+    this.externalReportingSetId = externalReportingSetId
+    reportingSet = reportingSet {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalCampaignGroupId = externalReportingSetId
+      primitive = ReportingSetKt.primitive { this.eventGroupKeys += eventGroupKeys }
+    }
+  }
+
+  private suspend fun reportingSetsForMc(): List<ReportingSet> =
+    service
+      .streamReportingSets(
+        streamReportingSetsRequest {
+          filter =
+            StreamReportingSetsRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            }
+        }
+      )
+      .toList()
 
   companion object {
     private val REPORTING_SET_TAGS = mapOf("tag1" to "tag_value1", "tag2" to "tag_value2")
