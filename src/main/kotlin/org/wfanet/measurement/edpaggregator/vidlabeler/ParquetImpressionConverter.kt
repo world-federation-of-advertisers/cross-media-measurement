@@ -40,8 +40,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
  * [EventMessageMapper] are therefore built once and memoized on first use.
  *
  * @property eventDescriptor descriptor of the model line's EventTemplate event message, resolved by
- *   the runner from `ModelLineConfig.event_template_descriptor_blob_uri` +
- *   `event_template_type_name`.
+ *   the runner from `ModelLineConfig.event_template_descriptor_blob_uri` + `event_template_type`.
  */
 class ParquetImpressionConverter(private val eventDescriptor: Descriptors.Descriptor) :
   ImpressionConverter {
