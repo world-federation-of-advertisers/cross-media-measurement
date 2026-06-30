@@ -158,6 +158,12 @@ class VidLabelingSink(
             } else {
               converted.labelerInput.copy { rankAssignments += ranks }
             }
+          // TODO(world-federation-of-advertisers/cross-media-measurement#4073): Once
+          // virtual-people-common#75 (memoized_rank_fallback signal) and
+          // virtual-people-core-serving#89 (RankedPopulationNode hash fallback) are merged, count
+          // VirtualPersonActivity.memoized_rank_fallback across output.peopleList (coviewing-safe)
+          // into a per-(dataProvider, modelLine) counter here to surface silent degradation to
+          // hash-based VID assignment when subpools saturate.
 
           val output = context.assigner.assign(labelerInput)
           if (output.peopleCount == 0) {
