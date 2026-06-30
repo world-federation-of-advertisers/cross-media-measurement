@@ -338,8 +338,12 @@ class BasicReportProcessedResultsTransformationTest {
           reportingUnit = reportingUnit {
             reportingSetKeys =
               ReportingUnitKt.reportingSetKeys {
-                reportingSetKeys += reportingSetKey { externalReportingSetId = componentReportingSet1Id }
-                reportingSetKeys += reportingSetKey { externalReportingSetId = componentReportingSet2Id }
+                reportingSetKeys += reportingSetKey {
+                  externalReportingSetId = componentReportingSet1Id
+                }
+                reportingSetKeys += reportingSetKey {
+                  externalReportingSetId = componentReportingSet2Id
+                }
               }
           }
           metricFrequency = metricFrequencySpec { total = true }
@@ -469,7 +473,10 @@ class BasicReportProcessedResultsTransformationTest {
       )
 
     val compositeReportingSetIdBySetExpression =
-      mapOf(buildUnionSetExpression(listOf(componentReportingSet1Id, componentReportingSet2Id)) to unionReportingSetId)
+      mapOf(
+        buildUnionSetExpression(listOf(componentReportingSet1Id, componentReportingSet2Id)) to
+          unionReportingSetId
+      )
 
     val resultGroups =
       buildResultGroups(

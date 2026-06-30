@@ -380,9 +380,9 @@ object BasicReportProcessedResultsTransformation {
   }
 
   /**
-   * ReportingSet-component analog of [getReportingUnitReportingSetId]. The components are themselves
-   * ReportingSets, so each component's ExternalReportingSetID is used directly (no per-DataProvider
-   * primitive indirection).
+   * ReportingSet-component analog of [getReportingUnitReportingSetId]. The components are
+   * themselves ReportingSets, so each component's ExternalReportingSetID is used directly (no
+   * per-DataProvider primitive indirection).
    */
   private fun getReportingUnitReportingSetIdForReportingSetComponents(
     reportingUnitReportingSetIds: List<String>,
@@ -612,8 +612,7 @@ object BasicReportProcessedResultsTransformation {
                           buildComponentMetricSet(
                             resultGroupSpec.resultGroupMetricSpec.component,
                             componentReportingSetIdsByComponentId.getValue(dataProviderId),
-                            reportingWindowResults.value
-                              .reportResultValuesByExternalReportingSetId,
+                            reportingWindowResults.value.reportResultValuesByExternalReportingSetId,
                           )
                       }
                   }
@@ -628,8 +627,7 @@ object BasicReportProcessedResultsTransformation {
                           buildComponentMetricSet(
                             resultGroupSpec.resultGroupMetricSpec.component,
                             componentReportingSetIdsByComponentId.getValue(reportingSetId),
-                            reportingWindowResults.value
-                              .reportResultValuesByExternalReportingSetId,
+                            reportingWindowResults.value.reportResultValuesByExternalReportingSetId,
                           )
                       }
                   }
