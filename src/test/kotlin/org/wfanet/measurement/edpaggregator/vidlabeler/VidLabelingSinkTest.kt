@@ -287,7 +287,7 @@ class VidLabelingSinkTest {
         sink(
           contexts = listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L))),
           converter =
-            ImpressionConverter { event, _ ->
+            ImpressionConverter { event, _, _ ->
               ConvertedImpression(
                 labelerInput = LabelerInput.getDefaultInstance(),
                 eventTime = Timestamps.fromMicros(event.row.getValue(EVENT_TIME_COLUMN).int64Value),
@@ -362,7 +362,7 @@ class VidLabelingSinkTest {
       // converter_skip: the converter returns null for the row.
       sink(
           contexts = listOf(context(ActiveWindow(startMicros = 0L, endMicros = 10_000L))),
-          converter = ImpressionConverter { _, _ -> null },
+          converter = ImpressionConverter { _, _, _ -> null },
         )
         .processBatch(listOf(rawEvent(eventTimeMicros = 1_500L, eventGroup = "eg1", idByte = 2)))
 
@@ -462,6 +462,7 @@ class VidLabelingSinkTest {
     override fun convert(
       event: ParquetDigestedEvent,
       config: VidLabelerParams.ModelLineConfig,
+      inputBlobUri: String,
     ): ConvertedImpression =
       ConvertedImpression(
         labelerInput = LabelerInput.getDefaultInstance(),
