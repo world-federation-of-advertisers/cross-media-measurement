@@ -24,7 +24,7 @@ import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.toJson
-import org.wfanet.measurement.internal.reporting.v2.GetOrCreateCampaignGroupReportingSetRequest
+import org.wfanet.measurement.internal.reporting.v2.EnsureSynthesizedCampaignGroupReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
@@ -44,16 +44,15 @@ import org.wfanet.measurement.reporting.service.internal.ReportingSetAlreadyExis
  * * otherwise a new one is inserted; a concurrent racer that inserted first causes a serialization
  *   conflict, and the retry observes the winner and reuses it.
  *
- * [GetOrCreateCampaignGroupReportingSetRequest.reportingSet] must be a primitive, self-referencing
- * campaign group with at least one EventGroup; this is enforced by the service before the writer
- * runs.
+ * The request's `reporting_set` must be a primitive, self-referencing Campaign Group with at least
+ * one EventGroup; this is enforced by the service before the writer runs.
  *
  * Throws the following on [execute]:
  * * [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  * * [ReportingSetAlreadyExistsException] the generated external ID collided with an existing one
  */
-class GetOrCreateCampaignGroupReportingSet(
-  private val request: GetOrCreateCampaignGroupReportingSetRequest
+class EnsureSynthesizedCampaignGroupReportingSet(
+  private val request: EnsureSynthesizedCampaignGroupReportingSetRequest
 ) : PostgresWriter<ReportingSet>() {
   override suspend fun TransactionScope.runTransaction(): ReportingSet {
     val reportingSet = request.reportingSet
@@ -117,7 +116,7 @@ class GetOrCreateCampaignGroupReportingSet(
         bind("$5", reportingSet.filter)
         bind("$6", reportingSet.details)
         bind("$7", reportingSet.details.toJson())
-        // Self-referencing: the synthesized campaign group is its own campaign group.
+        // A Campaign Group is its own Campaign Group (self-referencing).
         bind("$8", reportingSetId)
       }
 

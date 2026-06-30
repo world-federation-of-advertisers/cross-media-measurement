@@ -37,8 +37,8 @@ service ReportingSets {
   // BasicReport. The read and the insert happen in a single serializable
   // transaction, so concurrent and retried callers converge on a single
   // ReportingSet rather than minting duplicates.
-  rpc GetOrCreateCampaignGroupReportingSet(
-      GetOrCreateCampaignGroupReportingSetRequest) returns (ReportingSet);
+  rpc EnsureSynthesizedCampaignGroupReportingSet(
+      EnsureSynthesizedCampaignGroupReportingSetRequest) returns (ReportingSet);
 
   rpc BatchGetReportingSets(BatchGetReportingSetsRequest)
       returns (BatchGetReportingSetsResponse);
@@ -52,7 +52,7 @@ message CreateReportingSetRequest {
   string external_reporting_set_id = 2;
 }
 
-message GetOrCreateCampaignGroupReportingSetRequest {
+message EnsureSynthesizedCampaignGroupReportingSetRequest {
   // The `ReportingSet` representing the Campaign Group to reuse-or-create.
   //
   // Must be a valid Campaign Group: a primitive `ReportingSet` that references

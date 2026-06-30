@@ -579,7 +579,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
  * Inserts the [eventGroups] of a primitive ReportingSet, creating any EventGroup rows that do not
  * yet exist.
  *
- * Shared by [CreateReportingSet] and [GetOrCreateCampaignGroupReportingSet].
+ * Shared by [CreateReportingSet] and [EnsureSynthesizedCampaignGroupReportingSet].
  */
 internal suspend fun PostgresWriter.TransactionScope.insertReportingSetEventGroups(
   measurementConsumerId: InternalId,
