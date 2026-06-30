@@ -409,3 +409,43 @@ variable "reporting_spanner_instance" {
   nullable    = false
   description = "Reporting Spanner instance name"
 }
+
+variable "vid_labeling_dispatcher_env_var" {
+  description = "VidLabelingDispatcher extra env variables"
+  type        = string
+}
+
+variable "vid_labeling_dispatcher_secret_mapping" {
+  description = "VidLabelingDispatcher secret mapping"
+  type        = string
+}
+
+variable "vid_labeling_dispatcher_uber_jar_path" {
+  description = "Path to VidLabelingDispatcher uber jar."
+  type        = string
+}
+
+variable "vid_labeling_dispatcher_config_file_path" {
+  description = "Path to VidLabelingDispatcher config file."
+  type        = string
+}
+
+variable "vid_labeling_monitor_env_var" {
+  description = "VidLabelingMonitor extra env variables"
+  type        = string
+}
+
+variable "vid_labeling_monitor_secret_mapping" {
+  description = "VidLabelingMonitor secret mapping"
+  type        = string
+}
+
+variable "vid_labeling_monitor_uber_jar_path" {
+  description = "Path to VidLabelingMonitor uber jar."
+  type        = string
+}
+
+variable "vid_labeling_monitor_config_file_path" {
+  description = "Path to VidLabelingMonitor config file."
+  type        = string
+}
