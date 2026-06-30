@@ -10,8 +10,12 @@ dependencies = [
     "absl-py",
     "google-api-core",
     "google-cloud-storage",
+    # For google.rpc.error_details / google.rpc.status
+    "googleapis-common-protos",
     # Must be compatible with the version of the grpc Bazel module.
     "grpcio==1.74.0",
+    # ErrorInfo extraction from grpc.RpcError trailers; must match grpcio.
+    "grpcio-status==1.74.0",
     # Must be compatible with the version of the protobuf Bazel module.
     "protobuf==6.33.1",
     "numpy",

@@ -33,16 +33,21 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
+import org.wfanet.measurement.api.v2alpha.ListEventGroupActivitiesRequestKt
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupActivityRequest
 import org.wfanet.measurement.api.v2alpha.batchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupActivitiesResponse
+import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.deleteEventGroupActivityRequest
 import org.wfanet.measurement.api.v2alpha.eventGroupActivity
+import org.wfanet.measurement.api.v2alpha.listEventGroupActivitiesRequest
+import org.wfanet.measurement.api.v2alpha.listEventGroupActivitiesResponse
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.updateEventGroupActivityRequest
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -50,11 +55,18 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupActivitiesResponse as InternalBatchUpdateEventGroupActivitiesResponse
 import org.wfanet.measurement.internal.kingdom.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesPageTokenKt.after
+import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesRequestKt.filter as internalFilter
+import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesResponse as InternalListEventGroupActivitiesResponse
 import org.wfanet.measurement.internal.kingdom.batchDeleteEventGroupActivitiesRequest as internalBatchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupActivitiesRequest as internalBatchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupActivitiesResponse as internalBatchUpdateEventGroupActivitiesResponse
+import org.wfanet.measurement.internal.kingdom.dateInterval as internalDateInterval
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupActivityRequest as internalDeleteEventGroupActivityRequest
 import org.wfanet.measurement.internal.kingdom.eventGroupActivity as internalEventGroupActivity
+import org.wfanet.measurement.internal.kingdom.listEventGroupActivitiesPageToken
+import org.wfanet.measurement.internal.kingdom.listEventGroupActivitiesRequest as internalListEventGroupActivitiesRequest
+import org.wfanet.measurement.internal.kingdom.listEventGroupActivitiesResponse as internalListEventGroupActivitiesResponse
 import org.wfanet.measurement.internal.kingdom.updateEventGroupActivityRequest as internalUpdateEventGroupActivityRequest
 
 private const val DATA_PROVIDER_EXTERNAL_ID = 123L
@@ -63,6 +75,11 @@ private val EVENT_GROUP_NAME = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAHs"
 private val EVENT_GROUP_EXTERNAL_ID =
   apiIdToExternalId(EventGroupKey.fromName(EVENT_GROUP_NAME)!!.eventGroupId)
 private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
+private val SECOND_EVENT_GROUP_NAME = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAJs"
+private val SECOND_EVENT_GROUP_EXTERNAL_ID =
+  apiIdToExternalId(EventGroupKey.fromName(SECOND_EVENT_GROUP_NAME)!!.eventGroupId)
+private const val DEFAULT_PAGE_SIZE = 50
+private const val MAX_PAGE_SIZE = 1000
 
 @RunWith(JUnit4::class)
 class EventGroupActivitiesServiceTest {
@@ -72,6 +89,8 @@ class EventGroupActivitiesServiceTest {
       .thenReturn(InternalBatchUpdateEventGroupActivitiesResponse.getDefaultInstance())
     onBlocking { deleteEventGroupActivity(any()) }.thenReturn(Empty.getDefaultInstance())
     onBlocking { batchDeleteEventGroupActivities(any()) }.thenReturn(Empty.getDefaultInstance())
+    onBlocking { listEventGroupActivities(any()) }
+      .thenReturn(InternalListEventGroupActivitiesResponse.getDefaultInstance())
   }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalServiceMock) }
@@ -645,13 +664,510 @@ class EventGroupActivitiesServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
-  private fun createInternalEventGroupActivity(activityDate: Date) = internalEventGroupActivity {
-    externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-    externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
-    date = date {
-      year = activityDate.year
-      month = activityDate.month
-      day = activityDate.day
+  @Test
+  fun `listEventGroupActivities returns EventGroupActivities`() {
+    val activityDate = date {
+      year = 2023
+      month = 10
+      day = 10
     }
+    val request = listEventGroupActivitiesRequest { parent = EVENT_GROUP_NAME }
+
+    internalServiceMock.stub {
+      onBlocking { listEventGroupActivities(any()) }
+        .thenReturn(
+          internalListEventGroupActivitiesResponse {
+            eventGroupActivities += createInternalEventGroupActivity(activityDate)
+          }
+        )
+    }
+
+    val response =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.listEventGroupActivities(request) }
+      }
+
+    verifyProtoArgument(
+        internalServiceMock,
+        EventGroupActivitiesCoroutineImplBase::listEventGroupActivities,
+      )
+      .isEqualTo(
+        internalListEventGroupActivitiesRequest {
+          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+          pageSize = DEFAULT_PAGE_SIZE
+        }
+      )
+
+    assertThat(response)
+      .isEqualTo(
+        listEventGroupActivitiesResponse {
+          eventGroupActivities += eventGroupActivity {
+            name = "$EVENT_GROUP_NAME/eventGroupActivities/2023-10-10"
+            date = activityDate
+          }
+        }
+      )
   }
+
+  @Test
+  fun `listEventGroupActivities lists across all EventGroups when wildcard is used`() {
+    val request = listEventGroupActivitiesRequest { parent = "$DATA_PROVIDER_NAME/eventGroups/-" }
+
+    withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+      runBlocking { service.listEventGroupActivities(request) }
+    }
+
+    verifyProtoArgument(
+        internalServiceMock,
+        EventGroupActivitiesCoroutineImplBase::listEventGroupActivities,
+      )
+      .isEqualTo(
+        internalListEventGroupActivitiesRequest {
+          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          pageSize = DEFAULT_PAGE_SIZE
+        }
+      )
+  }
+
+  @Test
+  fun `listEventGroupActivities passes filter and page token to internal request`() {
+    val incomingPageToken = listEventGroupActivitiesPageToken {
+      after = after {
+        date = date {
+          year = 2023
+          month = 1
+          day = 1
+        }
+        externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+      }
+    }
+    val request = listEventGroupActivitiesRequest {
+      parent = EVENT_GROUP_NAME
+      pageSize = 10
+      pageToken = incomingPageToken.toByteString().base64UrlEncode()
+      filter =
+        ListEventGroupActivitiesRequestKt.filter {
+          dateInterval = dateInterval {
+            startDate = date {
+              year = 2023
+              month = 1
+              day = 1
+            }
+            endDate = date {
+              year = 2023
+              month = 12
+              day = 31
+            }
+          }
+        }
+    }
+
+    withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+      runBlocking { service.listEventGroupActivities(request) }
+    }
+
+    verifyProtoArgument(
+        internalServiceMock,
+        EventGroupActivitiesCoroutineImplBase::listEventGroupActivities,
+      )
+      .isEqualTo(
+        internalListEventGroupActivitiesRequest {
+          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+          pageSize = 10
+          pageToken = incomingPageToken
+          filter = internalFilter {
+            dateInterval = internalDateInterval {
+              startDate = date {
+                year = 2023
+                month = 1
+                day = 1
+              }
+              endDate = date {
+                year = 2023
+                month = 12
+                day = 31
+              }
+            }
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `listEventGroupActivities returns next page token when internal response has one`() {
+    val internalNextPageToken = listEventGroupActivitiesPageToken {
+      after = after {
+        date = date {
+          year = 2023
+          month = 10
+          day = 10
+        }
+        externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+      }
+    }
+    internalServiceMock.stub {
+      onBlocking { listEventGroupActivities(any()) }
+        .thenReturn(
+          internalListEventGroupActivitiesResponse {
+            eventGroupActivities +=
+              createInternalEventGroupActivity(
+                date {
+                  year = 2023
+                  month = 10
+                  day = 10
+                }
+              )
+            nextPageToken = internalNextPageToken
+          }
+        )
+    }
+
+    val response =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking {
+          service.listEventGroupActivities(
+            listEventGroupActivitiesRequest { parent = EVENT_GROUP_NAME }
+          )
+        }
+      }
+
+    assertThat(response.nextPageToken)
+      .isEqualTo(internalNextPageToken.toByteString().base64UrlEncode())
+  }
+
+  @Test
+  fun `listEventGroupActivities throws INVALID_ARGUMENT when parent is invalid`() {
+    val request = listEventGroupActivitiesRequest { parent = "invalid" }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.listEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `listEventGroupActivities throws INVALID_ARGUMENT when page size is negative`() {
+    val request = listEventGroupActivitiesRequest {
+      parent = EVENT_GROUP_NAME
+      pageSize = -1
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.listEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `listEventGroupActivities throws UNAUTHENTICATED when no principal is found`() {
+    val request = listEventGroupActivitiesRequest { parent = EVENT_GROUP_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.listEventGroupActivities(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `listEventGroupActivities throws PERMISSION_DENIED when principal is wrong`() {
+    val request = listEventGroupActivitiesRequest { parent = EVENT_GROUP_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(makeDataProvider(DATA_PROVIDER_EXTERNAL_ID + 1)) {
+          runBlocking { service.listEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `listEventGroupActivities coerces page size to maximum`() {
+    val request = listEventGroupActivitiesRequest {
+      parent = EVENT_GROUP_NAME
+      pageSize = MAX_PAGE_SIZE + 1
+    }
+
+    withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+      runBlocking { service.listEventGroupActivities(request) }
+    }
+
+    verifyProtoArgument(
+        internalServiceMock,
+        EventGroupActivitiesCoroutineImplBase::listEventGroupActivities,
+      )
+      .isEqualTo(
+        internalListEventGroupActivitiesRequest {
+          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+          pageSize = MAX_PAGE_SIZE
+        }
+      )
+  }
+
+  @Test
+  fun `listEventGroupActivities throws NOT_FOUND when internal service throws NOT_FOUND`() {
+    internalServiceMock.stub {
+      onBlocking { listEventGroupActivities(any()) }
+        .thenThrow(Status.NOT_FOUND.asRuntimeException())
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.listEventGroupActivities(
+              listEventGroupActivitiesRequest { parent = EVENT_GROUP_NAME }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `listEventGroupActivities throws INVALID_ARGUMENT when internal service throws INVALID_ARGUMENT`() {
+    internalServiceMock.stub {
+      onBlocking { listEventGroupActivities(any()) }
+        .thenThrow(Status.INVALID_ARGUMENT.asRuntimeException())
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.listEventGroupActivities(
+              listEventGroupActivitiesRequest { parent = EVENT_GROUP_NAME }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `listEventGroupActivities throws INVALID_ARGUMENT when page token is malformed`() {
+    val request = listEventGroupActivitiesRequest {
+      parent = EVENT_GROUP_NAME
+      pageToken = "not-a-valid-token"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.listEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `listEventGroupActivities throws INVALID_ARGUMENT when DataProvider is wildcard`() {
+    val request = listEventGroupActivitiesRequest { parent = "dataProviders/-/eventGroups/-" }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.listEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `listEventGroupActivities throws INVALID_ARGUMENT when page token is not base64`() {
+    val request = listEventGroupActivitiesRequest {
+      parent = EVENT_GROUP_NAME
+      pageToken = "$$$"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.listEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `listEventGroupActivities with wildcard returns activities from multiple EventGroups`() {
+    val activityDate = date {
+      year = 2023
+      month = 10
+      day = 10
+    }
+    internalServiceMock.stub {
+      onBlocking { listEventGroupActivities(any()) }
+        .thenReturn(
+          internalListEventGroupActivitiesResponse {
+            eventGroupActivities +=
+              createInternalEventGroupActivity(activityDate, EVENT_GROUP_EXTERNAL_ID)
+            eventGroupActivities +=
+              createInternalEventGroupActivity(activityDate, SECOND_EVENT_GROUP_EXTERNAL_ID)
+          }
+        )
+    }
+
+    val response =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking {
+          service.listEventGroupActivities(
+            listEventGroupActivitiesRequest { parent = "$DATA_PROVIDER_NAME/eventGroups/-" }
+          )
+        }
+      }
+
+    assertThat(response)
+      .isEqualTo(
+        listEventGroupActivitiesResponse {
+          eventGroupActivities += eventGroupActivity {
+            name = "$EVENT_GROUP_NAME/eventGroupActivities/2023-10-10"
+            date = activityDate
+          }
+          eventGroupActivities += eventGroupActivity {
+            name = "$SECOND_EVENT_GROUP_NAME/eventGroupActivities/2023-10-10"
+            date = activityDate
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `listEventGroupActivities throws PERMISSION_DENIED when principal is wrong for wildcard parent`() {
+    val request = listEventGroupActivitiesRequest { parent = "$DATA_PROVIDER_NAME/eventGroups/-" }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(makeDataProvider(DATA_PROVIDER_EXTERNAL_ID + 1)) {
+          runBlocking { service.listEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `listEventGroupActivities omits filter when date_interval is unset`() {
+    val request = listEventGroupActivitiesRequest {
+      parent = EVENT_GROUP_NAME
+      filter = ListEventGroupActivitiesRequestKt.filter {}
+    }
+
+    withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+      runBlocking { service.listEventGroupActivities(request) }
+    }
+
+    verifyProtoArgument(
+        internalServiceMock,
+        EventGroupActivitiesCoroutineImplBase::listEventGroupActivities,
+      )
+      .isEqualTo(
+        internalListEventGroupActivitiesRequest {
+          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+          pageSize = DEFAULT_PAGE_SIZE
+        }
+      )
+  }
+
+  @Test
+  fun `listEventGroupActivities passes start_date only date_interval to internal request`() {
+    val startDate = date {
+      year = 2023
+      month = 1
+      day = 1
+    }
+    val request = listEventGroupActivitiesRequest {
+      parent = EVENT_GROUP_NAME
+      filter =
+        ListEventGroupActivitiesRequestKt.filter {
+          dateInterval = dateInterval { this.startDate = startDate }
+        }
+    }
+
+    withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+      runBlocking { service.listEventGroupActivities(request) }
+    }
+
+    verifyProtoArgument(
+        internalServiceMock,
+        EventGroupActivitiesCoroutineImplBase::listEventGroupActivities,
+      )
+      .isEqualTo(
+        internalListEventGroupActivitiesRequest {
+          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+          pageSize = DEFAULT_PAGE_SIZE
+          filter = internalFilter {
+            dateInterval = internalDateInterval { this.startDate = startDate }
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `listEventGroupActivities passes end_date only date_interval to internal request`() {
+    val endDate = date {
+      year = 2023
+      month = 12
+      day = 31
+    }
+    val request = listEventGroupActivitiesRequest {
+      parent = EVENT_GROUP_NAME
+      filter =
+        ListEventGroupActivitiesRequestKt.filter {
+          dateInterval = dateInterval { this.endDate = endDate }
+        }
+    }
+
+    withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+      runBlocking { service.listEventGroupActivities(request) }
+    }
+
+    verifyProtoArgument(
+        internalServiceMock,
+        EventGroupActivitiesCoroutineImplBase::listEventGroupActivities,
+      )
+      .isEqualTo(
+        internalListEventGroupActivitiesRequest {
+          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+          pageSize = DEFAULT_PAGE_SIZE
+          filter = internalFilter { dateInterval = internalDateInterval { this.endDate = endDate } }
+        }
+      )
+  }
+
+  private fun createInternalEventGroupActivity(activityDate: Date) =
+    createInternalEventGroupActivity(activityDate, EVENT_GROUP_EXTERNAL_ID)
+
+  private fun createInternalEventGroupActivity(activityDate: Date, eventGroupExternalId: Long) =
+    internalEventGroupActivity {
+      externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+      externalEventGroupId = eventGroupExternalId
+      date = date {
+        year = activityDate.year
+        month = activityDate.month
+        day = activityDate.day
+      }
+    }
 }

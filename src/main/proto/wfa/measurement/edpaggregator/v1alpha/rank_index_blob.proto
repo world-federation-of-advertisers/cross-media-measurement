@@ -27,10 +27,10 @@ option java_multiple_files = true;
 option java_outer_classname = "RankIndexBlobProto";
 
 // A pointer to a rank index blob in Cloud Storage, with its
-// encrypted DEK. Two rows per (upload, model line, subpool):
-// one DAY_ONLY and one SNAPSHOT. Snapshots are replaced each
-// upload; day-only blobs persist until aged out by the
-// retention policy.
+// encrypted DEK. Every upload (forward or backfill) writes two
+// rows per (upload, model line, subpool): one DAY_ONLY and one
+// SNAPSHOT. Day-only blobs persist until aged out by the
+// retention policy; snapshots are not pruned.
 message RankIndexBlob {
   option (google.api.resource) = {
     type: "edpaggregator.halo-cmm.org/RankIndexBlob"
@@ -68,7 +68,10 @@ message RankIndexBlob {
   ];
 
   // The pool offset this blob belongs to.
-  int64 pool_offset = 4 [
+  //
+  // `optional` so the server can distinguish unset from a valid `0` offset and
+  // enforce the REQUIRED field behavior; 0 is a valid pool offset.
+  optional int64 pool_offset = 4 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
@@ -80,9 +83,10 @@ message RankIndexBlob {
   ];
 
   // SHA-256 checksum of the plaintext blob payload. Used to
-  // detect corruption after decryption.
+  // detect corruption after decryption. Persisted at write and
+  // validated on every load, so it is required for both blob types.
   bytes blob_checksum = 6 [
-    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
 
@@ -92,10 +96,13 @@ message RankIndexBlob {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // The newest event date among the impressions in this blob.
-  // Only set for DAY_ONLY blobs; unset for SNAPSHOT blobs.
+  // The newest event date among the impressions in the blob (for DAY_ONLY) or
+  // represented in the cumulative (for SNAPSHOT, inherited from the prior
+  // snapshot on backfill). Required on both blob types — DAY_ONLY uses it for
+  // retention, SNAPSHOT uses it for backfill 'old snapshot' selection (see
+  // VidRankBuilder).
   google.type.Date max_event_date = 8 [
-    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
 

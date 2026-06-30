@@ -191,6 +191,23 @@ message ResultGroup {
     // The metrics for the requested intersections
     repeated DataProviderComponentIntersectionMetricSet
         component_intersections = 4;
+
+    // Entry for `ReportingSet` components map.
+    //
+    // Used when reporting_unit components are user-defined ReportingSets
+    // (custom groups) instead of `DataProvider`s.
+    message ReportingSetComponentMetricSetMapEntry {
+      // Map entry key.
+      //
+      // `ReportingSet` ID from the Reporting internal API.
+      string external_reporting_set_id = 1;
+
+      // Map entry value.
+      ComponentMetricSet value = 2;
+    }
+    // Map of `ReportingSet` to `ComponentMetricSet`.
+    repeated ReportingSetComponentMetricSetMapEntry reporting_set_components =
+        5;
   }
 
   // The metadata and metrics.

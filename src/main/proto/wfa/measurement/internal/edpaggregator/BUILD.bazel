@@ -125,9 +125,16 @@ kt_jvm_proto_library(
 proto_descriptor_set(
     name = "descriptor_set",
     deps = [
+        ":blob_type_proto",
+        ":encrypted_dek_proto",
         ":impression_metadata_state_proto",
+        ":pool_assignment_state_proto",
+        ":ranker_state_proto",
         ":raw_impression_batch_state_proto",
+        ":raw_impression_upload_model_line_state_proto",
+        ":raw_impression_upload_state_proto",
         ":requisition_metadata_state_proto",
+        ":vid_labeling_state_proto",
     ],
 )
 
@@ -283,6 +290,8 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":raw_impression_upload_model_line_state_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_proto",
+        "@com_google_googleapis//google/type:date_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -369,6 +378,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":pool_assignment_state_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -385,6 +395,8 @@ proto_library(
     deps = [
         ":pool_assignment_job_proto",
         ":pool_assignment_state_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_proto",
+        "@com_google_googleapis//google/type:date_proto",
         "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],

@@ -57,3 +57,19 @@ kt_jvm_proto_library(
     name = "simulator_synthetic_data_spec_kt_jvm_proto",
     deps = [":simulator_synthetic_data_spec_proto"],
 )
+
+proto_library(
+    name = "labeler_input_event_group_spec_proto",
+    srcs = ["labeler_input_event_group_spec.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":simulator_synthetic_data_spec_proto",
+        "@com_google_googleapis//google/type:date_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:demographic_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "labeler_input_event_group_spec_kt_jvm_proto",
+    deps = [":labeler_input_event_group_spec_proto"],
+)

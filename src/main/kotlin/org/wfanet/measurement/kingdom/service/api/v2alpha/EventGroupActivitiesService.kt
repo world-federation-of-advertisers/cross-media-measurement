@@ -18,6 +18,7 @@ import com.google.protobuf.Empty
 import com.google.type.Date
 import io.grpc.Status
 import io.grpc.StatusException
+import java.io.IOException
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import kotlin.coroutines.CoroutineContext
@@ -25,27 +26,43 @@ import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.BatchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupActivitiesResponse
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DateInterval
 import org.wfanet.measurement.api.v2alpha.DeleteEventGroupActivityRequest
 import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineImplBase as EventGroupActivitiesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupActivity
 import org.wfanet.measurement.api.v2alpha.EventGroupActivityKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
+import org.wfanet.measurement.api.v2alpha.ListEventGroupActivitiesRequest
+import org.wfanet.measurement.api.v2alpha.ListEventGroupActivitiesResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupActivitiesResponse
 import org.wfanet.measurement.api.v2alpha.eventGroupActivity
+import org.wfanet.measurement.api.v2alpha.listEventGroupActivitiesResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
+import org.wfanet.measurement.common.api.ResourceKey
+import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.internal.kingdom.DateInterval as InternalDateInterval
 import org.wfanet.measurement.internal.kingdom.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub as InternalEventGroupActivitiesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.EventGroupActivity as InternalEventGroupActivity
+import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesPageToken
+import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesRequest as InternalListEventGroupActivitiesRequest
+import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesRequestKt.filter as internalFilter
+import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesResponse as InternalListEventGroupActivitiesResponse
 import org.wfanet.measurement.internal.kingdom.UpdateEventGroupActivityRequest as InternalUpdateEventGroupActivityRequest
 import org.wfanet.measurement.internal.kingdom.batchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupActivitiesRequest as internalBatchUpdateEventGroupActivitiesRequest
+import org.wfanet.measurement.internal.kingdom.dateInterval as internalDateInterval
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupActivityRequest as internalDeleteEventGroupActivityRequest
 import org.wfanet.measurement.internal.kingdom.eventGroupActivity as internalEventGroupActivity
+import org.wfanet.measurement.internal.kingdom.listEventGroupActivitiesRequest as internalListEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupActivityRequest as internalUpdateEventGroupActivityRequest
 
 class EventGroupActivitiesService(
@@ -55,6 +72,7 @@ class EventGroupActivitiesService(
 
   private enum class Permission {
     DELETE,
+    LIST,
     UPDATE;
 
     fun deniedStatus(name: String): Status =
@@ -227,6 +245,90 @@ class EventGroupActivitiesService(
 
     return Empty.getDefaultInstance()
   }
+
+  override suspend fun listEventGroupActivities(
+    request: ListEventGroupActivitiesRequest
+  ): ListEventGroupActivitiesResponse {
+    val parentKey: EventGroupKey =
+      grpcRequireNotNull(EventGroupKey.fromName(request.parent)) {
+        "Parent is either unspecified or invalid"
+      }
+
+    grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
+
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4080): Support
+    // MeasurementConsumer-rooted EventGroup parents in addition to the
+    // DataProvider-rooted form.
+    val dataProviderKey: DataProviderKey = parentKey.parentKey
+    grpcRequire(dataProviderKey.dataProviderId != ResourceKey.WILDCARD_ID) {
+      "Wildcard ID is not supported for the DataProvider in parent"
+    }
+
+    val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
+    if (authenticatedPrincipal.resourceKey != dataProviderKey) {
+      throw Permission.LIST.deniedStatus(request.parent).asRuntimeException()
+    }
+
+    val resolvedPageSize: Int =
+      if (request.pageSize == 0) DEFAULT_PAGE_SIZE else request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
+
+    val pageToken: ListEventGroupActivitiesPageToken? =
+      if (request.pageToken.isEmpty()) {
+        null
+      } else {
+        try {
+          ListEventGroupActivitiesPageToken.parseFrom(request.pageToken.base64UrlDecode())
+        } catch (e: IOException) {
+          throw Status.INVALID_ARGUMENT.withCause(e)
+            .withDescription("page_token is malformed")
+            .asRuntimeException()
+        } catch (e: IllegalArgumentException) {
+          throw Status.INVALID_ARGUMENT.withCause(e)
+            .withDescription("page_token is malformed")
+            .asRuntimeException()
+        }
+      }
+
+    val internalRequest: InternalListEventGroupActivitiesRequest =
+      internalListEventGroupActivitiesRequest {
+        externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
+        if (parentKey.eventGroupId != ResourceKey.WILDCARD_ID) {
+          externalEventGroupId = apiIdToExternalId(parentKey.eventGroupId)
+        }
+        pageSize = resolvedPageSize
+        if (pageToken != null) {
+          this.pageToken = pageToken
+        }
+        if (request.hasFilter() && request.filter.hasDateInterval()) {
+          filter = internalFilter { dateInterval = request.filter.dateInterval.toInternal() }
+        }
+      }
+
+    val internalResponse: InternalListEventGroupActivitiesResponse =
+      try {
+        internalEventGroupActivitiesStub.listEventGroupActivities(internalRequest)
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+          Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
+      }
+
+    return listEventGroupActivitiesResponse {
+      eventGroupActivities +=
+        internalResponse.eventGroupActivitiesList.map { it.toEventGroupActivity() }
+      if (internalResponse.hasNextPageToken()) {
+        nextPageToken = internalResponse.nextPageToken.toByteString().base64UrlEncode()
+      }
+    }
+  }
+
+  companion object {
+    private const val DEFAULT_PAGE_SIZE = 50
+    private const val MAX_PAGE_SIZE = 1000
+  }
 }
 
 /** Converts a public [EventGroupActivity] to an internal [InternalEventGroupActivity]. */
@@ -255,5 +357,18 @@ private fun InternalEventGroupActivity.toEventGroupActivity(): EventGroupActivit
         )
         .toName()
     date = source.date
+  }
+}
+
+/** Converts a public [DateInterval] to an internal [InternalDateInterval]. */
+private fun DateInterval.toInternal(): InternalDateInterval {
+  val source = this
+  return internalDateInterval {
+    if (source.hasStartDate()) {
+      startDate = source.startDate
+    }
+    if (source.hasEndDate()) {
+      endDate = source.endDate
+    }
   }
 }

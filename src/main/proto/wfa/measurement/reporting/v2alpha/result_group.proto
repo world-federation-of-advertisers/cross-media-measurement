@@ -252,8 +252,8 @@ message ResultGroup {
     message ReportingUnitComponentSummary {
       // The resource name of a component of the reporting_unit
       //
-      // For BasicReport this is a DataProvider resource name
-      // For AdvancedReport this is a ReportingSet resource name
+      // For BasicReport this is either a DataProvider or a ReportingSet
+      // resource name. For AdvancedReport this is a ReportingSet resource name.
       string component = 1 [
         (google.api.field_behavior) = REQUIRED,
         (google.api.field_behavior) = IMMUTABLE,
@@ -418,8 +418,8 @@ message ResultGroup {
     message ComponentMetricSetMapEntry {
       // Map entry key.
       //
-      // This is a DataProvider resource name when use with BasicReport and
-      // a ReportingSet resource name when used with an AdvancedReport.
+      // For BasicReport this is either a DataProvider or a ReportingSet
+      // resource name. For AdvancedReport this is a ReportingSet resource name.
       string key = 1 [
         (google.api.resource_reference) = { type: "reporting.halo-cmm.org/*" },
         (google.api.field_behavior) = IMMUTABLE,
@@ -440,8 +440,8 @@ message ResultGroup {
     message ComponentIntersectionMetricSet {
       // The reporting_unit components that this intersection corresponds to.
       //
-      // These are DataProvider resource names when used with a BasicReport and
-      // ReportingSet resource names when used with an AdvancedReport.
+      // For BasicReport these are either DataProvider or ReportingSet resource
+      // names. For AdvancedReport these are ReportingSet resource names.
       repeated string components = 1 [(google.api.field_behavior) = IMMUTABLE];
       // Non-cumulative metrics for the intersection of the components
       BasicMetricSet non_cumulative = 3
