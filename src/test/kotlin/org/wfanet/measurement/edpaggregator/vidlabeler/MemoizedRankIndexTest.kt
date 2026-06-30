@@ -23,6 +23,8 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
+import io.opentelemetry.sdk.metrics.SdkMeterProvider
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -219,6 +221,64 @@ class MemoizedRankIndexTest {
         MemoizedRankIndex.load(stubReturning(listOf(corrupted)), rankStore, DP, MODEL_LINE)
       }
     }
+  }
+
+  @Test
+  fun `load records cold-start metrics keyed by subpool`() {
+    val reader = InMemoryMetricReader.create()
+    val meter = SdkMeterProvider.builder().registerMetricReader(reader).build().get("test")
+    val metrics = MemoizedRankIndexMetrics(meter)
+    val rows =
+      listOf(
+        seedSnapshot(
+          "ranks/pool10/up1",
+          poolOffset = 10L,
+          fp(0x11),
+          rank = 5,
+          createTimeSeconds = 1L,
+        ),
+        seedSnapshot(
+          "ranks/pool20/up1",
+          poolOffset = 20L,
+          fp(0x22),
+          rank = 7,
+          createTimeSeconds = 1L,
+        ),
+      )
+
+    runBlocking {
+      MemoizedRankIndex.load(stubReturning(rows), rankStore, DP, MODEL_LINE, metrics = metrics)
+    }
+
+    val collected = reader.collectAllMetrics().associateBy { it.name }
+    assertThat(
+        collected
+          .getValue("edpa.vid_labeler.memoized_index.subpool_count")
+          .longGaugeData
+          .points
+          .map { it.value }
+      )
+      .containsExactly(2L)
+    assertThat(
+        collected
+          .getValue("edpa.vid_labeler.memoized_index.cold_start_duration")
+          .histogramData
+          .points
+          .sumOf { it.count }
+      )
+      .isEqualTo(1L)
+    assertThat(
+        collected.getValue("edpa.vid_labeler.memoized_index.entry_count").longGaugeData.points.map {
+          it.value
+        }
+      )
+      .containsExactly(1L, 1L)
+    assertThat(
+        collected.getValue("edpa.vid_labeler.memoized_index.ranked_size").longGaugeData.points.map {
+          it.value
+        }
+      )
+      .containsExactly(1000L, 1000L)
   }
 
   companion object {
