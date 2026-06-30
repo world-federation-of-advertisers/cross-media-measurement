@@ -153,6 +153,7 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
           InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -281,6 +282,7 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
           InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -352,6 +354,7 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
           InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -460,6 +463,7 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
           InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -534,6 +538,7 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
           InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -638,6 +643,7 @@ class RawImpressionMetadataBatchFileService(
           InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
           InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }

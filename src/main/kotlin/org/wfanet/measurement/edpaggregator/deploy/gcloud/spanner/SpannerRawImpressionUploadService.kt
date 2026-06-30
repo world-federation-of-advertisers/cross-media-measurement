@@ -32,6 +32,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawIm
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploads
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
+import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -86,6 +87,10 @@ class SpannerRawImpressionUploadService(
         val existing: RawImpressionUploadResult? =
           txn.findUploadByCreateRequestId(request.dataProviderResourceId, requestId)
         if (existing != null) {
+          if (existing.rawImpressionUpload.doneBlobUri != request.rawImpressionUpload.doneBlobUri) {
+            throw RawImpressionUploadAlreadyExistsException(request.dataProviderResourceId)
+              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          }
           return@run existing.rawImpressionUpload
         }
 
