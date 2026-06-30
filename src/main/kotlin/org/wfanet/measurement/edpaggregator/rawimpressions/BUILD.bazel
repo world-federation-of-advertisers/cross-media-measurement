@@ -99,3 +99,11 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
     ],
 )
+
+kt_jvm_library(
+    name = "raw_impression_file_bin_packer",
+    srcs = ["RawImpressionFileBinPacker.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_file_kt_jvm_proto",
+    ],
+)

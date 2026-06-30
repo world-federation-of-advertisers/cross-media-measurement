@@ -1,0 +1,12 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+kt_jvm_library(
+    name = "dashboard_isolation_checks",
+    srcs = ["DashboardIsolationChecks.kt"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@maven//:com_google_auth_google_auth_library_credentials",
+        "@maven//:com_google_cloud_google_cloud_bigquery",
+        "@wfa_common_jvm//imports/java/com/google/gson",
+    ],
+)
