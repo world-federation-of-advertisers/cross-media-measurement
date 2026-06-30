@@ -34,6 +34,7 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.edpaggregator.eventgroupactivities.DeleteMode
 import org.wfanet.measurement.edpaggregator.eventgroupactivities.EventGroupActivitySync
 import org.wfanet.measurement.edpaggregator.eventgroupactivities.SpotDataParser
 import org.wfanet.measurement.edpaggregator.eventgroupactivities.SpotRecord
@@ -41,6 +42,7 @@ import org.wfanet.measurement.edpaggregator.eventgroupactivities.SyncResult
 import org.wfanet.measurement.storage.SelectedStorageClient
 import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Command
+import picocli.CommandLine.ITypeConverter
 import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
 
@@ -114,15 +116,17 @@ class SyncEventGroupActivities : Runnable {
   private var listPageSize: Int = 50
 
   @Option(
-    names = ["--max-delete-fraction"],
+    names = ["--delete-mode"],
     description =
       [
-        "Abort deletions for an EventGroup if the fraction of existing activities to delete " +
-          "exceeds this (safety guard for truncated input). 1.0 disables."
+        "How to handle deletes (activities in the Kingdom but absent from the input): " +
+          "full (apply deletes), skip-deletes (apply creates only), or dry-run-deletes " +
+          "(report would-be deletes without applying). Default: full."
       ],
-    defaultValue = "1.0",
+    converter = [DeleteModeConverter::class],
+    defaultValue = "full",
   )
-  private var maxDeleteFraction: Double = 1.0
+  private var deleteMode: DeleteMode = DeleteMode.FULL
 
   @Option(
     names = ["--dry-run"],
@@ -156,12 +160,12 @@ class SyncEventGroupActivities : Runnable {
         throttler = throttler,
         dataProviderName = dataProvider,
         listPageSize = listPageSize,
-        maxDeleteFraction = maxDeleteFraction,
+        deleteMode = deleteMode,
       )
 
     // Always shut down the channel; only exit non-zero AFTER the finally runs, since exitProcess
-    // would otherwise skip it. A tripped max-delete-fraction guard is intentional partial work, not
-    // a failure, so only runtime (RPC) failures drive the non-zero exit.
+    // would otherwise skip it. Skipped deletes (non-FULL delete modes) are intentional, so only
+    // runtime (RPC) failures drive the non-zero exit.
     val hasFailures: Boolean =
       try {
         runBlocking {
@@ -171,14 +175,11 @@ class SyncEventGroupActivities : Runnable {
           println("Sync result:")
           println("  totalInputRecords: ${result.totalInputRecords}")
           println("  eventGroupsSucceeded: ${result.eventGroupsSucceeded}")
-          println("  eventGroupsGuardSkipped: ${result.eventGroupsGuardSkipped}")
           println("  eventGroupsFailed: ${result.eventGroupsFailed}")
           println("  activitiesCreated: ${result.activitiesCreated}")
           println("  activitiesDeleted: ${result.activitiesDeleted}")
           println("  activitiesUnchanged: ${result.activitiesUnchanged}")
-          for (skip in result.guardSkipped) {
-            logger.warning("Guard-skipped deletes [${skip.eventGroup}]: ${skip.message}")
-          }
+          println("  activitiesWouldDelete: ${result.activitiesWouldDelete}")
           for (error in result.errors) {
             logger.warning("Sync error [${error.eventGroup}]: ${error.message}")
           }
@@ -214,6 +215,11 @@ class SyncEventGroupActivities : Runnable {
     /** Maximum time to wait for the gRPC channel to terminate during shutdown. */
     private const val SHUTDOWN_TIMEOUT_SECONDS = 30L
   }
+}
+
+private class DeleteModeConverter : ITypeConverter<DeleteMode> {
+  override fun convert(value: String): DeleteMode =
+    DeleteMode.valueOf(value.uppercase().replace('-', '_'))
 }
 
 fun main(args: Array<String>) = commandLineMain(SyncEventGroupActivities(), args)

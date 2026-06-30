@@ -191,7 +191,7 @@ class SyncEventGroupActivitiesTest {
   }
 
   @Test
-  fun `CLI honors --max-delete-fraction guard and skips deletes`() {
+  fun `CLI with --delete-mode=skip-deletes applies creates but not deletes`() {
     wheneverBlocking { activitiesServiceMock.listEventGroupActivities(any()) }
       .thenReturn(
         listEventGroupActivitiesResponse {
@@ -205,7 +205,7 @@ class SyncEventGroupActivitiesTest {
             }
         }
       )
-    // File keeps only 2 of 10 existing dates -> would delete 8/10 = 0.8 > 0.5.
+    // Kingdom has 10 dates; file keeps 2 -> 8 would-be deletes, suppressed by skip-deletes mode.
     val file =
       writeInputFile(
         """
@@ -216,12 +216,12 @@ class SyncEventGroupActivitiesTest {
         """
           .trimIndent()
       )
-    val args = commonArgs + arrayOf("--file=${file.path}", "--max-delete-fraction=0.5")
+    val args = commonArgs + arrayOf("--file=${file.path}", "--delete-mode=skip-deletes")
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, ::main)
 
-    // A tripped guard is intentional partial work, not a failure, so the CLI exits zero while
-    // skipping the deletes.
+    // skip-deletes is intentional partial work, not a failure, so the CLI exits zero and applies
+    // no deletes.
     CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(0)
     verifyBlocking(activitiesServiceMock, never()) { batchDeleteEventGroupActivities(any()) }
   }
