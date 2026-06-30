@@ -57,7 +57,14 @@ import org.wfanet.virtualpeople.common.rankAssignment
  * @property mapsByPoolOffset the per-subpool `fingerprint -> rank` maps, keyed by `pool_offset`.
  */
 class MemoizedRankIndex
-private constructor(private val mapsByPoolOffset: Map<Long, Bytes12IntMap>) {
+private constructor(
+  private val mapsByPoolOffset: Map<Long, Bytes12IntMap>,
+  /**
+   * KEK URI shared by every loaded `RankIndexBlob` (the EDP's own KEK). Reused to wrap the
+   * labeled-output DEK, so the output is encrypted with the same key as the rank-index blobs.
+   */
+  val kekUri: String,
+) {
 
   /** Number of subpools loaded. Exposed for diagnostics / tests. */
   val subpoolCount: Int
@@ -101,8 +108,10 @@ private constructor(private val mapsByPoolOffset: Map<Long, Bytes12IntMap>) {
      * testing consumers of [lookup] (e.g. `VidLabelingSink`) without standing up the
      * `RankIndexBlobService` / `RankIndexStore`.
      */
-    fun fromMaps(mapsByPoolOffset: Map<Long, Bytes12IntMap>): MemoizedRankIndex =
-      MemoizedRankIndex(mapsByPoolOffset)
+    fun fromMaps(
+      mapsByPoolOffset: Map<Long, Bytes12IntMap>,
+      kekUri: String = "test-kek-uri",
+    ): MemoizedRankIndex = MemoizedRankIndex(mapsByPoolOffset, kekUri)
 
     /**
      * Loads the current rank index for [modelLine] under [dataProvider].
@@ -191,8 +200,26 @@ private constructor(private val mapsByPoolOffset: Map<Long, Bytes12IntMap>) {
         metrics.rankedSizeGauge.set(subpool.rankedSize.toLong(), poolAttributes)
       }
 
+      // Every rank-index blob is wrapped with the EDP's single KEK; resolve it (and assert it is
+      // present + consistent) so the labeled output can be wrapped with the same key. The empty-
+      // index check above already guarantees there is at least one blob to resolve it from.
+      val kekUri = resolveKekUri(latestByPoolOffset.values, modelLine)
+
       logger.info("Loaded memoized rank index for $modelLine: ${maps.size} subpool(s)")
-      return MemoizedRankIndex(maps)
+      return MemoizedRankIndex(maps, kekUri)
+    }
+
+    /**
+     * Returns the single KEK URI shared by [blobs] (the EDP's own KEK). Throws if any blob has an
+     * empty `encrypted_dek.kek_uri` or if the blobs disagree, since the labeled output must be
+     * wrapped with exactly one KEK.
+     */
+    private fun resolveKekUri(blobs: Collection<RankIndexBlob>, modelLine: String): String {
+      val kekUris = blobs.map { it.encryptedDek.kekUri }.toSet()
+      check(kekUris.size == 1 && kekUris.first().isNotEmpty()) {
+        "rank-index blobs for $modelLine have missing or inconsistent KEK URIs: $kekUris"
+      }
+      return kekUris.first()
     }
 
     /**

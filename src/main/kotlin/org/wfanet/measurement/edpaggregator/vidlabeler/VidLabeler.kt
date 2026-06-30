@@ -95,6 +95,8 @@ class VidLabeler(
     // contract. RawImpressionSource currently shards by fingerprint; once VidLabelerApp is wired
     // up, pass VidLabelingJob.raw_impression_upload_files directly and remove fingerprint sharding.
     rawImpressionSource.streamBlobs { blobUri ->
+      // The converter resolves each input file's entity keys (and legacy event group reference id)
+      // from the dispatcher-provided per-file map, keyed by the input blob URI.
       VidLabelingSink(
         inputBlobUri = blobUri,
         modelLineContexts = contexts,

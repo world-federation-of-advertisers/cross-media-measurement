@@ -30,22 +30,21 @@ import org.wfanet.virtualpeople.common.LabelerInput
  * [VidLabelerParams.ModelLineConfig.getLabelerInputFieldMappingMap].
  *
  * It is injected (rather than implemented inline) so the labeling pipeline can be built and tested
- * before the Parquet schema is finalized: tests supply a fake, and the production converter is
- * wired in once the schema is pinned.
- *
- * TODO(world-federation-of-advertisers/cross-media-measurement#3913): provide the production
- *   implementation once the raw-impression Parquet schema (column names + types) is finalized with
- *   the reader (#3954).
+ * independently of the production projection: tests supply a fake, and the production converter
+ * ([ParquetImpressionConverter]) is wired in by the runner.
  */
 fun interface ImpressionConverter {
   /**
    * Converts [event]'s row for the model line described by [config].
    *
+   * @param inputBlobUri the raw-impression file this row came from, used to resolve the file's
+   *   entity keys (and legacy event group reference id) from the dispatcher-provided per-file map.
    * @return the [ConvertedImpression], or `null` to skip this row for this model line.
    */
   fun convert(
     event: ParquetDigestedEvent,
     config: VidLabelerParams.ModelLineConfig,
+    inputBlobUri: String,
   ): ConvertedImpression?
 }
 
