@@ -74,9 +74,10 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  *   `getEventGroup` RPCs. Default `50ms`.
  * - `METADATA_REQUEST_INTERVAL`: Optional. Minimum interval between Requisition Metadata Service
  *   RPCs. Default `100ms`.
- * - `MAX_BUFFERED_REQUISITIONS_PER_REPORT`: Optional. Upper bound on the number of requisitions
- *   buffered for a single `(reportId, updateTime)` tuple before the buffer is dispatched and a new
- *   one is started. Default `1000`.
+ * - `MAX_BUFFERED_BYTES_PER_REPORT`: Optional. Upper bound on the serialized byte total of
+ *   requisitions buffered for a single `(reportId, updateTime)` tuple before the buffer is
+ *   dispatched and a new one is started. Default `268435456` (256 MiB). Bytes-based rather than
+ *   count-based because per-requisition size varies widely.
  * - `PAGE_SIZE`: Optional. Starting page size for `listRequisitions`. If a page exceeds the gRPC
  *   inbound message size limit (gRPC `RESOURCE_EXHAUSTED`), the page size is halved and the page is
  *   retried, down to a floor of 1.
@@ -215,7 +216,7 @@ class RequisitionFetcherFunction : HttpFunction {
       requisitionGrouper = requisitionGrouper,
       metadataThrottler = metadataThrottler,
       responsePageSize = pageSize,
-      maxBufferedRequisitionsPerReport = maxBufferedRequisitionsPerReport,
+      maxBufferedBytesPerReport = maxBufferedBytesPerReport,
     )
   }
 
@@ -307,9 +308,9 @@ class RequisitionFetcherFunction : HttpFunction {
     private val metadataRequestInterval: Duration =
       (System.getenv("METADATA_REQUEST_INTERVAL") ?: DEFAULT_METADATA_REQUEST_INTERVAL).toDuration()
 
-    private val maxBufferedRequisitionsPerReport: Int =
-      System.getenv("MAX_BUFFERED_REQUISITIONS_PER_REPORT")?.toIntOrNull()
-        ?: RequisitionFetcher.DEFAULT_MAX_BUFFERED_REQUISITIONS_PER_REPORT
+    private val maxBufferedBytesPerReport: Long =
+      System.getenv("MAX_BUFFERED_BYTES_PER_REPORT")?.toLongOrNull()
+        ?: RequisitionFetcher.DEFAULT_MAX_BUFFERED_BYTES_PER_REPORT
 
     private const val DEFAULT_PAGE_SIZE = 50
 

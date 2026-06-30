@@ -69,12 +69,14 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RefuseRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.storage.StorageClient
@@ -115,12 +117,21 @@ class RequisitionFetcherTest {
     RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase =
     mockService {
       onBlocking { listRequisitionMetadata(any()) }.thenReturn(listRequisitionMetadataResponse {})
-      onBlocking { createRequisitionMetadata(any()) }
+      onBlocking { batchCreateRequisitionMetadata(any()) }
         .thenAnswer { invocation ->
-          createRequisitionMetadataRequests +=
-            invocation.getArgument<CreateRequisitionMetadataRequest>(0)
-          requisitionMetadata {
-            name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/m-${System.nanoTime()}"
+          val request = invocation.getArgument<BatchCreateRequisitionMetadataRequest>(0)
+          createRequisitionMetadataRequests += request.requestsList
+          batchCreateRequisitionMetadataResponse {
+            requisitionMetadata +=
+              request.requestsList.map { subRequest ->
+                requisitionMetadata {
+                  name =
+                    "${TestRequisitionData.EDP_NAME}/requisitionMetadata/m-${System.nanoTime()}"
+                  cmmsRequisition = subRequest.requisitionMetadata.cmmsRequisition
+                  groupId = subRequest.requisitionMetadata.groupId
+                  report = subRequest.requisitionMetadata.report
+                }
+              }
           }
         }
       onBlocking { refuseRequisitionMetadata(any()) }
@@ -166,8 +177,7 @@ class RequisitionFetcherTest {
     storageClient: StorageClient = this.storageClient,
     metrics: RequisitionFetcherMetrics = testMetrics,
     workerCount: Int = 1,
-    maxBufferedRequisitionsPerReport: Int =
-      RequisitionFetcher.DEFAULT_MAX_BUFFERED_REQUISITIONS_PER_REPORT,
+    maxBufferedBytesPerReport: Long = RequisitionFetcher.DEFAULT_MAX_BUFFERED_BYTES_PER_REPORT,
     metadataThrottler: Throttler = this.throttler,
   ): RequisitionFetcher {
     val validator =
@@ -192,7 +202,7 @@ class RequisitionFetcherTest {
       requisitionValidator = validator,
       requisitionGrouper = grouper,
       metadataThrottler = metadataThrottler,
-      maxBufferedRequisitionsPerReport = maxBufferedRequisitionsPerReport,
+      maxBufferedBytesPerReport = maxBufferedBytesPerReport,
       workerCount = workerCount,
       metrics = metrics,
     )
@@ -252,7 +262,6 @@ class RequisitionFetcherTest {
 
   @Test
   fun `buffer cap split produces two blobs for one updateTime`() = runBlocking {
-    val cap = 2
     val requisitions =
       (1..3).map { idx ->
         TestRequisitionData.REQUISITION.copy {
@@ -263,7 +272,11 @@ class RequisitionFetcherTest {
     whenever(requisitionsServiceMock.listRequisitions(any()))
       .thenReturn(listRequisitionsResponse { this.requisitions += requisitions })
 
-    createFetcher(maxBufferedRequisitionsPerReport = cap).fetchAndStoreRequisitions()
+    // Cap chosen so that the second add exceeds the cap, dispatching after 2 requisitions and
+    // starting a fresh buffer that holds the third.
+    val perRequisitionBytes = requisitions.first().serializedSize.toLong()
+    val cap = perRequisitionBytes + 1
+    createFetcher(maxBufferedBytesPerReport = cap).fetchAndStoreRequisitions()
 
     assertThat(blobsList()).hasLength(2)
     val splitsMetric =
@@ -276,15 +289,19 @@ class RequisitionFetcherTest {
   @Test
   fun `writes blob before creating any metadata for that group`() = runBlocking {
     val recordingStorage = OrderRecordingStorageClient(storageClient)
-    whenever(requisitionMetadataServiceMock.createRequisitionMetadata(any())).thenAnswer {
+    whenever(requisitionMetadataServiceMock.batchCreateRequisitionMetadata(any())).thenAnswer {
       invocation ->
-      val request = invocation.getArgument<CreateRequisitionMetadataRequest>(0)
-      val groupId = request.requisitionMetadata.groupId
-      check(recordingStorage.writtenGroupIds.contains(groupId)) {
-        "createRequisitionMetadata called for $groupId before its blob was written"
+      val request = invocation.getArgument<BatchCreateRequisitionMetadataRequest>(0)
+      for (subRequest in request.requestsList) {
+        val groupId = subRequest.requisitionMetadata.groupId
+        check(recordingStorage.writtenGroupIds.contains(groupId)) {
+          "batchCreateRequisitionMetadata called for $groupId before its blob was written"
+        }
       }
-      createRequisitionMetadataRequests += request
-      requisitionMetadata {}
+      createRequisitionMetadataRequests += request.requestsList
+      batchCreateRequisitionMetadataResponse {
+        requisitionMetadata += request.requestsList.map { requisitionMetadata {} }
+      }
     }
 
     createFetcher(storageClient = recordingStorage).fetchAndStoreRequisitions()
@@ -544,8 +561,8 @@ class RequisitionFetcherTest {
 
     createFetcher(metadataThrottler = counter).fetchAndStoreRequisitions()
 
-    // 1 list + 2 create metadata calls.
-    assertThat(counter.count.get()).isEqualTo(3)
+    // 1 list + 1 batchCreate metadata call (both reqs in one atomic batch).
+    assertThat(counter.count.get()).isEqualTo(2)
   }
 
   @Test
@@ -729,6 +746,36 @@ class RequisitionFetcherTest {
     assertThat(writtenBlobNames).containsExactly("group-A", "group-B")
     assertThat(counterValue("edpa.requisition_fetcher.recovery_rebuilds")).isEqualTo(2)
   }
+
+  @Test
+  fun `batch create failure leaves zero metadata under the group (no partial wedge)`() =
+    runBlocking {
+      // Wedge variant pin: blob already written, batch metadata create throws. Because
+      // BatchCreateRequisitionMetadata is server-side atomic (one Spanner transaction), the
+      // failure produces zero metadata rows under groupId — never a partial subset. Next run
+      // sees `unregistered = all requisitions`, mints a new groupId, writes a fresh blob —
+      // the orphan blob is benign because no metadata references it as STORED.
+      val r1 = TestRequisitionData.REQUISITION.copy { updateTime = timestamp { seconds = 10 } }
+      val r2 =
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/foo2"
+          updateTime = timestamp { seconds = 10 }
+        }
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2) })
+      whenever(requisitionMetadataServiceMock.batchCreateRequisitionMetadata(any())).thenAnswer {
+        throw RuntimeException("simulated batch failure after blob write")
+      }
+
+      createFetcher().fetchAndStoreRequisitions()
+
+      // Blob was written (blob-first ordering) — counts as a storage write.
+      assertThat(counterValue("edpa.requisition_fetcher.storage_writes")).isEqualTo(1)
+      // No metadata persisted — atomicity guarantee.
+      assertThat(createRequisitionMetadataRequests).isEmpty()
+      // The report failure was surfaced and counted.
+      assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isEqualTo(1)
+    }
 
   private class CountingThrottler : Throttler {
     val count = AtomicInteger(0)
@@ -1024,50 +1071,49 @@ class RequisitionFetcherTest {
   }
 
   @Test
-  fun `metadata cache is invalidated when create throws partway through persist loop`() =
-    runBlocking {
-      val r1 =
-        TestRequisitionData.REQUISITION.copy {
-          name = "${TestRequisitionData.EDP_NAME}/requisitions/r1"
-          updateTime = timestamp { seconds = 10 }
-        }
-      val r2 =
-        TestRequisitionData.REQUISITION.copy {
-          name = "${TestRequisitionData.EDP_NAME}/requisitions/r2"
-          updateTime = timestamp { seconds = 20 }
-        }
-      whenever(requisitionsServiceMock.listRequisitions(any()))
-        .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2) })
-
-      val listCalls = AtomicInteger(0)
-      val createCalls = AtomicInteger(0)
-      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenAnswer {
-        listCalls.incrementAndGet()
-        listRequisitionMetadataResponse {}
+  fun `metadata cache is invalidated when batch create throws on the persist call`() = runBlocking {
+    val r1 =
+      TestRequisitionData.REQUISITION.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/r1"
+        updateTime = timestamp { seconds = 10 }
       }
-      whenever(requisitionMetadataServiceMock.createRequisitionMetadata(any())).thenAnswer {
-        invocation ->
-        val count = createCalls.incrementAndGet()
-        if (count == 1) throw RuntimeException("simulated create failure")
-        createRequisitionMetadataRequests +=
-          invocation.getArgument<CreateRequisitionMetadataRequest>(0)
-        requisitionMetadata {
-          name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/m-$count"
-        }
+    val r2 =
+      TestRequisitionData.REQUISITION.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/r2"
+        updateTime = timestamp { seconds = 20 }
       }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2) })
 
-      createFetcher().fetchAndStoreRequisitions()
-
-      assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isEqualTo(1)
-      // The metadataCache.remove() in the finally is the load-bearing assertion: if it didn't
-      // fire, unit 2 would reuse the cached pre-failure snapshot and listCalls would stay at 1.
-      assertThat(listCalls.get()).isEqualTo(2)
+    val listCalls = AtomicInteger(0)
+    val batchCalls = AtomicInteger(0)
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenAnswer {
+      listCalls.incrementAndGet()
+      listRequisitionMetadataResponse {}
+    }
+    whenever(requisitionMetadataServiceMock.batchCreateRequisitionMetadata(any())).thenAnswer {
+      invocation ->
+      val count = batchCalls.incrementAndGet()
+      if (count == 1) throw RuntimeException("simulated batch create failure")
+      val request = invocation.getArgument<BatchCreateRequisitionMetadataRequest>(0)
+      createRequisitionMetadataRequests += request.requestsList
+      batchCreateRequisitionMetadataResponse {
+        requisitionMetadata += request.requestsList.map { requisitionMetadata {} }
+      }
     }
 
+    createFetcher().fetchAndStoreRequisitions()
+
+    assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isEqualTo(1)
+    // The metadataCache.remove() in the finally is the load-bearing assertion: if it didn't
+    // fire, unit 2 would reuse the cached pre-failure snapshot and listCalls would stay at 1.
+    assertThat(listCalls.get()).isEqualTo(2)
+  }
+
   @Test
-  fun `refuseUnregisteredAndPersist half-failure invalidates metadata cache`() = runBlocking {
-    // Mixed model lines trigger the refuse path. createRequisitionMetadata throws on its first
-    // call, mid-loop. The finally in processReportInner must still invalidate the cache so a
+  fun `refuseUnregisteredAndPersist batch failure invalidates metadata cache`() = runBlocking {
+    // Mixed model lines trigger the refuse path. batchCreateRequisitionMetadata throws on its
+    // first call. The finally in processReportInner must still invalidate the cache so a
     // second unit for the same report re-lists rather than reading the stale empty snapshot.
     val measurementSpec2 =
       TestRequisitionData.MEASUREMENT_SPEC.copy { modelLine = "other-model-line" }
@@ -1088,23 +1134,25 @@ class RequisitionFetcherTest {
       .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2, r3) })
 
     val listCalls = AtomicInteger(0)
-    val createCalls = AtomicInteger(0)
+    val batchCalls = AtomicInteger(0)
     whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenAnswer {
       listCalls.incrementAndGet()
       listRequisitionMetadataResponse {}
     }
-    whenever(requisitionMetadataServiceMock.createRequisitionMetadata(any())).thenAnswer {
+    whenever(requisitionMetadataServiceMock.batchCreateRequisitionMetadata(any())).thenAnswer {
       invocation ->
-      val count = createCalls.incrementAndGet()
-      if (count == 1) throw RuntimeException("simulated create failure inside refuse loop")
-      createRequisitionMetadataRequests +=
-        invocation.getArgument<CreateRequisitionMetadataRequest>(0)
-      requisitionMetadata { name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/m-$count" }
+      val count = batchCalls.incrementAndGet()
+      if (count == 1) throw RuntimeException("simulated batch create failure inside refuse path")
+      val request = invocation.getArgument<BatchCreateRequisitionMetadataRequest>(0)
+      createRequisitionMetadataRequests += request.requestsList
+      batchCreateRequisitionMetadataResponse {
+        requisitionMetadata += request.requestsList.map { requisitionMetadata {} }
+      }
     }
 
     createFetcher().fetchAndStoreRequisitions()
 
-    // The first unit's refuse loop threw → reportFailures incremented.
+    // The first unit's refuse path threw → reportFailures incremented.
     assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isAtLeast(1)
     // The cache invalidate in finally fired, so unit 2 re-listed metadata.
     assertThat(listCalls.get()).isEqualTo(2)

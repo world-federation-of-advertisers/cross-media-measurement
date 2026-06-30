@@ -18,6 +18,8 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.protobuf.Any
 import com.google.protobuf.util.Timestamps
+import io.grpc.Status
+import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
@@ -51,6 +53,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataReque
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.refuseRequisitionMetadataRequest
@@ -82,9 +85,10 @@ import org.wfanet.measurement.storage.StorageClient
  * @property metadataThrottler throttles all Requisition Metadata Service RPCs.
  * @property responsePageSize optional page size for `listRequisitions`.
  * @property metadataPageSize page size for `listRequisitionMetadata`.
- * @property maxBufferedRequisitionsPerReport upper bound on the number of requisitions buffered for
- *   a single `(reportId, updateTime)` tuple before the buffer is dispatched and a new one is
- *   started.
+ * @property maxBufferedBytesPerReport upper bound on the serialized bytes of [Requisition]s
+ *   buffered for a single `(reportId, updateTime)` tuple before the buffer is dispatched and a new
+ *   one is started. Bytes-based rather than count-based because per-requisition size varies widely
+ *   (the encrypted spec dominates) and the memory budget that matters is bytes, not count.
  * @property workerCount number of concurrent per-report workers.
  * @property channelCapacity capacity of the channel between the stream producer and workers.
  * @property metrics OpenTelemetry metrics sink.
@@ -101,7 +105,7 @@ class RequisitionFetcher(
   private val metadataThrottler: Throttler,
   private val responsePageSize: Int? = null,
   private val metadataPageSize: Int = DEFAULT_METADATA_PAGE_SIZE,
-  private val maxBufferedRequisitionsPerReport: Int = DEFAULT_MAX_BUFFERED_REQUISITIONS_PER_REPORT,
+  private val maxBufferedBytesPerReport: Long = DEFAULT_MAX_BUFFERED_BYTES_PER_REPORT,
   private val workerCount: Int = DEFAULT_WORKER_COUNT,
   private val channelCapacity: Int = DEFAULT_CHANNEL_CAPACITY,
   private val metrics: RequisitionFetcherMetrics = RequisitionFetcherMetrics.Default,
@@ -113,6 +117,7 @@ class RequisitionFetcher(
     val reportId: String,
     var currentUpdateTime: com.google.protobuf.Timestamp,
     val requisitions: MutableList<Requisition> = mutableListOf(),
+    var bytes: Long = 0L,
   )
 
   /**
@@ -207,9 +212,10 @@ class RequisitionFetcher(
    *
    * Maintains an [OpenBuffer] per `reportId`. The Kingdom does not guarantee per-report monotonic
    * `updateTime` ordering in its `listRequisitions` response, so a buffer is closed and dispatched
-   * on (a) *any* change to the report's `updateTime` (forward or backward), (b) the buffer hitting
-   * [maxBufferedRequisitionsPerReport], or (c) the stream ending. Requisitions whose
-   * [MeasurementSpec] cannot be parsed are refused to the Kingdom in line and not dispatched.
+   * on (a) *any* change to the report's `updateTime` (forward or backward), (b) the buffer's
+   * serialized requisition byte total reaching [maxBufferedBytesPerReport], or (c) the stream
+   * ending. Requisitions whose [MeasurementSpec] cannot be parsed are refused to the Kingdom in
+   * line and not dispatched.
    *
    * Dispatch hashes `reportId` to a per-worker channel so all units for one report land on the same
    * worker. The producer can backpressure on a hot report's channel while other workers keep
@@ -249,7 +255,17 @@ class RequisitionFetcher(
             this.pageSize = pageSize
             this.pageToken = pageToken
           }
-          val response = requisitionsStub.listRequisitions(request)
+          val response =
+            try {
+              requisitionsStub.listRequisitions(request)
+            } catch (e: StatusException) {
+              // RESOURCE_EXHAUSTED is the adaptive page-size signal — propagate raw so the
+              // listResourcesWithAdaptivePageSize wrapper can detect it and halve. Wrap
+              // everything else with context to disambiguate failures from getEventGroup /
+              // metadata RPCs that share the StatusException type.
+              if (e.status.code == Status.Code.RESOURCE_EXHAUSTED) throw e
+              throw Exception("Error listing requisitions for $dataProviderName", e)
+            }
           ResourceList(response.requisitionsList, response.nextPageToken)
         }
         .flattenConcat()
@@ -257,9 +273,12 @@ class RequisitionFetcher(
     val openBuffers = mutableMapOf<String, OpenBuffer>()
     var totalFetched = 0L
     var openBufferHighWater = 0
+    var totalBufferedBytes = 0L
+    var bufferedBytesHighWater = 0L
 
     suspend fun dispatch(buffer: OpenBuffer) {
       val unit = ReportWorkUnit(buffer.reportId, buffer.requisitions.toList())
+      totalBufferedBytes -= buffer.bytes
       channels[channelIndexFor(buffer.reportId)].send(unit)
     }
 
@@ -279,6 +298,8 @@ class RequisitionFetcher(
         return@collect
       }
 
+      val requisitionBytes = requisition.serializedSize.toLong()
+
       val existing = openBuffers[reportId]
       if (existing == null) {
         openBuffers[reportId] =
@@ -286,8 +307,11 @@ class RequisitionFetcher(
             reportId = reportId,
             currentUpdateTime = requisition.updateTime,
             requisitions = mutableListOf(requisition),
+            bytes = requisitionBytes,
           )
+        totalBufferedBytes += requisitionBytes
         if (openBuffers.size > openBufferHighWater) openBufferHighWater = openBuffers.size
+        if (totalBufferedBytes > bufferedBytesHighWater) bufferedBytesHighWater = totalBufferedBytes
         return@collect
       }
 
@@ -298,12 +322,18 @@ class RequisitionFetcher(
             reportId = reportId,
             currentUpdateTime = requisition.updateTime,
             requisitions = mutableListOf(requisition),
+            bytes = requisitionBytes,
           )
+        totalBufferedBytes += requisitionBytes
+        if (totalBufferedBytes > bufferedBytesHighWater) bufferedBytesHighWater = totalBufferedBytes
         return@collect
       }
 
       existing.requisitions.add(requisition)
-      if (existing.requisitions.size >= maxBufferedRequisitionsPerReport) {
+      existing.bytes += requisitionBytes
+      totalBufferedBytes += requisitionBytes
+      if (totalBufferedBytes > bufferedBytesHighWater) bufferedBytesHighWater = totalBufferedBytes
+      if (existing.bytes >= maxBufferedBytesPerReport) {
         dispatch(existing)
         metrics.bufferSplits.add(1, dataProviderAttrs)
         openBuffers[reportId] =
@@ -311,6 +341,7 @@ class RequisitionFetcher(
             reportId = reportId,
             currentUpdateTime = existing.currentUpdateTime,
             requisitions = mutableListOf(),
+            bytes = 0L,
           )
       }
     }
@@ -321,6 +352,7 @@ class RequisitionFetcher(
       }
     }
     metrics.openBufferHighWaterMark.record(openBufferHighWater.toLong(), dataProviderAttrs)
+    metrics.bufferedBytesHighWaterMark.record(bufferedBytesHighWater, dataProviderAttrs)
     return totalFetched
   }
 
@@ -443,7 +475,7 @@ class RequisitionFetcher(
     try {
       val invalidRefusal = validateForReport(unit.reportId, unregistered)
       if (invalidRefusal != null) {
-        refuseUnregisteredAndPersist(unregistered, groupId, invalidRefusal)
+        refuseUnregisteredAndPersist(unregistered, groupId, unit.reportId, invalidRefusal)
         return
       }
 
@@ -455,14 +487,17 @@ class RequisitionFetcher(
             justification = Requisition.Refusal.Justification.UNFULFILLABLE
             message = e.message ?: "Invalid event group configuration"
           }
-          refuseUnregisteredAndPersist(unregistered, groupId, refusal)
+          refuseUnregisteredAndPersist(unregistered, groupId, unit.reportId, refusal)
           return
         } ?: return
 
       writeBlob(grouped)
-      for (requisition in unregistered) {
-        metadataThrottler.onReady { createRequisitionMetadata(requisition, groupId) }
-      }
+      // TODO(world-federation-of-advertisers/cross-media-measurement#4119): A crash between
+      //  writeBlob and this batch call leaves an orphan blob (blob present, zero metadata).
+      //  The orphan is benign for fetcher correctness but currently causes ResultsFulfiller to
+      //  fail loudly at ResultsFulfiller.kt:160 and dead-letter the work item. Downstream fix:
+      //  change ResultsFulfiller to log + skip rather than throw on the empty-metadata case.
+      batchCreateRequisitionMetadataForGroup(unregistered, groupId, unit.reportId)
     } finally {
       metadataCache.remove(unit.reportId)
     }
@@ -520,17 +555,22 @@ class RequisitionFetcher(
   /**
    * Refuses every requisition in [requisitions] to the Kingdom and persists corresponding `REFUSED`
    * [RequisitionMetadata] entries under the shared [groupId].
+   *
+   * The metadata is created atomically via `BatchCreateRequisitionMetadata` (one Spanner
+   * transaction) before any per-metadata refusal call, so a crash between blob and metadata cannot
+   * leave a partial set of metadata rows under the group.
    */
   private suspend fun refuseUnregisteredAndPersist(
     requisitions: List<Requisition>,
     groupId: String,
+    reportId: String,
     refusal: Requisition.Refusal,
   ) {
     for (requisition in requisitions) {
       requisitionGrouper.refuseRequisitionToCmms(requisition, refusal)
     }
-    for (requisition in requisitions) {
-      val metadata = metadataThrottler.onReady { createRequisitionMetadata(requisition, groupId) }
+    val createdMetadata = batchCreateRequisitionMetadataForGroup(requisitions, groupId, reportId)
+    for (metadata in createdMetadata) {
       metadataThrottler.onReady { refuseRequisitionMetadata(metadata, refusal.message) }
     }
   }
@@ -600,27 +640,67 @@ class RequisitionFetcher(
   }
 
   /**
-   * Creates a `STORED` [RequisitionMetadata] entry for [requisition] under [groupId], with a blob
-   * URI computed from [blobUriPrefix] and [storagePathPrefix].
+   * Builds the [RequisitionMetadata] for [requisition] under [groupId] for [reportId], with a blob
+   * URI computed from [blobUriPrefix] and [storagePathPrefix]. [reportId] is passed in rather than
+   * re-derived from the requisition's [MeasurementSpec]: the producer already extracted and
+   * validated it once per requisition (see [extractReportId] in `produceWorkUnits`).
    */
-  private suspend fun createRequisitionMetadata(
+  private fun buildRequisitionMetadata(
     requisition: Requisition,
     groupId: String,
+    reportId: String,
   ): RequisitionMetadata {
-    val metadata = requisitionMetadata {
+    return requisitionMetadata {
       cmmsRequisition = requisition.name
       blobUri = "$blobUriPrefix/$storagePathPrefix/$groupId"
       blobTypeUrl = GROUPED_REQUISITION_BLOB_TYPE_URL
       this.groupId = groupId
       cmmsCreateTime = requisition.updateTime
-      report = extractReportId(requisition).orEmpty()
+      report = reportId
     }
-    val request = createRequisitionMetadataRequest {
-      parent = dataProviderName
-      requisitionMetadata = metadata
-      requestId = UUID.randomUUID().toString()
-    }
-    return requisitionMetadataStub.createRequisitionMetadata(request)
+  }
+
+  /**
+   * Atomically creates `STORED` [RequisitionMetadata] entries for every [requisition] in
+   * [requisitions] under the shared [groupId] for [reportId], in a single [Throttler]-gated
+   * `BatchCreateRequisitionMetadata` call. Returns the list of created entries in the same order as
+   * [requisitions].
+   *
+   * Wedge fix: the server backs this RPC with a single Spanner read-write transaction, so all
+   * metadata rows commit together or none do. A crash between [writeBlob] and this call leaves the
+   * benign zero-metadata orphan (recoverable by the next run); a crash mid-call aborts the
+   * transaction, leaving zero metadata rows. Either way ResultsFulfiller never sees a blob whose
+   * `requisitionsList` references a name with no corresponding metadata row.
+   *
+   * No-op when [requisitions] is empty.
+   */
+  private suspend fun batchCreateRequisitionMetadataForGroup(
+    requisitions: List<Requisition>,
+    groupId: String,
+    reportId: String,
+  ): List<RequisitionMetadata> {
+    if (requisitions.isEmpty()) return emptyList()
+    val response =
+      metadataThrottler.onReady {
+        requisitionMetadataStub.batchCreateRequisitionMetadata(
+          batchCreateRequisitionMetadataRequest {
+            parent = dataProviderName
+            requests +=
+              requisitions.map { requisition ->
+                createRequisitionMetadataRequest {
+                  parent = dataProviderName
+                  requisitionMetadata = buildRequisitionMetadata(requisition, groupId, reportId)
+                  // Deterministic so a same-run retry of the same batch is server-side
+                  // idempotent: matching requestId returns the existing row instead of
+                  // ALREADY_EXISTS on (cmmsRequisition, groupId). See server dedup paths in
+                  // RequisitionMetadata.kt:425-475.
+                  requestId = "${requisition.name}/$groupId"
+                }
+              }
+          }
+        )
+      }
+    return response.requisitionMetadataList
   }
 
   /**
@@ -653,9 +733,9 @@ class RequisitionFetcher(
       ProtoReflection.getTypeUrl(GroupedRequisitions.getDescriptor())
 
     const val DEFAULT_METADATA_PAGE_SIZE: Int = 100
-    const val DEFAULT_MAX_BUFFERED_REQUISITIONS_PER_REPORT: Int = 1000
-    const val DEFAULT_WORKER_COUNT: Int = 16
-    const val DEFAULT_CHANNEL_CAPACITY: Int = 64
+    const val DEFAULT_MAX_BUFFERED_BYTES_PER_REPORT: Long = 256L * 1024L * 1024L
+    const val DEFAULT_WORKER_COUNT: Int = 4
+    const val DEFAULT_CHANNEL_CAPACITY: Int = 4
     const val MIN_LIST_REQUISITIONS_PAGE_SIZE: Int = 1
     private const val KINGDOM_LIST_REQUISITIONS_DEFAULT_PAGE_SIZE: Int = 10
   }

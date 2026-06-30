@@ -118,6 +118,18 @@ class RequisitionFetcherMetrics(meter: Meter = Instrumentation.meter) {
       .setUnit("{buffer}")
       .build()
 
+  val bufferedBytesHighWaterMark: LongHistogram =
+    meter
+      .histogramBuilder("edpa.requisition_fetcher.buffered_bytes_high_water_mark")
+      .ofLongs()
+      .setDescription(
+        "Peak total serialized bytes across all open buffers during a single fetch run — the " +
+          "memory-pressure signal for the fetcher's producer-side buffering, orthogonal to " +
+          "open_buffer_high_water_mark (cardinality)"
+      )
+      .setUnit("By")
+      .build()
+
   companion object {
     val Default = RequisitionFetcherMetrics()
   }
