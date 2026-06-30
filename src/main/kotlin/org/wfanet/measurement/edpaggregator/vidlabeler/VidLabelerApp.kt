@@ -23,9 +23,6 @@ import com.google.protobuf.Parser
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
-import java.nio.ByteBuffer
-import java.security.MessageDigest
-import java.util.UUID
 import java.util.logging.Logger
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
@@ -34,6 +31,7 @@ import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigestExtractor
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
+import org.wfanet.measurement.edpaggregator.service.VidLabelingJobKey
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -46,6 +44,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
@@ -312,7 +311,7 @@ class VidLabelerApp(
             this.etag = etag
             // AIP-155 retry-idempotency key: a Pub/Sub redelivery reuses the same request_id so the
             // server returns the cached result instead of hitting the etag-mismatch path.
-            requestId = deterministicUuid("${mp.vidLabelingJob}|succeeded")
+            requestId = RequestIds.forMarkVidLabelingJobSucceeded(mp.vidLabelingJob)
           }
         )
       } catch (e: StatusException) {
@@ -441,42 +440,17 @@ class VidLabelerApp(
   }
 
   /**
-   * Derives the parent `RawImpressionUpload` resource name from a `VidLabelingJob` resource name by
-   * stripping the `/vidLabelingJobs/{job}` segment.
+   * Derives the parent `RawImpressionUpload` resource name from a `VidLabelingJob` resource name.
    *
-   * TODO(world-federation-of-advertisers/cross-media-measurement#4051): Replace this string
-   *   stripping with the resource-name parser once #4051 (`VidLabelingJobKey`) and #4013
-   *   (`RawImpressionUploadKey`) merge:
-   *   `VidLabelingJobKey.fromName(vidLabelingJob)!!.toRawImpressionUploadKey().toName()`. The
-   *   parser fails loudly on a malformed or extended resource name instead of silently producing a
-   *   wrong parent URI that the next RPC rejects.
+   * Uses [VidLabelingJobKey] so a malformed or extended resource name fails loudly here instead of
+   * silently producing a wrong parent URI that the next RPC rejects.
    */
   private fun parentUpload(vidLabelingJob: String): String {
-    require(vidLabelingJob.contains("/vidLabelingJobs/")) {
-      "Malformed VidLabelingJob resource name: $vidLabelingJob"
-    }
-    return vidLabelingJob.substringBefore("/vidLabelingJobs/")
-  }
-
-  /**
-   * Derives a deterministic UUID4 from [seed], stable across redeliveries, for use as an AIP-155
-   * `request_id`. Computed from an MD5 digest of the seed with the RFC-4122 version (4) and variant
-   * bits forced, so it satisfies a field's `format = UUID4`.
-   *
-   * MD5 here is a non-cryptographic, deterministic idempotency-key derivation (not used for
-   * security); the version/variant bits are forced only to satisfy the field format = UUID4.
-   *
-   * TODO(world-federation-of-advertisers/cross-media-measurement#4081): Replace this local helper
-   *   and its call sites with the shared `RequestIds` derivation created in #4081 once it merges
-   *   (e.g. `RequestIds.forMarkVidLabelingJobSucceeded(mp.vidLabelingJob)`), so the AIP-155
-   *   request_id rule lives in one place instead of being reinvented here.
-   */
-  private fun deterministicUuid(seed: String): String {
-    val bytes = MessageDigest.getInstance("MD5").digest(seed.toByteArray(Charsets.UTF_8))
-    bytes[6] = ((bytes[6].toInt() and 0x0f) or 0x40).toByte() // version 4
-    bytes[8] = ((bytes[8].toInt() and 0x3f) or 0x80).toByte() // variant 10xx
-    val buffer = ByteBuffer.wrap(bytes)
-    return UUID(buffer.long, buffer.long).toString()
+    val key =
+      requireNotNull(VidLabelingJobKey.fromName(vidLabelingJob)) {
+        "Malformed VidLabelingJob resource name: $vidLabelingJob"
+      }
+    return key.parentKey.toName()
   }
 
   companion object {

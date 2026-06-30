@@ -66,6 +66,15 @@ object RequestIds {
     fromKey("vidLabelingJob:$uploadName:${modelLineNames.sorted().joinToString(",")}:$batchIndex")
 
   /**
+   * `request_id` for marking a `VidLabelingJob` SUCCEEDED.
+   *
+   * Keyed on [vidLabelingJobName] so a Pub/Sub redelivery of the same job's completion reuses the
+   * same id and the server returns the cached result instead of re-transitioning the resource.
+   */
+  fun forMarkVidLabelingJobSucceeded(vidLabelingJobName: String): String =
+    fromKey("markVidLabelingJobSucceeded:$vidLabelingJobName")
+
+  /**
    * WorkItem resource id for a memoized SubpoolAssigner WorkItem. Must satisfy RFC 1034
    * (<=63 chars, letter-start, [a-zA-Z0-9-], no '_'): Kingdom model-line ids contain '_' and
    * uploads use long UUIDs, so derive a bounded letter-prefixed deterministic UUID from the key.
