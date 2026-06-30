@@ -440,6 +440,9 @@ class SubpoolAssignerTest {
     // The flip is the completion marker; on a transient failure we must NOT delete the merge
     // inputs.
     verifyBlocking(store, never()) { delete(any()) }
+    // The worker never marks the job FAILED itself — the DLQ listener owns the terminal FAILED
+    // transition on retry exhaustion; the failure simply propagates so the framework nacks.
+    verifyBlocking(paj, never()) { markPoolAssignmentJobFailed(any(), any()) }
   }
 
   @Test
