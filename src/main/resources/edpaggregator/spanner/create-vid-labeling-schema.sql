@@ -33,7 +33,8 @@ ALTER PROTO BUNDLE INSERT (
   `wfa.measurement.internal.edpaggregator.RankerState`,
   `wfa.measurement.internal.edpaggregator.VidLabelingState`,
   `wfa.measurement.internal.edpaggregator.BlobType`,
-  `wfa.measurement.internal.edpaggregator.EncryptedDek`
+  `wfa.measurement.internal.edpaggregator.EncryptedDek`,
+  `wfa.measurement.internal.edpaggregator.EncryptedDek.ProtobufFormat`
 );
 
 -- =============================================================================
