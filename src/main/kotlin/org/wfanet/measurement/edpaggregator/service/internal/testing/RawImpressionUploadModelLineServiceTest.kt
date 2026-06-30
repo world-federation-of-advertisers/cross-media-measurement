@@ -77,6 +77,18 @@ abstract class RawImpressionUploadModelLineServiceTest {
     runBlocking { createParentUpload(DATA_PROVIDER_RESOURCE_ID, RAW_IMPRESSION_UPLOAD_RESOURCE_ID) }
   }
 
+  /** Returns the current etag of a model line, for supplying to Mark (CAS) transitions. */
+  private suspend fun currentEtag(rawImpressionUploadModelLineResourceId: String): String =
+    service
+      .getRawImpressionUploadModelLine(
+        getRawImpressionUploadModelLineRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          this.rawImpressionUploadModelLineResourceId = rawImpressionUploadModelLineResourceId
+        }
+      )
+      .etag
+
   @Test
   fun `createRawImpressionUploadModelLine creates successfully`() = runBlocking {
     val startTime: Instant = Instant.now()
@@ -131,6 +143,39 @@ abstract class RawImpressionUploadModelLineServiceTest {
 
     assertThat(modelLine2).isEqualTo(modelLine1)
   }
+
+  @Test
+  fun `createRawImpressionUploadModelLine throws ALREADY_EXISTS when request_id reused with different cmms_model_line`() =
+    runBlocking {
+      val requestId: String = UUID.randomUUID().toString()
+
+      service.createRawImpressionUploadModelLine(
+        createRawImpressionUploadModelLineRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          this.requestId = requestId
+          rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+            cmmsModelLine = CMMS_MODEL_LINE
+          }
+        }
+      )
+
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRawImpressionUploadModelLine(
+            createRawImpressionUploadModelLineRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              this.requestId = requestId
+              rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+                cmmsModelLine = CMMS_MODEL_LINE_2
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    }
 
   @Test
   fun `createRawImpressionUploadModelLine throws INVALID_ARGUMENT if data_provider_resource_id not set`() =
@@ -451,6 +496,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+        etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
       }
     )
 
@@ -569,6 +615,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
           }
         )
 
@@ -604,6 +651,35 @@ abstract class RawImpressionUploadModelLineServiceTest {
           )
         }
       assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLinePoolAssigning throws INVALID_ARGUMENT for empty etag`() =
+    runBlocking {
+      val created: RawImpressionUploadModelLine =
+        service.createRawImpressionUploadModelLine(
+          createRawImpressionUploadModelLineRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              cmmsModelLine = CMMS_MODEL_LINE
+            }
+          }
+        )
+
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLinePoolAssigning(
+            markRawImpressionUploadModelLinePoolAssigningRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              rawImpressionUploadModelLineResourceId =
+                created.rawImpressionUploadModelLineResourceId
+              // Intentionally no etag — internal layer must reject it.
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     }
 
   @Test
@@ -672,6 +748,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
         }
       )
 
@@ -681,6 +758,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
           }
         )
 
@@ -705,6 +783,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+        etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
       }
     )
     service.markRawImpressionUploadModelLineRanking(
@@ -712,6 +791,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+        etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
       }
     )
 
@@ -721,6 +801,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
         }
       )
 
@@ -746,6 +827,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
         }
       )
       service.markRawImpressionUploadModelLineRanking(
@@ -753,6 +835,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
         }
       )
       service.markRawImpressionUploadModelLineLabeling(
@@ -760,6 +843,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
         }
       )
 
@@ -769,6 +853,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
           }
         )
 
@@ -797,6 +882,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
           errorMessage = "something went wrong"
         }
       )
@@ -824,6 +910,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
         }
       )
 
@@ -833,6 +920,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
             errorMessage = "pool assignment failed"
           }
         )
@@ -863,6 +951,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               rawImpressionUploadModelLineResourceId =
                 created.rawImpressionUploadModelLineResourceId
+              etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
             }
           )
         }
@@ -892,6 +981,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               rawImpressionUploadModelLineResourceId =
                 created.rawImpressionUploadModelLineResourceId
+              etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
             }
           )
         }
@@ -909,6 +999,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               rawImpressionUploadModelLineResourceId = "nonexistent-resource-id"
+              etag = "some-etag"
             }
           )
         }
@@ -1129,6 +1220,43 @@ abstract class RawImpressionUploadModelLineServiceTest {
   }
 
   @Test
+  fun `batchCreateRawImpressionUploadModelLines throws ALREADY_EXISTS when request_id reused with different cmms_model_line`() =
+    runBlocking {
+      val requestId: String = UUID.randomUUID().toString()
+
+      service.batchCreateRawImpressionUploadModelLines(
+        batchCreateRawImpressionUploadModelLinesRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          requests += createRawImpressionUploadModelLineRequest {
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              cmmsModelLine = CMMS_MODEL_LINE
+            }
+            this.requestId = requestId
+          }
+        }
+      )
+
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRawImpressionUploadModelLines(
+            batchCreateRawImpressionUploadModelLinesRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              requests += createRawImpressionUploadModelLineRequest {
+                rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+                  cmmsModelLine = CMMS_MODEL_LINE_2
+                }
+                this.requestId = requestId
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    }
+
+  @Test
   fun `batchCreateRawImpressionUploadModelLines request_id is scoped to parent upload`() =
     runBlocking {
       val secondUpload = "uploads/upload2"
@@ -1186,6 +1314,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+        etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
       }
     )
 
@@ -1214,6 +1343,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
           }
         )
 
@@ -1243,6 +1373,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+        etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
         errorMessage = "boom"
       }
     )
@@ -1280,6 +1411,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = modelLine1.rawImpressionUploadModelLineResourceId
+        etag = currentEtag(modelLine1.rawImpressionUploadModelLineResourceId)
       }
     )
     service.markRawImpressionUploadModelLineCompleted(
@@ -1287,6 +1419,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = modelLine1.rawImpressionUploadModelLineResourceId
+        etag = currentEtag(modelLine1.rawImpressionUploadModelLineResourceId)
       }
     )
 
@@ -1300,6 +1433,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = modelLine2.rawImpressionUploadModelLineResourceId
+        etag = currentEtag(modelLine2.rawImpressionUploadModelLineResourceId)
       }
     )
     service.markRawImpressionUploadModelLineCompleted(
@@ -1307,6 +1441,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = modelLine2.rawImpressionUploadModelLineResourceId
+        etag = currentEtag(modelLine2.rawImpressionUploadModelLineResourceId)
       }
     )
 

@@ -101,6 +101,16 @@ class SpannerRawImpressionUploadModelLineService(
                 request.requestId,
               )
             if (existing != null) {
+              if (
+                existing.rawImpressionUploadModelLine.cmmsModelLine !=
+                  request.rawImpressionUploadModelLine.cmmsModelLine
+              ) {
+                throw Status.ALREADY_EXISTS.withDescription(
+                    "RawImpressionUploadModelLine already exists for request_id " +
+                      "${request.requestId} with a different cmms_model_line"
+                  )
+                  .asRuntimeException()
+              }
               return@run existing.rawImpressionUploadModelLine
             }
           }
@@ -247,6 +257,16 @@ class SpannerRawImpressionUploadModelLineService(
           request.requestsList.map { subRequest ->
             val existing = existingByRequestId[subRequest.requestId]
             if (existing != null) {
+              if (
+                existing.rawImpressionUploadModelLine.cmmsModelLine !=
+                  subRequest.rawImpressionUploadModelLine.cmmsModelLine
+              ) {
+                throw Status.ALREADY_EXISTS.withDescription(
+                    "RawImpressionUploadModelLine already exists for request_id " +
+                      "${subRequest.requestId} with a different cmms_model_line"
+                  )
+                  .asRuntimeException()
+              }
               existing.rawImpressionUploadModelLine
             } else {
               val rawImpressionUploadModelLineId =
@@ -529,7 +549,11 @@ class SpannerRawImpressionUploadModelLineService(
               )
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
-        if (expectedEtag.isNotEmpty() && expectedEtag != result.rawImpressionUploadModelLine.etag) {
+        if (expectedEtag.isEmpty()) {
+          throw RequiredFieldNotSetException("etag")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+        if (expectedEtag != result.rawImpressionUploadModelLine.etag) {
           throw EtagMismatchException(expectedEtag, result.rawImpressionUploadModelLine.etag)
             .asStatusRuntimeException(Status.Code.ABORTED)
         }

@@ -249,6 +249,32 @@ class RawImpressionUploadModelLineServiceTest {
     }
 
   @Test
+  fun `createRawImpressionUploadModelLine throws INVALID_ARGUMENT for malformed cmmsModelLine`() =
+    runBlocking {
+      val request = createRawImpressionUploadModelLineRequest {
+        parent = UPLOAD_KEY.toName()
+        rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+          cmmsModelLine = "not-a-model-line"
+        }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRawImpressionUploadModelLine(request)
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "raw_impression_upload_model_line.cmms_model_line"
+          }
+        )
+    }
+
+  @Test
   fun `createRawImpressionUploadModelLine throws INVALID_ARGUMENT for malformed requestId`() =
     runBlocking {
       val request = createRawImpressionUploadModelLineRequest {
@@ -342,6 +368,102 @@ class RawImpressionUploadModelLineServiceTest {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] = "requests"
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateRawImpressionUploadModelLines throws INVALID_ARGUMENT for malformed cmmsModelLine`() =
+    runBlocking {
+      val request = batchCreateRawImpressionUploadModelLinesRequest {
+        parent = UPLOAD_KEY.toName()
+        requests += createRawImpressionUploadModelLineRequest {
+          rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+            cmmsModelLine = "not-a-model-line"
+          }
+        }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRawImpressionUploadModelLines(request)
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "requests.0.raw_impression_upload_model_line.cmms_model_line"
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateRawImpressionUploadModelLines throws INVALID_ARGUMENT for duplicate cmms_model_line in batch`() =
+    runBlocking {
+      val request = batchCreateRawImpressionUploadModelLinesRequest {
+        parent = UPLOAD_KEY.toName()
+        requests += createRawImpressionUploadModelLineRequest {
+          rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+            cmmsModelLine = CMMS_MODEL_LINE
+          }
+        }
+        requests += createRawImpressionUploadModelLineRequest {
+          rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+            cmmsModelLine = CMMS_MODEL_LINE
+          }
+        }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRawImpressionUploadModelLines(request)
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "requests.1.raw_impression_upload_model_line.cmms_model_line"
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateRawImpressionUploadModelLines throws INVALID_ARGUMENT for duplicate request_id in batch`() =
+    runBlocking {
+      val requestId = UUID.randomUUID().toString()
+      val request = batchCreateRawImpressionUploadModelLinesRequest {
+        parent = UPLOAD_KEY.toName()
+        requests += createRawImpressionUploadModelLineRequest {
+          rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+            cmmsModelLine = CMMS_MODEL_LINE
+          }
+          this.requestId = requestId
+        }
+        requests += createRawImpressionUploadModelLineRequest {
+          rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+            cmmsModelLine = CMMS_MODEL_LINE_2
+          }
+          this.requestId = requestId
+        }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRawImpressionUploadModelLines(request)
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.1.request_id"
           }
         )
     }
