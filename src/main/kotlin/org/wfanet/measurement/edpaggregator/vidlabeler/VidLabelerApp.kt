@@ -123,7 +123,8 @@ class VidLabelerApp(
   private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
   private val buildParquetStorageClient: (StorageConfig, KmsClient) -> ParquetStorageClient,
   private val buildVidRankMapStorageClient: (StorageConfig) -> ConditionalOperationStorageClient,
-  private val loadAssigner: suspend (modelBlobUri: String) -> VidAssigner,
+  private val loadAssigner:
+    suspend (modelStorageConfig: StorageConfig, modelBlobUri: String) -> VidAssigner,
   private val buildImpressionConverter:
     suspend (modelLine: String, config: VidLabelerParams.ModelLineConfig) -> ImpressionConverter,
   private val eventIdDigestExtractor: EventIdDigestExtractor = EventIdDigestExtractor(),
@@ -350,6 +351,7 @@ class VidLabelerApp(
         config.activeStartTime.toInstant(),
         if (config.hasActiveEndTime()) config.activeEndTime.toInstant() else null,
       )
+    require(params.hasModelStorageParams()) { "model_storage_params must be set" }
     val modelLineSpec =
       ModelLineSpec(
         modelLine = modelLine,
@@ -357,6 +359,7 @@ class VidLabelerApp(
           requireNotNull(params.modelBlobPathsMap[modelLine]) {
             "model_blob_paths must contain an entry for $modelLine"
           },
+        modelStorageConfig = getStorageConfig(params.modelStorageParams),
         activeWindow = activeWindow,
         config = config,
         rankIndex = rankIndex,

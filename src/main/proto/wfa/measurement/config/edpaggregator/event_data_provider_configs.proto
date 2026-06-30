@@ -48,6 +48,11 @@ message EventDataProviderConfig {
     string aws_region = 6;
     // OIDC audience for the GCP ID token presented to AWS IAM.
     string aws_audience = 7;
+
+    // KMS key-encryption-key (KEK) URI — the EDP's own KMS key used to wrap
+    // data encryption keys (e.g. gcp-kms://... / aws-kms://...). Owned by the
+    // data provider.
+    string kek_uri = 8;
   }
 
   // Tls Config
@@ -91,7 +96,10 @@ message EventDataProviderConfig {
   string data_provider = 1
       [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 
-  // KMS config for encrypting VID-labeled impression data.
+  // KMS config for encrypting everything the TEE writes downstream of the raw
+  // impressions: subpool-map intermediates, rank-index blobs, and VID-labeled
+  // outputs. The `kek_uri` here is also used to wrap the subpool-map DEK in
+  // Phase-0.
   KmsConfig kms_config = 2;
   // Tls Config
   TlsConfig tls_config = 3;
