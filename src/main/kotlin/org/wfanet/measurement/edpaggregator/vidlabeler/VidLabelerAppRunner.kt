@@ -138,9 +138,9 @@ class VidLabelerAppRunner : BaseTeeAppRunner() {
     config: VidLabelerParams.ModelLineConfig
   ): Descriptors.Descriptor {
     val blobUri = config.eventTemplateDescriptorBlobUri
-    val typeName = config.eventTemplateTypeName
+    val typeName = config.eventTemplateType
     require(blobUri.isNotEmpty()) { "event_template_descriptor_blob_uri must be set" }
-    require(typeName.isNotEmpty()) { "event_template_type_name must be set" }
+    require(typeName.isNotEmpty()) { "event_template_type must be set" }
     eventDescriptorCache[blobUri to typeName]?.let {
       return it
     }
