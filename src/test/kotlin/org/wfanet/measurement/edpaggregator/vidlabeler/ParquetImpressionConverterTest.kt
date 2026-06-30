@@ -17,7 +17,6 @@
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.common.truth.Truth.assertThat
-import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -29,7 +28,6 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
-import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt.inputFileEntityKeys
 import org.wfanet.measurement.storage.ParquetValue
 import org.wfanet.measurement.storage.parquetValue
 
@@ -45,20 +43,21 @@ class ParquetImpressionConverterTest {
       eventTemplateFieldMapping.put("person.age_group", "age")
     }
 
-  private val entityKeysByInputBlobUri =
-    mapOf(
-      INPUT_BLOB_URI to
-        inputFileEntityKeys {
-          eventGroupReferenceId = EVENT_GROUP
-          entityKeys += entityKey {
+  // Entity keys as the reader supplies them from the file's footer ("Option Y").
+  private val fileEntityKeys =
+    FileEntityKeys(
+      eventGroupReferenceId = EVENT_GROUP,
+      entityKeys =
+        listOf(
+          entityKey {
             entityType = "creative"
             entityId = "c-1"
-          }
-          entityKeys += entityKey {
+          },
+          entityKey {
             entityType = "placement"
             entityId = "p-9"
-          }
-        }
+          },
+        ),
     )
 
   private fun digestedEvent(row: Map<String, ParquetValue>): ParquetDigestedEvent =
@@ -66,7 +65,7 @@ class ParquetImpressionConverterTest {
 
   @Test
   fun `convert projects labeler input, event, event group, and entity keys`() {
-    val converter = ParquetImpressionConverter(eventDescriptor, entityKeysByInputBlobUri)
+    val converter = ParquetImpressionConverter(eventDescriptor)
     val row =
       mapOf(
         "eid" to parquetValue { stringValue = "event-1" },
@@ -75,7 +74,7 @@ class ParquetImpressionConverterTest {
         "age" to parquetValue { stringValue = "YEARS_18_TO_34" },
       )
 
-    val converted = converter.convert(digestedEvent(row), config, INPUT_BLOB_URI)
+    val converted = converter.convert(digestedEvent(row), config, fileEntityKeys)
 
     assertThat(converted).isNotNull()
     assertThat(converted!!.labelerInput.eventId.id).isEqualTo("event-1")
@@ -97,14 +96,14 @@ class ParquetImpressionConverterTest {
         labelerInputFieldMapping.put("event_id.id", "eid")
         labelerInputFieldMapping.put("timestamp_usec", "ts")
       }
-    val converter = ParquetImpressionConverter(eventDescriptor, entityKeysByInputBlobUri)
+    val converter = ParquetImpressionConverter(eventDescriptor)
     val row =
       mapOf(
         "eid" to parquetValue { stringValue = "event-2" },
         "ts" to parquetValue { int64Value = 5L },
       )
 
-    val converted = converter.convert(digestedEvent(row), emptyMappingConfig, INPUT_BLOB_URI)
+    val converted = converter.convert(digestedEvent(row), emptyMappingConfig, fileEntityKeys)
 
     assertThat(converted).isNotNull()
     val event = converted!!.event.unpack(TestEvent::class.java)
@@ -113,26 +112,7 @@ class ParquetImpressionConverterTest {
       .isEqualTo("type.googleapis.com/" + TestEvent.getDescriptor().fullName)
   }
 
-  @Test
-  fun `convert throws when there are no entity keys for the event group`() {
-    val converter = ParquetImpressionConverter(eventDescriptor, entityKeysByInputBlobUri)
-    val row =
-      mapOf(
-        "eid" to parquetValue { stringValue = "event-3" },
-        "ts" to parquetValue { int64Value = 7L },
-        "gender" to parquetValue { stringValue = "FEMALE" },
-      )
-
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        converter.convert(digestedEvent(row), config, "unknown-blob-uri")
-      }
-    assertThat(exception).hasMessageThat().contains("no entity keys for input file")
-    assertThat(exception).hasMessageThat().contains("unknown-blob-uri")
-  }
-
   companion object {
     private const val EVENT_GROUP = "event-group-ref-1"
-    private const val INPUT_BLOB_URI = "file:///raw/file-1.parquet"
   }
 }
