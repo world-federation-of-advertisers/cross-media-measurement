@@ -147,7 +147,8 @@ class SubpoolAssigner(
 
     // 1. Read -> label -> accumulate.
     val sink = SubpoolAssignmentSink(mapper, labeler, accumulator, activeWindow, metrics)
-    rawImpressionSource.streamBlobs(openSink = { sink })
+    // Phase 0 has no entity keys; ignore the per-file footer metadata.
+    rawImpressionSource.streamBlobs(openSink = { _, _ -> sink })
 
     // 2. Generate this shard's DEK and stream each subpool to its own RecordIO blob, freeing the
     // subpool's in-memory map as soon as its blob is durable.

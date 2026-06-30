@@ -98,8 +98,9 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param loadAssigner loads the compiled VID model (C++/JNI) for a model blob URI into a
  *   [VidAssigner].
  * @param buildImpressionConverter builds the per-(WorkItem, model line) [ImpressionConverter],
- *   given the model line, its [VidLabelerParams.ModelLineConfig], and the per-EventGroup entity
- *   keys; the production factory loads the EventTemplate descriptor from the config blob.
+ *   given the model line and its [VidLabelerParams.ModelLineConfig]; the production factory loads
+ *   the EventTemplate descriptor from the config blob. Entity keys are read per file from the
+ *   Parquet footer at labeling time, not passed here.
  * @param eventIdDigestExtractor computes the 12-byte `EventIdDigest` of an event id.
  */
 class VidLabelerApp(
@@ -118,11 +119,7 @@ class VidLabelerApp(
   private val buildVidRankMapStorageClient: (StorageConfig) -> ConditionalOperationStorageClient,
   private val loadAssigner: suspend (modelBlobUri: String) -> VidAssigner,
   private val buildImpressionConverter:
-    suspend (
-      modelLine: String,
-      config: VidLabelerParams.ModelLineConfig,
-      entityKeysByInputBlobUri: Map<String, VidLabelerParams.InputFileEntityKeys>,
-    ) -> ImpressionConverter,
+    suspend (modelLine: String, config: VidLabelerParams.ModelLineConfig) -> ImpressionConverter,
   private val eventIdDigestExtractor: EventIdDigestExtractor = EventIdDigestExtractor(),
   private val metrics: VidLabelerAppMetrics = VidLabelerAppMetrics(),
 ) :
@@ -264,8 +261,7 @@ class VidLabelerApp(
         rankIndex = rankIndex,
       )
 
-    val impressionConverter =
-      buildImpressionConverter(mp.modelLine, config, params.entityKeysByInputBlobUriMap)
+    val impressionConverter = buildImpressionConverter(mp.modelLine, config)
 
     VidLabeler(
         rawImpressionSource = rawImpressionSource,

@@ -132,6 +132,19 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "FileEntityKeysTest",
+    srcs = ["FileEntityKeysTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidlabeler.FileEntityKeysTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeling",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
     name = "VidLabelerAppTest",
     srcs = ["VidLabelerAppTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.vidlabeler.VidLabelerAppTest",
