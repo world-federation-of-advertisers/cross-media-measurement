@@ -78,7 +78,7 @@ private class InputSource {
   mixinStandardHelpOptions = true,
 )
 class SyncEventGroupActivities : Runnable {
-  @ArgGroup(exclusive = true, multiplicity = "1") private lateinit var inputSource: InputSource
+  @ArgGroup(exclusive = true, multiplicity = "0..1") private var inputSource: InputSource? = null
 
   @Mixin private lateinit var tlsFlags: TlsFlags
 
@@ -172,7 +172,7 @@ class SyncEventGroupActivities : Runnable {
     val kingdomPublicApiCertHost: String? =
       config.kingdomPublicApiCertHost.ifEmpty { kingdomPublicApiCertHostFlag }
     val gcsProjectId: String? = config.gcsProject.ifEmpty { gcsProjectIdFlag }
-    val effectiveBlobUri: String? = config.spotDataBlobUri.ifEmpty { inputSource.blobUri }
+    val effectiveBlobUri: String? = config.spotDataBlobUri.ifEmpty { inputSource?.blobUri }
 
     val clientCerts =
       SigningCerts.fromPemFiles(
@@ -242,13 +242,13 @@ class SyncEventGroupActivities : Runnable {
 
   /** Opens the input as a stream, from either the local file or the GCS blob. */
   private suspend fun readInput(blobUriOverride: String?, gcsProjectId: String?): InputStream {
-    val localFile = inputSource.file
+    val localFile = inputSource?.file
     if (localFile != null) {
       return FileInputStream(localFile)
     }
     val blobUri =
       blobUriOverride
-        ?: checkNotNull(inputSource.blobUri) {
+        ?: checkNotNull(inputSource?.blobUri) {
           "--blob-uri must be set (or set spot_data_blob_uri in --config-file)"
         }
     val parsedBlobUri = SelectedStorageClient.parseBlobUri(blobUri)
