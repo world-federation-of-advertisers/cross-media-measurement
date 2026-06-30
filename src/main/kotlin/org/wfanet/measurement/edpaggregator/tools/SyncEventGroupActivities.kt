@@ -16,10 +16,12 @@
 
 package org.wfanet.measurement.edpaggregator.tools
 
+import com.google.protobuf.TextFormat
 import io.grpc.ManagedChannel
 import java.io.File
 import java.io.FileInputStream
 import java.io.InputStream
+import java.io.InputStreamReader
 import java.time.Clock
 import java.time.Duration
 import java.util.concurrent.TimeUnit
@@ -34,6 +36,7 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.config.edpaggregator.EventGroupActivitySyncConfig
 import org.wfanet.measurement.edpaggregator.eventgroupactivities.EventGroupActivitySync
 import org.wfanet.measurement.edpaggregator.eventgroupactivities.SpotDataParser
 import org.wfanet.measurement.edpaggregator.eventgroupactivities.SpotRecord
@@ -62,6 +65,12 @@ private class InputSource {
 /**
  * Command that synchronizes `EventGroupActivity` resources for a DataProvider against the CMMS
  * Public API from a JSON spot-data file.
+ *
+ * Per-environment values (DataProvider, spot-data blob URI, Kingdom target) can be supplied via a
+ * textproto config file (`--config-file`, the production path used by the CronJob) or via
+ * individual flags (the local-operator path). When both are present, the config file takes
+ * precedence field-by-field — set a field in the textproto to override the flag, or leave it
+ * unset to fall back.
  */
 @Command(
   name = "SyncEventGroupActivities",
@@ -69,30 +78,42 @@ private class InputSource {
   mixinStandardHelpOptions = true,
 )
 class SyncEventGroupActivities : Runnable {
-  @ArgGroup(exclusive = true, multiplicity = "1") private lateinit var inputSource: InputSource
+  @ArgGroup(exclusive = true, multiplicity = "0..1") private var inputSource: InputSource? = null
 
   @Mixin private lateinit var tlsFlags: TlsFlags
 
   @Option(
+    names = ["--config-file"],
+    description =
+      [
+        "Path to an EventGroupActivitySyncConfig textproto. When set, its non-empty fields " +
+          "override the matching --data-provider / --kingdom-public-api-target / " +
+          "--kingdom-public-api-cert-host / --gcs-project-id flags."
+      ],
+    required = false,
+  )
+  private var configFile: File? = null
+
+  @Option(
     names = ["--data-provider"],
     description = ["DataProvider resource name, e.g. dataProviders/CqJcvwaa5tI"],
-    required = true,
+    required = false,
   )
-  private lateinit var dataProvider: String
+  private var dataProviderFlag: String? = null
 
   @Option(
     names = ["--kingdom-public-api-target"],
     description = ["gRPC target (host:port) of the Kingdom public API"],
-    required = true,
+    required = false,
   )
-  private lateinit var kingdomPublicApiTarget: String
+  private var kingdomPublicApiTargetFlag: String? = null
 
   @Option(
     names = ["--kingdom-public-api-cert-host"],
     description = ["Expected hostname in the Kingdom public API's TLS certificate"],
     required = false,
   )
-  private var kingdomPublicApiCertHost: String? = null
+  private var kingdomPublicApiCertHostFlag: String? = null
 
   @Option(
     names = ["--throttler-minimum-interval"],
@@ -136,9 +157,23 @@ class SyncEventGroupActivities : Runnable {
     description = ["GCP project ID for reading the --blob-uri"],
     required = false,
   )
-  private var gcsProjectId: String? = null
+  private var gcsProjectIdFlag: String? = null
 
   override fun run() {
+    val config: EventGroupActivitySyncConfig = loadConfigOrEmpty()
+    val dataProvider: String =
+      config.dataProvider.ifEmpty { dataProviderFlag }
+        ?: error("--data-provider must be set (via flag or config_file.data_provider)")
+    val kingdomPublicApiTarget: String =
+      config.kingdomPublicApiTarget.ifEmpty { kingdomPublicApiTargetFlag }
+        ?: error(
+          "--kingdom-public-api-target must be set (via flag or config_file.kingdom_public_api_target)"
+        )
+    val kingdomPublicApiCertHost: String? =
+      config.kingdomPublicApiCertHost.ifEmpty { kingdomPublicApiCertHostFlag }
+    val gcsProjectId: String? = config.gcsProject.ifEmpty { gcsProjectIdFlag }
+    val effectiveBlobUri: String? = config.spotDataBlobUri.ifEmpty { inputSource?.blobUri }
+
     val clientCerts =
       SigningCerts.fromPemFiles(
         certificateFile = tlsFlags.certFile,
@@ -165,7 +200,8 @@ class SyncEventGroupActivities : Runnable {
     val hasFailures: Boolean =
       try {
         runBlocking {
-          val records: Flow<SpotRecord> = SpotDataParser.parseJson(readInput())
+          val records: Flow<SpotRecord> =
+            SpotDataParser.parseJson(readInput(effectiveBlobUri, gcsProjectId))
           val result: SyncResult = sync.sync(records, dryRun = dryRun)
 
           println("Sync result:")
@@ -195,13 +231,26 @@ class SyncEventGroupActivities : Runnable {
     }
   }
 
+  private fun loadConfigOrEmpty(): EventGroupActivitySyncConfig {
+    val file = configFile ?: return EventGroupActivitySyncConfig.getDefaultInstance()
+    val builder = EventGroupActivitySyncConfig.newBuilder()
+    InputStreamReader(FileInputStream(file), Charsets.UTF_8).use { reader ->
+      TextFormat.merge(reader, builder)
+    }
+    return builder.build()
+  }
+
   /** Opens the input as a stream, from either the local file or the GCS blob. */
-  private suspend fun readInput(): InputStream {
-    val localFile = inputSource.file
+  private suspend fun readInput(blobUriOverride: String?, gcsProjectId: String?): InputStream {
+    val localFile = inputSource?.file
     if (localFile != null) {
       return FileInputStream(localFile)
     }
-    val blobUri = checkNotNull(inputSource.blobUri)
+    val blobUri =
+      blobUriOverride
+        ?: checkNotNull(inputSource?.blobUri) {
+          "--blob-uri must be set (or set spot_data_blob_uri in --config-file)"
+        }
     val parsedBlobUri = SelectedStorageClient.parseBlobUri(blobUri)
     val storageClient = SelectedStorageClient(blobUri = parsedBlobUri, projectId = gcsProjectId)
     val blob = storageClient.getBlob(parsedBlobUri.key) ?: error("Blob not found for URI: $blobUri")

@@ -35,6 +35,7 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 		"edp-aggregator-system-api-server":   string | *"edp-aggregator/system-api"
 		"edp-aggregator-internal-api-server": string | *"edp-aggregator/internal-api"
 		"update-edp-aggregator-schema":       string | *"edp-aggregator/update-schema"
+		"sync-event-group-activities":        string | *"edp-aggregator/sync-event-group-activities"
 	}
 	_imageConfigs: [_=string]: #ImageConfig
 	_imageConfigs: {
@@ -52,6 +53,15 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 
 	_debugVerboseGrpcClientLoggingFlag: "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
 	_debugVerboseGrpcServerLoggingFlag: "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
+
+	// Schedule for the per-EDP sync-event-group-activities cronjobs. Override in
+	// the env-specific overlay (default: daily at 06:00 UTC).
+	_syncEventGroupActivitiesCronSchedule: string | *"0 6 * * *"
+
+	// Arg lists for the per-EDP sync-event-group-activities cronjobs. The overlay
+	// sets these (one entry per EDP). Empty by default — entries without args
+	// produce no cronjob.
+	_syncEventGroupActivitiesArgs: [string]: [...string]
 
 	services: [Name=_]: #GrpcService & {
 		metadata: {
@@ -147,6 +157,34 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 						port: #GrpcPort
 					}]
 				}
+			}
+		}
+	}
+
+	cronJobs: [Name=_]: #CronJob & {
+		_name:       Name
+		_secretName: _edpAggregatorSecretName
+		_system:     "edp-aggregator"
+		_container: image: _images["sync-event-group-activities"]
+		spec: {
+			concurrencyPolicy: "Forbid"
+			schedule:          _syncEventGroupActivitiesCronSchedule
+			jobTemplate: spec: template: spec: {
+				_mounts: {
+					"edp-aggregator-config": #ConfigMapMount & {
+						volumeMount: mountPath: "\(MountRoot)/config"
+					}
+					"edp7-tls": #SecretMount & {
+						volumeMount: mountPath: "\(MountRoot)/edp7-tls"
+					}
+				}
+			}
+		}
+	}
+	cronJobs: {
+		for edp, argList in _syncEventGroupActivitiesArgs {
+			"sync-event-group-activities-\(edp)": {
+				_container: args: argList
 			}
 		}
 	}

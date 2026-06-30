@@ -1,0 +1,46 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.config.edpaggregator;
+
+import "google/api/resource.proto";
+
+option java_package = "org.wfanet.measurement.config.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "EventGroupActivitySyncConfigProto";
+
+// Per-environment configuration for a single EDP's event group activity sync
+// CronJob. Loaded by `SyncEventGroupActivities` via `--config-file`. All
+// fields except those tagged as optional are required.
+message EventGroupActivitySyncConfig {
+  // Resource name of the DataProvider whose activities are synced. Required.
+  string data_provider = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
+
+  // GCS URI (gs://bucket/key) of the JSON spot-data input file. Required.
+  string spot_data_blob_uri = 2;
+
+  // GCP project to use when reading `spot_data_blob_uri`. Optional; when
+  // unset, Application Default Credentials' project is used.
+  string gcs_project = 3;
+
+  // gRPC target (host:port) of the Kingdom public API. Required.
+  string kingdom_public_api_target = 4;
+
+  // Expected hostname in the Kingdom public API's TLS certificate. Optional;
+  // when unset, Netty's default authority (the target's host) is used.
+  string kingdom_public_api_cert_host = 5;
+}

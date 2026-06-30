@@ -37,6 +37,7 @@ objectSets: [
 	edpAggregator.deployments,
 	edpAggregator.services,
 	edpAggregator.networkPolicies,
+	edpAggregator.cronJobs,
 ]
 
 edpAggregator: #EdpAggregator & {
@@ -67,4 +68,19 @@ edpAggregator: #EdpAggregator & {
 	services: {
 		"edp-aggregator-system-api-server": _ipAddressName: _systemApiAddressName
 	}
+
+	// Per-EDP arg lists for sync-event-group-activities. Each EDP has an entry
+	// here; the textproto config for that EDP is staged into the edp-aggregator
+	// ConfigMap by the deploy workflow and mounted at /etc/halo-cmm/edp-aggregator/config/.
+	// Schedule defaults to daily at 06:00 UTC (see edp_aggregator.cue
+	// _syncEventGroupActivitiesCronSchedule).
+	_syncEventGroupActivitiesArgs: "edp7": [
+		"--config-file=/etc/halo-cmms/edp-aggregator/config/event-group-activity-sync-config-edp7.textproto",
+		"--tls-cert-file=/etc/halo-cmms/edp-aggregator/edp7-tls/tls.crt",
+		"--tls-key-file=/etc/halo-cmms/edp-aggregator/edp7-tls/tls.key",
+		"--cert-collection-file=/etc/halo-cmms/edp-aggregator/config/trusted_certs.pem",
+		"--list-page-size=1000",
+		"--throttler-minimum-interval=100ms",
+		"--dry-run",
+	]
 }
