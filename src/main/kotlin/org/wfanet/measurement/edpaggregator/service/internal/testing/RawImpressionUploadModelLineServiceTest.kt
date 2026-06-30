@@ -1449,6 +1449,59 @@ abstract class RawImpressionUploadModelLineServiceTest {
       .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED)
   }
 
+  @Test
+  fun `markRawImpressionUploadModelLinePoolAssigning throws FAILED_PRECONDITION when another upload's same model line is in flight`() =
+    runBlocking {
+      val secondUpload = "uploads/upload2"
+      createParentUpload(DATA_PROVIDER_RESOURCE_ID, secondUpload)
+
+      // Two uploads, same cmms_model_line.
+      val first: RawImpressionUploadModelLine =
+        service.createRawImpressionUploadModelLine(
+          createRawImpressionUploadModelLineRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              cmmsModelLine = CMMS_MODEL_LINE
+            }
+          }
+        )
+      val second: RawImpressionUploadModelLine =
+        service.createRawImpressionUploadModelLine(
+          createRawImpressionUploadModelLineRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = secondUpload
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              cmmsModelLine = CMMS_MODEL_LINE
+            }
+          }
+        )
+
+      // Put the first upload's model line in flight.
+      service.markRawImpressionUploadModelLinePoolAssigning(
+        markRawImpressionUploadModelLinePoolAssigningRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = first.rawImpressionUploadModelLineResourceId
+          etag = first.etag
+        }
+      )
+
+      // The second upload's same-model-line transition into a processing state must be rejected.
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLinePoolAssigning(
+            markRawImpressionUploadModelLinePoolAssigningRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = secondUpload
+              rawImpressionUploadModelLineResourceId = second.rawImpressionUploadModelLineResourceId
+              etag = second.etag
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
   companion object {
     private const val DATA_PROVIDER_RESOURCE_ID = "dataProviders/dp1"
     private const val RAW_IMPRESSION_UPLOAD_RESOURCE_ID = "uploads/upload1"

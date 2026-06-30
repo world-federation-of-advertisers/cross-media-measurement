@@ -109,6 +109,49 @@ suspend fun AsyncDatabaseClient.ReadContext.countNonCompletedRawImpressionUpload
   return row.getLong("NonCompletedCount")
 }
 
+/**
+ * Counts model-line rows for ([dataProviderResourceId], [cmmsModelLine]) that are in a processing
+ * state (POOL_ASSIGNING/RANKING/LABELING) under an upload OTHER than
+ * [excludeRawImpressionUploadId].
+ *
+ * Used to enforce the one-in-flight-upload-per-(DataProvider, model line) rule.
+ */
+suspend fun AsyncDatabaseClient.ReadContext.countInProgressModelLinesForModelLine(
+  dataProviderResourceId: String,
+  cmmsModelLine: String,
+  excludeRawImpressionUploadId: Long,
+): Long {
+  val sql =
+    """
+    SELECT COUNT(*) AS InProgressCount
+    FROM RawImpressionUploadModelLine
+    WHERE DataProviderResourceId = @dataProviderResourceId
+      AND CmmsModelLine = @cmmsModelLine
+      AND RawImpressionUploadId != @excludeRawImpressionUploadId
+      AND CAST(State AS INT64) IN UNNEST(@inProgressStates)
+    """
+      .trimIndent()
+
+  val row: Struct =
+    executeQuery(
+        statement(sql) {
+          bind("dataProviderResourceId").to(dataProviderResourceId)
+          bind("cmmsModelLine").to(cmmsModelLine)
+          bind("excludeRawImpressionUploadId").to(excludeRawImpressionUploadId)
+          bind("inProgressStates")
+            .toInt64Array(
+              listOf(
+                State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING.number.toLong(),
+                State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING.number.toLong(),
+                State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING.number.toLong(),
+              )
+            )
+        }
+      )
+      .singleOrNullIfEmpty() ?: return 0
+  return row.getLong("InProgressCount")
+}
+
 /** Buffers an update to the parent [RawImpressionUpload] row's state. */
 fun AsyncDatabaseClient.TransactionContext.updateRawImpressionUploadState(
   dataProviderResourceId: String,
