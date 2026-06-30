@@ -180,11 +180,11 @@ message SubpoolAssignerParams {
   // its own job.
   //
   // REQUIRED: this is the upstream end of the Phase-2 VM-sizing contract
-  // (dispatcher -> SubpoolAssignerParams -> VidRankBuilderParams -> bin-packing).
-  // The VID Labeling Dispatcher / Monitor Cloud Functions MUST set it; there is
-  // no built-in default, because a wrong default OOMs the Phase-2 VM (cap too
-  // high) or under-utilizes it (cap too low). Validated `> 0` at the
-  // SubpoolAssignerApp boundary.
+  // (dispatcher -> SubpoolAssignerParams -> VidRankBuilderParams ->
+  // bin-packing). The VID Labeling Dispatcher / Monitor Cloud Functions MUST
+  // set it; there is no built-in default, because a wrong default OOMs the
+  // Phase-2 VM (cap too high) or under-utilizes it (cap too low). Validated `>
+  // 0` at the SubpoolAssignerApp boundary.
   //
   // Not consumed by the Phase-0 SubpoolAssigner; carried as pass-through so the
   // last-shard-out can stamp it on the VidRankBuilder Phase-1 WorkItem.
