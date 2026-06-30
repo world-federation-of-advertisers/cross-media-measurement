@@ -141,3 +141,25 @@ jobs:
           artifact-id: data-availability-monitor
           artifact-group-id: org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability
           bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:DataAvailabilityMonitorFunction_deploy.jar
+
+      - name: Build and Deploy VID Labeling Dispatcher
+        env:
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        uses: ./.github/actions/build-and-push-uber-jar
+        with:
+          package-version: ${{ steps.get-artifact-version.outputs.artifact-version }}
+          artifact-id: vid-labeling-dispatcher
+          artifact-group-id: org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
+          bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:VidLabelingDispatcherFunction_deploy.jar
+
+      - name: Build and Deploy VID Labeling Monitor
+        env:
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        uses: ./.github/actions/build-and-push-uber-jar
+        with:
+          package-version: ${{ steps.get-artifact-version.outputs.artifact-version }}
+          artifact-id: vid-labeling-monitor
+          artifact-group-id: org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
+          bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:VidLabelingMonitorFunction_deploy.jar
