@@ -94,13 +94,15 @@ class VidLabeler(
     // TODO(world-federation-of-advertisers/cross-media-measurement#4010): Switch to file-batching
     // contract. RawImpressionSource currently shards by fingerprint; once VidLabelerApp is wired
     // up, pass VidLabelingJob.raw_impression_upload_files directly and remove fingerprint sharding.
-    rawImpressionSource.streamBlobs { blobUri ->
-      // The converter resolves each input file's entity keys (and legacy event group reference id)
-      // from the dispatcher-provided per-file map, keyed by the input blob URI.
+    rawImpressionSource.streamBlobs { blobUri, footerMetadata ->
+      // "Option Y": each raw-impression file carries its entity keys (and event group reference id)
+      // in its plaintext Parquet footer; read them here and hand them to the file's sink.
+      val fileEntityKeys = FileEntityKeys.fromFooterMetadata(footerMetadata)
       VidLabelingSink(
         inputBlobUri = blobUri,
         modelLineContexts = contexts,
         impressionConverter = impressionConverter,
+        fileEntityKeys = fileEntityKeys,
         encryptKmsClient = encryptKmsClient,
         encryptKekUri = encryptKekUri,
         outputStorageParams = outputStorageParams,

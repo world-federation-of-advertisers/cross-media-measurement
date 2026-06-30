@@ -81,6 +81,17 @@ class VidLabelingSinkTest {
   private fun sink(
     contexts: List<ModelLineContext>,
     converter: ImpressionConverter = FakeImpressionConverter(),
+    fileEntityKeys: FileEntityKeys =
+      FileEntityKeys(
+        eventGroupReferenceId = "eg-ref",
+        entityKeys =
+          listOf(
+            LabeledImpressionKt.entityKey {
+              entityType = "household"
+              entityId = "h-1"
+            }
+          ),
+      ),
     encryptKmsClient: KmsClient = kmsClient,
     encryptionKeySemaphore: Semaphore =
       Semaphore(VidLabelingSink.DEFAULT_ENCRYPTION_KEY_PARALLELISM),
@@ -89,6 +100,7 @@ class VidLabelingSinkTest {
       inputBlobUri = "file:///raw/file-1.parquet",
       modelLineContexts = contexts,
       impressionConverter = converter,
+      fileEntityKeys = fileEntityKeys,
       encryptKmsClient = encryptKmsClient,
       encryptKekUri = kekUri,
       outputStorageParams = outputStorageParams,
@@ -419,7 +431,7 @@ class VidLabelingSinkTest {
     override fun convert(
       event: ParquetDigestedEvent,
       config: VidLabelerParams.ModelLineConfig,
-      inputBlobUri: String,
+      fileEntityKeys: FileEntityKeys,
     ): ConvertedImpression =
       ConvertedImpression(
         labelerInput = LabelerInput.getDefaultInstance(),
