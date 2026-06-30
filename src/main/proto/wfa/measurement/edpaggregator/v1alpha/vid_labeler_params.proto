@@ -94,8 +94,7 @@ message VidLabelerParams {
 
     // Full proto name of the event message within that FileDescriptorSet that
     // event_template_field_mapping targets.
-    string event_template_type_name = 6
-        [(google.api.field_behavior) = OPTIONAL];
+    string event_template_type = 6 [(google.api.field_behavior) = OPTIONAL];
   }
 
   // Map from model line resource name to its configuration.
