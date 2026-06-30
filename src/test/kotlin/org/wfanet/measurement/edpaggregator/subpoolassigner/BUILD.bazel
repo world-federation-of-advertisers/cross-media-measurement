@@ -3,6 +3,20 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 package(default_testonly = True)
 
 kt_jvm_test(
+    name = "LabelerPoolEmitLabelerTest",
+    srcs = ["LabelerPoolEmitLabelerTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.subpoolassigner.LabelerPoolEmitLabelerTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/subpoolassigner:labeler_pool_emit_labeler",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_kt_jvm_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_test(
     name = "SubpoolFingerprintsAccumulatorTest",
     srcs = ["SubpoolFingerprintsAccumulatorTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.subpoolassigner.SubpoolFingerprintsAccumulatorTest",
