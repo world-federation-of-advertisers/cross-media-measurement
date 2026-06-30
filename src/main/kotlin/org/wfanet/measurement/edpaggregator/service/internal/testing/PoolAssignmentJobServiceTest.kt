@@ -148,6 +148,39 @@ abstract class PoolAssignmentJobServiceTest {
   }
 
   @Test
+  fun `createPoolAssignmentJob throws ALREADY_EXISTS when request_id reused with different fields`() =
+    runBlocking {
+      val requestId: String = UUID.randomUUID().toString()
+      service.createPoolAssignmentJob(
+        createPoolAssignmentJobRequest {
+          this.requestId = requestId
+          poolAssignmentJob = poolAssignmentJob {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            cmmsModelLine = CMMS_MODEL_LINE
+            shardIndex = 0
+          }
+        }
+      )
+
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.createPoolAssignmentJob(
+            createPoolAssignmentJobRequest {
+              this.requestId = requestId
+              poolAssignmentJob = poolAssignmentJob {
+                dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+                cmmsModelLine = CMMS_MODEL_LINE
+                shardIndex = 1
+              }
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    }
+
+  @Test
   fun `createPoolAssignmentJob throws INVALID_ARGUMENT if data_provider_resource_id not set`() =
     runBlocking {
       val exception: StatusRuntimeException =
@@ -1140,6 +1173,47 @@ abstract class PoolAssignmentJobServiceTest {
       val second = service.batchCreatePoolAssignmentJobs(request)
 
       assertThat(second.poolAssignmentJobsList).isEqualTo(first.poolAssignmentJobsList)
+    }
+
+  @Test
+  fun `batchCreatePoolAssignmentJobs throws ALREADY_EXISTS when request_id reused with different fields`() =
+    runBlocking<Unit> {
+      val requestId = UUID.randomUUID().toString()
+      service.batchCreatePoolAssignmentJobs(
+        batchCreatePoolAssignmentJobsRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          requests += createPoolAssignmentJobRequest {
+            this.requestId = requestId
+            poolAssignmentJob = poolAssignmentJob {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
+          }
+        }
+      )
+
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreatePoolAssignmentJobs(
+            batchCreatePoolAssignmentJobsRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              requests += createPoolAssignmentJobRequest {
+                this.requestId = requestId
+                poolAssignmentJob = poolAssignmentJob {
+                  dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                  rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+                  cmmsModelLine = CMMS_MODEL_LINE
+                  shardIndex = 1
+                }
+              }
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
     }
 
   @Test
