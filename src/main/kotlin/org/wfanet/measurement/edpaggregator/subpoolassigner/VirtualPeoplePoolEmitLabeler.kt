@@ -34,13 +34,26 @@ import org.wfanet.virtualpeople.core.labeler.LabelingMode
  * traversal) is used in Phase 2 with `FULL` mode, so Phase-0 pool assignment and Phase-2 labeling
  * agree by construction.
  *
+ * [rankedSize] is answered from a `population_offset -> ranked_size` map built once from the
+ * compiled model tree at construction (a static property of the model), so the Phase-0
+ * last-shard-out can stamp `VidRankBuilderParams.subpool_ranked_sizes` without re-traversing.
+ *
  * Thread-safe: the underlying [Labeler] holds only immutable post-construction state and mutates
- * only its per-call builder, so [emit] is safe to call concurrently from [SubpoolAssignmentSink]'s
- * batch workers.
+ * only its per-call builder, and the ranked-size map is immutable, so [emit] and [rankedSize] are
+ * safe to call concurrently from [SubpoolAssignmentSink]'s batch workers.
  */
-class VirtualPeoplePoolEmitLabeler(private val labeler: Labeler) : PoolEmitLabeler {
+class VirtualPeoplePoolEmitLabeler
+private constructor(
+  private val labeler: Labeler,
+  private val rankedSizeByPoolOffset: Map<Long, Int>,
+) : PoolEmitLabeler {
   override fun emit(input: LabelerInput): List<Long> =
     labeler.label(input, LabelingMode.POOL_IDENTITY).poolAssignmentsList.map { it.poolOffset }
+
+  override fun rankedSize(poolOffset: Long): Int =
+    requireNotNull(rankedSizeByPoolOffset[poolOffset]) {
+      "No RankedPopulationNode in the compiled model covers pool_offset $poolOffset"
+    }
 
   override fun close() {}
 
@@ -61,7 +74,36 @@ class VirtualPeoplePoolEmitLabeler(private val labeler: Labeler) : PoolEmitLabel
         Riegeli.readRecords(modelBlob.newInput())
           .map { record -> ProtoAny.parseFrom(record).unpack(CompiledNode::class.java) }
           .toList()
-      return VirtualPeoplePoolEmitLabeler(Labeler.build(nodes))
+      return VirtualPeoplePoolEmitLabeler(Labeler.build(nodes), rankedSizesByPoolOffset(nodes))
+    }
+
+    /**
+     * Maps each ranked subpool's `population_offset` to its `RankedPopulationNode.ranked_size`. The
+     * Riegeli list may hold flat nodes or subtrees with embedded `BranchNode` children, so seed the
+     * walk with every record and recurse into any embedded children. Fails loudly if the same
+     * offset appears with two different ranked sizes.
+     */
+    private fun rankedSizesByPoolOffset(nodes: List<CompiledNode>): Map<Long, Int> {
+      val rankedSizeByPoolOffset = mutableMapOf<Long, Int>()
+      val stack = ArrayDeque<CompiledNode>().apply { nodes.forEach { addLast(it) } }
+      while (stack.isNotEmpty()) {
+        val node = stack.removeLast()
+        when {
+          node.hasRankedPopulationNode() -> {
+            val rankedSize = node.rankedPopulationNode.rankedSize.toInt()
+            for (pool in node.rankedPopulationNode.poolsList) {
+              val existing = rankedSizeByPoolOffset.putIfAbsent(pool.populationOffset, rankedSize)
+              check(existing == null || existing == rankedSize) {
+                "Inconsistent ranked_size for pool_offset ${pool.populationOffset}: " +
+                  "$existing vs $rankedSize"
+              }
+            }
+          }
+          node.hasBranchNode() ->
+            node.branchNode.branchesList.forEach { if (it.hasNode()) stack.addLast(it.node) }
+        }
+      }
+      return rankedSizeByPoolOffset
     }
   }
 }
