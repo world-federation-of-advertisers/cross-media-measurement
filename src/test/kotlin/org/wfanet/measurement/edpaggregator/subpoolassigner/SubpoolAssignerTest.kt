@@ -30,6 +30,7 @@ import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
@@ -52,7 +53,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.vidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.virtualpeople.common.LabelerInput
 
@@ -479,7 +482,74 @@ class SubpoolAssignerTest {
     verifyBlocking(store) { delete(any()) }
   }
 
+  @Test
+  fun `last shard out stamps each subpool's ranked size from the labeler`() =
+    runBlocking<Unit> {
+      val store = storeMock()
+      val ranker = rankerStubMock()
+      val workItems = workItemsStubMock()
+      val paj =
+        mock<PoolAssignmentJobServiceCoroutineStub> {
+          onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
+            jobResponse(PoolAssignmentJob.State.CREATED)
+          onBlocking { markPoolAssignmentJobSucceeded(any(), any()) } doReturn
+            markPoolAssignmentJobSucceededResponse {
+              lastShardResult =
+                MarkPoolAssignmentJobSucceededResponseKt.lastShardResult {
+                  poolOffsets += listOf(7L, 11L)
+                }
+            }
+          onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
+            listPoolAssignmentJobsResponse {
+              poolAssignmentJobs += poolAssignmentJob {
+                shardIndex = 0
+                encryptedDek = DEK_SHARD0
+              }
+              nextPageToken = ""
+            }
+        }
+      val ruml =
+        mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines +=
+                parent(RawImpressionUploadModelLine.State.POOL_ASSIGNING, listOf(7L, 11L))
+              nextPageToken = ""
+            }
+          onBlocking { markRawImpressionUploadModelLineRanking(any(), any()) } doReturn
+            parent(RawImpressionUploadModelLine.State.RANKING, listOf(7L, 11L))
+        }
+      val accumulator =
+        SubpoolFingerprintsAccumulator().apply {
+          add(7L, 1L, 1)
+          add(11L, 2L, 1)
+        }
+
+      assigner(store, paj, ruml, ranker, workItems, accumulator = accumulator).assign()
+
+      // One WorkItem per subpool; the union of their stamped ranked sizes must match the labeler
+      // one-to-one (FakePoolEmitLabeler returns 1000 + offset), so a key-swap or dropped offset
+      // fails.
+      val captor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItems, times(2)) { createWorkItem(captor.capture(), any()) }
+      val stamped: Map<Long, Int> =
+        captor.allValues
+          .map {
+            it.workItem.workItemParams
+              .unpack(WorkItemParams::class.java)
+              .appParams
+              .unpack(VidRankBuilderParams::class.java)
+          }
+          .flatMap { it.subpoolRankedSizesMap.entries }
+          .associate { it.key to it.value }
+      assertThat(stamped).containsExactly(7L, 1007, 11L, 1011)
+    }
+
   private object FakePoolEmitLabeler : PoolEmitLabeler {
     override fun emit(input: LabelerInput): List<Long> = emptyList()
+
+    // Distinct per offset so a key-swap / dropped-offset regression in the rankedSize stamping is
+    // observable (a constant would hide it).
+    override fun rankedSize(poolOffset: Long): Int = (1000 + poolOffset).toInt()
   }
 }
