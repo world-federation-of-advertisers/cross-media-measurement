@@ -374,6 +374,7 @@ class SubpoolAssigner(
         this.rankerJob = rankerJob.name
         this.maxEventDate = maxEventDate
         offsets.forEach { subpoolMapBlobUris.put(it, mergedSubpoolKey(it)) }
+        offsets.forEach { subpoolRankedSizes.put(it, labeler.rankedSize(it)) }
       }
     val workItemId = "vid-rank-builder-${rankerJob.name.substringAfterLast('/')}"
     try {

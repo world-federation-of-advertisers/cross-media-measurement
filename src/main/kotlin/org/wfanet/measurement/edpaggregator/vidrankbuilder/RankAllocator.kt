@@ -20,6 +20,7 @@ import com.google.protobuf.UnsafeByteOperations
 import java.util.BitSet
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexMap
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
@@ -55,6 +56,13 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
  * @param eventDay epoch-day stamped as `last_seen` for every fingerprint touched this dispatch
  *   (typically the dispatch's `max_event_date`). Also the default `last_seen` for entries loaded
  *   from a legacy `SNAPSHOT` that predates the field.
+ * @param initialCapacity initial slot count for **both** the [cumulative] and [dayOnly] maps. The
+ *   caller passes this dispatch's subpool-map fingerprint count so the maps start near their final
+ *   size instead of the 16-slot default, avoiding the `~log2(N)` resizes during load. This is an
+ *   exact fit for [dayOnly] (it holds at most one entry per today fingerprint) and for cold
+ *   subpools; for a mature subpool [cumulative] is loaded from a prior `SNAPSHOT` larger than one
+ *   day's map, so it still resizes up to its real size — see
+ *   world-federation-of-advertisers/cross-media-measurement#4015.
  */
 class RankAllocator(
   val poolOffset: Long,
@@ -70,7 +78,7 @@ class RankAllocator(
   }
 
   private val cumulative = Bytes12IntMap(initialCapacity)
-  private val dayOnly = Bytes12IntMap()
+  private val dayOnly = Bytes12IntMap(initialCapacity)
   private val taken = BitSet(rankedSize.coerceAtLeast(1))
   private val lastSeen = ShortArray(rankedSize)
   private var cursor = 0
@@ -78,6 +86,10 @@ class RankAllocator(
   /** Number of fingerprints currently holding a rank in this subpool. */
   val cumulativeSize: Long
     get() = cumulative.size
+
+  /** Slot capacities of the `(cumulative, dayOnly)` maps. Exposed to verify pre-sizing in tests. */
+  @VisibleForTesting
+  fun mapCapacities(): Pair<Long, Long> = Pair(cumulative.capacity(), dayOnly.capacity())
 
   /** Ranks newly allocated to never-before-seen fingerprints this dispatch. */
   var allocated: Long = 0L
