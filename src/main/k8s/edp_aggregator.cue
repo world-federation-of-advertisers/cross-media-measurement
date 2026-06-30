@@ -168,6 +168,15 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 		_container: {
 			image: _images["sync-event-group-activities"]
 			_javaOptions: maxHeapSize: "256M"
+			resources: {
+				requests: {
+					cpu:    "100m"
+					memory: "512Mi"
+				}
+				limits: {
+					memory: "512Mi"
+				}
+			}
 		}
 		spec: {
 			concurrencyPolicy: "Forbid"
