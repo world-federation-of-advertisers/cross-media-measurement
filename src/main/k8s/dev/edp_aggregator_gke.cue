@@ -37,6 +37,7 @@ objectSets: [
 	edpAggregator.deployments,
 	edpAggregator.services,
 	edpAggregator.networkPolicies,
+	edpAggregator.cronJobs,
 ]
 
 edpAggregator: #EdpAggregator & {
@@ -66,5 +67,27 @@ edpAggregator: #EdpAggregator & {
 	}
 	services: {
 		"edp-aggregator-system-api-server": _ipAddressName: _systemApiAddressName
+	}
+
+	// Per-EDP arg lists for sync-event-group-activities. Schedule defaults to
+	// daily at 06:00 UTC (see edp_aggregator.cue _syncEventGroupActivitiesCronSchedule).
+	//
+	// Initial defaults run with --dry-run so the cronjob proves out the wiring
+	// without mutating activity state in the Kingdom. Switch to non-dry-run after
+	// validating against the input.
+	_syncEventGroupActivitiesArgs: {
+		"edp7": [
+			"--data-provider=dataProviders/T5RryPMNong",
+			"--blob-uri=gs://secure-computation-storage-dev-bucket/edp/edp7/spot-data.json",
+			"--gcs-project-id=halo-cmm-dev",
+			"--kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443",
+			"--kingdom-public-api-cert-host=localhost",
+			"--tls-cert-file=/var/run/secrets/files/edp7_tls.pem",
+			"--tls-key-file=/var/run/secrets/files/edp7_tls.key",
+			"--cert-collection-file=/var/run/secrets/files/kingdom_root.pem",
+			"--list-page-size=1000",
+			"--throttler-minimum-interval=100ms",
+			"--dry-run",
+		]
 	}
 }

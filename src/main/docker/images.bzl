@@ -141,6 +141,11 @@ COMMON_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/tools:update_schema_image",
         repository = _PREFIX + "/edp-aggregator/update-schema",
     ),
+    struct(
+        name = "sync_event_group_activities_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:sync_event_group_activities_image",
+        repository = _PREFIX + "/edp-aggregator/sync-event-group-activities",
+    ),
 ]
 
 # List of specs for all Docker containers to push to a container registry.
