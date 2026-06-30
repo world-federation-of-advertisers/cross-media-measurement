@@ -11,8 +11,11 @@ runs in the existing EDP Aggregator GKE cluster.
 Per-environment values (DataProvider, spot-data blob URI, Kingdom target)
 come from a textproto blob stored in a GitHub environment variable, written
 into the `edp-aggregator-config` ConfigMap at deploy time and mounted into
-the CronJob pod. The same Kustomization deploys cleanly across dev, head,
-and qa.
+the CronJob pod. Per-EDP TLS cert/key (e.g. `edp7_tls.pem`, `edp7_tls.key`)
+ship in a dedicated `edp7-tls` K8s Secret mounted at
+`/etc/halo-cmms/edp-aggregator/edp7-tls/`. The Kingdom's root CA cert ships
+in the same `edp-aggregator-config` ConfigMap as the textproto. The same
+Kustomization deploys cleanly across dev, head, and qa.
 
 For background on the underlying sync semantics (idempotency, per-EventGroup
 isolation, retries, max-delete safety guard, dry-run mode), see the KDoc on
@@ -21,22 +24,40 @@ isolation, retries, max-delete safety guard, dry-run mode), see the KDoc on
 ## Before You Start
 
 1.  An EDP Aggregator deployment exists in the target environment per the
-    [deployment guide](../edpaggregator/deployment-guide.md). The
-    `edp-aggregator` K8s Secret containing the EDP's TLS cert/key
-    (`edp7_tls.pem`, `edp7_tls.key`) and the Kingdom's root cert
-    (`kingdom_root.pem`) must already be present.
+    [deployment guide](../edpaggregator/deployment-guide.md).
 2.  The EDP has a registered `DataProvider` in the Kingdom and at least one
     `EventGroup`.
-3.  A spot-data JSON file is produced by an upstream pipeline and written to a
-    known GCS object. Schema is a JSON array of records, each:
+3.  A spot-data JSON file is produced by an upstream pipeline and written to
+    a known GCS object. Schema is a JSON array of records, each:
 
     ```json
     {"parent": "dataProviders/<dp>/eventGroups/<eg>", "event_group_activity_date": "2026-06-30T00:00:00Z"}
     ```
-4.  The cluster's
-    [Workload Identity service account](../edpaggregator/deployment-guide.md)
-    used by the EDP Aggregator pods has `roles/storage.objectViewer` on the
-    spot-data bucket.
+
+## Provision a Workload Identity binding for the CronJob's SA
+
+The CronJob pods run as the K8s ServiceAccount `sync-event-group-activities`,
+which is bound via Workload Identity to a GCP ServiceAccount that has
+`roles/storage.objectViewer` (or `objectAdmin`) on the spot-data bucket.
+
+For each environment, bind the k8s SA to a GCP SA *that already has access to
+the bucket* (the dev environment reuses `edpa-event-group-sync` since it
+already has `storage.objectAdmin` on the EDPA bucket):
+
+```shell
+gcloud iam service-accounts add-iam-policy-binding \
+  <GCP_SA>@halo-cmm-<env>.iam.gserviceaccount.com \
+  --project=halo-cmm-<env> \
+  --role=roles/iam.workloadIdentityUser \
+  --member="serviceAccount:halo-cmm-<env>.svc.id.goog[default/sync-event-group-activities]"
+```
+
+(Currently performed out-of-band; should be moved into Terraform.)
+
+If using a different GCP SA per environment, update the
+`_iamServiceAccountName` for `#SyncEventGroupActivitiesServiceAccount` in
+[`edp_aggregator_gke.cue`](../../src/main/k8s/dev/edp_aggregator_gke.cue)
+or thread it through a per-env tag.
 
 ## Configure the per-EDP GitHub environment variable
 
@@ -58,14 +79,14 @@ data_provider: "dataProviders/T5RryPMNong"
 spot_data_blob_uri: "gs://secure-computation-storage-dev-bucket/edp/edp7/spot-data.json"
 gcs_project: "halo-cmm-dev"
 kingdom_public_api_target: "v2alpha.kingdom.dev.halo-cmm.org:8443"
-kingdom_public_api_cert_host: "localhost"
 ```
 
-If the variable is unset on an environment, the CronJob will fail on deploy
-(the ConfigMap generator can't find the file). Either set it before deploying
-or remove the corresponding entry from `_syncEventGroupActivitiesArgs` in
-[`edp_aggregator_gke.cue`](../../src/main/k8s/dev/edp_aggregator_gke.cue) for
-that environment.
+If the variable is unset on an environment, the deploy fails at
+`kubectl apply` (the `configMapGenerator` cannot find the file). Either set
+it before deploying or remove the matching entry from
+`_syncEventGroupActivitiesArgs` in
+[`edp_aggregator_gke.cue`](../../src/main/k8s/dev/edp_aggregator_gke.cue)
+for that environment.
 
 ## Deploy
 
@@ -86,15 +107,23 @@ gh workflow run update-cmms.yml \
   -f apply=true
 ```
 
-## Validate the First Deploy with Dry-Run
+The workflow stages three new files into the kustomization dir before
+`kubectl apply`:
 
-The initial CUE has `--dry-run` baked into the args. The first deployed
-CronJob lists the existing activities, computes the diff against the input
-file, and logs what it *would* do without issuing any batch create/delete
-RPCs. This validates the wiring (image, secrets, ConfigMap, GCS read,
-Kingdom mTLS, throttling) without any risk of mutating activity state.
+-   The textproto config (from
+    `EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT`) into the
+    `edp-aggregator-config` ConfigMap.
+-   `kingdom_root.pem` (from `src/main/k8s/testing/secretfiles/`) into the
+    same ConfigMap, used as the CronJob's `--cert-collection-file` for
+    Kingdom mTLS verification.
+-   The per-EDP TLS cert + key (from `src/main/k8s/testing/secretfiles/`)
+    into the `edp7-tls` Secret.
 
-To trigger a run immediately instead of waiting for the schedule:
+## Validate a Run
+
+The dev overlay deploys with `--dry-run` *off* by default; the cron's daily
+run will mutate `EventGroupActivity` state. For first-time validation,
+trigger an immediate run instead of waiting for the schedule:
 
 ```shell
 kubectl create job --from=cronjob/sync-event-group-activities-edp7-cronjob \
@@ -107,17 +136,39 @@ Inspect the pod logs:
 kubectl logs -l app=sync-event-group-activities-edp7-app --tail=200
 ```
 
-You should see a structured `Sync result:` block with non-zero
-`totalInputRecords`, the would-be `activitiesCreated` / `activitiesDeleted`
-counts, and zero `eventGroupsFailed`. If `eventGroupsGuardSkipped > 0`, the
-max-delete-fraction safety guard tripped — confirm the input file is complete
-before removing `--dry-run`.
+Expect a structured `Sync result:` block:
 
-## Switch to Non-Dry-Run
+```
+Sync result:
+  totalInputRecords: <N>
+  eventGroupsSucceeded: <N>
+  eventGroupsGuardSkipped: 0
+  eventGroupsFailed: 0
+  activitiesCreated: <N>
+  activitiesDeleted: 0
+  activitiesUnchanged: 0
+```
 
-Once the dry-run results look right, remove `--dry-run` from
-[`edp_aggregator_gke.cue`](../../src/main/k8s/dev/edp_aggregator_gke.cue) and
-re-deploy. The next scheduled run will create / delete activities.
+To verify against the Kingdom directly:
+
+```shell
+grpcurl \
+  -cacert src/main/k8s/testing/secretfiles/kingdom_root.pem \
+  -cert src/main/k8s/testing/secretfiles/edp7_tls.pem \
+  -key src/main/k8s/testing/secretfiles/edp7_tls.key \
+  -authority localhost \
+  -d '{"parent": "dataProviders/<dp>/eventGroups/<eg>"}' \
+  v2alpha.kingdom.<env>.halo-cmm.org:8443 \
+  wfa.measurement.api.v2alpha.EventGroupActivities/ListEventGroupActivities
+```
+
+If you want a dry-run validation pass before letting the cron mutate state,
+temporarily append `"--dry-run"` to the `_syncEventGroupActivitiesArgs.edp7`
+entry in
+[`edp_aggregator_gke.cue`](../../src/main/k8s/dev/edp_aggregator_gke.cue),
+redeploy via `configure-edp-aggregator.yml`, trigger a manual run, and
+verify the diff in the logs without checking the Kingdom (none was
+mutated). Remove the flag and redeploy to enable mutations.
 
 ## Monitoring
 
@@ -131,31 +182,62 @@ OpenTelemetry metrics published by `EventGroupActivitySyncMetrics`:
 -   `edpa.event_group_activity.deletes_skipped_guard`
 -   `edpa.event_group_activity.sync_latency`
 
-All metrics carry a `data_provider_name` attribute, so dashboards/alerts split
-cleanly per EDP across multiple CronJob entries.
+All metrics carry a `data_provider_name` attribute, so dashboards/alerts
+split cleanly per EDP across multiple CronJob entries.
 
-A run exits non-zero only when `eventGroupsFailed > 0` (an RPC failure during
-list/batch). Guard-skipped runs exit zero — alert on the
+A run exits non-zero only when `eventGroupsFailed > 0` (an RPC failure
+during list/batch). Guard-skipped runs exit zero — alert on the
 `deletes_skipped_guard` counter, not the K8s Job failure count.
 
 ## Adding More EDPs
 
-1.  Add a new entry to `_syncEventGroupActivitiesArgs` in the dev overlay,
+The current wiring is specific to edp7; adding a new EDP touches multiple
+files:
+
+1.  **Add a new entry** to `_syncEventGroupActivitiesArgs` in
+    [`edp_aggregator_gke.cue`](../../src/main/k8s/dev/edp_aggregator_gke.cue),
     keyed by a short identifier and referencing
-    `event-group-activity-sync-config-<edp>.textproto` as the `--config-file`.
-2.  Add that filename to
-    [`edp_aggregator_config_kustomization.yaml`](../../src/main/k8s/dev/edp_aggregator_config_kustomization.yaml).
-3.  Add a step to
+    `event-group-activity-sync-config-<edp>.textproto` as the
+    `--config-file` and the EDP's own TLS cert/key paths.
+2.  **Add a new per-EDP TLS Secret pipeline** mirroring `edp7_tls`:
+    -   `<edp>_tls_files` `pkg_files` + `pkg_tar` in
+        [`src/main/k8s/testing/secretfiles/BUILD.bazel`](../../src/main/k8s/testing/secretfiles/BUILD.bazel)
+    -   `<edp>_tls_kustomization.yaml` (secretGenerator) in both
+        `src/main/k8s/testing/secretfiles/` and `src/main/k8s/dev/`
+    -   `kustomization_dir` entry + dep in
+        [`src/main/k8s/dev/BUILD.bazel`](../../src/main/k8s/dev/BUILD.bazel)
+    -   Workflow build target + extract step in
+        [`configure-edp-aggregator.yml`](../../.github/workflows/configure-edp-aggregator.yml)
+3.  **Add the textproto filename** to
+    [`edp_aggregator_config_kustomization.yaml`](../../src/main/k8s/dev/edp_aggregator_config_kustomization.yaml)'s
+    `configMapGenerator.files` list.
+4.  **Add a workflow step** to
     [`configure-edp-aggregator.yml`](../../.github/workflows/configure-edp-aggregator.yml)
-    that writes the new env var into the same config dir.
-4.  Define `EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT` on each env.
+    that writes the new EDP's `EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT`
+    env var into the staged config dir.
+5.  **Define** `EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT` on each env.
+6.  **If the new EDP uses a different GCP SA** for GCS access, either add a
+    second SA to the dev overlay or change `_iamServiceAccountName` on
+    `#SyncEventGroupActivitiesServiceAccount` (currently shared across all
+    per-EDP CronJobs).
 
 ## Troubleshooting
 
 -   **Pod CrashLoopBackOff with TLS errors:** the per-EDP `tls-cert-file` /
-    `tls-key-file` paths must reference files that exist in the
-    `edp-aggregator` Secret. List with
-    `kubectl get secret edp-aggregator -o jsonpath='{.data}' | jq 'keys'`.
+    `tls-key-file` paths must reference files that exist in the EDP's TLS
+    Secret. List with
+    `kubectl get secret edp7-tls -o jsonpath='{.data}' | jq 'keys'`.
+-   **`Trust anchor for certification path not found`** during Kingdom mTLS:
+    `--cert-collection-file` must point at the Kingdom's root cert, which
+    ships in the `edp-aggregator-config` ConfigMap as `kingdom_root.pem`.
+-   **OOMKilled (exit 137):** the dev cluster's LimitRange defaults
+    containers to 192Mi. The CronJob requests/limits 512Mi explicitly; if
+    you see OOM on a different deploy, verify the rendered YAML actually
+    carries the `resources` block.
+-   **`Connect timed out`** on GCS reads: the pod's ServiceAccount is not
+    bound via Workload Identity, or the bound GCP SA lacks
+    `storage.objectViewer` on the bucket. See "Provision a Workload Identity
+    binding" above.
 -   **`Blob not found for URI:`** the spot-data file does not exist at the
     URI configured in the textproto. Check the upstream pipeline. The
     CronJob does not create a placeholder.
@@ -167,6 +249,6 @@ list/batch). Guard-skipped runs exit zero — alert on the
     disabled). Tune the flag if your input is expected to fluctuate, or fix
     the input.
 -   **`unable to find file: event-group-activity-sync-config-<edp>.textproto`
-    during `kubectl apply`:** the `EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT`
-    GitHub variable is unset on this environment. Set it (Settings →
-    Environments → `<env>` → Variables) and re-trigger the workflow.
+    during `kubectl apply`:** the
+    `EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT` GitHub variable is
+    unset on this environment. Set it and re-trigger the workflow.
