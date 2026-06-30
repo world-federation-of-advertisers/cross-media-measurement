@@ -66,3 +66,19 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:subscriber",
     ],
 )
+
+kt_jvm_library(
+    name = "base_vid_labeling_tee_app_runner",
+    srcs = ["BaseVidLabelingTeeAppRunner.kt"],
+    deps = [
+        ":base_tee_app_runner",
+        ":storage_config",
+        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/apache/hadoop:hadoop_client_api",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:parquet_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+    ],
+)
