@@ -26,8 +26,8 @@ service ReportingSets {
   rpc CreateReportingSet(CreateReportingSetRequest) returns (ReportingSet);
 
   // Returns the `ReportingSet` that represents the request's Campaign Group if
-  // an equivalent one already exists for the `MeasurementConsumer`, or creates a
-  // new one if it does not.
+  // an equivalent one already exists for the `MeasurementConsumer`, or creates
+  // a new one if it does not.
   //
   // Two Campaign Groups are equivalent if they represent the same set of
   // `EventGroup`s. The synthesized Campaign Group has no filter, so only
@@ -58,8 +58,8 @@ message GetOrCreateCampaignGroupReportingSetRequest {
   // Must be a valid Campaign Group: a primitive `ReportingSet` that references
   // itself as its own Campaign Group (`external_campaign_group_id` ==
   // `external_reporting_set_id`). Since the synthesized Campaign Group is the
-  // union of the custom groups' `EventGroup`s, it additionally has no filter; an
-  // existing Campaign Group is reused only if it represents the same
+  // union of the custom groups' `EventGroup`s, it additionally has no filter;
+  // an existing Campaign Group is reused only if it represents the same
   // `EventGroup` set and likewise has no filter.
   ReportingSet reporting_set = 1;
 
