@@ -19,11 +19,13 @@ package org.wfanet.measurement.edpaggregator.subpoolassigner
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Parser
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.edpaggregator.BaseTeeAppRunner
+import org.wfanet.measurement.edpaggregator.BaseVidLabelingTeeAppRunner
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.gcsHadoopConfiguration
 import org.wfanet.measurement.edpaggregator.runBlockingWithTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams.StorageParams
@@ -40,11 +42,16 @@ import picocli.CommandLine
  * EDPA-level `event-data-provider-configs.textproto` via Workload Identity Federation, opens a
  * mutual-TLS channel to the Secure Computation control plane for `WorkItem` / `WorkItemAttempt`
  * writes and a mutual-TLS channel to the EDP Aggregator metadata-storage public API for the
- * `RawImpressionUpload`, `RawImpressionUploadModelLine`, and `RankerJob` services, subscribes to
- * the Phase-0 Pub/Sub topic, and hands everything to [SubpoolAssignerApp.run].
+ * `RawImpressionUpload`, `RawImpressionUploadFile`, `RawImpressionUploadModelLine`, `RankerJob`,
+ * and `PoolAssignmentJob` services, subscribes to the Phase-0 Pub/Sub topic, wires the production
+ * storage / Parquet / pool-emit-model / per-EDP KEK seams (via [BaseVidLabelingTeeAppRunner]), and
+ * hands everything to [SubpoolAssignerApp.run].
  */
 @CommandLine.Command(name = "subpool_assigner_app_runner")
-class SubpoolAssignerAppRunner : BaseTeeAppRunner() {
+class SubpoolAssignerAppRunner :
+  BaseVidLabelingTeeAppRunner(
+    hadoopConfigurationFor = { cfg -> gcsHadoopConfiguration(requireNotNull(cfg.projectId)) }
+  ) {
 
   @CommandLine.Option(
     names = ["--vid-rank-builder-queue"],
@@ -55,7 +62,7 @@ class SubpoolAssignerAppRunner : BaseTeeAppRunner() {
   private lateinit var vidRankBuilderQueue: String
 
   private val getStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
-    StorageConfig(projectId = storageParams.gcsProjectId)
+    storageConfig(storageParams.gcsProjectId)
   }
 
   override fun run() {
@@ -73,6 +80,8 @@ class SubpoolAssignerAppRunner : BaseTeeAppRunner() {
 
     val metadataStorageChannel = buildMetadataStoragePublicChannel()
     val rawImpressionUploadsClient = RawImpressionUploadServiceCoroutineStub(metadataStorageChannel)
+    val rawImpressionUploadFilesClient =
+      RawImpressionUploadFileServiceCoroutineStub(metadataStorageChannel)
     val rawImpressionUploadModelLinesClient =
       RawImpressionUploadModelLineServiceCoroutineStub(metadataStorageChannel)
     val rankerJobsClient = RankerJobServiceCoroutineStub(metadataStorageChannel)
@@ -89,10 +98,20 @@ class SubpoolAssignerAppRunner : BaseTeeAppRunner() {
         kmsClients = kmsClientsMap,
         getSubpoolMapStorageConfig = getStorageConfig,
         getRawImpressionsStorageConfig = getStorageConfig,
+        getModelStorageConfig = getStorageConfig,
         rawImpressionUploadsStub = rawImpressionUploadsClient,
         rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesClient,
         rankerJobsStub = rankerJobsClient,
         poolAssignmentJobsStub = poolAssignmentJobsClient,
+        rawImpressionUploadFilesStub = rawImpressionUploadFilesClient,
+        buildParquetStorageClient = { cfg, kms -> buildParquetStorageClient(cfg, kms) },
+        buildSubpoolMapStorageClient = { cfg -> buildStorageClient(cfg) },
+        loadPoolEmitLabeler = { modelStorageConfig, modelBlobPath ->
+          VirtualPeoplePoolEmitLabeler.fromCompiledNodeBlob(
+            readCompiledModelBlob(modelStorageConfig, modelBlobPath)
+          )
+        },
+        getSubpoolMapKekUri = { dataProvider -> kekUriFor(dataProvider) },
       )
 
     runBlockingWithTelemetry { subpoolAssignerApp.run() }

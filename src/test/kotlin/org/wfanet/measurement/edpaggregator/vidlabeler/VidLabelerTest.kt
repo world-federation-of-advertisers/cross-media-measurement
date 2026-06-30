@@ -44,6 +44,7 @@ class VidLabelerTest {
     ModelLineSpec(
       modelLine = name,
       modelBlobUri = blobUri,
+      modelStorageConfig = StorageConfig(),
       activeWindow = ActiveWindow(startMicros = 0L, endMicros = Long.MAX_VALUE),
       config = VidLabelerParams.ModelLineConfig.getDefaultInstance(),
     )
@@ -51,7 +52,7 @@ class VidLabelerTest {
   @Test
   fun `label with multiple model lines uses all of them`() = runBlocking {
     val loadedBlobUris = mutableListOf<String>()
-    val vidModelLoader = VidModelLoader { modelBlobUri ->
+    val vidModelLoader = VidModelLoader { _, modelBlobUri ->
       loadedBlobUris.add(modelBlobUri)
       StubVidAssigner()
     }
@@ -84,7 +85,7 @@ class VidLabelerTest {
   @Test
   fun `label with override model lines uses only those`() = runBlocking {
     val loadedBlobUris = mutableListOf<String>()
-    val vidModelLoader = VidModelLoader { modelBlobUri ->
+    val vidModelLoader = VidModelLoader { _, modelBlobUri ->
       loadedBlobUris.add(modelBlobUri)
       StubVidAssigner()
     }
@@ -120,7 +121,7 @@ class VidLabelerTest {
 
   @Test
   fun `label with override referencing absent model line throws`() = runBlocking {
-    val vidModelLoader = VidModelLoader { StubVidAssigner() }
+    val vidModelLoader = VidModelLoader { _, _ -> StubVidAssigner() }
 
     val rawImpressionSource: RawImpressionSource = mock()
 
