@@ -97,15 +97,27 @@ message VidLabelerParams {
         "edpaggregator.halo-cmm.org/RawImpressionUpload"
   ];
 
-  // Zero-based shard index this WorkItem is responsible for.
-  int32 shard_index = 8 [(google.api.field_behavior) = REQUIRED];
-
-  // Total number of shards for this dispatch.
-  int32 total_shards = 9 [(google.api.field_behavior) = REQUIRED];
+  // Field numbers 8 and 9 held the per-shard `shard_index` / `total_shards` of
+  // the removed static-sharding non-memoized dispatch. The non-memoized path
+  // now bin-packs files into `VidLabelingJob`s (see `vid_labeling_job`).
+  reserved 8, 9;
+  reserved "shard_index", "total_shards";
 
   // Map from model line resource name to its model blob path. Resolved by the
   // dispatcher from ModelShard so the TEE app does not need to interact with
   // the VID Repository API.
   map<string, string> model_blob_paths = 10
       [(google.api.field_behavior) = REQUIRED];
+
+  // The `VidLabelingJob` this non-memoized WorkItem fulfils: the bin-packed
+  // file batch plus the model lines it covers. The TEE resolves the job's
+  // `RawImpressionUploadFile`s via the metadata API and marks the job
+  // `SUCCEEDED`/`FAILED` (the last-job-out flips each covered model line to
+  // `COMPLETED`). Built by the non-memoized dispatch (one WorkItem per job).
+  // Set only on the non-memoized path.
+  string vid_labeling_job = 12 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference).type =
+        "edpaggregator.halo-cmm.org/VidLabelingJob"
+  ];
 }

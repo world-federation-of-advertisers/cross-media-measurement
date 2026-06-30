@@ -24,7 +24,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ModelLine
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
@@ -35,25 +34,33 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileBinPacker
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.createPoolAssignmentJobRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.createVidLabelingJobRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLinePoolAssigningRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
@@ -74,9 +81,11 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  *
  * Both paths are handled: a **memoized** model line dispatches Phase-0 (pre-creating a
  * `PoolAssignmentJob` per shard, publishing one SubpoolAssigner `WorkItem` per shard on the
- * [poolAssignerQueueName] queue, then transitioning to `POOL_ASSIGNING`); a **non-memoized** model
- * line dispatches Phase-2 directly (one VidLabeler `WorkItem` per shard on [queueName], then
- * transitioning to `LABELING`).
+ * [poolAssignerQueueName] queue, then transitioning to `POOL_ASSIGNING`); the **non-memoized**
+ * model lines of an upload are **bundled together** and dispatched to Phase-2 directly — the
+ * upload's `RawImpressionUploadFile`s are bin-packed by size into one `VidLabelingJob` per batch
+ * (each job covering every bundled model line), one VidLabeler `WorkItem` is published per job on
+ * [queueName], then each bundled model line transitions to `LABELING`.
  *
  * Because the fast path and the monitor can run concurrently, two callers can momentarily both pick
  * the same model line. Each transition is therefore guarded by an etag compare-and-swap: the first
@@ -98,8 +107,12 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  *   connection fields shared by every memoized Phase-0 WorkItem.
  * @param queueName resource name of the Secure Computation queue for Phase-2 VidLabeler WorkItems.
  * @param poolAssignerQueueName resource name of the queue for Phase-0 SubpoolAssigner WorkItems.
- * @param numberOfShards static number of shards per model line.
+ * @param numberOfShards static number of shards per memoized model line (Phase-0 fan-out).
  * @param modelLineConfigs field-mapping configuration keyed by model line resource name.
+ * @param rawImpressionUploadFileStub stub for listing an upload's files to bin-pack (non-memoized).
+ * @param vidLabelingJobStub stub for creating Phase-2 `VidLabelingJob`s (non-memoized).
+ * @param maxFileBatchSizeBytes bin-packing threshold for non-memoized `VidLabelingJob`s.
+ * @param maxJobsPerBatchCreate chunk size for `BatchCreateVidLabelingJobs`.
  */
 class VidLabelingDispatchSequencer(
   private val rawImpressionUploadStub:
@@ -119,6 +132,11 @@ class VidLabelingDispatchSequencer(
   private val poolAssignerQueueName: String,
   private val numberOfShards: Int,
   private val modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig>,
+  private val rawImpressionUploadFileStub:
+    RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub,
+  private val vidLabelingJobStub: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub,
+  private val maxFileBatchSizeBytes: Long,
+  private val maxJobsPerBatchCreate: Int = DEFAULT_MAX_JOBS_PER_BATCH_CREATE,
 ) {
 
   /** Outcome of one [dispatchNext] call. */
@@ -131,6 +149,12 @@ class VidLabelingDispatchSequencer(
 
   /** Resolved model shard info for a model line. */
   data class ResolvedShardInfo(val modelBlobPath: String, val memoizationEnabled: Boolean)
+
+  /** A non-memoized model line bundled into an upload's shared Phase-2 dispatch. */
+  private data class BundledModelLine(
+    val modelLine: RawImpressionUploadModelLine,
+    val shardInfo: ResolvedShardInfo,
+  )
 
   /**
    * Dispatches each `CREATED` model line whose `(DataProvider, ModelLine)` is not already running.
@@ -164,16 +188,34 @@ class VidLabelingDispatchSequencer(
     var dispatchedUpload: String? = null
     var queuedModelLines = 0
     for (upload in uploads) {
+      // Memoized model lines are dispatched individually (Phase-0 fan-out); non-memoized lines of
+      // this upload are collected and dispatched together as one bundled Phase-2 fan-out.
+      val nonMemoized = mutableListOf<BundledModelLine>()
       for (modelLine in modelLinesByUpload.getValue(upload.name)) {
         if (modelLine.state != RawImpressionUploadModelLine.State.CREATED) continue
         if (modelLine.cmmsModelLine in busyModelLines) {
           queuedModelLines++
           continue
         }
-        if (activateModelLine(upload.name, modelLine)) {
+        val shardInfo: ResolvedShardInfo? = resolveShardInfo(modelLine.cmmsModelLine)
+        if (shardInfo == null) {
+          logger.warning(
+            "Could not resolve model shard for ${modelLine.cmmsModelLine}; skipping dispatch"
+          )
+          continue
+        }
+        if (shardInfo.memoizationEnabled) {
+          dispatchMemoized(upload.name, modelLine, shardInfo)
           busyModelLines += modelLine.cmmsModelLine
           if (dispatchedUpload == null) dispatchedUpload = upload.name
+        } else {
+          nonMemoized += BundledModelLine(modelLine, shardInfo)
         }
+      }
+      if (nonMemoized.isNotEmpty()) {
+        dispatchNonMemoizedBundle(upload.name, nonMemoized)
+        for (bundled in nonMemoized) busyModelLines += bundled.modelLine.cmmsModelLine
+        if (dispatchedUpload == null) dispatchedUpload = upload.name
       }
     }
 
@@ -197,61 +239,109 @@ class VidLabelingDispatchSequencer(
   }
 
   /**
-   * Starts the pipeline for one `CREATED` [modelLine] of the upload named [uploadName]: resolves
-   * its model shard, creates the Phase-0 (memoized) or Phase-2 (non-memoized) work, and transitions
-   * the model line out of `CREATED` (which rolls the upload up to `ACTIVE`).
+   * Non-memoized (Phase-2) dispatch for all bundled non-memoized model lines of [uploadName]:
+   * bin-pack the upload's `RawImpressionUploadFile`s by size into batches, create one
+   * `VidLabelingJob` per batch (each job covering every bundled model line), publish one VidLabeler
+   * `WorkItem` per job on [queueName], then transition every bundled model line to `LABELING`.
    *
-   * @return true if the model line was activated (shard resolved and work attempted); false if it
-   *   was skipped (model shard unresolved), in which case it is left `CREATED` for a later attempt.
+   * Mirrors the Phase-1 `VidRankBuilder` fan-out (shared [RawImpressionFileBinPacker]). The
+   * last-out `MarkVidLabelingJobSucceeded` flips each covered model line to `COMPLETED`. Create
+   * order is jobs -> WorkItems -> mark, so all rows exist before the line is advanced; every create
+   * is idempotent (deterministic `request_id`s / `workItemId`s), so a caller that loses the
+   * per-model-line etag CAS at [markLabeling] has only repeated harmless creates.
    */
-  private suspend fun activateModelLine(
+  private suspend fun dispatchNonMemoizedBundle(
     uploadName: String,
-    modelLine: RawImpressionUploadModelLine,
-  ): Boolean {
-    val shardInfo: ResolvedShardInfo =
-      resolveShardInfo(modelLine.cmmsModelLine)
-        ?: run {
-          logger.warning(
-            "Could not resolve model shard for ${modelLine.cmmsModelLine}; skipping dispatch"
-          )
-          return false
-        }
-
-    if (shardInfo.memoizationEnabled) {
-      dispatchMemoized(uploadName, modelLine, shardInfo)
-    } else {
-      dispatchNonMemoized(uploadName, modelLine, shardInfo)
+    bundle: List<BundledModelLine>,
+  ) {
+    require(maxFileBatchSizeBytes > 0) {
+      "max_file_batch_size_bytes missing for non-memoized model lines under $uploadName; " +
+        "set it on VidLabelingConfig for this DataProvider"
     }
-    return true
+    val modelLineNames: List<String> = bundle.map { it.modelLine.cmmsModelLine }
+    // The active window is read per ModelLine so the TEE can drop out-of-window impressions; the
+    // model blob path comes from each line's resolved ModelShard.
+    val resolvedModelLines: Map<String, ModelLine> =
+      modelLineNames.associateWith { getModelLine(it) }
+    val modelBlobPathByLine: Map<String, String> =
+      bundle.associate { it.modelLine.cmmsModelLine to it.shardInfo.modelBlobPath }
+
+    val files: List<RawImpressionUploadFile> = listUploadFiles(uploadName)
+    if (files.isEmpty()) {
+      logger.warning(
+        "No RawImpressionUploadFiles under $uploadName; nothing to label for non-memoized model " +
+          "lines $modelLineNames"
+      )
+      for (bundled in bundle) markLabeling(bundled.modelLine.name, bundled.modelLine.etag)
+      return
+    }
+
+    val batches: List<List<String>> = RawImpressionFileBinPacker.pack(files, maxFileBatchSizeBytes)
+    val labelingJobs: List<VidLabelingJob> =
+      createVidLabelingJobs(uploadName, modelLineNames, batches)
+    for (job in labelingJobs) {
+      createWorkItem(uploadName, modelLineNames, modelBlobPathByLine, resolvedModelLines, job.name)
+    }
+    for (bundled in bundle) markLabeling(bundled.modelLine.name, bundled.modelLine.etag)
   }
 
+  /** Lists the `RawImpressionUploadFile` children of [uploadName]. */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  private suspend fun listUploadFiles(uploadName: String): List<RawImpressionUploadFile> =
+    rawImpressionUploadFileStub
+      .listResources { pageToken: String ->
+        val response =
+          rawImpressionUploadFileStub.listRawImpressionUploadFiles(
+            listRawImpressionUploadFilesRequest {
+              parent = uploadName
+              if (pageToken.isNotEmpty()) {
+                this.pageToken = pageToken
+              }
+            }
+          )
+        ResourceList(response.rawImpressionUploadFilesList, response.nextPageToken)
+      }
+      .flattenConcat()
+      .toList()
+
   /**
-   * Non-memoized (Phase-2) dispatch: one VidLabeler `WorkItem` per shard on [queueName], then
-   * transition the model line to `LABELING`.
+   * Creates one `VidLabelingJob` per [batches] entry via `BatchCreateVidLabelingJobs` (chunked to
+   * [maxJobsPerBatchCreate]). Each job covers every [modelLineNames] (the bundled non-memoized
+   * lines) and carries that batch's `RawImpressionUploadFile`s. The `request_id` is keyed by the
+   * sorted model-line set + batch index so a redelivered bundle reuses the rows while a different
+   * bundle set creates its own. Each chunk is checked to return exactly as many jobs as requested
+   * so a partial response can't silently drop a batch. Returns each created job.
    */
-  private suspend fun dispatchNonMemoized(
+  private suspend fun createVidLabelingJobs(
     uploadName: String,
-    modelLine: RawImpressionUploadModelLine,
-    shardInfo: ResolvedShardInfo,
-  ) {
-    // The active window is read from the ModelLine so the TEE can drop out-of-window impressions.
-    val resolvedModelLine: ModelLine = getModelLine(modelLine.cmmsModelLine)
-    val uploadId: String =
-      requireNotNull(RawImpressionUploadKey.fromName(uploadName)) {
-          "Invalid RawImpressionUpload name: $uploadName"
-        }
-        .rawImpressionUploadId
-    for (shardIndex in 0 until numberOfShards) {
-      createWorkItem(
-        uploadName,
-        modelLine.cmmsModelLine,
-        shardInfo.modelBlobPath,
-        resolvedModelLine,
-        shardIndex,
-        uploadId,
-      )
+    modelLineNames: List<String>,
+    batches: List<List<String>>,
+  ): List<VidLabelingJob> {
+    val created = mutableListOf<VidLabelingJob>()
+    for (group in batches.withIndex().chunked(maxJobsPerBatchCreate)) {
+      val response =
+        vidLabelingJobStub.batchCreateVidLabelingJobs(
+          batchCreateVidLabelingJobsRequest {
+            parent = uploadName
+            for ((batchIndex, batch) in group) {
+              requests += createVidLabelingJobRequest {
+                parent = uploadName
+                vidLabelingJob = vidLabelingJob {
+                  cmmsModelLines += modelLineNames
+                  rawImpressionUploadFiles += batch
+                }
+                requestId = RequestIds.forVidLabelingJob(uploadName, modelLineNames, batchIndex)
+              }
+            }
+          }
+        )
+      check(response.vidLabelingJobsList.size == group.size) {
+        "BatchCreateVidLabelingJobs returned ${response.vidLabelingJobsList.size} jobs for " +
+          "${group.size} requests"
+      }
+      created.addAll(response.vidLabelingJobsList)
     }
-    markLabeling(modelLine.name, modelLine.etag)
+    return created
   }
 
   /**
@@ -411,32 +501,33 @@ class VidLabelingDispatchSequencer(
   }
 
   /**
-   * Creates a WorkItem in the Secure Computation control plane for one model line shard.
+   * Creates one Phase-2 VidLabeler WorkItem for [vidLabelingJobName], covering all bundled
+   * [modelLineNames]. The TEE resolves the job's `RawImpressionUploadFile`s (the bin-packed batch)
+   * from the metadata API, so they are not duplicated onto the params.
    *
-   * Idempotency here uses resource-name uniqueness (a deterministic [workItemId]), not an AIP-155
-   * `request_id` — `CreateWorkItemRequest` has no `request_id` field. A retry therefore returns
-   * `ALREADY_EXISTS` (handled below) rather than the cached response.
+   * Idempotency uses resource-name uniqueness (a deterministic [workItemId] derived from the job
+   * name), not an AIP-155 `request_id` — `CreateWorkItemRequest` has no `request_id` field. A retry
+   * therefore returns `ALREADY_EXISTS` (handled below) rather than the cached response.
    */
   private suspend fun createWorkItem(
     uploadName: String,
-    modelLineName: String,
-    modelBlobPath: String,
-    resolvedModelLine: ModelLine,
-    shardIndex: Int,
-    uploadId: String,
+    modelLineNames: List<String>,
+    modelBlobPathByLine: Map<String, String>,
+    resolvedModelLines: Map<String, ModelLine>,
+    vidLabelingJobName: String,
   ) {
-    val modelLineConfig =
-      requireNotNull(modelLineConfigs[modelLineName]) {
-        "No ModelLineConfig found for model line: $modelLineName"
-      }
-
-    val params = vidLabelerParams {
-      dataProvider = dataProviderName
-      vidLabeledImpressionsStorageParams =
-        vidLabelerParamsTemplate.vidLabeledImpressionsStorageParams
-      rawImpressionsStorageParams = vidLabelerParamsTemplate.rawImpressionsStorageParams
-      vidRepoConnection = vidLabelerParamsTemplate.vidRepoConnection
-      modelLineConfigs[modelLineName] =
+    // Resolve per-line config OUTSIDE the proto builder: inside `vidLabelerParams { }` the receiver
+    // shadows `modelLineConfigs` / `modelBlobPaths` with its own (empty) builder maps.
+    val lineConfigs: Map<String, VidLabelerParams.ModelLineConfig> =
+      modelLineNames.associateWith { modelLineName ->
+        val modelLineConfig =
+          requireNotNull(modelLineConfigs[modelLineName]) {
+            "No ModelLineConfig found for model line: $modelLineName"
+          }
+        val resolvedModelLine =
+          requireNotNull(resolvedModelLines[modelLineName]) {
+            "No resolved ModelLine for model line: $modelLineName"
+          }
         VidLabelerParamsKt.modelLineConfig {
           labelerInputFieldMapping.putAll(modelLineConfig.labelerInputFieldMappingMap)
           eventTemplateFieldMapping.putAll(modelLineConfig.eventTemplateFieldMappingMap)
@@ -446,19 +537,27 @@ class VidLabelingDispatchSequencer(
             activeEndTime = resolvedModelLine.activeEndTime
           }
         }
-      overrideModelLines += listOf(modelLineName)
+      }
+
+    val params = vidLabelerParams {
+      dataProvider = dataProviderName
+      vidLabeledImpressionsStorageParams =
+        vidLabelerParamsTemplate.vidLabeledImpressionsStorageParams
+      rawImpressionsStorageParams = vidLabelerParamsTemplate.rawImpressionsStorageParams
+      vidRepoConnection = vidLabelerParamsTemplate.vidRepoConnection
+      modelLineConfigs.putAll(lineConfigs)
+      for (modelLineName in modelLineNames) {
+        modelBlobPaths[modelLineName] =
+          requireNotNull(modelBlobPathByLine[modelLineName]) {
+            "No model blob path for model line: $modelLineName"
+          }
+      }
+      overrideModelLines += modelLineNames
       rawImpressionUpload = uploadName
-      this.shardIndex = shardIndex
-      totalShards = numberOfShards
-      modelBlobPaths[modelLineName] = modelBlobPath
+      vidLabelingJob = vidLabelingJobName
     }
 
-    val modelLineId =
-      requireNotNull(ModelLineKey.fromName(modelLineName)) {
-          "Invalid ModelLine name: $modelLineName"
-        }
-        .modelLineId
-    val workItemId = "vid-labeling-$uploadId-$modelLineId-shard-$shardIndex"
+    val workItemId = "vid-labeling-${vidLabelingJobName.substringAfterLast("/")}"
     val request = createWorkItemRequest {
       this.workItemId = workItemId
       workItem = workItem {
@@ -477,7 +576,7 @@ class VidLabelingDispatchSequencer(
       }
       throw e
     }
-    logger.info("Created WorkItem $workItemId for model line $modelLineName shard $shardIndex")
+    logger.info("Created WorkItem $workItemId for job $vidLabelingJobName")
   }
 
   private suspend fun markLabeling(modelLineName: String, etag: String) {
@@ -630,6 +729,9 @@ class VidLabelingDispatchSequencer(
 
     /** Maximum `CreatePoolAssignmentJobRequest`s per `BatchCreatePoolAssignmentJobs` call. */
     private const val POOL_ASSIGNMENT_JOB_BATCH_SIZE = 50
+
+    /** Maximum `CreateVidLabelingJobRequest`s per `BatchCreateVidLabelingJobs` call. */
+    private const val DEFAULT_MAX_JOBS_PER_BATCH_CREATE = 50
 
     /**
      * Model-line states that count as "running" for `(DataProvider, ModelLine)` serialization: a
