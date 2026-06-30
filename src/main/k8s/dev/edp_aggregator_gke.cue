@@ -84,12 +84,15 @@ edpAggregator: #EdpAggregator & {
 	// ConfigMap by the deploy workflow and mounted at /etc/halo-cmm/edp-aggregator/config/.
 	// Schedule defaults to daily at 06:00 UTC (see edp_aggregator.cue
 	// _syncEventGroupActivitiesCronSchedule).
-	_syncEventGroupActivitiesArgs: "edp7": [
-		"--config-file=/etc/halo-cmms/edp-aggregator/config/event-group-activity-sync-config-edp7.textproto",
-		"--tls-cert-file=/etc/halo-cmms/edp-aggregator/edp7-tls/tls.crt",
-		"--tls-key-file=/etc/halo-cmms/edp-aggregator/edp7-tls/tls.key",
-		"--cert-collection-file=/etc/halo-cmms/edp-aggregator/config/kingdom_root.pem",
-		"--list-page-size=1000",
-		"--throttler-minimum-interval=100ms",
-	]
+	_syncEventGroupActivitiesArgs: "edp7": {
+		tlsSecret: "edp7-tls"
+		args: [
+			"--config-file=/etc/halo-cmms/edp-aggregator/config/event-group-activity-sync-config-edp7.textproto",
+			"--tls-cert-file=/etc/halo-cmms/edp-aggregator/edp7-tls/tls.crt",
+			"--tls-key-file=/etc/halo-cmms/edp-aggregator/edp7-tls/tls.key",
+			"--cert-collection-file=/etc/halo-cmms/edp-aggregator/config/kingdom_root.pem",
+			"--list-page-size=1000",
+			"--throttler-minimum-interval=100ms",
+		]
+	}
 }

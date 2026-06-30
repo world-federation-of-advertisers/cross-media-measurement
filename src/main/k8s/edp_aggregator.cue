@@ -58,10 +58,17 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 	// the env-specific overlay (default: daily at 06:00 UTC).
 	_syncEventGroupActivitiesCronSchedule: string | *"0 6 * * *"
 
-	// Arg lists for the per-EDP sync-event-group-activities cronjobs. The overlay
-	// sets these (one entry per EDP). Empty by default — entries without args
-	// produce no cronjob.
-	_syncEventGroupActivitiesArgs: [string]: [...string]
+	// Per-EDP sync-event-group-activities cronjob configs. The overlay sets one
+	// entry per EDP. Empty by default — entries produce no cronjob.
+	//
+	// args: CLI flags passed to the sync-event-group-activities container.
+	// tlsSecret: name of the K8s Secret holding this EDP's TLS cert/key
+	//   (mounted at MountRoot/<tlsSecret>; cert/key files inside named tls.crt,
+	//   tls.key per the secretGenerator convention).
+	_syncEventGroupActivitiesArgs: [string]: {
+		args: [...string]
+		tlsSecret: string
+	}
 
 	services: [Name=_]: #GrpcService & {
 		metadata: {
@@ -198,21 +205,25 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 			schedule:          _syncEventGroupActivitiesCronSchedule
 			jobTemplate: spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: _syncEventGroupActivitiesServiceAccountName
+				// Per-EDP secret mounts (e.g. edp7-tls) are added by the per-EDP
+				// override block below; only the shared ConfigMap mount lives here.
 				_mounts: {
 					"edp-aggregator-config": #ConfigMapMount & {
 						volumeMount: mountPath: "\(MountRoot)/config"
-					}
-					"edp7-tls": #SecretMount & {
-						volumeMount: mountPath: "\(MountRoot)/edp7-tls"
 					}
 				}
 			}
 		}
 	}
 	cronJobs: {
-		for edp, argList in _syncEventGroupActivitiesArgs {
+		for edp, cfg in _syncEventGroupActivitiesArgs {
 			"sync-event-group-activities-\(edp)": {
-				_container: args: argList
+				_container: args: cfg.args
+				spec: jobTemplate: spec: template: spec: _mounts: {
+					"\(cfg.tlsSecret)": #SecretMount & {
+						volumeMount: mountPath: "\(MountRoot)/\(cfg.tlsSecret)"
+					}
+				}
 			}
 		}
 	}
