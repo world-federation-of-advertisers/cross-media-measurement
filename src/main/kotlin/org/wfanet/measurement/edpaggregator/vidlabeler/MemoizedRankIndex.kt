@@ -61,21 +61,28 @@ private constructor(private val mapsByPoolOffset: Map<Long, Bytes12IntMap>) {
     get() = mapsByPoolOffset.size
 
   /**
-   * Returns the [RankAssignment] for [digest] — the `(pool_offset, local_rank)` of the first
-   * subpool whose map holds the fingerprint — or `null` when the fingerprint holds no rank in any
-   * subpool (an overflow / unseen fingerprint, which the labeler hashes instead).
+   * Returns a [RankAssignment] for every subpool whose map holds [digest] — one `(pool_offset,
+   * local_rank)` per subpool the fingerprint is ranked in — or an empty list when it holds no rank
+   * in any subpool (an overflow / unseen fingerprint, which the labeler hashes instead).
+   *
+   * All matches are returned (not just the first) because a fingerprint can legitimately route to
+   * different subpools across impressions and therefore appear in several subpool snapshots. The
+   * caller attaches all of them; the model's `RankedPopulationNode` leaf selects the one matching
+   * its own `pool_offset` and ignores the rest. Returning only the first match would attach a rank
+   * for the wrong subpool when the impression reaches a different one, which the leaf rejects.
    */
-  fun lookup(digest: EventIdDigest): RankAssignment? {
+  fun lookup(digest: EventIdDigest): List<RankAssignment> = buildList {
     for ((poolOffset, map) in mapsByPoolOffset) {
       val rank = map.get(digest.high, digest.low)
       if (rank != Bytes12IntMap.NOT_PRESENT) {
-        return rankAssignment {
-          this.poolOffset = poolOffset
-          localRank = rank.toLong()
-        }
+        add(
+          rankAssignment {
+            this.poolOffset = poolOffset
+            localRank = rank.toLong()
+          }
+        )
       }
     }
-    return null
   }
 
   companion object {
