@@ -16,10 +16,12 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import java.io.IOException
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.edpaggregator.service.InvalidFieldValueException
@@ -85,6 +87,9 @@ class RawImpressionUploadModelLineService(
       throw RequiredFieldNotSetException("raw_impression_upload_model_line.cmms_model_line")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    ModelLineKey.fromName(request.rawImpressionUploadModelLine.cmmsModelLine)
+      ?: throw InvalidFieldValueException("raw_impression_upload_model_line.cmms_model_line")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     if (request.requestId.isNotEmpty()) {
       try {
@@ -109,42 +114,7 @@ class RawImpressionUploadModelLineService(
           }
         )
       } catch (e: StatusException) {
-        throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
-          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
-          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
-          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
-          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
-          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
-          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
-          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
-          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
-          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
-          InternalErrors.Reason.ETAG_MISMATCH -> Status.ABORTED.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
-            Status.NOT_FOUND.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID ->
-            Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
-        }
+        throw handleInternalError(e)
       }
 
     return internalResponse.toPublic()
@@ -175,12 +145,18 @@ class RawImpressionUploadModelLineService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    val seenRequestIds = mutableSetOf<String>()
+    val seenModelLines = mutableSetOf<String>()
     request.requestsList.forEachIndexed { index, createRequest ->
       if (createRequest.requestId.isNotEmpty()) {
         try {
           UUID.fromString(createRequest.requestId)
         } catch (e: IllegalArgumentException) {
           throw InvalidFieldValueException("requests.$index.request_id", e)
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+        if (!seenRequestIds.add(createRequest.requestId)) {
+          throw InvalidFieldValueException("requests.$index.request_id")
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
       }
@@ -190,6 +166,17 @@ class RawImpressionUploadModelLineService(
       }
       if (createRequest.rawImpressionUploadModelLine.cmmsModelLine.isEmpty()) {
         throw RequiredFieldNotSetException(
+            "requests.$index.raw_impression_upload_model_line.cmms_model_line"
+          )
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      ModelLineKey.fromName(createRequest.rawImpressionUploadModelLine.cmmsModelLine)
+        ?: throw InvalidFieldValueException(
+            "requests.$index.raw_impression_upload_model_line.cmms_model_line"
+          )
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      if (!seenModelLines.add(createRequest.rawImpressionUploadModelLine.cmmsModelLine)) {
+        throw InvalidFieldValueException(
             "requests.$index.raw_impression_upload_model_line.cmms_model_line"
           )
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -217,42 +204,7 @@ class RawImpressionUploadModelLineService(
           }
         )
       } catch (e: StatusException) {
-        throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
-          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
-          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
-          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
-          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
-          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
-          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
-          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
-          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
-          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
-          InternalErrors.Reason.ETAG_MISMATCH -> Status.ABORTED.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
-            Status.NOT_FOUND.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID ->
-            Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
-        }
+        throw handleInternalError(e)
       }
 
     return batchCreateRawImpressionUploadModelLinesResponse {
@@ -284,42 +236,7 @@ class RawImpressionUploadModelLineService(
           }
         )
       } catch (e: StatusException) {
-        throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
-          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
-          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
-          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
-          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
-          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
-          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
-          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
-          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
-          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
-          InternalErrors.Reason.ETAG_MISMATCH -> Status.ABORTED.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
-            Status.NOT_FOUND.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID ->
-            Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
-        }
+        throw handleInternalError(e)
       }
 
     return internalResponse.toPublic()
@@ -393,42 +310,7 @@ class RawImpressionUploadModelLineService(
           }
         )
       } catch (e: StatusException) {
-        throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
-          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
-          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
-          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
-          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
-          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
-          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
-          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
-          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
-          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
-          InternalErrors.Reason.ETAG_MISMATCH -> Status.ABORTED.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
-            Status.NOT_FOUND.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID ->
-            Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
-        }
+        throw handleInternalError(e)
       }
 
     return listRawImpressionUploadModelLinesResponse {
@@ -470,42 +352,7 @@ class RawImpressionUploadModelLineService(
           }
         )
       } catch (e: StatusException) {
-        throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
-          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
-          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
-          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
-          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
-          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
-          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
-          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
-          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
-          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
-          InternalErrors.Reason.ETAG_MISMATCH -> Status.ABORTED.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
-            Status.NOT_FOUND.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID ->
-            Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
-        }
+        throw handleInternalError(e)
       }
 
     return internalResponse.toPublic()
@@ -541,42 +388,7 @@ class RawImpressionUploadModelLineService(
           }
         )
       } catch (e: StatusException) {
-        throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
-          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
-          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
-          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
-          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
-          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
-          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
-          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
-          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
-          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
-          InternalErrors.Reason.ETAG_MISMATCH -> Status.ABORTED.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
-            Status.NOT_FOUND.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID ->
-            Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
-        }
+        throw handleInternalError(e)
       }
 
     return internalResponse.toPublic()
@@ -612,42 +424,7 @@ class RawImpressionUploadModelLineService(
           }
         )
       } catch (e: StatusException) {
-        throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
-          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
-          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
-          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
-          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
-          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
-          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
-          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
-          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
-          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
-          InternalErrors.Reason.ETAG_MISMATCH -> Status.ABORTED.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
-            Status.NOT_FOUND.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID ->
-            Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
-        }
+        throw handleInternalError(e)
       }
 
     return internalResponse.toPublic()
@@ -683,42 +460,7 @@ class RawImpressionUploadModelLineService(
           }
         )
       } catch (e: StatusException) {
-        throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
-          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
-          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
-          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
-          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
-          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
-          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
-          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
-          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
-          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
-          InternalErrors.Reason.ETAG_MISMATCH -> Status.ABORTED.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
-            Status.NOT_FOUND.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID ->
-            Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
-        }
+        throw handleInternalError(e)
       }
 
     return internalResponse.toPublic()
@@ -755,45 +497,49 @@ class RawImpressionUploadModelLineService(
           }
         )
       } catch (e: StatusException) {
-        throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
-          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
-          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
-          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
-          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
-          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
-          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
-          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
-          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
-          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
-          InternalErrors.Reason.ETAG_MISMATCH -> Status.ABORTED.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
-            Status.NOT_FOUND.withCause(e).asRuntimeException()
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID ->
-            Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
-        }
+        throw handleInternalError(e)
       }
 
     return internalResponse.toPublic()
+  }
+
+  private fun handleInternalError(e: StatusException): StatusRuntimeException {
+    return when (InternalErrors.getReason(e)) {
+      InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+      InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
+        Status.NOT_FOUND.withCause(e).asRuntimeException()
+      InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID ->
+        Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
+      InternalErrors.Reason.ETAG_MISMATCH -> Status.ABORTED.withCause(e).asRuntimeException()
+      InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
+      InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+      InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+      InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
+      InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
+      InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
+      InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
+      InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
+      InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+      InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
+      InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+      InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+      InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+      InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
+      InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+      InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+      InternalErrors.Reason.INVALID_FIELD_VALUE,
+      InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+      InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+      InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
+      InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
+      InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
+      InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+      InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+      InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
+      InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+      InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+      null -> Status.INTERNAL.withCause(e).asRuntimeException()
+    }
   }
 
   companion object {
