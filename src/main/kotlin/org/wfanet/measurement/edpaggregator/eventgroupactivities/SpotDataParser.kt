@@ -23,6 +23,8 @@ import java.io.InputStream
 import java.io.InputStreamReader
 import java.time.Instant
 import java.time.format.DateTimeParseException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 
 /**
  * Parser for "spot" activity data in JSON form.
@@ -36,41 +38,35 @@ object SpotDataParser {
   private const val DATE_FIELD = "event_group_activity_date"
 
   /**
-   * Parses a JSON array of activity records from [inputStream].
+   * Parses a JSON array of activity records from [inputStream] into a streaming [Flow].
    *
    * The array is read incrementally with a streaming [JsonReader], so the whole file is never
-   * materialized in memory at once; peak memory is roughly the size of the resulting list of
-   * [SpotRecord]s.
+   * materialized in memory at once; records are emitted one at a time as they are parsed.
    *
-   * @return the parsed records, in document order.
-   * @throws IllegalArgumentException if the input is not a JSON array of the expected shape, is
-   *   malformed/truncated, or any record is missing `parent` or `event_group_activity_date`, has a
-   *   blank value for either, or has an unparseable date.
+   * @return a [Flow] of the parsed records, in document order.
+   * @throws IllegalArgumentException when the flow is collected, if the input is not a JSON array
+   *   of the expected shape, is malformed/truncated, or any record is missing `parent` or
+   *   `event_group_activity_date`, has a blank value for either, or has an unparseable date.
    */
-  fun parseJson(inputStream: InputStream): List<SpotRecord> {
+  fun parseJson(inputStream: InputStream): Flow<SpotRecord> = flow {
     try {
-      val records = mutableListOf<SpotRecord>()
       JsonReader(InputStreamReader(inputStream, Charsets.UTF_8)).use { reader ->
         reader.beginArray()
         var index = 0
         while (reader.hasNext()) {
-          records.add(parseRecord(reader, index))
+          emit(parseRecord(reader, index))
           index++
         }
         reader.endArray()
       }
-      return records
     } catch (e: IllegalArgumentException) {
       // Per-field validation failures are already clear; let them through unwrapped.
       throw e
-    } catch (e: Exception) {
-      // Gson MalformedJsonException, IllegalStateException (wrong-typed/non-array tokens),
-      // IOException,
-      // etc. all become a single clear error.
-      if (e is IOException || e is IllegalStateException || e is RuntimeException) {
-        throw IllegalArgumentException("Malformed spot-data JSON: ${e.message}", e)
-      }
-      throw e
+    } catch (e: IOException) {
+      throw IllegalArgumentException("Malformed spot-data JSON: ${e.message}", e)
+    } catch (e: IllegalStateException) {
+      // Gson surfaces wrong-typed/non-array tokens as IllegalStateException.
+      throw IllegalArgumentException("Malformed spot-data JSON: ${e.message}", e)
     }
   }
 

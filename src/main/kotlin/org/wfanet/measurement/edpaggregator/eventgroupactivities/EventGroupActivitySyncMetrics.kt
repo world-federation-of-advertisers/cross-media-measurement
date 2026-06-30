@@ -29,6 +29,8 @@ import io.opentelemetry.api.metrics.Meter
  *
  * Attributes:
  * - data_provider_name: The data provider performing the sync.
+ * - outcome: For [eventGroupsProcessed], the per-EventGroup outcome (`success`, `guard_skipped`, or
+ *   `failed`).
  * - error_type: For [syncErrors], the gRPC status code name or exception class that caused the
  *   failure.
  */
@@ -54,7 +56,7 @@ class EventGroupActivitySyncMetrics(meter: Meter) {
       .setDescription("Number of EventGroupActivities left unchanged")
       .build()
 
-  /** Counter for EventGroups successfully processed. */
+  /** Counter for EventGroups processed, split by `outcome`. */
   val eventGroupsProcessed: LongCounter =
     meter
       .counterBuilder("edpa.event_group_activity.event_groups_processed")

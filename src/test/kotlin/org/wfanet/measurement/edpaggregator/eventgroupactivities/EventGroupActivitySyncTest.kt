@@ -28,6 +28,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -36,6 +38,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.check
+import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.wheneverBlocking
@@ -129,7 +132,7 @@ class EventGroupActivitySyncTest {
         spotRecord("eg1", "2026-01-05"),
       )
 
-    val result = runBlocking { newSync().sync(records) }
+    val result = runBlocking { newSync().sync(records.asFlow()) }
 
     assertThat(result.activitiesCreated).isEqualTo(5)
     assertThat(result.activitiesDeleted).isEqualTo(0)
@@ -140,7 +143,6 @@ class EventGroupActivitySyncTest {
         check { request ->
           assertThat(request.requestsList).hasSize(5)
           assertThat(request.requestsList.all { it.allowMissing }).isTrue()
-          // FIX 10: verify a produced activity name and date, not just list size.
           val first = request.requestsList.first().eventGroupActivity
           assertThat(first.name)
             .isEqualTo("$DATA_PROVIDER/eventGroups/eg1/eventGroupActivities/2026-01-01")
@@ -157,7 +159,7 @@ class EventGroupActivitySyncTest {
     // File has only one of the three existing dates.
     val records = listOf(spotRecord("eg1", "2026-01-01"))
 
-    val result = runBlocking { newSync().sync(records) }
+    val result = runBlocking { newSync().sync(records.asFlow()) }
 
     assertThat(result.activitiesCreated).isEqualTo(0)
     assertThat(result.activitiesDeleted).isEqualTo(2)
@@ -166,7 +168,6 @@ class EventGroupActivitySyncTest {
       batchDeleteEventGroupActivities(
         check { request ->
           assertThat(request.namesList).hasSize(2)
-          // FIX 10: verify produced resource names.
           assertThat(request.namesList)
             .containsExactly(
               "$DATA_PROVIDER/eventGroups/eg1/eventGroupActivities/2026-01-02",
@@ -184,7 +185,7 @@ class EventGroupActivitySyncTest {
     stubExistingDates("eg1", dates)
     val records = dates.map { spotRecord("eg1", it) }
 
-    val result = runBlocking { newSync().sync(records) }
+    val result = runBlocking { newSync().sync(records.asFlow()) }
 
     assertThat(result.activitiesCreated).isEqualTo(0)
     assertThat(result.activitiesDeleted).isEqualTo(0)
@@ -203,9 +204,11 @@ class EventGroupActivitySyncTest {
         spotRecord("eg3", "2026-03-01"),
       )
 
-    val result = runBlocking { newSync().sync(records) }
+    val result = runBlocking { newSync().sync(records.asFlow()) }
 
-    assertThat(result.eventGroupsProcessed).isEqualTo(3)
+    assertThat(result.eventGroupsSucceeded).isEqualTo(3)
+    assertThat(result.eventGroupsGuardSkipped).isEqualTo(0)
+    assertThat(result.eventGroupsFailed).isEqualTo(0)
     assertThat(result.activitiesCreated).isEqualTo(4)
     assertThat(result.errors).isEmpty()
     verifyBlocking(activitiesServiceMock, times(3)) { batchUpdateEventGroupActivities(any()) }
@@ -218,7 +221,7 @@ class EventGroupActivitySyncTest {
         spotRecord("eg1", LocalDate.of(2026, 1, 1).plusDays(i.toLong()).toString())
       }
 
-    val result = runBlocking { newSync().sync(records) }
+    val result = runBlocking { newSync().sync(records.asFlow()) }
 
     assertThat(result.activitiesCreated).isEqualTo(2500)
     val captor = argumentCaptor<BatchUpdateEventGroupActivitiesRequest>()
@@ -228,7 +231,6 @@ class EventGroupActivitySyncTest {
     assertThat(captor.allValues.map { it.requestsList.size })
       .containsExactly(1000, 1000, 500)
       .inOrder()
-    // FIX 9: every captured update request sets allowMissing.
     assertThat(captor.allValues.all { req -> req.requestsList.all { it.allowMissing } }).isTrue()
   }
 
@@ -241,7 +243,7 @@ class EventGroupActivitySyncTest {
     // -> 3 batchDelete calls of sizes 1000, 1000, 500.
     val records = listOf(spotRecord("eg1", "2000-01-01"))
 
-    val result = runBlocking { newSync().sync(records) }
+    val result = runBlocking { newSync().sync(records.asFlow()) }
 
     assertThat(result.activitiesDeleted).isEqualTo(2500)
     val captor = argumentCaptor<BatchDeleteEventGroupActivitiesRequest>()
@@ -276,13 +278,14 @@ class EventGroupActivitySyncTest {
     // Each group's input has one non-existing date, so all existing dates are to be deleted.
     val records = listOf(spotRecord("egA", "2030-01-01"), spotRecord("egB", "2030-01-01"))
 
-    val result = runBlocking { newSync().sync(records) }
+    val result = runBlocking { newSync().sync(records.asFlow()) }
 
     assertThat(result.errors).hasSize(1)
     assertThat(result.errors.single().eventGroup).isEqualTo("$DATA_PROVIDER/eventGroups/egA")
-    // egB deleted its two existing dates; egA failed on its delete batch and is recorded as an
-    // error (its create count is not tallied because the exception fires before the counters).
-    assertThat(result.eventGroupsProcessed).isEqualTo(1)
+    // egB deleted its two existing dates; egA failed on its delete batch and is recorded as a
+    // failure (its create count is not tallied because the exception fires before the counters).
+    assertThat(result.eventGroupsSucceeded).isEqualTo(1)
+    assertThat(result.eventGroupsFailed).isEqualTo(1)
     assertThat(result.activitiesDeleted).isEqualTo(2)
     val captor = argumentCaptor<BatchDeleteEventGroupActivitiesRequest>()
     verifyBlocking(activitiesServiceMock, times(2)) {
@@ -325,7 +328,7 @@ class EventGroupActivitySyncTest {
     // File contains all page1 + page2 dates -> everything unchanged.
     val records = (page1Dates + page2Dates).map { spotRecord("eg1", it) }
 
-    val result = runBlocking { newSync().sync(records) }
+    val result = runBlocking { newSync().sync(records.asFlow()) }
 
     assertThat(result.activitiesUnchanged).isEqualTo(page1Dates.size + page2Dates.size)
     assertThat(result.activitiesCreated).isEqualTo(0)
@@ -350,7 +353,7 @@ class EventGroupActivitySyncTest {
       }
     val records = listOf(spotRecord("eg1", "2026-01-01"))
 
-    val result = runBlocking { newSync().sync(records) }
+    val result = runBlocking { newSync().sync(records.asFlow()) }
 
     assertThat(attempts).isEqualTo(2)
     assertThat(result.activitiesCreated).isEqualTo(1)
@@ -372,7 +375,7 @@ class EventGroupActivitySyncTest {
       }
     val records = listOf(spotRecord("eg1", "2026-01-01"))
 
-    val result = runBlocking { newSync().sync(records) }
+    val result = runBlocking { newSync().sync(records.asFlow()) }
 
     assertThat(listAttempts).isEqualTo(2)
     assertThat(result.activitiesCreated).isEqualTo(1)
@@ -396,7 +399,7 @@ class EventGroupActivitySyncTest {
       }
     val records = listOf(spotRecord("eg1", "2026-01-01"))
 
-    val result = runBlocking { newSync().sync(records) }
+    val result = runBlocking { newSync().sync(records.asFlow()) }
 
     assertThat(attempts).isEqualTo(2)
     assertThat(result.activitiesCreated).isEqualTo(1)
@@ -410,12 +413,16 @@ class EventGroupActivitySyncTest {
     // File keeps only 2 of the 10 existing dates -> 8/10 = 0.8 > 0.5.
     val records = existing.take(2).map { spotRecord("eg1", it) }
 
-    val result = runBlocking { newSync(maxDeleteFraction = 0.5).sync(records) }
+    val result = runBlocking { newSync(maxDeleteFraction = 0.5).sync(records.asFlow()) }
 
     assertThat(result.activitiesDeleted).isEqualTo(0)
-    assertThat(result.errors).hasSize(1)
-    assertThat(result.errors.single().eventGroup).isEqualTo("$DATA_PROVIDER/eventGroups/eg1")
-    assertThat(result.errors.single().message).contains("max delete fraction")
+    assertThat(result.eventGroupsGuardSkipped).isEqualTo(1)
+    assertThat(result.eventGroupsSucceeded).isEqualTo(0)
+    assertThat(result.eventGroupsFailed).isEqualTo(0)
+    assertThat(result.errors).isEmpty()
+    assertThat(result.guardSkipped).hasSize(1)
+    assertThat(result.guardSkipped.single().eventGroup).isEqualTo("$DATA_PROVIDER/eventGroups/eg1")
+    assertThat(result.guardSkipped.single().message).contains("max delete fraction")
     verifyBlocking(activitiesServiceMock, times(0)) { batchDeleteEventGroupActivities(any()) }
   }
 
@@ -428,9 +435,23 @@ class EventGroupActivitySyncTest {
       )
 
     val exception =
-      assertFailsWith<IllegalArgumentException> { runBlocking { newSync().sync(records) } }
+      assertFailsWith<IllegalArgumentException> { runBlocking { newSync().sync(records.asFlow()) } }
 
     assertThat(exception).hasMessageThat().contains("dataProviders/other/eventGroups/eg1")
+  }
+
+  @Test
+  fun `sync rejects wildcard EventGroup parent`() {
+    val records = flowOf(SpotRecord("$DATA_PROVIDER/eventGroups/-", instant("2026-01-01")))
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> { runBlocking { newSync().sync(records) } }
+
+    assertThat(exception).hasMessageThat().contains("wildcard")
+    // No list/batch RPC is issued when up-front validation rejects the input.
+    verifyBlocking(activitiesServiceMock, never()) { listEventGroupActivities(any()) }
+    verifyBlocking(activitiesServiceMock, never()) { batchUpdateEventGroupActivities(any()) }
+    verifyBlocking(activitiesServiceMock, never()) { batchDeleteEventGroupActivities(any()) }
   }
 
   @Test
@@ -449,14 +470,15 @@ class EventGroupActivitySyncTest {
       }
     val records = listOf(spotRecord("egA", "2026-01-01"), spotRecord("egB", "2026-02-01"))
 
-    val result = runBlocking { newSync().sync(records) }
+    val result = runBlocking { newSync().sync(records.asFlow()) }
 
     assertThat(result.errors).hasSize(1)
     assertThat(result.errors.single().eventGroup).isEqualTo("$DATA_PROVIDER/eventGroups/egA")
-    assertThat(result.eventGroupsProcessed).isEqualTo(1)
+    assertThat(result.eventGroupsSucceeded).isEqualTo(1)
+    assertThat(result.eventGroupsFailed).isEqualTo(1)
     assertThat(result.activitiesCreated).isEqualTo(1)
-    // FIX 9: the recorded cause carries the INTERNAL gRPC status. Server-thrown errors arrive on
-    // the client as a StatusException (not StatusRuntimeException) over a real channel.
+    // Server-thrown errors arrive on the client as a StatusException (not StatusRuntimeException)
+    // even when the server threw a StatusRuntimeException over the in-process channel.
     val cause = result.errors.single().cause
     assertThat(cause).isInstanceOf(StatusException::class.java)
     assertThat((cause as StatusException).status.code).isEqualTo(Status.Code.INTERNAL)
@@ -468,7 +490,7 @@ class EventGroupActivitySyncTest {
     // One unchanged (2026-01-01), one to delete (2026-01-02), one to create (2026-01-03).
     val records = listOf(spotRecord("eg1", "2026-01-01"), spotRecord("eg1", "2026-01-03"))
 
-    val result = runBlocking { newSync().sync(records, dryRun = true) }
+    val result = runBlocking { newSync().sync(records.asFlow(), dryRun = true) }
 
     assertThat(result.activitiesCreated).isEqualTo(1)
     assertThat(result.activitiesDeleted).isEqualTo(1)
@@ -493,7 +515,7 @@ class EventGroupActivitySyncTest {
       }
     val records = listOf(spotRecord("eg1", "2026-01-01"))
 
-    runBlocking { newSync(throttler).sync(records) }
+    runBlocking { newSync(throttler).sync(records.asFlow()) }
 
     // At least one list call plus one batch update call.
     assertThat(onReadyCount).isAtLeast(2)

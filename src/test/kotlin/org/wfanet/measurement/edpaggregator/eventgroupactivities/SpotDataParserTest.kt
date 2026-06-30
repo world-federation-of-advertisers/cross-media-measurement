@@ -20,6 +20,8 @@ import com.google.common.truth.Truth.assertThat
 import java.io.ByteArrayInputStream
 import java.time.Instant
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -27,8 +29,9 @@ import org.junit.runners.JUnit4
 @RunWith(JUnit4::class)
 class SpotDataParserTest {
 
-  private fun parse(json: String): List<SpotRecord> =
-    SpotDataParser.parseJson(ByteArrayInputStream(json.toByteArray(Charsets.UTF_8)))
+  private fun parse(json: String): List<SpotRecord> = runBlocking {
+    SpotDataParser.parseJson(ByteArrayInputStream(json.toByteArray(Charsets.UTF_8))).toList()
+  }
 
   @Test
   fun `parseJson parses valid JSON array`() {
@@ -123,8 +126,12 @@ class SpotDataParserTest {
     }
     builder.append("]")
 
-    val records = parse(builder.toString())
+    val parsedCount = runBlocking {
+      SpotDataParser.parseJson(ByteArrayInputStream(builder.toString().toByteArray(Charsets.UTF_8)))
+        .toList()
+        .size
+    }
 
-    assertThat(records).hasSize(count)
+    assertThat(parsedCount).isEqualTo(count)
   }
 }

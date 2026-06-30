@@ -31,6 +31,7 @@ import kotlin.time.TimeSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupActivity
@@ -43,6 +44,7 @@ import org.wfanet.measurement.api.v2alpha.listEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.updateEventGroupActivityRequest
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
@@ -63,10 +65,13 @@ data class SpotRecord(val parent: String, val eventGroupActivityDate: Instant)
 /** Aggregate result of an [EventGroupActivitySync.sync] run. */
 data class SyncResult(
   val totalInputRecords: Int,
-  val eventGroupsProcessed: Int,
+  val eventGroupsSucceeded: Int,
+  val eventGroupsGuardSkipped: Int,
+  val eventGroupsFailed: Int,
   val activitiesCreated: Int,
   val activitiesDeleted: Int,
   val activitiesUnchanged: Int,
+  val guardSkipped: List<SyncError>,
   val errors: List<SyncError>,
 )
 
@@ -83,8 +88,12 @@ data class SyncError(val eventGroup: String, val message: String, val cause: Thr
  * 3. Creates activities present in the input but missing in the Kingdom.
  * 4. Deletes activities present in the Kingdom but missing from the input.
  *
- * Activities that already match are left unchanged. Failures for a single EventGroup are logged and
- * recorded as a [SyncError] but do not abort the overall sync.
+ * Activities that already match are left unchanged.
+ *
+ * Per-EventGroup isolation applies to **runtime** failures: an RPC error during the list or batch
+ * for a single EventGroup is logged and recorded as a [SyncError] but does not abort the overall
+ * sync. Input-shape validation failures (a record whose parent is not a concrete EventGroup under
+ * this DataProvider) are different: they abort the entire sync by throwing.
  *
  * @property eventGroupActivitiesClient stub for the EventGroupActivities service.
  * @property throttler regulates the rate of gRPC calls.
@@ -118,17 +127,27 @@ class EventGroupActivitySync(
   private fun metricAttributes(): Attributes =
     Attributes.of(AttributeKey.stringKey("data_provider_name"), dataProviderName)
 
+  private fun eventGroupsAttributes(outcome: String): Attributes =
+    Attributes.builder()
+      .putAll(metricAttributes())
+      .put(AttributeKey.stringKey("outcome"), outcome)
+      .build()
+
   /**
    * Synchronizes the EventGroup activities described by [inputActivities].
+   *
+   * Per-EventGroup isolation applies to **runtime** failures (RPC errors during list/batch);
+   * input-shape validation failures (a record whose parent is not a concrete EventGroup under this
+   * DataProvider) abort the entire sync.
    *
    * @param inputActivities the desired activities, grouped internally by EventGroup parent.
    * @param dryRun when true, lists and diffs but makes no BatchUpdate/BatchDelete calls. The
    *   returned [SyncResult] still reports the would-be created/deleted/unchanged counts.
    * @return a [SyncResult] with totals and any per-EventGroup [SyncError]s.
-   * @throws IllegalArgumentException if any record's parent is not an EventGroup under
+   * @throws IllegalArgumentException if any record's parent is not a concrete EventGroup under
    *   [dataProviderName].
    */
-  suspend fun sync(inputActivities: List<SpotRecord>, dryRun: Boolean = false): SyncResult {
+  suspend fun sync(inputActivities: Flow<SpotRecord>, dryRun: Boolean = false): SyncResult {
     return withSpan(
       tracer,
       "EventGroupActivitySync",
@@ -137,30 +156,37 @@ class EventGroupActivitySync(
     ) { _ ->
       val syncStartTime = TimeSource.Monotonic.markNow()
 
-      // 1. VALIDATE: every record must reference an EventGroup under this DataProvider.
+      // 1. VALIDATE and GROUP incrementally: every record must reference a concrete EventGroup
+      // under this DataProvider. Build the map of parent -> desired activity dates as records
+      // stream in.
       val parentPrefix = "$dataProviderName/eventGroups/"
-      for (record in inputActivities) {
+      val datesByEventGroup = mutableMapOf<String, MutableSet<LocalDate>>()
+      var totalInputRecords = 0
+      inputActivities.collect { record ->
         require(record.parent.startsWith(parentPrefix)) {
           "Record parent '${record.parent}' is not an EventGroup under DataProvider " +
             "'$dataProviderName'"
         }
+        val eventGroupId = record.parent.removePrefix(parentPrefix)
+        require(eventGroupId != ResourceKey.WILDCARD_ID && !eventGroupId.contains('/')) {
+          "Record parent '${record.parent}' must reference a concrete EventGroup, not a wildcard"
+        }
+        datesByEventGroup
+          .getOrPut(record.parent) { mutableSetOf() }
+          .add(record.eventGroupActivityDate.atZone(ZoneOffset.UTC).toLocalDate())
+        totalInputRecords++
       }
-
-      // 2. GROUP by EventGroup parent into a map of parent -> desired activity dates.
-      val datesByEventGroup: Map<String, Set<LocalDate>> =
-        inputActivities
-          .groupBy { it.parent }
-          .mapValues { (_, records) ->
-            records.map { it.eventGroupActivityDate.atZone(ZoneOffset.UTC).toLocalDate() }.toSet()
-          }
 
       var activitiesCreated = 0
       var activitiesDeleted = 0
       var activitiesUnchanged = 0
-      var eventGroupsProcessed = 0
+      var eventGroupsSucceeded = 0
+      var eventGroupsGuardSkipped = 0
+      var eventGroupsFailed = 0
       val errors = mutableListOf<SyncError>()
+      val guardSkips = mutableListOf<SyncError>()
 
-      // 3. Process each EventGroup, sorted for determinism.
+      // 2. Process each EventGroup, sorted for determinism.
       for (eventGroupName in datesByEventGroup.keys.sorted()) {
         val fileDates: Set<LocalDate> = datesByEventGroup.getValue(eventGroupName)
         try {
@@ -175,20 +201,19 @@ class EventGroupActivitySync(
           var datesToDelete: Set<LocalDate> = existingDates - fileDates
           val unchanged: Int = fileDates.intersect(existingDates).size
 
-          // FIX 1: data-loss guard. If too large a fraction of existing activities would be
-          // deleted, skip the deletes for this EventGroup but still apply the (safe, additive)
-          // creates.
           val deleteFraction: Double =
             if (existingDates.isEmpty()) 0.0 else datesToDelete.size.toDouble() / existingDates.size
+          var guardSkipped = false
           if (existingDates.isNotEmpty() && deleteFraction > maxDeleteFraction) {
             val percent = (deleteFraction * 100).toInt()
             val message =
               "Deletion of ${datesToDelete.size}/${existingDates.size} ($percent%) exceeds max " +
                 "delete fraction $maxDeleteFraction; skipping deletes"
             logger.warning { "EventGroup $eventGroupName: $message" }
-            errors.add(SyncError(eventGroupName, message, null))
+            guardSkips.add(SyncError(eventGroupName, message, null))
             metrics.deletesSkippedGuard.add(1, metricAttributes())
             datesToDelete = emptySet()
+            guardSkipped = true
           }
 
           logger.info(
@@ -208,22 +233,26 @@ class EventGroupActivitySync(
           activitiesCreated += datesToCreate.size
           activitiesDeleted += datesToDelete.size
           activitiesUnchanged += unchanged
-          eventGroupsProcessed++
           metrics.activitiesCreated.add(datesToCreate.size.toLong(), metricAttributes())
           metrics.activitiesDeleted.add(datesToDelete.size.toLong(), metricAttributes())
           metrics.activitiesUnchanged.add(unchanged.toLong(), metricAttributes())
-          // A guard-skipped EventGroup is still processed (listed, diffed, creates applied), so
-          // it counts toward eventGroupsProcessed consistently with the SyncResult field.
-          metrics.eventGroupsProcessed.add(1, metricAttributes())
+          if (guardSkipped) {
+            eventGroupsGuardSkipped++
+            metrics.eventGroupsProcessed.add(1, eventGroupsAttributes("guard_skipped"))
+          } else {
+            eventGroupsSucceeded++
+            metrics.eventGroupsProcessed.add(1, eventGroupsAttributes("success"))
+          }
         } catch (e: CancellationException) {
           throw e
         } catch (e: Exception) {
-          // FIX 6: split the failure metric by error_type.
           val errorType: String = errorTypeOf(e)
           logger.log(Level.SEVERE, e) {
             "Failed to sync EventGroup $eventGroupName: error_type=$errorType"
           }
           errors.add(SyncError(eventGroupName, e.message ?: "Unknown error", e))
+          eventGroupsFailed++
+          metrics.eventGroupsProcessed.add(1, eventGroupsAttributes("failed"))
           metrics.syncErrors.add(
             1,
             Attributes.builder()
@@ -238,11 +267,14 @@ class EventGroupActivitySync(
       metrics.syncLatency.record(syncLatency, metricAttributes())
 
       SyncResult(
-        totalInputRecords = inputActivities.size,
-        eventGroupsProcessed = eventGroupsProcessed,
+        totalInputRecords = totalInputRecords,
+        eventGroupsSucceeded = eventGroupsSucceeded,
+        eventGroupsGuardSkipped = eventGroupsGuardSkipped,
+        eventGroupsFailed = eventGroupsFailed,
         activitiesCreated = activitiesCreated,
         activitiesDeleted = activitiesDeleted,
         activitiesUnchanged = activitiesUnchanged,
+        guardSkipped = guardSkips,
         errors = errors,
       )
     }
@@ -357,43 +389,30 @@ class EventGroupActivitySync(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
+    /** Returns the gRPC [io.grpc.Status] of [this] (or its cause), or `null` if there is none. */
+    private fun Throwable.grpcStatus(): io.grpc.Status? =
+      when (this) {
+        is StatusException -> status
+        is StatusRuntimeException -> status
+        else ->
+          when (val c = cause) {
+            is StatusException -> c.status
+            is StatusRuntimeException -> c.status
+            else -> null
+          }
+      }
+
     /**
      * Returns the gRPC status code of [e] (or its cause) if it is a transient (retryable) status,
      * otherwise `null`.
      */
-    private fun transientStatusCodeOf(e: Throwable): io.grpc.Status.Code? {
-      val status =
-        when (e) {
-          is StatusException -> e.status
-          is StatusRuntimeException -> e.status
-          else ->
-            when (val cause = e.cause) {
-              is StatusException -> cause.status
-              is StatusRuntimeException -> cause.status
-              else -> return null
-            }
-        }
-      return when (status.code) {
-        io.grpc.Status.Code.UNAVAILABLE,
-        io.grpc.Status.Code.DEADLINE_EXCEEDED -> status.code
-        else -> null
+    private fun transientStatusCodeOf(e: Throwable): io.grpc.Status.Code? =
+      e.grpcStatus()?.code?.takeIf {
+        it == io.grpc.Status.Code.UNAVAILABLE || it == io.grpc.Status.Code.DEADLINE_EXCEEDED
       }
-    }
 
     /** Derives an `error_type` label for a failure: gRPC status code name, or exception class. */
-    private fun errorTypeOf(e: Throwable): String {
-      val status =
-        when (e) {
-          is StatusException -> e.status
-          is StatusRuntimeException -> e.status
-          else ->
-            when (val cause = e.cause) {
-              is StatusException -> cause.status
-              is StatusRuntimeException -> cause.status
-              else -> null
-            }
-        }
-      return status?.code?.name ?: e.javaClass.simpleName
-    }
+    private fun errorTypeOf(e: Throwable): String =
+      e.grpcStatus()?.code?.name ?: e.javaClass.simpleName
   }
 }
