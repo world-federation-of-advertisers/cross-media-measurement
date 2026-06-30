@@ -186,10 +186,17 @@ private constructor(private val mapsByPoolOffset: Map<Long, Bytes12IntMap>) {
       blob: RankIndexBlob,
     ): LoadedSubpool {
       val map = Bytes12IntMap()
-      var rankedSize = 0
+      var rankedSize = -1
       rankIndexStore.readBlob(blob.blobUri, blob.encryptedDek, blob.blobChecksum).collect { record
         ->
-        rankedSize = record.rankedSize
+        if (rankedSize == -1) {
+          rankedSize = record.rankedSize
+        } else {
+          check(rankedSize == record.rankedSize) {
+            "Inconsistent ranked_size in rank index blob ${blob.blobUri}: " +
+              "$rankedSize vs ${record.rankedSize}"
+          }
+        }
         val fingerprints = record.fingerprints
         val ranks = record.ranksList
         var offset = 0
@@ -201,6 +208,7 @@ private constructor(private val mapsByPoolOffset: Map<Long, Bytes12IntMap>) {
           offset += FINGERPRINT_BYTES
         }
       }
+      check(rankedSize >= 0) { "Empty rank index blob ${blob.blobUri} has no ranked_size" }
       return LoadedSubpool(map, rankedSize)
     }
 
