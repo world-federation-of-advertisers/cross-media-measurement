@@ -113,9 +113,9 @@ message VidRankBuilderParams {
   reserved 10;
 
   // Cloud Storage for the compiled VID model blob named by `model_blob_path`.
-  // The compiled model lives in its own GCS project, separate from the
-  // impression and map storage above. Pass-through for the Phase-2 VidLabeler
-  // WorkItem (Phase-1 does not read the model).
+  // The compiled model lives in its own Cloud Storage project, separate from
+  // the impression and map storage above. Pass-through for the Phase-2
+  // VidLabeler WorkItem (Phase-1 does not read the model).
   StorageParams model_storage_params = 20
       [(google.api.field_behavior) = REQUIRED];
 
