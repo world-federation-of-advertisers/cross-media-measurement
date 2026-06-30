@@ -3,11 +3,11 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 package(default_testonly = True)
 
 kt_jvm_test(
-    name = "LabelerPoolEmitLabelerTest",
-    srcs = ["LabelerPoolEmitLabelerTest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.subpoolassigner.LabelerPoolEmitLabelerTest",
+    name = "VirtualPeoplePoolEmitLabelerTest",
+    srcs = ["VirtualPeoplePoolEmitLabelerTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.subpoolassigner.VirtualPeoplePoolEmitLabelerTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/subpoolassigner:labeler_pool_emit_labeler",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/subpoolassigner:virtual_people_pool_emit_labeler",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/org/junit",
