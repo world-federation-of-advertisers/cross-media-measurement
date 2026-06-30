@@ -31,7 +31,6 @@ locals {
 }
 
 provider "google" {}
-provider "google-beta" {}
 
 data "google_client_config" "default" {}
 
