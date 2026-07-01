@@ -47,7 +47,17 @@ Before deploying the dashboard, ensure the following are in place:
 1.  The CMMS Terraform configuration is deployed (Kingdom, Reporting, EDP
     Aggregator Spanner databases exist).
 2.  The Reporting v2 Postgres database is deployed and accessible.
-3.  The Terraform service account has the following project-level roles
+3.  The **Service Usage API** (`serviceusage.googleapis.com`) is enabled on
+    the project. This is a one-time bootstrap: nothing else can enable other
+    APIs (or force-provision service agents) until this is on. Requires a
+    human with `roles/serviceusage.serviceUsageAdmin` (or Owner):
+    ```shell
+    gcloud services enable serviceusage.googleapis.com --project=MY_PROJECT
+    ```
+    If you see `ERROR: (gcloud.beta.services.identity.create) PERMISSION_DENIED:
+    Service Usage API has not been used in project ... before or it is disabled`
+    on the first `terraform apply`, this is the fix.
+4.  The Terraform service account has the following project-level roles
     (granted out-of-band — Terraform does not bootstrap its own credentials):
     *   `roles/bigquery.admin` — create datasets, tables, connections,
         scheduled queries, row access policies.
@@ -55,26 +65,24 @@ Before deploying the dashboard, ensure the following are in place:
         the `dashboard-compliance` SA.
     *   `roles/resourcemanager.projectIamAdmin` — grant project-level IAM
         bindings, including the self-grants below.
-    *   `roles/iam.roleAdmin` — manage the `dashboardComplianceChecker`
-        custom project role. Without this, the first `terraform apply` fails
-        on a fresh project with: "Unable to verify whether custom project
-        role projects/<project>/roles/dashboardComplianceChecker already
-        exists and must be undeleted." (The Terraform code in PR #4126 adds
-        a self-grant so this only needs to be granted once initially; on
-        subsequent applies Terraform maintains it.)
-4.  Proto bundles are registered in Kingdom and Reporting Spanner databases
+    *   `roles/iam.roleAdmin` — required *only* for the very first apply, to
+        create the `dashboardComplianceChecker` custom project role. The
+        Terraform code adds a `terraform_role_admin` self-grant so subsequent
+        applies maintain it automatically. Without this on the first apply,
+        Terraform fails with: "Unable to verify whether custom project role
+        projects/<project>/roles/dashboardComplianceChecker already exists
+        and must be undeleted."
+5.  Proto bundles are registered in Kingdom and Reporting Spanner databases
     (required for `TO_JSON()` decoding).
-5.  The BigQuery Connection service agent
+6.  The BigQuery Connection service agent
     (`service-${project_number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com`)
     exists. GCP creates this service-managed agent on demand the first time
-    a project uses the BigQuery Connection API. PR #4126 force-provisions it
-    via `google_project_service_identity`; on environments without that
-    change deployed, run once before the first apply:
-    ```shell
-    gcloud beta services identity create \
-      --service=bigqueryconnection.googleapis.com \
-      --project=MY_PROJECT
-    ```
+    a project uses the BigQuery Connection API — but on-demand creation
+    happens too late for Terraform, which tries to grant IAM to the agent in
+    the same apply. Terraform force-provisions it via a `terraform_data`
+    resource that shells out to `gcloud beta services identity create`; this
+    is a one-time bootstrap and is idempotent on subsequent applies. Requires
+    the Service Usage API from step 3.
 
 ## Step 1: Configure Terraform Variables
 
