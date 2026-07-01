@@ -3120,6 +3120,196 @@ class BasicReportProcessedResultsTransformationTest {
       .containsExactlyElementsIn(expectedResultGroups)
   }
 
+
+  @Test
+  fun `buildResultGroups handles two result_group_specs with different stackedIncrementalReach anchors`() {
+    // Verifies that a caller can request stackedIncrementalReach curves anchored on two
+    // different first-components in a single BasicReport (e.g. spec 1 anchored on DP1 and
+    // spec 2 anchored on DP2). Each spec independently gets its own composite RSes because
+    // `buildUnionSetExpression` builds a structurally-different SetExpression tree for
+    // permuted input lists -- semantically identical unions get distinct external RS IDs,
+    // one per ordering. The read path looks up each spec's composites by its own
+    // set-expression, so both curves come back correctly attributed.
+    //
+    // Under the hood this exercises the "two orderings, one BasicReport" shape without
+    // requiring end-to-end pipeline coverage.
+    val basicReport = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      details = basicReportDetails {
+        impressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        effectiveImpressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        reportingInterval = REPORTING_INTERVAL
+        // Anchor 1: [DP1, DP2, DP3] -> curve starts at DP1.
+        resultGroupSpecs += resultGroupSpec {
+          title = "anchor-dp1"
+          reportingUnit = reportingUnit {
+            dataProviderKeys =
+              ReportingUnitKt.dataProviderKeys {
+                dataProviderKeys += dataProviderKey { cmmsDataProviderId = DATA_PROVIDER_1_ID }
+                dataProviderKeys += dataProviderKey { cmmsDataProviderId = DATA_PROVIDER_2_ID }
+                dataProviderKeys += dataProviderKey { cmmsDataProviderId = DATA_PROVIDER_3_ID }
+              }
+          }
+          metricFrequency = metricFrequencySpec { total = true }
+          dimensionSpec = dimensionSpec {}
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                stackedIncrementalReach = true
+              }
+          }
+        }
+        // Anchor 2: [DP2, DP1, DP3] -> curve starts at DP2. Same DPs, different order.
+        resultGroupSpecs += resultGroupSpec {
+          title = "anchor-dp2"
+          reportingUnit = reportingUnit {
+            dataProviderKeys =
+              ReportingUnitKt.dataProviderKeys {
+                dataProviderKeys += dataProviderKey { cmmsDataProviderId = DATA_PROVIDER_2_ID }
+                dataProviderKeys += dataProviderKey { cmmsDataProviderId = DATA_PROVIDER_1_ID }
+                dataProviderKeys += dataProviderKey { cmmsDataProviderId = DATA_PROVIDER_3_ID }
+              }
+          }
+          metricFrequency = metricFrequencySpec { total = true }
+          dimensionSpec = dimensionSpec {}
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                stackedIncrementalReach = true
+              }
+          }
+        }
+      }
+    }
+
+    // Reach values chosen so the two curves are clearly different:
+    //   DP1=10, DP2=15, DP3=20
+    //   union(DP1,DP2) = union(DP2,DP1) = 22 (single semantic value; two RSs written)
+    //   union(DP1,DP2,DP3) = union(DP2,DP1,DP3) = 35 (single semantic value; two RSs)
+    // Anchor 1: [10, 22-10=12, 35-22=13]
+    // Anchor 2: [15, 22-15=7,  35-22=13]
+    val compositeUnion12Id = "c12"
+    val compositeUnion123Id = "c123"
+    val compositeUnion21Id = "c21"
+    val compositeUnion213Id = "c213"
+
+    fun makeCumulativeReachRsr(
+      externalReportingSetResultId: Long,
+      externalReportingSetId: String,
+      cumulativeReach: Long,
+    ) = reportingSetResult {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+      this.externalReportingSetResultId = externalReportingSetResultId
+      dimension =
+        ReportingSetResultKt.dimension {
+          this.externalReportingSetId = externalReportingSetId
+          externalImpressionQualificationFilterId =
+            IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
+          metricFrequencySpec = metricFrequencySpec { total = true }
+          grouping = ReportingSetResultKt.DimensionKt.grouping {}
+        }
+      populationSize = 100
+      reportingWindowResults +=
+        ReportingSetResultKt.reportingWindowEntry {
+          key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
+          value =
+            ReportingSetResultKt.reportingWindowResult {
+              processedReportResultValues =
+                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                  cumulativeResults =
+                    ResultGroupKt.MetricSetKt.basicMetricSet { reach = cumulativeReach }
+                }
+            }
+        }
+    }
+
+    val reportingSetResults =
+      listOf(
+        makeCumulativeReachRsr(1, PRIMITIVE_REPORTING_SET_1_ID, 10),
+        makeCumulativeReachRsr(2, PRIMITIVE_REPORTING_SET_2_ID, 15),
+        makeCumulativeReachRsr(3, PRIMITIVE_REPORTING_SET_3_ID, 20),
+        // Spec 1 composites (anchor DP1): union(DP1,DP2) then union(DP1,DP2,DP3).
+        makeCumulativeReachRsr(4, compositeUnion12Id, 22),
+        makeCumulativeReachRsr(5, compositeUnion123Id, 35),
+        // Spec 2 composites (anchor DP2): union(DP2,DP1) then union(DP2,DP1,DP3).
+        makeCumulativeReachRsr(6, compositeUnion21Id, 22),
+        makeCumulativeReachRsr(7, compositeUnion213Id, 35),
+      )
+
+    val primitiveInfoByDataProviderId =
+      mapOf(
+        DATA_PROVIDER_1_ID to
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+          ),
+        DATA_PROVIDER_2_ID to
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+          ),
+        DATA_PROVIDER_3_ID to
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_3.primitive.eventGroupKeysList.toSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_3_ID,
+          ),
+      )
+    val compositeReportingSetIdBySetExpression =
+      mapOf(
+        // Spec 1 (anchor DP1) composites.
+        buildUnionSetExpression(
+          listOf(PRIMITIVE_REPORTING_SET_1_ID, PRIMITIVE_REPORTING_SET_2_ID)
+        ) to compositeUnion12Id,
+        buildUnionSetExpression(
+          listOf(
+            PRIMITIVE_REPORTING_SET_1_ID,
+            PRIMITIVE_REPORTING_SET_2_ID,
+            PRIMITIVE_REPORTING_SET_3_ID,
+          )
+        ) to compositeUnion123Id,
+        // Spec 2 (anchor DP2) composites -- structurally distinct set-expressions.
+        buildUnionSetExpression(
+          listOf(PRIMITIVE_REPORTING_SET_2_ID, PRIMITIVE_REPORTING_SET_1_ID)
+        ) to compositeUnion21Id,
+        buildUnionSetExpression(
+          listOf(
+            PRIMITIVE_REPORTING_SET_2_ID,
+            PRIMITIVE_REPORTING_SET_1_ID,
+            PRIMITIVE_REPORTING_SET_3_ID,
+          )
+        ) to compositeUnion213Id,
+      )
+
+    val resultGroups =
+      BasicReportProcessedResultsTransformation.buildResultGroups(
+        basicReport,
+        reportingSetResults,
+        primitiveInfoByDataProviderId,
+        compositeReportingSetIdBySetExpression,
+      )
+
+    // Exactly two result groups, one per spec, both with stackedIncrementalReach populated.
+    standardAssertThat(resultGroups).hasSize(2)
+    val resultsByTitle = resultGroups.associate { it.title to it.resultsList.single() }
+
+    // Anchor DP1: [10, 12, 13].
+    standardAssertThat(
+        resultsByTitle.getValue("anchor-dp1").metricSet.reportingUnit.stackedIncrementalReachList
+      )
+      .containsExactly(10L, 12L, 13L)
+      .inOrder()
+
+    // Anchor DP2: [15, 7, 13].
+    standardAssertThat(
+        resultsByTitle.getValue("anchor-dp2").metricSet.reportingUnit.stackedIncrementalReachList
+      )
+      .containsExactly(15L, 7L, 13L)
+      .inOrder()
+  }
+
   private fun buildUnionSetExpression(
     externalReportingSetIds: List<String>
   ): ReportingSet.SetExpression {

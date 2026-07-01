@@ -74,6 +74,20 @@ class ReportSummaryV2Processor:
         self._whole_campaign_measurements: dict[ImpressionFilter,
                                                 dict[EdpCombination,
                                                      MeasurementSet]] = {}
+        # Map of aliased metric-name -> canonical metric-name for
+        # ReportSummarySetResults that share (impression_filter, frozenset(
+        # data_providers)) with an earlier ReportSummarySetResult. Two composite
+        # ReportingSets that differ only by DP-ordering in their set-expression
+        # have identical EG membership and thus identical underlying VIDs, so
+        # they measure the same true quantity. We feed the solver a single
+        # Measurement per (filter, edp_combination) (correct) but the response-
+        # builder in post_process_report_result.py:_process_window_results looks
+        # up each ReportingSetResult by its own metric_name -- so any RSR whose
+        # metric_name was displaced during solver-input construction has no
+        # entry in updated_measurements and crashes with KeyError. After solver
+        # completion we back-fill each displaced name with the winning name's
+        # solved value.
+        self._metric_name_aliases: dict[str, str] = {}
 
     def _build_report(self) -> Report:
         """Builds a Report object from the report summary data."""
@@ -155,8 +169,11 @@ class ReportSummaryV2Processor:
                             result.reach.standard_deviation,
                             result.reach.metric,
                         ))
-                self._weekly_cumulative_reaches[impression_filter][
-                    edp_combination] = measurements
+                bucket = self._weekly_cumulative_reaches[impression_filter]
+                if edp_combination in bucket:
+                    self._record_measurement_list_aliases(
+                        bucket[edp_combination], measurements)
+                bucket[edp_combination] = measurements
 
             if report_summary_set_result.non_cumulative_results:
                 logging.debug(
@@ -167,19 +184,31 @@ class ReportSummaryV2Processor:
                     weekly_results.append(result)
 
                 if weekly_results:
-                    self._weekly_non_cumulative_measurements[impression_filter][
-                        edp_combination] = [
-                            self._extract_measurement_set(result)
-                            for result in weekly_results
-                        ]
+                    new_measurement_sets = [
+                        self._extract_measurement_set(result)
+                        for result in weekly_results
+                    ]
+                    bucket = self._weekly_non_cumulative_measurements[
+                        impression_filter]
+                    if edp_combination in bucket:
+                        old_sets = bucket[edp_combination]
+                        for old_set, new_set in zip(old_sets,
+                                                    new_measurement_sets):
+                            self._record_measurement_set_aliases(
+                                old_set, new_set)
+                    bucket[edp_combination] = new_measurement_sets
 
             if report_summary_set_result.HasField('whole_campaign_result'):
                 logging.debug(
                     f"Processing {impression_filter} whole campaign result for"
                     f" EDPs {report_summary_set_result.data_providers}.")
-                self._whole_campaign_measurements[impression_filter][
-                    edp_combination] = self._extract_measurement_set(
-                        report_summary_set_result.whole_campaign_result)
+                new_set = self._extract_measurement_set(
+                    report_summary_set_result.whole_campaign_result)
+                bucket = self._whole_campaign_measurements[impression_filter]
+                if edp_combination in bucket:
+                    self._record_measurement_set_aliases(
+                        bucket[edp_combination], new_set)
+                bucket[edp_combination] = new_set
 
 
         logging.info("Finished processing results.")
@@ -212,6 +241,47 @@ class ReportSummaryV2Processor:
                               k_reach=k_reach,
                               impression=impression)
 
+    def _record_measurement_list_aliases(
+            self, displaced: list[Measurement],
+            winning: list[Measurement]) -> None:
+        """Records each displaced Measurement's name as an alias of the
+        corresponding winning Measurement's name.
+
+        The two lists correspond to the same weekly cadence for the same
+        (impression_filter, edp_combination) -- so entry i of `displaced` and
+        entry i of `winning` measure the same true quantity through different
+        ReportingSetResults' metric-name conventions.
+        """
+        if len(displaced) != len(winning):
+            raise ValueError(
+                f"Displaced measurement list has length {len(displaced)} but "
+                f"winning list has length {len(winning)}; two "
+                f"ReportSummarySetResults sharing (impression_filter, "
+                f"edp_combination) must agree on cadence length.")
+        for old, new in zip(displaced, winning):
+            if old.name != new.name:
+                self._metric_name_aliases[old.name] = new.name
+
+    def _record_measurement_set_aliases(self, displaced: MeasurementSet,
+                                        winning: MeasurementSet) -> None:
+        """Records aliases for every Measurement inside a MeasurementSet."""
+        if displaced.reach is not None and winning.reach is not None:
+            if displaced.reach.name != winning.reach.name:
+                self._metric_name_aliases[
+                    displaced.reach.name] = winning.reach.name
+        if displaced.impression is not None and winning.impression is not None:
+            if displaced.impression.name != winning.impression.name:
+                self._metric_name_aliases[
+                    displaced.impression.name] = winning.impression.name
+        # k_reach: keys are frequency bins; alias only where both sides have
+        # the same bin (mismatched bin sets on ReportSummarySetResults sharing
+        # (filter, edps) would already have failed upstream, but the guard
+        # keeps this helper total).
+        for bin_key, new_meas in winning.k_reach.items():
+            old_meas = displaced.k_reach.get(bin_key)
+            if old_meas is not None and old_meas.name != new_meas.name:
+                self._metric_name_aliases[old_meas.name] = new_meas.name
+
     def process(self) -> ReportPostProcessorResult:
         """Corrects the report and returns the result."""
         report = self._build_report()
@@ -243,6 +313,19 @@ class ReportSummaryV2Processor:
 
         report_post_processor_result.updated_measurements.update(
             metric_name_to_value)
+
+        # Back-fill solved values for metric names that were displaced during
+        # solver-input construction (see _metric_name_aliases docstring on the
+        # constructor). Without this the response builder in
+        # post_process_report_result.py:_process_window_results throws
+        # KeyError when it iterates ReportingSetResults whose metric_name was
+        # not the winning one for its (impression_filter, edp_combination)
+        # bucket.
+        for aliased_name, canonical_name in self._metric_name_aliases.items():
+            if canonical_name in report_post_processor_result.updated_measurements:
+                report_post_processor_result.updated_measurements[aliased_name] = (
+                    report_post_processor_result.updated_measurements[
+                        canonical_name])
 
         logging.info("Finished correcting the report.")
 

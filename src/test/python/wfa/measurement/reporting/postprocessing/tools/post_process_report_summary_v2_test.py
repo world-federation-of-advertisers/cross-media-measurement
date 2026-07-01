@@ -1616,7 +1616,67 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         self.assertEqual(result_with_exemption.updated_measurements["ami_reach"],
                             100)
 
-    
+
+    def test_duplicate_edp_combination_metric_names_back_filled(self):
+        # Two ReportSummarySetResults with identical (impression_filter,
+        # frozenset(data_providers)) but different metric names -- the shape
+        # produced by two composite ReportingSets whose set-expressions permute
+        # the same DP list (two-anchor stackedIncrementalReach). The solver
+        # sees one bucket (correct), but both RSRs must appear in
+        # updated_measurements so the response builder can look each up by its
+        # own metric name.
+        report_summary_textproto = """
+            cmms_measurement_consumer_id: "NsQ4CS3K1to"
+            external_report_result_id: 456
+            population: 1000
+            report_summary_set_results {
+                external_reporting_set_result_id: 1
+                impression_filter: "ami"
+                set_operation: "union"
+                data_providers: "edp1"
+                data_providers: "edp2"
+                whole_campaign_result {
+                    reach {
+                        value: 500
+                        standard_deviation: 0
+                        metric: "anchor_dp1_reach"
+                    }
+                }
+            }
+            report_summary_set_results {
+                external_reporting_set_result_id: 2
+                impression_filter: "ami"
+                set_operation: "union"
+                data_providers: "edp2"
+                data_providers: "edp1"
+                whole_campaign_result {
+                    reach {
+                        value: 500
+                        standard_deviation: 0
+                        metric: "anchor_dp2_reach"
+                    }
+                }
+            }
+        """
+        report_summary = text_format.Parse(
+            report_summary_textproto,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(report_summary, []).process()
+
+        # Both metric names present, both equal to the solver's single
+        # per-bucket solved value. Without the alias back-fill, only the
+        # winning name (whichever proto-message ordering the dict-overwrite
+        # settled on) would be present and the other lookup would KeyError.
+        self.assertIn("anchor_dp1_reach", result.updated_measurements)
+        self.assertIn("anchor_dp2_reach", result.updated_measurements)
+        self.assertEqual(
+            result.updated_measurements["anchor_dp1_reach"],
+            result.updated_measurements["anchor_dp2_reach"],
+        )
+        self.assertEqual(result.updated_measurements["anchor_dp1_reach"], 500)
+
 
 def read_file_to_string(filename: str) -> str:
     try:
