@@ -257,6 +257,10 @@ class SubpoolAssignerApp(
         modelBlobPath = params.modelBlobPath
         labelerInputFieldMapping.putAll(params.labelerInputFieldMappingMap)
         eventTemplateFieldMapping.putAll(params.eventTemplateFieldMappingMap)
+        // Event-template descriptor pass-through (OPTIONAL): forwarded verbatim so the Phase-1
+        // last-out can stamp it on the Phase-2 VidLabeler ModelLineConfig, which requires it.
+        eventTemplateDescriptorBlobUri = params.eventTemplateDescriptorBlobUri
+        eventTemplateType = params.eventTemplateType
         totalShards = params.totalShards
         // Phase-2 bin-packing cap (REQUIRED), forwarded verbatim so the Phase-1 last-out can batch
         // the upload's files without round-tripping to the dispatcher.

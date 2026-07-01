@@ -291,6 +291,18 @@ class VidRankBuilderAppTest {
   }
 
   @Test
+  fun `runWork fails when retention_days is not positive for the data provider`() = runBlocking {
+    // The runner leaves retention_days unvalidated (the shared config also lists non-memoized EDPs
+    // that leave it 0); a memoized RankerJob for a DataProvider with a non-positive window must
+    // fail
+    // at the point of use.
+    assertFailsWith<IllegalArgumentException> {
+      createApp(retentionDays = mapOf(DATA_PROVIDER to 0)).runWork(buildMessage(validParams()))
+    }
+    Unit
+  }
+
+  @Test
   fun `runWork rejects missing model_blob_path`() = runBlocking {
     val params = validParams().toBuilder().clearModelBlobPath().build()
     assertFailsWith<IllegalArgumentException> { createApp().runWork(buildMessage(params)) }
