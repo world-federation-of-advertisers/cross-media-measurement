@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.auth.oauth2.GoogleCredentials
+import com.google.auth.oauth2.ImpersonatedCredentials
 import com.google.cloud.bigquery.BigQuery
 import com.google.cloud.bigquery.BigQueryOptions
 import com.google.common.truth.Truth.assertWithMessage
@@ -30,7 +32,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.DashboardIso
  *
  * Validates that:
  * 1. EDP service accounts can only see their own rows via row access policies
- * 2. EDP service accounts get zero rows for other EDPs\' data
+ * 2. EDP service accounts get zero rows for other EDPs' data
  * 3. EDP service accounts cannot access platform-only tables (403)
  * 4. EDP service accounts cannot bypass row filtering via EXTERNAL_QUERY
  * 5. Deployed table schemas have no forbidden columns
@@ -85,6 +87,11 @@ class DashboardIsolationTest {
       System.getenv("EDP_NAME") ?: throw IllegalStateException("EDP_NAME not set")
     private val EDP_RESOURCE_ID =
       System.getenv("EDP_RESOURCE_ID") ?: throw IllegalStateException("EDP_RESOURCE_ID not set")
+    // When set, the test runs BigQuery calls as this service account by impersonating it
+    // from ADC. CI sets this so the workflow can authenticate once as the terraform SA and
+    // fan out per-EDP; local dev leaves it unset and uses ADC directly.
+    private val IMPERSONATE_SA: String? =
+      System.getenv("EDP_IMPERSONATE_SA")?.takeIf { it.isNotBlank() }
 
     private const val DATASET = "dashboard"
 
@@ -95,10 +102,29 @@ class DashboardIsolationTest {
     @JvmStatic
     @BeforeClass
     fun setUp() {
-      bigQuery = BigQueryOptions.getDefaultInstance().service
+      bigQuery = buildBigQuery()
       checks = DashboardIsolationChecks(PROJECT, DATASET, REGION)
       edp = EdpConfig(EDP_NAME, EDP_RESOURCE_ID)
-      logger.info("Testing as EDP '$EDP_NAME' (resource ID: $EDP_RESOURCE_ID) in project $PROJECT")
+      val identity = IMPERSONATE_SA ?: "ADC"
+      logger.info(
+        "Testing as EDP '$EDP_NAME' (resource ID: $EDP_RESOURCE_ID) as $identity in project $PROJECT"
+      )
+    }
+
+    private fun buildBigQuery(): BigQuery {
+      val target = IMPERSONATE_SA ?: return BigQueryOptions.getDefaultInstance().service
+      val scopes =
+        listOf(
+          "https://www.googleapis.com/auth/bigquery",
+          "https://www.googleapis.com/auth/cloud-platform",
+        )
+      val adc = GoogleCredentials.getApplicationDefault().createScoped(scopes)
+      val impersonated = ImpersonatedCredentials.create(adc, target, null, scopes, 300)
+      return BigQueryOptions.newBuilder()
+        .setCredentials(impersonated)
+        .setProjectId(PROJECT)
+        .build()
+        .service
     }
   }
 }

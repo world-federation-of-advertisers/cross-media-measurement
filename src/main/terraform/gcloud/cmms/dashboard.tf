@@ -919,6 +919,17 @@ resource "google_service_account_iam_member" "dashboard_compliance_impersonate_e
   member             = "serviceAccount:${google_service_account.dashboard_compliance.email}"
 }
 
+# CI (running as the terraform SA) impersonates each per-EDP dashboard SA to
+# execute DashboardIsolationTest as that EDP. Mirrors dashboard_compliance_impersonate_edp
+# but for the terraform SA path. Without this, the isolation-test workflow's
+# `bazel test` calls into BigQuery fail with "Error requesting access token".
+resource "google_service_account_iam_member" "dashboard_isolation_test_terraform_impersonate_edp" {
+  for_each           = var.data_provider_resource_ids
+  service_account_id = google_service_account.edp_dashboard[each.key].name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${var.terraform_service_account}"
+}
+
 # Operators impersonate the compliance SA to run the check by hand.
 resource "google_service_account_iam_member" "dashboard_compliance_operator_token_creator" {
   for_each           = toset(var.dashboard_operators)

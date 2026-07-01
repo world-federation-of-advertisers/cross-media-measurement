@@ -147,7 +147,7 @@ jobs:
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
           workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: edp-${{ matrix.edp.name }}-dashboard@${{ vars.GOOGLE_CLOUD_PROJECT }}.iam.gserviceaccount.com
+          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
 
       - name: Write auth.bazelrc
         env:
@@ -172,6 +172,7 @@ jobs:
           BIGQUERY_REGION: ${{ vars.BIGQUERY_REGION }}
           EDP_NAME: ${{ matrix.edp.name }}
           EDP_RESOURCE_ID: ${{ matrix.edp.resource_id }}
+          EDP_IMPERSONATE_SA: edp-${{ matrix.edp.name }}-dashboard@${{ vars.GOOGLE_CLOUD_PROJECT }}.iam.gserviceaccount.com
         run: |
           bazel test \
           --test_env=GOOGLE_APPLICATION_CREDENTIALS \
@@ -179,6 +180,7 @@ jobs:
           --test_env=BIGQUERY_REGION \
           --test_env=EDP_NAME \
           --test_env=EDP_RESOURCE_ID \
+          --test_env=EDP_IMPERSONATE_SA \
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:DashboardIsolationTest
 
       - name: Upload Bazel testlogs
