@@ -220,16 +220,12 @@ class DeadLetterQueueListener(
             memoizedParams.vidLabelingJob.substringBeforeLast("/vidLabelingJobs/", "")
           markModelLineFailedBestEffort(rawImpressionUpload, memoizedParams.modelLine, errorMessage)
         } else {
-          // Non-memoized Phase-2 path: the WorkItem references the upload + a single override model
-          // line (no `VidLabelingJob`), so only the parent `RawImpressionUploadModelLine` is
-          // marked.
-          val modelLine = params.overrideModelLinesList.singleOrNull()
-          if (modelLine == null) {
-            logger.warning(
-              "VidLabelerParams for ${workItem.name} has ${params.overrideModelLinesCount} model " +
-                "lines (expected exactly one); skipping model-line marking"
-            )
-          } else {
+          // Non-memoized Phase-2 path: the WorkItem carries a top-level `vid_labeling_job` covering
+          // the bundled model lines, plus the upload + every bundled `override_model_lines`. Mark
+          // the job FAILED and each bundled model line's parent `RawImpressionUploadModelLine`
+          // FAILED.
+          markVidLabelingJobFailedBestEffort(params.vidLabelingJob, errorMessage)
+          for (modelLine in params.overrideModelLinesList) {
             markModelLineFailedBestEffort(params.rawImpressionUpload, modelLine, errorMessage)
           }
         }
