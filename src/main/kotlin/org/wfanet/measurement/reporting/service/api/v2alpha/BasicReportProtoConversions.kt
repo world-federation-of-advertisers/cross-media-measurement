@@ -51,6 +51,7 @@ import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilte
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec as internalMetricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter as internalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
+import org.wfanet.measurement.internal.reporting.v2.reportingSetKey as internalReportingSetKey
 import org.wfanet.measurement.internal.reporting.v2.reportingUnit as internalReportingUnit
 import org.wfanet.measurement.internal.reporting.v2.resultGroupMetricSpec as internalResultGroupMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.resultGroupSpec as internalResultGroupSpec
@@ -95,6 +96,7 @@ fun BasicReport.toInternal(
   cmmsMeasurementConsumerId: String,
   basicReportId: String,
   campaignGroupId: String,
+  campaignGroupSynthesized: Boolean,
   createReportRequestId: String,
   reportingImpressionQualificationFilters: Iterable<ReportingImpressionQualificationFilter>,
   effectiveReportingImpressionQualificationFilters:
@@ -111,6 +113,7 @@ fun BasicReport.toInternal(
 
     details = internalBasicReportDetails {
       title = source.title
+      this.campaignGroupSynthesized = campaignGroupSynthesized
       impressionQualificationFilters +=
         reportingImpressionQualificationFilters.map {
           it.toInternal(impressionQualificationFilterSpecsByName)
@@ -219,15 +222,38 @@ fun ResultGroupSpec.toInternal(): InternalResultGroupSpec {
 fun ReportingUnit.toInternal(): InternalReportingUnit {
   val source = this
   return internalReportingUnit {
-    // Only BasicReports with DataProvider components will be converted to internal BasicReports
-    dataProviderKeys =
-      InternalReportingUnitKt.dataProviderKeys {
-        for (reportingUnitComponent in source.componentsList) {
-          dataProviderKeys += internalDataProviderKey {
-            cmmsDataProviderId = DataProviderKey.fromName(reportingUnitComponent)!!.dataProviderId
+    // BasicReport reporting_unit components are either all DataProviders (Mode 1) or all
+    // ReportingSets / "custom groups" (Mode 2); mixing is rejected by request validation.
+    if (
+      source.componentsList.isNotEmpty() &&
+        DataProviderKey.fromName(source.componentsList.first()) == null
+    ) {
+      reportingSetKeys =
+        InternalReportingUnitKt.reportingSetKeys {
+          for (reportingUnitComponent in source.componentsList) {
+            // A `?: error(...)` rather than `!!` so a future validator relaxation fails loudly
+            // instead of surfacing an opaque NPE.
+            val reportingSetKey =
+              ReportingSetKey.fromName(reportingUnitComponent)
+                ?: error("reporting_unit.components is not a valid ReportingSet resource name")
+            reportingSetKeys += internalReportingSetKey {
+              cmmsMeasurementConsumerId = reportingSetKey.cmmsMeasurementConsumerId
+              externalReportingSetId = reportingSetKey.reportingSetId
+            }
           }
         }
-      }
+    } else {
+      dataProviderKeys =
+        InternalReportingUnitKt.dataProviderKeys {
+          for (reportingUnitComponent in source.componentsList) {
+            dataProviderKeys += internalDataProviderKey {
+              cmmsDataProviderId =
+                DataProviderKey.fromName(reportingUnitComponent)?.dataProviderId
+                  ?: error("reporting_unit.components is not a valid DataProvider resource name")
+            }
+          }
+        }
+    }
   }
 }
 
@@ -417,8 +443,14 @@ fun InternalBasicReport.toBasicReport(
   return basicReport {
     name = BasicReportKey(source.cmmsMeasurementConsumerId, source.externalBasicReportId).toName()
     title = source.details.title
-    campaignGroup =
+    val campaignGroupName =
       ReportingSetKey(source.cmmsMeasurementConsumerId, source.externalCampaignGroupId).toName()
+    // The campaign group is always exposed via effective_campaign_group. When the server
+    // synthesized it (Mode 2), the caller-facing campaign_group stays empty.
+    effectiveCampaignGroup = campaignGroupName
+    if (!source.details.campaignGroupSynthesized) {
+      campaignGroup = campaignGroupName
+    }
     campaignGroupDisplayName = source.campaignGroupDisplayName
     reportingInterval = reportingInterval {
       if (source.details.reportingInterval.hasReportStart()) {
