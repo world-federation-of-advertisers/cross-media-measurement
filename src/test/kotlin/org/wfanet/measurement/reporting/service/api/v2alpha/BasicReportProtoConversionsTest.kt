@@ -20,14 +20,17 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerEventGroupKey
 import org.wfanet.measurement.internal.reporting.v2.BasicReport as InternalBasicReport
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt as InternalResultGroupKt
 import org.wfanet.measurement.internal.reporting.v2.basicReport as internalBasicReport
+import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.basicReportResultDetails
 import org.wfanet.measurement.internal.reporting.v2.resultGroup as internalResultGroup
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.ResultGroup.MetricMetadata.ReportingUnitComponentSummary
+import org.wfanet.measurement.reporting.v2alpha.reportingUnit
 
 @RunWith(JUnit4::class)
 class BasicReportProtoConversionsTest {
@@ -60,6 +63,64 @@ class BasicReportProtoConversionsTest {
         ReportingSetKey(CMMS_MEASUREMENT_CONSUMER_ID, COMPONENT_EXTERNAL_REPORTING_SET_ID).toName()
       )
     assertThat(componentSummary.eventGroupSummariesList).isEmpty()
+  }
+
+  @Test
+  fun `ReportingUnit toInternal encodes DataProvider components`() {
+    val internalReportingUnit =
+      reportingUnit { components += DataProviderKey(CMMS_DATA_PROVIDER_ID).toName() }.toInternal()
+
+    assertThat(
+        internalReportingUnit.dataProviderKeys.dataProviderKeysList.map { it.cmmsDataProviderId }
+      )
+      .containsExactly(CMMS_DATA_PROVIDER_ID)
+  }
+
+  @Test
+  fun `ReportingUnit toInternal encodes ReportingSet custom-group components`() {
+    val publicReportingUnit = reportingUnit {
+      components +=
+        ReportingSetKey(CMMS_MEASUREMENT_CONSUMER_ID, COMPONENT_EXTERNAL_REPORTING_SET_ID).toName()
+    }
+
+    val internalReportingUnit = publicReportingUnit.toInternal()
+
+    val reportingSetKey = internalReportingUnit.reportingSetKeys.reportingSetKeysList.single()
+    assertThat(reportingSetKey.cmmsMeasurementConsumerId).isEqualTo(CMMS_MEASUREMENT_CONSUMER_ID)
+    assertThat(reportingSetKey.externalReportingSetId)
+      .isEqualTo(COMPONENT_EXTERNAL_REPORTING_SET_ID)
+    // Round-trips back to the same public resource names.
+    assertThat(internalReportingUnit.toReportingUnit()).isEqualTo(publicReportingUnit)
+  }
+
+  @Test
+  fun `toBasicReport sets campaign_group and effective_campaign_group when caller-supplied`() {
+    val basicReport =
+      INTERNAL_BASIC_REPORT.toBasicReport(
+        populateDeprecatedReportingUnitEventGroupSummaries = false
+      )
+
+    val expectedName =
+      ReportingSetKey(CMMS_MEASUREMENT_CONSUMER_ID, CAMPAIGN_GROUP_EXTERNAL_ID).toName()
+    assertThat(basicReport.campaignGroup).isEqualTo(expectedName)
+    assertThat(basicReport.effectiveCampaignGroup).isEqualTo(expectedName)
+  }
+
+  @Test
+  fun `toBasicReport leaves campaign_group empty but sets effective_campaign_group when synthesized`() {
+    val synthesizedReport = internalBasicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalBasicReportId = "basic-report"
+      externalCampaignGroupId = CAMPAIGN_GROUP_EXTERNAL_ID
+      details = basicReportDetails { campaignGroupSynthesized = true }
+    }
+
+    val basicReport =
+      synthesizedReport.toBasicReport(populateDeprecatedReportingUnitEventGroupSummaries = false)
+
+    assertThat(basicReport.campaignGroup).isEmpty()
+    assertThat(basicReport.effectiveCampaignGroup)
+      .isEqualTo(ReportingSetKey(CMMS_MEASUREMENT_CONSUMER_ID, CAMPAIGN_GROUP_EXTERNAL_ID).toName())
   }
 
   @Test
@@ -155,11 +216,12 @@ class BasicReportProtoConversionsTest {
     private const val CMMS_DATA_PROVIDER_ID = "dp"
     private const val CMMS_EVENT_GROUP_ID = "eg"
     private const val COMPONENT_EXTERNAL_REPORTING_SET_ID = "component-reporting-set"
+    private const val CAMPAIGN_GROUP_EXTERNAL_ID = "campaign-group"
 
     private val INTERNAL_BASIC_REPORT: InternalBasicReport = internalBasicReport {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "basic-report"
-      externalCampaignGroupId = "campaign-group"
+      externalCampaignGroupId = CAMPAIGN_GROUP_EXTERNAL_ID
       resultDetails = basicReportResultDetails {
         resultGroups += internalResultGroup {
           title = "title"

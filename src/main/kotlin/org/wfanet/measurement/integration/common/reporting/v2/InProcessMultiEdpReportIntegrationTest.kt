@@ -357,6 +357,8 @@ abstract class InProcessMultiEdpReportIntegrationTest(
             effectiveImpressionQualificationFilters +=
               retrievedBasicReport.impressionQualificationFiltersList
             effectiveModelLine = inProcessCmmsComponents.modelLineResourceName
+            // Server-derived: equals the caller-supplied campaign_group in DataProvider mode.
+            effectiveCampaignGroup = campaignGroup
             reportingInterval =
               reportingInterval.copy {
                 effectiveReportStart =
