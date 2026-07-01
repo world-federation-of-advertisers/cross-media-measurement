@@ -24,6 +24,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
 import java.util.logging.Logger
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.toInstant
@@ -497,20 +498,14 @@ class VidLabelerApp(
         continue
       }
       markParentCompleted(parent, dataProvider)
-    }
-
-    // Drop the single `labeled-impressions/done` marker only once *every* model line of this
-    // upload has reached COMPLETED. The marker makes DataAvailabilitySync crawl the whole output
-    // folder, which mixes every model line's labeled blobs; gating on full-upload completion keeps
-    // it from publishing a model line whose labeling is still in flight. This re-lists *after* the
-    // marks above so the last worker to finish observes every concurrent writer's COMPLETED state.
-    // Idempotent: a redelivery (or a concurrent last-out on the final model line) just rewrites the
-    // same empty blob.
-    if (allModelLinesCompleted(upload)) {
-      writeDoneBlob(params.vidLabeledImpressionsStorageParams)
-      metrics.doneBlobsWrittenCounter.add(
-        1,
-        Attributes.of(metrics.DATA_PROVIDER_ATTR, dataProvider),
+      // This model line just reached last-job-out, so every one of its files is flushed. Drop a
+      // `done` marker in each date folder it produced so DataAvailabilitySync finalizes that
+      // (model line, date). Independent per model line: a FAILED/stuck sibling no longer withholds
+      // this line's availability.
+      writeDoneBlobsForModelLine(
+        params.vidLabeledImpressionsStorageParams,
+        completedModelLine,
+        dataProvider,
       )
     }
   }
@@ -556,22 +551,8 @@ class VidLabelerApp(
   }
 
   /**
-   * Returns true iff every [RawImpressionUploadModelLine] under [upload] is in the terminal
-   * `COMPLETED` state. Read *after* this WorkItem marked its own model line(s) `COMPLETED`, so the
-   * last model line of the upload to finish observes the whole set complete. Returns false for an
-   * upload with no model lines; a single `FAILED` model line keeps it false until an operator
-   * resolves it.
-   */
-  private suspend fun allModelLinesCompleted(upload: String): Boolean {
-    val rows = listAllModelLines(upload)
-    return rows.isNotEmpty() &&
-      rows.all { it.state == RawImpressionUploadModelLine.State.COMPLETED }
-  }
-
-  /**
    * Lists every [RawImpressionUploadModelLine] under [upload] (no `cmms_model_line` filter). Used
-   * both to resolve the parent rows of the model lines this call completed and, on a fresh
-   * post-mark read, to gate the upload-wide `done` blob.
+   * to resolve the parent rows of the model lines this call completed.
    */
   private suspend fun listAllModelLines(upload: String): List<RawImpressionUploadModelLine> {
     val rows = mutableListOf<RawImpressionUploadModelLine>()
@@ -590,14 +571,46 @@ class VidLabelerApp(
     return rows
   }
 
-  /** Writes an empty `done` marker blob under the labeled-impressions prefix. */
-  private suspend fun writeDoneBlob(outputStorageParams: VidLabelerParams.StorageParams) {
-    val doneUri = "${outputStorageParams.impressionsBlobPrefix}/labeled-impressions/done"
+  /**
+   * Writes an empty `done` marker in every date folder [cmmsModelLine] produced under the
+   * labeled-impressions prefix.
+   *
+   * Called at the model line's last-job-out, when all of its files are flushed, so enumerating
+   * `<prefix>/model-line/<id>/` yields every finalized `<YYYY-MM-DD>/` folder. Writing
+   * `<date>/done` in each lets `DataAvailabilitySync` classify that (model line, date) as
+   * finalized. Idempotent: re-writing an already-present marker (a redelivery, or a date folder
+   * carried over from a prior upload of the same model line) is a no-op.
+   */
+  private suspend fun writeDoneBlobsForModelLine(
+    outputStorageParams: VidLabelerParams.StorageParams,
+    cmmsModelLine: String,
+    dataProvider: String,
+  ) {
+    val modelLineId =
+      requireNotNull(ModelLineKey.fromName(cmmsModelLine)) {
+          "completed model line is not a valid ModelLine resource name: $cmmsModelLine"
+        }
+        .modelLineId
     val storageConfig = getStorageConfig(outputStorageParams)
-    val blobUri = SelectedStorageClient.parseBlobUri(doneUri)
-    SelectedStorageClient(blobUri, storageConfig.rootDirectory, storageConfig.projectId)
-      .writeBlob(blobUri.key, ByteString.EMPTY)
-    logger.info("Wrote done marker blob to $doneUri")
+    val prefixUri = "${outputStorageParams.impressionsBlobPrefix}/model-line/$modelLineId/"
+    val prefixBlobUri = SelectedStorageClient.parseBlobUri(prefixUri)
+    // A SelectedStorageClient is bound to a single blob key (it checks blobUri.key == blobKey), so
+    // use one client to list the date folders and a fresh per-key client to write each `done`.
+    val listClient =
+      SelectedStorageClient(prefixBlobUri, storageConfig.rootDirectory, storageConfig.projectId)
+    var count = 0
+    listClient.listBlobKeysAndPrefixes(prefixBlobUri.key).collect { dateFolderKey ->
+      val doneUri = "$prefixUri${dateFolderKey.removePrefix(prefixBlobUri.key)}done"
+      val doneBlobUri = SelectedStorageClient.parseBlobUri(doneUri)
+      SelectedStorageClient(doneBlobUri, storageConfig.rootDirectory, storageConfig.projectId)
+        .writeBlob(doneBlobUri.key, ByteString.EMPTY)
+      count++
+    }
+    metrics.doneBlobsWrittenCounter.add(
+      count.toLong(),
+      Attributes.of(metrics.DATA_PROVIDER_ATTR, dataProvider),
+    )
+    logger.info("Wrote $count done marker(s) for model line $cmmsModelLine under $prefixUri")
   }
 
   /**

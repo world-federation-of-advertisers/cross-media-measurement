@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.util.Timestamps
+import java.time.LocalDate
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -59,6 +60,7 @@ class ParquetImpressionConverterTest {
             entityId = "p-9"
           },
         ),
+      maxEventDate = LocalDate.parse("2026-06-30"),
     )
 
   private fun digestedEvent(row: Map<String, ParquetValue>): ParquetDigestedEvent =
