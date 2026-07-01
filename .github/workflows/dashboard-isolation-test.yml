@@ -20,6 +20,10 @@ on:
       environment:
         type: string
         required: true
+      edp_config:
+        description: "JSON string containing EDP configs; forwarded from vars.DASHBOARD_EDP_CONFIG by the caller. Passed as an input (not read via vars) because matrix expansion happens before the callee's environment scope is applied, so vars.DASHBOARD_EDP_CONFIG evaluates to empty in the matrix context."
+        type: string
+        required: true
   workflow_dispatch:
     inputs:
       environment:
@@ -29,6 +33,10 @@ on:
         options:
           - dev
           - qa
+      edp_config:
+        description: "JSON string of EDP configs (see workflow_call description)"
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -123,7 +131,7 @@ jobs:
     environment: ${{ inputs.environment }}
     strategy:
       matrix:
-        edp: ${{ fromJson(vars.DASHBOARD_EDP_CONFIG) }}
+        edp: ${{ fromJson(inputs.edp_config) }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 

@@ -258,6 +258,7 @@ jobs:
       id-token: write
     with:
       environment: ${{ inputs.environment }}
+      edp_config: ${{ vars.DASHBOARD_EDP_CONFIG }}
 
   run-dashboard-compliance-check:
     if: inputs.run-tests
