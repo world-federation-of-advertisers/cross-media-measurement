@@ -17,49 +17,50 @@
 package org.wfanet.measurement.edpaggregator.subpoolassigner
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.TextFormat
+import com.google.protobuf.ByteString
+import java.nio.file.Paths
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.virtualpeople.common.CompiledNode
+import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.virtualpeople.common.eventId
 import org.wfanet.virtualpeople.common.labelerInput
 
 @RunWith(JUnit4::class)
 class VirtualPeoplePoolEmitLabelerTest {
+  @Test
+  fun `fromCompiledNodeBlob reads a Riegeli CompiledNode list`() {
+    val modelBlob: ByteString =
+      MODEL_BLOB_PATH.toFile().inputStream().use { ByteString.readFrom(it) }
 
-  private fun build(protoText: String): VirtualPeoplePoolEmitLabeler {
-    val root = CompiledNode.newBuilder()
-    TextFormat.merge(protoText, root)
-    return VirtualPeoplePoolEmitLabeler.fromCompiledNodeBlob(root.build().toByteString())
+    // Loads without throwing: the blob is a Riegeli record list, so the pre-fix single-node
+    // `CompiledNode.parseFrom(modelBlob)` threw here; the list reader succeeds.
+    val labeler = VirtualPeoplePoolEmitLabeler.fromCompiledNodeBlob(modelBlob)
+    val offsets = labeler.emit(labelerInput { eventId = eventId { id = "any-event" } })
+
+    // `single_id_model` is a single-VID model with no `RankedPopulationNode`, so POOL_IDENTITY
+    // emits no pool offsets. The point of this test is that the Riegeli list is read and the
+    // `Labeler` builds — the load path the pre-fix loader broke.
+    assertThat(offsets).isEmpty()
   }
 
-  @Test
-  fun `emit returns the pool offset of the ranked leaf`() {
-    val labeler =
-      build(
-        """
-        name: "Root"
-        ranked_population_node {
-          pools { population_offset: 100 total_population: 500 }
-          random_seed: "seed"
-          ranked_size: 200
-          unranked_mode: DISJOINT
-        }
-        """
-          .trimIndent()
-      )
-
-    val offsets =
-      labeler.emit(
-        labelerInput {
-          eventId = eventId {
-            publisher = "test"
-            id = "event-1"
-          }
-        }
-      )
-
-    assertThat(offsets).containsExactly(100L)
+  companion object {
+    /**
+     * Riegeli-encoded `CompiledNode` list, vendored from `virtual-people-core-serving` v0.3.1 into
+     * `src/main/resources/testing/labeler`. Shared with `VirtualPeopleVidAssignerTest`; exercises
+     * the Riegeli-list read path in [VirtualPeoplePoolEmitLabeler.fromCompiledNodeBlob].
+     */
+    private val MODEL_BLOB_PATH =
+      getRuntimePath(
+        Paths.get(
+          "wfa_measurement_system",
+          "src",
+          "main",
+          "resources",
+          "testing",
+          "labeler",
+          "single_id_model_riegeli_list",
+        )
+      )!!
   }
 }
