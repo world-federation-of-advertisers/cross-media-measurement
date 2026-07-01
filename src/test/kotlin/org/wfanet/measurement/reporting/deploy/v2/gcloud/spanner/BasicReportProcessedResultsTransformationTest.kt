@@ -1927,6 +1927,117 @@ class BasicReportProcessedResultsTransformationTest {
   }
 
   @Test
+  fun `buildResultGroups skips per-primitive component metrics when a primitive's window bucket is absent`() {
+    // Regression for the DATA_PROVIDER-keyed `continue` in buildResults. Under a weekly
+    // cadence with `component.non_cumulative` requested, per-EDP RSRs live in per-week
+    // buckets keyed by `(non_cumulative_start=Monday, end=Monday)`. If one primitive's
+    // RSR is missing from a given window's map (legitimate coverage gap: nothing was
+    // computed for that primitive in that window), the read must skip that primitive's
+    // metric slice rather than throw NoSuchElementException.
+    val basicReport = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      details = basicReportDetails {
+        impressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        effectiveImpressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        reportingInterval = REPORTING_INTERVAL
+        resultGroupSpecs += resultGroupSpec {
+          title = "component-only-partial-coverage"
+          reportingUnit = reportingUnit {
+            dataProviderKeys =
+              ReportingUnitKt.dataProviderKeys {
+                dataProviderKeys += dataProviderKey { cmmsDataProviderId = DATA_PROVIDER_1_ID }
+                dataProviderKeys += dataProviderKey { cmmsDataProviderId = DATA_PROVIDER_2_ID }
+              }
+          }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+          dimensionSpec = dimensionSpec {}
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                nonCumulative =
+                  ResultGroupMetricSpecKt.basicMetricSetSpec {
+                    reach = true
+                    impressions = true
+                  }
+              }
+          }
+        }
+      }
+    }
+
+    val weeklyStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
+    val reportingSetResults =
+      listOf(
+        // Only primitive 1 has data for this week. Primitive 2's RSR is intentionally absent.
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 1
+          dimension =
+            ReportingSetResultKt.dimension {
+              externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
+              externalImpressionQualificationFilterId =
+                IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
+              metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+              grouping = ReportingSetResultKt.DimensionKt.grouping {}
+            }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart = weeklyStart
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  processedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      nonCumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 10
+                          impressions = 100
+                        }
+                    }
+                }
+            }
+        }
+      )
+
+    val primitiveInfoByDataProviderId =
+      mapOf(
+        DATA_PROVIDER_1_ID to
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+          ),
+        DATA_PROVIDER_2_ID to
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+          ),
+      )
+
+    // Must not throw NoSuchElementException: Key <PRIMITIVE_REPORTING_SET_2_ID> is missing.
+    val resultGroups =
+      BasicReportProcessedResultsTransformation.buildResultGroups(
+        basicReport,
+        reportingSetResults,
+        primitiveInfoByDataProviderId,
+        compositeReportingSetIdBySetExpression = emptyMap(),
+      )
+
+    val perWeekResult = resultGroups.single().resultsList.single()
+    val componentByDpId = perWeekResult.metricSet.componentsList.associateBy { it.key }
+    // Only the primitive with data appears; the missing one is silently skipped.
+    standardAssertThat(componentByDpId.keys).containsExactly(DATA_PROVIDER_1_ID)
+    standardAssertThat(componentByDpId.getValue(DATA_PROVIDER_1_ID).value.nonCumulative.reach)
+      .isEqualTo(10L)
+    standardAssertThat(componentByDpId.getValue(DATA_PROVIDER_1_ID).value.nonCumulative.impressions)
+      .isEqualTo(100L)
+  }
+
+  @Test
   fun `buildResultGroups creates result groups correctly when reporting unit with 3 components`() {
     val basicReport = basicReport {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
