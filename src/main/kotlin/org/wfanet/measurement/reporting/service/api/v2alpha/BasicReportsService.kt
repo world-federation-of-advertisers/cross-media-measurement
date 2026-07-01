@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.filter
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.access.client.v1alpha.withForwardedTrustedCredentials
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -143,46 +144,62 @@ class BasicReportsService(
     data class Primitive(val cmmsEventGroups: Set<String>) : ReportingSetMapKey()
   }
 
-  private data class ReportingSetMaps(
-    // Map of reporting_unit component resource name to the Primitive ReportingSet used for it. In
-    // DataProvider mode the key is a DataProvider resource name (mapping to a per-DataProvider
-    // auto-minted primitive); in custom-group mode the key is a ReportingSet resource name (mapping
-    // to the caller-supplied custom-group primitive itself).
-    val primitiveReportingSetsByComponent: Map<String, ReportingSet>,
-    // Map of ReportingSet composite to ReportingSet resource name
-    val nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
-  )
+  /**
+   * The primitive [ReportingSet] to use for each ReportingUnit component (keyed by the component's
+   * [ResourceKey]) plus the resource name of each existing composite [ReportingSet] under the
+   * Campaign Group (for reuse).
+   */
+  private sealed interface ReportingSetMaps<T : ResourceKey> {
+    /** Map of ReportingUnit component key to the Primitive [ReportingSet] used for it. */
+    val primitiveReportingSetsByComponentKey: Map<T, ReportingSet>
+    /** Map of composite [ReportingSet] to its resource name. */
+    val nameByReportingSetComposite: Map<ReportingSet.Composite, String>
+  }
+
+  /** [ReportingSetMaps] where the ReportingUnit components are DataProviders. */
+  private data class DataProviderReportingSetMaps(
+    override val primitiveReportingSetsByComponentKey: Map<DataProviderKey, ReportingSet>,
+    override val nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
+  ) : ReportingSetMaps<DataProviderKey>
+
+  /** [ReportingSetMaps] where the ReportingUnit components are ReportingSets. */
+  private data class ReportingSetComponentReportingSetMaps(
+    override val primitiveReportingSetsByComponentKey: Map<ReportingSetKey, ReportingSet>,
+    override val nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
+  ) : ReportingSetMaps<ReportingSetKey>
 
   /**
    * The effective Campaign Group for a [CreateBasicReportRequest] and the derived facts the request
-   * flow needs, resolved from either a caller-supplied Campaign Group (DataProvider mode) or a
-   * server-synthesized one (custom-group mode).
+   * flow needs, resolved from either a caller-supplied Campaign Group (when `campaign_group` is
+   * specified) or a server-synthesized one (when it is not).
    */
   private data class CampaignGroupResolution(
     /** The effective Campaign Group [ReportingSet] (caller-supplied or server-synthesized). */
     val campaignGroup: ReportingSet,
     /** Key of [campaignGroup]. */
     val campaignGroupKey: ReportingSetKey,
-    /** Whether [campaignGroup] was synthesized by the server (custom-group mode). */
-    val synthesized: Boolean,
     /** Resource names of the DataProviders spanned by [campaignGroup]'s EventGroup universe. */
     val dataProviderNames: Set<String>,
     /**
-     * Custom-group components keyed by ReportingSet resource name. Empty in DataProvider mode; in
-     * custom-group mode these are the caller-supplied primitive ReportingSets used directly as the
-     * per-component primitives (no per-DataProvider auto-mint).
+     * The ReportingUnit's ReportingSet components keyed by resource name. Empty when
+     * `campaign_group` was specified (components are DataProviders); otherwise these
+     * caller-supplied primitive ReportingSets are used directly as the per-component primitives (no
+     * per-DataProvider auto-mint), and the Campaign Group is synthesized from them.
      */
-    val customGroupPrimitiveReportingSetsByName: Map<String, ReportingSet>,
-  )
+    val reportingSetComponentsByName: Map<String, ReportingSet>,
+  ) {
+    /** Whether the Campaign Group was synthesized (i.e. `campaign_group` was not specified). */
+    val synthesized: Boolean
+      get() = reportingSetComponentsByName.isNotEmpty()
+  }
 
   override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport {
     val eventTemplateFieldsByPath = eventMessageDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
 
-    // The Campaign Group is either supplied by the caller (DataProvider mode) or, when
-    // campaign_group is empty, synthesized by the server from the custom-group ReportingSet
-    // components (custom-group mode). Read the supplied Campaign Group (if any) up front so request
-    // validation can enforce the corresponding component-type rules; synthesis runs after
-    // validation.
+    // The Campaign Group is either supplied by the caller (when campaign_group is specified) or,
+    // when campaign_group is empty, synthesized by the server from the ReportingSet components.
+    // Read the supplied Campaign Group (if any) up front so request validation can enforce the
+    // corresponding component-type rules; synthesis runs after validation.
     val suppliedCampaignGroup: ReportingSet? =
       if (request.basicReport.campaignGroup.isEmpty()) {
         null
@@ -228,8 +245,8 @@ class BasicReportsService(
         throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
-    // In custom-group mode the effective Campaign Group is synthesized from the (now validated)
-    // custom-group components. In DataProvider mode it is the supplied Campaign Group.
+    // When campaign_group is not specified, the effective Campaign Group is synthesized from the
+    // (now validated) ReportingSet components. Otherwise it is the supplied Campaign Group.
     val campaignGroupResolution: CampaignGroupResolution =
       if (suppliedCampaignGroup != null) {
         resolveSuppliedCampaignGroup(suppliedCampaignGroup)
@@ -267,7 +284,7 @@ class BasicReportsService(
         request.basicReport.reportingInterval.reportStart
       }
 
-    val reportingSetMaps: ReportingSetMaps = buildReportingSetMaps(campaignGroupResolution)
+    val reportingSetMaps: ReportingSetMaps<*> = buildReportingSetMaps(campaignGroupResolution)
     val effectiveModelLine: ModelLine? =
       try {
         getEffectiveModelLine(
@@ -421,7 +438,8 @@ class BasicReportsService(
         campaignGroupName = campaignGroupResolution.campaignGroup.name,
         impressionQualificationFilterSpecsLists =
           impressionQualificationFilterSpecsByName.values + customFilterSpecs,
-        dataProviderPrimitiveReportingSetMap = reportingSetMaps.primitiveReportingSetsByComponent,
+        dataProviderPrimitiveReportingSetMap =
+          reportingSetMaps.primitiveReportingSetsByComponentKey.mapKeys { it.key.toName() },
         resultGroupSpecs = request.basicReport.resultGroupSpecsList,
         eventTemplateFieldsByPath = eventTemplateFieldsByPath,
       )
@@ -761,137 +779,144 @@ class BasicReportsService(
   }
 
   /**
-   * Builds the [ReportingSetMaps] for the effective Campaign Group: a map of reporting_unit
-   * component resource name to Primitive ReportingSet, and a map of ReportingSet composite to
-   * ReportingSet resource name (for reusing composites already created under the Campaign Group).
+   * Builds the [ReportingSetMaps] for the effective Campaign Group: the Primitive ReportingSet to
+   * use for each ReportingUnit component, and a map of composite ReportingSet to resource name (for
+   * reusing composites already created under the Campaign Group).
    *
-   * In DataProvider mode a primitive is reused or auto-minted per DataProvider spanned by the
-   * Campaign Group. In custom-group mode the caller-supplied custom groups are the per-component
-   * primitives directly, so no auto-mint occurs.
+   * When `campaign_group` was specified, a primitive is reused or auto-minted per DataProvider
+   * spanned by the Campaign Group. Otherwise the caller-supplied ReportingSet components are the
+   * per-component primitives directly, so no auto-mint occurs.
    */
   private suspend fun buildReportingSetMaps(
     campaignGroupResolution: CampaignGroupResolution
-  ): ReportingSetMaps {
+  ): ReportingSetMaps<*> {
     val campaignGroupKey = campaignGroupResolution.campaignGroupKey
 
     // Existing ReportingSets under the effective Campaign Group, indexed for reuse: composites by
     // their set expression, primitives by their EventGroup set.
-    val campaignGroupReportingSetMap: Map<ReportingSetMapKey, ReportingSet> = buildMap {
-      internalReportingSetsStub
-        .streamReportingSets(
-          streamReportingSetsRequest {
-            filter =
-              StreamReportingSetsRequestKt.filter {
-                cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
-                externalCampaignGroupId = campaignGroupKey.reportingSetId
+    val campaignGroupReportingSetMap: Map<ReportingSetMapKey, ReportingSet> =
+      try {
+        buildMap {
+          internalReportingSetsStub
+            .streamReportingSets(
+              streamReportingSetsRequest {
+                filter =
+                  StreamReportingSetsRequestKt.filter {
+                    cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
+                    externalCampaignGroupId = campaignGroupKey.reportingSetId
+                  }
+                limit = 1000
               }
-            limit = 1000
-          }
-        )
-        .filter { it.filter.isEmpty() }
-        .collect {
-          val reportingSet = it.toReportingSet()
-          if (reportingSet.hasComposite()) {
-            put(ReportingSetMapKey.Composite(composite = reportingSet.composite), reportingSet)
-          } else {
-            put(
-              ReportingSetMapKey.Primitive(
-                cmmsEventGroups = reportingSet.primitive.cmmsEventGroupsList.toSet()
-              ),
-              reportingSet,
             )
-          }
+            .filter { it.filter.isEmpty() }
+            .collect {
+              val reportingSet = it.toReportingSet()
+              if (reportingSet.hasComposite()) {
+                put(ReportingSetMapKey.Composite(composite = reportingSet.composite), reportingSet)
+              } else {
+                put(
+                  ReportingSetMapKey.Primitive(
+                    cmmsEventGroups = reportingSet.primitive.cmmsEventGroupsList.toSet()
+                  ),
+                  reportingSet,
+                )
+              }
+            }
         }
-    }
+      } catch (e: StatusException) {
+        throw Status.INTERNAL.withCause(e).asRuntimeException()
+      }
 
-    // Map of ReportingSet Composite to ReportingSet resource name.
+    // Map of composite ReportingSet to resource name.
     val reportingSetCompositeToNameMap: Map<ReportingSet.Composite, String> = buildMap {
       campaignGroupReportingSetMap
         .filter { it.key is ReportingSetMapKey.Composite }
         .forEach { put((it.key as ReportingSetMapKey.Composite).composite, it.value.name) }
     }
 
-    val primitiveReportingSetsByComponent: Map<String, ReportingSet> =
-      if (campaignGroupResolution.synthesized) {
-        // Custom-group mode: the caller-supplied custom groups are the per-component primitives.
-        campaignGroupResolution.customGroupPrimitiveReportingSetsByName
-      } else {
-        // DataProvider mode: reuse or auto-mint a primitive per DataProvider spanned by the
-        // Campaign Group's EventGroup universe.
-        val dataProviderEventGroupsMap: Map<String, List<String>> =
-          campaignGroupResolution.campaignGroup.primitive.cmmsEventGroupsList.groupBy {
-            EventGroupKey.fromName(it)!!.parentKey.toName()
-          }
-
-        buildMap {
-          for (dataProviderName in dataProviderEventGroupsMap.keys) {
-            val reportingSetMapKey =
-              ReportingSetMapKey.Primitive(
-                cmmsEventGroups = dataProviderEventGroupsMap.getValue(dataProviderName).toSet()
-              )
-
-            if (campaignGroupReportingSetMap.containsKey(reportingSetMapKey)) {
-              put(dataProviderName, campaignGroupReportingSetMap.getValue(reportingSetMapKey))
-            } else {
-              val id = "a${UUID.randomUUID()}"
-
-              val primitiveReportingSet =
-                try {
-                  internalReportingSetsStub
-                    .createReportingSet(
-                      internalCreateReportingSetRequest {
-                        externalReportingSetId = id
-                        reportingSet = internalReportingSet {
-                          cmmsMeasurementConsumerId =
-                            campaignGroupKey.parentKey.measurementConsumerId
-                          this.externalCampaignGroupId = campaignGroupKey.reportingSetId
-                          primitive =
-                            ReportingSetKt.primitive {
-                                cmmsEventGroups +=
-                                  dataProviderEventGroupsMap.getValue(dataProviderName)
-                              }
-                              .toInternal()
-                        }
-                      }
-                    )
-                    .toReportingSet()
-                } catch (e: StatusException) {
-                  throw Status.INTERNAL.withCause(e).asRuntimeException()
-                }
-
-              put(dataProviderName, primitiveReportingSet)
-            }
-          }
+    if (campaignGroupResolution.synthesized) {
+      // The caller-supplied ReportingSet components are the per-component primitives.
+      val primitiveReportingSetsByComponentKey: Map<ReportingSetKey, ReportingSet> =
+        campaignGroupResolution.reportingSetComponentsByName.mapKeys {
+          checkNotNull(ReportingSetKey.fromName(it.key))
         }
+      return ReportingSetComponentReportingSetMaps(
+        primitiveReportingSetsByComponentKey,
+        reportingSetCompositeToNameMap,
+      )
+    }
+
+    // Reuse or auto-mint a primitive per DataProvider spanned by the Campaign Group's EventGroup
+    // universe.
+    val eventGroupsByDataProviderKey: Map<DataProviderKey, List<String>> =
+      campaignGroupResolution.campaignGroup.primitive.cmmsEventGroupsList.groupBy {
+        checkNotNull(EventGroupKey.fromName(it)).parentKey
       }
 
-    return ReportingSetMaps(primitiveReportingSetsByComponent, reportingSetCompositeToNameMap)
+    val primitiveReportingSetsByComponentKey: Map<DataProviderKey, ReportingSet> = buildMap {
+      for ((dataProviderKey, eventGroupNames) in eventGroupsByDataProviderKey) {
+        val reportingSetMapKey =
+          ReportingSetMapKey.Primitive(cmmsEventGroups = eventGroupNames.toSet())
+
+        if (campaignGroupReportingSetMap.containsKey(reportingSetMapKey)) {
+          put(dataProviderKey, campaignGroupReportingSetMap.getValue(reportingSetMapKey))
+        } else {
+          val id = "a${UUID.randomUUID()}"
+
+          val primitiveReportingSet =
+            try {
+              internalReportingSetsStub
+                .createReportingSet(
+                  internalCreateReportingSetRequest {
+                    externalReportingSetId = id
+                    reportingSet = internalReportingSet {
+                      cmmsMeasurementConsumerId = campaignGroupKey.parentKey.measurementConsumerId
+                      this.externalCampaignGroupId = campaignGroupKey.reportingSetId
+                      primitive =
+                        ReportingSetKt.primitive { cmmsEventGroups += eventGroupNames }.toInternal()
+                    }
+                  }
+                )
+                .toReportingSet()
+            } catch (e: StatusException) {
+              throw Status.INTERNAL.withCause(e).asRuntimeException()
+            }
+
+          put(dataProviderKey, primitiveReportingSet)
+        }
+      }
+    }
+
+    return DataProviderReportingSetMaps(
+      primitiveReportingSetsByComponentKey,
+      reportingSetCompositeToNameMap,
+    )
   }
 
   /**
-   * Resolves a caller-supplied Campaign Group (DataProvider mode) into a [CampaignGroupResolution].
+   * Resolves a caller-supplied Campaign Group (when `campaign_group` is specified) into a
+   * [CampaignGroupResolution].
    */
   private fun resolveSuppliedCampaignGroup(campaignGroup: ReportingSet): CampaignGroupResolution {
     val campaignGroupKey = checkNotNull(ReportingSetKey.fromName(campaignGroup.name))
     return CampaignGroupResolution(
       campaignGroup = campaignGroup,
       campaignGroupKey = campaignGroupKey,
-      synthesized = false,
       dataProviderNames = dataProviderNames(campaignGroup),
-      customGroupPrimitiveReportingSetsByName = emptyMap(),
+      reportingSetComponentsByName = emptyMap(),
     )
   }
 
   /**
-   * Synthesizes the Campaign Group for a custom-group [request] (empty `campaign_group`).
+   * Synthesizes the Campaign Group for a [request] whose `campaign_group` is not specified.
    *
-   * Resolves the custom-group ReportingSet components across all ResultGroupSpecs, validates them
-   * (each must be a primitive ReportingSet, and no two may resolve to the same DataProvider set),
-   * and transactionally get-or-creates a primitive self-referencing Campaign Group whose EventGroup
-   * universe is the union of the custom groups' EventGroups. Concurrent and retried requests with
-   * the same universe converge on one shared ReportingSet.
+   * Resolves the ReportingSet components across all ResultGroupSpecs, validates them (each must be
+   * a primitive ReportingSet, and no two may resolve to the same DataProvider set), and
+   * transactionally get-or-creates a primitive self-referencing Campaign Group whose EventGroup
+   * universe is the union of the components' EventGroups. Concurrent and retried requests with the
+   * same universe converge on one shared ReportingSet.
    *
-   * @throws ReportingSetNotFoundException if a custom-group component does not exist
+   * @throws ReportingSetNotFoundException if a ReportingSet component does not exist
    * @throws InvalidFieldValueException if a component is not a primitive ReportingSet, or two
    *   components resolve to the same DataProvider set
    * @throws InternalReportingSetsException on other internal errors
@@ -902,12 +927,12 @@ class BasicReportsService(
   ): CampaignGroupResolution {
     val componentsFieldPath = "basic_report.result_group_specs.reporting_unit.components"
 
-    // Distinct custom-group ReportingSet components across all ResultGroupSpecs.
-    val customGroupNames: Set<String> =
+    // Distinct ReportingSet components across all ResultGroupSpecs.
+    val componentNames: Set<String> =
       request.basicReport.resultGroupSpecsList.flatMap { it.reportingUnit.componentsList }.toSet()
 
-    val customGroupKeys: List<ReportingSetKey> =
-      customGroupNames.map { name ->
+    val componentKeys: List<ReportingSetKey> =
+      componentNames.map { name ->
         val key =
           ReportingSetKey.fromName(name)
             ?: throw InvalidFieldValueException(componentsFieldPath) { fieldPath ->
@@ -921,12 +946,13 @@ class BasicReportsService(
         key
       }
 
-    val customGroupsByName: Map<String, ReportingSet> = getReportingSets(parentKey, customGroupKeys)
+    val reportingSetComponentsByName: Map<String, ReportingSet> =
+      getReportingSets(parentKey, componentKeys)
 
-    // Each custom group must be a primitive ReportingSet, and no two may resolve to the same
+    // Each component must be a primitive ReportingSet, and no two may resolve to the same
     // DataProvider set (which would silently collide in the post-processor).
     val nameByDataProviderSet = mutableMapOf<Set<String>, String>()
-    for ((name, reportingSet) in customGroupsByName) {
+    for ((name, reportingSet) in reportingSetComponentsByName) {
       if (!reportingSet.hasPrimitive()) {
         throw InvalidFieldValueException(componentsFieldPath) { fieldPath ->
           "$fieldPath must each reference a primitive ReportingSet; $name is not primitive"
@@ -941,9 +967,9 @@ class BasicReportsService(
       }
     }
 
-    // Universe = union of all custom groups' EventGroups.
+    // Universe = union of all components' EventGroups.
     val eventGroupNames: List<String> =
-      customGroupsByName.values.flatMap { it.primitive.cmmsEventGroupsList }.distinct()
+      reportingSetComponentsByName.values.flatMap { it.primitive.cmmsEventGroupsList }.distinct()
 
     val synthesizedId = "a${UUID.randomUUID()}"
     val ensuredInternalReportingSet =
@@ -971,9 +997,8 @@ class BasicReportsService(
           ensuredInternalReportingSet.cmmsMeasurementConsumerId,
           ensuredInternalReportingSet.externalReportingSetId,
         ),
-      synthesized = true,
       dataProviderNames = dataProviderNames(synthesizedCampaignGroup),
-      customGroupPrimitiveReportingSetsByName = customGroupsByName,
+      reportingSetComponentsByName = reportingSetComponentsByName,
     )
   }
 

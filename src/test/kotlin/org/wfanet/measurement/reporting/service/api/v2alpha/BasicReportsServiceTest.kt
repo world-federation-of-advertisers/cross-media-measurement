@@ -455,10 +455,10 @@ class BasicReportsServiceTest {
   }
 
   /**
-   * Creates a primitive custom-group [ReportingSet] (empty `campaign_group`) with a single
-   * EventGroup, returning its resource name.
+   * Creates a primitive [ReportingSet] component (empty `campaign_group`) with a single EventGroup,
+   * returning its resource name.
    */
-  private suspend fun createPrimitiveCustomGroup(
+  private suspend fun createPrimitiveReportingSet(
     measurementConsumerKey: MeasurementConsumerKey,
     externalReportingSetId: String,
     cmmsDataProviderId: String,
@@ -484,10 +484,10 @@ class BasicReportsServiceTest {
   }
 
   /**
-   * Builds a custom-group ([reportingUnit] with ReportingSet components)
-   * [CreateBasicReportRequest].
+   * Builds a [CreateBasicReportRequest] whose [reportingUnit] has ReportingSet components (empty
+   * `campaign_group`).
    */
-  private fun customGroupBasicReportRequest(
+  private fun reportingSetComponentBasicReportRequest(
     measurementConsumerKey: MeasurementConsumerKey,
     basicReportId: String,
     componentNames: List<String>,
@@ -498,7 +498,7 @@ class BasicReportsServiceTest {
       }
     return createBasicReportRequest {
       parent = measurementConsumerKey.toName()
-      // campaign_group intentionally left empty (custom-group mode).
+      // campaign_group intentionally left empty (server synthesizes it).
       this.basicReport =
         BASIC_REPORT.copy {
           resultGroupSpecs.clear()
@@ -509,7 +509,7 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `createBasicReport synthesizes campaign group for custom group reporting units`(): Unit =
+  fun `createBasicReport synthesizes campaign group for ReportingSet reporting units`(): Unit =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       measurementConsumersService.createMeasurementConsumer(
@@ -518,17 +518,17 @@ class BasicReportsServiceTest {
         }
       )
 
-      // Two primitive custom groups with disjoint DataProvider sets.
-      val customGroup1 =
-        createPrimitiveCustomGroup(measurementConsumerKey, "customgroup1", "dp1", "eg1")
-      val customGroup2 =
-        createPrimitiveCustomGroup(measurementConsumerKey, "customgroup2", "dp2", "eg2")
+      // Two primitive ReportingSet components with disjoint DataProvider sets.
+      val reportingSetComponent1 =
+        createPrimitiveReportingSet(measurementConsumerKey, "reportingset1", "dp1", "eg1")
+      val reportingSetComponent2 =
+        createPrimitiveReportingSet(measurementConsumerKey, "reportingset2", "dp2", "eg2")
 
       val request =
-        customGroupBasicReportRequest(
+        reportingSetComponentBasicReportRequest(
           measurementConsumerKey,
           "a1234",
-          listOf(customGroup1, customGroup2),
+          listOf(reportingSetComponent1, reportingSetComponent2),
         )
 
       val response =
@@ -540,7 +540,7 @@ class BasicReportsServiceTest {
       assertThat(response.effectiveCampaignGroup).isNotEmpty()
 
       // The synthesized campaign group is a primitive, self-referencing ReportingSet whose
-      // EventGroups are the union of the custom groups' EventGroups.
+      // EventGroups are the union of the components' EventGroups.
       val synthesizedKey = checkNotNull(ReportingSetKey.fromName(response.effectiveCampaignGroup))
       val synthesized =
         internalReportingSetsService
@@ -565,17 +565,17 @@ class BasicReportsServiceTest {
           },
         )
 
-      // The created internal Report buckets metrics by the custom-group ReportingSets themselves
-      // (and mints the union composite referencing them, exercising the empty-campaign_group
-      // composite path).
+      // The created internal Report buckets metrics by the ReportingSet components themselves (and
+      // mints the union composite referencing them, exercising the empty-campaign_group composite
+      // path).
       val createReportRequest =
         argumentCaptor { verify(reportsServiceMock).createReport(capture()) }.firstValue
       assertThat(createReportRequest.report.reportingMetricEntriesList.map { it.key })
-        .containsAtLeast(customGroup1, customGroup2)
+        .containsAtLeast(reportingSetComponent1, reportingSetComponent2)
     }
 
   @Test
-  fun `createBasicReport reuses synthesized campaign group for identical custom groups`(): Unit =
+  fun `createBasicReport reuses the synthesized campaign group for identical components`(): Unit =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       measurementConsumersService.createMeasurementConsumer(
@@ -583,22 +583,22 @@ class BasicReportsServiceTest {
           cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
         }
       )
-      val customGroup1 =
-        createPrimitiveCustomGroup(measurementConsumerKey, "customgroup1", "dp1", "eg1")
-      val customGroup2 =
-        createPrimitiveCustomGroup(measurementConsumerKey, "customgroup2", "dp2", "eg2")
-      val componentNames = listOf(customGroup1, customGroup2)
+      val reportingSetComponent1 =
+        createPrimitiveReportingSet(measurementConsumerKey, "reportingset1", "dp1", "eg1")
+      val reportingSetComponent2 =
+        createPrimitiveReportingSet(measurementConsumerKey, "reportingset2", "dp2", "eg2")
+      val componentNames = listOf(reportingSetComponent1, reportingSetComponent2)
 
       val firstResponse =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           service.createBasicReport(
-            customGroupBasicReportRequest(measurementConsumerKey, "a1234", componentNames)
+            reportingSetComponentBasicReportRequest(measurementConsumerKey, "a1234", componentNames)
           )
         }
       val secondResponse =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           service.createBasicReport(
-            customGroupBasicReportRequest(measurementConsumerKey, "a5678", componentNames)
+            reportingSetComponentBasicReportRequest(measurementConsumerKey, "a5678", componentNames)
           )
         }
 
@@ -615,14 +615,14 @@ class BasicReportsServiceTest {
         cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
       }
     )
-    val customGroup =
-      createPrimitiveCustomGroup(measurementConsumerKey, "customgroup1", "dp1", "eg1")
+    val reportingSetComponent =
+      createPrimitiveReportingSet(measurementConsumerKey, "reportingset1", "dp1", "eg1")
 
     val request =
-      customGroupBasicReportRequest(
+      reportingSetComponentBasicReportRequest(
         measurementConsumerKey,
         "a1234",
-        listOf(DATA_PROVIDER_KEY.toName(), customGroup),
+        listOf(DATA_PROVIDER_KEY.toName(), reportingSetComponent),
       )
 
     val exception =
@@ -633,7 +633,7 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when custom groups share a DataProvider set`():
+  fun `createBasicReport throws INVALID_ARGUMENT when ReportingSets share a DataProvider set`():
     Unit = runBlocking {
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     measurementConsumersService.createMeasurementConsumer(
@@ -641,17 +641,17 @@ class BasicReportsServiceTest {
         cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
       }
     )
-    // Both custom groups resolve to the same DataProvider set ({dp1}).
-    val customGroup1 =
-      createPrimitiveCustomGroup(measurementConsumerKey, "customgroup1", "dp1", "eg1")
-    val customGroup2 =
-      createPrimitiveCustomGroup(measurementConsumerKey, "customgroup2", "dp1", "eg2")
+    // Both ReportingSets resolve to the same DataProvider set ({dp1}).
+    val reportingSetComponent1 =
+      createPrimitiveReportingSet(measurementConsumerKey, "reportingset1", "dp1", "eg1")
+    val reportingSetComponent2 =
+      createPrimitiveReportingSet(measurementConsumerKey, "reportingset2", "dp1", "eg2")
 
     val request =
-      customGroupBasicReportRequest(
+      reportingSetComponentBasicReportRequest(
         measurementConsumerKey,
         "a1234",
-        listOf(customGroup1, customGroup2),
+        listOf(reportingSetComponent1, reportingSetComponent2),
       )
 
     val exception =
@@ -662,7 +662,7 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `createBasicReport throws FAILED_PRECONDITION when a custom group does not exist`(): Unit =
+  fun `createBasicReport throws FAILED_PRECONDITION when a ReportingSet does not exist`(): Unit =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       measurementConsumersService.createMeasurementConsumer(
@@ -672,7 +672,7 @@ class BasicReportsServiceTest {
       )
 
       val request =
-        customGroupBasicReportRequest(
+        reportingSetComponentBasicReportRequest(
           measurementConsumerKey,
           "a1234",
           listOf(ReportingSetKey(measurementConsumerKey, "nonexistent").toName()),
@@ -686,7 +686,7 @@ class BasicReportsServiceTest {
     }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when a custom group is composite`(): Unit =
+  fun `createBasicReport throws INVALID_ARGUMENT when a ReportingSet is composite`(): Unit =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       measurementConsumersService.createMeasurementConsumer(
@@ -695,9 +695,9 @@ class BasicReportsServiceTest {
         }
       )
 
-      // A primitive ReportingSet plus a composite (UNION) custom group referencing it. Composite
-      // custom groups are rejected: custom-group components must be primitive.
-      createPrimitiveCustomGroup(measurementConsumerKey, "primitive1", "dp1", "eg1")
+      // A primitive ReportingSet plus a composite (UNION) ReportingSet referencing it. Composite
+      // components are rejected: ReportingSet components must be primitive.
+      createPrimitiveReportingSet(measurementConsumerKey, "primitive1", "dp1", "eg1")
       internalReportingSetsService.createReportingSet(
         createReportingSetRequest {
           reportingSet = internalReportingSet {
@@ -723,7 +723,7 @@ class BasicReportsServiceTest {
       )
 
       val request =
-        customGroupBasicReportRequest(
+        reportingSetComponentBasicReportRequest(
           measurementConsumerKey,
           "a1234",
           listOf(ReportingSetKey(measurementConsumerKey, "compositegroup").toName()),
@@ -749,8 +749,9 @@ class BasicReportsServiceTest {
     // 26 components exceeds the cap of 25. The cap is enforced during request validation, before
     // any ReportingSet is resolved, so the components need not exist.
     val componentNames =
-      (1..26).map { ReportingSetKey(measurementConsumerKey, "customgroup$it").toName() }
-    val request = customGroupBasicReportRequest(measurementConsumerKey, "a1234", componentNames)
+      (1..26).map { ReportingSetKey(measurementConsumerKey, "reportingset$it").toName() }
+    val request =
+      reportingSetComponentBasicReportRequest(measurementConsumerKey, "a1234", componentNames)
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -4135,8 +4136,8 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when campaignGroup empty and components are DataProviders`() =
     runBlocking {
-      // An empty campaign_group selects custom-group mode, where reporting_unit components must be
-      // ReportingSets. BASIC_REPORT uses a DataProvider component, so this is rejected.
+      // When campaign_group is not specified, reporting_unit components must be ReportingSets.
+      // BASIC_REPORT uses a DataProvider component, so this is rejected.
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
 
       measurementConsumersService.createMeasurementConsumer(

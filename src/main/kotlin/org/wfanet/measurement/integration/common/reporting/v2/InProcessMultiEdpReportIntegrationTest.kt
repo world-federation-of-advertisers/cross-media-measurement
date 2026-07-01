@@ -549,7 +549,7 @@ abstract class InProcessMultiEdpReportIntegrationTest(
     }
 
   @Test
-  fun `getBasicReport returns SUCCEEDED custom group basic report when basic report is completed`() =
+  fun `getBasicReport returns SUCCEEDED ReportingSet basic report when basic report is completed`() =
     runBlocking {
       val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
 
@@ -558,32 +558,32 @@ abstract class InProcessMultiEdpReportIntegrationTest(
         listEventGroups().groupBy { it.cmmsDataProvider }.values.map { it.first() }
       check(eventGroupPerEdp.size >= 4)
 
-      // Two custom groups, each spanning two EDPs, with disjoint EventGroups and distinct
-      // DataProvider sets ({edp0, edp1} and {edp2, edp3}). The groups cross publishers without
+      // Two ReportingSet components, each spanning two EDPs, with disjoint EventGroups and distinct
+      // DataProvider sets ({edp0, edp1} and {edp2, edp3}). The components cross publishers without
       // overlapping, so no metric is double-counted -- the recommended client usage.
-      val customGroupEventGroups: List<List<String>> =
+      val reportingSetComponentEventGroups: List<List<String>> =
         listOf(
           listOf(eventGroupPerEdp[0].cmmsEventGroup, eventGroupPerEdp[1].cmmsEventGroup),
           listOf(eventGroupPerEdp[2].cmmsEventGroup, eventGroupPerEdp[3].cmmsEventGroup),
         )
-      val customGroups: List<ReportingSet> =
-        customGroupEventGroups.mapIndexed { index, cmmsEventGroupNames ->
+      val reportingSetComponents: List<ReportingSet> =
+        reportingSetComponentEventGroups.mapIndexed { index, cmmsEventGroupNames ->
           publicReportingSetsClient
             .withCallCredentials(credentials)
             .createReportingSet(
               createReportingSetRequest {
                 parent = measurementConsumerData.name
                 reportingSet = reportingSet {
-                  displayName = "custom group $index"
+                  displayName = "ReportingSet component $index"
                   primitive = ReportingSetKt.primitive { cmmsEventGroups += cmmsEventGroupNames }
                 }
-                reportingSetId = "customgroup$index"
+                reportingSetId = "reportingset$index"
               }
             )
         }
 
       // Reuse the scaffolding (model line, reporting interval, IQF), but drop campaign_group so the
-      // server synthesizes one, and bucket by the custom-group ReportingSets.
+      // server synthesizes one, and bucket by the ReportingSet components.
       val createBasicReportRequest =
         buildCreateBasicReportRequest(eventGroupPerEdp).copy {
           basicReport =
@@ -593,7 +593,8 @@ abstract class InProcessMultiEdpReportIntegrationTest(
               resultGroupSpecs.clear()
               resultGroupSpecs += resultGroupSpec {
                 title = "title"
-                reportingUnit = reportingUnit { components += customGroups.map { it.name } }
+                reportingUnit =
+                  reportingUnit { components += reportingSetComponents.map { it.name } }
                 metricFrequency = metricFrequencySpec { total = true }
                 dimensionSpec = dimensionSpec {
                   grouping =
@@ -648,14 +649,14 @@ abstract class InProcessMultiEdpReportIntegrationTest(
           .withCallCredentials(credentials)
           .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
 
-      // Results are bucketed by the custom-group ReportingSet resource names.
+      // Results are bucketed by the ReportingSet component resource names.
       val componentKeys =
         retrievedCompletedBasicReport.resultGroupsList
           .flatMap { it.resultsList }
           .flatMap { it.metricSet.componentsList }
           .map { it.key }
           .toSet()
-      assertThat(componentKeys).containsAtLeastElementsIn(customGroups.map { it.name })
+      assertThat(componentKeys).containsAtLeastElementsIn(reportingSetComponents.map { it.name })
 
       assertThat(retrievedCompletedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
     }

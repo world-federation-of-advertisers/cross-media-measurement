@@ -68,8 +68,8 @@ private data class MetricCalculationSpecInfo(
  * @param impressionQualificationFilterSpecsLists List of List of
  *   [ImpressionQualificationFilterSpec] for each [ReportingImpressionQualificationFilter]
  * @param dataProviderPrimitiveReportingSetMap Map of reporting_unit component resource name to the
- *   primitive [ReportingSet] used for it. In DataProvider mode the key is a [DataProvider] resource
- *   name; in custom-group mode the key is a [ReportingSet] (custom group) resource name.
+ *   primitive [ReportingSet] used for it. The key is a [DataProvider] resource name when the
+ *   component is a DataProvider, or a [ReportingSet] resource name when it is a ReportingSet.
  * @param resultGroupSpecs List of [ResultGroupSpec] to transform
  * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for parsing [EventTemplateField]

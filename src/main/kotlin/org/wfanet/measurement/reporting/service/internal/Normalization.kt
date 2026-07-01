@@ -68,9 +68,9 @@ object Normalization {
    * `ReportingUnit.components` is semantically a set (order does not affect downstream metric
    * calculation), so order-only differences must not produce distinct dim keys.
    *
-   * Both component variants are normalized: `dataProviderKeys` (BasicReport DataProvider mode) is
-   * sorted by `cmmsDataProviderId`, and `reportingSetKeys` (BasicReport custom-group mode) is
-   * sorted by `externalReportingSetId`. Any new component variant must extend this `when` rather
+   * Both component variants are normalized: `dataProviderKeys` (DataProvider components) is sorted
+   * by `cmmsDataProviderId`, and `reportingSetKeys` (ReportingSet components) is sorted by
+   * `externalReportingSetId`. Any new component variant must extend this `when` rather
    * than rely on a silent passthrough -- that would un-normalize the input and reintroduce the
    * order-sensitive dim-key bug PR #4057 was written to prevent.
    */

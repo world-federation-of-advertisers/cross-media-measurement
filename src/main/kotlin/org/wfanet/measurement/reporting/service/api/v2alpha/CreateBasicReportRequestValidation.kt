@@ -88,10 +88,10 @@ object CreateBasicReportRequestValidation {
    * [request.basicReport.campaignGroup][org.wfanet.measurement.reporting.v2alpha.BasicReport.campaignGroup]
    * field.
    *
-   * @param campaignGroup the caller-supplied Campaign Group [ReportingSet] (DataProvider mode), or
-   *   `null` for custom-group mode where the Campaign Group is server-synthesized after validation.
-   *   In DataProvider mode every `reporting_unit` component must be a DataProvider within the
-   *   Campaign Group; in custom-group mode every component must be a ReportingSet.
+   * @param campaignGroup the caller-supplied Campaign Group [ReportingSet], or `null` when
+   *   `campaign_group` was not specified and the Campaign Group is server-synthesized after
+   *   validation. When it was specified, every `reporting_unit` component must be a DataProvider
+   *   within the Campaign Group; when it was not, every component must be a ReportingSet.
    * @throws InvalidFieldValueException
    * @throws RequiredFieldNotSetException
    * @throws DataProviderNotFoundForCampaignGroupException
@@ -165,6 +165,8 @@ object CreateBasicReportRequestValidation {
    * @param resultGroupSpecs [List] of [ResultGroupSpec] to validate
    * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message
    *   to info for the field. Used for validating [EventTemplateField]
+   * @param campaignGroupInfo information about the supplied Campaign Group, or `null` when
+   *   `campaign_group` was not specified (ReportingUnit components must then be ReportingSets)
    * @throws [RequiredFieldNotSetException] when validation fails
    * @throws [InvalidFieldValueException] when validation fails
    * @throws FieldUnimplementedException
@@ -300,20 +302,17 @@ object CreateBasicReportRequestValidation {
   /**
    * Validates [reportingUnit] within the context of a [CreateBasicReportRequest].
    *
-   * There are two mutually exclusive component modes, selected by whether a Campaign Group was
-   * supplied on the request:
-   * - DataProvider mode ([campaignGroupInfo] non-null): every component must be a DataProvider
-   *   resource name belonging to the Campaign Group.
-   * - Custom-group mode ([campaignGroupInfo] `null`): every component must be a ReportingSet
-   *   resource name. The referenced ReportingSets are resolved and further validated (primitive,
-   *   Measurement Consumer-owned, distinct DataProvider sets) server-side in `BasicReportsService`,
-   *   where they are fetched for Campaign Group synthesis.
-   *
-   * DataProvider and ReportingSet components must not be mixed within a single `reporting_unit`.
+   * The component type is selected by whether `campaign_group` was specified on the request:
+   * - When it was ([campaignGroupInfo] non-null): every component must be a DataProvider resource
+   *   name belonging to the Campaign Group.
+   * - When it was not ([campaignGroupInfo] `null`): every component must be a ReportingSet resource
+   *   name. The referenced ReportingSets are resolved and further validated (primitive, Measurement
+   *   Consumer-owned, distinct DataProvider sets) server-side in `BasicReportsService`, where they
+   *   are fetched for Campaign Group synthesis.
    *
    * @param fieldPath Path of [reportingUnit] relative to the request message
-   * @param campaignGroupInfo Information about the supplied Campaign Group, or `null` for
-   *   custom-group mode
+   * @param campaignGroupInfo Information about the supplied Campaign Group, or `null` when
+   *   `campaign_group` was not specified
    */
   private fun validateReportingUnit(
     reportingUnit: ReportingUnit,
@@ -331,25 +330,21 @@ object CreateBasicReportRequestValidation {
     }
 
     if (campaignGroupInfo == null) {
-      // Custom-group mode: every component must be a ReportingSet resource name. A DataProvider
-      // component here means the caller either mixed component types or left campaign_group empty
-      // for a DataProvider report.
+      // When campaign_group is not specified, every component must be a ReportingSet.
       components.forEachIndexed { index, component ->
         ReportingSetKey.fromName(component)
           ?: throw InvalidFieldValueException("$fieldPath.components[$index]") { fieldPath ->
-            "$fieldPath is not a valid ReportingSet resource name; DataProvider and ReportingSet " +
-              "components must not be mixed, and campaign_group must be set for DataProvider " +
-              "components"
+            "$fieldPath is not a valid ReportingSet resource name; when campaign_group is not " +
+              "specified, all ReportingUnit components must be ReportingSets"
           }
       }
     } else {
-      // DataProvider mode: every component must be a DataProvider within the Campaign Group.
+      // When campaign_group is specified, every component must be a DataProvider within it.
       components.forEachIndexed { index, component ->
         DataProviderKey.fromName(component)
           ?: throw InvalidFieldValueException("$fieldPath.components[$index]") { fieldPath ->
-            "$fieldPath is not a valid data provider name; DataProvider and ReportingSet " +
-              "components must not be mixed, and campaign_group must be empty for ReportingSet " +
-              "components"
+            "$fieldPath is not a valid DataProvider resource name; when campaign_group is " +
+              "specified, all ReportingUnit components must be DataProviders"
           }
 
         if (!campaignGroupInfo.dataProviderNames.contains(component)) {
