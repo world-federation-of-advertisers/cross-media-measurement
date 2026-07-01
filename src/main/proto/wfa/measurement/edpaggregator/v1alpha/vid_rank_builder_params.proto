@@ -214,4 +214,18 @@ message VidRankBuilderParams {
   // public API.
   google.protobuf.Timestamp active_end_time = 19
       [(google.api.field_behavior) = OPTIONAL];
+
+  // Config-storage blob URI of the FileDescriptorSet for the EventTemplate
+  // types. Not consumed by the Phase-1 ranker; forwarded verbatim by the
+  // SubpoolAssigner Phase-0 last-shard-out from
+  // `SubpoolAssignerParams.event_template_descriptor_blob_uri` so the
+  // last-`RankerJob`-out can stamp it on the Phase-2 VidLabeler
+  // `ModelLineConfig` (Phase-2 requires it to build the labeled-output event).
+  string event_template_descriptor_blob_uri = 21
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Full proto name of the event message within that FileDescriptorSet that
+  // `event_template_field_mapping` targets. Pass-through for Phase-2 (see
+  // `event_template_descriptor_blob_uri`).
+  string event_template_type = 22 [(google.api.field_behavior) = OPTIONAL];
 }

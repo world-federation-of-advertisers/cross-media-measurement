@@ -56,6 +56,8 @@ class SubpoolAssignerAppTest {
     modelBlobPath = "model/blob"
     labelerInputFieldMapping.put("event_id.id", "raw_event_id")
     eventTemplateFieldMapping.put("banner_ad.viewable", "raw_viewable")
+    eventTemplateDescriptorBlobUri = "descriptor/event-template.pb"
+    eventTemplateType = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
     totalShards = 4
     maxFileBatchSizeBytes = 777
     activeStartTime = timestamp { seconds = 1000 }
@@ -92,6 +94,11 @@ class SubpoolAssignerAppTest {
     assertThat(template.labelerInputFieldMappingMap).containsExactly("event_id.id", "raw_event_id")
     assertThat(template.eventTemplateFieldMappingMap)
       .containsExactly("banner_ad.viewable", "raw_viewable")
+    // Event-template descriptor forwarded so the Phase-1 last-out can stamp it on Phase-2, which
+    // requires it to build the labeled output.
+    assertThat(template.eventTemplateDescriptorBlobUri).isEqualTo("descriptor/event-template.pb")
+    assertThat(template.eventTemplateType)
+      .isEqualTo("wfa.measurement.api.v2alpha.event_templates.testing.TestEvent")
     // Active-window timestamps forwarded verbatim from Phase-0 for the Phase-2 fan-out.
     assertThat(template.activeStartTime).isEqualTo(timestamp { seconds = 1000 })
     assertThat(template.activeEndTime).isEqualTo(timestamp { seconds = 2000 })
