@@ -82,6 +82,8 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param workItemAttemptsClient gRPC stub for WorkItemAttempts service.
  * @param kmsClients per-`DataProvider` [KmsClient]s (each the EDP's own KEK), used for BOTH the
  *   raw-impression PME decrypt and the labeled-output encrypt — exactly one client per EDP.
+ * @param encryptKekUris per-`DataProvider` KEK URI used to wrap the labeled output on the
+ *   non-memoized path; the memoized path instead reuses the KEK carried on the rank-index blobs.
  * @param getStorageConfig builds a [StorageConfig] from [VidLabelerParams.StorageParams].
  * @param vidLabelingJobsStub stub to mark this WorkItem's `VidLabelingJob` `SUCCEEDED` and learn
  *   whether it is the last job out for one or more model lines.
@@ -110,6 +112,7 @@ class VidLabelerApp(
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
   private val kmsClients: Map<String, KmsClient>,
+  private val encryptKekUris: Map<String, String>,
   private val getStorageConfig: (VidLabelerParams.StorageParams) -> StorageConfig,
   private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
   private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
@@ -159,10 +162,20 @@ class VidLabelerApp(
     require(params.hasVidLabeledImpressionsStorageParams()) {
       "vid_labeled_impressions_storage_params must be set"
     }
-    // Scope is the memoized rank-index Phase-2 path; the non-memoized path is wired separately.
-    require(params.hasMemoizedParams()) { "memoized_params must be set" }
-    // [mp] identifies the VidLabelingJob. The require(...) validations above run BEFORE [mp] is
-    // known — a WorkItem with no memoized_params cannot be attributed to a job.
+
+    // Two Phase-2 configurations share this worker and are mutually exclusive: the memoized
+    // rank-index path (memoized_params set) and the non-memoized hash-only path (top-level
+    // vid_labeling_job set, bundling all of an upload's non-memoized model lines).
+    if (params.hasMemoizedParams()) {
+      runMemoized(params, dataProvider)
+    } else {
+      runNonMemoized(params, dataProvider)
+    }
+  }
+
+  /** Memoized rank-index Phase-2 path: derive each VID from its memoized rank. */
+  private suspend fun runMemoized(params: VidLabelerParams, dataProvider: String) {
+    // [mp] identifies the VidLabelingJob and the single model line of this memoized WorkItem.
     val mp = params.memoizedParams
 
     // Per-WorkItem metric dimensions: every counter/histogram for this call is keyed by the
@@ -187,12 +200,12 @@ class VidLabelerApp(
       val job =
         vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { name = mp.vidLabelingJob })
       if (job.state != VidLabelingJob.State.SUCCEEDED) {
-        label(params, mp, config, dataProvider, kmsClient, job.rawImpressionUploadFilesList)
+        labelMemoized(params, mp, config, dataProvider, kmsClient, job.rawImpressionUploadFilesList)
       } else {
         logger.info("VidLabelingJob ${mp.vidLabelingJob} already SUCCEEDED; skipping relabel")
       }
 
-      markSucceededAndTransition(params, mp, dataProvider, job.etag, attributes)
+      markSucceededAndTransition(params, mp.vidLabelingJob, dataProvider, job.etag, attributes)
       // Count only successful completions; a thrown failure skips this and nacks the message.
       metrics.workItemsProcessedCounter.add(1, attributes)
     } finally {
@@ -204,8 +217,56 @@ class VidLabelerApp(
     }
   }
 
+  /**
+   * Non-memoized hash-only Phase-2 path: label the bundled model lines (no rank index) against the
+   * job's bin-packed files, loading each model from its blob (the TEE never reads the VID Repo) and
+   * wrapping the output with this EDP's [encryptKekUris] entry.
+   */
+  private suspend fun runNonMemoized(params: VidLabelerParams, dataProvider: String) {
+    require(params.vidLabelingJob.isNotEmpty()) {
+      "vid_labeling_job must be set on the non-memoized path"
+    }
+    require(params.overrideModelLinesList.isNotEmpty()) {
+      "override_model_lines must list the bundled non-memoized model lines"
+    }
+    val attributes = Attributes.of(metrics.DATA_PROVIDER_ATTR, dataProvider)
+    val startNanos = System.nanoTime()
+    try {
+      val kmsClient =
+        requireNotNull(kmsClients[dataProvider]) { "KMS client not found for $dataProvider" }
+      val encryptKekUri =
+        requireNotNull(encryptKekUris[dataProvider]) {
+          "encrypt KEK URI not found for $dataProvider"
+        }
+
+      val job =
+        vidLabelingJobsStub.getVidLabelingJob(
+          getVidLabelingJobRequest { name = params.vidLabelingJob }
+        )
+      if (job.state != VidLabelingJob.State.SUCCEEDED) {
+        labelNonMemoized(
+          params,
+          dataProvider,
+          kmsClient,
+          encryptKekUri,
+          job.rawImpressionUploadFilesList,
+        )
+      } else {
+        logger.info("VidLabelingJob ${params.vidLabelingJob} already SUCCEEDED; skipping relabel")
+      }
+
+      markSucceededAndTransition(params, params.vidLabelingJob, dataProvider, job.etag, attributes)
+      metrics.workItemsProcessedCounter.add(1, attributes)
+    } finally {
+      metrics.workItemDurationHistogram.record(
+        (System.nanoTime() - startNanos) / NANOS_PER_SECOND,
+        attributes,
+      )
+    }
+  }
+
   /** Labels this WorkItem's raw-impression files for [mp]'s single model line (memoized path). */
-  private suspend fun label(
+  private suspend fun labelMemoized(
     params: VidLabelerParams,
     mp: VidLabelerParams.MemoizedParams,
     config: VidLabelerParams.ModelLineConfig,
@@ -281,6 +342,87 @@ class VidLabelerApp(
   }
 
   /**
+   * Labels the bundled non-memoized model lines ([VidLabelerParams.override_model_lines]) against
+   * [inputFiles] with the hash-only path (no rank index). One [VidLabeler] run covers every bundled
+   * line; the shared [impressionConverter] and raw event-id column are taken from the first line's
+   * config, since an EDP's model lines share its raw event schema and EventTemplate.
+   */
+  private suspend fun labelNonMemoized(
+    params: VidLabelerParams,
+    dataProvider: String,
+    kmsClient: KmsClient,
+    encryptKekUri: String,
+    inputFiles: List<String>,
+  ) {
+    val modelLines = params.overrideModelLinesList
+    val configsByModelLine =
+      modelLines.associateWith { modelLine ->
+        requireNotNull(params.modelLineConfigsMap[modelLine]) {
+          "model_line_configs must contain an entry for $modelLine"
+        }
+      }
+
+    // The raw event-id column is a property of the EDP's raw data, shared across its model lines;
+    // read it from the first bundled line's config.
+    val firstModelLine = modelLines.first()
+    val firstConfig = configsByModelLine.getValue(firstModelLine)
+    val eventIdColumn =
+      requireNotNull(firstConfig.labelerInputFieldMappingMap[EVENT_ID_FIELD_PATH]) {
+        "labeler_input_field_mapping must map '$EVENT_ID_FIELD_PATH' to the raw event-id column"
+      }
+
+    val rawImpressionSource =
+      RawImpressionSource(
+        parquetStorageClient =
+          buildParquetStorageClient(
+            getStorageConfig(params.rawImpressionsStorageParams),
+            kmsClient,
+          ),
+        rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
+        rawImpressionUpload = parentUpload(params.vidLabelingJob),
+        eventIdColumn = eventIdColumn,
+        eventIdDigestExtractor = eventIdDigestExtractor,
+        inputFiles = inputFiles,
+      )
+
+    val modelLineSpecs =
+      modelLines.map { modelLine ->
+        val config = configsByModelLine.getValue(modelLine)
+        ModelLineSpec(
+          modelLine = modelLine,
+          modelBlobUri =
+            requireNotNull(params.modelBlobPathsMap[modelLine]) {
+              "model_blob_paths must contain an entry for $modelLine"
+            },
+          activeWindow =
+            ActiveWindow.of(
+              config.activeStartTime.toInstant(),
+              if (config.hasActiveEndTime()) config.activeEndTime.toInstant() else null,
+            ),
+          config = config,
+          // Non-memoized: no rank index, so every fingerprint takes the hash path.
+          rankIndex = null,
+        )
+      }
+
+    val impressionConverter = buildImpressionConverter(firstModelLine, firstConfig)
+
+    VidLabeler(
+        rawImpressionSource = rawImpressionSource,
+        modelLineSpecs = modelLineSpecs,
+        overrideModelLines = modelLines,
+        vidModelLoader = vidModelLoader,
+        impressionConverter = impressionConverter,
+        encryptKmsClient = kmsClient,
+        encryptKekUri = encryptKekUri,
+        outputStorageParams = params.vidLabeledImpressionsStorageParams,
+        storageConfig = getStorageConfig(params.vidLabeledImpressionsStorageParams),
+        dataProvider = dataProvider,
+      )
+      .label()
+  }
+
+  /**
    * Marks this WorkItem's `VidLabelingJob` `SUCCEEDED` and, when the service reports this call
    * completed one or more model lines (last-job-out), transitions each completed model line's
    * parent `RawImpressionUploadModelLine` to `COMPLETED` and drops the `done` marker blob.
@@ -290,7 +432,7 @@ class VidLabelerApp(
    */
   private suspend fun markSucceededAndTransition(
     params: VidLabelerParams,
-    mp: VidLabelerParams.MemoizedParams,
+    vidLabelingJob: String,
     dataProvider: String,
     etag: String,
     attributes: Attributes,
@@ -299,7 +441,7 @@ class VidLabelerApp(
       try {
         vidLabelingJobsStub.markVidLabelingJobSucceeded(
           markVidLabelingJobSucceededRequest {
-            name = mp.vidLabelingJob
+            name = vidLabelingJob
             // [etag] was captured from GetVidLabelingJob before label(); together with the
             // deterministic request_id below it covers Pub/Sub *redelivery* under the single-writer
             // assumption (only this worker mutates the job), NOT a concurrent first-delivery
@@ -307,7 +449,7 @@ class VidLabelerApp(
             this.etag = etag
             // AIP-155 retry-idempotency key: a Pub/Sub redelivery reuses the same request_id so the
             // server returns the cached result instead of hitting the etag-mismatch path.
-            requestId = RequestIds.forMarkVidLabelingJobSucceeded(mp.vidLabelingJob)
+            requestId = RequestIds.forMarkVidLabelingJobSucceeded(vidLabelingJob)
           }
         )
       } catch (e: StatusException) {
@@ -317,7 +459,7 @@ class VidLabelerApp(
 
     if (!response.hasLastVidLabelingJobResult()) return
 
-    val upload = parentUpload(mp.vidLabelingJob)
+    val upload = parentUpload(vidLabelingJob)
     // One unfiltered List of every model line under the upload (a superset of the lines this call
     // completed) instead of one filtered List per completed model line. Keyed by model line so each
     // completed model line resolves to its parent row (name + etag) for the COMPLETED transition.
