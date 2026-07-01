@@ -479,6 +479,8 @@ class VidLabelingMonitorFunction : HttpFunction {
         VidLabelerParamsKt.modelLineConfig {
           labelerInputFieldMapping.addAll(configModelLine.labelerInputFieldMappingList)
           eventTemplateFieldMapping.putAll(configModelLine.eventTemplateFieldMappingMap)
+          eventTemplateDescriptorBlobUri = configModelLine.eventTemplateDescriptorBlobUri
+          eventTemplateType = configModelLine.eventTemplateType
         }
       }
     }
