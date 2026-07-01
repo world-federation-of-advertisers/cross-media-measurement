@@ -97,11 +97,23 @@ message VidLabelerParams {
         "edpaggregator.halo-cmm.org/RawImpressionUpload"
   ];
 
-  // Field numbers 8 and 9 held the per-shard `shard_index` / `total_shards` of
-  // the removed static-sharding non-memoized dispatch. The non-memoized path
-  // now bin-packs files into `VidLabelingJob`s (see `vid_labeling_job`).
-  reserved 8, 9;
-  reserved "shard_index", "total_shards";
+  // Cloud Storage for the compiled VID model blobs named by [model_blob_paths].
+  // The compiled model lives in its own Cloud Storage project, separate from
+  // the impression storage, so it carries a dedicated project. Set on both
+  // paths (reuses field 8, freed by the removed static-sharding `shard_index`).
+  StorageParams model_storage_params = 8
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // The `VidLabelingJob` this WorkItem fulfils: the bin-packed file batch plus
+  // the model lines it covers. The TEE marks it `SUCCEEDED`/`FAILED`; the
+  // last-job-out flips each covered model line to `COMPLETED`. Set on both
+  // paths (reuses field 9, freed by the removed static-sharding
+  // `total_shards`).
+  string vid_labeling_job = 9 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference).type =
+        "edpaggregator.halo-cmm.org/VidLabelingJob"
+  ];
 
   // Map from model line resource name to its model blob path. Resolved by the
   // dispatcher from ModelShard so the TEE app does not need to interact with
@@ -109,15 +121,12 @@ message VidLabelerParams {
   map<string, string> model_blob_paths = 10
       [(google.api.field_behavior) = REQUIRED];
 
-  // The `VidLabelingJob` this non-memoized WorkItem fulfils: the bin-packed
-  // file batch plus the model lines it covers. The TEE resolves the job's
-  // `RawImpressionUploadFile`s via the metadata API and marks the job
-  // `SUCCEEDED`/`FAILED` (the last-job-out flips each covered model line to
-  // `COMPLETED`). Built by the non-memoized dispatch (one WorkItem per job).
-  // Set only on the non-memoized path.
-  string vid_labeling_job = 12 [
+  // The `ModelLine`s this WorkItem labels: exactly one on the memoized path,
+  // the bundled set on the non-memoized path. Distinct from
+  // [override_model_lines], which is the operator-header override applied on
+  // top. Set on both paths.
+  repeated string model_lines = 12 [
     (google.api.field_behavior) = OPTIONAL,
-    (google.api.resource_reference).type =
-        "edpaggregator.halo-cmm.org/VidLabelingJob"
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
   ];
 }

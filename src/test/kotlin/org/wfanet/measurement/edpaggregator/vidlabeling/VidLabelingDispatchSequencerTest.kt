@@ -787,7 +787,21 @@ class VidLabelingDispatchSequencerTest {
         assertThat(createRequest.vidLabelingJob.cmmsModelLinesList)
           .containsExactly(MODEL_LINE, MODEL_LINE_2)
       }
-      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(any()) }
+      val wiCaptor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) {
+        createWorkItem(wiCaptor.capture())
+      }
+      // Each WorkItem carries the bundled lines in model_lines (the payload); override_model_lines
+      // stays empty (reserved for the operator-header override).
+      for (request in wiCaptor.allValues) {
+        val params =
+          request.workItem.workItemParams
+            .unpack<WorkItemParams>()
+            .appParams
+            .unpack<VidLabelerParams>()
+        assertThat(params.modelLinesList).containsExactly(MODEL_LINE, MODEL_LINE_2)
+        assertThat(params.overrideModelLinesList).isEmpty()
+      }
       // Each bundled model line is transitioned to LABELING.
       verifyBlocking(rawImpressionUploadModelLineService, times(2)) {
         markRawImpressionUploadModelLineLabeling(any())
