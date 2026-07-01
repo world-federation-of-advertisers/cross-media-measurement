@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -405,14 +406,24 @@ class VidLabelingSink(
       .build()
 
   /**
-   * Deterministic output blob key for [key] under this input file, so a retried input file
-   * overwrites its previous output instead of duplicating it.
+   * Deterministic output blob key for [key] under this input file:
+   * `model-line/<modelLineId>/<YYYY-MM-DD>/<sha256>`. The `model-line/<id>/<date>/` layout is what
+   * `DataAvailabilitySync` crawls to classify finalized dates; the date is the file's most-recent
+   * impression date ([FileEntityKeys.maxEventDate], read from the footer, UTC). The trailing SHA of
+   * (input file, model line) keeps the key deterministic, so a retried input file overwrites its
+   * previous output instead of duplicating it.
    */
   private fun outputBlobKey(key: OutputGroupKey): String {
+    val modelLineId =
+      requireNotNull(ModelLineKey.fromName(key.modelLine)) {
+          "model line is not a valid ModelLine resource name: ${key.modelLine}"
+        }
+        .modelLineId
     val digest =
       MessageDigest.getInstance("SHA-256")
         .digest("$inputBlobUri|${key.modelLine}".toByteArray(Charsets.UTF_8))
-    return "labeled-impressions/" + digest.joinToString("") { "%02x".format(it) }
+    val sha = digest.joinToString("") { "%02x".format(it) }
+    return "model-line/$modelLineId/${fileEntityKeys.maxEventDate}/$sha"
   }
 
   private val Timestamp.epochNanos: Long
