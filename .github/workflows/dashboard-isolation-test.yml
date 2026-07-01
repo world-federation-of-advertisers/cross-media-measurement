@@ -56,11 +56,11 @@ jobs:
           RUN_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
           echo "Listing dashboard transfer configs..."
-          CONFIGS=$(gcloud transfer configs list \
-            --project="$PROJECT" \
-            --transfer-location="$REGION" \
-            --filter="displayName:Dashboard" \
-            --format="value(name)")
+          # `gcloud transfer` is the Storage Transfer Service; BigQuery Data Transfer configs
+          # are managed by `bq --transfer_config`. Filter on displayName prefix "Dashboard".
+          CONFIGS=$(bq ls --transfer_config --transfer_location="$REGION" --project_id="$PROJECT" \
+            --filter='dataSourceIds:scheduled_query' --format=json \
+            | jq -r '.[] | select(.displayName | startswith("Dashboard")) | .name')
 
           if [ -z "$CONFIGS" ]; then
             echo "No dashboard transfer configs found"
@@ -68,12 +68,12 @@ jobs:
           fi
 
           echo "Triggering manual runs..."
+          declare -A RUN_NAMES
           for config in $CONFIGS; do
             echo "  Triggering: $config"
-            gcloud transfer runs create \
-              --project="$PROJECT" \
-              --config="$config" \
-              --run-time="$RUN_TIME"
+            RUN_JSON=$(bq mk --transfer_run --run_time="$RUN_TIME" --format=json "$config")
+            RUN_NAME=$(echo "$RUN_JSON" | jq -r '.name')
+            RUN_NAMES[$config]=$RUN_NAME
           done
 
           echo "Waiting for runs to complete..."
@@ -82,11 +82,8 @@ jobs:
           while [ $ELAPSED -lt $MAX_WAIT ]; do
             ALL_DONE=true
             for config in $CONFIGS; do
-              STATUS=$(gcloud transfer runs list \
-                --project="$PROJECT" \
-                --config="$config" \
-                --limit=1 \
-                --format="value(state)")
+              RUN_NAME=${RUN_NAMES[$config]}
+              STATUS=$(bq show --transfer_run --format=json "$RUN_NAME" | jq -r '.state')
               if [ "$STATUS" != "SUCCEEDED" ] && [ "$STATUS" != "FAILED" ]; then
                 ALL_DONE=false
                 break
