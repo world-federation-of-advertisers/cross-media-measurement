@@ -57,7 +57,9 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  *
  * @param kmsClients Per-DataProvider KMS clients used to wrap/unwrap DEKs.
  * @param retentionDaysByDataProvider Per-DataProvider rank-index retention window (in days),
- *   sourced from the EDPA config; MUST exceed the EDP's maximum measurement-report window.
+ *   sourced from the shared EDPA config (which also lists non-memoized EDPs that leave it 0);
+ *   validated `> 0` per WorkItem in [runWork], not at construction. MUST exceed the EDP's maximum
+ *   measurement-report window.
  * @param rankerJobsStub stub to gate on / mark this `RankerJob`.
  * @param rankIndexBlobsStub stub for locating the prior snapshot, retention, and new blob rows.
  * @param rawImpressionUploadModelLinesStub stub to flip the parent `RANKING` -> `LABELING`.
@@ -117,6 +119,15 @@ class VidRankBuilderApp(
       requireNotNull(retentionDaysByDataProvider[dataProvider]) {
         "retention_days not configured for $dataProvider"
       }
+    // Validated here, not at runner startup: the shared all-EDP config also lists EDPs that never
+    // run the memoized ranker and legitimately leave retention_days unset (proto3 default 0). A
+    // RankerJob for this DataProvider means it IS memoized, so a non-positive window is a real
+    // misconfig — 0 means evict-everything, and the window is compliance-tied (it MUST exceed the
+    // EDP's maximum measurement-report window or memoization's VID-collision guarantee breaks).
+    require(retentionDays > 0) {
+      "retention_days must be > 0 for $dataProvider (it runs the memoized VID ranker), got " +
+        "$retentionDays"
+    }
 
     val subpoolFingerprintsStore =
       SubpoolFingerprintsStore(
@@ -206,6 +217,10 @@ class VidRankBuilderApp(
         VidLabelerParamsKt.modelLineConfig {
           labelerInputFieldMapping.putAll(params.labelerInputFieldMappingMap)
           eventTemplateFieldMapping.putAll(params.eventTemplateFieldMappingMap)
+          // Phase-2 requires the event-template descriptor to build the labeled output; stamp it
+          // (and its type) onto the memoized VidLabeler ModelLineConfig.
+          eventTemplateDescriptorBlobUri = params.eventTemplateDescriptorBlobUri
+          eventTemplateType = params.eventTemplateType
           // Active-window pass-through (OPTIONAL): Phase-2 drops impressions outside this window.
           if (params.hasActiveStartTime()) {
             activeStartTime = params.activeStartTime

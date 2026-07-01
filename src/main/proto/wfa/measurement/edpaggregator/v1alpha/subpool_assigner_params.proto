@@ -20,7 +20,6 @@ import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
-import "wfa/measurement/edpaggregator/v1alpha/vid_labeler_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
@@ -182,4 +181,19 @@ message SubpoolAssignerParams {
   // dispatcher. REQUIRED; there is no built-in default (a wrong one OOMs or
   // under-utilizes the Phase-2 VM). SubpoolAssignerApp validates it `> 0`.
   int64 max_file_batch_size_bytes = 18 [(google.api.field_behavior) = REQUIRED];
+
+  // Config-storage blob URI of the FileDescriptorSet for the EventTemplate
+  // types. Mirrors the per-(EDP, model line)
+  // `VidLabelingConfig.ModelLineConfig.event_template_descriptor_blob_uri`.
+  // Not consumed by the Phase-0 SubpoolAssigner; carried as pass-through so the
+  // last-shard-out can stamp it on the VidRankBuilder Phase-1 WorkItem, which
+  // the Phase-1 last-out then stamps on the Phase-2 VidLabeler
+  // `ModelLineConfig` (Phase-2 requires it to build the labeled-output event).
+  string event_template_descriptor_blob_uri = 19
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Full proto name of the event message within that FileDescriptorSet that
+  // `event_template_field_mapping` targets. Pass-through for Phase-2 (see
+  // `event_template_descriptor_blob_uri`).
+  string event_template_type = 20 [(google.api.field_behavior) = OPTIONAL];
 }
