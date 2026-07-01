@@ -68,11 +68,11 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalRepo
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
-import org.wfanet.measurement.internal.reporting.v2.ensureSynthesizedCampaignGroupReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.createMetricCalculationSpecRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest as internalCreateReportingSetRequest
+import org.wfanet.measurement.internal.reporting.v2.ensureSynthesizedCampaignGroupReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getImpressionQualificationFilterRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest as internalListBasicReportsRequest
@@ -421,8 +421,7 @@ class BasicReportsService(
         campaignGroupName = campaignGroupResolution.campaignGroup.name,
         impressionQualificationFilterSpecsLists =
           impressionQualificationFilterSpecsByName.values + customFilterSpecs,
-        dataProviderPrimitiveReportingSetMap =
-          reportingSetMaps.primitiveReportingSetsByComponent,
+        dataProviderPrimitiveReportingSetMap = reportingSetMaps.primitiveReportingSetsByComponent,
         resultGroupSpecs = request.basicReport.resultGroupSpecsList,
         eventTemplateFieldsByPath = eventTemplateFieldsByPath,
       )

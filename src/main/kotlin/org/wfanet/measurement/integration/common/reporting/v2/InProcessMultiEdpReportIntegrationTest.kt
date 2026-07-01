@@ -614,7 +614,8 @@ abstract class InProcessMultiEdpReportIntegrationTest(
                           reach = true
                           percentReach = true
                         }
-                      cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+                      cumulativeUnique =
+                        ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
                     }
                 }
               }

@@ -332,8 +332,8 @@ object CreateBasicReportRequestValidation {
 
     if (campaignGroupInfo == null) {
       // Custom-group mode: every component must be a ReportingSet resource name. A DataProvider
-      // component here means either the caller mixed component types or omitted campaign_group for a
-      // DataProvider report.
+      // component here means the caller either mixed component types or left campaign_group empty
+      // for a DataProvider report.
       components.forEachIndexed { index, component ->
         ReportingSetKey.fromName(component)
           ?: throw InvalidFieldValueException("$fieldPath.components[$index]") { fieldPath ->

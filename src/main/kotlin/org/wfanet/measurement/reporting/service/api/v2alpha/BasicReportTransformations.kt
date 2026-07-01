@@ -18,7 +18,6 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.Descriptors
 import org.wfanet.measurement.api.v2alpha.DataProvider
-import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField as InternalEventTemplateField

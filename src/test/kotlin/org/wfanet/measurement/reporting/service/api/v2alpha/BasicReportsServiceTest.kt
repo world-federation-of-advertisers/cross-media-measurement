@@ -131,8 +131,8 @@ import org.wfanet.measurement.internal.reporting.v2.basicReport as internalBasic
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.basicReportResultDetails
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsRequest
-import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
+import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createBasicReportRequest as internalCreateBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
@@ -173,6 +173,7 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as P
 import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
+import org.wfanet.measurement.reporting.v2alpha.CreateBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.CreateReportRequest
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpecKt
@@ -186,7 +187,6 @@ import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineIm
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupKt
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
-import org.wfanet.measurement.reporting.v2alpha.CreateBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.basicReport
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createBasicReportRequest
@@ -483,7 +483,10 @@ class BasicReportsServiceTest {
     return ReportingSetKey(measurementConsumerKey, externalReportingSetId).toName()
   }
 
-  /** Builds a custom-group ([reportingUnit] with ReportingSet components) [CreateBasicReportRequest]. */
+  /**
+   * Builds a custom-group ([reportingUnit] with ReportingSet components)
+   * [CreateBasicReportRequest].
+   */
   private fun customGroupBasicReportRequest(
     measurementConsumerKey: MeasurementConsumerKey,
     basicReportId: String,
@@ -702,12 +705,15 @@ class BasicReportsServiceTest {
             composite =
               ReportingSetKt.setExpression {
                 operation = ReportingSet.SetExpression.Operation.UNION
-                lhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "primitive1" }
+                lhs =
+                  ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "primitive1" }
               }
             weightedSubsetUnions +=
               ReportingSetKt.weightedSubsetUnion {
                 primitiveReportingSetBases +=
-                  ReportingSetKt.primitiveReportingSetBasis { externalReportingSetId = "primitive1" }
+                  ReportingSetKt.primitiveReportingSetBasis {
+                    externalReportingSetId = "primitive1"
+                  }
                 binaryRepresentation = 1
                 weight = 1
               }
@@ -731,27 +737,27 @@ class BasicReportsServiceTest {
     }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when reporting unit exceeds component cap`(): Unit =
-    runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        }
-      )
+  fun `createBasicReport throws INVALID_ARGUMENT when reporting unit exceeds component cap`():
+    Unit = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
 
-      // 26 components exceeds the cap of 25. The cap is enforced during request validation, before
-      // any ReportingSet is resolved, so the components need not exist.
-      val componentNames =
-        (1..26).map { ReportingSetKey(measurementConsumerKey, "customgroup$it").toName() }
-      val request = customGroupBasicReportRequest(measurementConsumerKey, "a1234", componentNames)
+    // 26 components exceeds the cap of 25. The cap is enforced during request validation, before
+    // any ReportingSet is resolved, so the components need not exist.
+    val componentNames =
+      (1..26).map { ReportingSetKey(measurementConsumerKey, "customgroup$it").toName() }
+    val request = customGroupBasicReportRequest(measurementConsumerKey, "a1234", componentNames)
 
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-        }
-      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
-    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
 
   @Test
   fun `createBasicReport creates report and persists its report id`(): Unit = runBlocking {
