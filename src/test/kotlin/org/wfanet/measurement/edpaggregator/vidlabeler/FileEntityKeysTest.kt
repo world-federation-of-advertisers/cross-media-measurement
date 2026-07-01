@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.common.truth.Truth.assertThat
+import java.time.LocalDate
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,12 +26,13 @@ import org.junit.runners.JUnit4
 @RunWith(JUnit4::class)
 class FileEntityKeysTest {
   @Test
-  fun `fromFooterMetadata parses event group reference id and entity keys`() {
+  fun `fromFooterMetadata parses event group reference id, entity keys, and max event date`() {
     val metadata =
       mapOf(
         "event_group_reference_id" to "eg-1",
         "entity_keys" to
           """[{"entity_type":"creative","entity_id":"c-1"},{"entity_type":"placement","entity_id":"p-9"}]""",
+        "max_event_date" to "2026-06-30",
       )
 
     val fileEntityKeys = FileEntityKeys.fromFooterMetadata(metadata)
@@ -39,6 +41,36 @@ class FileEntityKeysTest {
     assertThat(fileEntityKeys.entityKeys.map { it.entityType to it.entityId })
       .containsExactly("creative" to "c-1", "placement" to "p-9")
       .inOrder()
+    assertThat(fileEntityKeys.maxEventDate).isEqualTo(LocalDate.of(2026, 6, 30))
+  }
+
+  @Test
+  fun `fromFooterMetadata throws when max_event_date is missing`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        FileEntityKeys.fromFooterMetadata(
+          mapOf(
+            "event_group_reference_id" to "eg-1",
+            "entity_keys" to """[{"entity_type":"creative","entity_id":"c-1"}]""",
+          )
+        )
+      }
+    assertThat(exception).hasMessageThat().contains("max_event_date")
+  }
+
+  @Test
+  fun `fromFooterMetadata throws when max_event_date is not an ISO date`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        FileEntityKeys.fromFooterMetadata(
+          mapOf(
+            "event_group_reference_id" to "eg-1",
+            "entity_keys" to """[{"entity_type":"creative","entity_id":"c-1"}]""",
+            "max_event_date" to "30-06-2026",
+          )
+        )
+      }
+    assertThat(exception).hasMessageThat().contains("max_event_date")
   }
 
   @Test
