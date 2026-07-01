@@ -61,15 +61,14 @@ class VidRankBuilderAppRunner : BaseTeeAppRunner() {
   override fun run() {
     saveCommonEdpaCerts()
     val kmsClientsMap: Map<String, KmsClient> = buildKmsClientsMap()
-    // Per-EDP rank-index retention, validated positive at startup so a missing config
-    // (proto3 int defaults to 0 -> evict-everything) makes the runner refuse to boot rather than
-    // silently corrupt rank state. Compliance-tied: it MUST also exceed the EDP's maximum
-    // measurement-report window (operator's responsibility to configure).
+    // Per-EDP rank-index retention. Sourced from the shared, all-EDP config, which also lists EDPs
+    // that never run the memoized ranker — `retention_days` is documented "only set for EDPs that
+    // use the memoized VID ranker", so such an EDP legitimately leaves it 0. It is therefore NOT
+    // validated here (validating > 0 for every EDP would refuse to boot on a valid non-memoized
+    // config). VidRankBuilderApp validates `retention_days > 0` at the point of use — when a
+    // memoized RankerJob WorkItem resolves it for its own DataProvider.
     val retentionDaysByDataProvider: Map<String, Int> =
       edpsConfig.eventDataProviderConfigList.associate { edpConfig ->
-        require(edpConfig.retentionDays > 0) {
-          "retention_days must be > 0 for ${edpConfig.dataProvider}, got ${edpConfig.retentionDays}"
-        }
         edpConfig.dataProvider to edpConfig.retentionDays
       }
 
