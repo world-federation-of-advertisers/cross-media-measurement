@@ -135,8 +135,7 @@ message VidLabelingConfig {
   // Maximum total `RawImpressionUploadFile.size_bytes` packed into a single
   // non-memoized Phase-2 `VidLabelingJob` (the bin-packing threshold). OPTIONAL
   // here like the memoized-only storage params above; the dispatcher enforces
-  // it
-  // (`> 0`) at the first non-memoized dispatch.
+  // it (`> 0`) at the first non-memoized dispatch.
   int64 max_file_batch_size_bytes = 17 [(google.api.field_behavior) = OPTIONAL];
 }
 

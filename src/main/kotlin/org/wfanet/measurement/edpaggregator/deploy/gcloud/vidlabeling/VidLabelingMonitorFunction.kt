@@ -419,6 +419,11 @@ class VidLabelingMonitorFunction : HttpFunction {
           "VidLabelingConfig subpool_map_storage_params must use GCS"
         }
       }
+      if (config.hasModelStorageParams()) {
+        require(config.modelStorageParams.hasGcs()) {
+          "VidLabelingConfig model_storage_params must use GCS"
+        }
+      }
 
       return subpoolAssignerParams {
         dataProvider = config.dataProvider
@@ -444,6 +449,13 @@ class VidLabelingMonitorFunction : HttpFunction {
             SubpoolAssignerParamsKt.storageParams {
               gcsProjectId = config.subpoolMapStorageParams.gcs.projectId
               blobPrefix = "gs://${config.subpoolMapStorageParams.gcs.bucketName}"
+            }
+        }
+        if (config.hasModelStorageParams()) {
+          modelStorageParams =
+            SubpoolAssignerParamsKt.storageParams {
+              gcsProjectId = config.modelStorageParams.gcs.projectId
+              blobPrefix = "gs://${config.modelStorageParams.gcs.bucketName}"
             }
         }
         rawImpressionMetadataStorageConnection = transportLayerSecurityParams {
