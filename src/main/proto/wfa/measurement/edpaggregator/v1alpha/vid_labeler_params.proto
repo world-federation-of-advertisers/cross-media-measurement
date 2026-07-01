@@ -55,15 +55,13 @@ message VidLabelerParams {
   StorageParams vid_labeled_impressions_storage_params = 3
       [(google.api.field_behavior) = REQUIRED];
 
-  // Connection used by the TEE app to access the VID Repo.
+  // TLS connection for a remote VID Repo service.
   //
-  // Configuration-dependent, not path-dependent: one labeler serves both the
-  // non-memoized and memoized model-line configurations. Required for the
-  // non-memoized configuration, which resolves VIDs against the VID Repo. Unset
-  // for the memoized configuration ([memoized_params] set), which derives each
-  // VID from its memoized rank using the compiled model named for its model
-  // line in [model_blob_paths] and never calls the VID Repo (an overflow /
-  // unseen fingerprint falls back to the locally-computed hash path).
+  // Currently UNUSED by the labeler: both the non-memoized and memoized
+  // configurations load the compiled model from [model_blob_paths] and label
+  // locally inside the TEE, which never contacts a VID Repo. (An overflow /
+  // unseen fingerprint falls back to the locally-computed hash path, not the
+  // VID Repo.) OPTIONAL; leave unset.
   TransportLayerSecurityParams vid_repo_connection = 4
       [(google.api.field_behavior) = OPTIONAL];
 
