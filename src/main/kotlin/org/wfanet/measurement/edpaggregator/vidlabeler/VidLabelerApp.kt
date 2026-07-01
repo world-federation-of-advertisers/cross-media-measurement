@@ -572,14 +572,16 @@ class VidLabelerApp(
   }
 
   /**
-   * Writes an empty `done` marker in every date folder [cmmsModelLine] produced under the
-   * labeled-impressions prefix.
+   * Writes an empty `done` marker for each date folder of [cmmsModelLine] that does not already
+   * have one, under the labeled-impressions prefix.
    *
    * Called at the model line's last-job-out, when all of its files are flushed, so enumerating
-   * `<prefix>/model-line/<id>/` yields every finalized `<YYYY-MM-DD>/` folder. Writing
-   * `<date>/done` in each lets `DataAvailabilitySync` classify that (model line, date) as
-   * finalized. Idempotent: re-writing an already-present marker (a redelivery, or a date folder
-   * carried over from a prior upload of the same model line) is a no-op.
+   * `<prefix>/model-line/<id>/` yields every `<YYYY-MM-DD>/` folder. A `done` is written only where
+   * one is absent — i.e., the date(s) this completion newly finalized — so `DataAvailabilitySync`
+   * classifies them as finalized. Folders whose `done` already exists (a redelivery of this
+   * completion, or a prior upload's completed date) are skipped, so we never overwrite a `done` and
+   * drop the `synced-by` custom metadata DataAvailabilitySync stamps on it (a full-object replace
+   * would discard it, re-triggering a redundant re-sync of that date).
    */
   private suspend fun writeDoneBlobsForModelLine(
     outputStorageParams: VidLabelerParams.StorageParams,
@@ -602,9 +604,20 @@ class VidLabelerApp(
     listClient.listBlobKeysAndPrefixes(prefixBlobUri.key).collect { dateFolderKey ->
       val doneUri = "$prefixUri${dateFolderKey.removePrefix(prefixBlobUri.key)}done"
       val doneBlobUri = SelectedStorageClient.parseBlobUri(doneUri)
-      SelectedStorageClient(doneBlobUri, storageConfig.rootDirectory, storageConfig.projectId)
-        .writeBlob(doneBlobUri.key, ByteString.EMPTY)
-      count++
+      val doneClient =
+        SelectedStorageClient(doneBlobUri, storageConfig.rootDirectory, storageConfig.projectId)
+      // Only write the marker for a date that doesn't have one yet — i.e., a date this completion
+      // newly finalized. Skip dates whose `done` already exists (a redelivery of this completion,
+      // or
+      // a prior upload's completion of a different date). This avoids overwriting an existing
+      // `done`,
+      // which — since a storage `writeBlob` is a full-object replace — would drop the `synced-by`
+      // custom metadata DataAvailabilitySync stamps after processing, needlessly re-triggering a
+      // re-sync of that date.
+      if (doneClient.getBlob(doneBlobUri.key) == null) {
+        doneClient.writeBlob(doneBlobUri.key, ByteString.EMPTY)
+        count++
+      }
     }
     metrics.doneBlobsWrittenCounter.add(
       count.toLong(),

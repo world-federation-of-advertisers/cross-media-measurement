@@ -32,7 +32,7 @@ class FileEntityKeysTest {
         "event_group_reference_id" to "eg-1",
         "entity_keys" to
           """[{"entity_type":"creative","entity_id":"c-1"},{"entity_type":"placement","entity_id":"p-9"}]""",
-        "max_event_date" to "2026-06-30",
+        "event_date" to "2026-06-30",
       )
 
     val fileEntityKeys = FileEntityKeys.fromFooterMetadata(metadata)
@@ -41,11 +41,11 @@ class FileEntityKeysTest {
     assertThat(fileEntityKeys.entityKeys.map { it.entityType to it.entityId })
       .containsExactly("creative" to "c-1", "placement" to "p-9")
       .inOrder()
-    assertThat(fileEntityKeys.maxEventDate).isEqualTo(LocalDate.of(2026, 6, 30))
+    assertThat(fileEntityKeys.eventDate).isEqualTo(LocalDate.of(2026, 6, 30))
   }
 
   @Test
-  fun `fromFooterMetadata throws when max_event_date is missing`() {
+  fun `fromFooterMetadata throws when event_date is missing`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
         FileEntityKeys.fromFooterMetadata(
@@ -55,22 +55,22 @@ class FileEntityKeysTest {
           )
         )
       }
-    assertThat(exception).hasMessageThat().contains("max_event_date")
+    assertThat(exception).hasMessageThat().contains("event_date")
   }
 
   @Test
-  fun `fromFooterMetadata throws when max_event_date is not an ISO date`() {
+  fun `fromFooterMetadata throws when event_date is not an ISO date`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
         FileEntityKeys.fromFooterMetadata(
           mapOf(
             "event_group_reference_id" to "eg-1",
             "entity_keys" to """[{"entity_type":"creative","entity_id":"c-1"}]""",
-            "max_event_date" to "30-06-2026",
+            "event_date" to "30-06-2026",
           )
         )
       }
-    assertThat(exception).hasMessageThat().contains("max_event_date")
+    assertThat(exception).hasMessageThat().contains("event_date")
   }
 
   @Test
