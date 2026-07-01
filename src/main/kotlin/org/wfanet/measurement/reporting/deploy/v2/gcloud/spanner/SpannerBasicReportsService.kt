@@ -147,7 +147,36 @@ class SpannerBasicReportsService(
           )
           .filter { it.filter.isEmpty() }
 
-      basicReport.withResults(campaignGroup, campaignGroupReportingSets, reportingSetResults)
+      try {
+        basicReport.withResults(campaignGroup, campaignGroupReportingSets, reportingSetResults)
+      } catch (e: CancellationException) {
+        // Never wrap cancellation; the coroutine machinery relies on it propagating cleanly.
+        throw e
+      } catch (e: RuntimeException) {
+        // The transformation code (BasicReportProcessedResultsTransformation +
+        // BasicReportProtoConversions) can throw on unexpected internal-state shapes --
+        // NoSuchElementException from Map.getValue, IllegalStateException from check(),
+        // NullPointerException from `!!` on protobuf oneofs, etc. Without this wrapper the
+        // exception surfaces as `Status.INTERNAL` with an empty description, so the caller
+        // sees "INTERNAL" and nothing else -- the exception message and stack trace live
+        // only in server logs. Preserve the cause chain for server-side logging and expose
+        // the message on the wire so callers get a one-line clue about what broke.
+        // See #4133. `listBasicReports` handles the same class of failure per-item via
+        // `unreachableBasicReportCounter`; single-item GetBasicReport has no equivalent
+        // structure so we surface INTERNAL with a description instead.
+        val basicReportName =
+          BasicReportKey(
+              cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId,
+              basicReportId = basicReport.externalBasicReportId,
+            )
+            .toName()
+        logger.log(Level.SEVERE, e) { "Failed to render BasicReport $basicReportName" }
+        throw Status.INTERNAL.withDescription(
+            "Internal error while assembling BasicReport: ${e.message}"
+          )
+          .withCause(e)
+          .asRuntimeException()
+      }
     }
   }
 
