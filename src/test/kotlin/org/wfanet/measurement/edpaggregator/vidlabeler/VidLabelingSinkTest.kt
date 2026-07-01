@@ -95,7 +95,7 @@ class VidLabelingSinkTest {
               entityId = "h-1"
             }
           ),
-        maxEventDate = LocalDate.parse("2026-06-30"),
+        eventDate = LocalDate.parse("2026-06-30"),
       ),
     encryptKmsClient: KmsClient = kmsClient,
     encryptionKeySemaphore: Semaphore =
