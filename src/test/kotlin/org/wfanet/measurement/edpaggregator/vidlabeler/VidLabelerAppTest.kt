@@ -249,17 +249,17 @@ class VidLabelerAppTest {
     vidLabelingJob = VID_LABELING_JOB
     modelLines += MODEL_LINE
     modelBlobPaths.put(MODEL_LINE, "file:///models/model.binpb")
+    modelStorageParams =
+      VidLabelerParamsKt.storageParams {
+        gcsProjectId = "test-model-project"
+        impressionsBlobPrefix = "file:///models"
+      }
     memoizedParams =
       VidLabelerParamsKt.memoizedParams {
         vidRankMapStorageParams =
           VidLabelerParamsKt.storageParams {
             gcsProjectId = "test-project"
             impressionsBlobPrefix = "file:///rank-map/blobs"
-          }
-        modelStorageParams =
-          VidLabelerParamsKt.storageParams {
-            gcsProjectId = "test-model-project"
-            impressionsBlobPrefix = "file:///models"
           }
       }
   }
@@ -285,6 +285,11 @@ class VidLabelerAppTest {
     )
     modelLines += MODEL_LINE
     modelBlobPaths.put(MODEL_LINE, "file:///models/model.binpb")
+    modelStorageParams =
+      VidLabelerParamsKt.storageParams {
+        gcsProjectId = "test-model-project"
+        impressionsBlobPrefix = "file:///models"
+      }
     vidLabelingJob = VID_LABELING_JOB
   }
 

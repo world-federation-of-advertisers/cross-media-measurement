@@ -440,7 +440,7 @@ class VidLabelerApp(
           // The model blob URI is absolute, so this StorageConfig only supplies the billing/auth
           // project for the read; the non-memoized WorkItem carries no dedicated model-storage
           // project, so reuse the EDP's raw-impressions project (the VM SA reads the model bucket).
-          modelStorageConfig = getStorageConfig(params.rawImpressionsStorageParams),
+          modelStorageConfig = getStorageConfig(params.modelStorageParams),
           activeWindow =
             ActiveWindow.of(
               config.activeStartTime.toInstant(),
