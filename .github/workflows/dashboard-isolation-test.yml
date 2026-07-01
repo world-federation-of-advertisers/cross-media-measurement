@@ -55,12 +55,18 @@ jobs:
           set -euo pipefail
           RUN_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
+          # BigQuery Data Transfer REST API directly. `bq` and `gcloud transfer` both fail
+          # under Workload Identity Federation (bq calls `gcloud config config-helper` which
+          # errors without a user account; `gcloud transfer` is the wrong service entirely).
+          # `gcloud auth print-access-token` works fine with WIF and returns a token accepted
+          # by the REST API.
+          TOKEN=$(gcloud auth print-access-token)
+          API="https://bigquerydatatransfer.googleapis.com/v1"
+
           echo "Listing dashboard transfer configs..."
-          # `gcloud transfer` is the Storage Transfer Service; BigQuery Data Transfer configs
-          # are managed by `bq --transfer_config`. Filter on displayName prefix "Dashboard".
-          CONFIGS=$(bq ls --transfer_config --transfer_location="$REGION" --project_id="$PROJECT" \
-            --filter='dataSourceIds:scheduled_query' --format=json \
-            | jq -r '.[] | select(.displayName | startswith("Dashboard")) | .name')
+          LIST_URL="$API/projects/$PROJECT/locations/$REGION/transferConfigs?dataSourceIds=scheduled_query&pageSize=100"
+          CONFIGS=$(curl -sS -H "Authorization: Bearer $TOKEN" "$LIST_URL" \
+            | jq -r '.transferConfigs[]? | select(.displayName | startswith("Dashboard")) | .name')
 
           if [ -z "$CONFIGS" ]; then
             echo "No dashboard transfer configs found"
@@ -71,8 +77,12 @@ jobs:
           declare -A RUN_NAMES
           for config in $CONFIGS; do
             echo "  Triggering: $config"
-            RUN_JSON=$(bq mk --transfer_run --run_time="$RUN_TIME" --format=json "$config")
-            RUN_NAME=$(echo "$RUN_JSON" | jq -r '.name')
+            RUN_JSON=$(curl -sS -X POST -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Type: application/json" \
+              --data "{\"requestedRunTime\":\"$RUN_TIME\"}" \
+              "$API/$config:startManualRuns")
+            # Response contains { "runs": [ { "name": "...", ... } ] }
+            RUN_NAME=$(echo "$RUN_JSON" | jq -r '.runs[0].name')
             RUN_NAMES[$config]=$RUN_NAME
           done
 
@@ -83,7 +93,7 @@ jobs:
             ALL_DONE=true
             for config in $CONFIGS; do
               RUN_NAME=${RUN_NAMES[$config]}
-              STATUS=$(bq show --transfer_run --format=json "$RUN_NAME" | jq -r '.state')
+              STATUS=$(curl -sS -H "Authorization: Bearer $TOKEN" "$API/$RUN_NAME" | jq -r '.state')
               if [ "$STATUS" != "SUCCEEDED" ] && [ "$STATUS" != "FAILED" ]; then
                 ALL_DONE=false
                 break
