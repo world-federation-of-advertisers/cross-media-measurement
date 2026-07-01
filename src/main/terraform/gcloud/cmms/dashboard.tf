@@ -531,6 +531,13 @@ resource "google_service_account_iam_member" "terraform_sa_act_as_self" {
 # on a fresh project with: "Unable to verify whether custom project role ...
 # already exists and must be undeleted" (the get-before-create call returns
 # 403 to the terraform SA).
+#
+# TODO(#4135): scope this to a purpose-built terraformDashboardRoleAdmin custom
+# role with iam.roles.{get,list,create,update,undelete,delete} and an IAM
+# condition restricting the resource to
+# projects/<project>/roles/dashboardComplianceChecker*. roles/iam.roleAdmin
+# project-wide is over-broad: it lets the terraform SA create/modify any custom
+# role in the project (including one that grants itself setIamPolicy).
 resource "google_project_iam_member" "terraform_role_admin" {
   project = data.google_client_config.default.project
   role    = "roles/iam.roleAdmin"
