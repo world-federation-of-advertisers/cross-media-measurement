@@ -132,11 +132,6 @@ message VidLabelerParams {
   map<string, string> model_blob_paths = 10
       [(google.api.field_behavior) = REQUIRED];
 
-  // Reserved for `memoized_params`, added by the memoized-path PR (#4072)
-  // stacked above this one. Pinned here so an unrelated PR cannot claim field
-  // 11 if this PR merges first; #4072 replaces this with the field definition.
-  reserved 11;
-
   // The `ModelLine`s this WorkItem labels: exactly one on the memoized path,
   // the bundled set on the non-memoized path. Distinct from
   // [override_model_lines], which is the operator-header override applied on
