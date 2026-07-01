@@ -59,9 +59,9 @@ message VidLabelerParams {
   // non-memoized and memoized model-line configurations. Required for the
   // non-memoized configuration, which resolves VIDs against the VID Repo. Unset
   // for the memoized configuration ([memoized_params] set), which derives each
-  // VID from its memoized rank using the compiled model at
-  // [MemoizedParams.model_blob_path] and never calls the VID Repo (an overflow
-  // / unseen fingerprint falls back to the locally-computed hash path).
+  // VID from its memoized rank using the compiled model named for its model
+  // line in [model_blob_paths] and never calls the VID Repo (an overflow /
+  // unseen fingerprint falls back to the locally-computed hash path).
   TransportLayerSecurityParams vid_repo_connection = 4
       [(google.api.field_behavior) = OPTIONAL];
 
@@ -143,9 +143,11 @@ message VidLabelerParams {
   // Its presence selects the memoized path: the TEE resolves the per-subpool
   // rank-index blobs from the `RankIndexBlobService` (gRPC) for the upload and
   // derives each VID from its memoized rank, instead of the non-memoized
-  // hash-only path. The shared payload (`vid_labeling_job`, `model_lines`,
-  // `model_blob_paths`, `model_storage_params`) lives at the top level for both
-  // paths; this message carries only the memoized-specific storage.
+  // hash-only path. The shared payload (`raw_impression_upload`,
+  // `vid_labeling_job`, `model_lines`, `model_blob_paths`,
+  // `model_storage_params`) lives at the top level for both paths —
+  // `raw_impression_upload` is still set (it is REQUIRED) and scopes the
+  // rank-index lookup; this message carries only the memoized-specific storage.
   MemoizedParams memoized_params = 11 [(google.api.field_behavior) = OPTIONAL];
 
   // Parameters specific to the memoized rank-index Phase-2 path.
