@@ -209,25 +209,14 @@ class DeadLetterQueueListener(
         markModelLineFailedBestEffort(params.rawImpressionUpload, params.modelLine, errorMessage)
       }
       VID_LABELER_PARAMS_TYPE -> {
+        // Both Phase-2 paths (memoized and non-memoized) carry the top-level `vid_labeling_job` and
+        // `model_lines`. Mark the job FAILED and every covered model line's parent
+        // `RawImpressionUploadModelLine` FAILED (the upload is the job's parent resource).
         val params = appParams.unpack(VidLabelerParams::class.java)
-        if (params.hasMemoizedParams()) {
-          // Memoized Phase-2 path: the WorkItem references its `VidLabelingJob` directly. Mark the
-          // job FAILED, and mark the parent `RawImpressionUploadModelLine` resolved from the upload
-          // (the job's parent resource) plus the memoized model line.
-          val memoizedParams = params.memoizedParams
-          markVidLabelingJobFailedBestEffort(memoizedParams.vidLabelingJob, errorMessage)
-          val rawImpressionUpload =
-            memoizedParams.vidLabelingJob.substringBeforeLast("/vidLabelingJobs/", "")
-          markModelLineFailedBestEffort(rawImpressionUpload, memoizedParams.modelLine, errorMessage)
-        } else {
-          // Non-memoized Phase-2 path: the WorkItem carries a top-level `vid_labeling_job` covering
-          // the bundled model lines, plus the upload + every bundled `override_model_lines`. Mark
-          // the job FAILED and each bundled model line's parent `RawImpressionUploadModelLine`
-          // FAILED.
-          markVidLabelingJobFailedBestEffort(params.vidLabelingJob, errorMessage)
-          for (modelLine in params.overrideModelLinesList) {
-            markModelLineFailedBestEffort(params.rawImpressionUpload, modelLine, errorMessage)
-          }
+        markVidLabelingJobFailedBestEffort(params.vidLabelingJob, errorMessage)
+        val rawImpressionUpload = params.vidLabelingJob.substringBeforeLast("/vidLabelingJobs/", "")
+        for (modelLine in params.modelLinesList) {
+          markModelLineFailedBestEffort(rawImpressionUpload, modelLine, errorMessage)
         }
       }
       else -> {
