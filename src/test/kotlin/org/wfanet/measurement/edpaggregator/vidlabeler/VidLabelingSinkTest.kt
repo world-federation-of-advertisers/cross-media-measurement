@@ -28,6 +28,7 @@ import com.google.protobuf.util.Timestamps
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
+import java.time.LocalDate
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
@@ -94,6 +95,7 @@ class VidLabelingSinkTest {
               entityId = "h-1"
             }
           ),
+        maxEventDate = LocalDate.parse("2026-06-30"),
       ),
     encryptKmsClient: KmsClient = kmsClient,
     encryptionKeySemaphore: Semaphore =
