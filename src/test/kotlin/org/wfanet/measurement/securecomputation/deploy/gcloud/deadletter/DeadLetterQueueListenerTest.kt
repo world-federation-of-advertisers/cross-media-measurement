@@ -760,7 +760,7 @@ class DeadLetterQueueListenerTest {
       val appParams = vidLabelerParams {
         rawImpressionUpload = UPLOAD
         vidLabelingJob = VID_LABELING_JOB
-        overrideModelLines += MODEL_LINE
+        modelLines += MODEL_LINE
       }
       val workItem = workItemForAppParams(appParams.pack())
       val mockQueueMessage =
@@ -828,11 +828,9 @@ class DeadLetterQueueListenerTest {
   fun `phase-2 memoized VidLabelerParams marks vid labeling job and model line failed`() =
     runBlocking {
       val appParams = vidLabelerParams {
-        memoizedParams =
-          VidLabelerParamsKt.memoizedParams {
-            vidLabelingJob = VID_LABELING_JOB
-            modelLine = MODEL_LINE
-          }
+        vidLabelingJob = VID_LABELING_JOB
+        modelLines += MODEL_LINE
+        memoizedParams = VidLabelerParamsKt.memoizedParams {}
       }
       val workItem = workItemForAppParams(appParams.pack())
       val mockQueueMessage =
