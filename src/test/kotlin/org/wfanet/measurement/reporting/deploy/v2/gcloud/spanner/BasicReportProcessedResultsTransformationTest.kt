@@ -1708,6 +1708,215 @@ class BasicReportProcessedResultsTransformationTest {
   }
 
   @Test
+  fun `buildResultGroups tolerates weekly cadence with reportingUnit cumulative-only union RSR alongside per-primitive non-cumulative`() {
+    // Regression: reproduces the exact shape Aquila cross-media weekly reports hit in
+    // production (2026-06-29 handover).
+    //
+    // Under a weekly cadence with `reporting_unit.cumulative` requested but no
+    // `reporting_unit.non_cumulative`, the union composite RSR is written as a single
+    // whole-report bucket keyed by `end=report_end` with NO `non_cumulative_start`. The
+    // per-primitive `component.non_cumulative` RSRs are written per-week and DO have
+    // `non_cumulative_start`. Those go to distinct window keys in the read map (one
+    // key per `nonCumulativeWindowStartDate`), so the composite union isn't in the
+    // per-week window's map and the per-primitives aren't in the union's window map.
+    //
+    // Pre-fix: `buildResults` unconditionally called `buildReportingUnitMetricSet` and
+    // `buildComponentMetricSet` for every window, causing
+    // `Map.getValue(...)` to throw `NoSuchElementException` -> `INTERNAL` from
+    // `GetBasicReport`. Post-fix: the read skips a component / reporting_unit metric
+    // set when the required RSR isn't in that window.
+    val basicReport = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      details = basicReportDetails {
+        impressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        effectiveImpressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        reportingInterval = REPORTING_INTERVAL
+        resultGroupSpecs += resultGroupSpec {
+          title = "weekly-cross-media"
+          reportingUnit = reportingUnit {
+            dataProviderKeys =
+              ReportingUnitKt.dataProviderKeys {
+                dataProviderKeys += dataProviderKey { cmmsDataProviderId = DATA_PROVIDER_1_ID }
+                dataProviderKeys += dataProviderKey { cmmsDataProviderId = DATA_PROVIDER_2_ID }
+              }
+          }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+          dimensionSpec = dimensionSpec {}
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                // reporting_unit.cumulative under weekly = whole-report cumulative
+                // union reach; produces a single union RSR with no
+                // `non_cumulative_start`.
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              }
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                // Per-primitive weekly non-cumulative; produces one RSR per primitive
+                // with `non_cumulative_start=Monday, end=Monday`.
+                nonCumulative =
+                  ResultGroupMetricSpecKt.basicMetricSetSpec {
+                    reach = true
+                    impressions = true
+                  }
+              }
+          }
+        }
+      }
+    }
+
+    val weeklyStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
+    val reportingSetResults =
+      listOf(
+        // Primitive 1: weekly non-cumulative bucket.
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 1
+          dimension =
+            ReportingSetResultKt.dimension {
+              externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
+              externalImpressionQualificationFilterId =
+                IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
+              metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+              grouping = ReportingSetResultKt.DimensionKt.grouping {}
+            }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart = weeklyStart
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  processedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      nonCumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 10
+                          impressions = 100
+                        }
+                    }
+                }
+            }
+        },
+        // Primitive 2: weekly non-cumulative bucket.
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 2
+          dimension =
+            ReportingSetResultKt.dimension {
+              externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
+              externalImpressionQualificationFilterId =
+                IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
+              metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+              grouping = ReportingSetResultKt.DimensionKt.grouping {}
+            }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart = weeklyStart
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  processedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      nonCumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 20
+                          impressions = 200
+                        }
+                    }
+                }
+            }
+        },
+        // Composite (union): whole-report cumulative bucket with NO nonCumulativeStart.
+        // This is the RSR shape that pre-fix caused the crash.
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 3
+          dimension =
+            ReportingSetResultKt.dimension {
+              externalReportingSetId = COMPOSITE_REPORTING_SET_1_2_ID
+              externalImpressionQualificationFilterId =
+                IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
+              metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+              grouping = ReportingSetResultKt.DimensionKt.grouping {}
+            }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  // No nonCumulativeStart -- whole-report cumulative.
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  processedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
+                    }
+                }
+            }
+        },
+      )
+
+    val primitiveInfoByDataProviderId =
+      mapOf(
+        DATA_PROVIDER_1_ID to
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+          ),
+        DATA_PROVIDER_2_ID to
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+          ),
+      )
+    val compositeReportingSetIdBySetExpression =
+      mapOf(
+        buildUnionSetExpression(
+          listOf(PRIMITIVE_REPORTING_SET_1_ID, PRIMITIVE_REPORTING_SET_2_ID)
+        ) to COMPOSITE_REPORTING_SET_1_2_ID
+      )
+
+    // The main assertion: this call must NOT throw NoSuchElementException.
+    val resultGroups =
+      BasicReportProcessedResultsTransformation.buildResultGroups(
+        basicReport,
+        reportingSetResults,
+        primitiveInfoByDataProviderId,
+        compositeReportingSetIdBySetExpression,
+      )
+
+    // Sanity checks that BOTH the union's cumulative AND the per-primitive non-cumulative
+    // metrics are represented across the resulting Results.
+    val allResults = resultGroups.flatMap { it.resultsList }
+    val hasUnionCumulative =
+      allResults.any {
+        it.metricSet.reportingUnit.hasCumulative() &&
+          it.metricSet.reportingUnit.cumulative.reach > 0
+      }
+    val hasPerPrimitiveNonCumulative =
+      allResults.any {
+        it.metricSet.componentsList.isNotEmpty() &&
+          it.metricSet.componentsList.first().value.hasNonCumulative()
+      }
+    // Sanity: union cumulative reach and per-primitive non-cumulative both present.
+    check(hasUnionCumulative) { "expected union cumulative reach in some Result" }
+    check(hasPerPrimitiveNonCumulative) { "expected per-primitive non-cumulative in some Result" }
+  }
+
+  @Test
   fun `buildResultGroups creates result groups correctly when reporting unit with 3 components`() {
     val basicReport = basicReport {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
