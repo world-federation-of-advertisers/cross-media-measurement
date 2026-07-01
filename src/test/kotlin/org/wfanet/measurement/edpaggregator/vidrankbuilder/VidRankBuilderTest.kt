@@ -132,6 +132,8 @@ class VidRankBuilderTest {
       }
     onBlocking { markRawImpressionUploadModelLineLabeling(any(), any()) } doReturn
       rawImpressionUploadModelLine { name = PARENT_NAME }
+    onBlocking { markRawImpressionUploadModelLineCompleted(any(), any()) } doReturn
+      rawImpressionUploadModelLine { name = PARENT_NAME }
   }
 
   /** Echoes each created `VidLabelingJob` back with a deterministic name (mirrors the service). */
@@ -418,7 +420,7 @@ class VidRankBuilderTest {
     }
 
   @Test
-  fun `last job out with no files publishes nothing but still flips the parent`() = runBlocking {
+  fun `last job out with no files completes the parent directly`() = runBlocking {
     val vidLabelingJobs = vidLabelingJobsMock()
     val modelLines = modelLinesMock(RawImpressionUploadModelLine.State.RANKING)
     val published = mutableListOf<CreateWorkItemRequest>()
@@ -440,7 +442,10 @@ class VidRankBuilderTest {
 
     verifyBlocking(vidLabelingJobs, never()) { batchCreateVidLabelingJobs(any(), any()) }
     assertThat(published).isEmpty()
+    // No VidLabelingJob exists, so no Phase-2 last-job-out would ever complete the model line: the
+    // ranker completes it directly (LABELING -> COMPLETED) instead of stranding it in LABELING.
     verifyBlocking(modelLines) { markRawImpressionUploadModelLineLabeling(any(), any()) }
+    verifyBlocking(modelLines) { markRawImpressionUploadModelLineCompleted(any(), any()) }
   }
 
   @Test
