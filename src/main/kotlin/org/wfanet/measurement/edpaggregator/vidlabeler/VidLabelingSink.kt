@@ -147,13 +147,11 @@ class VidLabelingSink(
           }
 
           // Memoized path: attach the impression's pre-computed rank(s) (keyed by its
-          // EventIdDigest)
-          // so the model's RankedPopulationNode leaf derives a collision-free VID via Feistel. All
-          // of
-          // the fingerprint's per-subpool ranks are attached (a fingerprint can route to several
-          // subpools across impressions); the leaf selects the one matching its own pool_offset. No
-          // match (overflow / unseen) leaves the input untouched and the leaf falls back to
-          // hashing.
+          // EventIdDigest) so the model's RankedPopulationNode leaf derives a collision-free VID
+          // via Feistel. All of the fingerprint's per-subpool ranks are attached (a fingerprint
+          // can route to several subpools across impressions); the leaf selects the one matching
+          // its own pool_offset. No match (overflow / unseen) leaves the input untouched and the
+          // leaf falls back to hashing.
           val ranks = context.rankIndex?.lookup(digestedEvent.digest).orEmpty()
           val labelerInput =
             if (ranks.isEmpty()) {
