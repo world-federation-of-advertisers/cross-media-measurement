@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.eventgroups
 
+import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
@@ -200,11 +201,31 @@ class EventGroupSync(
       // Collect the EDP EventGroups as a stream rather than materializing the full decoded list.
       eventGroups.collect { eventGroup ->
         if (eventGroup.state == EventGroup.State.DELETED) {
-          // Deletes act as a barrier: flush queued creates/updates first so a buffered write is not
-          // reordered after a delete of the same EventGroup (which would NOT_FOUND or leave CMMS
-          // inconsistent with the input order).
-          flushCreates(pendingCreates)
-          flushUpdates(pendingUpdates)
+          // A delete acts on an entity-keyed EventGroup, and only needs to act as a barrier when a
+          // queued create/update targets that same EventGroup: flushing first keeps the buffered
+          // write from being reordered after the delete (which would NOT_FOUND or leave CMMS
+          // inconsistent with the input order). Unrelated deletes skip the flush so they don't
+          // collapse batch sizes. Buffers are bounded by MAX_BATCH_SIZE, so the scan is cheap.
+          if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
+            val entityType = eventGroup.entityKey.entityType
+            val entityId = eventGroup.entityKey.entityId
+            val measurementConsumer = eventGroup.measurementConsumer
+            val targetsBufferedWrite =
+              pendingCreates.any {
+                it.entityType == entityType &&
+                  it.entityId == entityId &&
+                  it.request.eventGroup.measurementConsumer == measurementConsumer
+              } ||
+                pendingUpdates.any {
+                  it.entityType == entityType &&
+                    it.entityId == entityId &&
+                    it.request.eventGroup.measurementConsumer == measurementConsumer
+                }
+            if (targetsBufferedWrite) {
+              flushCreates(pendingCreates)
+              flushUpdates(pendingUpdates)
+            }
+          }
           try {
             validateDeletedEventGroup(eventGroup)
           } catch (e: Exception) {
@@ -429,9 +450,16 @@ class EventGroupSync(
         }
       } catch (e: Exception) {
         if (e is CancellationException) throw e
-        // The whole batch RPC failed (e.g. one invalid sub-request). Fall back to per-item creates
-        // so a single bad EventGroup doesn't block the rest, matching the pre-batching resilience.
-        flushCreatesIndividually(pendingCreates, e)
+        if (isPerRequestFailure(e)) {
+          // A single bad sub-request poisoned the atomic batch. Fall back to per-item creates so
+          // one bad EventGroup doesn't block the rest, matching the pre-batching resilience.
+          flushCreatesIndividually(pendingCreates, e)
+        } else {
+          // Transient / infra failure affects the whole batch, so fanning out per-item retries
+          // would fire N doomed RPCs and inflate the failure metric N-fold for one blip. Record a
+          // single batched failure and let the run's retry handle it.
+          recordBatchFailure(e, pendingCreates)
+        }
         pendingCreates.clear()
         return
       }
@@ -533,9 +561,16 @@ class EventGroupSync(
         }
       } catch (e: Exception) {
         if (e is CancellationException) throw e
-        // The whole batch RPC failed (e.g. one invalid sub-request). Fall back to per-item updates
-        // so a single bad EventGroup doesn't block the rest, matching the pre-batching resilience.
-        flushUpdatesIndividually(pendingUpdates, e)
+        if (isPerRequestFailure(e)) {
+          // A single bad sub-request poisoned the atomic batch. Fall back to per-item updates so
+          // one bad EventGroup doesn't block the rest, matching the pre-batching resilience.
+          flushUpdatesIndividually(pendingUpdates, e)
+        } else {
+          // Transient / infra failure affects the whole batch, so fanning out per-item retries
+          // would fire N doomed RPCs and inflate the failure metric N-fold for one blip. Record a
+          // single batched failure and let the run's retry handle it.
+          recordBatchFailure(e, pendingUpdates)
+        }
         pendingUpdates.clear()
         return
       }
@@ -595,12 +630,7 @@ class EventGroupSync(
    * Records a single failed sync as one [EventGroupSyncMetrics.syncFailure] with item attributes.
    */
   private fun recordItemFailure(e: Exception, item: PendingWrite<*>) {
-    val errorType =
-      if (e is StatusException || e.cause is StatusException) {
-        (e as? StatusException ?: e.cause as StatusException).status.code.name
-      } else {
-        e.javaClass.simpleName
-      }
+    val errorType = errorTypeOf(e)
     metrics.syncFailure.add(
       1,
       Attributes.builder()
@@ -615,6 +645,43 @@ class EventGroupSync(
       "Unable to sync Event Group ${item.eventGroupReferenceId}: error_type=$errorType"
     }
   }
+
+  /**
+   * Records a whole-batch failure as a single [EventGroupSyncMetrics.syncFailure] increment
+   * counting the affected items, tagged only with the batch-level error so a transient infra blip
+   * does not fan out into per-item time series. Used when the batch RPC fails for a non-per-request
+   * reason.
+   */
+  private fun recordBatchFailure(e: Exception, pending: List<PendingWrite<*>>) {
+    val errorType = errorTypeOf(e)
+    metrics.syncFailure.add(
+      pending.size.toLong(),
+      Attributes.builder()
+        .putAll(metricAttributes())
+        .put(AttributeKey.stringKey("error_type"), errorType)
+        .build(),
+    )
+    logger.log(Level.SEVERE, e) {
+      "Batch of ${pending.size} Event Groups failed with a transient error (error_type=$errorType);" +
+        " leaving for retry"
+    }
+  }
+
+  /**
+   * gRPC status code of [e] (directly or via its cause), or `null` if it is not a
+   * [StatusException].
+   */
+  private fun statusCodeOf(e: Exception): Status.Code? =
+    (e as? StatusException ?: e.cause as? StatusException)?.status?.code
+
+  private fun errorTypeOf(e: Exception): String = statusCodeOf(e)?.name ?: e.javaClass.simpleName
+
+  /**
+   * Whether a failed batch RPC is attributable to a single bad sub-request (so a per-item retry can
+   * isolate it) rather than a transient/infra failure that affects the whole batch.
+   */
+  private fun isPerRequestFailure(e: Exception): Boolean =
+    statusCodeOf(e) in PER_REQUEST_FAILURE_CODES
 
   /** Builds a [CreateEventGroupRequest] for [eventGroup] without issuing it. */
   private fun buildCreateRequest(eventGroup: EventGroup): CreateEventGroupRequest {
@@ -857,6 +924,19 @@ class EventGroupSync(
   companion object {
     /** Maximum number of sub-requests per BatchCreate/BatchUpdate EventGroups RPC. */
     private const val MAX_BATCH_SIZE = 50
+
+    /**
+     * gRPC status codes for a failed batch RPC that are attributable to an individual sub-request
+     * (so retrying per item isolates the bad one). Anything else is treated as a transient/infra
+     * failure affecting the whole batch, which is recorded without a per-item retry fan-out.
+     */
+    private val PER_REQUEST_FAILURE_CODES =
+      setOf(
+        Status.Code.INVALID_ARGUMENT,
+        Status.Code.FAILED_PRECONDITION,
+        Status.Code.NOT_FOUND,
+        Status.Code.ALREADY_EXISTS,
+      )
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 

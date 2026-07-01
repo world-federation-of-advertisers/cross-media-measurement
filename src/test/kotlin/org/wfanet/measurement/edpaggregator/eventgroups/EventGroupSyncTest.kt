@@ -2956,6 +2956,67 @@ class EventGroupSyncTest {
   }
 
   @Test
+  fun `does not fan out per-item retries when a batch create fails transiently`() {
+    // A transient/infra failure affects the whole batch, so the fallback must NOT fire 50 doomed
+    // unary retries; it records one batched failure instead.
+    wheneverBlocking {
+        eventGroupsServiceMock.batchCreateEventGroups(any<BatchCreateEventGroupsRequest>())
+      }
+      .thenAnswer {
+        throw StatusException(Status.UNAVAILABLE.withDescription("kingdom unavailable"))
+      }
+
+    val sourceEventGroups =
+      listOf("t-a", "t-b", "t-c").map { refId ->
+        eventGroup {
+          eventGroupReferenceId = refId
+          measurementConsumer = "measurementConsumers/measurement-consumer-1"
+          this.eventGroupMetadata = eventGroupMetadata {
+            this.adMetadata = adMetadata {
+              this.campaignMetadata = campaignMetadata {
+                brand = "brand"
+                campaign = "campaign"
+              }
+            }
+          }
+          dataAvailabilityInterval = interval {
+            startTime = timestamp { seconds = 200 }
+            endTime = timestamp { seconds = 300 }
+          }
+          mediaTypes += listOf(MediaType.OTHER)
+        }
+      }
+
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        sourceEventGroups.asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+        entityKeyTypes = emptyList(),
+      )
+
+    val results = runBlocking { eventGroupSync.sync().toList() }
+
+    assertThat(results).isEmpty()
+    verifyBlocking(eventGroupsServiceMock, times(1)) { batchCreateEventGroups(any()) }
+    // No per-item fan-out on a transient failure.
+    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+
+    val failureMetric = getMetrics().firstOrNull { it.name == "edpa.event_group.sync_failure" }
+    assertThat(failureMetric).isNotNull()
+    // One batched failure counting all affected items, recorded as a single batch-level point.
+    assertThat(failureMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(3)
+    assertThat(failureMetric.longSumData.points).hasSize(1)
+    val point = failureMetric.longSumData.points.first()
+    assertThat(point.attributes.get(AttributeKey.stringKey("error_type"))).isEqualTo("UNAVAILABLE")
+    // Batch-level failure carries no per-item reference id.
+    assertThat(point.attributes.get(AttributeKey.stringKey("event_group_reference_id"))).isNull()
+  }
+
+  @Test
   fun `validateEventGroup rejects malformed measurement_consumer with empty ID`() {
     val eventGroup = eventGroup {
       eventGroupReferenceId = "reference-id"
@@ -3102,10 +3163,110 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `flushes pending creates before processing a delete to preserve ordering`() {
+  fun `flushes pending writes before a delete that targets a buffered EventGroup`() {
     runBlocking {
       val callOrder = mutableListOf<String>()
-      // Existing EG matched by entity key so the DELETED row resolves to a delete RPC.
+      // Existing EG matched by entity key; the update below mutates it and the DELETED row targets
+      // the same entity key, so the buffered update must flush before the delete executes.
+      wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
+        .thenAnswer {
+          listEventGroupsResponse {
+            eventGroups += cmmsEventGroup {
+              name = "dataProviders/data-provider-1/eventGroups/to-update"
+              measurementConsumer = "measurementConsumers/measurement-consumer-1"
+              eventGroupReferenceId = "keep-ref"
+              mediaTypes += listOf(CmmsMediaType.OTHER)
+              eventGroupMetadata = cmmsEventGroupMetadata {
+                this.adMetadata = cmmsAdMetadata {
+                  this.campaignMetadata = cmmsCampaignMetadata {
+                    brandName = "old-brand"
+                    campaignName = "campaign"
+                  }
+                }
+              }
+              dataAvailabilityInterval = interval {
+                startTime = timestamp { seconds = 200 }
+                endTime = timestamp { seconds = 300 }
+              }
+              this.entityKey = cmmsEntityKey {
+                entityType = "creative"
+                entityId = "keep-1"
+              }
+            }
+          }
+        }
+      wheneverBlocking {
+          eventGroupsServiceMock.batchUpdateEventGroups(any<BatchUpdateEventGroupsRequest>())
+        }
+        .thenAnswer { invocation ->
+          callOrder.add("update")
+          batchUpdateEventGroupsResponse {
+            eventGroups +=
+              invocation.getArgument<BatchUpdateEventGroupsRequest>(0).requestsList.map {
+                it.eventGroup
+              }
+          }
+        }
+      wheneverBlocking { eventGroupsServiceMock.deleteEventGroup(any<DeleteEventGroupRequest>()) }
+        .thenAnswer { invocation ->
+          callOrder.add("delete")
+          invocation.getArgument<DeleteEventGroupRequest>(0)
+        }
+
+      val updateSource = eventGroup {
+        eventGroupReferenceId = "keep-ref"
+        measurementConsumer = "measurementConsumers/measurement-consumer-1"
+        entityKey = entityKey {
+          entityType = "creative"
+          entityId = "keep-1"
+        }
+        this.eventGroupMetadata = eventGroupMetadata {
+          this.adMetadata = adMetadata {
+            this.campaignMetadata = campaignMetadata {
+              brand = "new-brand" // changed -> triggers an update
+              campaign = "campaign"
+            }
+          }
+        }
+        dataAvailabilityInterval = interval {
+          startTime = timestamp { seconds = 200 }
+          endTime = timestamp { seconds = 300 }
+        }
+        mediaTypes += listOf(MediaType.OTHER)
+      }
+      val deletedEventGroup = eventGroup {
+        eventGroupReferenceId = "keep-ref"
+        measurementConsumer = "measurementConsumers/measurement-consumer-1"
+        state = State.DELETED
+        entityKey = entityKey {
+          entityType = "creative"
+          entityId = "keep-1"
+        }
+      }
+
+      val eventGroupSync =
+        EventGroupSync(
+          "edp-name",
+          eventGroupsStub,
+          clientAccountsStub,
+          listOf(updateSource, deletedEventGroup).asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+          entityKeyTypes = emptyList(),
+        )
+      eventGroupSync.sync().toList()
+
+      // The delete targets the same EventGroup as the buffered update, so the update flushes first.
+      assertThat(callOrder).containsExactly("update", "delete").inOrder()
+    }
+  }
+
+  @Test
+  fun `does not flush unrelated buffered writes on a delete`() {
+    runBlocking {
+      val callOrder = mutableListOf<String>()
+      // Existing EG matched by entity key so the DELETED row resolves to a delete RPC. It targets a
+      // different EventGroup than the buffered create, so the delete must NOT force an early flush.
       wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
         .thenAnswer {
           listEventGroupsResponse {
@@ -3190,8 +3351,9 @@ class EventGroupSyncTest {
         )
       eventGroupSync.sync().toList()
 
-      // The buffered create must be flushed before the delete executes.
-      assertThat(callOrder).containsExactly("create", "delete").inOrder()
+      // The delete runs immediately (no buffered write targets it); the create flushes at stream
+      // end.
+      assertThat(callOrder).containsExactly("delete", "create").inOrder()
     }
   }
 
