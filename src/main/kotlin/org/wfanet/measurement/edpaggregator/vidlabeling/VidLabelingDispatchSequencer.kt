@@ -59,7 +59,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequ
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLinePoolAssigningRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
-import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
@@ -268,11 +267,15 @@ class VidLabelingDispatchSequencer(
 
     val files: List<RawImpressionUploadFile> = listUploadFiles(uploadName)
     if (files.isEmpty()) {
+      // Do NOT advance the model lines to LABELING: with no files there are no VidLabelingJobs, so
+      // the last-job-out MarkVidLabelingJobSucceeded would never fire and the lines would strand in
+      // LABELING with no completion path. Leave them CREATED so a later dispatch retries (an empty
+      // listing is anomalous/transient because files are registered before dispatch); the Monitor
+      // surfaces uploads that stay CREATED.
       logger.warning(
         "No RawImpressionUploadFiles under $uploadName; nothing to label for non-memoized model " +
-          "lines $modelLineNames"
+          "lines $modelLineNames; leaving them CREATED for retry"
       )
-      for (bundled in bundle) markLabeling(bundled.modelLine.name, bundled.modelLine.etag)
       return
     }
 
@@ -359,16 +362,20 @@ class VidLabelingDispatchSequencer(
     modelLine: RawImpressionUploadModelLine,
     shardInfo: ResolvedShardInfo,
   ) {
-    // `vid_rank_map_storage_params` and `subpool_map_storage_params` are REQUIRED on
-    // `SubpoolAssignerParams` but OPTIONAL on `VidLabelingConfig` (only required for EDPs with at
-    // least one memoized model line). Enforce that intent here: fail fast at the first memoized
-    // dispatch rather than publishing a WorkItem with REQUIRED fields missing.
+    // `vid_rank_map_storage_params`, `subpool_map_storage_params`, and `model_storage_params` are
+    // REQUIRED on `SubpoolAssignerParams` but OPTIONAL on `VidLabelingConfig` (only required for
+    // EDPs with at least one memoized model line). Enforce that intent here: fail fast at the first
+    // memoized dispatch rather than publishing a WorkItem with REQUIRED fields missing.
     require(subpoolAssignerParamsTemplate.hasVidRankMapStorageParams()) {
       "vid_rank_map_storage_params missing for memoized model line ${modelLine.cmmsModelLine}; " +
         "set it on VidLabelingConfig for this DataProvider"
     }
     require(subpoolAssignerParamsTemplate.hasSubpoolMapStorageParams()) {
       "subpool_map_storage_params missing for memoized model line ${modelLine.cmmsModelLine}; " +
+        "set it on VidLabelingConfig for this DataProvider"
+    }
+    require(subpoolAssignerParamsTemplate.hasModelStorageParams()) {
+      "model_storage_params missing for memoized model line ${modelLine.cmmsModelLine}; " +
         "set it on VidLabelingConfig for this DataProvider"
     }
     val modelLineConfig =
@@ -539,28 +546,24 @@ class VidLabelingDispatchSequencer(
         }
       }
 
-    val params = vidLabelerParams {
-      dataProvider = dataProviderName
-      vidLabeledImpressionsStorageParams =
-        vidLabelerParamsTemplate.vidLabeledImpressionsStorageParams
-      rawImpressionsStorageParams = vidLabelerParamsTemplate.rawImpressionsStorageParams
-      vidRepoConnection = vidLabelerParamsTemplate.vidRepoConnection
-      // The compiled model lives in its own Cloud Storage project (carried on the template from
-      // VidLabelingConfig.model_storage_params); the TEE reads the model blob from there.
-      modelStorageParams = vidLabelerParamsTemplate.modelStorageParams
-      modelLineConfigs.putAll(lineConfigs)
-      for (modelLineName in modelLineNames) {
-        modelBlobPaths[modelLineName] =
-          requireNotNull(modelBlobPathByLine[modelLineName]) {
-            "No model blob path for model line: $modelLineName"
-          }
+    // Start from the shared template (data provider, storage params, vid-repo connection, and the
+    // model-storage project) via `copy { }` so any field later added to the template automatically
+    // flows onto non-memoized WorkItems too; only the per-WorkItem fields are set below.
+    val params =
+      vidLabelerParamsTemplate.copy {
+        modelLineConfigs.putAll(lineConfigs)
+        for (modelLineName in modelLineNames) {
+          modelBlobPaths[modelLineName] =
+            requireNotNull(modelBlobPathByLine[modelLineName]) {
+              "No model blob path for model line: $modelLineName"
+            }
+        }
+        // The bundled model lines this WorkItem labels. `override_model_lines` is reserved for the
+        // operator-header override and is left unset here.
+        modelLines += modelLineNames
+        rawImpressionUpload = uploadName
+        vidLabelingJob = vidLabelingJobName
       }
-      // The bundled model lines this WorkItem labels. `override_model_lines` is reserved for the
-      // operator-header override and is left unset here.
-      modelLines += modelLineNames
-      rawImpressionUpload = uploadName
-      vidLabelingJob = vidLabelingJobName
-    }
 
     val workItemId = "vid-labeling-${vidLabelingJobName.substringAfterLast("/")}"
     val request = createWorkItemRequest {
