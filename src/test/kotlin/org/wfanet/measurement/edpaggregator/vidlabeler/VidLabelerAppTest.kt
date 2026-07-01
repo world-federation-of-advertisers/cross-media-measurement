@@ -242,12 +242,12 @@ class VidLabelerAppTest {
         labelerInputFieldMapping.put("event_id.id", "event_id_column")
       },
     )
+    // Shared payload is top-level; MemoizedParams carries only the rank-index storage.
+    vidLabelingJob = VID_LABELING_JOB
+    modelLines += MODEL_LINE
+    modelBlobPaths.put(MODEL_LINE, "file:///models/model.binpb")
     memoizedParams =
       VidLabelerParamsKt.memoizedParams {
-        vidLabelingJob = VID_LABELING_JOB
-        rawImpressionUploadFiles += "$UPLOAD/rawImpressionUploadFiles/f1"
-        modelLine = MODEL_LINE
-        modelBlobPath = "file:///models/model.binpb"
         vidRankMapStorageParams =
           VidLabelerParamsKt.storageParams {
             gcsProjectId = "test-project"
@@ -256,9 +256,7 @@ class VidLabelerAppTest {
       }
   }
 
-  /**
-   * Non-memoized (hash-only) params: top-level `vid_labeling_job` + bundled `override_model_lines`.
-   */
+  /** Non-memoized (hash-only) params: top-level `vid_labeling_job` + bundled `model_lines`. */
   private fun nonMemoizedParams(): VidLabelerParams = vidLabelerParams {
     dataProvider = DATA_PROVIDER_NAME
     rawImpressionsStorageParams =
@@ -277,7 +275,7 @@ class VidLabelerAppTest {
         labelerInputFieldMapping.put("event_id.id", "event_id_column")
       },
     )
-    overrideModelLines += MODEL_LINE
+    modelLines += MODEL_LINE
     modelBlobPaths.put(MODEL_LINE, "file:///models/model.binpb")
     vidLabelingJob = VID_LABELING_JOB
   }
