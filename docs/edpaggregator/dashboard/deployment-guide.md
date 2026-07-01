@@ -72,6 +72,27 @@ Before deploying the dashboard, ensure the following are in place:
         Terraform fails with: "Unable to verify whether custom project role
         projects/<project>/roles/dashboardComplianceChecker already exists
         and must be undeleted."
+
+        **Security note for adopters.** The reference Terraform grants
+        project-wide `roles/iam.roleAdmin` because there is no built-in
+        Google-managed role that covers `iam.roles.*` scoped to a single
+        custom role. This lets the Terraform SA create or modify *any*
+        custom role in the project. For your own deployments, prefer one of:
+        (a) grant `roles/iam.roleAdmin` only for the first apply, then revoke
+        and let subsequent applies maintain the role via the self-grant —
+        works if you can accept one-shot bootstrap privilege;
+        (b) replace `terraform_role_admin` in `dashboard.tf` with a project
+        custom role that bundles only
+        `iam.roles.{get,list,create,update,undelete,delete}`, granted via
+        `google_project_iam_member` with an IAM condition restricting the
+        resource to
+        `resource.name.startsWith("projects/<project>/roles/dashboardComplianceChecker")`.
+        The scoped-role refactor is tracked in
+        [#4135](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/4135).
+        The dev/head/qa reference environments accept the broader grant
+        because their blast radius is bounded to test data and audit-logged
+        CI; production deployments should not follow this pattern without
+        one of the above narrowings.
 5.  Proto bundles are registered in Kingdom and Reporting Spanner databases
     (required for `TO_JSON()` decoding).
 6.  The BigQuery Connection service agent
