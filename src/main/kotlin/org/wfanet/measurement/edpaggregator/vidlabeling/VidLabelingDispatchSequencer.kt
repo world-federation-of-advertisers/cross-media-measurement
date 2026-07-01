@@ -248,6 +248,18 @@ class VidLabelingDispatchSequencer(
    * order is jobs -> WorkItems -> mark, so all rows exist before the line is advanced; every create
    * is idempotent (deterministic `request_id`s / `workItemId`s), so a caller that loses the
    * per-model-line etag CAS at [markLabeling] has only repeated harmless creates.
+   *
+   * Bundle-set stability under partial failure: the job `request_id` is keyed by the *sorted bundle
+   * set* ([RequestIds.forVidLabelingJob]), so if [markLabeling] succeeds for some lines but throws
+   * for others mid-tick, the next tick re-bundles only the still-`CREATED` lines and creates a
+   * *second* set of jobs over the same files — those lines get labeled twice. This is **not** a
+   * double-count: the labeled output blob key is deterministic per (input file, model line)
+   * ([VidLabelingSink] writes `model-line/<id>/<date>/<sha(inputBlobUri|modelLine)>`), so the
+   * second pass overwrites the same blob + `.metadata` sidecar — `DataAvailabilitySync` sees one
+   * metadata blob per (file, model line), so `ImpressionMetadata` (and Halo counts) are not
+   * duplicated. The only cost is redundant labeling work + extra `VidLabelingJob` rows; acceptable
+   * at the current scale (few model lines, low churn). If that cost matters, re-fetch each line's
+   * state and abort the whole bundle when any is no longer `CREATED` before creating jobs.
    */
   private suspend fun dispatchNonMemoizedBundle(
     uploadName: String,
