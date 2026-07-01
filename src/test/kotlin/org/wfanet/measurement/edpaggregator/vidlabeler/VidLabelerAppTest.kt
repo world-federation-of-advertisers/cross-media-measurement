@@ -193,6 +193,20 @@ class VidLabelerAppTest {
     }
   }
 
+  /**
+   * Creates a labeled-output date folder for [modelLineId] (what the sink would write) so the
+   * last-job-out per-(model line, date) `done` enumeration finds a date folder to finalize.
+   */
+  private fun seedLabeledOutputDate(modelLineId: String, date: String) {
+    val dir =
+      tempFolder.root
+        .toPath()
+        .resolve("output-bucket/labeled/model-line/$modelLineId/$date")
+        .toFile()
+    dir.mkdirs()
+    dir.resolve("blob-0").createNewFile()
+  }
+
   private fun createApp(
     kmsClients: Map<String, KmsClient> = mapOf(DATA_PROVIDER_NAME to kmsClient),
     encryptKekUris: Map<String, String> = mapOf(DATA_PROVIDER_NAME to kekUri),
@@ -380,6 +394,9 @@ class VidLabelerAppTest {
 
     // FileSystemStorageClient requires the bucket directory to pre-exist (GCS buckets always do).
     tempFolder.root.resolve("output-bucket").mkdirs()
+    // Simulate the sink's output so the per-(model line, date) done enumeration finds a date
+    // folder.
+    seedLabeledOutputDate("ml1", "2026-06-30")
 
     val app = createApp()
     app.runWork(buildMessage(memoizedParams()))
@@ -387,10 +404,13 @@ class VidLabelerAppTest {
     verifyBlocking(rawImpressionUploadModelLinesService) {
       markRawImpressionUploadModelLineCompleted(any())
     }
-    // file:///output-bucket/labeled -> bucket "output-bucket", key "labeled/...". The done blob is
-    // written under {rootDir}/{bucket}/{key}.
+    // A done marker is written in the completed model line's date folder:
+    // file:///output-bucket/labeled/model-line/ml1/2026-06-30/done.
     val doneFile =
-      tempFolder.root.toPath().resolve("output-bucket/labeled/labeled-impressions/done").toFile()
+      tempFolder.root
+        .toPath()
+        .resolve("output-bucket/labeled/model-line/ml1/2026-06-30/done")
+        .toFile()
     assertThat(doneFile.exists()).isTrue()
   }
 
@@ -423,6 +443,7 @@ class VidLabelerAppTest {
     )
 
     tempFolder.root.resolve("output-bucket").mkdirs()
+    seedLabeledOutputDate("ml1", "2026-06-30")
 
     val app = createApp()
     app.runWork(buildMessage(memoizedParams()))
@@ -434,7 +455,10 @@ class VidLabelerAppTest {
       markRawImpressionUploadModelLineCompleted(any())
     }
     val doneFile =
-      tempFolder.root.toPath().resolve("output-bucket/labeled/labeled-impressions/done").toFile()
+      tempFolder.root
+        .toPath()
+        .resolve("output-bucket/labeled/model-line/ml1/2026-06-30/done")
+        .toFile()
     assertThat(doneFile.exists()).isTrue()
   }
 
@@ -524,7 +548,7 @@ class VidLabelerAppTest {
     }
 
   @Test
-  fun `runWork withholds done blob while another model line of the upload is still labeling`() =
+  fun `runWork writes the completed model line's done even while a sibling is still labeling`() =
     runBlocking {
       seedRankIndexBlob()
       vidLabelingJobsService.stub {
@@ -546,8 +570,9 @@ class VidLabelerAppTest {
               }
           }
       }
-      // This WorkItem's model line is COMPLETED, but a sibling model line of the same upload is
-      // still LABELING, so the upload-wide done blob must not be written yet.
+      // This WorkItem's model line is COMPLETED while a sibling of the same upload is still
+      // LABELING. Per-model-line availability: the completed line's done is written immediately;
+      // the still-labeling sibling gets none.
       stubModelLineList(
         preMark =
           listOf(
@@ -562,18 +587,29 @@ class VidLabelerAppTest {
       )
 
       tempFolder.root.resolve("output-bucket").mkdirs()
+      seedLabeledOutputDate("ml1", "2026-06-30")
 
       val app = createApp()
       app.runWork(buildMessage(memoizedParams()))
 
-      // The job's own model line is still transitioned to COMPLETED ...
+      // The job's own model line is transitioned to COMPLETED ...
       verifyBlocking(rawImpressionUploadModelLinesService) {
         markRawImpressionUploadModelLineCompleted(any())
       }
-      // ... but the shared done blob is withheld until every model line of the upload completes.
+      // ... and gets its own per-date done marker immediately, independent of the sibling ...
       val doneFile =
-        tempFolder.root.toPath().resolve("output-bucket/labeled/labeled-impressions/done").toFile()
-      assertThat(doneFile.exists()).isFalse()
+        tempFolder.root
+          .toPath()
+          .resolve("output-bucket/labeled/model-line/ml1/2026-06-30/done")
+          .toFile()
+      assertThat(doneFile.exists()).isTrue()
+      // ... while the still-LABELING sibling gets no done marker.
+      val siblingDone =
+        tempFolder.root
+          .toPath()
+          .resolve("output-bucket/labeled/model-line/ml2/2026-06-30/done")
+          .toFile()
+      assertThat(siblingDone.exists()).isFalse()
     }
 
   /**
@@ -779,6 +815,7 @@ class VidLabelerAppTest {
       postMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.COMPLETED),
     )
     tempFolder.root.resolve("output-bucket").mkdirs()
+    seedLabeledOutputDate("ml1", "2026-06-30")
 
     val reader = InMemoryMetricReader.create()
     val meter = SdkMeterProvider.builder().registerMetricReader(reader).build().get("test")
