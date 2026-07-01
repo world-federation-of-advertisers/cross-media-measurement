@@ -86,9 +86,9 @@ class VidLabeler(
 
     // One semaphore per WorkItem (this is one label() call per WorkItem), shared across every
     // per-file sink. All of a WorkItem's files belong to the same DataProvider and wrap their
-    // output
-    // DEKs against the same KEK, so this caps concurrent KMS key setup across the WorkItem's whole
-    // group fan-out (nModelLines x nFiles) and keeps the shared KEK under Cloud KMS rate limits.
+    // output DEKs against the same KEK, so this caps concurrent KMS key setup across the
+    // WorkItem's whole group fan-out (nModelLines x nFiles) and keeps the shared KEK under Cloud
+    // KMS rate limits.
     val encryptionKeySemaphore = Semaphore(VidLabelingSink.DEFAULT_ENCRYPTION_KEY_PARALLELISM)
 
     // TODO(world-federation-of-advertisers/cross-media-measurement#4010): Switch to file-batching
