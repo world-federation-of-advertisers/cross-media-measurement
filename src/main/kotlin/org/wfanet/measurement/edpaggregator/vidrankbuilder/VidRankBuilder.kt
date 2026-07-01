@@ -359,10 +359,7 @@ class VidRankBuilder(
    * redelivered last-job-out is a no-op.
    */
   private suspend fun publishVidLabelerWorkItem(job: VidLabelingJob) {
-    val params =
-      vidLabelerParamsTemplate.copy {
-        memoizedParams = memoizedParams.copy { vidLabelingJob = job.name }
-      }
+    val params = vidLabelerParamsTemplate.copy { vidLabelingJob = job.name }
     val workItemId = "vid-labeler-${job.name.substringAfterLast('/')}"
     try {
       workItemsStub.createWorkItem(
