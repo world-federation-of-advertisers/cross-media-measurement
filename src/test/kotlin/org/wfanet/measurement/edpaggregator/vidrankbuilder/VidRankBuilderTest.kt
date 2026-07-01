@@ -69,11 +69,9 @@ private const val QUEUE = "queues/vid-labeler"
 
 private val VID_LABELER_TEMPLATE = vidLabelerParams {
   dataProvider = "dataProviders/dp"
-  memoizedParams =
-    VidLabelerParamsKt.memoizedParams {
-      modelLine = MODEL_LINE
-      modelBlobPath = "model/blob"
-    }
+  modelLines += MODEL_LINE
+  modelBlobPaths.put(MODEL_LINE, "model/blob")
+  memoizedParams = VidLabelerParamsKt.memoizedParams {}
 }
 
 @RunWith(JUnit4::class)
@@ -299,11 +297,11 @@ class VidRankBuilderTest {
       verifyBlocking(vidLabelingJobs) { batchCreateVidLabelingJobs(any(), any()) }
       assertThat(published).hasSize(1)
       val params = publishedParams(published.single())
-      assertThat(params.memoizedParams.vidLabelingJob).isNotEmpty()
+      assertThat(params.vidLabelingJob).isNotEmpty()
       assertThat(createdFileBatches(jobRequests).single())
         .containsExactly("$UPLOAD/files/0", "$UPLOAD/files/1", "$UPLOAD/files/2")
       // Template fields carry through.
-      assertThat(params.memoizedParams.modelBlobPath).isEqualTo("model/blob")
+      assertThat(params.modelBlobPathsMap.getValue(MODEL_LINE)).isEqualTo("model/blob")
       verifyBlocking(modelLines) { markRawImpressionUploadModelLineLabeling(any(), any()) }
     }
 
@@ -518,7 +516,7 @@ class VidRankBuilderTest {
       assertThat(published).hasSize(2)
       // Files live on the existing VidLabelingJob (the TEE gets it); the WorkItem carries only the
       // job name, so assert recovery republished a WorkItem per existing job.
-      assertThat(published.map { publishedParams(it).memoizedParams.vidLabelingJob })
+      assertThat(published.map { publishedParams(it).vidLabelingJob })
         .containsExactly("$UPLOAD/vidLabelingJobs/job0", "$UPLOAD/vidLabelingJobs/job1")
       verifyBlocking(modelLines) { markRawImpressionUploadModelLineLabeling(any(), any()) }
     }
