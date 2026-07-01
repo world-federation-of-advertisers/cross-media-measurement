@@ -475,12 +475,20 @@ class EventGroupSync(
       }
     response.eventGroupsList.forEach { syncedEventGroup ->
       val item =
-        pendingByKey.getValue(
+        pendingByKey[
           EventGroupKey(
             syncedEventGroup.eventGroupReferenceId,
             syncedEventGroup.measurementConsumer,
-          )
-        )
+          )]
+      if (item == null) {
+        // A well-behaved kingdom only returns EventGroups we requested; skip an unmatched response
+        // entry rather than aborting the whole sync run.
+        logger.warning {
+          "BatchCreateEventGroups returned an unrequested EventGroup ${syncedEventGroup.name}" +
+            " (referenceId=${syncedEventGroup.eventGroupReferenceId}); skipping"
+        }
+        return@forEach
+      }
       metrics.syncSuccess.add(1, metricAttributes())
       metrics.syncLatency.record(
         item.startTime.elapsedNow().inWholeMilliseconds / 1000.0,
@@ -578,7 +586,16 @@ class EventGroupSync(
     // guard) rather than list position, since the batch response order is not guaranteed.
     val pendingByName = pendingUpdates.associateBy { it.request.eventGroup.name }
     response.eventGroupsList.forEach { syncedEventGroup ->
-      val item = pendingByName.getValue(syncedEventGroup.name)
+      val item = pendingByName[syncedEventGroup.name]
+      if (item == null) {
+        // A well-behaved kingdom only returns EventGroups we requested; skip an unmatched response
+        // entry rather than aborting the whole sync run.
+        logger.warning {
+          "BatchUpdateEventGroups returned an unrequested EventGroup ${syncedEventGroup.name};" +
+            " skipping"
+        }
+        return@forEach
+      }
       metrics.syncSuccess.add(1, metricAttributes())
       metrics.syncLatency.record(
         item.startTime.elapsedNow().inWholeMilliseconds / 1000.0,
