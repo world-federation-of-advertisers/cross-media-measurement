@@ -357,7 +357,7 @@ class VidLabelerApp(
   }
 
   /**
-   * Labels the bundled non-memoized model lines ([VidLabelerParams.override_model_lines]) against
+   * Labels the bundled non-memoized model lines ([VidLabelerParams.model_lines]) against
    * [inputFiles] with the hash-only path (no rank index). One [VidLabeler] run covers every bundled
    * line; the shared [impressionConverter] and raw event-id column are taken from the first line's
    * config, since an EDP's model lines share its raw event schema and EventTemplate.
@@ -446,6 +446,12 @@ class VidLabelerApp(
    * Idempotent on Pub/Sub redelivery: the mark is keyed by a deterministic `request_id`, the
    * transition swallows the benign already-advanced races, and the done blob has a deterministic
    * key.
+   *
+   * The mark and the parent-line transitions are two separate RPCs, not a single atomic
+   * `MarkLabelingJobSucceeded` that also flips the parent (as an earlier design draft described).
+   * This follows the job-API convention where the caller drives the parent `COMPLETED` transition
+   * (matching #4051/#4052/#4044); a crash between the two leaves the parent in `LABELING`, which
+   * the Monitor's stuck-`LABELING` recovery reconciles to `COMPLETED`.
    */
   private suspend fun markSucceededAndTransition(
     params: VidLabelerParams,
