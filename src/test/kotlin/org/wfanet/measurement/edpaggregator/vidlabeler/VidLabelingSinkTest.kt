@@ -28,6 +28,7 @@ import com.google.protobuf.util.Timestamps
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
 import kotlin.test.assertFailsWith
@@ -50,6 +51,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
+import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.ParquetValue
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -124,12 +126,14 @@ class VidLabelingSinkTest {
     activeWindow: ActiveWindow,
     assigner: VidAssigner = FixedVidAssigner(VID),
     modelLine: String = MODEL_LINE,
+    rankIndex: MemoizedRankIndex? = null,
   ) =
     ModelLineContext(
       modelLine = modelLine,
       activeWindow = activeWindow,
       assigner = assigner,
       config = VidLabelerParams.ModelLineConfig.getDefaultInstance(),
+      rankIndex = rankIndex,
     )
 
   @Test
@@ -192,6 +196,44 @@ class VidLabelingSinkTest {
       val unionByType = blobDetails.entityKeysList.associate { it.entityType to it.entityIdsList }
       assertThat(unionByType.getValue("household")).containsExactly("hh-1", "hh-2")
       assertThat(unionByType.getValue("person")).containsExactly("p-shared")
+    }
+
+  @Test
+  fun `memoized path attaches rank assignments on a hit and leaves the input untouched on a miss`() =
+    runBlocking<Unit> {
+      tempFolder.root.resolve("labeled").mkdirs()
+      // Rank index holds a rank only for the hit event's fingerprint (idByte 1 -> high=1, low=1).
+      val subpoolMap = Bytes12IntMap().apply { put(1L, 1, 7) }
+      val rankIndex = MemoizedRankIndex.fromMaps(mapOf(POOL_OFFSET to subpoolMap))
+      val assigner = CapturingVidAssigner(VID)
+      val sink =
+        sink(
+          listOf(
+            context(
+              ActiveWindow(startMicros = 0L, endMicros = 10_000L),
+              assigner = assigner,
+              rankIndex = rankIndex,
+            )
+          )
+        )
+
+      sink.processBatch(
+        listOf(
+          rawEvent(eventTimeMicros = 1_000L, eventGroup = "eg1", idByte = 1), // hit
+          rawEvent(eventTimeMicros = 1_000L, eventGroup = "eg1", idByte = 2), // miss
+        )
+      )
+      sink.commit()
+      sink.close()
+
+      // Labeling runs on concurrent workers, so assert on the set rather than on order.
+      assertThat(assigner.inputs).hasSize(2)
+      val withRanks = assigner.inputs.filter { it.rankAssignmentsList.isNotEmpty() }
+      assertThat(withRanks).hasSize(1)
+      assertThat(withRanks.single().rankAssignmentsList.map { it.poolOffset to it.localRank })
+        .containsExactly(POOL_OFFSET to 7L)
+      // The miss leaves its LabelerInput untouched (no rank assignments attached).
+      assertThat(assigner.inputs.count { it.rankAssignmentsList.isEmpty() }).isEqualTo(1)
     }
 
   @Test
@@ -460,6 +502,20 @@ class VidLabelingSinkTest {
         .build()
   }
 
+  /**
+   * Records every [LabelerInput] it receives (thread-safe: labeling runs on concurrent workers).
+   */
+  private class CapturingVidAssigner(private val vid: Long) : VidAssigner {
+    val inputs = CopyOnWriteArrayList<LabelerInput>()
+
+    override fun assign(input: LabelerInput): LabelerOutput {
+      inputs.add(input)
+      return LabelerOutput.newBuilder()
+        .addPeople(VirtualPersonActivity.newBuilder().setVirtualPersonId(vid).build())
+        .build()
+    }
+  }
+
   private fun rawEvent(
     eventTimeMicros: Long,
     eventGroup: String,
@@ -483,6 +539,7 @@ class VidLabelingSinkTest {
     private const val DATA_PROVIDER = "dataProviders/edp-1"
     private const val MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
     private const val VID = 42L
+    private const val POOL_OFFSET = 10L
     private const val EVENT_TIME_COLUMN = "event_time_micros"
     private const val EVENT_GROUP_COLUMN = "event_group"
   }
