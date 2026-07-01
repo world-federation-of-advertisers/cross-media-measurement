@@ -195,6 +195,7 @@ class VidLabelerAppTest {
 
   private fun createApp(
     kmsClients: Map<String, KmsClient> = mapOf(DATA_PROVIDER_NAME to kmsClient),
+    encryptKekUris: Map<String, String> = mapOf(DATA_PROVIDER_NAME to kekUri),
     loadAssigner: suspend (modelBlobUri: String) -> VidAssigner = { mockVidAssigner },
     metrics: VidLabelerAppMetrics = VidLabelerAppMetrics(),
   ): VidLabelerApp {
@@ -205,6 +206,7 @@ class VidLabelerAppTest {
       workItemsClient = workItemsStub,
       workItemAttemptsClient = workItemAttemptsStub,
       kmsClients = kmsClients,
+      encryptKekUris = encryptKekUris,
       getStorageConfig = { StorageConfig(rootDirectory = tempFolder.root) },
       vidLabelingJobsStub = vidLabelingJobsStub,
       rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesStub,
@@ -254,6 +256,32 @@ class VidLabelerAppTest {
       }
   }
 
+  /**
+   * Non-memoized (hash-only) params: top-level `vid_labeling_job` + bundled `override_model_lines`.
+   */
+  private fun nonMemoizedParams(): VidLabelerParams = vidLabelerParams {
+    dataProvider = DATA_PROVIDER_NAME
+    rawImpressionsStorageParams =
+      VidLabelerParamsKt.storageParams {
+        gcsProjectId = "test-project"
+        impressionsBlobPrefix = "file:///raw-bucket/impressions"
+      }
+    vidLabeledImpressionsStorageParams =
+      VidLabelerParamsKt.storageParams {
+        gcsProjectId = "test-project"
+        impressionsBlobPrefix = "file:///output-bucket/labeled"
+      }
+    modelLineConfigs.put(
+      MODEL_LINE,
+      VidLabelerParamsKt.modelLineConfig {
+        labelerInputFieldMapping.put("event_id.id", "event_id_column")
+      },
+    )
+    overrideModelLines += MODEL_LINE
+    modelBlobPaths.put(MODEL_LINE, "file:///models/model.binpb")
+    vidLabelingJob = VID_LABELING_JOB
+  }
+
   private fun buildMessage(params: VidLabelerParams): com.google.protobuf.Any {
     return workItemParams { appParams = params.pack() }.pack()
   }
@@ -286,6 +314,40 @@ class VidLabelerAppTest {
     assertThat(captor.firstValue.etag).isEqualTo("etag-1")
     assertThat(captor.firstValue.requestId).isNotEmpty()
     // Not last-job-out: no model line completed, so no transition and no done blob.
+    verifyBlocking(rawImpressionUploadModelLinesService, never()) {
+      markRawImpressionUploadModelLineCompleted(any())
+    }
+  }
+
+  @Test
+  fun `runWork labels the non-memoized path and marks job succeeded`() = runBlocking {
+    // No rank index is seeded: the non-memoized (hash-only) path reads no RankIndexBlob and wraps
+    // its labeled output with the EDP's KEK from encryptKekUris instead.
+    vidLabelingJobsService.stub {
+      onBlocking { getVidLabelingJob(any()) } doReturn
+        vidLabelingJob {
+          name = VID_LABELING_JOB
+          state = VidLabelingJob.State.CREATED
+          etag = "etag-1"
+        }
+      onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
+        markVidLabelingJobSucceededResponse {
+          vidLabelingJob = vidLabelingJob {
+            name = VID_LABELING_JOB
+            state = VidLabelingJob.State.SUCCEEDED
+          }
+        }
+    }
+
+    val app = createApp()
+    app.runWork(buildMessage(nonMemoizedParams()))
+
+    val captor = argumentCaptor<MarkVidLabelingJobSucceededRequest>()
+    verifyBlocking(vidLabelingJobsService) { markVidLabelingJobSucceeded(captor.capture()) }
+    assertThat(captor.firstValue.name).isEqualTo(VID_LABELING_JOB)
+    assertThat(captor.firstValue.etag).isEqualTo("etag-1")
+    assertThat(captor.firstValue.requestId).isNotEmpty()
+    // Not last-job-out: no model line completed, so no transition.
     verifyBlocking(rawImpressionUploadModelLinesService, never()) {
       markRawImpressionUploadModelLineCompleted(any())
     }
@@ -605,7 +667,9 @@ class VidLabelerAppTest {
   }
 
   @Test
-  fun `runWork throws when memoized_params is not set`() = runBlocking {
+  fun `runWork throws when neither memoized_params nor vid_labeling_job is set`() = runBlocking {
+    // No memoized_params routes to the non-memoized path, which requires a top-level
+    // vid_labeling_job.
     val app = createApp()
     val params = vidLabelerParams {
       dataProvider = DATA_PROVIDER_NAME
@@ -622,7 +686,7 @@ class VidLabelerAppTest {
     }
 
     val exception = assertFailsWith<IllegalArgumentException> { app.runWork(buildMessage(params)) }
-    assertThat(exception).hasMessageThat().contains("memoized_params must be set")
+    assertThat(exception).hasMessageThat().contains("vid_labeling_job must be set")
   }
 
   @Test

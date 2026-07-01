@@ -97,6 +97,11 @@ class VidLabelerAppRunner : BaseTeeAppRunner() {
         workItemsClient = workItemsClient,
         workItemAttemptsClient = workItemAttemptsClient,
         kmsClients = kmsClients,
+        // TODO(world-federation-of-advertisers/cross-media-measurement#4093): populate per-EDP
+        //   encrypt KEK URIs from EventDataProviderConfig.KmsConfig.kek_uri (added in #4093) so the
+        //   non-memoized Phase-2 path can wrap its labeled output. Empty until then; the memoized
+        //   path derives its KEK from the rank-index blobs and does not use this.
+        encryptKekUris = emptyMap(),
         getStorageConfig = getStorageConfig,
         vidLabelingJobsStub = vidLabelingJobsClient,
         rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesClient,
