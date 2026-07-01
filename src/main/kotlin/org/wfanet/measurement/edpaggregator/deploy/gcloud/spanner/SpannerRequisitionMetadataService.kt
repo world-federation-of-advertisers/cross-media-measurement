@@ -184,7 +184,6 @@ class SpannerRequisitionMetadataService(
     val dataProviderResourceId = request.dataProviderResourceId
     val requestIdSet = mutableSetOf<String>()
     val cmmsRequisitionSet = mutableSetOf<String>()
-    val blobUriSet = mutableSetOf<String>()
 
     request.requestsList.forEachIndexed { index, subRequest ->
       if (
@@ -204,13 +203,10 @@ class SpannerRequisitionMetadataService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
-      if (!blobUriSet.add(subRequest.requisitionMetadata.blobUri)) {
-        val blobUri = subRequest.requisitionMetadata.blobUri
-        throw InvalidFieldValueException("requests.$index.requisition_metadata.blob_uri") {
-            "blob uri $blobUri is duplicate in the batch of requests"
-          }
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
+      // Multiple RequisitionMetadata rows may share a blob_uri: one GroupedRequisitions blob
+      // covers every requisition for a (reportId, updateTime) tuple. The legacy unique index on
+      // (DataProviderResourceId, BlobUri) was dropped by drop-blob-uri-index.sql; the batch path
+      // no longer dedups blob_uri across the batch.
 
       val requestId = subRequest.requestId
       if (requestId.isNotEmpty()) {
