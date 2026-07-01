@@ -735,10 +735,8 @@ resource "google_bigquery_connection_iam_member" "terraform_reporting_postgres_c
 # freshly-bootstrapped project with: "Service account
 # service-${project_number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com
 # does not exist."
-resource "null_resource" "bigqueryconnection_service_identity" {
-  triggers = {
-    project = data.google_client_config.default.project
-  }
+resource "terraform_data" "bigqueryconnection_service_identity" {
+  triggers_replace = data.google_client_config.default.project
   provisioner "local-exec" {
     command = <<-EOT
       gcloud beta services identity create \
@@ -754,7 +752,7 @@ resource "google_project_iam_member" "reporting_postgres_conn_client" {
   project = data.google_client_config.default.project
   role    = "roles/cloudsql.client"
   member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
-  depends_on = [null_resource.bigqueryconnection_service_identity]
+  depends_on = [terraform_data.bigqueryconnection_service_identity]
 }
 
 
@@ -767,7 +765,7 @@ resource "google_spanner_database_iam_member" "edp_aggregator_conn_reader" {
   database = "edp-aggregator"
   role     = "roles/spanner.databaseReaderWithDataBoost"
   member   = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
-  depends_on = [null_resource.bigqueryconnection_service_identity]
+  depends_on = [terraform_data.bigqueryconnection_service_identity]
 }
 
 resource "google_spanner_database_iam_member" "kingdom_conn_reader" {
@@ -776,7 +774,7 @@ resource "google_spanner_database_iam_member" "kingdom_conn_reader" {
   database = "kingdom"
   role     = "roles/spanner.databaseReaderWithDataBoost"
   member   = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
-  depends_on = [null_resource.bigqueryconnection_service_identity]
+  depends_on = [terraform_data.bigqueryconnection_service_identity]
 }
 
 resource "google_spanner_database_iam_member" "reporting_conn_reader" {
@@ -785,7 +783,7 @@ resource "google_spanner_database_iam_member" "reporting_conn_reader" {
   database = "reporting"
   role     = "roles/spanner.databaseReaderWithDataBoost"
   member   = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
-  depends_on = [null_resource.bigqueryconnection_service_identity]
+  depends_on = [terraform_data.bigqueryconnection_service_identity]
 }
 
 # Terraform SA needs dataEditor on dashboard dataset for scheduled query writes
