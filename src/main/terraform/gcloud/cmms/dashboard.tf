@@ -77,6 +77,8 @@ resource "google_bigquery_connection" "edp_aggregator" {
     use_data_boost  = true
     use_parallelism = true
   }
+
+  depends_on = [terraform_data.bigqueryconnection_service_identity]
 }
 
 resource "google_bigquery_connection" "kingdom" {
@@ -89,6 +91,8 @@ resource "google_bigquery_connection" "kingdom" {
     use_data_boost  = true
     use_parallelism = true
   }
+
+  depends_on = [terraform_data.bigqueryconnection_service_identity]
 }
 
 resource "google_bigquery_connection" "reporting" {
@@ -101,6 +105,8 @@ resource "google_bigquery_connection" "reporting" {
     use_data_boost  = true
     use_parallelism = true
   }
+
+  depends_on = [terraform_data.bigqueryconnection_service_identity]
 }
 
 # Cloud SQL (Postgres) connection to the reporting database. Used by
@@ -117,6 +123,16 @@ resource "google_bigquery_connection" "reporting_postgres" {
     # password (var.postgres_password), both supplied via GitHub vars/secrets in
     # the same way as the Spanner connections. The "reporting-v2" database name
     # is a literal, matching how the Spanner db names are written above.
+    #
+    # Cloud SQL connections in the BigQuery Connection API only support
+    # username/password auth (see the terraform-provider-google schema:
+    # `credential` is Required; `service_account_id` is Computed/output-only
+    # and cannot be set). We authenticate as `postgres`, the Cloud SQL
+    # built-in admin — but in Cloud SQL for Postgres, `postgres` is member of
+    # `cloudsqlsuperuser`, NOT true superuser, and does not automatically get
+    # SELECT on tables created by other roles (Liquibase runs as
+    # reporting-v2-internal@…iam, which owns the reporting tables). The
+    # postgresql_grant resources below give `postgres` explicit read access.
     instance_id = "${data.google_client_config.default.project}:${data.google_client_config.default.region}:${var.postgres_instance_name}"
     database    = "reporting-v2"
     type        = "POSTGRES"
@@ -125,6 +141,31 @@ resource "google_bigquery_connection" "reporting_postgres" {
       password = var.postgres_password
     }
   }
+
+  depends_on = [terraform_data.bigqueryconnection_service_identity]
+}
+
+# Grant SELECT on all existing reporting tables in the public schema to the
+# `postgres` user that the reporting-postgres-conn BigQuery Connection
+# authenticates as. Without this the report_detail_edp scheduled query fails
+# with "ERROR: permission denied for table reportingsets".
+resource "postgresql_grant" "reporting_postgres_conn_select_tables" {
+  database    = "reporting-v2"
+  role        = "postgres"
+  schema      = "public"
+  object_type = "table"
+  objects     = [] # empty = all tables in the schema
+  privileges  = ["SELECT"]
+}
+
+# USAGE on the schema is required to reference tables inside it, even when the
+# grantee already holds SELECT on the tables themselves.
+resource "postgresql_grant" "reporting_postgres_conn_usage_schema" {
+  database    = "reporting-v2"
+  role        = "postgres"
+  schema      = "public"
+  object_type = "schema"
+  privileges  = ["USAGE"]
 }
 
 data "google_project" "project" {
@@ -485,16 +526,35 @@ resource "google_service_account_iam_member" "terraform_sa_act_as_self" {
   member             = "serviceAccount:${var.terraform_service_account}"
 }
 
+# Terraform SA needs roleAdmin to manage the dashboardComplianceChecker custom
+# role. Mirrors terraform_sa_act_as_self above. Without this, terraform fails
+# on a fresh project with: "Unable to verify whether custom project role ...
+# already exists and must be undeleted" (the get-before-create call returns
+# 403 to the terraform SA).
+#
+# TODO(#4135): scope this to a purpose-built terraformDashboardRoleAdmin custom
+# role with iam.roles.{get,list,create,update,undelete,delete} and an IAM
+# condition restricting the resource to
+# projects/<project>/roles/dashboardComplianceChecker*. roles/iam.roleAdmin
+# project-wide is over-broad: it lets the terraform SA create/modify any custom
+# role in the project (including one that grants itself setIamPolicy).
+resource "google_project_iam_member" "terraform_role_admin" {
+  project = data.google_client_config.default.project
+  role    = "roles/iam.roleAdmin"
+  member  = "serviceAccount:${var.terraform_service_account}"
+}
+
+
 # --- Scheduled Queries (materialize Spanner data into BigQuery tables) ---
 
 resource "google_bigquery_data_transfer_config" "requisition_overview" {
-  depends_on             = [google_service_account_iam_member.terraform_sa_act_as_self]
-  display_name           = "Dashboard: requisition_overview"
-  data_source_id         = "scheduled_query"
-  schedule               = "every 1 hours"
-  project                = data.google_client_config.default.project
-  location               = data.google_client_config.default.region
-  service_account_name   = var.terraform_service_account
+  depends_on           = [google_service_account_iam_member.terraform_sa_act_as_self]
+  display_name         = "Dashboard: requisition_overview"
+  data_source_id       = "scheduled_query"
+  schedule             = "every 1 hours"
+  project              = data.google_client_config.default.project
+  location             = data.google_client_config.default.region
+  service_account_name = var.terraform_service_account
 
   params = {
     query = templatefile("${path.module}/sql/requisition_overview.sql", {
@@ -507,13 +567,13 @@ resource "google_bigquery_data_transfer_config" "requisition_overview" {
 }
 
 resource "google_bigquery_data_transfer_config" "mc_details" {
-  depends_on             = [google_service_account_iam_member.terraform_sa_act_as_self]
-  display_name           = "Dashboard: mc_details (platform)"
-  data_source_id         = "scheduled_query"
-  service_account_name   = var.terraform_service_account
-  schedule               = "every 1 hours"
-  project                = data.google_client_config.default.project
-  location               = data.google_client_config.default.region
+  depends_on           = [google_service_account_iam_member.terraform_sa_act_as_self]
+  display_name         = "Dashboard: mc_details (platform)"
+  data_source_id       = "scheduled_query"
+  service_account_name = var.terraform_service_account
+  schedule             = "every 1 hours"
+  project              = data.google_client_config.default.project
+  location             = data.google_client_config.default.region
 
   params = {
     query = templatefile("${path.module}/sql/mc_details.sql", {
@@ -527,13 +587,13 @@ resource "google_bigquery_data_transfer_config" "mc_details" {
 }
 
 resource "google_bigquery_data_transfer_config" "mc_details_edp" {
-  depends_on             = [google_service_account_iam_member.terraform_sa_act_as_self]
-  display_name           = "Dashboard: mc_details_edp"
-  data_source_id         = "scheduled_query"
-  service_account_name   = var.terraform_service_account
-  schedule               = "every 1 hours"
-  project                = data.google_client_config.default.project
-  location               = data.google_client_config.default.region
+  depends_on           = [google_service_account_iam_member.terraform_sa_act_as_self]
+  display_name         = "Dashboard: mc_details_edp"
+  data_source_id       = "scheduled_query"
+  service_account_name = var.terraform_service_account
+  schedule             = "every 1 hours"
+  project              = data.google_client_config.default.project
+  location             = data.google_client_config.default.region
 
   params = {
     query = templatefile("${path.module}/sql/mc_details.sql", {
@@ -547,13 +607,13 @@ resource "google_bigquery_data_transfer_config" "mc_details_edp" {
 }
 
 resource "google_bigquery_data_transfer_config" "report_detail" {
-  depends_on             = [google_service_account_iam_member.terraform_sa_act_as_self]
-  display_name           = "Dashboard: report_detail (platform)"
-  data_source_id         = "scheduled_query"
-  service_account_name   = var.terraform_service_account
-  schedule               = "every 1 hours"
-  project                = data.google_client_config.default.project
-  location               = data.google_client_config.default.region
+  depends_on           = [google_service_account_iam_member.terraform_sa_act_as_self]
+  display_name         = "Dashboard: report_detail (platform)"
+  data_source_id       = "scheduled_query"
+  service_account_name = var.terraform_service_account
+  schedule             = "every 1 hours"
+  project              = data.google_client_config.default.project
+  location             = data.google_client_config.default.region
 
   params = {
     query = templatefile("${path.module}/sql/report_detail.sql", {
@@ -567,13 +627,13 @@ resource "google_bigquery_data_transfer_config" "report_detail" {
 }
 
 resource "google_bigquery_data_transfer_config" "report_detail_edp" {
-  depends_on             = [google_service_account_iam_member.terraform_sa_act_as_self]
-  display_name           = "Dashboard: report_detail_edp"
-  data_source_id         = "scheduled_query"
-  service_account_name   = var.terraform_service_account
-  schedule               = "every 1 hours"
-  project                = data.google_client_config.default.project
-  location               = data.google_client_config.default.region
+  depends_on           = [google_service_account_iam_member.terraform_sa_act_as_self]
+  display_name         = "Dashboard: report_detail_edp"
+  data_source_id       = "scheduled_query"
+  service_account_name = var.terraform_service_account
+  schedule             = "every 1 hours"
+  project              = data.google_client_config.default.project
+  location             = data.google_client_config.default.region
 
   params = {
     query = templatefile("${path.module}/sql/report_detail.sql", {
@@ -716,12 +776,31 @@ resource "google_bigquery_connection_iam_member" "terraform_reporting_postgres_c
   member        = "serviceAccount:${var.terraform_service_account}"
 }
 
+# Force-provision the BigQuery Connection service agent. This service-managed
+# service account ("service-${project_number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com")
+# is created on-demand by GCP the first time a project uses the BigQuery
+# Connection API. Without this resource, the IAM bindings below fail on a
+# freshly-bootstrapped project with: "Service account
+# service-${project_number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com
+# does not exist."
+resource "terraform_data" "bigqueryconnection_service_identity" {
+  triggers_replace = data.google_client_config.default.project
+  provisioner "local-exec" {
+    command = <<-EOT
+      gcloud beta services identity create \
+        --service=bigqueryconnection.googleapis.com \
+        --project=${data.google_client_config.default.project}
+    EOT
+  }
+}
+
 # The BigQuery Connection service agent needs cloudsql.client to read the
 # reporting Postgres via the Cloud SQL connection.
 resource "google_project_iam_member" "reporting_postgres_conn_client" {
-  project = data.google_client_config.default.project
-  role    = "roles/cloudsql.client"
-  member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
+  project    = data.google_client_config.default.project
+  role       = "roles/cloudsql.client"
+  member     = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
+  depends_on = [terraform_data.bigqueryconnection_service_identity]
 }
 
 
@@ -729,27 +808,30 @@ resource "google_project_iam_member" "reporting_postgres_conn_client" {
 # BigQuery Connection service agent needs databaseReaderWithDataBoost on
 # target Spanner databases for EXTERNAL_QUERY via Cloud Spanner connections.
 resource "google_spanner_database_iam_member" "edp_aggregator_conn_reader" {
-  project  = var.edp_aggregator_spanner_project
-  instance = var.edp_aggregator_spanner_instance
-  database = "edp-aggregator"
-  role     = "roles/spanner.databaseReaderWithDataBoost"
-  member   = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
+  project    = var.edp_aggregator_spanner_project
+  instance   = var.edp_aggregator_spanner_instance
+  database   = "edp-aggregator"
+  role       = "roles/spanner.databaseReaderWithDataBoost"
+  member     = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
+  depends_on = [terraform_data.bigqueryconnection_service_identity]
 }
 
 resource "google_spanner_database_iam_member" "kingdom_conn_reader" {
-  project  = var.kingdom_spanner_project
-  instance = var.kingdom_spanner_instance
-  database = "kingdom"
-  role     = "roles/spanner.databaseReaderWithDataBoost"
-  member   = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
+  project    = var.kingdom_spanner_project
+  instance   = var.kingdom_spanner_instance
+  database   = "kingdom"
+  role       = "roles/spanner.databaseReaderWithDataBoost"
+  member     = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
+  depends_on = [terraform_data.bigqueryconnection_service_identity]
 }
 
 resource "google_spanner_database_iam_member" "reporting_conn_reader" {
-  project  = var.reporting_spanner_project
-  instance = var.reporting_spanner_instance
-  database = "reporting"
-  role     = "roles/spanner.databaseReaderWithDataBoost"
-  member   = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
+  project    = var.reporting_spanner_project
+  instance   = var.reporting_spanner_instance
+  database   = "reporting"
+  role       = "roles/spanner.databaseReaderWithDataBoost"
+  member     = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com"
+  depends_on = [terraform_data.bigqueryconnection_service_identity]
 }
 
 # Terraform SA needs dataEditor on dashboard dataset for scheduled query writes
@@ -768,7 +850,7 @@ resource "google_bigquery_table_iam_member" "requisition_overview_platform_viewe
   for_each   = toset(var.dashboard_operators)
   project    = data.google_client_config.default.project
   dataset_id = google_bigquery_dataset.dashboard.dataset_id
-  table_id   = "requisition_overview"
+  table_id   = google_bigquery_table.requisition_overview.table_id
   role       = "roles/bigquery.dataViewer"
   member     = each.value
 }
@@ -777,7 +859,7 @@ resource "google_bigquery_table_iam_member" "mc_details_platform_viewer" {
   for_each   = toset(var.dashboard_operators)
   project    = data.google_client_config.default.project
   dataset_id = google_bigquery_dataset.dashboard.dataset_id
-  table_id   = "mc_details"
+  table_id   = google_bigquery_table.mc_details.table_id
   role       = "roles/bigquery.dataViewer"
   member     = each.value
 }
@@ -786,7 +868,7 @@ resource "google_bigquery_table_iam_member" "report_detail_platform_viewer" {
   for_each   = toset(var.dashboard_operators)
   project    = data.google_client_config.default.project
   dataset_id = google_bigquery_dataset.dashboard.dataset_id
-  table_id   = "report_detail"
+  table_id   = google_bigquery_table.report_detail.table_id
   role       = "roles/bigquery.dataViewer"
   member     = each.value
 }
@@ -799,7 +881,7 @@ resource "google_bigquery_table_iam_member" "requisition_overview_viewer" {
   for_each   = var.data_provider_resource_ids
   project    = data.google_client_config.default.project
   dataset_id = google_bigquery_dataset.dashboard.dataset_id
-  table_id   = "requisition_overview"
+  table_id   = google_bigquery_table.requisition_overview.table_id
   role       = "roles/bigquery.dataViewer"
   member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
@@ -808,7 +890,7 @@ resource "google_bigquery_table_iam_member" "mc_details_edp_viewer" {
   for_each   = var.data_provider_resource_ids
   project    = data.google_client_config.default.project
   dataset_id = google_bigquery_dataset.dashboard.dataset_id
-  table_id   = "mc_details_edp"
+  table_id   = google_bigquery_table.mc_details_edp.table_id
   role       = "roles/bigquery.dataViewer"
   member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
@@ -817,7 +899,7 @@ resource "google_bigquery_table_iam_member" "report_detail_edp_viewer" {
   for_each   = var.data_provider_resource_ids
   project    = data.google_client_config.default.project
   dataset_id = google_bigquery_dataset.dashboard.dataset_id
-  table_id   = "report_detail_edp"
+  table_id   = google_bigquery_table.report_detail_edp.table_id
   role       = "roles/bigquery.dataViewer"
   member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
@@ -868,6 +950,7 @@ resource "google_project_iam_custom_role" "dashboard_compliance" {
     "bigquery.connections.get",
     "bigquery.connections.list",
   ]
+  depends_on = [google_project_iam_member.terraform_role_admin]
 }
 
 resource "google_project_iam_member" "dashboard_compliance_role" {
@@ -884,11 +967,22 @@ resource "google_service_account_iam_member" "dashboard_compliance_impersonate_e
   member             = "serviceAccount:${google_service_account.dashboard_compliance.email}"
 }
 
+
 # Operators impersonate the compliance SA to run the check by hand.
 resource "google_service_account_iam_member" "dashboard_compliance_operator_token_creator" {
   for_each           = toset(var.dashboard_operators)
   service_account_id = google_service_account.dashboard_compliance.name
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = each.value
+}
+
+# CI (running as the terraform SA) impersonates the compliance SA to run the
+# DashboardComplianceCheck as the dedicated least-privilege identity, not as
+# the terraform SA (which has admin-level access to everything the check
+# inspects and would silently hide missing permissions on the custom role).
+resource "google_service_account_iam_member" "dashboard_compliance_terraform_token_creator" {
+  service_account_id = google_service_account.dashboard_compliance.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${var.terraform_service_account}"
 }
 
