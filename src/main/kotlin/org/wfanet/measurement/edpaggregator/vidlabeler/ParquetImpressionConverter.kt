@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.protobuf.Any
 import com.google.protobuf.Descriptors
+import com.google.protobuf.util.Timestamps
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
@@ -70,14 +71,14 @@ class ParquetImpressionConverter(private val eventDescriptor: Descriptors.Descri
     val (inputMapper, messageMapper) = mappersFor(config)
 
     val labelerInput = inputMapper.project(event.row)
-    val eventTimeMicros: Long = labelerInput.timestampUsec
+    val eventTime = Timestamps.fromMicros(labelerInput.timestampUsec)
     val eventMessage = Any.pack(messageMapper.project(event.row))
 
     // entity_keys + event_group_reference_id come from the file's plaintext footer (read by the
     // reader); FileEntityKeys already enforced that they are present and non-empty.
     return ConvertedImpression(
       labelerInput = labelerInput,
-      eventTimeMicros = eventTimeMicros,
+      eventTime = eventTime,
       eventGroupReferenceId = fileEntityKeys.eventGroupReferenceId,
       event = eventMessage,
       entityKeys = fileEntityKeys.entityKeys,
