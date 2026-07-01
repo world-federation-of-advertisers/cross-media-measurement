@@ -552,12 +552,22 @@ abstract class InProcessMultiEdpReportIntegrationTest(
   fun `getBasicReport returns SUCCEEDED custom group basic report when basic report is completed`() =
     runBlocking {
       val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-      val eventGroups = getMultiEdpEventGroups()
-      check(eventGroups.size > 1)
 
-      // One primitive custom group per EDP (empty campaign_group; disjoint DataProvider sets).
+      // One EventGroup per EDP (DataProvider); the harness creates exactly one per EDP.
+      val eventGroupPerEdp: List<EventGroup> =
+        listEventGroups().groupBy { it.cmmsDataProvider }.values.map { it.first() }
+      check(eventGroupPerEdp.size >= 4)
+
+      // Two custom groups, each spanning two EDPs, with disjoint EventGroups and distinct
+      // DataProvider sets ({edp0, edp1} and {edp2, edp3}). The groups cross publishers without
+      // overlapping, so no metric is double-counted -- the recommended client usage.
+      val customGroupEventGroups: List<List<String>> =
+        listOf(
+          listOf(eventGroupPerEdp[0].cmmsEventGroup, eventGroupPerEdp[1].cmmsEventGroup),
+          listOf(eventGroupPerEdp[2].cmmsEventGroup, eventGroupPerEdp[3].cmmsEventGroup),
+        )
       val customGroups: List<ReportingSet> =
-        eventGroups.mapIndexed { index, eventGroup ->
+        customGroupEventGroups.mapIndexed { index, cmmsEventGroupNames ->
           publicReportingSetsClient
             .withCallCredentials(credentials)
             .createReportingSet(
@@ -565,8 +575,7 @@ abstract class InProcessMultiEdpReportIntegrationTest(
                 parent = measurementConsumerData.name
                 reportingSet = reportingSet {
                   displayName = "custom group $index"
-                  primitive =
-                    ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
+                  primitive = ReportingSetKt.primitive { cmmsEventGroups += cmmsEventGroupNames }
                 }
                 reportingSetId = "customgroup$index"
               }
@@ -576,7 +585,7 @@ abstract class InProcessMultiEdpReportIntegrationTest(
       // Reuse the scaffolding (model line, reporting interval, IQF), but drop campaign_group so the
       // server synthesizes one, and bucket by the custom-group ReportingSets.
       val createBasicReportRequest =
-        buildCreateBasicReportRequest(eventGroups).copy {
+        buildCreateBasicReportRequest(eventGroupPerEdp).copy {
           basicReport =
             basicReport.copy {
               campaignGroup = ""
