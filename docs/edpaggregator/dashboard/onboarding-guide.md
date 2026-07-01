@@ -135,8 +135,10 @@ Provide the EDP with their service account details:
 *   **Accessible tables**: `requisition_overview`, `mc_details_edp`,
     `report_detail_edp`
 
-The EDP authenticates using their service account via Workload Identity
-Federation, a service account key, or impersonation from their own GCP project.
+The EDP authenticates using their service account via one of the keyless options
+in Option A below (Workload Identity Federation or service account impersonation
+from their own GCP project). Service account keys are supported as a last resort
+but should be avoided — see the preference order in Option A.
 
 ## EDP Steps: Accessing the Dashboard
 

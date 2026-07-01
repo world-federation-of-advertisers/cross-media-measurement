@@ -241,7 +241,7 @@ After Terraform deploys and other cloud tests generate data, the workflow:
 
 1.  Triggers all dashboard scheduled queries
 2.  Waits for completion
-3.  Runs `DashboardIsolationTest` as each EDP (via Workload Identity Federation)
+3.  Runs `DashboardIsolationTest` for each EDP: the workflow authenticates as the terraform SA via Workload Identity Federation, then impersonates `edp-<name>-dashboard@PROJECT.iam.gserviceaccount.com` (chained through `dashboard-compliance@PROJECT.iam.gserviceaccount.com`) so each check runs with only the permissions that EDP would have in production
 4.  Runs `DashboardComplianceCheck` impersonating
     `dashboard-compliance@PROJECT.iam.gserviceaccount.com` (the least-privilege
     SA, not the broader operator/terraform SA)
