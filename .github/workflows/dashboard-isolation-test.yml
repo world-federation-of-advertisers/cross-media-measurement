@@ -94,8 +94,16 @@ jobs:
               -H "Content-Type: application/json" \
               --data "{\"requestedRunTime\":\"$RUN_TIME\"}" \
               "$API/$config:startManualRuns")
-            # Response contains { "runs": [ { "name": "...", ... } ] }
+            # Response contains { "runs": [ { "name": "...", ... } ] }.
+            # jq -r prints the literal string "null" (not empty) when .runs[0].name
+            # is absent, which would otherwise cause the poll loop below to hit
+            # $API/null repeatedly and fail as an opaque timeout. Fail fast instead.
             RUN_NAME=$(echo "$RUN_JSON" | jq -r '.runs[0].name')
+            if [ -z "$RUN_NAME" ] || [ "$RUN_NAME" = "null" ]; then
+              echo "startManualRuns returned no runs for $config; response was:" >&2
+              echo "$RUN_JSON" >&2
+              exit 1
+            fi
             RUN_NAMES[$config]=$RUN_NAME
           done
 

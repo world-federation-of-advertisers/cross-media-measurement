@@ -135,11 +135,7 @@ class DashboardIsolationTest {
       if (impersonateTarget == null) {
         return BigQueryOptions.getDefaultInstance().service
       }
-      val scopes =
-        listOf(
-          "https://www.googleapis.com/auth/bigquery",
-          "https://www.googleapis.com/auth/cloud-platform",
-        )
+      val scopes = listOf("https://www.googleapis.com/auth/cloud-platform")
       val adc = GoogleCredentials.getApplicationDefault().createScoped(scopes)
       val impersonated =
         ImpersonatedCredentials.create(adc, impersonateTarget, delegates, scopes, 300)
