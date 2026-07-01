@@ -30,47 +30,51 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.DashboardIso
 /**
  * Cloud test for EDPA Reporting Dashboard EDP isolation.
  *
- * Validates that:
- * 1. EDP service accounts can only see their own rows via row access policies
- * 2. EDP service accounts get zero rows for other EDPs' data
- * 3. EDP service accounts cannot access platform-only tables (403)
- * 4. EDP service accounts cannot bypass row filtering via EXTERNAL_QUERY
- * 5. Deployed table schemas have no forbidden columns
- * 6. Data correctness: tables have rows and metrics are populated
+ * Uses the two-identity model established by DashboardComplianceCheck:
+ * - Per-EDP checks (data isolation, IAM boundary, EXTERNAL_QUERY bypass, data correctness) run as
+ *   the EDP service account, which has only row-scoped SELECT via row access policies. These checks
+ *   are meaningful only when executed with the identity whose isolation they verify.
+ * - Platform checks (UDF output validation, drift detection, freshness) run as the inspector
+ *   service account (dashboard-compliance@…) which holds the dashboardComplianceChecker custom
+ *   role. They need schema and IAM introspection privileges that EDP identities intentionally lack.
+ *
+ * See the driver at
+ * src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard/tools/DashboardComplianceCheck.kt
+ * for the canonical split.
  */
 class DashboardIsolationTest {
 
   @Test
   fun dataIsolation() {
-    val results = checks.checkDataIsolation(bigQuery, edp)
+    val results = checks.checkDataIsolation(bigQueryAsEdp, edp)
     val failures = results.filter { !it.passed }
     assertWithMessage(failures.joinToString("\n") { it.message }).that(failures).isEmpty()
   }
 
   @Test
   fun iamBoundary() {
-    val results = checks.checkIamBoundary(bigQuery, edp)
+    val results = checks.checkIamBoundary(bigQueryAsEdp, edp)
     val failures = results.filter { !it.passed }
     assertWithMessage(failures.joinToString("\n") { it.message }).that(failures).isEmpty()
   }
 
   @Test
   fun externalQueryBypass() {
-    val results = checks.checkExternalQueryBypass(bigQuery, edp)
-    val failures = results.filter { !it.passed }
-    assertWithMessage(failures.joinToString("\n") { it.message }).that(failures).isEmpty()
-  }
-
-  @Test
-  fun driftDetection() {
-    val results = checks.checkDriftDetection(bigQuery, listOf(edp))
+    val results = checks.checkExternalQueryBypass(bigQueryAsEdp, edp)
     val failures = results.filter { !it.passed }
     assertWithMessage(failures.joinToString("\n") { it.message }).that(failures).isEmpty()
   }
 
   @Test
   fun dataCorrectness() {
-    val results = checks.checkDataCorrectness(bigQuery, edp)
+    val results = checks.checkDataCorrectness(bigQueryAsEdp, edp)
+    val failures = results.filter { !it.passed }
+    assertWithMessage(failures.joinToString("\n") { it.message }).that(failures).isEmpty()
+  }
+
+  @Test
+  fun driftDetection() {
+    val results = checks.checkDriftDetection(bigQueryAsInspector, listOf(edp))
     val failures = results.filter { !it.passed }
     assertWithMessage(failures.joinToString("\n") { it.message }).that(failures).isEmpty()
   }
@@ -87,39 +91,47 @@ class DashboardIsolationTest {
       System.getenv("EDP_NAME") ?: throw IllegalStateException("EDP_NAME not set")
     private val EDP_RESOURCE_ID =
       System.getenv("EDP_RESOURCE_ID") ?: throw IllegalStateException("EDP_RESOURCE_ID not set")
-    // When set, the test runs BigQuery calls as this service account by impersonating it
-    // from ADC. CI sets this so the workflow can authenticate once as the terraform SA and
-    // fan out per-EDP; local dev leaves it unset and uses ADC directly.
-    private val IMPERSONATE_SA: String? =
+
+    // Optional impersonation targets. When set, ADC is used only as the outer credential and
+    // each BigQuery client is built by impersonating the named service account. When unset,
+    // the client uses ADC directly (supports local-dev runs where the user already has both
+    // roles via their own identity).
+    private val EDP_IMPERSONATE_SA: String? =
       System.getenv("EDP_IMPERSONATE_SA")?.takeIf { it.isNotBlank() }
+    private val INSPECTOR_IMPERSONATE_SA: String? =
+      System.getenv("INSPECTOR_IMPERSONATE_SA")?.takeIf { it.isNotBlank() }
 
     private const val DATASET = "dashboard"
 
-    private lateinit var bigQuery: BigQuery
+    private lateinit var bigQueryAsEdp: BigQuery
+    private lateinit var bigQueryAsInspector: BigQuery
     private lateinit var checks: DashboardIsolationChecks
     private lateinit var edp: EdpConfig
 
     @JvmStatic
     @BeforeClass
     fun setUp() {
-      bigQuery = buildBigQuery()
+      bigQueryAsEdp = buildBigQuery(EDP_IMPERSONATE_SA)
+      bigQueryAsInspector = buildBigQuery(INSPECTOR_IMPERSONATE_SA)
       checks = DashboardIsolationChecks(PROJECT, DATASET, REGION)
       edp = EdpConfig(EDP_NAME, EDP_RESOURCE_ID)
-      val identity = IMPERSONATE_SA ?: "ADC"
       logger.info(
-        "Testing as EDP '$EDP_NAME' (resource ID: $EDP_RESOURCE_ID) as $identity in project $PROJECT"
+        "Testing EDP '$EDP_NAME' (resource ID: $EDP_RESOURCE_ID) in project $PROJECT " +
+          "(edp SA: ${EDP_IMPERSONATE_SA ?: "ADC"}, inspector SA: ${INSPECTOR_IMPERSONATE_SA ?: "ADC"})"
       )
     }
 
-    private fun buildBigQuery(): BigQuery {
-      val target = IMPERSONATE_SA ?: return BigQueryOptions.getDefaultInstance().service
+    private fun buildBigQuery(impersonateTarget: String?): BigQuery {
+      if (impersonateTarget == null) {
+        return BigQueryOptions.getDefaultInstance().service
+      }
       val scopes =
         listOf(
           "https://www.googleapis.com/auth/bigquery",
           "https://www.googleapis.com/auth/cloud-platform",
         )
       val adc = GoogleCredentials.getApplicationDefault().createScoped(scopes)
-      val impersonated = ImpersonatedCredentials.create(adc, target, null, scopes, 300)
+      val impersonated = ImpersonatedCredentials.create(adc, impersonateTarget, null, scopes, 300)
       return BigQueryOptions.newBuilder()
         .setCredentials(impersonated)
         .setProjectId(PROJECT)

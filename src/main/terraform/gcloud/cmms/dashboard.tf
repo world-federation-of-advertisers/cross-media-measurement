@@ -77,6 +77,8 @@ resource "google_bigquery_connection" "edp_aggregator" {
     use_data_boost  = true
     use_parallelism = true
   }
+
+  depends_on = [terraform_data.bigqueryconnection_service_identity]
 }
 
 resource "google_bigquery_connection" "kingdom" {
@@ -89,6 +91,8 @@ resource "google_bigquery_connection" "kingdom" {
     use_data_boost  = true
     use_parallelism = true
   }
+
+  depends_on = [terraform_data.bigqueryconnection_service_identity]
 }
 
 resource "google_bigquery_connection" "reporting" {
@@ -101,6 +105,8 @@ resource "google_bigquery_connection" "reporting" {
     use_data_boost  = true
     use_parallelism = true
   }
+
+  depends_on = [terraform_data.bigqueryconnection_service_identity]
 }
 
 # Cloud SQL (Postgres) connection to the reporting database. Used by
@@ -125,6 +131,8 @@ resource "google_bigquery_connection" "reporting_postgres" {
       password = var.postgres_password
     }
   }
+
+  depends_on = [terraform_data.bigqueryconnection_service_identity]
 }
 
 data "google_project" "project" {
@@ -739,7 +747,7 @@ resource "terraform_data" "bigqueryconnection_service_identity" {
   triggers_replace = data.google_client_config.default.project
   provisioner "local-exec" {
     command = <<-EOT
-      gcloud beta services identity create \
+      gcloud services identity create \
         --service=bigqueryconnection.googleapis.com \
         --project=${data.google_client_config.default.project}
     EOT
@@ -919,16 +927,6 @@ resource "google_service_account_iam_member" "dashboard_compliance_impersonate_e
   member             = "serviceAccount:${google_service_account.dashboard_compliance.email}"
 }
 
-# CI (running as the terraform SA) impersonates each per-EDP dashboard SA to
-# execute DashboardIsolationTest as that EDP. Mirrors dashboard_compliance_impersonate_edp
-# but for the terraform SA path. Without this, the isolation-test workflow's
-# `bazel test` calls into BigQuery fail with "Error requesting access token".
-resource "google_service_account_iam_member" "dashboard_isolation_test_terraform_impersonate_edp" {
-  for_each           = var.data_provider_resource_ids
-  service_account_id = google_service_account.edp_dashboard[each.key].name
-  role               = "roles/iam.serviceAccountTokenCreator"
-  member             = "serviceAccount:${var.terraform_service_account}"
-}
 
 # Operators impersonate the compliance SA to run the check by hand.
 resource "google_service_account_iam_member" "dashboard_compliance_operator_token_creator" {
