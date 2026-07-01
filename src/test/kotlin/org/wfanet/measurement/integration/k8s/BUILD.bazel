@@ -240,6 +240,7 @@ kt_jvm_library(
     srcs = ["DashboardIsolationTest.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard:dashboard_isolation_checks",
+        "@maven//:com_google_auth_google_auth_library_oauth2_http",
         "@maven//:com_google_cloud_google_cloud_bigquery",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
