@@ -201,13 +201,66 @@ class MemoizedRankIndexTest {
   }
 
   @Test
-  fun `load builds an empty index when there are no snapshots`() {
-    val index = runBlocking {
-      MemoizedRankIndex.load(stubReturning(emptyList()), rankStore, DP, MODEL_LINE)
+  fun `load throws when a memoized model line has no snapshots`() {
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        runBlocking {
+          MemoizedRankIndex.load(stubReturning(emptyList()), rankStore, DP, MODEL_LINE)
+        }
+      }
+
+    assertThat(exception).hasMessageThat().contains("No SNAPSHOT rank-index blobs")
+  }
+
+  @Test
+  fun `load breaks create_time ties deterministically by blob name`() {
+    // Two SNAPSHOTs for one subpool with an identical create_time: the greater resource name wins
+    // regardless of listing order (guards against a listing-order-dependent winner).
+    val b1 =
+      seedSnapshot("ranks/pool10/b1", poolOffset = 10L, fp(0x11), rank = 5, createTimeSeconds = 1L)
+        .copy { name = "blob-1" }
+    val b2 =
+      seedSnapshot("ranks/pool10/b2", poolOffset = 10L, fp(0x22), rank = 9, createTimeSeconds = 1L)
+        .copy { name = "blob-2" }
+
+    for (ordering in listOf(listOf(b1, b2), listOf(b2, b1))) {
+      val index = runBlocking {
+        MemoizedRankIndex.load(stubReturning(ordering), rankStore, DP, MODEL_LINE)
+      }
+      assertThat(index.lookup(digestOf(fp(0x22))).map { it.poolOffset to it.localRank })
+        .containsExactly(10L to 9L)
+      assertThat(index.lookup(digestOf(fp(0x11)))).isEmpty()
+    }
+  }
+
+  @Test
+  fun `load throws when fingerprints length does not match ranks`() {
+    val blobKey = "ranks/pool10/up1"
+    // One rank but two fingerprints' worth of bytes (24 = 2 * 12): violates the length invariant.
+    val record = rankIndexMap {
+      poolOffset = 10L
+      rankedSize = 1000
+      fingerprints = ByteString.copyFrom(fp(0x11) + fp(0x22))
+      ranks += 5
+    }
+    val checksum = runBlocking { rankStore.writeBlob(blobKey, dek, flowOf(record)) }
+    val row = rankIndexBlob {
+      poolOffset = 10L
+      blobType = RankIndexBlob.BlobType.SNAPSHOT
+      cmmsModelLine = MODEL_LINE
+      blobUri = blobKey
+      encryptedDek = dek
+      blobChecksum = checksum
+      createTime = timestamp { seconds = 1L }
     }
 
-    assertThat(index.subpoolCount).isEqualTo(0)
-    assertThat(index.lookup(digestOf(fp(0x11)))).isEmpty()
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        runBlocking {
+          MemoizedRankIndex.load(stubReturning(listOf(row)), rankStore, DP, MODEL_LINE)
+        }
+      }
+    assertThat(exception).hasMessageThat().contains("Malformed rank index blob")
   }
 
   @Test

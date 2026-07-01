@@ -97,6 +97,14 @@ private constructor(private val mapsByPoolOffset: Map<Long, Bytes12IntMap>) {
     private const val FINGERPRINT_BYTES = Bytes12IntMap.FINGERPRINT_BYTE_WIDTH
 
     /**
+     * Builds an index directly from prebuilt per-subpool `fingerprint -> rank` maps. Visible for
+     * testing consumers of [lookup] (e.g. `VidLabelingSink`) without standing up the
+     * `RankIndexBlobService` / `RankIndexStore`.
+     */
+    fun fromMaps(mapsByPoolOffset: Map<Long, Bytes12IntMap>): MemoizedRankIndex =
+      MemoizedRankIndex(mapsByPoolOffset)
+
+    /**
      * Loads the current rank index for [modelLine] under [dataProvider].
      *
      * Discovery mirrors the Phase-1 ranker's prior-snapshot resolution: list every non-deleted
@@ -141,11 +149,20 @@ private constructor(private val mapsByPoolOffset: Map<Long, Bytes12IntMap>) {
         .collect { page ->
           for (blob in page) {
             val current = latestByPoolOffset[blob.poolOffset]
-            if (current == null || Timestamps.compare(blob.createTime, current.createTime) > 0) {
+            if (current == null || isNewerSnapshot(blob, current)) {
               latestByPoolOffset[blob.poolOffset] = blob
             }
           }
         }
+
+      // Phase-1 always precedes Phase-2 and must persist at least one cumulative SNAPSHOT before a
+      // memoized model line is labeled. Zero snapshots here is a real anomaly (misconfig or lost
+      // Phase-1 output): fail loud rather than silently degrading every impression to the hash path
+      // (which also strands #4083's output-KEK resolution, since it reuses the KEK on these blobs).
+      check(latestByPoolOffset.isNotEmpty()) {
+        "No SNAPSHOT rank-index blobs for memoized model line $modelLine under $dataProvider; " +
+          "Phase-1 must produce a cumulative snapshot before Phase-2 labeling"
+      }
 
       val semaphore = Semaphore(readerParallelism.coerceAtLeast(1))
       val loaded: Map<Long, LoadedSubpool> = coroutineScope {
@@ -199,6 +216,14 @@ private constructor(private val mapsByPoolOffset: Map<Long, Bytes12IntMap>) {
         }
         val fingerprints = record.fingerprints
         val ranks = record.ranksList
+        // `rank_index_map.proto`: `fingerprints` length MUST equal `ranks.size` * 12. Enforce it so
+        // a malformed blob fails with a clear, attributable error instead of an opaque
+        // IndexOutOfBoundsException (too short) or silently dropped trailing fingerprints (too
+        // long).
+        check(fingerprints.size() == ranks.size * FINGERPRINT_BYTES) {
+          "Malformed rank index blob ${blob.blobUri}: ${fingerprints.size()} fingerprint bytes " +
+            "for ${ranks.size} ranks (expected ${ranks.size * FINGERPRINT_BYTES})"
+        }
         var offset = 0
         for (i in ranks.indices) {
           map.put(
@@ -210,6 +235,17 @@ private constructor(private val mapsByPoolOffset: Map<Long, Bytes12IntMap>) {
       }
       check(rankedSize >= 0) { "Empty rank index blob ${blob.blobUri} has no ranked_size" }
       return LoadedSubpool(map, rankedSize)
+    }
+
+    /**
+     * Whether [candidate] should win over the [current] chosen SNAPSHOT for a subpool: the greatest
+     * `create_time`, breaking ties by the (unique) resource [RankIndexBlob.name] so two SNAPSHOTs
+     * written at the same instant pick a deterministic winner rather than a listing-order-dependent
+     * one.
+     */
+    private fun isNewerSnapshot(candidate: RankIndexBlob, current: RankIndexBlob): Boolean {
+      val comparison = Timestamps.compare(candidate.createTime, current.createTime)
+      return comparison > 0 || (comparison == 0 && candidate.name > current.name)
     }
 
     /** A subpool's in-memory rank map plus its configured `ranked_size`, captured at load. */
