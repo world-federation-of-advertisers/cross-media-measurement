@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.util.Timestamps
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -78,7 +79,7 @@ class ParquetImpressionConverterTest {
 
     assertThat(converted).isNotNull()
     assertThat(converted!!.labelerInput.eventId.id).isEqualTo("event-1")
-    assertThat(converted.eventTimeMicros).isEqualTo(1_700_000_000_000_000L)
+    assertThat(converted.eventTime).isEqualTo(Timestamps.fromMicros(1_700_000_000_000_000L))
     assertThat(converted.eventGroupReferenceId).isEqualTo(EVENT_GROUP)
 
     val event = converted.event.unpack(TestEvent::class.java)

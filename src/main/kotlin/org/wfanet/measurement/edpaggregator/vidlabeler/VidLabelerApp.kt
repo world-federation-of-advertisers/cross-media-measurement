@@ -175,13 +175,16 @@ class VidLabelerApp(
 
   /** Memoized rank-index Phase-2 path: derive each VID from its memoized rank. */
   private suspend fun runMemoized(params: VidLabelerParams, dataProvider: String) {
-    // [mp] identifies the VidLabelingJob and the single model line of this memoized WorkItem.
+    // MemoizedParams now carries only the rank-index storage; the job + model line are top-level
+    // (shared with the non-memoized path). The memoized path always has exactly one model line.
     val mp = params.memoizedParams
+    val modelLine = params.modelLinesList.single()
+    val vidLabelingJob = params.vidLabelingJob
 
     // Per-WorkItem metric dimensions: every counter/histogram for this call is keyed by the
     // DataProvider and the WorkItem's model line.
     val attributes =
-      Attributes.of(metrics.DATA_PROVIDER_ATTR, dataProvider, metrics.MODEL_LINE_ATTR, mp.modelLine)
+      Attributes.of(metrics.DATA_PROVIDER_ATTR, dataProvider, metrics.MODEL_LINE_ATTR, modelLine)
     val startNanos = System.nanoTime()
     try {
       // One client per EDP (the EDP's own KEK), used for BOTH the raw-impression PME decrypt
@@ -190,22 +193,30 @@ class VidLabelerApp(
         requireNotNull(kmsClients[dataProvider]) { "KMS client not found for $dataProvider" }
 
       val config =
-        requireNotNull(params.modelLineConfigsMap[mp.modelLine]) {
-          "model_line_configs must contain an entry for ${mp.modelLine}"
+        requireNotNull(params.modelLineConfigsMap[modelLine]) {
+          "model_line_configs must contain an entry for $modelLine"
         }
 
       // Gate on job state first: on Pub/Sub redelivery of an already-completed job, skip relabeling
       // (the output is idempotent via deterministic blob keys) but still run the idempotent mark +
       // last-job-out recovery so a crash between label() and the mark cannot drop the completion.
       val job =
-        vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { name = mp.vidLabelingJob })
+        vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { name = vidLabelingJob })
       if (job.state != VidLabelingJob.State.SUCCEEDED) {
-        labelMemoized(params, mp, config, dataProvider, kmsClient, job.rawImpressionUploadFilesList)
+        labelMemoized(
+          params,
+          mp,
+          modelLine,
+          config,
+          dataProvider,
+          kmsClient,
+          job.rawImpressionUploadFilesList,
+        )
       } else {
-        logger.info("VidLabelingJob ${mp.vidLabelingJob} already SUCCEEDED; skipping relabel")
+        logger.info("VidLabelingJob $vidLabelingJob already SUCCEEDED; skipping relabel")
       }
 
-      markSucceededAndTransition(params, mp.vidLabelingJob, dataProvider, job.etag, attributes)
+      markSucceededAndTransition(params, vidLabelingJob, dataProvider, job.etag, attributes)
       // Count only successful completions; a thrown failure skips this and nacks the message.
       metrics.workItemsProcessedCounter.add(1, attributes)
     } finally {
@@ -226,8 +237,8 @@ class VidLabelerApp(
     require(params.vidLabelingJob.isNotEmpty()) {
       "vid_labeling_job must be set on the non-memoized path"
     }
-    require(params.overrideModelLinesList.isNotEmpty()) {
-      "override_model_lines must list the bundled non-memoized model lines"
+    require(params.modelLinesList.isNotEmpty()) {
+      "model_lines must list the bundled non-memoized model lines"
     }
     val attributes = Attributes.of(metrics.DATA_PROVIDER_ATTR, dataProvider)
     val startNanos = System.nanoTime()
@@ -269,6 +280,7 @@ class VidLabelerApp(
   private suspend fun labelMemoized(
     params: VidLabelerParams,
     mp: VidLabelerParams.MemoizedParams,
+    modelLine: String,
     config: VidLabelerParams.ModelLineConfig,
     dataProvider: String,
     kmsClient: KmsClient,
@@ -280,7 +292,7 @@ class VidLabelerApp(
         kmsClient,
       )
     val rankIndex =
-      MemoizedRankIndex.load(rankIndexBlobsStub, rankIndexStore, dataProvider, mp.modelLine)
+      MemoizedRankIndex.load(rankIndexBlobsStub, rankIndexStore, dataProvider, modelLine)
 
     // The raw event-id column is the raw-impression field mapped to LabelerInput's `event_id.id`.
     val eventIdColumn =
@@ -298,7 +310,7 @@ class VidLabelerApp(
             kmsClient,
           ),
         rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
-        rawImpressionUpload = parentUpload(mp.vidLabelingJob),
+        rawImpressionUpload = parentUpload(params.vidLabelingJob),
         eventIdColumn = eventIdColumn,
         eventIdDigestExtractor = eventIdDigestExtractor,
         inputFiles = inputFiles,
@@ -315,14 +327,17 @@ class VidLabelerApp(
       )
     val modelLineSpec =
       ModelLineSpec(
-        modelLine = mp.modelLine,
-        modelBlobUri = mp.modelBlobPath,
+        modelLine = modelLine,
+        modelBlobUri =
+          requireNotNull(params.modelBlobPathsMap[modelLine]) {
+            "model_blob_paths must contain an entry for $modelLine"
+          },
         activeWindow = activeWindow,
         config = config,
         rankIndex = rankIndex,
       )
 
-    val impressionConverter = buildImpressionConverter(mp.modelLine, config)
+    val impressionConverter = buildImpressionConverter(modelLine, config)
 
     VidLabeler(
         rawImpressionSource = rawImpressionSource,
@@ -354,7 +369,7 @@ class VidLabelerApp(
     encryptKekUri: String,
     inputFiles: List<String>,
   ) {
-    val modelLines = params.overrideModelLinesList
+    val modelLines = params.modelLinesList
     val configsByModelLine =
       modelLines.associateWith { modelLine ->
         requireNotNull(params.modelLineConfigsMap[modelLine]) {
@@ -410,7 +425,9 @@ class VidLabelerApp(
     VidLabeler(
         rawImpressionSource = rawImpressionSource,
         modelLineSpecs = modelLineSpecs,
-        overrideModelLines = modelLines,
+        // The operator-header override filters the labeled set at the engine; empty = label all of
+        // model_lines.
+        overrideModelLines = params.overrideModelLinesList,
         vidModelLoader = vidModelLoader,
         impressionConverter = impressionConverter,
         encryptKmsClient = kmsClient,
