@@ -499,6 +499,10 @@ class VidLabelingDispatchSequencerTest {
         assertThat(params.activeStartTime).isEqualTo(ACTIVE_START_TIME)
         assertThat(params.activeEndTime).isEqualTo(ACTIVE_END_TIME)
         assertThat(params.modelStorageParams.blobPrefix).isEqualTo("gs://model-bucket")
+        // The bin-packing threshold is forwarded onto SubpoolAssignerParams so the memoized Phase-1
+        // fan-out bin-packs the same way the non-memoized dispatcher does (SubpoolAssignerApp
+        // requires it > 0).
+        assertThat(params.maxFileBatchSizeBytes).isEqualTo(MAX_FILE_BATCH_SIZE_BYTES)
       }
     }
 
@@ -1087,6 +1091,7 @@ class VidLabelingDispatchSequencerTest {
         clientCertResourcePath = "cert"
         clientPrivateKeyResourcePath = "key"
       }
+      maxFileBatchSizeBytes = MAX_FILE_BATCH_SIZE_BYTES
     }
 
     private val MODEL_LINE_CONFIGS: Map<String, VidLabelerParams.ModelLineConfig> =

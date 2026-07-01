@@ -513,6 +513,10 @@ class VidLabelingDispatcherFunction : HttpFunction {
           clientPrivateKeyResourcePath =
             config.rawImpressionMetadataStorageConnection.privateKeyFilePath
         }
+        // Forward the bin-packing threshold onto the memoized Phase-0 path so the Phase-1 ranker's
+        // last-job-out fan-out bin-packs identically to the non-memoized dispatcher. REQUIRED on
+        // SubpoolAssignerParams; SubpoolAssignerApp validates it > 0.
+        maxFileBatchSizeBytes = config.maxFileBatchSizeBytes
       }
     }
   }
