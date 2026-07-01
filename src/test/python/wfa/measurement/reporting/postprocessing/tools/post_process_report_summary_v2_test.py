@@ -1677,6 +1677,76 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         )
         self.assertEqual(result.updated_measurements["anchor_dp1_reach"], 500)
 
+    def test_three_composites_collapse_all_names_back_filled(self):
+        # Three ReportSummarySetResults with identical (impression_filter,
+        # edp_combination). Exercises the alias-chain resolution: RSR1 gets
+        # displaced by RSR2, RSR2 gets displaced by RSR3, so at record time
+        # RSR1's alias must chain through to RSR3 rather than pointing at
+        # RSR2 (which is itself no longer in updated_measurements after the
+        # solver runs). Without _add_alias resolving through the chain, the
+        # single-hop back-fill loop would skip RSR1 (canonical=name2 not in
+        # updated_measurements) whenever dict iteration puts the RSR1->RSR2
+        # entry before the RSR2->RSR3 entry.
+        report_summary_textproto = """
+            cmms_measurement_consumer_id: "NsQ4CS3K1to"
+            external_report_result_id: 456
+            population: 1000
+            report_summary_set_results {
+                external_reporting_set_result_id: 1
+                impression_filter: "ami"
+                set_operation: "union"
+                data_providers: "edp1"
+                data_providers: "edp2"
+                whole_campaign_result {
+                    reach {
+                        value: 500
+                        standard_deviation: 0
+                        metric: "anchor_dp1_reach"
+                    }
+                }
+            }
+            report_summary_set_results {
+                external_reporting_set_result_id: 2
+                impression_filter: "ami"
+                set_operation: "union"
+                data_providers: "edp2"
+                data_providers: "edp1"
+                whole_campaign_result {
+                    reach {
+                        value: 500
+                        standard_deviation: 0
+                        metric: "anchor_dp2_reach"
+                    }
+                }
+            }
+            report_summary_set_results {
+                external_reporting_set_result_id: 3
+                impression_filter: "ami"
+                set_operation: "union"
+                data_providers: "edp1"
+                data_providers: "edp2"
+                whole_campaign_result {
+                    reach {
+                        value: 500
+                        standard_deviation: 0
+                        metric: "anchor_dp3_reach"
+                    }
+                }
+            }
+        """
+        report_summary = text_format.Parse(
+            report_summary_textproto,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(report_summary, []).process()
+
+        for name in ("anchor_dp1_reach", "anchor_dp2_reach",
+                     "anchor_dp3_reach"):
+            self.assertIn(name, result.updated_measurements)
+            self.assertEqual(result.updated_measurements[name], 500)
+
+
 
 def read_file_to_string(filename: str) -> str:
     try:

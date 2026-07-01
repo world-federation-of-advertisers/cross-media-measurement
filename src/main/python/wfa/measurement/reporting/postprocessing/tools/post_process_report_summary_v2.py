@@ -260,27 +260,57 @@ class ReportSummaryV2Processor:
                 f"edp_combination) must agree on cadence length.")
         for old, new in zip(displaced, winning):
             if old.name != new.name:
-                self._metric_name_aliases[old.name] = new.name
+                self._add_alias(old.name, new.name)
 
     def _record_measurement_set_aliases(self, displaced: MeasurementSet,
                                         winning: MeasurementSet) -> None:
         """Records aliases for every Measurement inside a MeasurementSet."""
         if displaced.reach is not None and winning.reach is not None:
             if displaced.reach.name != winning.reach.name:
-                self._metric_name_aliases[
-                    displaced.reach.name] = winning.reach.name
+                self._add_alias(displaced.reach.name, winning.reach.name)
         if displaced.impression is not None and winning.impression is not None:
             if displaced.impression.name != winning.impression.name:
-                self._metric_name_aliases[
-                    displaced.impression.name] = winning.impression.name
-        # k_reach: keys are frequency bins; alias only where both sides have
-        # the same bin (mismatched bin sets on ReportSummarySetResults sharing
-        # (filter, edps) would already have failed upstream, but the guard
-        # keeps this helper total).
+                self._add_alias(displaced.impression.name,
+                                winning.impression.name)
+        # k_reach: keys are frequency bins. Alias only where both sides have
+        # the same bin. If displaced has a bin not in winning, that bin's
+        # metric_name never gets back-filled and lookups by that name would
+        # KeyError at response-build time -- but that indicates a shape
+        # divergence between two ReportSummarySetResults that share
+        # (filter, edps), which we treat as an upstream contract violation
+        # rather than something to smooth over here.
         for bin_key, new_meas in winning.k_reach.items():
             old_meas = displaced.k_reach.get(bin_key)
             if old_meas is not None and old_meas.name != new_meas.name:
-                self._metric_name_aliases[old_meas.name] = new_meas.name
+                self._add_alias(old_meas.name, new_meas.name)
+
+    def _add_alias(self, aliased_name: str, canonical_name: str) -> None:
+        """Records aliased_name -> canonical_name and keeps
+        _metric_name_aliases flat so the back-fill loop resolves every entry
+        in one hop regardless of dict iteration order.
+
+        Two forms of flattening:
+          1. If canonical_name is itself an aliased key (e.g. RSR1 already
+             aliased to RSR2, and now RSR2 is being aliased to RSR3), chain
+             through so the recorded target is the ultimate canonical.
+          2. If any existing alias pointed at aliased_name (i.e. a prior
+             displacement recorded X -> aliased_name because aliased_name
+             was then the canonical), retarget those entries to the new
+             canonical. Without this, when the third displacement in a
+             chain arrives, earlier entries would still point at an
+             intermediate name that is no longer in updated_measurements
+             after the solver runs, and back-fill would skip them.
+        """
+        canonical = canonical_name
+        while canonical in self._metric_name_aliases:
+            canonical = self._metric_name_aliases[canonical]
+        if aliased_name == canonical:
+            return
+        for existing_aliased, existing_canonical in list(
+                self._metric_name_aliases.items()):
+            if existing_canonical == aliased_name:
+                self._metric_name_aliases[existing_aliased] = canonical
+        self._metric_name_aliases[aliased_name] = canonical
 
     def process(self) -> ReportPostProcessorResult:
         """Corrects the report and returns the result."""
