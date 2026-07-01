@@ -20,10 +20,6 @@ on:
       environment:
         type: string
         required: true
-      edp_config:
-        description: "JSON string containing EDP configs; forwarded from vars.DASHBOARD_EDP_CONFIG by the caller. Passed as an input (not read via vars) because matrix expansion happens before the callee's environment scope is applied, so vars.DASHBOARD_EDP_CONFIG evaluates to empty in the matrix context."
-        type: string
-        required: true
   workflow_dispatch:
     inputs:
       environment:
@@ -33,10 +29,6 @@ on:
         options:
           - dev
           - qa
-      edp_config:
-        description: "JSON string of EDP configs (see workflow_call description)"
-        type: string
-        required: true
 
 permissions:
   contents: read
@@ -48,7 +40,20 @@ jobs:
       contents: read
       id-token: write
     environment: ${{ inputs.environment }}
+    outputs:
+      edp_config: ${{ steps.load-edp-config.outputs.edp_config }}
     steps:
+      - name: Load EDP config from environment vars
+        id: load-edp-config
+        env:
+          EDP_CONFIG: ${{ vars.DASHBOARD_EDP_CONFIG }}
+        run: |
+          if [ -z "$EDP_CONFIG" ]; then
+            echo "vars.DASHBOARD_EDP_CONFIG is empty for environment ${{ inputs.environment }}" >&2
+            exit 1
+          fi
+          echo "edp_config=$EDP_CONFIG" >> "$GITHUB_OUTPUT"
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
@@ -131,7 +136,7 @@ jobs:
     environment: ${{ inputs.environment }}
     strategy:
       matrix:
-        edp: ${{ fromJson(inputs.edp_config) }}
+        edp: ${{ fromJson(needs.trigger-scheduled-queries.outputs.edp_config) }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
