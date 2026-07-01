@@ -548,6 +548,108 @@ abstract class InProcessMultiEdpReportIntegrationTest(
       }
     }
 
+  @Test
+  fun `getBasicReport returns SUCCEEDED custom group basic report when basic report is completed`() =
+    runBlocking {
+      val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+      val eventGroups = getMultiEdpEventGroups()
+      check(eventGroups.size > 1)
+
+      // One primitive custom group per EDP (empty campaign_group; disjoint DataProvider sets).
+      val customGroups: List<ReportingSet> =
+        eventGroups.mapIndexed { index, eventGroup ->
+          publicReportingSetsClient
+            .withCallCredentials(credentials)
+            .createReportingSet(
+              createReportingSetRequest {
+                parent = measurementConsumerData.name
+                reportingSet = reportingSet {
+                  displayName = "custom group $index"
+                  primitive =
+                    ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
+                }
+                reportingSetId = "customgroup$index"
+              }
+            )
+        }
+
+      // Reuse the scaffolding (model line, reporting interval, IQF), but drop campaign_group so the
+      // server synthesizes one, and bucket by the custom-group ReportingSets.
+      val createBasicReportRequest =
+        buildCreateBasicReportRequest(eventGroups).copy {
+          basicReport =
+            basicReport.copy {
+              campaignGroup = ""
+              campaignGroupDisplayName = ""
+              resultGroupSpecs.clear()
+              resultGroupSpecs += resultGroupSpec {
+                title = "title"
+                reportingUnit = reportingUnit { components += customGroups.map { it.name } }
+                metricFrequency = metricFrequencySpec { total = true }
+                dimensionSpec = dimensionSpec {
+                  grouping =
+                    DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+                  filters += eventFilter {
+                    terms += eventTemplateField {
+                      path = "person.age_group"
+                      value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                    }
+                  }
+                }
+                resultGroupMetricSpec = resultGroupMetricSpec {
+                  populationSize = true
+                  reportingUnit =
+                    ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                      cumulative =
+                        ResultGroupMetricSpecKt.basicMetricSetSpec {
+                          reach = true
+                          percentReach = true
+                        }
+                      stackedIncrementalReach = true
+                    }
+                  component =
+                    ResultGroupMetricSpecKt.componentMetricSetSpec {
+                      cumulative =
+                        ResultGroupMetricSpecKt.basicMetricSetSpec {
+                          reach = true
+                          percentReach = true
+                        }
+                      cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+                    }
+                }
+              }
+            }
+        }
+
+      val createdBasicReport =
+        publicBasicReportsClient
+          .withCallCredentials(credentials)
+          .createBasicReport(createBasicReportRequest)
+
+      // campaign_group is empty; the synthesized one is surfaced only via effective_campaign_group.
+      assertThat(createdBasicReport.campaignGroup).isEmpty()
+      assertThat(createdBasicReport.effectiveCampaignGroup).isNotEmpty()
+
+      executeBasicReportsReportsJob(createdBasicReport.name)
+      executeReportProcessorJob()
+
+      val retrievedCompletedBasicReport =
+        publicBasicReportsClient
+          .withCallCredentials(credentials)
+          .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+      assertThat(retrievedCompletedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+
+      // Results are bucketed by the custom-group ReportingSet resource names.
+      val componentKeys =
+        retrievedCompletedBasicReport.resultGroupsList
+          .flatMap { it.resultsList }
+          .flatMap { it.metricSet.componentsList }
+          .map { it.key }
+          .toSet()
+      assertThat(componentKeys).containsAtLeastElementsIn(customGroups.map { it.name })
+    }
+
   private fun assertExpectedProtocolUsed(measurements: List<Measurement>) {
     assertWithMessage("measurements").that(measurements).isNotEmpty()
     var expectedProtocolFound = false

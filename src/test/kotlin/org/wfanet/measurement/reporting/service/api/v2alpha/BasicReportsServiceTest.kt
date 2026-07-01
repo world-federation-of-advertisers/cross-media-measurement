@@ -132,6 +132,7 @@ import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.basicReportResultDetails
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
+import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.createBasicReportRequest as internalCreateBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
@@ -185,6 +186,7 @@ import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineIm
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupKt
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
+import org.wfanet.measurement.reporting.v2alpha.CreateBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.basicReport
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createBasicReportRequest
@@ -451,6 +453,305 @@ class BasicReportsServiceTest {
       )
     assertThat(response.createTime.seconds).isAtLeast(1)
   }
+
+  /**
+   * Creates a primitive custom-group [ReportingSet] (empty `campaign_group`) with a single
+   * EventGroup, returning its resource name.
+   */
+  private suspend fun createPrimitiveCustomGroup(
+    measurementConsumerKey: MeasurementConsumerKey,
+    externalReportingSetId: String,
+    cmmsDataProviderId: String,
+    cmmsEventGroupId: String,
+  ): String {
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = internalReportingSet {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+          primitive =
+            ReportingSetKt.primitive {
+              eventGroupKeys +=
+                ReportingSetKt.PrimitiveKt.eventGroupKey {
+                  this.cmmsDataProviderId = cmmsDataProviderId
+                  this.cmmsEventGroupId = cmmsEventGroupId
+                }
+            }
+        }
+        this.externalReportingSetId = externalReportingSetId
+      }
+    )
+    return ReportingSetKey(measurementConsumerKey, externalReportingSetId).toName()
+  }
+
+  /** Builds a custom-group ([reportingUnit] with ReportingSet components) [CreateBasicReportRequest]. */
+  private fun customGroupBasicReportRequest(
+    measurementConsumerKey: MeasurementConsumerKey,
+    basicReportId: String,
+    componentNames: List<String>,
+  ): CreateBasicReportRequest {
+    val resultGroupSpec =
+      BASIC_REPORT.resultGroupSpecsList.single().copy {
+        reportingUnit = reportingUnit { components += componentNames }
+      }
+    return createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      // campaign_group intentionally left empty (custom-group mode).
+      this.basicReport =
+        BASIC_REPORT.copy {
+          resultGroupSpecs.clear()
+          resultGroupSpecs += resultGroupSpec
+        }
+      this.basicReportId = basicReportId
+    }
+  }
+
+  @Test
+  fun `createBasicReport synthesizes campaign group for custom group reporting units`(): Unit =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      // Two primitive custom groups with disjoint DataProvider sets.
+      val customGroup1 =
+        createPrimitiveCustomGroup(measurementConsumerKey, "customgroup1", "dp1", "eg1")
+      val customGroup2 =
+        createPrimitiveCustomGroup(measurementConsumerKey, "customgroup2", "dp2", "eg2")
+
+      val request =
+        customGroupBasicReportRequest(
+          measurementConsumerKey,
+          "a1234",
+          listOf(customGroup1, customGroup2),
+        )
+
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+      // campaign_group is empty; the server-synthesized campaign group is surfaced only via
+      // effective_campaign_group.
+      assertThat(response.campaignGroup).isEmpty()
+      assertThat(response.effectiveCampaignGroup).isNotEmpty()
+
+      // The synthesized campaign group is a primitive, self-referencing ReportingSet whose
+      // EventGroups are the union of the custom groups' EventGroups.
+      val synthesizedKey = checkNotNull(ReportingSetKey.fromName(response.effectiveCampaignGroup))
+      val synthesized =
+        internalReportingSetsService
+          .batchGetReportingSets(
+            batchGetReportingSetsRequest {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalReportingSetIds += synthesizedKey.reportingSetId
+            }
+          )
+          .reportingSetsList
+          .single()
+      assertThat(synthesized.externalCampaignGroupId).isEqualTo(synthesizedKey.reportingSetId)
+      assertThat(synthesized.primitive.eventGroupKeysList)
+        .containsExactly(
+          ReportingSetKt.PrimitiveKt.eventGroupKey {
+            cmmsDataProviderId = "dp1"
+            cmmsEventGroupId = "eg1"
+          },
+          ReportingSetKt.PrimitiveKt.eventGroupKey {
+            cmmsDataProviderId = "dp2"
+            cmmsEventGroupId = "eg2"
+          },
+        )
+
+      // The created internal Report buckets metrics by the custom-group ReportingSets themselves
+      // (and mints the union composite referencing them, exercising the empty-campaign_group
+      // composite path).
+      val createReportRequest =
+        argumentCaptor { verify(reportsServiceMock).createReport(capture()) }.firstValue
+      assertThat(createReportRequest.report.reportingMetricEntriesList.map { it.key })
+        .containsAtLeast(customGroup1, customGroup2)
+    }
+
+  @Test
+  fun `createBasicReport reuses synthesized campaign group for identical custom groups`(): Unit =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+      val customGroup1 =
+        createPrimitiveCustomGroup(measurementConsumerKey, "customgroup1", "dp1", "eg1")
+      val customGroup2 =
+        createPrimitiveCustomGroup(measurementConsumerKey, "customgroup2", "dp2", "eg2")
+      val componentNames = listOf(customGroup1, customGroup2)
+
+      val firstResponse =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          service.createBasicReport(
+            customGroupBasicReportRequest(measurementConsumerKey, "a1234", componentNames)
+          )
+        }
+      val secondResponse =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          service.createBasicReport(
+            customGroupBasicReportRequest(measurementConsumerKey, "a5678", componentNames)
+          )
+        }
+
+      assertThat(secondResponse.effectiveCampaignGroup)
+        .isEqualTo(firstResponse.effectiveCampaignGroup)
+    }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when components mix DataProvider and ReportingSet`():
+    Unit = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+    val customGroup =
+      createPrimitiveCustomGroup(measurementConsumerKey, "customgroup1", "dp1", "eg1")
+
+    val request =
+      customGroupBasicReportRequest(
+        measurementConsumerKey,
+        "a1234",
+        listOf(DATA_PROVIDER_KEY.toName(), customGroup),
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when custom groups share a DataProvider set`():
+    Unit = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+    // Both custom groups resolve to the same DataProvider set ({dp1}).
+    val customGroup1 =
+      createPrimitiveCustomGroup(measurementConsumerKey, "customgroup1", "dp1", "eg1")
+    val customGroup2 =
+      createPrimitiveCustomGroup(measurementConsumerKey, "customgroup2", "dp1", "eg2")
+
+    val request =
+      customGroupBasicReportRequest(
+        measurementConsumerKey,
+        "a1234",
+        listOf(customGroup1, customGroup2),
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createBasicReport throws FAILED_PRECONDITION when a custom group does not exist`(): Unit =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      val request =
+        customGroupBasicReportRequest(
+          measurementConsumerKey,
+          "a1234",
+          listOf(ReportingSetKey(measurementConsumerKey, "nonexistent").toName()),
+        )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+      assertThat(exception).status().code().isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when a custom group is composite`(): Unit =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      // A primitive ReportingSet plus a composite (UNION) custom group referencing it. Composite
+      // custom groups are rejected: custom-group components must be primitive.
+      createPrimitiveCustomGroup(measurementConsumerKey, "primitive1", "dp1", "eg1")
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = internalReportingSet {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            composite =
+              ReportingSetKt.setExpression {
+                operation = ReportingSet.SetExpression.Operation.UNION
+                lhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "primitive1" }
+              }
+            weightedSubsetUnions +=
+              ReportingSetKt.weightedSubsetUnion {
+                primitiveReportingSetBases +=
+                  ReportingSetKt.primitiveReportingSetBasis { externalReportingSetId = "primitive1" }
+                binaryRepresentation = 1
+                weight = 1
+              }
+          }
+          externalReportingSetId = "compositegroup"
+        }
+      )
+
+      val request =
+        customGroupBasicReportRequest(
+          measurementConsumerKey,
+          "a1234",
+          listOf(ReportingSetKey(measurementConsumerKey, "compositegroup").toName()),
+        )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when reporting unit exceeds component cap`(): Unit =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      // 26 components exceeds the cap of 25. The cap is enforced during request validation, before
+      // any ReportingSet is resolved, so the components need not exist.
+      val componentNames =
+        (1..26).map { ReportingSetKey(measurementConsumerKey, "customgroup$it").toName() }
+      val request = customGroupBasicReportRequest(measurementConsumerKey, "a1234", componentNames)
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
 
   @Test
   fun `createBasicReport creates report and persists its report id`(): Unit = runBlocking {
@@ -3826,48 +4127,40 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when campaignGroup is missing`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
-    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+  fun `createBasicReport throws INVALID_ARGUMENT when campaignGroup empty and components are DataProviders`() =
+    runBlocking {
+      // An empty campaign_group selects custom-group mode, where reporting_unit components must be
+      // ReportingSets. BASIC_REPORT uses a DataProvider component, so this is rejected.
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
 
-    measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer {
-        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-      }
-    )
-
-    internalReportingSetsService.createReportingSet(
-      createReportingSetRequest {
-        reportingSet =
-          INTERNAL_CAMPAIGN_GROUP.copy {
-            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-            externalCampaignGroupId = campaignGroupKey.reportingSetId
-          }
-        externalReportingSetId = campaignGroupKey.reportingSetId
-      }
-    )
-
-    val request = createBasicReportRequest {
-      parent = measurementConsumerKey.toName()
-      basicReport = BASIC_REPORT
-      basicReportId = "a1234"
-    }
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-      }
-
-    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception)
-      .errorInfo()
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.campaign_group"
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
         }
       )
-  }
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport = BASIC_REPORT
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs[0].reporting_unit.components[0]"
+          }
+        )
+    }
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when campaignGroup is invalid`() = runBlocking {

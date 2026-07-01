@@ -56,6 +56,12 @@ import org.wfanet.measurement.reporting.v2alpha.ResultGroupSpec
 object CreateBasicReportRequestValidation {
   private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
 
+  /**
+   * Maximum number of components allowed in a single `reporting_unit`. Guards against accidentally
+   * large requests; can be tightened later without back-compat concerns.
+   */
+  private const val MAX_REPORTING_UNIT_COMPONENTS = 25
+
   data class ParsedFields(
     val parentKey: MeasurementConsumerKey,
     val impressionQualificationFilterKeys: Set<ImpressionQualificationFilterKey>,
@@ -82,6 +88,10 @@ object CreateBasicReportRequestValidation {
    * [request.basicReport.campaignGroup][org.wfanet.measurement.reporting.v2alpha.BasicReport.campaignGroup]
    * field.
    *
+   * @param campaignGroup the caller-supplied Campaign Group [ReportingSet] (DataProvider mode), or
+   *   `null` for custom-group mode where the Campaign Group is server-synthesized after validation.
+   *   In DataProvider mode every `reporting_unit` component must be a DataProvider within the
+   *   Campaign Group; in custom-group mode every component must be a ReportingSet.
    * @throws InvalidFieldValueException
    * @throws RequiredFieldNotSetException
    * @throws DataProviderNotFoundForCampaignGroupException
@@ -90,7 +100,7 @@ object CreateBasicReportRequestValidation {
    */
   fun validateRequest(
     request: CreateBasicReportRequest,
-    campaignGroup: ReportingSet,
+    campaignGroup: ReportingSet?,
     hasDefaultReportStartHour: Boolean,
     eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
   ): ParsedFields {
@@ -143,7 +153,7 @@ object CreateBasicReportRequestValidation {
     validateResultGroupSpecs(
       request.basicReport.resultGroupSpecsList,
       eventTemplateFieldsByPath,
-      CampaignGroupInfo(campaignGroup),
+      if (campaignGroup != null) CampaignGroupInfo(campaignGroup) else null,
     )
 
     return ParsedFields(parentKey, impressionQualificationFilterKeyByName)
@@ -162,7 +172,7 @@ object CreateBasicReportRequestValidation {
   private fun validateResultGroupSpecs(
     resultGroupSpecs: List<ResultGroupSpec>,
     eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
-    campaignGroupInfo: CampaignGroupInfo,
+    campaignGroupInfo: CampaignGroupInfo?,
   ) {
     val fieldPath = "basic_report.result_group_specs"
     if (resultGroupSpecs.isEmpty()) {
@@ -290,26 +300,61 @@ object CreateBasicReportRequestValidation {
   /**
    * Validates [reportingUnit] within the context of a [CreateBasicReportRequest].
    *
+   * There are two mutually exclusive component modes, selected by whether a Campaign Group was
+   * supplied on the request:
+   * - DataProvider mode ([campaignGroupInfo] non-null): every component must be a DataProvider
+   *   resource name belonging to the Campaign Group.
+   * - Custom-group mode ([campaignGroupInfo] `null`): every component must be a ReportingSet
+   *   resource name. The referenced ReportingSets are resolved and further validated (primitive,
+   *   Measurement Consumer-owned, distinct DataProvider sets) server-side in `BasicReportsService`,
+   *   where they are fetched for Campaign Group synthesis.
+   *
+   * DataProvider and ReportingSet components must not be mixed within a single `reporting_unit`.
+   *
    * @param fieldPath Path of [reportingUnit] relative to the request message
-   * @param campaignGroupInfo Information about the Campaign Group for the BasicReport
+   * @param campaignGroupInfo Information about the supplied Campaign Group, or `null` for
+   *   custom-group mode
    */
   private fun validateReportingUnit(
     reportingUnit: ReportingUnit,
     fieldPath: String,
-    campaignGroupInfo: CampaignGroupInfo,
+    campaignGroupInfo: CampaignGroupInfo?,
   ) {
-    if (reportingUnit.componentsList.isEmpty()) {
+    val components = reportingUnit.componentsList
+    if (components.isEmpty()) {
       throw InvalidFieldValueException("$fieldPath.components")
     }
+    if (components.size > MAX_REPORTING_UNIT_COMPONENTS) {
+      throw InvalidFieldValueException("$fieldPath.components") { fieldPath ->
+        "$fieldPath must not contain more than $MAX_REPORTING_UNIT_COMPONENTS components"
+      }
+    }
 
-    reportingUnit.componentsList.forEachIndexed { index, component ->
-      DataProviderKey.fromName(component)
-        ?: throw InvalidFieldValueException("$fieldPath.components[$index]") { fieldPath ->
-          "$fieldPath is not a valid data provider name"
+    if (campaignGroupInfo == null) {
+      // Custom-group mode: every component must be a ReportingSet resource name. A DataProvider
+      // component here means either the caller mixed component types or omitted campaign_group for a
+      // DataProvider report.
+      components.forEachIndexed { index, component ->
+        ReportingSetKey.fromName(component)
+          ?: throw InvalidFieldValueException("$fieldPath.components[$index]") { fieldPath ->
+            "$fieldPath is not a valid ReportingSet resource name; DataProvider and ReportingSet " +
+              "components must not be mixed, and campaign_group must be set for DataProvider " +
+              "components"
+          }
+      }
+    } else {
+      // DataProvider mode: every component must be a DataProvider within the Campaign Group.
+      components.forEachIndexed { index, component ->
+        DataProviderKey.fromName(component)
+          ?: throw InvalidFieldValueException("$fieldPath.components[$index]") { fieldPath ->
+            "$fieldPath is not a valid data provider name; DataProvider and ReportingSet " +
+              "components must not be mixed, and campaign_group must be empty for ReportingSet " +
+              "components"
+          }
+
+        if (!campaignGroupInfo.dataProviderNames.contains(component)) {
+          throw DataProviderNotFoundForCampaignGroupException(component, campaignGroupInfo.name)
         }
-
-      if (!campaignGroupInfo.dataProviderNames.contains(component)) {
-        throw DataProviderNotFoundForCampaignGroupException(component, campaignGroupInfo.name)
       }
     }
   }
