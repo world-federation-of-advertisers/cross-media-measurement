@@ -639,8 +639,6 @@ abstract class InProcessMultiEdpReportIntegrationTest(
           .withCallCredentials(credentials)
           .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
 
-      assertThat(retrievedCompletedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
-
       // Results are bucketed by the custom-group ReportingSet resource names.
       val componentKeys =
         retrievedCompletedBasicReport.resultGroupsList
@@ -649,6 +647,8 @@ abstract class InProcessMultiEdpReportIntegrationTest(
           .map { it.key }
           .toSet()
       assertThat(componentKeys).containsAtLeastElementsIn(customGroups.map { it.name })
+
+      assertThat(retrievedCompletedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
     }
 
   private fun assertExpectedProtocolUsed(measurements: List<Measurement>) {
