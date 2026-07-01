@@ -593,8 +593,9 @@ abstract class InProcessMultiEdpReportIntegrationTest(
               resultGroupSpecs.clear()
               resultGroupSpecs += resultGroupSpec {
                 title = "title"
-                reportingUnit =
-                  reportingUnit { components += reportingSetComponents.map { it.name } }
+                reportingUnit = reportingUnit {
+                  components += reportingSetComponents.map { it.name }
+                }
                 metricFrequency = metricFrequencySpec { total = true }
                 dimensionSpec = dimensionSpec {
                   grouping =
