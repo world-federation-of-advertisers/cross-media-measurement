@@ -516,16 +516,16 @@ class VidLabelerApp(
   }
 
   /**
-   * Transitions [parent] to `COMPLETED`, passing its etag for AIP-154 optimistic locking. Only
-   * attempted when the parent is still `LABELING`; swallows only the benign already-advanced races
-   * (FAILED_PRECONDITION / ABORTED) so a redelivered last-job-out is a no-op, and rethrows
-   * everything else so a transient failure nacks the message.
+   * Transitions [parent] to `COMPLETED`, passing its etag for AIP-154 optimistic locking. Swallows
+   * only the benign already-advanced races (FAILED_PRECONDITION / ABORTED) so a redelivered
+   * last-job-out — or a concurrent worker that already advanced the line — is a no-op, and rethrows
+   * everything else so a transient failure nacks the message. The etag CAS (not a client-side state
+   * pre-check) is the source of truth, so a stale [parent] snapshot is safe.
    */
   private suspend fun markParentCompleted(
     parent: RawImpressionUploadModelLine,
     dataProvider: String,
   ) {
-    if (parent.state != RawImpressionUploadModelLine.State.LABELING) return
     try {
       rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineCompleted(
         markRawImpressionUploadModelLineCompletedRequest {
