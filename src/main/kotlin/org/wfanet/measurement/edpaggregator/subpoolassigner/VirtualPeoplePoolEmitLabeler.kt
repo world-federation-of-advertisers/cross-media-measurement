@@ -16,7 +16,9 @@
 
 package org.wfanet.measurement.edpaggregator.subpoolassigner
 
+import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
+import org.wfanet.measurement.common.riegeli.Riegeli
 import org.wfanet.virtualpeople.common.CompiledNode
 import org.wfanet.virtualpeople.common.LabelerInput
 import org.wfanet.virtualpeople.core.labeler.Labeler
@@ -44,10 +46,22 @@ class VirtualPeoplePoolEmitLabeler(private val labeler: Labeler) : PoolEmitLabel
 
   companion object {
     /**
-     * Builds a [VirtualPeoplePoolEmitLabeler] from the binary-serialized [CompiledNode] root of a
-     * compiled VID model (the `model_blob_path` payload).
+     * Builds a [VirtualPeoplePoolEmitLabeler] from a compiled VID model blob (the `model_blob_path`
+     * payload).
+     *
+     * The blob is a Riegeli record file whose records are [ProtoAny]-packed [CompiledNode]s of the
+     * model tree (the layout written by the VirtualPeople model compiler's `WriteRiegeliFile`), so
+     * each record is read, unpacked from `Any`, and the model is built via the [Labeler.build] list
+     * overload rather than parsed as a single root node. This mirrors
+     * `VirtualPeopleVidAssigner.fromCompiledNodeBlob` so Phase-0 pool assignment and Phase-2
+     * labeling load the identical model.
      */
-    fun fromCompiledNodeBlob(modelBlob: ByteString): VirtualPeoplePoolEmitLabeler =
-      VirtualPeoplePoolEmitLabeler(Labeler.build(CompiledNode.parseFrom(modelBlob)))
+    fun fromCompiledNodeBlob(modelBlob: ByteString): VirtualPeoplePoolEmitLabeler {
+      val nodes: List<CompiledNode> =
+        Riegeli.readRecords(modelBlob.newInput())
+          .map { record -> ProtoAny.parseFrom(record).unpack(CompiledNode::class.java) }
+          .toList()
+      return VirtualPeoplePoolEmitLabeler(Labeler.build(nodes))
+    }
   }
 }
