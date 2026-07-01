@@ -381,10 +381,10 @@ class VidLabelingSink(
   /**
    * Deterministic output blob key for [key] under this input file:
    * `model-line/<modelLineId>/<YYYY-MM-DD>/<sha256>`. The `model-line/<id>/<date>/` layout is what
-   * `DataAvailabilitySync` crawls to classify finalized dates; the date is the file's most-recent
-   * impression date ([FileEntityKeys.maxEventDate], read from the footer, UTC). The trailing SHA of
-   * (input file, model line) keeps the key deterministic, so a retried input file overwrites its
-   * previous output instead of duplicating it.
+   * `DataAvailabilitySync` crawls to classify finalized dates; the date is the file's event date
+   * ([FileEntityKeys.eventDate], read from the footer, UTC; a raw file holds one day). The trailing
+   * SHA of (input file, model line) keeps the key deterministic, so a retried input file overwrites
+   * its previous output instead of duplicating it.
    */
   private fun outputBlobKey(key: OutputGroupKey): String {
     val modelLineId =
@@ -396,7 +396,7 @@ class VidLabelingSink(
       MessageDigest.getInstance("SHA-256")
         .digest("$inputBlobUri|${key.modelLine}".toByteArray(Charsets.UTF_8))
     val sha = digest.joinToString("") { "%02x".format(it) }
-    return "model-line/$modelLineId/${fileEntityKeys.maxEventDate}/$sha"
+    return "model-line/$modelLineId/${fileEntityKeys.eventDate}/$sha"
   }
 
   private val Timestamp.epochNanos: Long
