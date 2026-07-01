@@ -802,7 +802,7 @@ resource "google_bigquery_table_iam_member" "requisition_overview_platform_viewe
   for_each   = toset(var.dashboard_operators)
   project    = data.google_client_config.default.project
   dataset_id = google_bigquery_dataset.dashboard.dataset_id
-  table_id   = "requisition_overview"
+  table_id   = google_bigquery_table.requisition_overview.table_id
   role       = "roles/bigquery.dataViewer"
   member     = each.value
 }
@@ -811,7 +811,7 @@ resource "google_bigquery_table_iam_member" "mc_details_platform_viewer" {
   for_each   = toset(var.dashboard_operators)
   project    = data.google_client_config.default.project
   dataset_id = google_bigquery_dataset.dashboard.dataset_id
-  table_id   = "mc_details"
+  table_id   = google_bigquery_table.mc_details.table_id
   role       = "roles/bigquery.dataViewer"
   member     = each.value
 }
@@ -820,7 +820,7 @@ resource "google_bigquery_table_iam_member" "report_detail_platform_viewer" {
   for_each   = toset(var.dashboard_operators)
   project    = data.google_client_config.default.project
   dataset_id = google_bigquery_dataset.dashboard.dataset_id
-  table_id   = "report_detail"
+  table_id   = google_bigquery_table.report_detail.table_id
   role       = "roles/bigquery.dataViewer"
   member     = each.value
 }
@@ -833,7 +833,7 @@ resource "google_bigquery_table_iam_member" "requisition_overview_viewer" {
   for_each   = var.data_provider_resource_ids
   project    = data.google_client_config.default.project
   dataset_id = google_bigquery_dataset.dashboard.dataset_id
-  table_id   = "requisition_overview"
+  table_id   = google_bigquery_table.requisition_overview.table_id
   role       = "roles/bigquery.dataViewer"
   member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
@@ -842,7 +842,7 @@ resource "google_bigquery_table_iam_member" "mc_details_edp_viewer" {
   for_each   = var.data_provider_resource_ids
   project    = data.google_client_config.default.project
   dataset_id = google_bigquery_dataset.dashboard.dataset_id
-  table_id   = "mc_details_edp"
+  table_id   = google_bigquery_table.mc_details_edp.table_id
   role       = "roles/bigquery.dataViewer"
   member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
@@ -851,7 +851,7 @@ resource "google_bigquery_table_iam_member" "report_detail_edp_viewer" {
   for_each   = var.data_provider_resource_ids
   project    = data.google_client_config.default.project
   dataset_id = google_bigquery_dataset.dashboard.dataset_id
-  table_id   = "report_detail_edp"
+  table_id   = google_bigquery_table.report_detail_edp.table_id
   role       = "roles/bigquery.dataViewer"
   member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
