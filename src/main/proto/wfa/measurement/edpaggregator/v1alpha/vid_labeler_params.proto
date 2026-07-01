@@ -173,13 +173,5 @@ message VidLabelerParams {
     // blob prefix needed to read their bytes.
     StorageParams vid_rank_map_storage_params = 1
         [(google.api.field_behavior) = REQUIRED];
-
-    // Cloud Storage for the compiled VID model blob named by `model_blob_path`.
-    // The compiled model lives in its own Cloud Storage project, separate from
-    // the rank-map storage above, so it carries a dedicated project here.
-    // Threaded by the Phase-1 `VidRankBuilder` into each Phase-2 fan-out
-    // WorkItem.
-    StorageParams model_storage_params = 6
-        [(google.api.field_behavior) = REQUIRED];
   }
 }

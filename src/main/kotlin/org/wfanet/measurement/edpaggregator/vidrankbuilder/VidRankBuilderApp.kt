@@ -215,19 +215,23 @@ class VidRankBuilderApp(
           }
         },
       )
+      // Shared payload at the top level (both Phase-2 paths); the memoized WorkItem covers exactly
+      // one model line. `vid_labeling_job` is stamped per fan-out WorkItem by the ranker.
+      modelLines += params.modelLine
+      modelBlobPaths.put(params.modelLine, params.modelBlobPath)
+      modelStorageParams =
+        VidLabelerParamsKt.storageParams {
+          gcsProjectId = params.modelStorageParams.gcsProjectId
+          impressionsBlobPrefix = params.modelStorageParams.blobPrefix
+        }
+      // MemoizedParams carries only the memoized-specific rank-index storage; its presence selects
+      // the memoized path.
       memoizedParams =
         VidLabelerParamsKt.memoizedParams {
-          modelLine = params.modelLine
-          modelBlobPath = params.modelBlobPath
           vidRankMapStorageParams =
             VidLabelerParamsKt.storageParams {
               gcsProjectId = params.vidRankMapStorageParams.gcsProjectId
               impressionsBlobPrefix = params.vidRankMapStorageParams.blobPrefix
-            }
-          modelStorageParams =
-            VidLabelerParamsKt.storageParams {
-              gcsProjectId = params.modelStorageParams.gcsProjectId
-              impressionsBlobPrefix = params.modelStorageParams.blobPrefix
             }
         }
     }
