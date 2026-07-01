@@ -545,6 +545,9 @@ class VidLabelingDispatchSequencer(
         vidLabelerParamsTemplate.vidLabeledImpressionsStorageParams
       rawImpressionsStorageParams = vidLabelerParamsTemplate.rawImpressionsStorageParams
       vidRepoConnection = vidLabelerParamsTemplate.vidRepoConnection
+      // The compiled model lives in its own Cloud Storage project (carried on the template from
+      // VidLabelingConfig.model_storage_params); the TEE reads the model blob from there.
+      modelStorageParams = vidLabelerParamsTemplate.modelStorageParams
       modelLineConfigs.putAll(lineConfigs)
       for (modelLineName in modelLineNames) {
         modelBlobPaths[modelLineName] =
@@ -552,7 +555,9 @@ class VidLabelingDispatchSequencer(
             "No model blob path for model line: $modelLineName"
           }
       }
-      overrideModelLines += modelLineNames
+      // The bundled model lines this WorkItem labels. `override_model_lines` is reserved for the
+      // operator-header override and is left unset here.
+      modelLines += modelLineNames
       rawImpressionUpload = uploadName
       vidLabelingJob = vidLabelingJobName
     }
