@@ -927,3 +927,13 @@ resource "google_service_account_iam_member" "dashboard_compliance_operator_toke
   member             = each.value
 }
 
+# CI (running as the terraform SA) impersonates the compliance SA to run the
+# DashboardComplianceCheck as the dedicated least-privilege identity, not as
+# the terraform SA (which has admin-level access to everything the check
+# inspects and would silently hide missing permissions on the custom role).
+resource "google_service_account_iam_member" "dashboard_compliance_terraform_token_creator" {
+  service_account_id = google_service_account.dashboard_compliance.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${var.terraform_service_account}"
+}
+

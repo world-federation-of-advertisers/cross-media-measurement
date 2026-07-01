@@ -301,6 +301,7 @@ jobs:
         run: |
           EDP_ARGS=$(echo "$DASHBOARD_EDP_CONFIG" | jq -r '.[] | "--edp=\(.name):\(.resource_id)"' | tr '\n' ' ')
           bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard/tools:DashboardComplianceCheck -- \
+            --impersonate-service-account="dashboard-compliance@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com" \
             --project="$GOOGLE_CLOUD_PROJECT" \
             --region="$BIGQUERY_REGION" \
             $EDP_ARGS
