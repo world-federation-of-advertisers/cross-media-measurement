@@ -60,7 +60,7 @@ class ParquetImpressionConverterTest {
             entityId = "p-9"
           },
         ),
-      maxEventDate = LocalDate.parse("2026-06-30"),
+      eventDate = LocalDate.parse("2026-06-30"),
     )
 
   private fun digestedEvent(row: Map<String, ParquetValue>): ParquetDigestedEvent =
