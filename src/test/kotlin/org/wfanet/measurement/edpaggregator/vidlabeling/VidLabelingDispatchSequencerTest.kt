@@ -722,6 +722,30 @@ class VidLabelingDispatchSequencerTest {
     }
 
   @Test
+  fun `dispatchNext fails fast when a memoized model line lacks model_storage_params`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = true)
+      val templateMissingModelStorage =
+        SUBPOOL_ASSIGNER_PARAMS_TEMPLATE.copy { clearModelStorageParams() }
+
+      val exception =
+        assertFailsWith<Exception> {
+          createSequencer(subpoolAssignerParamsTemplate = templateMissingModelStorage)
+            .dispatchNext()
+        }
+
+      assertThat(exception).hasMessageThat().contains("model_storage_params missing")
+      verifyBlocking(poolAssignmentJobService, never()) { batchCreatePoolAssignmentJobs(any()) }
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        markRawImpressionUploadModelLinePoolAssigning(any())
+      }
+    }
+
+  @Test
   fun `dispatchNext selects the oldest CREATED upload`() =
     runBlocking<Unit> {
       val older =
