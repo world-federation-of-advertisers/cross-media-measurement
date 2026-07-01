@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
 
+import com.google.common.truth.Truth.assertThat as standardAssertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.DayOfWeek
 import com.google.type.copy
@@ -1708,9 +1709,8 @@ class BasicReportProcessedResultsTransformationTest {
   }
 
   @Test
-  fun `buildResultGroups tolerates weekly cadence with reportingUnit cumulative-only union RSR alongside per-primitive non-cumulative`() {
-    // Regression: reproduces the exact shape Aquila cross-media weekly reports hit in
-    // production (2026-06-29 handover).
+  fun `buildResultGroups handles weekly cumulative union alongside per-EDP non-cumulative`() {
+    // Regression for issue #4132.
     //
     // Under a weekly cadence with `reporting_unit.cumulative` requested but no
     // `reporting_unit.non_cumulative`, the union composite RSR is written as a single
@@ -1898,22 +1898,32 @@ class BasicReportProcessedResultsTransformationTest {
         compositeReportingSetIdBySetExpression,
       )
 
-    // Sanity checks that BOTH the union's cumulative AND the per-primitive non-cumulative
-    // metrics are represented across the resulting Results.
     val allResults = resultGroups.flatMap { it.resultsList }
-    val hasUnionCumulative =
-      allResults.any {
-        it.metricSet.reportingUnit.hasCumulative() &&
-          it.metricSet.reportingUnit.cumulative.reach > 0
+
+    // The whole-report cumulative union bucket produces one Result carrying
+    // reporting_unit.cumulative and no per-component metrics.
+    val unionResult =
+      allResults.single {
+        it.metricSet.reportingUnit.hasCumulative() && it.metricSet.componentsList.isEmpty()
       }
-    val hasPerPrimitiveNonCumulative =
-      allResults.any {
-        it.metricSet.componentsList.isNotEmpty() &&
-          it.metricSet.componentsList.first().value.hasNonCumulative()
+    standardAssertThat(unionResult.metricSet.reportingUnit.cumulative.reach).isEqualTo(25L)
+
+    // The per-week non-cumulative bucket produces one Result carrying per-primitive
+    // component metrics for BOTH primitives with their exact reach + impressions.
+    val perWeekResult =
+      allResults.single {
+        it.metricSet.componentsList.isNotEmpty() && !it.metricSet.reportingUnit.hasCumulative()
       }
-    // Sanity: union cumulative reach and per-primitive non-cumulative both present.
-    check(hasUnionCumulative) { "expected union cumulative reach in some Result" }
-    check(hasPerPrimitiveNonCumulative) { "expected per-primitive non-cumulative in some Result" }
+    val componentByDpId = perWeekResult.metricSet.componentsList.associateBy { it.key }
+    standardAssertThat(componentByDpId.keys).containsExactly(DATA_PROVIDER_1_ID, DATA_PROVIDER_2_ID)
+    standardAssertThat(componentByDpId.getValue(DATA_PROVIDER_1_ID).value.nonCumulative.reach)
+      .isEqualTo(10L)
+    standardAssertThat(componentByDpId.getValue(DATA_PROVIDER_1_ID).value.nonCumulative.impressions)
+      .isEqualTo(100L)
+    standardAssertThat(componentByDpId.getValue(DATA_PROVIDER_2_ID).value.nonCumulative.reach)
+      .isEqualTo(20L)
+    standardAssertThat(componentByDpId.getValue(DATA_PROVIDER_2_ID).value.nonCumulative.impressions)
+      .isEqualTo(200L)
   }
 
   @Test
