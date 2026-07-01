@@ -307,6 +307,12 @@ class VidLabelingDispatcher(
       rawImpressionUploadStub.createRawImpressionUpload(request)
     } catch (e: StatusException) {
       if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
+      // TODO(world-federation-of-advertisers/cross-media-measurement#4118): once #4118 adds
+      // InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS, branch on `e.errorInfo?.reason`
+      // before the lookup below. A same-request_id-but-different-done_blob_uri collision (a
+      // deterministic-UUID collision in RequestIds.forRawImpressionUpload) also surfaces as
+      // ALREADY_EXISTS, yet findUploadByDoneBlobUri returns null for it — log that collision
+      // explicitly (logger.severe) and rethrow instead of the opaque IllegalStateException below.
       findUploadByDoneBlobUri(doneBlobPath)
         ?: throw IllegalStateException(
           "createRawImpressionUpload returned ALREADY_EXISTS but no RawImpressionUpload matches " +
