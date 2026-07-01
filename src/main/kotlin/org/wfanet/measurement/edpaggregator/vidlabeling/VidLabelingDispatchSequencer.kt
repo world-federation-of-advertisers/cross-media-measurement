@@ -554,6 +554,10 @@ class VidLabelingDispatchSequencer(
           // convertModelLineConfigs' output alone — this rebuild would drop them otherwise.
           requiredEntityKeyFieldMapping.putAll(modelLineConfig.requiredEntityKeyFieldMappingMap)
           optionalEntityKeyFieldMapping.putAll(modelLineConfig.optionalEntityKeyFieldMappingMap)
+          // Phase-2 requires the event-template descriptor to build the labeled output; carry it
+          // (and its type) from the config onto every non-memoized WorkItem's ModelLineConfig.
+          eventTemplateDescriptorBlobUri = modelLineConfig.eventTemplateDescriptorBlobUri
+          eventTemplateType = modelLineConfig.eventTemplateType
           // The active window lets the TEE drop out-of-window impressions before labeling.
           activeStartTime = resolvedModelLine.activeStartTime
           if (resolvedModelLine.hasActiveEndTime()) {
@@ -720,6 +724,10 @@ class VidLabelingDispatchSequencer(
         totalShards = numberOfShards
         labelerInputFieldMapping.addAll(modelLineConfig.labelerInputFieldMappingList)
         eventTemplateFieldMapping.putAll(modelLineConfig.eventTemplateFieldMappingMap)
+        // Pass-through so the Phase-1 last-out can stamp the event-template descriptor (which
+        // Phase-2 requires) onto the memoized VidLabeler ModelLineConfig.
+        eventTemplateDescriptorBlobUri = modelLineConfig.eventTemplateDescriptorBlobUri
+        eventTemplateType = modelLineConfig.eventTemplateType
         this.poolAssignmentJob = poolAssignmentJob
       }
 
