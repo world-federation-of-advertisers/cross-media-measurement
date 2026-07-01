@@ -35,13 +35,14 @@ import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt.entityKe
  *   REQUIRED on output (`LabeledImpression.event_group_reference_id`).
  * @property entityKeys entity keys of that EventGroup; at least one, propagated to each
  *   `LabeledImpression.entity_keys` and aggregated into `BlobDetails.entity_keys`.
- * @property maxEventDate UTC date of the file's most-recent impression, used to place the labeled
- *   output under `model-line/<id>/<YYYY-MM-DD>/` so `DataAvailabilitySync` can classify it by date.
+ * @property eventDate UTC calendar date of the file's impressions (a raw-impression file holds one
+ *   day of events). Places the labeled output under `model-line/<id>/<YYYY-MM-DD>/` so
+ *   `DataAvailabilitySync` can classify it by date.
  */
 data class FileEntityKeys(
   val eventGroupReferenceId: String,
   val entityKeys: List<LabeledImpression.EntityKey>,
-  val maxEventDate: LocalDate,
+  val eventDate: LocalDate,
 ) {
   companion object {
     /** Footer key holding the file's event-group reference id (a plain string). */
@@ -53,8 +54,8 @@ data class FileEntityKeys(
      */
     const val ENTITY_KEYS_KEY = "entity_keys"
 
-    /** Footer key holding the file's most-recent impression date as an ISO `YYYY-MM-DD` (UTC). */
-    const val MAX_EVENT_DATE_KEY = "max_event_date"
+    /** Footer key holding the file's event date (one day per file) as an ISO `YYYY-MM-DD` (UTC). */
+    const val EVENT_DATE_KEY = "event_date"
 
     private const val ENTITY_TYPE_FIELD = "entity_type"
     private const val ENTITY_ID_FIELD = "entity_id"
@@ -96,23 +97,22 @@ data class FileEntityKeys(
       require(entityKeys.isNotEmpty()) {
         "raw-impression footer '$ENTITY_KEYS_KEY' must list at least one entity key"
       }
-      val maxEventDateString =
-        requireNotNull(metadata[MAX_EVENT_DATE_KEY]?.takeIf { it.isNotEmpty() }) {
-          "raw-impression footer is missing the '$MAX_EVENT_DATE_KEY' metadata entry; the producer " +
-            "must write each file's most-recent impression date (ISO YYYY-MM-DD, UTC) into its " +
-            "plaintext footer"
+      val eventDateString =
+        requireNotNull(metadata[EVENT_DATE_KEY]?.takeIf { it.isNotEmpty() }) {
+          "raw-impression footer is missing the '$EVENT_DATE_KEY' metadata entry; the producer " +
+            "must write each file's event date (ISO YYYY-MM-DD, UTC) into its plaintext footer"
         }
-      val maxEventDate =
+      val eventDate =
         try {
-          LocalDate.parse(maxEventDateString)
+          LocalDate.parse(eventDateString)
         } catch (e: DateTimeParseException) {
           throw IllegalArgumentException(
-            "raw-impression footer '$MAX_EVENT_DATE_KEY' is not an ISO YYYY-MM-DD date: " +
-              maxEventDateString,
+            "raw-impression footer '$EVENT_DATE_KEY' is not an ISO YYYY-MM-DD date: " +
+              eventDateString,
             e,
           )
         }
-      return FileEntityKeys(eventGroupReferenceId, entityKeys, maxEventDate)
+      return FileEntityKeys(eventGroupReferenceId, entityKeys, eventDate)
     }
   }
 }
