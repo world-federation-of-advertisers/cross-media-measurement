@@ -747,7 +747,7 @@ resource "terraform_data" "bigqueryconnection_service_identity" {
   triggers_replace = data.google_client_config.default.project
   provisioner "local-exec" {
     command = <<-EOT
-      gcloud services identity create \
+      gcloud beta services identity create \
         --service=bigqueryconnection.googleapis.com \
         --project=${data.google_client_config.default.project}
     EOT
