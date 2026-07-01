@@ -592,14 +592,20 @@ object BasicReportProcessedResultsTransformation {
 
             if (resultGroupSpec.resultGroupMetricSpec.hasReportingUnit()) {
               // Only emit reporting_unit metrics when the required composite / union
-              // ReportingSet has a result in this window. Under a weekly cadence with only
-              // `reporting_unit.cumulative` requested (no per-week non_cumulative), the union
-              // RSR is a single whole-report bucket keyed by `end=report_end` with no
-              // `non_cumulative_start`; per-EDP non-cumulative RSRs live in per-week buckets
-              // keyed by `(non_cumulative_start=Monday, end=Monday)`. Those get separate
-              // windows in this map and the reporting_unit key isn't in the per-EDP window.
-              // Skipping avoids a NoSuchElementException that would surface as INTERNAL from
-              // GetBasicReport.
+              // ReportingSet has a result in this window. Two skip conditions:
+              //   1. reportingUnitReportingSetId is empty: the campaign group has no
+              //      composite matching this spec's reporting_unit -- the spec requested
+              //      unit metrics that were never materialized on the write side.
+              //   2. The current window's map doesn't contain the ID: under a weekly
+              //      cadence with only `reporting_unit.cumulative` requested (no per-week
+              //      non_cumulative), the union RSR is a single whole-report bucket keyed
+              //      by `end=report_end` with no `non_cumulative_start`; per-EDP
+              //      non-cumulative RSRs live in per-week buckets keyed by
+              //      `(non_cumulative_start=Monday, end=Monday)`. Those get separate
+              //      windows in this map and the reporting_unit key isn't in the per-EDP
+              //      window.
+              // Either way, skipping avoids a NoSuchElementException that would surface as
+              // INTERNAL from GetBasicReport.
               if (
                 reportingUnitReportingSetId.isNotEmpty() &&
                   reportingWindowResults.value.reportResultValuesByExternalReportingSetId
