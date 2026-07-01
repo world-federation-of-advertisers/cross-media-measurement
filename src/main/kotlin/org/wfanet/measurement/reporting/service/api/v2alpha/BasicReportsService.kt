@@ -325,6 +325,10 @@ class BasicReportsService(
                 cmmsMeasurementConsumerId = parentKey.measurementConsumerId,
                 basicReportId = request.basicReportId,
                 campaignGroupId = campaignGroupKey.reportingSetId,
+                // TODO(world-federation-of-advertisers/cross-media-measurement#4071): Derive from
+                // campaign-group synthesis once ReportingSet (custom-group) reporting units are
+                // supported. The campaign group is always caller-supplied today.
+                campaignGroupSynthesized = false,
                 createReportRequestId = createReportRequestId,
                 reportingImpressionQualificationFilters =
                   request.basicReport.impressionQualificationFiltersList,
