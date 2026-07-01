@@ -193,20 +193,6 @@ class VidLabelerAppTest {
     }
   }
 
-  /**
-   * Creates a labeled-output date folder for [modelLineId] (what the sink would write) so the
-   * last-job-out per-(model line, date) `done` enumeration finds a date folder to finalize.
-   */
-  private fun seedLabeledOutputDate(modelLineId: String, date: String) {
-    val dir =
-      tempFolder.root
-        .toPath()
-        .resolve("output-bucket/labeled/model-line/$modelLineId/$date")
-        .toFile()
-    dir.mkdirs()
-    dir.resolve("blob-0").createNewFile()
-  }
-
   private fun createApp(
     kmsClients: Map<String, KmsClient> = mapOf(DATA_PROVIDER_NAME to kmsClient),
     encryptKekUris: Map<String, String> = mapOf(DATA_PROVIDER_NAME to kekUri),
@@ -366,7 +352,7 @@ class VidLabelerAppTest {
   }
 
   @Test
-  fun `runWork on last-job-out completes model line and writes done blob`() = runBlocking {
+  fun `runWork on last-job-out completes model line`() = runBlocking {
     seedRankIndexBlob()
     vidLabelingJobsService.stub {
       onBlocking { getVidLabelingJob(any()) } doReturn
@@ -394,9 +380,6 @@ class VidLabelerAppTest {
 
     // FileSystemStorageClient requires the bucket directory to pre-exist (GCS buckets always do).
     tempFolder.root.resolve("output-bucket").mkdirs()
-    // Simulate the sink's output so the per-(model line, date) done enumeration finds a date
-    // folder.
-    seedLabeledOutputDate("ml1", "2026-06-30")
 
     val app = createApp()
     app.runWork(buildMessage(memoizedParams()))
@@ -404,14 +387,11 @@ class VidLabelerAppTest {
     verifyBlocking(rawImpressionUploadModelLinesService) {
       markRawImpressionUploadModelLineCompleted(any())
     }
-    // A done marker is written in the completed model line's date folder:
-    // file:///output-bucket/labeled/model-line/ml1/2026-06-30/done.
-    val doneFile =
-      tempFolder.root
-        .toPath()
-        .resolve("output-bucket/labeled/model-line/ml1/2026-06-30/done")
-        .toFile()
-    assertThat(doneFile.exists()).isTrue()
+    // The done marker (model-line/ml1/<event_date>/done) is written from the shared footer
+    // event_date read in VidLabelerApp.resolveSharedEventDate. This WorkItem carries no input files
+    // (the mocked file service returns none), so no footer is read and no marker is written — the
+    // done-marker write is not exercised here. See the TODO in resolveSharedEventDate: it can be
+    // covered once ParquetStorageClient can write footer key-value metadata.
   }
 
   @Test
@@ -443,7 +423,6 @@ class VidLabelerAppTest {
     )
 
     tempFolder.root.resolve("output-bucket").mkdirs()
-    seedLabeledOutputDate("ml1", "2026-06-30")
 
     val app = createApp()
     app.runWork(buildMessage(memoizedParams()))
@@ -454,12 +433,6 @@ class VidLabelerAppTest {
     verifyBlocking(rawImpressionUploadModelLinesService) {
       markRawImpressionUploadModelLineCompleted(any())
     }
-    val doneFile =
-      tempFolder.root
-        .toPath()
-        .resolve("output-bucket/labeled/model-line/ml1/2026-06-30/done")
-        .toFile()
-    assertThat(doneFile.exists()).isTrue()
   }
 
   @Test
@@ -548,75 +521,63 @@ class VidLabelerAppTest {
     }
 
   @Test
-  fun `runWork writes the completed model line's done even while a sibling is still labeling`() =
-    runBlocking {
-      seedRankIndexBlob()
-      vidLabelingJobsService.stub {
-        onBlocking { getVidLabelingJob(any()) } doReturn
-          vidLabelingJob {
+  fun `runWork completes the model line even while a sibling is still labeling`() = runBlocking {
+    seedRankIndexBlob()
+    vidLabelingJobsService.stub {
+      onBlocking { getVidLabelingJob(any()) } doReturn
+        vidLabelingJob {
+          name = VID_LABELING_JOB
+          state = VidLabelingJob.State.CREATED
+          etag = "etag-1"
+        }
+      onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
+        markVidLabelingJobSucceededResponse {
+          vidLabelingJob = vidLabelingJob {
             name = VID_LABELING_JOB
-            state = VidLabelingJob.State.CREATED
-            etag = "etag-1"
+            state = VidLabelingJob.State.SUCCEEDED
           }
-        onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
-          markVidLabelingJobSucceededResponse {
-            vidLabelingJob = vidLabelingJob {
-              name = VID_LABELING_JOB
-              state = VidLabelingJob.State.SUCCEEDED
+          lastVidLabelingJobResult =
+            MarkVidLabelingJobSucceededResponseKt.lastVidLabelingJobResult {
+              completedModelLines += MODEL_LINE
             }
-            lastVidLabelingJobResult =
-              MarkVidLabelingJobSucceededResponseKt.lastVidLabelingJobResult {
-                completedModelLines += MODEL_LINE
-              }
-          }
-      }
-      // This WorkItem's model line is COMPLETED while a sibling of the same upload is still
-      // LABELING. Per-model-line availability: the completed line's done is written immediately;
-      // the still-labeling sibling gets none.
-      stubModelLineList(
-        preMark =
-          listOf(
-            MODEL_LINE to RawImpressionUploadModelLine.State.LABELING,
-            SIBLING_MODEL_LINE to RawImpressionUploadModelLine.State.LABELING,
-          ),
-        postMark =
-          listOf(
-            MODEL_LINE to RawImpressionUploadModelLine.State.COMPLETED,
-            SIBLING_MODEL_LINE to RawImpressionUploadModelLine.State.LABELING,
-          ),
-      )
-
-      tempFolder.root.resolve("output-bucket").mkdirs()
-      seedLabeledOutputDate("ml1", "2026-06-30")
-
-      val app = createApp()
-      app.runWork(buildMessage(memoizedParams()))
-
-      // The job's own model line is transitioned to COMPLETED ...
-      verifyBlocking(rawImpressionUploadModelLinesService) {
-        markRawImpressionUploadModelLineCompleted(any())
-      }
-      // ... and gets its own per-date done marker immediately, independent of the sibling ...
-      val doneFile =
-        tempFolder.root
-          .toPath()
-          .resolve("output-bucket/labeled/model-line/ml1/2026-06-30/done")
-          .toFile()
-      assertThat(doneFile.exists()).isTrue()
-      // ... while the still-LABELING sibling gets no done marker.
-      val siblingDone =
-        tempFolder.root
-          .toPath()
-          .resolve("output-bucket/labeled/model-line/ml2/2026-06-30/done")
-          .toFile()
-      assertThat(siblingDone.exists()).isFalse()
+        }
     }
+    // This WorkItem's model line reached last-job-out (the service returns it in
+    // completedModelLines) while a sibling of the same upload is still LABELING. Per-model-line
+    // finalization: only the completed line is transitioned to COMPLETED (and, in production, only
+    // it gets a done marker); the still-labeling sibling is untouched.
+    stubModelLineList(
+      preMark =
+        listOf(
+          MODEL_LINE to RawImpressionUploadModelLine.State.LABELING,
+          SIBLING_MODEL_LINE to RawImpressionUploadModelLine.State.LABELING,
+        ),
+      postMark =
+        listOf(
+          MODEL_LINE to RawImpressionUploadModelLine.State.COMPLETED,
+          SIBLING_MODEL_LINE to RawImpressionUploadModelLine.State.LABELING,
+        ),
+    )
+
+    tempFolder.root.resolve("output-bucket").mkdirs()
+
+    val app = createApp()
+    app.runWork(buildMessage(memoizedParams()))
+
+    // The job's own model line is transitioned to COMPLETED; the still-LABELING sibling is not in
+    // completedModelLines, so it is neither transitioned nor given a done marker. (The done
+    // marker for the completed line is written from the footer event_date — not exercised here;
+    // see the TODO in VidLabelerApp.resolveSharedEventDate.)
+    verifyBlocking(rawImpressionUploadModelLinesService) {
+      markRawImpressionUploadModelLineCompleted(any())
+    }
+  }
 
   /**
-   * Stubs [listRawImpressionUploadModelLines] for the two unfiltered List calls a last-job-out
-   * makes in `VidLabelerApp.markSucceededAndTransition`: the first (pre-mark) call resolves the
-   * parent rows to transition and returns [preMark]; every later (post-mark) call gates the
-   * upload-wide done blob and returns [postMark]. Each entry is a `(model line, state)` pair.
+   * Stubs [listRawImpressionUploadModelLines] for the unfiltered List call a last-job-out makes in
+   * `VidLabelerApp.markSucceededAndTransition` to resolve the parent rows to transition: the first
+   * call returns [preMark]; any subsequent call returns [postMark]. Each entry is a `(model line,
+   * state)` pair.
    */
   private fun stubModelLineList(
     preMark: List<Pair<String, RawImpressionUploadModelLine.State>>,
@@ -789,7 +750,7 @@ class VidLabelerAppTest {
   }
 
   @Test
-  fun `runWork records work-item, duration, and done-blob metrics on success`() = runBlocking {
+  fun `runWork records work-item and duration metrics on success`() = runBlocking {
     seedRankIndexBlob()
     vidLabelingJobsService.stub {
       onBlocking { getVidLabelingJob(any()) } doReturn
@@ -815,7 +776,6 @@ class VidLabelerAppTest {
       postMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.COMPLETED),
     )
     tempFolder.root.resolve("output-bucket").mkdirs()
-    seedLabeledOutputDate("ml1", "2026-06-30")
 
     val reader = InMemoryMetricReader.create()
     val meter = SdkMeterProvider.builder().registerMetricReader(reader).build().get("test")
@@ -830,12 +790,9 @@ class VidLabelerAppTest {
         }
       )
       .containsExactly(1L)
-    assertThat(
-        collected.getValue("edpa.vid_labeler_app.done_blobs_written").longSumData.points.map {
-          it.value
-        }
-      )
-      .containsExactly(1L)
+    // The done_blobs_written counter is incremented in VidLabelerApp.writeDoneBlob, which needs the
+    // footer event_date; this WorkItem carries no input files so no marker (and no increment) is
+    // produced. See the TODO in VidLabelerApp.resolveSharedEventDate.
     assertThat(
         collected.getValue("edpa.vid_labeler_app.work_item_duration").histogramData.points.sumOf {
           it.count

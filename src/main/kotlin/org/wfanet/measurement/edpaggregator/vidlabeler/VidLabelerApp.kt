@@ -23,6 +23,7 @@ import com.google.protobuf.Parser
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
+import java.time.LocalDate
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
@@ -40,6 +41,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadFileRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getVidLabelingJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
@@ -217,7 +219,15 @@ class VidLabelerApp(
         logger.info("VidLabelingJob $vidLabelingJob already SUCCEEDED; skipping relabel")
       }
 
-      markSucceededAndTransition(params, vidLabelingJob, dataProvider, job.etag, attributes)
+      markSucceededAndTransition(
+        params,
+        vidLabelingJob,
+        dataProvider,
+        job.etag,
+        attributes,
+        job.rawImpressionUploadFilesList,
+        kmsClient,
+      )
       // Count only successful completions; a thrown failure skips this and nacks the message.
       metrics.workItemsProcessedCounter.add(1, attributes)
     } finally {
@@ -267,7 +277,15 @@ class VidLabelerApp(
         logger.info("VidLabelingJob ${params.vidLabelingJob} already SUCCEEDED; skipping relabel")
       }
 
-      markSucceededAndTransition(params, params.vidLabelingJob, dataProvider, job.etag, attributes)
+      markSucceededAndTransition(
+        params,
+        params.vidLabelingJob,
+        dataProvider,
+        job.etag,
+        attributes,
+        job.rawImpressionUploadFilesList,
+        kmsClient,
+      )
       metrics.workItemsProcessedCounter.add(1, attributes)
     } finally {
       metrics.workItemDurationHistogram.record(
@@ -443,10 +461,13 @@ class VidLabelerApp(
   /**
    * Marks this WorkItem's `VidLabelingJob` `SUCCEEDED` and, when the service reports this call
    * completed one or more model lines (last-job-out), transitions each completed model line's
-   * parent `RawImpressionUploadModelLine` to `COMPLETED` and drops the `done` marker blob.
-   * Idempotent on Pub/Sub redelivery: the mark is keyed by a deterministic `request_id`, the
-   * transition swallows the benign already-advanced races, and the done blob has a deterministic
-   * key.
+   * parent `RawImpressionUploadModelLine` to `COMPLETED` and drops that model line's single `done`
+   * marker blob. The service returns a model line in `completedModelLines` only to the caller whose
+   * mark finished its last outstanding `VidLabelingJob`, so exactly one TEE finalizes each model
+   * line — a sibling TEE that finishes the same model line earlier (while others still label it)
+   * gets nothing back for it and writes no marker. Idempotent on Pub/Sub redelivery: the mark is
+   * keyed by a deterministic `request_id`, the transition swallows the benign already-advanced
+   * races, and the done blob has a deterministic key.
    *
    * The mark and the parent-line transitions are two separate RPCs, not a single atomic
    * `MarkLabelingJobSucceeded` that also flips the parent (as an earlier design draft described).
@@ -460,6 +481,8 @@ class VidLabelerApp(
     dataProvider: String,
     etag: String,
     attributes: Attributes,
+    inputFiles: List<String>,
+    kmsClient: KmsClient,
   ) {
     val response =
       try {
@@ -488,6 +511,18 @@ class VidLabelerApp(
     // completed) instead of one filtered List per completed model line. Keyed by model line so each
     // completed model line resolves to its parent row (name + etag) for the COMPLETED transition.
     val parentsByModelLine = listAllModelLines(upload).associateBy { it.cmmsModelLine }
+    // Every raw-impression file of an upload carries the same event date in its plaintext footer
+    // (one day per upload), so any file this WorkItem processed answers for the whole set. Resolve
+    // it once; it is the date folder each completed model line's done marker goes in.
+    val eventDate = resolveSharedEventDate(params, kmsClient, inputFiles)
+    if (
+      eventDate == null && response.lastVidLabelingJobResult.completedModelLinesList.isNotEmpty()
+    ) {
+      logger.warning(
+        "VidLabelingJob $vidLabelingJob reported completed model line(s) but carried no input " +
+          "files; cannot resolve the footer event date, so no done marker is written"
+      )
+    }
     for (completedModelLine in response.lastVidLabelingJobResult.completedModelLinesList) {
       val parent = parentsByModelLine[completedModelLine]
       if (parent == null) {
@@ -498,15 +533,19 @@ class VidLabelerApp(
         continue
       }
       markParentCompleted(parent, dataProvider)
-      // This model line just reached last-job-out, so every one of its files is flushed. Drop a
-      // `done` marker in each date folder it produced so DataAvailabilitySync finalizes that
-      // (model line, date). Independent per model line: a FAILED/stuck sibling no longer withholds
-      // this line's availability.
-      writeDoneBlobsForModelLine(
-        params.vidLabeledImpressionsStorageParams,
-        completedModelLine,
-        dataProvider,
-      )
+      // Only this TEE reached last-job-out for `completedModelLine`, so only it finalizes the
+      // (model line, date). Drop the single `done` marker in that model line's shared-event-date
+      // folder — the one VidLabelingSink wrote its labeled output to — and DataAvailabilitySync
+      // finalizes it. Independent per model line: a FAILED/stuck sibling no longer withholds this
+      // line's availability.
+      if (eventDate != null) {
+        writeDoneBlob(
+          params.vidLabeledImpressionsStorageParams,
+          completedModelLine,
+          eventDate,
+          dataProvider,
+        )
+      }
     }
   }
 
@@ -572,20 +611,57 @@ class VidLabelerApp(
   }
 
   /**
-   * Writes an empty `done` marker for each date folder of [cmmsModelLine] that does not already
-   * have one, under the labeled-impressions prefix.
+   * Resolves the event date shared by every raw-impression file of this WorkItem's upload.
    *
-   * Called at the model line's last-job-out, when all of its files are flushed, so enumerating
-   * `<prefix>/model-line/<id>/` yields every `<YYYY-MM-DD>/` folder. A `done` is written only where
-   * one is absent — i.e., the date(s) this completion newly finalized — so `DataAvailabilitySync`
-   * classifies them as finalized. Folders whose `done` already exists (a redelivery of this
-   * completion, or a prior upload's completed date) are skipped, so we never overwrite a `done` and
-   * drop the `synced-by` custom metadata DataAvailabilitySync stamps on it (a full-object replace
-   * would discard it, re-triggering a redundant re-sync of that date).
+   * The date lives only in each file's plaintext Parquet footer ("Option Y"), and every file of an
+   * upload carries the same one (one day per upload), so reading any single file's footer answers
+   * for the whole WorkItem. Returns `null` when [inputFiles] is empty (nothing was labeled, so
+   * there is no date to finalize).
+   *
+   * TODO(world-federation-of-advertisers/cross-media-measurement#4130): Cover the done-marker write
+   *   end-to-end in [VidLabelerAppTest] once `ParquetStorageClient` can WRITE footer key-value
+   *   metadata (it can only read it today), so a test can synthesize a raw file whose footer
+   *   carries `event_date` and drive this read + the resulting `writeDoneBlob`.
    */
-  private suspend fun writeDoneBlobsForModelLine(
+  private suspend fun resolveSharedEventDate(
+    params: VidLabelerParams,
+    kmsClient: KmsClient,
+    inputFiles: List<String>,
+  ): LocalDate? {
+    if (inputFiles.isEmpty()) return null
+    val blobUri =
+      rawImpressionUploadFilesStub
+        .getRawImpressionUploadFile(getRawImpressionUploadFileRequest { name = inputFiles.first() })
+        .blobUri
+    val parquetStorageClient =
+      buildParquetStorageClient(getStorageConfig(params.rawImpressionsStorageParams), kmsClient)
+    val parquetBlob =
+      parquetStorageClient.getBlob(blobUri) ?: error("Raw-impression blob not found: $blobUri")
+    val eventDateString =
+      requireNotNull(
+        parquetBlob.readKeyValueMetadata()[FileEntityKeys.EVENT_DATE_KEY]?.takeIf {
+          it.isNotEmpty()
+        }
+      ) {
+        "raw-impression footer is missing the '${FileEntityKeys.EVENT_DATE_KEY}' metadata entry " +
+          "for $blobUri; the producer must write each file's event date (ISO YYYY-MM-DD) into its " +
+          "plaintext footer"
+      }
+    return LocalDate.parse(eventDateString)
+  }
+
+  /**
+   * Writes the single empty `done` marker for [cmmsModelLine] at
+   * `<prefix>/model-line/<modelLineId>/<eventDate>/done` — the folder [VidLabelingSink] wrote this
+   * model line's labeled output to — so `DataAvailabilitySync` finalizes that (model line, date).
+   *
+   * Written unconditionally (a full-object replace): re-dropping an existing marker on reprocessing
+   * re-triggers `DataAvailabilitySync` for that date, the intended behavior when data is relabeled.
+   */
+  private suspend fun writeDoneBlob(
     outputStorageParams: VidLabelerParams.StorageParams,
     cmmsModelLine: String,
+    eventDate: LocalDate,
     dataProvider: String,
   ) {
     val modelLineId =
@@ -594,36 +670,13 @@ class VidLabelerApp(
         }
         .modelLineId
     val storageConfig = getStorageConfig(outputStorageParams)
-    val prefixUri = "${outputStorageParams.impressionsBlobPrefix}/model-line/$modelLineId/"
-    val prefixBlobUri = SelectedStorageClient.parseBlobUri(prefixUri)
-    // A SelectedStorageClient is bound to a single blob key (it checks blobUri.key == blobKey), so
-    // use one client to list the date folders and a fresh per-key client to write each `done`.
-    val listClient =
-      SelectedStorageClient(prefixBlobUri, storageConfig.rootDirectory, storageConfig.projectId)
-    var count = 0
-    listClient.listBlobKeysAndPrefixes(prefixBlobUri.key).collect { dateFolderKey ->
-      val doneUri = "$prefixUri${dateFolderKey.removePrefix(prefixBlobUri.key)}done"
-      val doneBlobUri = SelectedStorageClient.parseBlobUri(doneUri)
-      val doneClient =
-        SelectedStorageClient(doneBlobUri, storageConfig.rootDirectory, storageConfig.projectId)
-      // Only write the marker for a date that doesn't have one yet — i.e., a date this completion
-      // newly finalized. Skip dates whose `done` already exists (a redelivery of this completion,
-      // or
-      // a prior upload's completion of a different date). This avoids overwriting an existing
-      // `done`,
-      // which — since a storage `writeBlob` is a full-object replace — would drop the `synced-by`
-      // custom metadata DataAvailabilitySync stamps after processing, needlessly re-triggering a
-      // re-sync of that date.
-      if (doneClient.getBlob(doneBlobUri.key) == null) {
-        doneClient.writeBlob(doneBlobUri.key, ByteString.EMPTY)
-        count++
-      }
-    }
-    metrics.doneBlobsWrittenCounter.add(
-      count.toLong(),
-      Attributes.of(metrics.DATA_PROVIDER_ATTR, dataProvider),
-    )
-    logger.info("Wrote $count done marker(s) for model line $cmmsModelLine under $prefixUri")
+    val doneUri =
+      "${outputStorageParams.impressionsBlobPrefix}/model-line/$modelLineId/$eventDate/done"
+    val doneBlobUri = SelectedStorageClient.parseBlobUri(doneUri)
+    SelectedStorageClient(doneBlobUri, storageConfig.rootDirectory, storageConfig.projectId)
+      .writeBlob(doneBlobUri.key, ByteString.EMPTY)
+    metrics.doneBlobsWrittenCounter.add(1, Attributes.of(metrics.DATA_PROVIDER_ATTR, dataProvider))
+    logger.info("Wrote done marker $doneUri")
   }
 
   /**
