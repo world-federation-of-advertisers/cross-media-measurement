@@ -135,11 +135,7 @@ class DashboardComplianceCheck : Runnable {
   }
 
   private val credentials: GoogleCredentials by lazy {
-    val scopes =
-      arrayOf(
-        "https://www.googleapis.com/auth/bigquery",
-        "https://www.googleapis.com/auth/cloud-platform",
-      )
+    val scopes = arrayOf("https://www.googleapis.com/auth/cloud-platform")
     val adc = GoogleCredentials.getApplicationDefault().createScoped(*scopes)
     val target = impersonateServiceAccount
     if (target.isNullOrEmpty()) {
@@ -164,10 +160,7 @@ class DashboardComplianceCheck : Runnable {
         credentials,
         saEmail,
         null,
-        listOf(
-          "https://www.googleapis.com/auth/bigquery",
-          "https://www.googleapis.com/auth/cloud-platform",
-        ),
+        listOf("https://www.googleapis.com/auth/cloud-platform"),
         300,
       )
     impersonatedCredentials.refreshIfExpired()

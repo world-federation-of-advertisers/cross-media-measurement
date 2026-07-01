@@ -818,6 +818,29 @@ class SpannerBasicReportsService(
         .forEach { put((it.key as ReportingSetKey.Composite).setExpression, it.value) }
     }
 
+    // Any ReportingSetResult that references an external_reporting_set_id not in the
+    // BasicReport's expected primitive/composite set is data corruption -- not a
+    // legitimate coverage gap -- and rendering it would drop the corruption silently.
+    // Refuse to render so the caller-side unreachable classifier picks it up.
+    // Legitimate partial coverage (all referenced IDs are expected but some window/IQF
+    // buckets lack data) is handled by per-window containsKey guards in
+    // BasicReportProcessedResultsTransformation.buildResults and still renders.
+    val expectedReportingSetIds: Set<String> =
+      campaignGroupReportingSetIdByReportingSetKey.values.toSet()
+    val unexpectedReportingSetIds: Set<String> =
+      reportingSetResults
+        .map { it.dimension.externalReportingSetId }
+        .filter { it.isNotEmpty() && it !in expectedReportingSetIds }
+        .toSet()
+    if (unexpectedReportingSetIds.isNotEmpty()) {
+      throw IllegalStateException(
+        "BasicReport ${basicReport.cmmsMeasurementConsumerId}/" +
+          "${basicReport.externalBasicReportId} has ReportingSetResults " +
+          "referencing external_reporting_set_ids not in the campaign group's " +
+          "expected set: $unexpectedReportingSetIds"
+      )
+    }
+
     return buildResultGroups(
       basicReport,
       reportingSetResults,
