@@ -173,6 +173,7 @@ jobs:
           EDP_NAME: ${{ matrix.edp.name }}
           EDP_RESOURCE_ID: ${{ matrix.edp.resource_id }}
           INSPECTOR_IMPERSONATE_SA: dashboard-compliance@${{ vars.GOOGLE_CLOUD_PROJECT }}.iam.gserviceaccount.com
+          EDP_DELEGATES: dashboard-compliance@${{ vars.GOOGLE_CLOUD_PROJECT }}.iam.gserviceaccount.com
           EDP_IMPERSONATE_SA: edp-${{ matrix.edp.name }}-dashboard@${{ vars.GOOGLE_CLOUD_PROJECT }}.iam.gserviceaccount.com
         run: |
           bazel test \
@@ -183,6 +184,7 @@ jobs:
           --test_env=EDP_RESOURCE_ID \
           --test_env=EDP_IMPERSONATE_SA \
           --test_env=INSPECTOR_IMPERSONATE_SA \
+          --test_env=EDP_DELEGATES \
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:DashboardIsolationTest
 
       - name: Upload Bazel testlogs

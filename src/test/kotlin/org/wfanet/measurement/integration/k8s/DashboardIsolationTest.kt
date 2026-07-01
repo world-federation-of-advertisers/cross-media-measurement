@@ -100,6 +100,16 @@ class DashboardIsolationTest {
       System.getenv("EDP_IMPERSONATE_SA")?.takeIf { it.isNotBlank() }
     private val INSPECTOR_IMPERSONATE_SA: String? =
       System.getenv("INSPECTOR_IMPERSONATE_SA")?.takeIf { it.isNotBlank() }
+    // Optional intermediate SA that the outer ADC identity impersonates before it can token-create
+    // on the EDP SA. In CI: the workflow auths as TF SA which can impersonate
+    // INSPECTOR_IMPERSONATE_SA
+    // (dashboard-compliance@), and dashboard-compliance@ can impersonate the per-EDP SAs — but
+    // TF SA cannot impersonate the per-EDP SAs directly (by design; we don't want that grant).
+    // Setting EDP_DELEGATES to the inspector SA chains the impersonation as
+    // ADC → inspector SA → EDP SA using ImpersonatedCredentials' delegates parameter.
+    private val EDP_DELEGATES: List<String> =
+      System.getenv("EDP_DELEGATES")?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }
+        ?: emptyList()
 
     private const val DATASET = "dashboard"
 
@@ -111,17 +121,17 @@ class DashboardIsolationTest {
     @JvmStatic
     @BeforeClass
     fun setUp() {
-      bigQueryAsEdp = buildBigQuery(EDP_IMPERSONATE_SA)
-      bigQueryAsInspector = buildBigQuery(INSPECTOR_IMPERSONATE_SA)
+      bigQueryAsEdp = buildBigQuery(EDP_IMPERSONATE_SA, EDP_DELEGATES)
+      bigQueryAsInspector = buildBigQuery(INSPECTOR_IMPERSONATE_SA, emptyList())
       checks = DashboardIsolationChecks(PROJECT, DATASET, REGION)
       edp = EdpConfig(EDP_NAME, EDP_RESOURCE_ID)
       logger.info(
         "Testing EDP '$EDP_NAME' (resource ID: $EDP_RESOURCE_ID) in project $PROJECT " +
-          "(edp SA: ${EDP_IMPERSONATE_SA ?: "ADC"}, inspector SA: ${INSPECTOR_IMPERSONATE_SA ?: "ADC"})"
+          "(edp SA: ${EDP_IMPERSONATE_SA ?: "ADC"}, inspector SA: ${INSPECTOR_IMPERSONATE_SA ?: "ADC"}, edp delegates: $EDP_DELEGATES)"
       )
     }
 
-    private fun buildBigQuery(impersonateTarget: String?): BigQuery {
+    private fun buildBigQuery(impersonateTarget: String?, delegates: List<String>): BigQuery {
       if (impersonateTarget == null) {
         return BigQueryOptions.getDefaultInstance().service
       }
@@ -131,7 +141,8 @@ class DashboardIsolationTest {
           "https://www.googleapis.com/auth/cloud-platform",
         )
       val adc = GoogleCredentials.getApplicationDefault().createScoped(scopes)
-      val impersonated = ImpersonatedCredentials.create(adc, impersonateTarget, null, scopes, 300)
+      val impersonated =
+        ImpersonatedCredentials.create(adc, impersonateTarget, delegates, scopes, 300)
       return BigQueryOptions.newBuilder()
         .setCredentials(impersonated)
         .setProjectId(PROJECT)
