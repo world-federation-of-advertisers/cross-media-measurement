@@ -83,7 +83,7 @@ private constructor(
      * walk with every record and recurse into any embedded children. Fails loudly if the same
      * offset appears with two different ranked sizes.
      */
-    private fun rankedSizesByPoolOffset(nodes: List<CompiledNode>): Map<Long, Int> {
+    internal fun rankedSizesByPoolOffset(nodes: List<CompiledNode>): Map<Long, Int> {
       val rankedSizeByPoolOffset = mutableMapOf<Long, Int>()
       val stack = ArrayDeque<CompiledNode>().apply { nodes.forEach { addLast(it) } }
       while (stack.isNotEmpty()) {

@@ -48,6 +48,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFiles
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRankerJobSucceededRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
@@ -131,8 +132,6 @@ class VidRankBuilder(
    * @property lastJobOut whether this job was the last out (and ran the Phase-2 fan-out).
    */
   data class Result(val subpoolsRanked: Int, val lastJobOut: Boolean)
-
-  /** A created `VidLabelingJob` paired with the `RawImpressionUploadFile`s it labels. */
 
   /**
    * Runs the full Phase-1 work for one `RankerJob`.
@@ -242,6 +241,19 @@ class VidRankBuilder(
     }
     val published = if (fromRecovery) republishExistingLabelingJobs() else fanOutLabeling()
     markParentLabeling(parent)
+    if (published == 0) {
+      // No `VidLabelingJob` exists for this (upload, model line) — an empty upload with no
+      // `RawImpressionUploadFile`s to bin-pack — so no Phase-2 last-job-out will ever mark the
+      // parent `COMPLETED`. Complete it here (there is nothing to label) instead of stranding it in
+      // `LABELING`. Re-read for the post-`LABELING` etag; `markParentCompleted` swallows the benign
+      // already-advanced races, so a redelivery is a no-op.
+      val labeled = getParent()
+      if (labeled != null) {
+        markParentCompleted(labeled)
+      }
+      logger.info("Last-job-out for $modelLine: no files to label; parent -> COMPLETED")
+      return
+    }
     logger.info(
       "Last-job-out for $modelLine: published $published VidLabelingJob WorkItem(s); parent -> " +
         "LABELING"
@@ -403,6 +415,33 @@ class VidRankBuilder(
       }
       logger.info(
         "markRawImpressionUploadModelLineLabeling(${parent.name}) already advanced " +
+          "(${e.status.code}); treating as done"
+      )
+    }
+  }
+
+  /**
+   * Flips the parent `LABELING` -> `COMPLETED`, swallowing the benign "already advanced" races.
+   * Used only for an empty upload (no files to label), where no Phase-2 `VidLabelingJob` exists to
+   * drive the completion; the normal (non-empty) path leaves `COMPLETED` to the Phase-2
+   * last-job-out.
+   */
+  private suspend fun markParentCompleted(parent: RawImpressionUploadModelLine) {
+    try {
+      rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineCompleted(
+        markRawImpressionUploadModelLineCompletedRequest {
+          name = parent.name
+          etag = parent.etag
+        }
+      )
+    } catch (e: StatusException) {
+      if (
+        e.status.code != Status.Code.FAILED_PRECONDITION && e.status.code != Status.Code.ABORTED
+      ) {
+        throw e
+      }
+      logger.info(
+        "markRawImpressionUploadModelLineCompleted(${parent.name}) already advanced " +
           "(${e.status.code}); treating as done"
       )
     }
