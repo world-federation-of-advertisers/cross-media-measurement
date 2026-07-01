@@ -71,6 +71,9 @@ class VidLabelerAppRunner :
   override fun run() {
     saveCommonEdpaCerts()
     val kmsClients: Map<String, KmsClient> = buildKmsClientsMap()
+    // Per-EDP output KEK for the non-memoized Phase-2 path (the memoized path derives its KEK
+    // from the rank-index blobs). Same EDPs as [kmsClients]; kekUriFor reads kms_config.kek_uri.
+    val encryptKekUris: Map<String, String> = kmsClients.keys.associateWith { kekUriFor(it) }
 
     val pubSubClient = DefaultGooglePubSubClient()
     val queueSubscriber = createQueueSubscriber(pubSubClient)
@@ -96,11 +99,7 @@ class VidLabelerAppRunner :
         workItemsClient = workItemsClient,
         workItemAttemptsClient = workItemAttemptsClient,
         kmsClients = kmsClients,
-        // TODO(world-federation-of-advertisers/cross-media-measurement#4093): populate per-EDP
-        //   encrypt KEK URIs from EventDataProviderConfig.KmsConfig.kek_uri (added in #4093) so the
-        //   non-memoized Phase-2 path can wrap its labeled output. Empty until then; the memoized
-        //   path derives its KEK from the rank-index blobs and does not use this.
-        encryptKekUris = emptyMap(),
+        encryptKekUris = encryptKekUris,
         getStorageConfig = getStorageConfig,
         vidLabelingJobsStub = vidLabelingJobsClient,
         rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesClient,
