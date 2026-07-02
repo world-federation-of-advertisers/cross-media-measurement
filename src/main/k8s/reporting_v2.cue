@@ -71,6 +71,7 @@ package k8s
 		"basic-reports-reports":               string | *"reporting/v2/basic-reports-reports"
 		"report-result-post-processor":        string | *"reporting/v2/report-result-post-processor"
 		"reporting-grpc-gateway":              string | *"reporting/grpc-gateway"
+		"reporting-mcp-server":                string | *"reporting/mcp/server"
 		"update-access-schema":                string | *"access/update-schema"
 		"access-internal-api-server":          string | *"access/internal-api"
 		"access-public-api-server":            string | *"access/public-api"
@@ -131,6 +132,17 @@ package k8s
 					appProtocol: "https"
 				}]
 			}
+		}
+		// Internal-only (ClusterIP) for the initial deployment. External exposure
+		// following the `reporting-grpc-gateway` pattern (LoadBalancer + in-server
+		// TLS termination) is tracked in
+		// TODO(world-federation-of-advertisers/cross-media-measurement#3938).
+		"reporting-mcp-server": {
+			spec: ports: [{
+				port:        8080
+				targetPort:  8080
+				appProtocol: "http"
+			}]
 		}
 	}
 
@@ -227,6 +239,34 @@ package k8s
 						path:   "/healthz"
 						port:   8443
 						scheme: "HTTPS"
+					}
+					failureThreshold:    12
+					timeoutSeconds:      2
+					initialDelaySeconds: 10
+				}
+			}
+
+			spec: template: spec: {
+				_dependencies: _ | *[_reportingApiTarget.serviceName]
+			}
+		}
+
+		"reporting-mcp-server": {
+			_container: {
+				args: [
+					"--host=0.0.0.0",
+					"--port=8080",
+					"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
+					_debugVerboseGrpcClientLoggingFlag,
+				] + _tlsArgs + _reportingApiTarget.args
+				ports: [{
+					containerPort: 8080
+				}]
+				readinessProbe: {
+					httpGet: {
+						path:   "/healthz"
+						port:   8080
+						scheme: "HTTP"
 					}
 					failureThreshold:    12
 					timeoutSeconds:      2
@@ -391,6 +431,23 @@ package k8s
 				https: {
 					ports: [{
 						port: 8443
+					}]
+				}
+			}
+		}
+		"reporting-mcp-server": {
+			// Egress: calls the Reporting public API.
+			_destinationMatchLabels: ["reporting-v2alpha-public-api-server-app"]
+			// Ingress: intentionally open to any in-cluster pod on 8080. There is no
+			// dedicated in-cluster client in this phase (the server is reached via
+			// kubectl port-forward for testing and by the planned cloud integration
+			// test), so no `_sourceMatchLabels` restriction is applied yet. External
+			// exposure is tracked in
+			// TODO(world-federation-of-advertisers/cross-media-measurement#3938).
+			_ingresses: {
+				http: {
+					ports: [{
+						port: 8080
 					}]
 				}
 			}
