@@ -54,6 +54,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResp
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.internal.edpaggregator.CreateRawImpressionUploadRequest as InternalCreateRawImpressionUploadRequest
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUpload as InternalRawImpressionUpload
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase as InternalUploadServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub as InternalUploadServiceCoroutineStub
 
@@ -72,13 +74,49 @@ class RawImpressionUploadServiceTest {
     addService(internalService)
   }
 
+  // An internal service that always fails with a bare INTERNAL status (no ErrorInfo), so
+  // getReason() returns null at the public layer.
+  val throwingInternalServerRule = GrpcTestServerRule {
+    addService(
+      object : InternalUploadServiceCoroutineImplBase() {
+        override suspend fun createRawImpressionUpload(
+          request: InternalCreateRawImpressionUploadRequest
+        ): InternalRawImpressionUpload =
+          throw Status.INTERNAL.withDescription("simulated internal failure").asRuntimeException()
+      }
+    )
+  }
+
   @get:Rule
-  val serverRuleChain: TestRule = chainRulesSequentially(spannerDatabase, grpcTestServerRule)
+  val serverRuleChain: TestRule =
+    chainRulesSequentially(spannerDatabase, grpcTestServerRule, throwingInternalServerRule)
 
   @Before
   fun initService() {
     service =
       RawImpressionUploadService(InternalUploadServiceCoroutineStub(grpcTestServerRule.channel))
+  }
+
+  @Test
+  fun `createRawImpressionUpload surfaces INTERNAL when the internal failure has no reason`():
+    Unit = runBlocking {
+    val throwingService =
+      RawImpressionUploadService(
+        InternalUploadServiceCoroutineStub(throwingInternalServerRule.channel)
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        throwingService.createRawImpressionUpload(
+          createRawImpressionUploadRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+            requestId = REQUEST_ID
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
   }
 
   @Test
