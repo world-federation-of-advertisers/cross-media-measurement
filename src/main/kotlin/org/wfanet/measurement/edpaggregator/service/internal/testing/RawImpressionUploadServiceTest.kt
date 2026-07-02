@@ -147,6 +147,7 @@ abstract class RawImpressionUploadServiceTest {
           domain = Errors.DOMAIN
           reason = Errors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS.name
           metadata[Errors.Metadata.DATA_PROVIDER_RESOURCE_ID.key] = DATA_PROVIDER_RESOURCE_ID
+          metadata[Errors.Metadata.CREATE_REQUEST_ID.key] = requestId
         }
       )
   }
