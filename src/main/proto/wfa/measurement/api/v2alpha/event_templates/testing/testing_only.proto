@@ -75,10 +75,11 @@ message TestingOnly {
   // testing_string so the DimensionSpec (dimension_spec.filters) path can be
   // exercised end-to-end against the same toCelValue STRING_VALUE branch that
   // testing_string exercises via IQF. Do not mimic.
-  string testing_string_filterable = 3 [(.wfa.measurement.api.v2alpha.template_field) = {
-    display_name: "Testing Filterable String (test-only, DO NOT MIMIC)"
-    population_attribute: true
-    reporting_features: FILTERABLE
-    version_added: 1
-  }];
+  string testing_string_filterable = 3
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Testing Filterable String (test-only, DO NOT MIMIC)"
+        population_attribute: true
+        reporting_features: FILTERABLE
+        version_added: 1
+      }];
 }
