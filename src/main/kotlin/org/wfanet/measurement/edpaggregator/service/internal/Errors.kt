@@ -79,6 +79,7 @@ object Errors {
     ETAG("etag"),
     BATCH_RESOURCE_ID("batchResourceId"),
     RAW_IMPRESSION_UPLOAD_RESOURCE_ID("rawImpressionUploadResourceId"),
+    CREATE_REQUEST_ID("createRequestId"),
     FILE_RESOURCE_ID("fileResourceId"),
     VID_LABELING_JOB_RESOURCE_ID("vidLabelingJobResourceId"),
     VID_LABELING_JOB_STATE("vidLabelingJobState"),
@@ -295,12 +296,20 @@ class RawImpressionUploadNotFoundException(
 
 class RawImpressionUploadAlreadyExistsException(
   dataProviderResourceId: String,
+  requestId: String,
+  existingDoneBlobUri: String,
+  incomingDoneBlobUri: String,
   cause: Throwable? = null,
 ) :
   ServiceException(
     Errors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
-    "RawImpressionUpload already exists for DataProvider $dataProviderResourceId",
-    mapOf(Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId),
+    "RawImpressionUpload already exists for DataProvider $dataProviderResourceId with " +
+      "request_id $requestId: existing done_blob_uri=$existingDoneBlobUri, " +
+      "incoming done_blob_uri=$incomingDoneBlobUri",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.CREATE_REQUEST_ID to requestId,
+    ),
     cause,
   )
 

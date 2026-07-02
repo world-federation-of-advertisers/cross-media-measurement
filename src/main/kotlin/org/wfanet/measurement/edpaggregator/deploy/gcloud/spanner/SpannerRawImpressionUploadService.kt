@@ -88,7 +88,12 @@ class SpannerRawImpressionUploadService(
           txn.findUploadByCreateRequestId(request.dataProviderResourceId, requestId)
         if (existing != null) {
           if (existing.rawImpressionUpload.doneBlobUri != request.rawImpressionUpload.doneBlobUri) {
-            throw RawImpressionUploadAlreadyExistsException(request.dataProviderResourceId)
+            throw RawImpressionUploadAlreadyExistsException(
+                request.dataProviderResourceId,
+                requestId,
+                existing.rawImpressionUpload.doneBlobUri,
+                request.rawImpressionUpload.doneBlobUri,
+              )
               .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
           }
           return@run existing.rawImpressionUpload
