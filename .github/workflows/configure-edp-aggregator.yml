@@ -150,7 +150,12 @@ jobs:
       env:
         EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT: ${{ vars.EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT }}
       run: |
-        printf '%s' "$EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT" >           "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_config/event-group-activity-sync-config-edp7.textproto"
+        if [ -z "$EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT" ]; then
+          echo "vars.EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT is empty for environment ${{ inputs.environment }}" >&2
+          exit 1
+        fi
+        printf '%s' "$EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT" > \
+          "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_config/event-group-activity-sync-config-edp7.textproto"
 
     - name: Export KUSTOMIZE_PATH
       run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator" >> $GITHUB_ENV

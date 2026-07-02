@@ -81,7 +81,7 @@ edpAggregator: #EdpAggregator & {
 
 	// Per-EDP arg lists for sync-event-group-activities. Each EDP has an entry
 	// here; the textproto config for that EDP is staged into the edp-aggregator
-	// ConfigMap by the deploy workflow and mounted at /etc/halo-cmm/edp-aggregator/config/.
+	// ConfigMap by the deploy workflow and mounted at /etc/halo-cmms/edp-aggregator/config/.
 	// Schedule defaults to daily at 06:00 UTC (see edp_aggregator.cue
 	// _syncEventGroupActivitiesCronSchedule).
 	_syncEventGroupActivitiesArgs: "edp7": {

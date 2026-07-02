@@ -81,10 +81,11 @@ gcs_project: "halo-cmm-dev"
 kingdom_public_api_target: "v2alpha.kingdom.dev.halo-cmm.org:8443"
 ```
 
-If the variable is unset on an environment, the deploy fails at
-`kubectl apply` (the `configMapGenerator` cannot find the file). Either set
-it before deploying or remove the matching entry from
-`_syncEventGroupActivitiesArgs` in
+If the variable is unset on an environment, the deploy fails at the
+"Write sync-event-group-activities config" workflow step with a clear
+`vars.EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT is empty for environment <env>`
+error. Either set the variable before deploying or remove the matching
+entry from `_syncEventGroupActivitiesArgs` in
 [`edp_aggregator_gke.cue`](../../src/main/k8s/dev/edp_aggregator_gke.cue)
 for that environment.
 
@@ -260,7 +261,7 @@ following files:
     deletion fraction exceeded `--max-delete-fraction` (default 1.0,
     disabled). Tune the flag if your input is expected to fluctuate, or fix
     the input.
--   **`unable to find file: event-group-activity-sync-config-<edp>.textproto`
-    during `kubectl apply`:** the
-    `EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT` GitHub variable is
-    unset on this environment. Set it and re-trigger the workflow.
+-   **Workflow fails at "Write sync-event-group-activities config" with
+    `vars.EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT is empty for environment <env>`:**
+    the GitHub variable is unset on this environment. Set it (Settings
+    → Environments → <env> → Variables) and re-trigger the workflow.
