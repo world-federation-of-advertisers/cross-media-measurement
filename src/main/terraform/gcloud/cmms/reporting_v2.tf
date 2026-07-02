@@ -43,3 +43,7 @@ module "reporting_v2" {
 resource "google_compute_address" "reporting_v2alpha" {
   name = "reporting-v2alpha"
 }
+
+resource "google_compute_address" "reporting_mcp" {
+  name = "reporting-mcp"
+}

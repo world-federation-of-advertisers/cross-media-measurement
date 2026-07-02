@@ -253,6 +253,8 @@ package k8s
 
 		"reporting-mcp-server": {
 			_container: {
+				// Set --allowed-host to the external hostname at deploy for DNS-rebinding
+				// protection, once the public address/DNS is provisioned.
 				args: [
 					"--host=0.0.0.0",
 					"--port=8443",

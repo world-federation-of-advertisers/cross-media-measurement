@@ -102,6 +102,13 @@ class ReportingMcpServerDaemon : Runnable {
     // reporting-grpc-gateway). SigningKeyHandle intentionally hides the private
     // key, so re-read the cert + key from the PEM files to build a KeyStore for
     // Ktor's sslConnector.
+    //
+    // Unlike the gRPC services (whose clients override the cert hostname with
+    // --cert-host=localhost), external HTTPS clients verify the URL hostname
+    // against the certificate's SANs. The inter-service cert (reporting_tls.pem)
+    // is issued for localhost, so a public deployment must mount a server
+    // certificate whose SANs include the external hostname, provisioned with the
+    // DNS name at deploy time.
     val serverCertificate = readCertificate(tlsFlags.certFile)
     val serverPrivateKey =
       readPrivateKey(tlsFlags.privateKeyFile, serverCertificate.publicKey.algorithm)
