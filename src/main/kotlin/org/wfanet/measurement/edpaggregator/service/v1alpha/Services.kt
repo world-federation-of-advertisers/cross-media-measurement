@@ -26,6 +26,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.Ranke
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchServiceGrpcKt.RawImpressionMetadataBatchServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase
@@ -35,6 +36,7 @@ import org.wfanet.measurement.internal.edpaggregator.RankerJobServiceGrpcKt as I
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchFileServiceGrpcKt as InternalRawImpressionMetadataBatchFileServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchServiceGrpcKt as InternalRawImpressionMetadataBatchServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFileServiceGrpcKt as InternalRawImpressionUploadFileServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt as InternalRawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt as InternalRawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt as InternalRequisitionMetadataServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingJobServiceGrpcKt as InternalVidLabelingJobServiceGrpcKt
@@ -46,6 +48,7 @@ data class Services(
   val rawImpressionMetadataBatchFile: RawImpressionMetadataBatchFileServiceCoroutineImplBase,
   val rawImpressionUpload: RawImpressionUploadServiceCoroutineImplBase,
   val rawImpressionUploadFile: RawImpressionUploadFileServiceCoroutineImplBase,
+  val rawImpressionUploadModelLine: RawImpressionUploadModelLineServiceCoroutineImplBase,
   val vidLabelingJob: VidLabelingJobServiceCoroutineImplBase,
   val rankerJob: RankerJobServiceCoroutineImplBase,
   val rankIndexBlob: RankIndexBlobServiceCoroutineImplBase,
@@ -58,6 +61,7 @@ data class Services(
       rawImpressionMetadataBatchFile,
       rawImpressionUpload,
       rawImpressionUploadFile,
+      rawImpressionUploadModelLine,
       vidLabelingJob,
       rankerJob,
       rankIndexBlob,
@@ -90,6 +94,9 @@ data class Services(
         InternalRawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
           internalApiChannel
         )
+      val internalModelLineStub =
+        InternalRawImpressionUploadModelLineServiceGrpcKt
+          .RawImpressionUploadModelLineServiceCoroutineStub(internalApiChannel)
       val internalVidLabelingJobStub =
         InternalVidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(internalApiChannel)
       val internalRankerJobStub =
@@ -104,6 +111,7 @@ data class Services(
         RawImpressionMetadataBatchFileService(internalFileStub, coroutineContext),
         RawImpressionUploadService(internalUploadStub, coroutineContext),
         RawImpressionUploadFileService(internalUploadFileStub, coroutineContext),
+        RawImpressionUploadModelLineService(internalModelLineStub, coroutineContext),
         VidLabelingJobService(internalVidLabelingJobStub, coroutineContext),
         RankerJobService(internalRankerJobStub, coroutineContext),
         RankIndexBlobService(internalRankIndexBlobStub, coroutineContext),

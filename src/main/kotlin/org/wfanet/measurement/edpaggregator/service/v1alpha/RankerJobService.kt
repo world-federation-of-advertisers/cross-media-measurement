@@ -447,6 +447,8 @@ class RankerJobService(
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
         InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
         InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }
