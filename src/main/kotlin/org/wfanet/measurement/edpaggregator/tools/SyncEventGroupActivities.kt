@@ -33,37 +33,27 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.edpaggregator.eventgroupactivities.DeleteMode
+import org.wfanet.measurement.config.edpaggregator.EventGroupActivitySyncConfig
+import org.wfanet.measurement.config.edpaggregator.EventGroupActivitySyncConfig.InputCase
 import org.wfanet.measurement.edpaggregator.eventgroupactivities.EventGroupActivitySync
 import org.wfanet.measurement.edpaggregator.eventgroupactivities.SpotDataParser
 import org.wfanet.measurement.edpaggregator.eventgroupactivities.SpotRecord
+import org.wfanet.measurement.edpaggregator.eventgroupactivities.SyncMode
 import org.wfanet.measurement.edpaggregator.eventgroupactivities.SyncResult
 import org.wfanet.measurement.storage.SelectedStorageClient
-import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Command
 import picocli.CommandLine.ITypeConverter
 import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
 
-/** Source of the input data: exactly one of a GCS blob URI or a local file. */
-private class InputSource {
-  @Option(
-    names = ["--blob-uri"],
-    description = ["GCS gs:// URI of the JSON input"],
-    required = true,
-  )
-  var blobUri: String? = null
-    private set
-
-  @Option(names = ["--file"], description = ["Local path to the JSON input"], required = true)
-  var file: File? = null
-    private set
-}
-
 /**
  * Command that synchronizes `EventGroupActivity` resources for a DataProvider against the CMMS
  * Public API from a JSON spot-data file.
+ *
+ * Per-environment values (DataProvider, spot-data input, Kingdom target) are supplied via an
+ * [EventGroupActivitySyncConfig] textproto passed with `--config-file`.
  */
 @Command(
   name = "SyncEventGroupActivities",
@@ -71,30 +61,14 @@ private class InputSource {
   mixinStandardHelpOptions = true,
 )
 class SyncEventGroupActivities : Runnable {
-  @ArgGroup(exclusive = true, multiplicity = "1") private lateinit var inputSource: InputSource
-
   @Mixin private lateinit var tlsFlags: TlsFlags
 
   @Option(
-    names = ["--data-provider"],
-    description = ["DataProvider resource name, e.g. dataProviders/CqJcvwaa5tI"],
+    names = ["--config-file"],
+    description = ["Path to an EventGroupActivitySyncConfig textproto"],
     required = true,
   )
-  private lateinit var dataProvider: String
-
-  @Option(
-    names = ["--kingdom-public-api-target"],
-    description = ["gRPC target (host:port) of the Kingdom public API"],
-    required = true,
-  )
-  private lateinit var kingdomPublicApiTarget: String
-
-  @Option(
-    names = ["--kingdom-public-api-cert-host"],
-    description = ["Expected hostname in the Kingdom public API's TLS certificate"],
-    required = false,
-  )
-  private var kingdomPublicApiCertHost: String? = null
+  private lateinit var configFile: File
 
   @Option(
     names = ["--throttler-minimum-interval"],
@@ -116,33 +90,29 @@ class SyncEventGroupActivities : Runnable {
   private var listPageSize: Int = 50
 
   @Option(
-    names = ["--delete-mode"],
+    names = ["--mode"],
     description =
       [
-        "How to handle deletes (activities in the Kingdom but absent from the input): " +
-          "full (apply deletes), skip-deletes (apply creates only), or dry-run-deletes " +
-          "(report would-be deletes without applying). Default: full."
+        "How the sync writes to the Kingdom: " +
+          "sync (default: write creates and deletes to match input exactly), " +
+          "append (write creates only; leave Kingdom records absent from input untouched), " +
+          "or preview (make no mutating calls; log the planned diff)."
       ],
-    converter = [DeleteModeConverter::class],
-    defaultValue = "full",
+    converter = [SyncModeConverter::class],
+    defaultValue = "sync",
   )
-  private var deleteMode: DeleteMode = DeleteMode.FULL
-
-  @Option(
-    names = ["--dry-run"],
-    description = ["List and diff only; make no BatchUpdate/BatchDelete calls"],
-    defaultValue = "false",
-  )
-  private var dryRun: Boolean = false
-
-  @Option(
-    names = ["--gcs-project-id"],
-    description = ["GCP project ID for reading the --blob-uri"],
-    required = false,
-  )
-  private var gcsProjectId: String? = null
+  private var mode: SyncMode = SyncMode.SYNC
 
   override fun run() {
+    val config: EventGroupActivitySyncConfig =
+      parseTextProto(configFile, EventGroupActivitySyncConfig.getDefaultInstance())
+    require(config.inputCase != InputCase.INPUT_NOT_SET) {
+      "config must set one of spot_data_blob_uri or local_file_path"
+    }
+    val dataProvider: String = config.dataProvider
+    val kingdomPublicApiTarget: String = config.kingdomPublicApiTarget
+    val kingdomPublicApiCertHost: String? = config.kingdomPublicApiCertHost.ifEmpty { null }
+
     val clientCerts =
       SigningCerts.fromPemFiles(
         certificateFile = tlsFlags.certFile,
@@ -160,7 +130,7 @@ class SyncEventGroupActivities : Runnable {
         throttler = throttler,
         dataProviderName = dataProvider,
         listPageSize = listPageSize,
-        deleteMode = deleteMode,
+        mode = mode,
       )
 
     // Always shut down the channel; only exit non-zero AFTER the finally runs, since exitProcess
@@ -169,8 +139,8 @@ class SyncEventGroupActivities : Runnable {
     val hasFailures: Boolean =
       try {
         runBlocking {
-          val records: Flow<SpotRecord> = SpotDataParser.parseJson(readInput())
-          val result: SyncResult = sync.sync(records, dryRun = dryRun)
+          val records: Flow<SpotRecord> = SpotDataParser.parseJson(readInput(config))
+          val result: SyncResult = sync.sync(records)
 
           println("Sync result:")
           println("  totalInputRecords: ${result.totalInputRecords}")
@@ -196,17 +166,25 @@ class SyncEventGroupActivities : Runnable {
     }
   }
 
-  /** Opens the input as a stream, from either the local file or the GCS blob. */
-  private suspend fun readInput(): InputStream {
-    val localFile = inputSource.file
-    if (localFile != null) {
-      return FileInputStream(localFile)
+  /** Opens the input as a stream, from either the local file or the GCS blob per the config. */
+  private suspend fun readInput(config: EventGroupActivitySyncConfig): InputStream {
+    return when (config.inputCase) {
+      InputCase.LOCAL_FILE_PATH -> FileInputStream(File(config.localFilePath))
+      InputCase.SPOT_DATA_BLOB_URI -> {
+        val blobUri: String = config.spotDataBlobUri
+        val parsedBlobUri = SelectedStorageClient.parseBlobUri(blobUri)
+        val storageClient =
+          SelectedStorageClient(
+            blobUri = parsedBlobUri,
+            projectId = config.gcsProject.ifEmpty { null },
+          )
+        val blob =
+          storageClient.getBlob(parsedBlobUri.key) ?: error("Blob not found for URI: $blobUri")
+        blob.read().flatten().newInput()
+      }
+      InputCase.INPUT_NOT_SET ->
+        error("config must set one of spot_data_blob_uri or local_file_path")
     }
-    val blobUri = checkNotNull(inputSource.blobUri)
-    val parsedBlobUri = SelectedStorageClient.parseBlobUri(blobUri)
-    val storageClient = SelectedStorageClient(blobUri = parsedBlobUri, projectId = gcsProjectId)
-    val blob = storageClient.getBlob(parsedBlobUri.key) ?: error("Blob not found for URI: $blobUri")
-    return blob.read().flatten().newInput()
   }
 
   companion object {
@@ -217,9 +195,8 @@ class SyncEventGroupActivities : Runnable {
   }
 }
 
-private class DeleteModeConverter : ITypeConverter<DeleteMode> {
-  override fun convert(value: String): DeleteMode =
-    DeleteMode.valueOf(value.uppercase().replace('-', '_'))
+private class SyncModeConverter : ITypeConverter<SyncMode> {
+  override fun convert(value: String): SyncMode = SyncMode.valueOf(value.uppercase())
 }
 
 fun main(args: Array<String>) = commandLineMain(SyncEventGroupActivities(), args)

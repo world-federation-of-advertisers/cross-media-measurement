@@ -92,14 +92,12 @@ class SyncEventGroupActivitiesTest {
     server.awaitTermination(1, SECONDS)
   }
 
-  private val commonArgs: Array<String>
+  private val tlsArgs: Array<String>
     get() =
       arrayOf(
         "--tls-cert-file=$SECRETS_DIR/kingdom_tls.pem",
         "--tls-key-file=$SECRETS_DIR/kingdom_tls.key",
         "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
-        "--kingdom-public-api-target=$HOST:${server.port}",
-        "--data-provider=$DATA_PROVIDER",
       )
 
   private fun protoDate(dateString: String) =
@@ -117,34 +115,41 @@ class SyncEventGroupActivitiesTest {
     return file
   }
 
+  private fun writeConfigFile(textproto: String): File {
+    val file = tempDir.newFile("sync-config.textproto")
+    file.writeText(textproto)
+    return file
+  }
+
+  /** Writes a config whose input is the given local JSON [inputFile]. */
+  private fun writeLocalFileConfig(inputFile: File): File =
+    writeConfigFile(
+      """
+      data_provider: "$DATA_PROVIDER"
+      kingdom_public_api_target: "$HOST:${server.port}"
+      local_file_path: "${inputFile.path}"
+      """
+        .trimIndent()
+    )
+
   @Test
-  fun `CLI fails when neither --blob-uri nor --file provided`() {
-    val capturedOutput = CommandLineTesting.capturingOutput(commonArgs, ::main)
+  fun `CLI fails when --config-file not provided`() {
+    val capturedOutput = CommandLineTesting.capturingOutput(tlsArgs, ::main)
 
     CommandLineTesting.assertThat(capturedOutput).status().isNotEqualTo(0)
   }
 
   @Test
-  fun `CLI fails when both --blob-uri and --file provided`() {
-    val file = writeInputFile("[]")
-    val args = commonArgs + arrayOf("--file=${file.path}", "--blob-uri=gs://bucket/input.json")
-
-    val capturedOutput = CommandLineTesting.capturingOutput(args, ::main)
-
-    CommandLineTesting.assertThat(capturedOutput).status().isNotEqualTo(0)
-  }
-
-  @Test
-  fun `CLI fails when --data-provider not provided`() {
-    val file = writeInputFile("[]")
-    val args =
-      arrayOf(
-        "--tls-cert-file=$SECRETS_DIR/kingdom_tls.pem",
-        "--tls-key-file=$SECRETS_DIR/kingdom_tls.key",
-        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
-        "--kingdom-public-api-target=$HOST:${server.port}",
-        "--file=${file.path}",
+  fun `CLI fails when config has no input set`() {
+    val configFile =
+      writeConfigFile(
+        """
+        data_provider: "$DATA_PROVIDER"
+        kingdom_public_api_target: "$HOST:${server.port}"
+        """
+          .trimIndent()
       )
+    val args = tlsArgs + arrayOf("--config-file=${configFile.path}")
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, ::main)
 
@@ -153,7 +158,7 @@ class SyncEventGroupActivitiesTest {
 
   @Test
   fun `CLI reads from local file successfully`() {
-    val file =
+    val inputFile =
       writeInputFile(
         """
         [
@@ -163,7 +168,8 @@ class SyncEventGroupActivitiesTest {
         """
           .trimIndent()
       )
-    val args = commonArgs + arrayOf("--file=${file.path}")
+    val configFile = writeLocalFileConfig(inputFile)
+    val args = tlsArgs + arrayOf("--config-file=${configFile.path}")
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, ::main)
 
@@ -173,14 +179,15 @@ class SyncEventGroupActivitiesTest {
 
   @Test
   fun `CLI passes --list-page-size through to list requests`() {
-    val file =
+    val inputFile =
       writeInputFile(
         """
         [{"parent": "$DATA_PROVIDER/eventGroups/eg1", "event_group_activity_date": "2026-01-01T00:00:00Z"}]
         """
           .trimIndent()
       )
-    val args = commonArgs + arrayOf("--file=${file.path}", "--list-page-size=17")
+    val configFile = writeLocalFileConfig(inputFile)
+    val args = tlsArgs + arrayOf("--config-file=${configFile.path}", "--list-page-size=17")
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, ::main)
 
@@ -191,7 +198,7 @@ class SyncEventGroupActivitiesTest {
   }
 
   @Test
-  fun `CLI with --delete-mode=skip-deletes applies creates but not deletes`() {
+  fun `CLI with --mode=append applies creates but not deletes`() {
     wheneverBlocking { activitiesServiceMock.listEventGroupActivities(any()) }
       .thenReturn(
         listEventGroupActivitiesResponse {
@@ -206,7 +213,7 @@ class SyncEventGroupActivitiesTest {
         }
       )
     // Kingdom has 10 dates; file keeps 2 -> 8 would-be deletes, suppressed by skip-deletes mode.
-    val file =
+    val inputFile =
       writeInputFile(
         """
         [
@@ -216,7 +223,8 @@ class SyncEventGroupActivitiesTest {
         """
           .trimIndent()
       )
-    val args = commonArgs + arrayOf("--file=${file.path}", "--delete-mode=skip-deletes")
+    val configFile = writeLocalFileConfig(inputFile)
+    val args = tlsArgs + arrayOf("--config-file=${configFile.path}", "--mode=append")
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, ::main)
 
@@ -227,8 +235,8 @@ class SyncEventGroupActivitiesTest {
   }
 
   @Test
-  fun `CLI dry-run prints plan without making API calls`() {
-    val file =
+  fun `CLI with --mode=preview prints plan without making API calls`() {
+    val inputFile =
       writeInputFile(
         """
         [
@@ -237,7 +245,8 @@ class SyncEventGroupActivitiesTest {
         """
           .trimIndent()
       )
-    val args = commonArgs + arrayOf("--file=${file.path}", "--dry-run")
+    val configFile = writeLocalFileConfig(inputFile)
+    val args = tlsArgs + arrayOf("--config-file=${configFile.path}", "--mode=preview")
 
     val capturedOutput = CommandLineTesting.capturingOutput(args, ::main)
 
