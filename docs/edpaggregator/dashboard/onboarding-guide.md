@@ -189,10 +189,15 @@ is required.
 
 ### Step 6: Verify Isolation
 
-Run the compliance check with the new EDP included:
+Run the compliance check with the new EDP included, impersonating the
+least-privilege `dashboard-compliance` service account (matches the
+deployment guide's Step 4 and the CI pattern from #4128 — running without
+impersonation either fails outright or silently passes with broader-than-
+tested permissions):
 
 ```shell
 bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard/tools:DashboardComplianceCheck -- \
+  --impersonate-service-account=dashboard-compliance@MY_PROJECT.iam.gserviceaccount.com \
   --project=MY_PROJECT \
   --region=us-central1 \
   --edp=edp1:AbCdEf_12345 \
@@ -201,13 +206,17 @@ bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/d
   --edp=edp4:StUvWx_13579
 ```
 
+To impersonate, your account needs `roles/iam.serviceAccountTokenCreator` on
+the `dashboard-compliance` SA. The dashboard Terraform grants this to every
+member of `dashboard_operators`.
+
 Verify all checks pass, including:
 
 *   `edp4: requisition_overview returns only own data`
 *   `edp4: correctly denied access to mc_details (403)`
 *   `edp4: correctly denied EXTERNAL_QUERY via kingdom-conn (403)`
 
-### Step 6: Share Credentials with the EDP
+### Step 7: Share Credentials with the EDP
 
 Provide the EDP with their service account details:
 
@@ -345,11 +354,15 @@ Group) as grantees on the EDP's row access policy via `bq`:
 ```shell
 # Add EDP humans to each of the 3 EDP-visible tables' row access policies.
 # Re-run for every (table, EDP) pair where Free-tier access is needed.
-bq update \
+# --row_access_policy is a boolean toggle; identify the policy via
+# --policy_id + --target_table. --grantees is a single comma-separated list.
+# On update, re-supply the existing per-EDP predicate or it will be cleared.
+bq update --row_access_policy \
   --project_id=DASHBOARD_PROJECT \
-  --row_access_policy=DASHBOARD_PROJECT.dashboard.requisition_overview.<EDP>_filter \
-  --grantee="group:<edp-name>-dashboard-users@example.com" \
-  --grantee="user:<analyst>@<edp-domain>"
+  --policy_id=<EDP>_filter \
+  --target_table='dashboard.requisition_overview' \
+  --grantees='group:<edp-name>-dashboard-users@example.com,user:<analyst>@<edp-domain>' \
+  --filter_predicate='<existing per-EDP predicate>'
 ```
 
 **Caveat — this is wiped on the next `terraform apply`.** The dashboard
