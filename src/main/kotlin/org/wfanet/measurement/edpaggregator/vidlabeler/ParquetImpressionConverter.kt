@@ -33,12 +33,13 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
  * * `event_time_micros` is read from `LabelerInput.timestamp_usec` (mapped via the same mapping);
  * * the output `event` is built as a [com.google.protobuf.Any]-packed [eventDescriptor] message
  *   projected via the model line's `event_template_field_mapping` (empty mapping -> empty event);
- * * the `entity_keys` and `event_group_reference_id` are taken from the per-file [FileEntityKeys]
- *   that the reader read from the file's plaintext Parquet footer ("Option Y").
+ * * the `entity_keys` are read per row from the model line's `entity_key_field_mapping` columns
+ *   (see [EntityKeyMapper]), and `event_group_reference_id` is taken from the per-file
+ *   [FileEntityKeys] that the reader read from the file's plaintext Parquet footer.
  *
  * One instance is built per (WorkItem, model line) by the runner factory, so [config] is fixed
- * across the instance's [convert] calls; the per-config [LabelerInputMapper] and
- * [EventMessageMapper] are therefore built once and memoized on first use.
+ * across the instance's [convert] calls; the per-config [LabelerInputMapper], [EventMessageMapper],
+ * and [EntityKeyMapper] are therefore built once and memoized on first use.
  *
  * @property eventDescriptor descriptor of the model line's EventTemplate event message, resolved by
  *   the runner from `ModelLineConfig.event_template_descriptor_blob_uri` + `event_template_type`.
@@ -50,17 +51,19 @@ class ParquetImpressionConverter(private val eventDescriptor: Descriptors.Descri
   @Volatile private var cachedConfig: VidLabelerParams.ModelLineConfig? = null
   private lateinit var labelerInputMapper: LabelerInputMapper
   private lateinit var eventMessageMapper: EventMessageMapper
+  private lateinit var entityKeyMapper: EntityKeyMapper
 
   @Synchronized
   private fun mappersFor(
     config: VidLabelerParams.ModelLineConfig
-  ): Pair<LabelerInputMapper, EventMessageMapper> {
+  ): Triple<LabelerInputMapper, EventMessageMapper, EntityKeyMapper> {
     if (cachedConfig !== config) {
       labelerInputMapper = LabelerInputMapper(config.labelerInputFieldMappingMap)
       eventMessageMapper = EventMessageMapper(eventDescriptor, config.eventTemplateFieldMappingMap)
+      entityKeyMapper = EntityKeyMapper(config.entityKeyFieldMappingMap)
       cachedConfig = config
     }
-    return labelerInputMapper to eventMessageMapper
+    return Triple(labelerInputMapper, eventMessageMapper, entityKeyMapper)
   }
 
   override fun convert(
@@ -68,20 +71,21 @@ class ParquetImpressionConverter(private val eventDescriptor: Descriptors.Descri
     config: VidLabelerParams.ModelLineConfig,
     fileEntityKeys: FileEntityKeys,
   ): ConvertedImpression? {
-    val (inputMapper, messageMapper) = mappersFor(config)
+    val (inputMapper, messageMapper, entityKeyMapper) = mappersFor(config)
 
     val labelerInput = inputMapper.project(event.row)
     val eventTime = Timestamps.fromMicros(labelerInput.timestampUsec)
     val eventMessage = Any.pack(messageMapper.project(event.row))
+    // entity_keys are read per row from the mapped columns; event_group_reference_id comes from the
+    // file's plaintext footer (FileEntityKeys already enforced it is present and non-empty).
+    val entityKeys = entityKeyMapper.map(event.row)
 
-    // entity_keys + event_group_reference_id come from the file's plaintext footer (read by the
-    // reader); FileEntityKeys already enforced that they are present and non-empty.
     return ConvertedImpression(
       labelerInput = labelerInput,
       eventTime = eventTime,
       eventGroupReferenceId = fileEntityKeys.eventGroupReferenceId,
       event = eventMessage,
-      entityKeys = fileEntityKeys.entityKeys,
+      entityKeys = entityKeys,
     )
   }
 }
