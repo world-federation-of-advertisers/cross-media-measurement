@@ -133,16 +133,16 @@ package k8s
 				}]
 			}
 		}
-		// Internal-only (ClusterIP) for the initial deployment. External exposure
-		// following the `reporting-grpc-gateway` pattern (LoadBalancer + in-server
-		// TLS termination) is tracked in
-		// TODO(world-federation-of-advertisers/cross-media-measurement#3938).
-		"reporting-mcp-server": {
-			spec: ports: [{
-				port:        8080
-				targetPort:  8080
-				appProtocol: "http"
-			}]
+		// Externally exposed following the `reporting-grpc-gateway` pattern:
+		// LoadBalancer + in-server TLS termination.
+		"reporting-mcp-server": #ExternalService & {
+			spec: {
+				ports: [{
+					port:        443
+					targetPort:  8443
+					appProtocol: "https"
+				}]
+			}
 		}
 	}
 
@@ -255,18 +255,18 @@ package k8s
 			_container: {
 				args: [
 					"--host=0.0.0.0",
-					"--port=8080",
+					"--port=8443",
 					"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
 					_debugVerboseGrpcClientLoggingFlag,
 				] + _tlsArgs + _reportingApiTarget.args
 				ports: [{
-					containerPort: 8080
+					containerPort: 8443
 				}]
 				readinessProbe: {
 					httpGet: {
 						path:   "/healthz"
-						port:   8080
-						scheme: "HTTP"
+						port:   8443
+						scheme: "HTTPS"
 					}
 					failureThreshold:    12
 					timeoutSeconds:      2
@@ -438,16 +438,12 @@ package k8s
 		"reporting-mcp-server": {
 			// Egress: calls the Reporting public API.
 			_destinationMatchLabels: ["reporting-v2alpha-public-api-server-app"]
-			// Ingress: intentionally open to any in-cluster pod on 8080. There is no
-			// dedicated in-cluster client in this phase (the server is reached via
-			// kubectl port-forward for testing and by the planned cloud integration
-			// test), so no `_sourceMatchLabels` restriction is applied yet. External
-			// exposure is tracked in
-			// TODO(world-federation-of-advertisers/cross-media-measurement#3938).
+			// Ingress: open on 8443 (TLS), matching the reporting-grpc-gateway
+			// pattern for an externally-exposed service.
 			_ingresses: {
-				http: {
+				https: {
 					ports: [{
-						port: 8080
+						port: 8443
 					}]
 				}
 			}

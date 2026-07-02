@@ -24,11 +24,16 @@ import io.grpc.ClientInterceptors
 import io.grpc.MethodDescriptor
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
+import io.ktor.server.engine.sslConnector
+import java.security.KeyStore
+import java.security.cert.Certificate
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
@@ -38,6 +43,8 @@ import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCor
 import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import picocli.CommandLine
+
+private const val TLS_KEY_ALIAS = "reporting-mcp-server"
 
 /** Builds the runtime dependencies from command-line flags and starts the MCP server. */
 @CommandLine.Command(
@@ -91,7 +98,39 @@ class ReportingMcpServerDaemon : Runnable {
           ImpressionQualificationFiltersCoroutineStub(deadlineChannel),
       )
 
-    embeddedServer(CIO, host = mcpServerFlags.host, port = mcpServerFlags.port) {
+    // Serve TLS in-server (LoadBalancer + in-server TLS termination, mirroring
+    // reporting-grpc-gateway). SigningKeyHandle intentionally hides the private
+    // key, so re-read the cert + key from the PEM files to build a KeyStore for
+    // Ktor's sslConnector.
+    val serverCertificate = readCertificate(tlsFlags.certFile)
+    val serverPrivateKey =
+      readPrivateKey(tlsFlags.privateKeyFile, serverCertificate.publicKey.algorithm)
+    val keyStorePassword = CharArray(0)
+    val keyStore =
+      KeyStore.getInstance("PKCS12").apply {
+        load(null, null)
+        setKeyEntry(
+          TLS_KEY_ALIAS,
+          serverPrivateKey,
+          keyStorePassword,
+          arrayOf<Certificate>(serverCertificate),
+        )
+      }
+
+    embeddedServer(
+        CIO,
+        configure = {
+          sslConnector(
+            keyStore = keyStore,
+            keyAlias = TLS_KEY_ALIAS,
+            keyStorePassword = { keyStorePassword },
+            privateKeyPassword = { keyStorePassword },
+          ) {
+            host = mcpServerFlags.host
+            port = mcpServerFlags.port
+          }
+        },
+      ) {
         installReportingMcp(apiClient, mcpServerFlags.allowedHosts)
       }
       .start(wait = true)
@@ -109,12 +148,8 @@ class McpServerFlags {
 
   @set:CommandLine.Option(
     names = ["--port"],
-    description =
-      [
-        "HTTP port for the MCP server. For external access, terminate TLS upstream " +
-          "(a LoadBalancer or proxy)."
-      ],
-    defaultValue = "8080",
+    description = ["HTTPS port for the MCP server. TLS is terminated in-server."],
+    defaultValue = "8443",
   )
   var port by Delegates.notNull<Int>()
 
