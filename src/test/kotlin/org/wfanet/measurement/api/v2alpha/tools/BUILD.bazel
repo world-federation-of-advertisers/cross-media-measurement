@@ -43,6 +43,7 @@ kt_jvm_test(
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:banner_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:person_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:testing_only_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:video_proto",
     ],
     jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],

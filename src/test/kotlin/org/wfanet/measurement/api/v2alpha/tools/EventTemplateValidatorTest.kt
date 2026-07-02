@@ -165,6 +165,7 @@ class EventTemplateValidatorTest {
         TEST_TEMPLATES_RUNTIME_PATH.resolve("person_proto-$DESCRIPTOR_SET_SUFFIX"),
         TEST_TEMPLATES_RUNTIME_PATH.resolve("video_proto-$DESCRIPTOR_SET_SUFFIX"),
         TEST_TEMPLATES_RUNTIME_PATH.resolve("banner_proto-$DESCRIPTOR_SET_SUFFIX"),
+        TEST_TEMPLATES_RUNTIME_PATH.resolve("testing_only_proto-$DESCRIPTOR_SET_SUFFIX"),
         TEST_TEMPLATES_RUNTIME_PATH.resolve("test_event_proto-$DESCRIPTOR_SET_SUFFIX"),
       )
     }

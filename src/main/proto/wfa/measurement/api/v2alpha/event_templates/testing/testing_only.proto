@@ -78,7 +78,6 @@ message TestingOnly {
   string testing_string_filterable = 3
       [(.wfa.measurement.api.v2alpha.template_field) = {
         display_name: "Testing Filterable String (test-only, DO NOT MIMIC)"
-        population_attribute: true
         reporting_features: FILTERABLE
         version_added: 1
       }];
