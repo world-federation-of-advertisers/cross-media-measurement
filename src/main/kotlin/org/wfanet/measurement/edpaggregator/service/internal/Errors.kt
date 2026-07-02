@@ -49,6 +49,7 @@ object Errors {
     POOL_ASSIGNMENT_JOB_NOT_FOUND,
     POOL_ASSIGNMENT_JOB_STATE_INVALID,
     POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
+    RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
     RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
     RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
     VID_LABELING_JOB_NOT_FOUND,
@@ -341,6 +342,17 @@ class RawImpressionUploadModelLineStateInvalidException(
       Errors.Metadata.EXPECTED_RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATES to
         expectedStates.joinToString(",") { state -> state.name },
     ),
+    cause,
+  )
+
+class RawImpressionUploadAlreadyExistsException(
+  dataProviderResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
+    "RawImpressionUpload already exists for DataProvider $dataProviderResourceId",
+    mapOf(Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId),
     cause,
   )
 

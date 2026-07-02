@@ -152,6 +152,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -225,6 +226,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -337,6 +339,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -418,6 +421,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -531,6 +535,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -604,6 +609,7 @@ class ImpressionMetadataService(
         InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
         InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
         InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }
@@ -705,6 +711,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -839,6 +846,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -911,6 +919,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
