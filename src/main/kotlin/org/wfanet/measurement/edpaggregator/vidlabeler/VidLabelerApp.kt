@@ -205,19 +205,21 @@ class VidLabelerApp(
       // last-job-out recovery so a crash between label() and the mark cannot drop the completion.
       val job =
         vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { name = vidLabelingJob })
-      if (job.state != VidLabelingJob.State.SUCCEEDED) {
-        labelMemoized(
-          params,
-          mp,
-          modelLine,
-          config,
-          dataProvider,
-          kmsClient,
-          job.rawImpressionUploadFilesList,
-        )
-      } else {
-        logger.info("VidLabelingJob $vidLabelingJob already SUCCEEDED; skipping relabel")
-      }
+      val observedEventDates: Set<LocalDate> =
+        if (job.state != VidLabelingJob.State.SUCCEEDED) {
+          labelMemoized(
+            params,
+            mp,
+            modelLine,
+            config,
+            dataProvider,
+            kmsClient,
+            job.rawImpressionUploadFilesList,
+          )
+        } else {
+          logger.info("VidLabelingJob $vidLabelingJob already SUCCEEDED; skipping relabel")
+          emptySet()
+        }
 
       markSucceededAndTransition(
         params,
@@ -225,6 +227,7 @@ class VidLabelerApp(
         dataProvider,
         job.etag,
         attributes,
+        observedEventDates,
         job.rawImpressionUploadFilesList,
         kmsClient,
       )
@@ -265,17 +268,19 @@ class VidLabelerApp(
         vidLabelingJobsStub.getVidLabelingJob(
           getVidLabelingJobRequest { name = params.vidLabelingJob }
         )
-      if (job.state != VidLabelingJob.State.SUCCEEDED) {
-        labelNonMemoized(
-          params,
-          dataProvider,
-          kmsClient,
-          encryptKekUri,
-          job.rawImpressionUploadFilesList,
-        )
-      } else {
-        logger.info("VidLabelingJob ${params.vidLabelingJob} already SUCCEEDED; skipping relabel")
-      }
+      val observedEventDates: Set<LocalDate> =
+        if (job.state != VidLabelingJob.State.SUCCEEDED) {
+          labelNonMemoized(
+            params,
+            dataProvider,
+            kmsClient,
+            encryptKekUri,
+            job.rawImpressionUploadFilesList,
+          )
+        } else {
+          logger.info("VidLabelingJob ${params.vidLabelingJob} already SUCCEEDED; skipping relabel")
+          emptySet()
+        }
 
       markSucceededAndTransition(
         params,
@@ -283,6 +288,7 @@ class VidLabelerApp(
         dataProvider,
         job.etag,
         attributes,
+        observedEventDates,
         job.rawImpressionUploadFilesList,
         kmsClient,
       )
@@ -304,7 +310,7 @@ class VidLabelerApp(
     dataProvider: String,
     kmsClient: KmsClient,
     inputFiles: List<String>,
-  ) {
+  ): Set<LocalDate> {
     val rankIndexStore =
       RankIndexStore(
         buildVidRankMapStorageClient(getStorageConfig(mp.vidRankMapStorageParams)),
@@ -358,7 +364,7 @@ class VidLabelerApp(
 
     val impressionConverter = buildImpressionConverter(modelLine, config)
 
-    VidLabeler(
+    return VidLabeler(
         rawImpressionSource = rawImpressionSource,
         modelLineSpecs = listOf(modelLineSpec),
         overrideModelLines = emptyList(),
@@ -387,7 +393,7 @@ class VidLabelerApp(
     kmsClient: KmsClient,
     encryptKekUri: String,
     inputFiles: List<String>,
-  ) {
+  ): Set<LocalDate> {
     val modelLines = params.modelLinesList
     val configsByModelLine =
       modelLines.associateWith { modelLine ->
@@ -441,7 +447,7 @@ class VidLabelerApp(
 
     val impressionConverter = buildImpressionConverter(firstModelLine, firstConfig)
 
-    VidLabeler(
+    return VidLabeler(
         rawImpressionSource = rawImpressionSource,
         modelLineSpecs = modelLineSpecs,
         // The operator-header override filters the labeled set at the engine; empty = label all of
@@ -481,6 +487,7 @@ class VidLabelerApp(
     dataProvider: String,
     etag: String,
     attributes: Attributes,
+    observedEventDates: Set<LocalDate>,
     inputFiles: List<String>,
     kmsClient: KmsClient,
   ) {
@@ -511,19 +518,32 @@ class VidLabelerApp(
     // completed) instead of one filtered List per completed model line. Keyed by model line so each
     // completed model line resolves to its parent row (name + etag) for the COMPLETED transition.
     val parentsByModelLine = listAllModelLines(upload).associateBy { it.cmmsModelLine }
-    // Every raw-impression file of an upload carries the same event date in its plaintext footer
-    // (one day per upload), so any file this WorkItem processed answers for the whole set. Resolve
-    // it once; it is the date folder each completed model line's done marker goes in.
-    val eventDate = resolveSharedEventDate(params, kmsClient, inputFiles)
-    if (
-      eventDate == null && response.lastVidLabelingJobResult.completedModelLinesList.isNotEmpty()
-    ) {
-      logger.warning(
-        "VidLabelingJob $vidLabelingJob reported completed model line(s) but carried no input " +
-          "files; cannot resolve the footer event date, so no done marker is written"
-      )
+    val completedModelLines = response.lastVidLabelingJobResult.completedModelLinesList
+    // The date folder each completed model line's done marker goes in. Reuse the event dates the
+    // labeler already read from each file's footer while streaming (no extra I/O); on the
+    // skip-relabel recovery path no labeling ran this delivery, so fall back to reading the
+    // footers.
+    val eventDates = observedEventDates.ifEmpty { readEventDates(params, kmsClient, inputFiles) }
+    if (completedModelLines.isNotEmpty()) {
+      if (eventDates.isEmpty()) {
+        logger.warning(
+          "VidLabelingJob $vidLabelingJob reported completed model line(s) but carried no input " +
+            "files; cannot resolve the footer event date, so no done marker is written"
+        )
+      } else {
+        // TODO(world-federation-of-advertisers/cross-media-measurement#4145): future improvement —
+        //   this only validates THIS (last-out) WorkItem's files. An upload whose files span
+        //   several dates across separate single-date WorkItems still leaves the other WorkItems'
+        //   date folders without a done marker; finalize done per (model line, date) upload-wide.
+        check(eventDates.size == 1) {
+          "VidLabelingJob $vidLabelingJob spans multiple event dates ${eventDates.sorted()}; the " +
+            "done marker is written per (model line, date) and this path assumes one date per upload"
+        }
+      }
     }
-    for (completedModelLine in response.lastVidLabelingJobResult.completedModelLinesList) {
+    // Single shared event date for this WorkItem (null only when it carried no files).
+    val eventDate = eventDates.singleOrNull()
+    for (completedModelLine in completedModelLines) {
       val parent = parentsByModelLine[completedModelLine]
       if (parent == null) {
         logger.warning(
@@ -611,43 +631,46 @@ class VidLabelerApp(
   }
 
   /**
-   * Resolves the event date shared by every raw-impression file of this WorkItem's upload.
+   * Reads the `event_date` footer of every file in [inputFiles] into a set (empty when [inputFiles]
+   * is empty). The date lives only in each file's plaintext Parquet footer ("Option Y").
    *
-   * The date lives only in each file's plaintext Parquet footer ("Option Y"), and every file of an
-   * upload carries the same one (one day per upload), so reading any single file's footer answers
-   * for the whole WorkItem. Returns `null` when [inputFiles] is empty (nothing was labeled, so
-   * there is no date to finalize).
+   * Used only on the skip-relabel recovery path, where no labeling ran this delivery to collect the
+   * dates from the sinks; the happy path reuses the dates [VidLabeler.label] already read.
    *
    * TODO(world-federation-of-advertisers/cross-media-measurement#4130): Cover the done-marker write
    *   end-to-end in [VidLabelerAppTest] once `ParquetStorageClient` can WRITE footer key-value
    *   metadata (it can only read it today), so a test can synthesize a raw file whose footer
    *   carries `event_date` and drive this read + the resulting `writeDoneBlob`.
    */
-  private suspend fun resolveSharedEventDate(
+  private suspend fun readEventDates(
     params: VidLabelerParams,
     kmsClient: KmsClient,
     inputFiles: List<String>,
-  ): LocalDate? {
-    if (inputFiles.isEmpty()) return null
-    val blobUri =
-      rawImpressionUploadFilesStub
-        .getRawImpressionUploadFile(getRawImpressionUploadFileRequest { name = inputFiles.first() })
-        .blobUri
+  ): Set<LocalDate> {
+    if (inputFiles.isEmpty()) return emptySet()
     val parquetStorageClient =
       buildParquetStorageClient(getStorageConfig(params.rawImpressionsStorageParams), kmsClient)
-    val parquetBlob =
-      parquetStorageClient.getBlob(blobUri) ?: error("Raw-impression blob not found: $blobUri")
-    val eventDateString =
-      requireNotNull(
-        parquetBlob.readKeyValueMetadata()[FileEntityKeys.EVENT_DATE_KEY]?.takeIf {
-          it.isNotEmpty()
-        }
-      ) {
-        "raw-impression footer is missing the '${FileEntityKeys.EVENT_DATE_KEY}' metadata entry " +
-          "for $blobUri; the producer must write each file's event date (ISO YYYY-MM-DD) into its " +
-          "plaintext footer"
+    return inputFiles
+      .map { inputFile ->
+        val blobUri =
+          rawImpressionUploadFilesStub
+            .getRawImpressionUploadFile(getRawImpressionUploadFileRequest { name = inputFile })
+            .blobUri
+        val parquetBlob =
+          parquetStorageClient.getBlob(blobUri) ?: error("Raw-impression blob not found: $blobUri")
+        val eventDateString =
+          requireNotNull(
+            parquetBlob.readKeyValueMetadata()[FileEntityKeys.EVENT_DATE_KEY]?.takeIf {
+              it.isNotEmpty()
+            }
+          ) {
+            "raw-impression footer is missing the '${FileEntityKeys.EVENT_DATE_KEY}' metadata " +
+              "entry for $blobUri; the producer must write each file's event date (ISO YYYY-MM-DD) " +
+              "into its plaintext footer"
+          }
+        LocalDate.parse(eventDateString)
       }
-    return LocalDate.parse(eventDateString)
+      .toSet()
   }
 
   /**
