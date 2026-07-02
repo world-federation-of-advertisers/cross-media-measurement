@@ -192,8 +192,16 @@ class ReportSummaryV2Processor:
                         impression_filter]
                     if edp_combination in bucket:
                         old_sets = bucket[edp_combination]
+                        # strict=True mirrors the cumulative path's
+                        # _record_measurement_list_aliases length guard: a
+                        # cadence-length mismatch between two RSRs sharing
+                        # (filter, edp_combination) is an upstream contract
+                        # violation and must raise, not silently leave the extra
+                        # displaced names un-aliased (which would reintroduce
+                        # the KeyError this PR fixes).
                         for old_set, new_set in zip(old_sets,
-                                                    new_measurement_sets):
+                                                    new_measurement_sets,
+                                                    strict=True):
                             self._record_measurement_set_aliases(
                                 old_set, new_set)
                     bucket[edp_combination] = new_measurement_sets
@@ -273,12 +281,14 @@ class ReportSummaryV2Processor:
                 self._add_alias(displaced.impression.name,
                                 winning.impression.name)
         # k_reach: keys are frequency bins. Alias only where both sides have
-        # the same bin. If displaced has a bin not in winning, that bin's
-        # metric_name never gets back-filled and lookups by that name would
-        # KeyError at response-build time -- but that indicates a shape
-        # divergence between two ReportSummarySetResults that share
-        # (filter, edps), which we treat as an upstream contract violation
-        # rather than something to smooth over here.
+        # the same bin. If displaced has a bin absent from winning, that
+        # bin's metric_name is never back-filled; the response builder looks
+        # up frequency bins with updated_measurements.get(name,
+        # bin_result.value) (post_process_report_result.py:_process_window_results),
+        # so it silently returns the *uncorrected raw* value rather than
+        # KeyError. This only happens on a shape divergence between two RSRs
+        # sharing (filter, edps), which we treat as an upstream contract
+        # violation.
         for bin_key, new_meas in winning.k_reach.items():
             old_meas = displaced.k_reach.get(bin_key)
             if old_meas is not None and old_meas.name != new_meas.name:
