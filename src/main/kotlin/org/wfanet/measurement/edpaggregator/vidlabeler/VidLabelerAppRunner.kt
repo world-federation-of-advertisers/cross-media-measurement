@@ -60,7 +60,9 @@ class VidLabelerAppRunner :
   ) {
 
   private val getStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
-    storageConfig(storageParams.gcsProjectId)
+    // Carry the blob prefix so buildStorageClient can root the multi-key rank-map store at its
+    // bucket (VidLabelerParams.StorageParams names the prefix field impressions_blob_prefix).
+    storageConfig(storageParams.gcsProjectId).copy(blobPrefix = storageParams.impressionsBlobPrefix)
   }
 
   // Caches resolved EventTemplate descriptors by (blob URI, type name) so a descriptor blob is read
