@@ -276,6 +276,11 @@ private fun String.toCelStringLiteral(): String {
  * `Float.toString()` output would produce a filter that fails to compile. Semantically, `NaN ==
  * NaN` is `false` in IEEE 754 -- a reach comparison against `NaN` is meaningless -- so rejecting
  * upstream is the right shape even if CEL supported the literal.
+ *
+ * Note: `Float.toString()` yields the shortest decimal that round-trips to `Float`; CEL parses
+ * numeric literals as `double`, so bit-exact equality against a proto `float` field is not
+ * guaranteed. Continuous-float IMPRESSION_QUALIFICATION fields are discouraged (see
+ * `testing_only.proto`); prefer enums or bool buckets.
  */
 private fun Float.toCelNumericLiteral(): String {
   require(isFinite()) {
