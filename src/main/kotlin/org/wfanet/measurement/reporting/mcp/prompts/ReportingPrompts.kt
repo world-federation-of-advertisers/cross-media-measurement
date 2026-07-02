@@ -32,7 +32,7 @@ private const val BASIC_REPORT_PLACEHOLDER =
   "measurementConsumers/{measurement_consumer_id}/basicReports/{basic_report_id}"
 
 /** Returns the value of [name] from the request arguments, or null if absent or blank. */
-private fun Map<String, String>.argOrNull(name: String): String? = this[name]?.ifEmpty { null }
+private fun Map<String, String>.argOrNull(name: String): String? = this[name]?.ifBlank { null }
 
 /**
  * Registers MCP prompts that give agents guided, reusable Reporting workflows, improving correct
