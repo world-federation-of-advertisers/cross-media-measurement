@@ -14,7 +14,7 @@ BORINGSSL_VERSION = "0.20241209.0"
 # * https://docs.aws.amazon.com/kinesisanalytics/latest/java/earlier.html
 APACHE_BEAM_VERSION = "2.45.0"
 
-K8S_CLIENT_VERSION = "25.0.0"
+K8S_CLIENT_VERSION = "26.0.1"
 
 PYTHON_VERSION = "3.11"
 
@@ -24,7 +24,7 @@ PYTHON_VERSION = "3.11"
 # See https://github.com/bazelbuild/bazel/discussions/23075.
 bazel_dep(
     name = "rules_kotlin_jvm",
-    version = "0.13.0",
+    version = "0.14.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
 bazel_dep(
@@ -39,7 +39,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.142.0",
+    version = "0.146.1",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -49,7 +49,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.94.0",
+    version = "0.95.0",
     repo_name = "wfa_measurement_proto",
 )
 bazel_dep(
@@ -83,9 +83,15 @@ bazel_dep(
     repo_name = "wfa_virtual_people_common",
 )
 bazel_dep(
+    name = "virtual-people-core-serving",
+    version = "0.3.1",
+    repo_name = "wfa_virtual_people_core_serving",
+)
+bazel_dep(
     name = "grpc_ecosystem_grpc_gateway",
     version = "2.26.0.bzlmod.1",
 )
+
 # Must also be updated in src/main/k8s/local/BUILD.bazel
 bazel_dep(
     name = "cloud-spanner-emulator-bin",
@@ -217,15 +223,15 @@ maven.artifact(
     group = "org.apache.beam",
 )
 maven.artifact(
+    testonly = True,
     artifact = "kotlin-sdk-client-jvm",
     group = "io.modelcontextprotocol",
-    testonly = True,
     version = "0.12.0",
 )
 maven.artifact(
+    testonly = True,
     artifact = "kotlin-sdk-testing-jvm",
     group = "io.modelcontextprotocol",
-    testonly = True,
     version = "0.12.0",
 )
 maven.install(
@@ -409,29 +415,29 @@ use_repo(pip, "pip")
 oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
 oci.pull(
     name = "go_image_base",
-    reproducible = True,
-    tag = "nonroot",
     digest = "sha256:a557d784ac275c287d2bdf3172f47bece8d2a0ef3c0fdefb712e95084a04a562",
     image = "gcr.io/distroless/base-debian13",
     platforms = ["linux/amd64"],
+    reproducible = True,
+    tag = "nonroot",
 )
 oci.pull(
     name = "py_image_base",
-    reproducible = True,
-    tag = "nonroot",
     digest = "sha256:7ea4b893a73b30ebe0d666f94bbda151a5e15ee093bda10497986a12a65a7e53",
     image = "gcr.io/distroless/python3-debian13",
     platforms = ["linux/amd64"],
+    reproducible = True,
+    tag = "nonroot",
 )
 
 # TODO(world-federation-of-advertisers/cross-media-measurement#2729): Remove root Java image when Confidential Spaces properly supports nonroot images.
 oci.pull(
     name = "java_image_base_root",
-    reproducible = True,
-    tag = "latest",
     digest = "sha256:3c89b72dcd8b9c3b6fc9ae42785fc5ccf58b7d540504944ee5376c91a81f0af9",
     image = "gcr.io/distroless/java17-debian13",
     platforms = ["linux/amd64"],
+    reproducible = True,
+    tag = "latest",
 )
 use_repo(
     oci,
@@ -470,4 +476,3 @@ single_version_override(
     module_name = "boringssl",
     version = BORINGSSL_VERSION,
 )
-

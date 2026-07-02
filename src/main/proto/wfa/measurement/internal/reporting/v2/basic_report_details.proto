@@ -42,4 +42,15 @@ message BasicReportDetails {
 
   // Specification for results.
   repeated ResultGroupSpec result_group_specs = 4;
+
+  // Whether the server synthesized the campaign group because the client
+  // omitted `campaign_group` (custom-group-only mode).
+  //
+  // The effective campaign group is always stored in
+  // `BasicReport.external_campaign_group_id`. This flag records only whether
+  // that value was server-synthesized, so the public API can report an empty
+  // `campaign_group` with a populated `effective_campaign_group` for
+  // synthesized reports, while existing reports (false here) continue to
+  // report their supplied `campaign_group`.
+  bool campaign_group_synthesized = 6;
 }

@@ -12,3 +12,15 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/org/junit",
     ],
 )
+
+kt_jvm_test(
+    name = "ActiveWindowTest",
+    srcs = ["ActiveWindowTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindowTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/utils:active_window",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

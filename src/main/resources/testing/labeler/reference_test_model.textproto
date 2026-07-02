@@ -1,0 +1,464 @@
+# proto-file: wfa/virtual_people/common/model.proto
+# proto-message: CompiledNode
+
+# Simplified VID labeler model for testing.
+#
+# Routes on proprietary_id_space_1_user_info (single generic ID space),
+# with 2 genders x 3 age groups = 6 demographic buckets. Applies a
+# non-trivial 6x6 correction matrix with cross-age and cross-gender
+# leakage.
+#
+# Pool sizes are intentionally small (~100 VIDs each, 600 total) to
+# keep test output compact and inspectable.
+#
+# Demographic buckets (matching Common.Sex x Common.AgeGroup):
+#   MALE   16-34  -> pool offset 10000, size 100
+#   MALE   35-54  -> pool offset 10100, size 100
+#   MALE   55-99  -> pool offset 10200, size 100
+#   FEMALE 16-34  -> pool offset 10300, size 100
+#   FEMALE 35-54  -> pool offset 10400, size 100
+#   FEMALE 55-99  -> pool offset 10500, size 100
+#
+# Correction matrix: mostly diagonal (~85%), with cross-age
+# leakage (~10%) and small cross-gender leakage (~5%).
+
+name: "root"
+branch_node {
+  branches {
+    condition {
+      op: HAS
+      name: "labeler_input.profile_info.proprietary_id_space_1_user_info.user_id"
+    }
+    node {
+      name: "identified"
+      branch_node {
+        branches {
+          condition {
+            op: TRUE
+          }
+          node {
+            name: "demo_routing"
+            branch_node {
+              # MALE 16-34
+              branches {
+                condition {
+                  op: AND
+                  sub_filters {
+                    name: "label.demo.gender"
+                    op: EQUAL
+                    value: "1"
+                  }
+                  sub_filters {
+                    name: "label.demo.age.min_age"
+                    op: EQUAL
+                    value: "16"
+                  }
+                  sub_filters {
+                    name: "label.demo.age.max_age"
+                    op: EQUAL
+                    value: "34"
+                  }
+                }
+                node {
+                  name: "pool-M16-34"
+                  branch_node {
+                    random_seed: "pool_random_seed"
+                    branches {
+                      chance: 1.0
+                      node {
+                        population_node {
+                          pools {
+                            population_offset: 10000
+                            total_population: 100
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              # MALE 35-54
+              branches {
+                condition {
+                  op: AND
+                  sub_filters {
+                    name: "label.demo.gender"
+                    op: EQUAL
+                    value: "1"
+                  }
+                  sub_filters {
+                    name: "label.demo.age.min_age"
+                    op: EQUAL
+                    value: "35"
+                  }
+                  sub_filters {
+                    name: "label.demo.age.max_age"
+                    op: EQUAL
+                    value: "54"
+                  }
+                }
+                node {
+                  name: "pool-M35-54"
+                  branch_node {
+                    random_seed: "pool_random_seed"
+                    branches {
+                      chance: 1.0
+                      node {
+                        population_node {
+                          pools {
+                            population_offset: 10100
+                            total_population: 100
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              # MALE 55+
+              branches {
+                condition {
+                  op: AND
+                  sub_filters {
+                    name: "label.demo.gender"
+                    op: EQUAL
+                    value: "1"
+                  }
+                  sub_filters {
+                    name: "label.demo.age.min_age"
+                    op: EQUAL
+                    value: "55"
+                  }
+                  sub_filters {
+                    name: "label.demo.age.max_age"
+                    op: EQUAL
+                    value: "99"
+                  }
+                }
+                node {
+                  name: "pool-M55+"
+                  branch_node {
+                    random_seed: "pool_random_seed"
+                    branches {
+                      chance: 1.0
+                      node {
+                        population_node {
+                          pools {
+                            population_offset: 10200
+                            total_population: 100
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              # FEMALE 16-34
+              branches {
+                condition {
+                  op: AND
+                  sub_filters {
+                    name: "label.demo.gender"
+                    op: EQUAL
+                    value: "2"
+                  }
+                  sub_filters {
+                    name: "label.demo.age.min_age"
+                    op: EQUAL
+                    value: "16"
+                  }
+                  sub_filters {
+                    name: "label.demo.age.max_age"
+                    op: EQUAL
+                    value: "34"
+                  }
+                }
+                node {
+                  name: "pool-F16-34"
+                  branch_node {
+                    random_seed: "pool_random_seed"
+                    branches {
+                      chance: 1.0
+                      node {
+                        population_node {
+                          pools {
+                            population_offset: 10300
+                            total_population: 100
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              # FEMALE 35-54
+              branches {
+                condition {
+                  op: AND
+                  sub_filters {
+                    name: "label.demo.gender"
+                    op: EQUAL
+                    value: "2"
+                  }
+                  sub_filters {
+                    name: "label.demo.age.min_age"
+                    op: EQUAL
+                    value: "35"
+                  }
+                  sub_filters {
+                    name: "label.demo.age.max_age"
+                    op: EQUAL
+                    value: "54"
+                  }
+                }
+                node {
+                  name: "pool-F35-54"
+                  branch_node {
+                    random_seed: "pool_random_seed"
+                    branches {
+                      chance: 1.0
+                      node {
+                        population_node {
+                          pools {
+                            population_offset: 10400
+                            total_population: 100
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              # FEMALE 55+
+              branches {
+                condition {
+                  op: AND
+                  sub_filters {
+                    name: "label.demo.gender"
+                    op: EQUAL
+                    value: "2"
+                  }
+                  sub_filters {
+                    name: "label.demo.age.min_age"
+                    op: EQUAL
+                    value: "55"
+                  }
+                  sub_filters {
+                    name: "label.demo.age.max_age"
+                    op: EQUAL
+                    value: "99"
+                  }
+                }
+                node {
+                  name: "pool-F55+"
+                  branch_node {
+                    random_seed: "pool_random_seed"
+                    branches {
+                      chance: 1.0
+                      node {
+                        population_node {
+                          pools {
+                            population_offset: 10500
+                            total_population: 100
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        updates {
+          # Extract fingerprint from proprietary_id_space_1
+          updates {
+            conditional_assignment {
+              condition {
+                op: HAS
+                name: "labeler_input.profile_info.proprietary_id_space_1_user_info.user_id"
+              }
+              assignments {
+                source_field: "labeler_input.profile_info.proprietary_id_space_1_user_info.user_id_fingerprint"
+                target_field: "acting_fingerprint"
+              }
+            }
+          }
+          # Extract demographics from proprietary_id_space_1
+          updates {
+            conditional_assignment {
+              condition {
+                op: AND
+                sub_filters {
+                  op: HAS
+                  name: "labeler_input.profile_info.proprietary_id_space_1_user_info.user_id"
+                }
+                sub_filters {
+                  op: HAS
+                  name: "labeler_input.profile_info.proprietary_id_space_1_user_info.demo.demo_bucket.gender"
+                }
+                sub_filters {
+                  op: HAS
+                  name: "labeler_input.profile_info.proprietary_id_space_1_user_info.demo.demo_bucket.age.min_age"
+                }
+                sub_filters {
+                  op: HAS
+                  name: "labeler_input.profile_info.proprietary_id_space_1_user_info.demo.demo_bucket.age.max_age"
+                }
+              }
+              assignments {
+                source_field: "labeler_input.profile_info.proprietary_id_space_1_user_info.demo.demo_bucket.gender"
+                target_field: "acting_demo.gender"
+              }
+              assignments {
+                source_field: "labeler_input.profile_info.proprietary_id_space_1_user_info.demo.demo_bucket.age.min_age"
+                target_field: "acting_demo.age.min_age"
+              }
+              assignments {
+                source_field: "labeler_input.profile_info.proprietary_id_space_1_user_info.demo.demo_bucket.age.max_age"
+                target_field: "acting_demo.age.max_age"
+              }
+            }
+          }
+          # Demographic correction matrix (6x6)
+          # Columns: input demographics (acting_demo)
+          # Rows: output demographics (label.demo)
+          # Mostly diagonal (~85%), cross-age within gender (~10%),
+          # cross-gender (~5%).
+          updates {
+            update_matrix {
+              random_seed: "correction_matrix_seed"
+              columns {
+                acting_demo {
+                  gender: 1
+                  age { min_age: 16  max_age: 34 }
+                }
+              }
+              columns {
+                acting_demo {
+                  gender: 1
+                  age { min_age: 35  max_age: 54 }
+                }
+              }
+              columns {
+                acting_demo {
+                  gender: 1
+                  age { min_age: 55  max_age: 99 }
+                }
+              }
+              columns {
+                acting_demo {
+                  gender: 2
+                  age { min_age: 16  max_age: 34 }
+                }
+              }
+              columns {
+                acting_demo {
+                  gender: 2
+                  age { min_age: 35  max_age: 54 }
+                }
+              }
+              columns {
+                acting_demo {
+                  gender: 2
+                  age { min_age: 55  max_age: 99 }
+                }
+              }
+              rows {
+                label {
+                  demo {
+                    gender: 1
+                    age { min_age: 16  max_age: 34 }
+                  }
+                }
+              }
+              rows {
+                label {
+                  demo {
+                    gender: 1
+                    age { min_age: 35  max_age: 54 }
+                  }
+                }
+              }
+              rows {
+                label {
+                  demo {
+                    gender: 1
+                    age { min_age: 55  max_age: 99 }
+                  }
+                }
+              }
+              rows {
+                label {
+                  demo {
+                    gender: 2
+                    age { min_age: 16  max_age: 34 }
+                  }
+                }
+              }
+              rows {
+                label {
+                  demo {
+                    gender: 2
+                    age { min_age: 35  max_age: 54 }
+                  }
+                }
+              }
+              rows {
+                label {
+                  demo {
+                    gender: 2
+                    age { min_age: 55  max_age: 99 }
+                  }
+                }
+              }
+              # Row 0: M16-34 output
+              probabilities: 0.85  # col 0 (M16-34 input)
+              probabilities: 0.07  # col 1 (M35-54 input)
+              probabilities: 0.03  # col 2 (M55+ input)
+              probabilities: 0.03  # col 3 (F16-34 input)
+              probabilities: 0.01  # col 4 (F35-54 input)
+              probabilities: 0.01  # col 5 (F55+ input)
+              # Row 1: M35-54 output
+              probabilities: 0.07  # col 0 (M16-34 input)
+              probabilities: 0.83  # col 1 (M35-54 input)
+              probabilities: 0.05  # col 2 (M55+ input)
+              probabilities: 0.01  # col 3 (F16-34 input)
+              probabilities: 0.02  # col 4 (F35-54 input)
+              probabilities: 0.02  # col 5 (F55+ input)
+              # Row 2: M55+ output
+              probabilities: 0.03  # col 0 (M16-34 input)
+              probabilities: 0.05  # col 1 (M35-54 input)
+              probabilities: 0.85  # col 2 (M55+ input)
+              probabilities: 0.01  # col 3 (F16-34 input)
+              probabilities: 0.02  # col 4 (F35-54 input)
+              probabilities: 0.04  # col 5 (F55+ input)
+              # Row 3: F16-34 output
+              probabilities: 0.03  # col 0 (M16-34 input)
+              probabilities: 0.02  # col 1 (M35-54 input)
+              probabilities: 0.01  # col 2 (M55+ input)
+              probabilities: 0.85  # col 3 (F16-34 input)
+              probabilities: 0.07  # col 4 (F35-54 input)
+              probabilities: 0.03  # col 5 (F55+ input)
+              # Row 4: F35-54 output
+              probabilities: 0.01  # col 0 (M16-34 input)
+              probabilities: 0.02  # col 1 (M35-54 input)
+              probabilities: 0.02  # col 2 (M55+ input)
+              probabilities: 0.07  # col 3 (F16-34 input)
+              probabilities: 0.83  # col 4 (F35-54 input)
+              probabilities: 0.05  # col 5 (F55+ input)
+              # Row 5: F55+ output
+              probabilities: 0.01  # col 0 (M16-34 input)
+              probabilities: 0.01  # col 1 (M35-54 input)
+              probabilities: 0.04  # col 2 (M55+ input)
+              probabilities: 0.03  # col 3 (F16-34 input)
+              probabilities: 0.05  # col 4 (F35-54 input)
+              probabilities: 0.85  # col 5 (F55+ input)
+              pass_through_non_matches: false
+            }
+          }
+        }
+      }
+    }
+  }
+}

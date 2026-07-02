@@ -1,0 +1,15 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "DashboardViewIsolationLocalTest",
+    srcs = ["DashboardViewIsolationLocalTest.kt"],
+    data = [
+        "//src/main/terraform/gcloud/cmms/sql:mc_details.sql",
+        "//src/main/terraform/gcloud/cmms/sql:report_detail.sql",
+        "//src/main/terraform/gcloud/cmms/sql:requisition_overview.sql",
+    ],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)

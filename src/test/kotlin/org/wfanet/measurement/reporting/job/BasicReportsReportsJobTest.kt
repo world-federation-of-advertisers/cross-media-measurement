@@ -55,6 +55,7 @@ import org.wfanet.measurement.internal.reporting.v2.DimensionSpec
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec.MediaType
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
@@ -78,6 +79,7 @@ import org.wfanet.measurement.internal.reporting.v2.eventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilterSpec
+import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsResponse
@@ -2529,6 +2531,60 @@ class BasicReportsReportsJobTest {
         },
       )
   }
+
+  @Test
+  fun `execute paginates through all REPORT_CREATED basic reports across multiple pages`(): Unit =
+    runBlocking {
+      // Simulate 11 BasicReports across 2 pages (BATCH_SIZE = 10 per page).
+      // The cron must fetch both pages and process all 11, not stop after page 1.
+      val page1Reports: List<BasicReport> =
+        (1..BATCH_SIZE).map {
+          INTERNAL_BASIC_REPORT.copy { externalBasicReportId = "br-page1-%02d".format(it) }
+        }
+      val page2Reports: List<BasicReport> =
+        listOf(INTERNAL_BASIC_REPORT.copy { externalBasicReportId = "br-page2-01" })
+      val pageToken = listBasicReportsPageToken {
+        lastBasicReport =
+          ListBasicReportsPageTokenKt.previousPageEnd {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalBasicReportId = page1Reports.last().externalBasicReportId
+          }
+      }
+
+      whenever(basicReportsMock.listBasicReports(any()))
+        .thenReturn(
+          listBasicReportsResponse {
+            basicReports += page1Reports
+            nextPageToken = pageToken
+          }
+        )
+        .thenReturn(listBasicReportsResponse { basicReports += page2Reports })
+
+      job.execute()
+
+      // listBasicReports must be called twice: once for page 1, once for page 2.
+      val listCaptor: KArgumentCaptor<ListBasicReportsRequest> = argumentCaptor()
+      verifyBlocking(basicReportsMock, times(2)) { listBasicReports(listCaptor.capture()) }
+      assertThat(listCaptor.allValues).hasSize(2)
+      // Second call must carry the page token from the first response.
+      assertThat(listCaptor.allValues[1].pageToken).isEqualTo(pageToken)
+
+      // getReport must be called for ALL 11 BasicReports (10 on page 1 + 1 on page 2).
+      verify(reportsMock, times(page1Reports.size + page2Reports.size)).getReport(any())
+    }
+
+  @Test
+  fun `execute does not fetch second page when first response has no next page token`(): Unit =
+    runBlocking {
+      // Single page with fewer than BATCH_SIZE items and no next page token.
+      // Must not issue a second list call.
+      whenever(basicReportsMock.listBasicReports(any()))
+        .thenReturn(listBasicReportsResponse { basicReports += INTERNAL_BASIC_REPORT })
+
+      job.execute()
+
+      verifyBlocking(basicReportsMock, times(1)) { listBasicReports(any()) }
+    }
 
   companion object {
     private val TEST_EVENT_DESCRIPTOR = EventMessageDescriptor(TestEvent.getDescriptor())

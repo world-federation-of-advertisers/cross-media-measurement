@@ -630,7 +630,7 @@ fun Status.toExternalStatusRuntimeException(
         put("modelLine", modelLineName)
         val activeStartTime = errorInfo.metadataMap.getValue("active_start_time")
         put("activeStartTime", activeStartTime)
-        val activeEndTime = errorInfo.metadataMap.getValue("active_start_time")
+        val activeEndTime = errorInfo.metadataMap.getValue("active_end_time")
         put("activeEndTime", activeEndTime)
         errorMessage =
           "ModelLine $modelLineName not active outside of range [$activeStartTime, $activeEndTime)"

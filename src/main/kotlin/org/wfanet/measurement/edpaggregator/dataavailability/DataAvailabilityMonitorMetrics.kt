@@ -42,9 +42,12 @@ object DataAvailabilityMonitorMetrics {
    * Cumulative count of dates by availability status for a model line.
    *
    * Keyed by `edpa.data_availability_monitor.model_line`,
-   * `edpa.data_availability_monitor.edp_impression_path`, and [DATE_STATUS_ATTR]. Each invocation
-   * adds the number of dates found in that check run. Use `rate()` or `increase()` in queries to
-   * isolate per-run values.
+   * `edpa.data_availability_monitor.edp_impression_path`, [DATE_STATUS_ATTR], and [SOURCE_ATTR].
+   * Both [DataAvailabilityMonitor] (periodic, full status set) and [DataAvailabilitySync]
+   * (per-batch, gap/without-done-blob/healthy only) write to this counter; the [SOURCE_ATTR]
+   * distinguishes them so dashboards can filter or split by emitter. Each invocation adds the
+   * number of dates found in that check run. Use `rate()` or `increase()` in queries to isolate
+   * per-run values.
    */
   val dateStatusCounter: LongCounter
     get() =
@@ -54,13 +57,23 @@ object DataAvailabilityMonitorMetrics {
         .setUnit("{date}")
         .build()
 
+  val MODEL_LINE_ATTR: AttributeKey<String> =
+    AttributeKey.stringKey("edpa.data_availability_monitor.model_line")
+  val EDP_IMPRESSION_PATH_ATTR: AttributeKey<String> =
+    AttributeKey.stringKey("edpa.data_availability_monitor.edp_impression_path")
   val DATE_STATUS_ATTR: AttributeKey<String> =
     AttributeKey.stringKey("edpa.data_availability_monitor.date_status")
+  val SOURCE_ATTR: AttributeKey<String> =
+    AttributeKey.stringKey("edpa.data_availability_monitor.source")
+
+  const val SOURCE_MONITOR = "monitor"
+  const val SOURCE_SYNC = "sync"
 
   const val STATUS_GAP = "gap"
   const val STATUS_ZERO_IMPRESSION = "zero_impression"
   const val STATUS_WITHOUT_DONE_BLOB = "without_done_blob"
   const val STATUS_LATE_ARRIVING = "late_arriving"
+  const val STATUS_UNPROCESSED_DONE = "unprocessed_done"
   const val STATUS_HEALTHY = "healthy"
   const val STATUS_SPURIOUS_DELETION = "spurious_deletion"
   const val STATUS_LEGITIMATE_DELETION = "legitimate_deletion"

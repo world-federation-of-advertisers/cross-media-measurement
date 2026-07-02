@@ -51,6 +51,7 @@ import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilte
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec as internalMetricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter as internalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
+import org.wfanet.measurement.internal.reporting.v2.reportingSetKey as internalReportingSetKey
 import org.wfanet.measurement.internal.reporting.v2.reportingUnit as internalReportingUnit
 import org.wfanet.measurement.internal.reporting.v2.resultGroupMetricSpec as internalResultGroupMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.resultGroupSpec as internalResultGroupSpec
@@ -95,6 +96,7 @@ fun BasicReport.toInternal(
   cmmsMeasurementConsumerId: String,
   basicReportId: String,
   campaignGroupId: String,
+  campaignGroupSynthesized: Boolean,
   createReportRequestId: String,
   reportingImpressionQualificationFilters: Iterable<ReportingImpressionQualificationFilter>,
   effectiveReportingImpressionQualificationFilters:
@@ -111,6 +113,7 @@ fun BasicReport.toInternal(
 
     details = internalBasicReportDetails {
       title = source.title
+      this.campaignGroupSynthesized = campaignGroupSynthesized
       impressionQualificationFilters +=
         reportingImpressionQualificationFilters.map {
           it.toInternal(impressionQualificationFilterSpecsByName)
@@ -219,15 +222,38 @@ fun ResultGroupSpec.toInternal(): InternalResultGroupSpec {
 fun ReportingUnit.toInternal(): InternalReportingUnit {
   val source = this
   return internalReportingUnit {
-    // Only BasicReports with DataProvider components will be converted to internal BasicReports
-    dataProviderKeys =
-      InternalReportingUnitKt.dataProviderKeys {
-        for (reportingUnitComponent in source.componentsList) {
-          dataProviderKeys += internalDataProviderKey {
-            cmmsDataProviderId = DataProviderKey.fromName(reportingUnitComponent)!!.dataProviderId
+    // BasicReport reporting_unit components are either all DataProviders (Mode 1) or all
+    // ReportingSets / "custom groups" (Mode 2); mixing is rejected by request validation.
+    if (
+      source.componentsList.isNotEmpty() &&
+        DataProviderKey.fromName(source.componentsList.first()) == null
+    ) {
+      reportingSetKeys =
+        InternalReportingUnitKt.reportingSetKeys {
+          for (reportingUnitComponent in source.componentsList) {
+            // A `?: error(...)` rather than `!!` so a future validator relaxation fails loudly
+            // instead of surfacing an opaque NPE.
+            val reportingSetKey =
+              ReportingSetKey.fromName(reportingUnitComponent)
+                ?: error("reporting_unit.components is not a valid ReportingSet resource name")
+            reportingSetKeys += internalReportingSetKey {
+              cmmsMeasurementConsumerId = reportingSetKey.cmmsMeasurementConsumerId
+              externalReportingSetId = reportingSetKey.reportingSetId
+            }
           }
         }
-      }
+    } else {
+      dataProviderKeys =
+        InternalReportingUnitKt.dataProviderKeys {
+          for (reportingUnitComponent in source.componentsList) {
+            dataProviderKeys += internalDataProviderKey {
+              cmmsDataProviderId =
+                DataProviderKey.fromName(reportingUnitComponent)?.dataProviderId
+                  ?: error("reporting_unit.components is not a valid DataProvider resource name")
+            }
+          }
+        }
+    }
   }
 }
 
@@ -417,8 +443,14 @@ fun InternalBasicReport.toBasicReport(
   return basicReport {
     name = BasicReportKey(source.cmmsMeasurementConsumerId, source.externalBasicReportId).toName()
     title = source.details.title
-    campaignGroup =
+    val campaignGroupName =
       ReportingSetKey(source.cmmsMeasurementConsumerId, source.externalCampaignGroupId).toName()
+    // The campaign group is always exposed via effective_campaign_group. When the server
+    // synthesized it (Mode 2), the caller-facing campaign_group stays empty.
+    effectiveCampaignGroup = campaignGroupName
+    if (!source.details.campaignGroupSynthesized) {
+      campaignGroup = campaignGroupName
+    }
     campaignGroupDisplayName = source.campaignGroupDisplayName
     reportingInterval = reportingInterval {
       if (source.details.reportingInterval.hasReportStart()) {
@@ -755,7 +787,7 @@ fun InternalResultGroup.toResultGroup(
               cmmsMeasurementConsumerId,
               populateDeprecatedReportingUnitEventGroupSummaries,
             )
-          metricSet = internalResult.metricSet.toMetricSet()
+          metricSet = internalResult.metricSet.toMetricSet(cmmsMeasurementConsumerId)
         }
     }
   }
@@ -799,8 +831,18 @@ fun InternalMetricMetadata.toMetricMetadata(
           source.reportingUnitSummary.reportingUnitComponentSummaryList) {
           reportingUnitComponentSummary +=
             ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
+              // Mode 2 (custom group) components have no DataProvider; the component is the
+              // ReportingSet itself.
               component =
-                DataProviderKey(internalReportingUnitComponentSummary.cmmsDataProviderId).toName()
+                if (internalReportingUnitComponentSummary.cmmsDataProviderId.isNotEmpty()) {
+                  DataProviderKey(internalReportingUnitComponentSummary.cmmsDataProviderId).toName()
+                } else {
+                  ReportingSetKey(
+                      cmmsMeasurementConsumerId,
+                      internalReportingUnitComponentSummary.externalReportingSetId,
+                    )
+                    .toName()
+                }
               displayName = internalReportingUnitComponentSummary.cmmsDataProviderDisplayName
               reportingSet =
                 ReportingSetKey(
@@ -846,8 +888,13 @@ fun InternalMetricMetadata.toMetricMetadata(
   }
 }
 
-/** Converts the internal [InternalMetricSet] to the public [MetricSet]. */
-fun InternalMetricSet.toMetricSet(): MetricSet {
+/**
+ * Converts the internal [InternalMetricSet] to the public [MetricSet].
+ *
+ * @param cmmsMeasurementConsumerId ID of the `MeasurementConsumer` that owns any ReportingSet
+ *   components (custom groups), used to build their resource names
+ */
+fun InternalMetricSet.toMetricSet(cmmsMeasurementConsumerId: String): MetricSet {
   val source = this
   return ResultGroupKt.metricSet {
     populationSize = source.populationSize
@@ -861,36 +908,25 @@ fun InternalMetricSet.toMetricSet(): MetricSet {
         }
         stackedIncrementalReach += source.reportingUnit.stackedIncrementalReachList
       }
+    // Mode 1: DataProvider components, keyed by DataProvider resource name.
     for (internalDataProviderComponentMetricSetMapEntry in source.componentsList) {
       components +=
         ResultGroupKt.MetricSetKt.componentMetricSetMapEntry {
           key = DataProviderKey(internalDataProviderComponentMetricSetMapEntry.key).toName()
-          value =
-            ResultGroupKt.MetricSetKt.componentMetricSet {
-              if (internalDataProviderComponentMetricSetMapEntry.value.hasNonCumulative()) {
-                nonCumulative =
-                  internalDataProviderComponentMetricSetMapEntry.value.nonCumulative
-                    .toBasicMetricSet()
-              }
-              if (internalDataProviderComponentMetricSetMapEntry.value.hasCumulative()) {
-                cumulative =
-                  internalDataProviderComponentMetricSetMapEntry.value.cumulative.toBasicMetricSet()
-              }
-              if (internalDataProviderComponentMetricSetMapEntry.value.hasNonCumulativeUnique()) {
-                nonCumulativeUnique =
-                  ResultGroupKt.MetricSetKt.uniqueMetricSet {
-                    reach =
-                      internalDataProviderComponentMetricSetMapEntry.value.nonCumulativeUnique.reach
-                  }
-              }
-              if (internalDataProviderComponentMetricSetMapEntry.value.hasCumulativeUnique()) {
-                cumulativeUnique =
-                  ResultGroupKt.MetricSetKt.uniqueMetricSet {
-                    reach =
-                      internalDataProviderComponentMetricSetMapEntry.value.cumulativeUnique.reach
-                  }
-              }
-            }
+          value = internalDataProviderComponentMetricSetMapEntry.value.toComponentMetricSet()
+        }
+    }
+    // Mode 2: custom-group ReportingSet components, keyed by ReportingSet resource name.
+    for (internalReportingSetComponentMetricSetMapEntry in source.reportingSetComponentsList) {
+      components +=
+        ResultGroupKt.MetricSetKt.componentMetricSetMapEntry {
+          key =
+            ReportingSetKey(
+                cmmsMeasurementConsumerId,
+                internalReportingSetComponentMetricSetMapEntry.externalReportingSetId,
+              )
+              .toName()
+          value = internalReportingSetComponentMetricSetMapEntry.value.toComponentMetricSet()
         }
     }
     for (internalDataProviderComponentIntersectionMetricSet in source.componentIntersectionsList) {
@@ -909,6 +945,31 @@ fun InternalMetricSet.toMetricSet(): MetricSet {
               internalDataProviderComponentIntersectionMetricSet.cumulative.toBasicMetricSet()
           }
         }
+    }
+  }
+}
+
+/**
+ * Converts the internal [InternalMetricSet.ComponentMetricSet] to the public
+ * [MetricSet.ComponentMetricSet]. Shared by the DataProvider and ReportingSet component paths.
+ */
+private fun InternalMetricSet.ComponentMetricSet.toComponentMetricSet():
+  MetricSet.ComponentMetricSet {
+  val source = this
+  return ResultGroupKt.MetricSetKt.componentMetricSet {
+    if (source.hasNonCumulative()) {
+      nonCumulative = source.nonCumulative.toBasicMetricSet()
+    }
+    if (source.hasCumulative()) {
+      cumulative = source.cumulative.toBasicMetricSet()
+    }
+    if (source.hasNonCumulativeUnique()) {
+      nonCumulativeUnique =
+        ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = source.nonCumulativeUnique.reach }
+    }
+    if (source.hasCumulativeUnique()) {
+      cumulativeUnique =
+        ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = source.cumulativeUnique.reach }
     }
   }
 }

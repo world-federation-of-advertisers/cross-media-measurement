@@ -14,6 +14,11 @@
 
 name: Terraform CMMS
 
+run-name: >-
+  Terraform CMMS [${{ inputs.environment }}] |
+  apply=${{ inputs.apply }},
+  image-tag=${{ inputs.image-tag }}
+
 on:
   workflow_call:
     inputs:
@@ -238,6 +243,25 @@ jobs:
         FINGERPRINT="ECDSA_P256_SHA256:${KEY_ID}"
         echo "fingerprint=${FINGERPRINT}" >> "$GITHUB_OUTPUT"
 
+    - name: Write dashboard tfvars
+      working-directory: ${{ env.GCLOUD_MODULE_PATH }}
+      env:
+        DATA_PROVIDER_RESOURCE_IDS: ${{ vars.DATA_PROVIDER_RESOURCE_IDS }}
+        DASHBOARD_OPERATORS: ${{ vars.DASHBOARD_OPERATORS }}
+        SPANNER_PROJECT: ${{ vars.GOOGLE_CLOUD_PROJECT }}
+        SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
+      run: |
+        cat > dashboard.auto.tfvars << EOF
+        data_provider_resource_ids      = ${DATA_PROVIDER_RESOURCE_IDS}
+        dashboard_operators             = ${DASHBOARD_OPERATORS}
+        edp_aggregator_spanner_project  = "${SPANNER_PROJECT}"
+        edp_aggregator_spanner_instance = "${SPANNER_INSTANCE}"
+        kingdom_spanner_project         = "${SPANNER_PROJECT}"
+        kingdom_spanner_instance        = "${SPANNER_INSTANCE}"
+        reporting_spanner_project       = "${SPANNER_PROJECT}"
+        reporting_spanner_instance      = "${SPANNER_INSTANCE}"
+        EOF
+
     - name: terraform plan
       env:
         KEY_RING: ${{ vars.KEY_RING }}
@@ -281,6 +305,8 @@ jobs:
         KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
         AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
         TRUSTED_IMAGE_SIGNING_FINGERPRINT: ${{ steps.get-public-key-fingerprint.outputs.fingerprint }}
+        TF_VAR_dashboard_deletion_protection: ${{ vars.DASHBOARD_DELETION_PROTECTION || true }}
+        DASHBOARD_DELETION_PROTECTION: ${{ vars.DASHBOARD_DELETION_PROTECTION }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
@@ -342,6 +368,7 @@ jobs:
         -var="duchy_aggregator_cert_id=$AGGREGATOR_DUCHY_CERT_ID"
         -var="edp_simulator_names=$EDP_SIMULATOR_NAMES"
         -var="trusted_image_signing_fingerprint=$TRUSTED_IMAGE_SIGNING_FINGERPRINT"
+        -var="dashboard_deletion_protection=$DASHBOARD_DELETION_PROTECTION"
         -out=tfplan
 
     - name: terraform apply

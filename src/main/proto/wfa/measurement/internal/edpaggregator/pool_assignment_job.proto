@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
 import "wfa/measurement/internal/edpaggregator/pool_assignment_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
@@ -58,4 +59,9 @@ message PoolAssignmentJob {
 
   // Entity tag for optimistic concurrency control.
   string etag = 10;
+
+  // The DEK used to encrypt every per-(shard, subpool) SubpoolFingerprints
+  // blob written by this shard's VM. Populated when the job is marked
+  // SUCCEEDED; read by the last-shard-out to decrypt this shard's blobs.
+  wfa.measurement.securecomputation.impressions.EncryptedDek encrypted_dek = 11;
 }
