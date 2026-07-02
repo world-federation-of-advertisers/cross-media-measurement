@@ -3666,4 +3666,60 @@ class BasicReportTransformationsTest {
     assertThat(filter).isEqualTo("person.gender == 1")
     assertCompilesCleanly(filter)
   }
+
+  @Test
+  fun `DimensionSpec Grouping predicates emit nested-arm null guard for oneof arm path`() {
+    // testing_only.testing_arm_groupable.testing_arm_groupable_enum is GROUPABLE +
+    // POPULATION_ATTRIBUTE inside a oneof arm. Grouping predicates go through the same
+    // buildCelTerm helper as filter emission, so nested-arm paths get an arm-null guard per
+    // emitted predicate (one per non-zero enum ordinal). Top-level template paths (single-dot)
+    // still emit bare `field == N` predicates without a null-guard -- see
+    // `top-level template paths still emit without a nested-arm guard` for that regression.
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
+          metricFrequency = metricFrequencySpec { total = true }
+          dimensionSpec = dimensionSpec {
+            grouping =
+              DimensionSpecKt.grouping {
+                eventTemplateFields +=
+                  "testing_only.testing_arm_groupable.testing_arm_groupable_enum"
+              }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              }
+          }
+        }
+      )
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsLists = emptyList(),
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+
+    val detailsList =
+      reportingSetMetricCalculationSpecDetailsMap.getValue(PRIMITIVE_REPORTING_SET_1)
+    val grouping = detailsList.single().groupingsList.single()
+    // Two enum ordinals > 0 (ARM_GRP_1 = 1, ARM_GRP_2 = 2), so two predicates, each with the
+    // arm-null guard.
+    assertThat(grouping.predicatesList)
+      .containsExactly(
+        "testing_only.testing_arm_groupable != null && " +
+          "testing_only.testing_arm_groupable.testing_arm_groupable_enum == 1",
+        "testing_only.testing_arm_groupable != null && " +
+          "testing_only.testing_arm_groupable.testing_arm_groupable_enum == 2",
+      )
+      .inOrder()
+  }
 }

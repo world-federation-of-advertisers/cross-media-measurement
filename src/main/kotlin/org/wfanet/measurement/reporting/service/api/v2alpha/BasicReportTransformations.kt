@@ -326,7 +326,9 @@ private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
     val fieldInfo = eventTemplateFieldsByPath.getValue(field)
     val fieldInfoEnumType = fieldInfo.enumType as Descriptors.EnumDescriptor
     val predicatesList =
-      fieldInfoEnumType.values.filter { it.number > 0 }.map { "$field == ${it.number}" }
+      fieldInfoEnumType.values
+        .filter { it.number > 0 }
+        .map { buildCelTerm(field, it.number.toString()) }
     MetricCalculationSpecKt.grouping { predicates += predicatesList }
   }
 }
@@ -390,11 +392,11 @@ fun buildCelExpression(
 
 /**
  * Builds a CEL term of the form `<path> == <literal>` with a null-guard `<template>.<arm> != null
- * && ` prefixed when [path] addresses a field nested inside a `oneof` arm (i.e. has two dots).
- * Nested-arm paths need the guard because an unset oneof arm evaluates to null and accessing a
- * field on it trips CEL evaluation. Top-level template paths (`<template>.<field>`) don't need the
- * guard here: proto3 defaults the top-level message to a zero-instance, so accessing its fields
- * yields defaults, not null.
+ * && ` prefixed when [path] addresses a field nested inside a `oneof` arm (i.e. has more than one
+ * dot, so three or more segments). Nested-arm paths need the guard because an unset oneof arm
+ * evaluates to null and accessing a field on it trips CEL evaluation. Top-level template paths
+ * (`<template>.<field>`) don't need the guard here: proto3 defaults the top-level message to a
+ * zero-instance, so accessing its fields yields defaults, not null.
  *
  * The IQF-side [buildCelExpression] adds a separate `<template> != null` clause covering the
  * template-inclusion semantics; the DimensionSpec-side path emits no template-level guard, only the

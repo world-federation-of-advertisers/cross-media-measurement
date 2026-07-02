@@ -40,7 +40,7 @@ class EventMessageDescriptorTest {
     val eventMessageDescriptor =
       EventMessageDescriptor(typeRegistry.find(TestEvent.getDescriptor().fullName))
 
-    assertThat(eventMessageDescriptor.eventTemplateFieldsByPath).hasSize(11)
+    assertThat(eventMessageDescriptor.eventTemplateFieldsByPath).hasSize(12)
     assertThat(eventMessageDescriptor.eventTemplateFieldsByPath)
       .containsExactly(
         "person.gender",
@@ -185,6 +185,19 @@ class EventMessageDescriptorTest {
             ),
           type = Descriptors.FieldDescriptor.Type.ENUM,
           enumType = TestingOnly.TestingArmFilterable.TestingArmFilterableEnum.getDescriptor(),
+        ),
+        "testing_only.testing_arm_groupable.testing_arm_groupable_enum",
+        EventMessageDescriptor.EventTemplateFieldInfo(
+          mediaType = MediaType.OTHER,
+          isPopulationAttribute = true,
+          supportedReportingFeatures =
+            EventMessageDescriptor.SupportedReportingFeatures(
+              groupable = true,
+              filterable = false,
+              impressionQualification = false,
+            ),
+          type = Descriptors.FieldDescriptor.Type.ENUM,
+          enumType = TestingOnly.TestingArmGroupable.TestingArmGroupableEnum.getDescriptor(),
         ),
       )
   }

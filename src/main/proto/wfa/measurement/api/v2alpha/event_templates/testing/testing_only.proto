@@ -120,14 +120,35 @@ message TestingOnly {
         }];
   }
 
+  // Nested message used as an arm of `testing_oneof` below. Exercises the
+  // same oneof-arm descent + null-guard emission via the DimensionSpec
+  // grouping (dimension_spec.grouping.eventTemplateFields) code path,
+  // which turns each enum value into a separate CEL predicate. DO NOT
+  // MIMIC.
+  message TestingArmGroupable {
+    enum TestingArmGroupableEnum {
+      TESTING_ARM_GROUPABLE_ENUM_UNSPECIFIED = 0;
+      ARM_GRP_1 = 1;
+      ARM_GRP_2 = 2;
+    }
+    TestingArmGroupableEnum testing_arm_groupable_enum = 1
+        [(.wfa.measurement.api.v2alpha.template_field) = {
+          display_name: "Testing Arm Groupable Enum (test-only, DO NOT MIMIC)"
+          population_attribute: true
+          reporting_features: GROUPABLE
+          version_added: 1
+        }];
+  }
+
   // Test-only oneof mirroring the `Common.oneof edp_specific` pattern
   // real market templates use (Origin UK, Aquila US) to expose EDP-specific
-  // event fields. Two arms so IQF-side and DimensionSpec-side tests each
-  // address a distinct nested path without either poisoning the other's
-  // assertion shape. Both arms inherit TestingOnly's OTHER media_type.
-  // DO NOT MIMIC.
+  // event fields. Three arms so IQF-side, DimensionSpec-filter-side, and
+  // DimensionSpec-grouping-side tests each address a distinct nested path
+  // without either poisoning the other's assertion shape. All arms
+  // inherit TestingOnly's OTHER media_type. DO NOT MIMIC.
   oneof testing_oneof {
     TestingArmIqf testing_arm_iqf = 4;
     TestingArmFilterable testing_arm_filterable = 5;
+    TestingArmGroupable testing_arm_groupable = 6;
   }
 }
