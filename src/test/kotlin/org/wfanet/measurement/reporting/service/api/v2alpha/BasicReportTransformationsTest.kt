@@ -3415,6 +3415,49 @@ class BasicReportTransformationsTest {
     assertCompilesCleanly(filter)
   }
 
+  @Test
+  fun `toCelValue emits properly quoted STRING literal via DimensionSpec filter end to end`() {
+    // Coverage that the STRING_VALUE fix works via the DimensionSpec (dimension_spec.filters)
+    // path as well as the IQF path. Same underlying toCelValue branch; different upstream caller
+    // in BasicReportTransformations.buildCelExpression. Uses testing_only.testing_string_filterable
+    // which is FILTERABLE + POPULATION_ATTRIBUTE (rather than IMPRESSION_QUALIFICATION like
+    // testing_string) so it flows through the dimension-spec CEL builder.
+    val filter =
+      buildCelExpression(
+        dimensionSpecFilters =
+          listOf(
+            eventFilter {
+              terms += eventTemplateField {
+                path = "testing_only.testing_string_filterable"
+                value = EventTemplateFieldKt.fieldValue { stringValue = "abc" }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter).contains("testing_only.testing_string_filterable == \"abc\"")
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `toCelValue escapes quotes in STRING literal via DimensionSpec filter`() {
+    val filter =
+      buildCelExpression(
+        dimensionSpecFilters =
+          listOf(
+            eventFilter {
+              terms += eventTemplateField {
+                path = "testing_only.testing_string_filterable"
+                value = EventTemplateFieldKt.fieldValue { stringValue = "he said \"hi\"" }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter).contains("testing_only.testing_string_filterable == \"he said \\\"hi\\\"\"")
+    assertCompilesCleanly(filter)
+  }
+
   // FLOAT_VALUE branch: finite values pass through; NaN / infinities throw.
 
   @Test
