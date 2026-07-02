@@ -21,37 +21,67 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigKt
 import org.wfanet.measurement.config.edpaggregator.vidLabelingConfig
 
 @RunWith(JUnit4::class)
 class VidLabelingConfigValidationTest {
   @Test
-  fun `requireValidModelLineConfigs passes when every model line maps event_id_id`() {
-    val config = vidLabelingConfig {
-      dataProvider = DATA_PROVIDER
-      modelLineConfigs[MODEL_LINE] =
-        VidLabelingConfigKt.modelLineConfig {
-          labelerInputFieldMapping["event_id.id"] = "event_id_col"
-        }
-    }
-
-    requireValidModelLineConfigs(config)
+  fun `passes for a fully-populated model line config`() {
+    requireValidModelLineConfigs(configWith(validModelLineConfig()))
   }
 
   @Test
-  fun `requireValidModelLineConfigs throws when a model line omits event_id_id`() {
-    val config = vidLabelingConfig {
-      dataProvider = DATA_PROVIDER
-      modelLineConfigs[MODEL_LINE] =
-        VidLabelingConfigKt.modelLineConfig { labelerInputFieldMapping["age"] = "age_col" }
-    }
+  fun `throws when a model line omits event_id_id`() {
+    val config =
+      configWith(
+        validModelLineConfig().toBuilder().apply { clearLabelerInputFieldMapping() }.build()
+      )
 
     val exception =
       assertFailsWith<IllegalArgumentException> { requireValidModelLineConfigs(config) }
     assertThat(exception).hasMessageThat().contains("event_id.id")
     assertThat(exception).hasMessageThat().contains(MODEL_LINE)
   }
+
+  @Test
+  fun `throws when a model line omits event_template_descriptor_blob_uri`() {
+    val config =
+      configWith(
+        validModelLineConfig().toBuilder().apply { clearEventTemplateDescriptorBlobUri() }.build()
+      )
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> { requireValidModelLineConfigs(config) }
+    assertThat(exception).hasMessageThat().contains("event_template_descriptor_blob_uri")
+  }
+
+  @Test
+  fun `throws when a model line has no entity-key mapping`() {
+    val config =
+      configWith(
+        validModelLineConfig().toBuilder().apply { clearRequiredEntityKeyFieldMapping() }.build()
+      )
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> { requireValidModelLineConfigs(config) }
+    assertThat(exception).hasMessageThat().contains("entity_key_field_mapping")
+  }
+
+  private fun configWith(modelLineConfig: VidLabelingConfig.ModelLineConfig): VidLabelingConfig =
+    vidLabelingConfig {
+      dataProvider = DATA_PROVIDER
+      modelLineConfigs[MODEL_LINE] = modelLineConfig
+    }
+
+  private fun validModelLineConfig(): VidLabelingConfig.ModelLineConfig =
+    VidLabelingConfigKt.modelLineConfig {
+      labelerInputFieldMapping["event_id.id"] = "event_id_col"
+      eventTemplateDescriptorBlobUri = "gs://descriptors/event-template-set.binpb"
+      eventTemplateType = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+      requiredEntityKeyFieldMapping["person"] = "person_col"
+    }
 
   companion object {
     private const val DATA_PROVIDER = "dataProviders/edp7"
