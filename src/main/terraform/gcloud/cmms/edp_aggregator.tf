@@ -129,7 +129,7 @@ locals {
       machine_type                  = "c4d-standard-32"
       java_tool_options             = "-Xmx96G"
       docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
-      mig_distribution_policy_zones = ["us-central1-a"]
+      mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
       app_flags                     = [
                                           "--edpa-tls-cert-secret-id", "edpa-tee-app-tls-pem",
                                           "--edpa-tls-cert-file-path", "/tmp/edpa_certs/edpa_tee_app_tls.pem",
