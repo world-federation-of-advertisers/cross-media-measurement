@@ -19,77 +19,77 @@ package org.wfanet.measurement.edpaggregator.vidrankbuilder
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.Parser
-import org.wfanet.measurement.edpaggregator.StorageConfig
+import java.time.LocalDate
+import java.time.ZoneOffset
+import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
+import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams.StorageParams
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
+import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
- * Phase-1 TEE application for the memoized VID assignment pipeline.
+ * Phase-1 TEE/queue adapter for the memoized VID assignment pipeline.
  *
- * One ranker VM per `RankerJob`. A `RankerJob` may cover one or more subpools: the
- * SubpoolAssigner's last-shard-out bin-packs subpools into `RankerJob`s based on their fingerprint
- * counts so that very small subpools share a VM instead of each spinning up their own, while a
- * single very large subpool gets its own `RankerJob`. Within a subpool there is no intra-subpool
- * sharding — the entire subpool is owned by exactly one `RankerJob`, and therefore one
- * [VidRankBuilderApp] invocation. One WorkItem is published per `RankerJob` row. The WorkItem's
- * [VidRankBuilderParams] carries the `(RawImpressionUpload, ModelLine, RankerJobId)` triple plus
- * the (subpool, Phase-0 blob URI) set this VM ranks, supplied via
- * [VidRankBuilderParams.subpool_map_blob_uris].
+ * Following the ResultsFulfiller / SubpoolAssigner layering, this class is the thin
+ * [BaseTeeApplication] adapter: per WorkItem it unpacks the [VidRankBuilderParams] payload,
+ * resolves the WorkItem-scoped dependencies (storage clients, KMS client, KEK URI, the
+ * [SubpoolFingerprints] and rank-index stores, the retention pass and per-subpool [SubpoolRanker]),
+ * then constructs a [VidRankBuilder] and delegates the actual work to it. The process-wide
+ * bootstrap (gRPC channels/stubs, KMS map, Pub/Sub) lives in `VidRankBuilderAppRunner`.
  *
- * Each VM:
- * - loads the prior cumulative rank-index blob for each of its subpools from
- *   `vid_rank_map_storage_params` and rebuilds the in-heap `Bytes12IntMap` (12-byte fingerprint ->
- *   rank) and rank `BitSet`,
- * - reads its subpools' `SubpoolFingerprints` blobs from `subpool_map_storage_params`,
- * - prunes aged-out rank-index blobs per the retention policy and frees their ranks,
- * - allocates ranks to new fingerprints, capping at `ranked_size` (overflow fingerprints fall back
- *   to the unranked path at Phase-2),
- * - writes the new day-only and updated cumulative rank-index blobs (DEK-encrypted) back to
- *   `vid_rank_map_storage_params`,
- * - flips its `RankerJob` row from `RANKING` to `RANKER_SUCCEEDED` via the EDP Aggregator internal
- *   gRPC.
+ * One ranker VM per `RankerJob`. A `RankerJob` may cover one or more bin-packed subpools; within a
+ * subpool there is no intra-subpool sharding. One WorkItem is published per `RankerJob` row.
  *
- * The last `RankerJob` to complete for a `(RawImpressionUpload, ModelLine)` is responsible for
- * flipping `RawImpressionUploadModelLineState` from `RANKING` to `LABELING` and publishing one
- * VidLabeler WorkItem per shard (`total_shards` controls the fan-out).
- *
- * @param subscriptionId The subscription ID for the queue subscriber.
- * @param queueSubscriber The [QueueSubscriber] instance for receiving work items.
- * @param parser The protobuf [Parser] for [WorkItem] messages.
- * @param workItemsClient gRPC client stub for [WorkItemsGrpcKt.WorkItemsCoroutineStub].
- * @param workItemAttemptsClient gRPC client stub for
- *   [WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub].
- * @param kmsClients Per-DataProvider KMS clients used to wrap/unwrap DEKs for the rank-index blobs.
- * @param getRawImpressionStorageConfig Lambda to obtain the [StorageConfig] for reading
- *   raw-impression files (only consulted if Phase-1 ever needs to touch raw impressions; not used
- *   by the canonical Phase-1 design).
- * @param getSubpoolMapStorageConfig Lambda to obtain the [StorageConfig] for reading the
- *   per-(shard, subpool) `SubpoolFingerprints` blobs produced by the SubpoolAssigner.
- * @param getVidRankMapStorageConfig Lambda to obtain the [StorageConfig] for reading prior
- *   cumulative rank-index blobs and writing the new day-only + cumulative blobs.
+ * @param kmsClients Per-DataProvider KMS clients used to wrap/unwrap DEKs.
+ * @param retentionDaysByDataProvider Per-DataProvider rank-index retention window (in days),
+ *   sourced from the shared EDPA config (which also lists non-memoized EDPs that leave it 0);
+ *   validated `> 0` per WorkItem in [runWork], not at construction. MUST exceed the EDP's maximum
+ *   measurement-report window.
+ * @param rankerJobsStub stub to gate on / mark this `RankerJob`.
+ * @param rankIndexBlobsStub stub for locating the prior snapshot, retention, and new blob rows.
+ * @param rawImpressionUploadModelLinesStub stub to flip the parent `RANKING` -> `LABELING`.
+ * @param vidLabelingJobsStub stub for the last-job-out Phase-2 fan-out.
+ * @param rawImpressionUploadFilesStub stub to list the upload's files for Phase-2 sharding.
+ * @param vidLabelerQueue Secure Computation queue the last-job-out publishes Phase-2 VidLabeler
+ *   WorkItems to.
+ * @param buildSubpoolMapStorageClient Builds the subpool-map [ConditionalOperationStorageClient]
+ *   from its [StorageParams] (bucket parsed from the `gs://` blob_prefix).
+ * @param buildVidRankMapStorageClient Builds the vid-rank-map [ConditionalOperationStorageClient]
+ *   from its [StorageParams] (bucket parsed from the `gs://` blob_prefix).
+ * @param today Supplies the UTC date treated as "now" for retention (injectable for tests).
  */
 class VidRankBuilderApp(
   subscriptionId: String,
   queueSubscriber: QueueSubscriber,
   parser: Parser<WorkItem>,
-  workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
+  private val workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
-  // TODO(@Marco-Premier): wire EDP Aggregator internal gRPC service stubs
-  //   needed by Phase-1 as they become available:
-  //   - RawImpressionUpload
-  //   - RawImpressionUploadModelLine
-  //   - RankerJob
-  //   - RankIndexBlob
   private val kmsClients: Map<String, KmsClient>,
-  private val getRawImpressionStorageConfig: (StorageParams) -> StorageConfig,
-  private val getSubpoolMapStorageConfig: (StorageParams) -> StorageConfig,
-  private val getVidRankMapStorageConfig: (StorageParams) -> StorageConfig,
+  private val retentionDaysByDataProvider: Map<String, Int>,
+  private val rankerJobsStub: RankerJobServiceCoroutineStub,
+  private val rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
+  private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
+  private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
+  private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
+  private val vidLabelerQueue: String,
+  private val buildSubpoolMapStorageClient: (StorageParams) -> ConditionalOperationStorageClient,
+  private val buildVidRankMapStorageClient: (StorageParams) -> ConditionalOperationStorageClient,
+  private val today: () -> LocalDate = { LocalDate.now(ZoneOffset.UTC) },
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
@@ -101,66 +101,157 @@ class VidRankBuilderApp(
 
   override suspend fun runWork(message: Any) {
     val workItemParams = message.unpack(WorkItemParams::class.java)
-    val vidRankBuilderParams = workItemParams.appParams.unpack(VidRankBuilderParams::class.java)
+    val params = workItemParams.appParams.unpack(VidRankBuilderParams::class.java)
 
-    // TODO(@Marco-Premier): Implement Phase-1 pipeline:
-    //   1. Resolve storage configs via getSubpoolMapStorageConfig and
-    //      getVidRankMapStorageConfig from vidRankBuilderParams.
-    //   2. Resolve the per-DataProvider KmsClient from kmsClients keyed by
-    //      vidRankBuilderParams.dataProvider.
-    //   3. Unwrap vidRankBuilderParams.encryptedSubpoolMapsDek via the
-    //      DataProvider's KmsClient to obtain the plaintext DEK used by
-    //      Phase-0 to encrypt every SubpoolFingerprints blob referenced in
-    //      vidRankBuilderParams.subpoolMapBlobUrisMap.
-    //   4. For each (subpoolId, blobUri) entry in
-    //      vidRankBuilderParams.subpoolMapBlobUrisMap:
-    //      a. Load the prior cumulative rank-index blob for this subpool
-    //         from vid_rank_map_storage_params; decrypt and build the
-    //         in-heap Bytes12IntMap and rank BitSet.
-    //      b. Run the two-phase deletion pass (prune aged-out blobs whose
-    //         MaxEventDate is older than RETENTION_DAYS; free their ranks).
-    //      c. Read the SubpoolAssigner's merged SubpoolFingerprints blob
-    //         at blobUri from subpool_map_storage_params; decrypt with the
-    //         plaintext DEK from step 3.
-    //      d. Allocate ranks to new fingerprints via
-    //         bitSet.nextClearBit(cursor); cap at ranked_size.
-    //      e. Write the new day-only and cumulative rank-index blobs
-    //         (DEK-encrypted) to vid_rank_map_storage_params.
-    //      f. Insert the new RankIndexBlob rows via the EDP Aggregator
-    //         internal gRPC, stamping
-    //         vidRankBuilderParams.maxEventDate on the day-only row(s)
-    //         so the retention sweep can identify aged-out blobs.
-    //   5. Flip this RankerJob row from RANKING to RANKER_SUCCEEDED via
-    //      the EDP Aggregator internal gRPC, keyed by
-    //      (vidRankBuilderParams.dataProvider,
-    //       vidRankBuilderParams.rawImpressionUpload,
-    //       vidRankBuilderParams.modelLine,
-    //       vidRankBuilderParams.rankerJobId).
-    //   6. Last-RankerJob-out for this (RawImpressionUpload, ModelLine):
-    //      flip RawImpressionUploadModelLineState RANKING -> LABELING and
-    //      publish one VidLabeler WorkItem per shard
-    //      (vidRankBuilderParams.totalShards). The VidLabelerParams payload
-    //      is constructed from the pass-through fields on this proto:
-    //      rawImpressionStorageParams, vidLabeledImpressionsStorageParams,
-    //      modelBlobPath, labelerInputFieldMapping, and
-    //      eventTemplateFieldMapping.
-    //
-    // TODO(@Marco-Premier): runWork must be idempotent on Pub/Sub
-    // redelivery. The Spanner commit (RankerJob -> RANKER_SUCCEEDED, new
-    // RankIndexBlob rows) and the message ack are not atomic, so a crash
-    // between them leads to redelivery with state already advanced. The
-    // implementation must:
-    //   - detect that this RankerJob is already RANKER_SUCCEEDED and treat
-    //     it as a no-op for the rank-allocation steps, re-running only the
-    //     last-RankerJob-out check (step 6) before acking,
-    //   - tolerate partially-written RankIndexBlob rows from a prior
-    //     attempt (e.g. resume rather than duplicate),
-    //   - keep the BitSet / Bytes12IntMap rebuild deterministic across
-    //     attempts so a redelivered run produces the same outcome.
-    // Cover with tests that inject failures at: (a) after Spanner state
-    // flip but before ack, (b) mid-blob-write, (c) after first subpool's
-    // RankIndexBlob row insert but before second subpool's, (d) after
-    // last-RankerJob-out Spanner flip but before Phase-2 WorkItem publish.
-    // Each case must converge to the same final state on redelivery.
+    val dataProvider = params.dataProvider
+    require(dataProvider.isNotEmpty()) { "data_provider must not be empty" }
+    require(params.hasSubpoolMapStorageParams()) { "subpool_map_storage_params must be set" }
+    require(params.hasVidRankMapStorageParams()) { "vid_rank_map_storage_params must be set" }
+    require(params.hasEncryptedSubpoolMapsDek()) { "encrypted_subpool_maps_dek must be set" }
+    require(params.encryptedSubpoolMapsDek.kekUri.isNotEmpty()) {
+      "encrypted_subpool_maps_dek.kek_uri must be set"
+    }
+    require(params.totalShards > 0) { "total_shards must be > 0" }
+
+    val kmsClient =
+      requireNotNull(kmsClients[dataProvider]) { "KMS client not found for $dataProvider" }
+    val retentionDays =
+      requireNotNull(retentionDaysByDataProvider[dataProvider]) {
+        "retention_days not configured for $dataProvider"
+      }
+    // Validated here, not at runner startup: the shared all-EDP config also lists EDPs that never
+    // run the memoized ranker and legitimately leave retention_days unset (proto3 default 0). A
+    // RankerJob for this DataProvider means it IS memoized, so a non-positive window is a real
+    // misconfig — 0 means evict-everything, and the window is compliance-tied (it MUST exceed the
+    // EDP's maximum measurement-report window or memoization's VID-collision guarantee breaks).
+    require(retentionDays > 0) {
+      "retention_days must be > 0 for $dataProvider (it runs the memoized VID ranker), got " +
+        "$retentionDays"
+    }
+
+    val subpoolFingerprintsStore =
+      SubpoolFingerprintsStore(
+        buildSubpoolMapStorageClient(params.subpoolMapStorageParams),
+        kmsClient,
+      )
+    val rankIndexStore =
+      RankIndexStore(buildVidRankMapStorageClient(params.vidRankMapStorageParams), kmsClient)
+
+    val runDate = today()
+    val retention =
+      SubpoolRetention(
+        rankIndexBlobsStub = rankIndexBlobsStub,
+        rankIndexStore = rankIndexStore,
+        dataProvider = dataProvider,
+        modelLine = params.modelLine,
+        retentionDays = retentionDays,
+        today = runDate,
+      )
+
+    val subpoolRanker =
+      SubpoolRanker(
+        subpoolFingerprintsStore = subpoolFingerprintsStore,
+        rankIndexStore = rankIndexStore,
+        rankIndexBlobsStub = rankIndexBlobsStub,
+        retention = retention,
+        dataProvider = dataProvider,
+        rawImpressionUpload = params.rawImpressionUpload,
+        modelLine = params.modelLine,
+        vidRankMapBlobPrefix =
+          SelectedStorageClient.parseBlobUri(params.vidRankMapStorageParams.blobPrefix).key,
+        kekUri = params.encryptedSubpoolMapsDek.kekUri,
+        encryptedSubpoolMapsDek = params.encryptedSubpoolMapsDek,
+        maxEventDate = params.maxEventDate,
+        retentionDays = retentionDays,
+        today = runDate,
+      )
+
+    VidRankBuilder(
+        subpoolRanker = subpoolRanker,
+        rankerJobsStub = rankerJobsStub,
+        rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesStub,
+        vidLabelingJobsStub = vidLabelingJobsStub,
+        rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
+        workItemsStub = workItemsClient,
+        rawImpressionUpload = params.rawImpressionUpload,
+        modelLine = params.modelLine,
+        rankerJob = params.rankerJob,
+        subpoolMapBlobUris = params.subpoolMapBlobUrisMap,
+        subpoolRankedSizes = params.subpoolRankedSizesMap,
+        vidLabelerParamsTemplate = buildVidLabelerParamsTemplate(params),
+        vidLabelerQueue = vidLabelerQueue,
+        // Forwarded verbatim from Phase-0 via VidRankBuilderParams (REQUIRED); VidRankBuilder's
+        // `require(maxFileBatchSizeBytes > 0)` rejects an unset/zero value at the boundary.
+        maxFileBatchSizeBytes = params.maxFileBatchSizeBytes,
+      )
+      .run()
+  }
+
+  /**
+   * Builds the memoized [VidLabelerParams] template for the Phase-2 fan-out from the pass-through
+   * fields the SubpoolAssigner stamped on [params]. The last-`RankerJob`-out copies it per
+   * `VidLabelingJob`, filling the job's name and its files; the Phase-2 TEE resolves the rank-index
+   * blobs from the `RankIndexBlobService` rather than receiving their URIs here.
+   */
+  private fun buildVidLabelerParamsTemplate(params: VidRankBuilderParams): VidLabelerParams {
+    require(params.modelBlobPath.isNotEmpty()) { "model_blob_path must be set" }
+    require(params.hasRawImpressionStorageParams()) { "raw_impression_storage_params must be set" }
+    require(params.hasVidLabeledImpressionsStorageParams()) {
+      "vid_labeled_impressions_storage_params must be set"
+    }
+    require(params.hasModelStorageParams()) { "model_storage_params must be set" }
+    return vidLabelerParams {
+      dataProvider = params.dataProvider
+      rawImpressionsStorageParams =
+        VidLabelerParamsKt.storageParams {
+          gcsProjectId = params.rawImpressionStorageParams.gcsProjectId
+          impressionsBlobPrefix = params.rawImpressionStorageParams.blobPrefix
+        }
+      vidLabeledImpressionsStorageParams =
+        VidLabelerParamsKt.storageParams {
+          gcsProjectId = params.vidLabeledImpressionsStorageParams.gcsProjectId
+          impressionsBlobPrefix = params.vidLabeledImpressionsStorageParams.blobPrefix
+        }
+      modelLineConfigs.put(
+        params.modelLine,
+        VidLabelerParamsKt.modelLineConfig {
+          labelerInputFieldMapping.putAll(params.labelerInputFieldMappingMap)
+          eventTemplateFieldMapping.putAll(params.eventTemplateFieldMappingMap)
+          // Phase-2 requires the event-template descriptor to build the labeled output; stamp it
+          // (and its type) onto the memoized VidLabeler ModelLineConfig.
+          eventTemplateDescriptorBlobUri = params.eventTemplateDescriptorBlobUri
+          eventTemplateType = params.eventTemplateType
+          // Per-impression entity-key columns for Phase-2 (read per row from these columns).
+          requiredEntityKeyFieldMapping.putAll(params.requiredEntityKeyFieldMappingMap)
+          optionalEntityKeyFieldMapping.putAll(params.optionalEntityKeyFieldMappingMap)
+          // Active-window pass-through (OPTIONAL): Phase-2 drops impressions outside this window.
+          if (params.hasActiveStartTime()) {
+            activeStartTime = params.activeStartTime
+          }
+          if (params.hasActiveEndTime()) {
+            activeEndTime = params.activeEndTime
+          }
+        },
+      )
+      // Shared payload at the top level (both Phase-2 paths); the memoized WorkItem covers exactly
+      // one model line. `vid_labeling_job` is stamped per fan-out WorkItem by the ranker.
+      modelLines += params.modelLine
+      modelBlobPaths.put(params.modelLine, params.modelBlobPath)
+      modelStorageParams =
+        VidLabelerParamsKt.storageParams {
+          gcsProjectId = params.modelStorageParams.gcsProjectId
+          impressionsBlobPrefix = params.modelStorageParams.blobPrefix
+        }
+      // MemoizedParams carries only the memoized-specific rank-index storage; its presence selects
+      // the memoized path.
+      memoizedParams =
+        VidLabelerParamsKt.memoizedParams {
+          vidRankMapStorageParams =
+            VidLabelerParamsKt.storageParams {
+              gcsProjectId = params.vidRankMapStorageParams.gcsProjectId
+              impressionsBlobPrefix = params.vidRankMapStorageParams.blobPrefix
+            }
+        }
+    }
   }
 }
