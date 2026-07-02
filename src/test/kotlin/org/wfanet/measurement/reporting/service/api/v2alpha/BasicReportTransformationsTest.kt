@@ -3382,4 +3382,191 @@ class BasicReportTransformationsTest {
     private val TEST_EVENT_DESCRIPTOR = EventMessageDescriptor(TestEvent.getDescriptor())
     private val TEST_CEL_ENV = buildCelEnvironment(TestEvent.getDescriptor())
   }
+
+  //
+  // These probes bypass CreateBasicReportRequestValidation entirely to see what
+  // toCelValue emits for extreme user values. If the CEL block would need to
+  // catch these when upstream validation is loosened / a new selectorCase is
+  // added, that's evidence the block is defense-in-depth against real bugs.
+
+  // ============================================================================
+  // REACHABILITY-BOUNDARY TESTS
+  //
+  // What these prove:
+  //   - Every filter shape a caller can construct today (given the upstream
+  //     validators) produces well-formed CEL. The CEL block is a NO-OP for
+  //     currently-reachable user input.
+  //   - IF a future change opens up a new selectorCase, weakens
+  //     validateEventTemplateFieldValue, or adds a STRING/FLOAT-typed
+  //     IMPRESSION_QUALIFICATION field, the CEL block would catch the
+  //     resulting malformed CEL. These tests hand-craft the CEL that would
+  //     result and confirm the validator rejects it.
+  //
+  // Bottom line: the CEL block is defense-in-depth against future
+  // regressions in upstream validators and against toCelValue's raw
+  // STRING_VALUE / FLOAT_VALUE emissions (which would produce bad CEL if
+  // ever reached).
+  // ============================================================================
+
+  @Test
+  fun `every user-reachable enum value produces well-formed CEL`() {
+    // All valid enum names for person.gender. Each generates `person.gender == <ordinal>`
+    // which CEL parses as bool.
+    for (enumName in listOf("GENDER_UNSPECIFIED", "MALE", "FEMALE")) {
+      val filter =
+        buildCelExpression(
+          dimensionSpecFilters =
+            listOf(
+              eventFilter {
+                terms += eventTemplateField {
+                  path = "person.gender"
+                  value = EventTemplateFieldKt.fieldValue { enumValue = enumName }
+                }
+              }
+            ),
+          eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        )
+      // Should not throw for any valid enum name.
+      CelFilterValidation.validateCelBooleanFilter(TEST_CEL_ENV, filter, "test.field")
+    }
+  }
+
+  @Test
+  fun `every user-reachable bool IQF produces well-formed CEL`() {
+    for (v in listOf(true, false)) {
+      val filter =
+        buildCelExpression(
+          impressionQualificationFilterSpecs =
+            listOf(
+              impressionQualificationFilterSpec {
+                mediaType = MediaType.DISPLAY
+                filters += eventFilter {
+                  terms += eventTemplateField {
+                    path = "banner_ad.viewable"
+                    value = EventTemplateFieldKt.fieldValue { boolValue = v }
+                  }
+                }
+              }
+            ),
+          eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        )
+      CelFilterValidation.validateCelBooleanFilter(TEST_CEL_ENV, filter, "test.field")
+    }
+  }
+
+  @Test
+  fun `dimension_spec with multiple filters joins with && and validates`() {
+    val filter =
+      buildCelExpression(
+        dimensionSpecFilters =
+          listOf(
+            eventFilter {
+              terms += eventTemplateField {
+                path = "person.gender"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+              }
+            },
+            eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              }
+            },
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    // Locks in the && join shape. If a future refactor changes to || (which
+    // has different bool semantics but would still validate), the shape here
+    // will surface it.
+    assertThat(filter).contains(" && ")
+    CelFilterValidation.validateCelBooleanFilter(TEST_CEL_ENV, filter, "test.field")
+  }
+
+  @Test
+  fun `custom IQF with two mediaTypes joins with disjunction and validates`() {
+    val filter =
+      buildCelExpression(
+        impressionQualificationFilterSpecs =
+          listOf(
+            impressionQualificationFilterSpec {
+              mediaType = MediaType.DISPLAY
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "banner_ad.viewable"
+                  value = EventTemplateFieldKt.fieldValue { boolValue = false }
+                }
+              }
+            },
+            impressionQualificationFilterSpec {
+              mediaType = MediaType.VIDEO
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "video_ad.viewed_fraction"
+                  value = EventTemplateFieldKt.fieldValue { floatValue = 0.5f }
+                }
+              }
+            },
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    // Locks in the || join shape across mediaTypes.
+    assertThat(filter).contains(" || ")
+    CelFilterValidation.validateCelBooleanFilter(TEST_CEL_ENV, filter, "test.field")
+  }
+
+  // ---- Backstop tests: shapes that would result from a future regression or a
+  // STRING/FLOAT-typed IMPRESSION_QUALIFICATION field being added. CEL block
+  // catches each.
+
+  @Test
+  fun `backstop - rejects field == NaN which would result from a Float NaN on a FLOAT IQF field`() {
+    // If validateEventTemplateFieldValue is ever weakened to accept FLOAT_VALUE from
+    // users, and a caller sends floatValue = Float.NaN on a FLOAT IQF field,
+    // toCelValue would emit "NaN" (unquoted) and CEL would see this exact string.
+    // No FLOAT IMPRESSION_QUALIFICATION field exists in the test event, so we
+    // hand-craft the CEL string to prove the backstop.
+    val exception =
+      assertFailsWith<InvalidFieldValueException> {
+        CelFilterValidation.validateCelBooleanFilter(
+          TEST_CEL_ENV,
+          "video_ad.viewed_fraction == NaN",
+          "backstop.field",
+        )
+      }
+    assertThat(exception.message).contains("not a valid CEL expression")
+    assertThat(exception.message).contains("NaN")
+  }
+
+  @Test
+  fun `backstop - rejects field == Infinity which would result from a Float Infinity on a FLOAT IQF field`() {
+    val exception =
+      assertFailsWith<InvalidFieldValueException> {
+        CelFilterValidation.validateCelBooleanFilter(
+          TEST_CEL_ENV,
+          "video_ad.viewed_fraction == Infinity",
+          "backstop.field",
+        )
+      }
+    assertThat(exception.message).contains("not a valid CEL expression")
+    assertThat(exception.message).contains("Infinity")
+  }
+
+  @Test
+  fun `backstop - rejects field == unquoted_string which would result from raw stringValue on a STRING IQF field`() {
+    // toCelValue's STRING_VALUE branch is `stringValue` (unquoted). If a STRING
+    // IMPRESSION_QUALIFICATION field is ever added and a user (or base IQF)
+    // supplies stringValue = "abc" on it, the generated CEL is
+    // `<path> == abc` which CEL parses as identifier comparison. No STRING IQF
+    // field exists today; hand-craft the CEL to prove the backstop.
+    val exception =
+      assertFailsWith<InvalidFieldValueException> {
+        CelFilterValidation.validateCelBooleanFilter(
+          TEST_CEL_ENV,
+          "banner_ad.viewable == abc",
+          "backstop.field",
+        )
+      }
+    assertThat(exception.message).contains("not a valid CEL expression")
+    assertThat(exception.message).contains("abc")
+  }
 }

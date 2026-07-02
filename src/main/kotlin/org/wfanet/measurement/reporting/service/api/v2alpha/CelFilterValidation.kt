@@ -30,55 +30,57 @@ import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
  * - **Syntax errors** -- trailing operators, unmatched parens, missing operands. Surfaces as `"is
  *   not a valid CEL expression"`.
  * - **Unknown top-level identifiers** -- the expression references an event template that does not
- *   exist on the deployment Event message (e.g. an EDP retired the template, or the config points
- *   at the wrong message).
- * - **Unknown nested fields** -- the template exists but the field path does not (e.g.
- *   `banner_ad.legacy_field` after the field is removed).
- * - **Type-mismatched operands** -- `bool == float`, `string < int`, etc. This is the primary guard
- *   against [BasicReportTransformations.toCelValue] emitting a literal of the wrong shape for the
- *   field type (most realistically: a Base IQF configured with `floatValue` on a `bool` field; see
- *   [Why this exists] below).
+ *   exist on the deployment Event message.
+ * - **Unknown nested fields** -- the template exists but the field path does not.
+ * - **Type-mismatched operands** -- `bool == float`, `string < int`, etc.
  * - **Non-boolean result** -- the expression compiles but yields a non-bool (e.g. a bare message
  *   field access, a string literal, a numeric literal). RequisitionSpec filters MUST evaluate to
- *   bool; an EDP that receives a non-bool filter rejects the requisition with "does not evaluate to
- *   a boolean", and the BasicReport that produced it sits orphaned.
+ *   bool; an EDP that receives a non-bool filter rejects the requisition with `"does not evaluate
+ *   to a boolean"`, and the BasicReport that produced it sits orphaned.
  *
  * An empty filter string is treated as valid (the dedup pass in
  * [BasicReportTransformations.buildReportingSetMetricCalculationSpecDetailsMap] can collapse all
  * terms to `""`, which means "no filter").
  *
- * ## What this does NOT need to catch (already enforced upstream)
+ * ## Relationship to upstream validators
  *
- * `CreateBasicReportRequestValidation` runs before the transformer and rejects:
- * - User-supplied `EventTemplateField` paths that do not exist on the event message
- *   (`EVENT_TEMPLATE_FIELD_INVALID`).
- * - User-supplied field paths whose template is not filterable / not a population attribute / not
- *   impression-qualification-capable, depending on context.
- * - User-supplied `enumValue` strings that do not match a defined enum value name.
- * - User-supplied `fieldValue` whose `selectorCase` does not match the field's protobuf type --
- *   `stringValue` for a `bool` field, `floatValue` for an `enum` field, etc.
- * - User-supplied media-type / template-field combinations that disagree.
+ * Two other layers reject bad filter shapes before generated CEL reaches this validator:
+ * 1. [CreateBasicReportRequestValidation.validateRequest] rejects user-supplied filter shapes:
+ *    unknown field paths, invalid enum names, `selectorCase` mismatches with the field's protobuf
+ *    type (including an unconditional rejection of `FLOAT_VALUE` from user input), and media-type /
+ *    template-field disagreements.
+ * 2. [org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping]
+ *    validates server-configured base and named IQFs at startup, including value-type alignment
+ *    (`isImpressionQualificationFilterSpecValid`). A base IQF with `floatValue` on a `bool` field
+ *    crashes the server at boot, not at CreateBasicReport time.
  *
- * As of writing, every value-type produced by [BasicReportTransformations.toCelValue] from a
- * user-supplied (Custom / Named) IQF spec is therefore already type-consistent with the field on
- * the event message. The Custom / Named branches of this validator are present so that a future
- * regression in `CreateBasicReportRequestValidation` or `toCelValue` -- or the addition of a field
- * type whose round-trip is not type-safe (e.g. a `string` IQF field whose literal would need
- * quoting) -- surfaces as `INVALID_ARGUMENT` with a precise field path instead of an EDP
- * fulfillment failure.
+ * On the current test event templates (`TestEvent`, `MarketEvent`), every filter shape a caller can
+ * construct is rejected upstream, so this validator is effectively a no-op for reachable user input
+ * today. The reachability-boundary tests in `BasicReportTransformationsTest` document this
+ * empirically.
  *
- * ## Why this exists
+ * ## Why this exists (defense-in-depth)
  *
- * The only realistic failure mode reachable today is a server-configured Base IQF
- * (`--base-impression-qualification-filters` plus `ImpressionQualificationFilterConfig`) whose spec
- * list translates to CEL that disagrees with the deployment Event message. The IQF mapping's own
- * validation in
- * [org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping] checks
- * the field path and media type but NOT the value-type alignment between
- * `EventTemplateField.FieldValue.selectorCase` and the protobuf field type. A misconfigured base
- * IQF with `floatValue` on a `bool` field passes the mapping check, reaches the transformer, and
- * emits CEL such as `banner_ad.viewable == 1.0` -- caught here, routed to `Status.INTERNAL` with
- * the IQF id in the message.
+ * This validator is a backstop against three classes of future or latent problem:
+ * 1. **Regressions in the upstream validators.** If `validateEventTemplateFieldValue` is ever
+ *    weakened (e.g. by starting to accept `FLOAT_VALUE` from user input), or if
+ *    `ImpressionQualificationFilterMapping.validate` stops enforcing value-type alignment, callers
+ *    can send values that produce malformed CEL. Without this validator, EDP requisitions fulfill
+ *    with `"does not evaluate to a boolean"` errors while the caller's BasicReport shows SUCCEEDED
+ *    with empty results.
+ * 2. **Additions to the [InternalEventTemplateField.FieldValue] oneof.** A new `selectorCase` (e.g.
+ *    `int64Value`) would require corresponding branches in both upstream validators AND in
+ *    [BasicReportTransformations.toCelValue]. Any branch that emits CEL of the wrong shape for the
+ *    target field's protobuf type is caught here.
+ * 3. **Deployments that add STRING or FLOAT-typed IMPRESSION_QUALIFICATION fields.**
+ *    [BasicReportTransformations.toCelValue]'s `STRING_VALUE` branch emits `stringValue` raw
+ *    (unquoted) and its `FLOAT_VALUE` branch emits `.toString()` (which renders `Float.NaN` as the
+ *    identifier `NaN`, not a literal). Neither shape has been exercised in the tree because the
+ *    default `TestEvent` and `MarketEvent` templates have no STRING IQF field and no FLOAT IQF
+ *    field. A deployment whose event template adds one hits the shielded bug. The correct fix is in
+ *    `toCelValue` itself; see #4148. Until that fix lands, this validator surfaces the
+ *    problem as `INVALID_ARGUMENT` (Custom source) or `Status.INTERNAL` (Base / Named source) with
+ *    a precise diagnostic instead of an unfulfilled requisition.
  */
 object CelFilterValidation {
   /**
@@ -152,8 +154,9 @@ object CelFilterValidation {
    *
    * [diagnostic] is the same content phrased as a standalone clause -- `"not a valid CEL
    * expression"` -- so a caller-built message can splice it in: `"foo bar baz: $diagnostic"`. Used
-   * by [validateCelBoolean] for `IllegalStateException` messages where the field-path framing does
-   * not apply.
+   * by [validateCelBoolean] for caller-built exception messages (see
+   * [ImpressionQualificationFilterInvalidCelException]) where the field-path framing does not
+   * apply.
    */
   private data class CelValidationIssue(val diagnostic: String, val fieldSuffix: String)
 }

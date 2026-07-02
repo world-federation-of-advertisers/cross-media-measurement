@@ -54,8 +54,8 @@ import org.wfanet.measurement.reporting.v2alpha.reportingSet
  * - [Custom] failures are user input; the validator surfaces them as `INVALID_ARGUMENT` with the
  *   field path pointing at the offending entry in the request.
  * - [Base] and [Named] failures are server-controlled (a configured or registry-resolved IQF
- *   generated invalid CEL); they surface as `IllegalStateException` and are routed to
- *   `Status.INTERNAL` by the calling service.
+ *   generated invalid CEL); they surface as `ImpressionQualificationFilterInvalidCelException` and
+ *   are routed to `Status.INTERNAL` by the calling service.
  */
 sealed interface ImpressionQualificationFilterSpecsSource {
   /** [ImpressionQualificationFilterSpec]s from a base (server-configured) IQF. */
