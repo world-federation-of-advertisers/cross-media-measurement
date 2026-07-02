@@ -22,7 +22,6 @@ import com.google.type.DayOfWeek
 import java.util.logging.ConsoleHandler
 import java.util.logging.Level
 import java.util.logging.Logger
-import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -263,22 +262,30 @@ class NormalizationTest {
   }
 
   @Test
-  fun `normalizeReportingUnit throws on reportingSetKeys variant`() {
+  fun `normalizeReportingUnit sorts reportingSetKeys by externalReportingSetId`() {
     val reportingUnit = reportingUnit {
       reportingSetKeys =
         ReportingUnitKt.reportingSetKeys {
           reportingSetKeys += reportingSetKey {
             cmmsMeasurementConsumerId = "mc-1"
-            externalReportingSetId = "rs-1"
+            externalReportingSetId = "rs_zebra"
+          }
+          reportingSetKeys += reportingSetKey {
+            cmmsMeasurementConsumerId = "mc-1"
+            externalReportingSetId = "rs_alpha"
+          }
+          reportingSetKeys += reportingSetKey {
+            cmmsMeasurementConsumerId = "mc-1"
+            externalReportingSetId = "rs_mango"
           }
         }
     }
 
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        Normalization.normalizeReportingUnit(reportingUnit)
-      }
-    assertThat(exception).hasMessageThat().contains("reportingSetKeys")
+    val normalized = Normalization.normalizeReportingUnit(reportingUnit)
+
+    assertThat(normalized.reportingSetKeys.reportingSetKeysList.map { it.externalReportingSetId })
+      .containsExactly("rs_alpha", "rs_mango", "rs_zebra")
+      .inOrder()
   }
 
   init {
