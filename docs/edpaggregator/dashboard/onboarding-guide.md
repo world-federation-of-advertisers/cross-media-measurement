@@ -89,6 +89,28 @@ Add the new EDP to the `DASHBOARD_EDP_CONFIG` GitHub environment variable:
 ]
 ```
 
+**Critical: `DASHBOARD_EDP_CONFIG` and `data_provider_resource_ids` MUST
+match** on both keys AND resource IDs. Terraform's `for_each` over
+`data_provider_resource_ids` creates the `edp-<key>-dashboard@` SAs and row
+access policies (filtered by resource ID). The compliance and isolation tools
+iterate `DASHBOARD_EDP_CONFIG` to decide which `edp-<name>-dashboard@` SA to
+impersonate and which resource ID's data to expect. If the two disagree you
+get one of two failure modes:
+
+*   **Keys don't match** &rarr; tool tries to impersonate an SA terraform
+    never created &rarr; `404 Not Found; Gaia id not found for email
+    edp-<name>-dashboard@PROJECT.iam.gserviceaccount.com`.
+*   **Resource IDs don't match** &rarr; SA authenticates fine but its row
+    access policy filters everything out &rarr; the compliance check reports
+    `returns other EDPs' data` (false-positive leak) or `empty` (false
+    negative).
+
+The common failure mode is a copy-paste from another environment's
+`data_provider_resource_ids` &mdash; the keys look right but the resource IDs
+are wrong for the target environment. Cross-check against the environment's
+`EDPA_EDPS_CONFIG` (the proto that drives the actual EDPA pipeline) as the
+source of truth for resource IDs.
+
 ### Step 4: Apply Terraform
 
 ```shell
@@ -104,7 +126,68 @@ This creates:
 *   `roles/bigquery.jobUser` on the project
 *   Row access policies on all 3 tables filtering to the EDP's resource ID
 
-### Step 5: Verify Isolation
+### Step 5: Seed a BasicReport for the new EDP
+
+The dashboard's `report_detail_edp` scheduled query only populates a row for an
+EDP when at least one BasicReport in state `SUCCEEDED` references one of that
+EDP's event groups. On a fresh EDP with no reports yet, the compliance check
+`report_detail_edp is empty` and the isolation test both FAIL &mdash; a
+false-negative that will keep failing every deploy until at least one
+BasicReport exists for the EDP.
+
+The CI `run-tests` job only creates BasicReports against simulator event groups
+(`sim-eg-*` prefix), never against EDPA-owned event groups. New EDPA EDPs must
+be seeded manually.
+
+To seed:
+
+1.  Generate a self-signed access token via `OpenIdProvider` for the target
+    environment's Reporting API:
+
+    ```shell
+    bazel run //src/main/kotlin/org/wfanet/measurement/common/tools:OpenIdProvider -- \
+      --issuer='https://auth.halo-cmm.local' \
+      --keyset=$PWD/src/main/k8s/testing/secretfiles/open_id_provider.tink \
+      generate-access-token \
+      --audience='reporting.<env>.halo-cmm.org' \
+      --subject='mc-user@example.com' \
+      --scope='*' \
+      --ttl=1h
+    ```
+
+    The `--scope='*'` wildcard is required &mdash; the reporting API's
+    `Authorization.checkScopes()` returns `PERMISSION_DENIED` without it.
+
+2.  Look up an existing event group on the new EDP via the Reporting API:
+
+    ```shell
+    curl -sk -H "Authorization: Bearer $TOKEN" \
+      "https://v2alpha.reporting.<env>.halo-cmm.org/v2alpha/measurementConsumers/<MC_ID>/eventGroups?pageSize=200" \
+      | jq '.eventGroups[] | select(.cmmsDataProvider == "dataProviders/<NEW_EDP_RESOURCE_ID>")'
+    ```
+
+3.  `POST` a `reportingSets` (as a campaign group) + `basicReports` pair
+    scoped to that event group. See the reporting-v2 API reference for the
+    request body shape; a minimal report with
+    `impressionQualificationFilters/ami`, `resultGroupSpecs[].reportingUnit.components
+    = [dataProviders/<NEW_EDP_RESOURCE_ID>]`, and a single-day
+    `reportingInterval` is sufficient.
+4.  Poll the BasicReport with `GET .../basicReports/{id}` until `state:
+    SUCCEEDED`. On qa this takes ~15&ndash;25 minutes (real TEE fulfillment);
+    on dev typically 2&ndash;5 minutes.
+5.  Wait for the next `report_detail_edp` scheduled-query cycle to pull the
+    Report in (hourly schedule) or trigger it manually &mdash; see the
+    deployment guide's *Triggering Scheduled Queries Manually* section.
+6.  Verify with `bq show MY_PROJECT:dashboard.report_detail_edp` that
+    `numRows` has grown and `lastModifiedTime` is after the BasicReport's
+    completion time.
+
+The seed BasicReport can be trivial (single-day reporting interval, single
+event group, `impressionQualificationFilters/ami`) &mdash; it just needs to
+exist and be `SUCCEEDED`. It stays in the environment permanently; no cleanup
+is required.
+
+### Step 6: Verify Isolation
 
 Run the compliance check with the new EDP included:
 

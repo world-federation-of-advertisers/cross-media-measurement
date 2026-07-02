@@ -362,6 +362,52 @@ matches the value produced by `externalIdToApiId` for that EDP's internal
 Spanner ID. A mismatch causes the row access policy filter to not match any
 rows.
 
+Also verify `DASHBOARD_EDP_CONFIG`'s `resource_id` for the same EDP matches
+`data_provider_resource_ids`. If they disagree, terraform creates the SA
+against one resource ID (row policy filters to that ID) but the compliance /
+isolation tool authenticates against a different one (queries return only
+data matching the tool's ID). Symptom: `returns other EDPs' data` false-
+positive OR `report_detail_edp is empty` false-negative for that EDP. Fix by
+aligning both env vars to the ID in `EDPA_EDPS_CONFIG` and re-running
+terraform.
+
+### `report_detail_edp is empty` on a freshly-onboarded EDP
+
+The compliance check `report_detail_edp is empty (expected data after
+scheduled queries)` and the corresponding isolation test both FAIL until the
+new EDP has at least one BasicReport in state `SUCCEEDED` that references one
+of its event groups. On fresh environments (and after adding any new EDPA
+EDP), you must seed a BasicReport manually &mdash; the CI `run-tests` job
+only creates reports against simulator event groups (`sim-eg-*` prefix), not
+against EDPA-owned event groups. See the *Seed a BasicReport for the new
+EDP* step in the onboarding guide.
+
+### `rerun-failed-jobs` doesn't re-trigger scheduled queries
+
+`rerun-failed-jobs` on `Update CMMS` only re-runs jobs whose prior attempt
+was `failure`. The `run-dashboard-isolation-test / trigger-scheduled-queries`
+job typically succeeds on its first run (kicking the queries off is
+independent of whether the queries return data), so subsequent
+`rerun-failed-jobs` calls preserve it as `success` and **do not re-fire the
+scheduled queries**. If the compliance/isolation checks are failing because
+`report_detail_edp` hasn't yet been refreshed to include a new BasicReport:
+
+1.  Verify the BasicReport is `state: SUCCEEDED` (via the Reporting API).
+2.  Check `bq show <project>:dashboard.report_detail_edp | jq '{numRows,
+    lastModifiedTime}'` &mdash; if `lastModifiedTime` is before the
+    BasicReport completed, the query hasn't cycled yet.
+3.  Wait for the natural hourly cycle, OR trigger the query manually via the
+    BigQuery Data Transfer REST API:
+    ```shell
+    curl -sS -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+      "https://bigquerydatatransfer.googleapis.com/v1/projects/<project>/locations/us-central1/transferConfigs/<config-id>:startManualRuns"
+    ```
+    (You need `roles/bigquerydatatransfer.admin` on the project; find
+    `<config-id>` via `bq ls --transfer_config --transfer_location=us-central1 --project_id=<project> --filter='dataSourceIds:scheduled_query'`.)
+4.  Once `report_detail_edp` has been refreshed, `gh api
+    .../actions/runs/<RUN_ID>/rerun-failed-jobs --method POST` will re-run
+    the remaining failing dashboard checks against the updated data.
+
 ### Cross-project connection failures
 
 Verify the BigQuery Connection service agent
