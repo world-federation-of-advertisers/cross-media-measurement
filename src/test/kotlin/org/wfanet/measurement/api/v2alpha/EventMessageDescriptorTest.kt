@@ -150,7 +150,7 @@ class EventMessageDescriptorTest {
         "testing_only.testing_string_filterable",
         EventMessageDescriptor.EventTemplateFieldInfo(
           mediaType = MediaType.OTHER,
-          isPopulationAttribute = true,
+          isPopulationAttribute = false,
           supportedReportingFeatures =
             EventMessageDescriptor.SupportedReportingFeatures(
               groupable = false,
@@ -176,7 +176,7 @@ class EventMessageDescriptorTest {
         "testing_only.testing_arm_filterable.testing_arm_filterable_enum",
         EventMessageDescriptor.EventTemplateFieldInfo(
           mediaType = MediaType.OTHER,
-          isPopulationAttribute = true,
+          isPopulationAttribute = false,
           supportedReportingFeatures =
             EventMessageDescriptor.SupportedReportingFeatures(
               groupable = false,
@@ -189,7 +189,7 @@ class EventMessageDescriptorTest {
         "testing_only.testing_arm_groupable.testing_arm_groupable_enum",
         EventMessageDescriptor.EventTemplateFieldInfo(
           mediaType = MediaType.OTHER,
-          isPopulationAttribute = true,
+          isPopulationAttribute = false,
           supportedReportingFeatures =
             EventMessageDescriptor.SupportedReportingFeatures(
               groupable = true,

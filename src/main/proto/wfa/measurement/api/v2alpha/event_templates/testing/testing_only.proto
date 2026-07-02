@@ -78,7 +78,6 @@ message TestingOnly {
   string testing_string_filterable = 3
       [(.wfa.measurement.api.v2alpha.template_field) = {
         display_name: "Testing Filterable String (test-only, DO NOT MIMIC)"
-        population_attribute: true
         reporting_features: FILTERABLE
         version_added: 1
       }];
@@ -114,7 +113,6 @@ message TestingOnly {
     TestingArmFilterableEnum testing_arm_filterable_enum = 1
         [(.wfa.measurement.api.v2alpha.template_field) = {
           display_name: "Testing Arm Filterable Enum (test-only, DO NOT MIMIC)"
-          population_attribute: true
           reporting_features: FILTERABLE
           version_added: 1
         }];
@@ -134,7 +132,6 @@ message TestingOnly {
     TestingArmGroupableEnum testing_arm_groupable_enum = 1
         [(.wfa.measurement.api.v2alpha.template_field) = {
           display_name: "Testing Arm Groupable Enum (test-only, DO NOT MIMIC)"
-          population_attribute: true
           reporting_features: GROUPABLE
           version_added: 1
         }];
