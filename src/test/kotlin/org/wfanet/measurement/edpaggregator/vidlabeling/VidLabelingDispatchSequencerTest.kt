@@ -505,6 +505,11 @@ class VidLabelingDispatchSequencerTest {
         // fan-out bin-packs the same way the non-memoized dispatcher does (SubpoolAssignerApp
         // requires it > 0).
         assertThat(params.maxFileBatchSizeBytes).isEqualTo(MAX_FILE_BATCH_SIZE_BYTES)
+        // The event-template descriptor + type pass through to SubpoolAssignerParams so the
+        // memoized Phase-1 last-out can stamp them on the Phase-2 VidLabeler ModelLineConfig.
+        assertThat(params.eventTemplateDescriptorBlobUri)
+          .isEqualTo(EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI)
+        assertThat(params.eventTemplateType).isEqualTo(EVENT_TEMPLATE_TYPE)
       }
     }
 
@@ -869,6 +874,10 @@ class VidLabelingDispatchSequencerTest {
         .containsExactly("household", "hh_col")
       assertThat(modelLineConfig.optionalEntityKeyFieldMappingMap)
         .containsExactly("creative", "cr_col")
+      // The event-template descriptor + type also survive that rebuild (Phase-2 requires them).
+      assertThat(modelLineConfig.eventTemplateDescriptorBlobUri)
+        .isEqualTo(EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI)
+      assertThat(modelLineConfig.eventTemplateType).isEqualTo(EVENT_TEMPLATE_TYPE)
     }
 
   @Test
@@ -1044,6 +1053,10 @@ class VidLabelingDispatchSequencerTest {
     private const val NUMBER_OF_SHARDS = 2
     private const val MAX_FILE_BATCH_SIZE_BYTES = 1000L
     private const val ETAG = "W/\"abc123\""
+    private const val EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI =
+      "gs://descriptors/event-template-set.binpb"
+    private const val EVENT_TEMPLATE_TYPE =
+      "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
 
     private val FIXED_NOW: Instant = Instant.parse("2026-06-03T12:00:00Z")
     private val ACTIVE_START_TIME: Timestamp = Timestamps.fromSeconds(1_600_000_000L)
@@ -1117,6 +1130,8 @@ class VidLabelingDispatchSequencerTest {
                 .build()
             requiredEntityKeyFieldMapping["household"] = "hh_col"
             optionalEntityKeyFieldMapping["creative"] = "cr_col"
+            eventTemplateDescriptorBlobUri = EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI
+            eventTemplateType = EVENT_TEMPLATE_TYPE
           },
         MODEL_LINE_2 to
           VidLabelerParamsKt.modelLineConfig {
