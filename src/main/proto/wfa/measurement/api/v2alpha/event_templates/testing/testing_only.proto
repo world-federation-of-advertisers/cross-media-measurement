@@ -1,0 +1,73 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Test-only event template that exists solely to exercise code paths which
+// require IMPRESSION_QUALIFICATION-tagged fields of specific proto types
+// (STRING, FLOAT) that are not present in the production-shape event
+// templates. DO NOT MIMIC this template or add fields like these to real EDP
+// schemas.
+//
+// General guidance for real EDP schemas:
+//   - Prefer enums over strings for IMPRESSION_QUALIFICATION fields. Enums
+//     give a bounded, self-documenting value space and round-trip through
+//     CEL as integers, avoiding CEL string-literal quoting and escaping
+//     concerns.
+//   - Prefer enums or discretized bool buckets (like MarketEvent's
+//     `viewable_50_percent_plus`) over continuous floats. Continuous values
+//     force CEL comparisons that are noise-fragile and require careful
+//     handling of NaN / Infinity.
+//
+// media_type is set to OTHER so this template does not participate in
+// DISPLAY-scoped or VIDEO-scoped IQF template inclusion, keeping its
+// presence invisible to any real IQF path.
+//
+// See issue #4148 for the underlying toCelValue quoting / NaN-Infinity
+// concerns these fields exercise.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha.event_templates.testing;
+
+import "wfa/measurement/api/v2alpha/event_annotations.proto";
+import "wfa/measurement/api/v2alpha/media_type.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing";
+option java_multiple_files = true;
+
+message TestingOnly {
+  option (.wfa.measurement.api.v2alpha.event_template) = {
+    name: "testing_only"
+    display_name: "Testing-Only Template (DO NOT MIMIC)"
+    description: "Test-only STRING and FLOAT IMPRESSION_QUALIFICATION fields for CEL code paths. Do not mimic in real EDP schemas."
+    media_type: OTHER
+  };
+
+  // Test-only STRING IMPRESSION_QUALIFICATION field. Do not mimic. See
+  // top-of-file guidance -- prefer enums over strings for
+  // IMPRESSION_QUALIFICATION fields in real EDP schemas.
+  string testing_string = 1 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "Testing String (test-only, DO NOT MIMIC)"
+    reporting_features: IMPRESSION_QUALIFICATION
+    version_added: 1
+  }];
+
+  // Test-only FLOAT IMPRESSION_QUALIFICATION field. Do not mimic. See
+  // top-of-file guidance -- prefer enums or bool buckets over continuous
+  // floats for IMPRESSION_QUALIFICATION fields in real EDP schemas.
+  float testing_float = 2 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "Testing Float (test-only, DO NOT MIMIC)"
+    reporting_features: IMPRESSION_QUALIFICATION
+    version_added: 1
+  }];
+}
