@@ -234,6 +234,18 @@ following files:
     `#SyncEventGroupActivitiesServiceAccount` (currently shared across
     all per-EDP CronJobs).
 
+## Removing an EDP
+
+Reverse of adding: delete the entry from `_syncEventGroupActivitiesArgs`
+in the dev overlay, remove the matching workflow steps and Bazel/CUE
+kustomization entries, and delete the `EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT`
+GitHub variable on each environment. The workflow's `kubectl apply`
+uses `--prune --applyset=configmaps/kubectl-edpa`, so the CronJob,
+its NetworkPolicy, and its Secret / ConfigMap references will be
+garbage-collected on next deploy. Verify with
+`kubectl get cronjob sync-event-group-activities-<edp>-cronjob`
+(expect `NotFound`).
+
 ## Troubleshooting
 
 -   **Pod CrashLoopBackOff with TLS errors:** the per-EDP `tls-cert-file` /
