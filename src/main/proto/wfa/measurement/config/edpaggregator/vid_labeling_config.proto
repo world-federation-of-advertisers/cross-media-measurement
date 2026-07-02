@@ -54,6 +54,32 @@ message VidLabelingConfig {
 
     // Mapping from event template field names to their corresponding values.
     map<string, string> event_template_field_mapping = 2;
+
+    // Config-storage blob URI of the FileDescriptorSet for the EventTemplate
+    // types. Copied onto VidLabelerParams.ModelLineConfig so the Phase-2 runner
+    // can resolve the event descriptor used to build the labeled-output event.
+    string event_template_descriptor_blob_uri = 3;
+
+    // Full proto name of the event message within that FileDescriptorSet that
+    // event_template_field_mapping targets.
+    string event_template_type = 4;
+
+    reserved 5;
+    reserved "entity_key_field_mapping";
+
+    // Mapping from entity_type (the DataProvider's taxonomy label, which
+    // becomes LabeledImpression.EntityKey.entity_type) to the raw-impression
+    // Parquet column holding that entity's id. One string column per
+    // entity_type. Every impression MUST have a non-null, non-empty value in
+    // each of these columns. Copied onto VidLabelerParams.ModelLineConfig; read
+    // per row by the TEE.
+    map<string, string> required_entity_key_field_mapping = 6;
+
+    // Like required_entity_key_field_mapping, but an impression MAY omit these:
+    // a NULL/empty cell means the impression is not associated with that
+    // entity_type. Keys MUST be disjoint from
+    // required_entity_key_field_mapping.
+    map<string, string> optional_entity_key_field_mapping = 7;
   }
 
   // Map from model line resource name to its configuration.

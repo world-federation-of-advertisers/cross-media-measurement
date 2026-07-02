@@ -33,6 +33,7 @@ import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadFileRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.storage.ParquetStorageClient
 import org.wfanet.measurement.storage.ParquetValue
@@ -146,8 +147,8 @@ class RawImpressionSource(
   private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
   private val rawImpressionUpload: String,
   private val eventIdColumn: String,
-  private val shardIndex: Int,
-  private val totalShards: Int,
+  private val shardIndex: Int = 0,
+  private val totalShards: Int = 1,
   private val eventIdDigestExtractor: EventIdDigestExtractor,
   // OpenTelemetry instruments (read/drop/emit counters + per-file latency
   // histogram) that surface on operator dashboards via EdpaTelemetry.
@@ -167,6 +168,11 @@ class RawImpressionSource(
   // Read-ahead / memory bound: max batches launched-but-unfinished at once. Keep
   // it > [workers] so finishing workers always have a decoded batch queued.
   private val maxInFlightBatches: Int = DEFAULT_MAX_IN_FLIGHT_BATCHES,
+  // File-list mode (Phase 2): when non-null, read exactly these `RawImpressionUploadFile`
+  // resource names (each resolved to its `blob_uri` by name) read whole, with NO
+  // fingerprint-shard filter and NO whole-upload discovery. When null (Phase 0), discover all
+  // of [rawImpressionUpload]'s files and apply the shard filter.
+  private val inputFiles: List<String>? = null,
 ) {
   init {
     require(totalShards > 0) { "totalShards must be positive, got $totalShards" }
@@ -181,6 +187,14 @@ class RawImpressionSource(
     }
     require(rawImpressionUpload.isNotBlank()) { "rawImpressionUpload must be non-blank" }
     require(eventIdColumn.isNotBlank()) { "eventIdColumn must be non-blank" }
+    if (inputFiles != null) {
+      // File-list mode reads exactly the given files (an empty list reads nothing, matching the
+      // prior whole-upload behavior for an upload with no files); it never applies the shard
+      // filter.
+      require(shardIndex == 0 && totalShards == 1) {
+        "file-list mode does not shard; leave shardIndex/totalShards at their defaults"
+      }
+    }
   }
 
   /**
@@ -231,11 +245,14 @@ class RawImpressionSource(
    * performed here. Callers that need unique digests (e.g. Phase 0's subpool map keyed by
    * [EventIdDigest]) are responsible for de-duplicating in their [BlobSink].
    *
-   * @param openSink mints a fresh [BlobSink] for one input file, given its `blobUri`. Called once
-   *   per file. The returned sink's [BlobSink.processBatch] is invoked concurrently (see
-   *   [BlobSink]); any state shared across files captured by this lambda must be concurrency-safe.
+   * @param openSink mints a fresh [BlobSink] for one input file, given its `blobUri` and the file's
+   *   plaintext Parquet footer key-value metadata (read once per file). Called once per file. The
+   *   returned sink's [BlobSink.processBatch] is invoked concurrently (see [BlobSink]); any state
+   *   shared across files captured by this lambda must be concurrency-safe.
    */
-  suspend fun streamBlobs(openSink: suspend (blobUri: String) -> BlobSink) {
+  suspend fun streamBlobs(
+    openSink: suspend (blobUri: String, footerMetadata: Map<String, String>) -> BlobSink
+  ) {
     val blobUris = discoverBlobUris()
     logger.info(
       "Starting raw-impression read of ${blobUris.size} file(s) for shard " +
@@ -266,20 +283,24 @@ class RawImpressionSource(
    */
   private suspend fun processBlob(
     blobUri: String,
-    openSink: suspend (blobUri: String) -> BlobSink,
+    openSink: suspend (blobUri: String, footerMetadata: Map<String, String>) -> BlobSink,
     cpuDispatcher: CoroutineDispatcher,
     inFlight: Semaphore,
     progress: ProgressTracker,
   ) {
     val startTime: TimeSource.Monotonic.ValueTimeMark = TimeSource.Monotonic.markNow()
     logger.fine { "Reading raw-impression file $blobUri" }
-    val sink = openSink(blobUri)
+    val parquetBlob =
+      parquetStorageClient.getBlob(blobUri) ?: error("Raw-impression blob not found: $blobUri")
+    // Read the file's plaintext footer key-value metadata once and hand it to the sink factory; the
+    // Phase-2 sink derives its entity keys from it ("Option Y"). Phase-0/1 sinks ignore it.
+    val sink = openSink(blobUri, parquetBlob.readKeyValueMetadata())
     var primary: Throwable? = null
     try {
       // The per-file scope owns this file's batch jobs; it returns the reader's
       // tallies after reading finishes AND after every launched batch has joined.
       val counts = coroutineScope {
-        readEventsFromBlob(blobUri) { batch ->
+        readEventsFromBlob(blobUri, parquetBlob) { batch ->
           // Backpressure: suspend the reader once maxInFlightBatches are in
           // flight. The permit is held until this batch finishes (release in the
           // finally — load-bearing; missing it would deadlock the reader).
@@ -335,10 +356,9 @@ class RawImpressionSource(
    */
   private suspend fun readEventsFromBlob(
     blobUri: String,
+    parquetBlob: ParquetStorageClient.ParquetBlob,
     onBatch: suspend (List<ParquetDigestedEvent>) -> Unit,
   ): FileCounts {
-    val parquetBlob =
-      parquetStorageClient.getBlob(blobUri) ?: error("Raw-impression blob not found: $blobUri")
     var read = 0L
     var droppedOtherShard = 0L
     var emitted = 0L
@@ -366,10 +386,23 @@ class RawImpressionSource(
   }
 
   /**
-   * Lists the [rawImpressionUpload]'s `RawImpressionUploadFile`s via the metadata service
-   * (paginated) and returns their Cloud Storage `blob_uri`s.
+   * Returns the Cloud Storage `blob_uri`s to read. In file-list mode ([inputFiles] non-null),
+   * resolves exactly those `RawImpressionUploadFile` resource names to their `blob_uri`s by name
+   * (no whole-upload listing). Otherwise lists all of the [rawImpressionUpload]'s files via the
+   * metadata service (paginated) and returns their `blob_uri`s.
    */
   private suspend fun discoverBlobUris(): List<String> {
+    if (inputFiles != null) {
+      return inputFiles.map { fileName ->
+        try {
+          rawImpressionUploadFilesStub
+            .getRawImpressionUploadFile(getRawImpressionUploadFileRequest { name = fileName })
+            .blobUri
+        } catch (e: StatusException) {
+          throw Exception("Error getting RawImpressionUploadFile $fileName", e)
+        }
+      }
+    }
     val blobUris = mutableListOf<String>()
     rawImpressionUploadFilesStub
       .listResources { pageToken: String ->

@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -81,6 +82,8 @@ import org.wfanet.virtualpeople.common.copy
  * @param modelLineContexts model lines to label with, each with its [ActiveWindow] and
  *   [VidAssigner].
  * @param impressionConverter converts a Parquet row into a [ConvertedImpression] (schema seam).
+ * @param fileEntityKeys this file's entity keys (and event group reference id), read from its
+ *   plaintext Parquet footer and applied to every impression converted from the file.
  * @param encryptKmsClient encrypt/decrypt KMS client for the labeled output.
  * @param encryptKekUri KEK URI for generating per-output DEKs.
  * @param outputStorageParams GCS project + blob prefix for labeled output.
@@ -101,6 +104,7 @@ class VidLabelingSink(
   private val inputBlobUri: String,
   private val modelLineContexts: List<ModelLineContext>,
   private val impressionConverter: ImpressionConverter,
+  private val fileEntityKeys: FileEntityKeys,
   private val encryptKmsClient: KmsClient,
   private val encryptKekUri: String,
   private val outputStorageParams: VidLabelerParams.StorageParams,
@@ -130,7 +134,7 @@ class VidLabelingSink(
     for (digestedEvent in events) {
       for (context in modelLineContexts) {
         try {
-          val converted = impressionConverter.convert(digestedEvent, context.config)
+          val converted = impressionConverter.convert(digestedEvent, context.config, fileEntityKeys)
           if (converted == null) {
             metrics.impressionsDroppedCounter.add(
               1,
@@ -375,14 +379,24 @@ class VidLabelingSink(
       .build()
 
   /**
-   * Deterministic output blob key for [key] under this input file, so a retried input file
-   * overwrites its previous output instead of duplicating it.
+   * Deterministic output blob key for [key] under this input file:
+   * `model-line/<modelLineId>/<YYYY-MM-DD>/<sha256>`. The `model-line/<id>/<date>/` layout is what
+   * `DataAvailabilitySync` crawls to classify finalized dates; the date is the file's event date
+   * ([FileEntityKeys.eventDate], read from the footer, UTC; a raw file holds one day). The trailing
+   * SHA of (input file, model line) keeps the key deterministic, so a retried input file overwrites
+   * its previous output instead of duplicating it.
    */
   private fun outputBlobKey(key: OutputGroupKey): String {
+    val modelLineId =
+      requireNotNull(ModelLineKey.fromName(key.modelLine)) {
+          "model line is not a valid ModelLine resource name: ${key.modelLine}"
+        }
+        .modelLineId
     val digest =
       MessageDigest.getInstance("SHA-256")
         .digest("$inputBlobUri|${key.modelLine}".toByteArray(Charsets.UTF_8))
-    return "labeled-impressions/" + digest.joinToString("") { "%02x".format(it) }
+    val sha = digest.joinToString("") { "%02x".format(it) }
+    return "model-line/$modelLineId/${fileEntityKeys.eventDate}/$sha"
   }
 
   private val Timestamp.epochNanos: Long

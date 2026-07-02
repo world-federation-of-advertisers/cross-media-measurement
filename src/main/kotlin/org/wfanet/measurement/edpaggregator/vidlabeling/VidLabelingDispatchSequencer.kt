@@ -550,6 +550,10 @@ class VidLabelingDispatchSequencer(
         VidLabelerParamsKt.modelLineConfig {
           labelerInputFieldMapping.putAll(modelLineConfig.labelerInputFieldMappingMap)
           eventTemplateFieldMapping.putAll(modelLineConfig.eventTemplateFieldMappingMap)
+          // Per-impression entity-key columns (Phase-2 reads them per row). Not copied by
+          // convertModelLineConfigs' output alone — this rebuild would drop them otherwise.
+          requiredEntityKeyFieldMapping.putAll(modelLineConfig.requiredEntityKeyFieldMappingMap)
+          optionalEntityKeyFieldMapping.putAll(modelLineConfig.optionalEntityKeyFieldMappingMap)
           // The active window lets the TEE drop out-of-window impressions before labeling.
           activeStartTime = resolvedModelLine.activeStartTime
           if (resolvedModelLine.hasActiveEndTime()) {
