@@ -17,6 +17,7 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.Descriptors
+import java.util.Locale
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
@@ -262,7 +263,10 @@ private fun String.toCelStringLiteral(): String {
       c == '\n' -> out.append("\\n")
       c == '\r' -> out.append("\\r")
       c == '\t' -> out.append("\\t")
-      c.code < 0x20 -> out.append("\\u").append("%04x".format(c.code))
+      c == '\b' -> out.append("\\b")
+      c == '\u000C' -> out.append("\\f")
+      c == '\u007F' -> out.append("\\u007f")
+      c.code < 0x20 -> out.append("\\u").append(String.format(Locale.ROOT, "%04x", c.code))
       else -> out.append(c)
     }
   }
