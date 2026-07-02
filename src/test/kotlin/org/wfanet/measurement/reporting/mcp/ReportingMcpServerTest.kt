@@ -27,6 +27,8 @@ import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
 import io.modelcontextprotocol.kotlin.sdk.client.Client
 import io.modelcontextprotocol.kotlin.sdk.testing.ChannelTransport
+import io.modelcontextprotocol.kotlin.sdk.types.GetPromptRequest
+import io.modelcontextprotocol.kotlin.sdk.types.GetPromptRequestParams
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import java.net.URI
@@ -100,6 +102,136 @@ class ReportingMcpServerTest {
         .that(tool.tool.description)
         .isNotEmpty()
     }
+  }
+
+  @Test
+  fun registersAllExpectedPrompts() {
+    val server = ReportingMcpServer.createServer(createFakeApiClientWithServices()) { "test-token" }
+    assertThat(server.prompts.keys)
+      .containsExactly(
+        "explore_reporting_data",
+        "create_basic_report_workflow",
+        "interpret_basic_report",
+        "compare_campaigns",
+      )
+  }
+
+  @Test
+  fun allPromptsHaveDescriptions() {
+    val server = ReportingMcpServer.createServer(createFakeApiClientWithServices()) { "test-token" }
+    for ((name, prompt) in server.prompts) {
+      assertWithMessage("prompt '$name' should have a description")
+        .that(prompt.prompt.description)
+        .isNotEmpty()
+    }
+  }
+
+  @Test
+  fun getExplorePromptRendersWithMeasurementConsumer() = runBlocking {
+    val server = ReportingMcpServer.createServer(createFakeApiClientWithServices()) { "test-token" }
+    val (clientTransport, serverTransport) = ChannelTransport.createLinkedPair()
+    val client = Client(clientInfo = Implementation(name = "test-client", version = "0.1"))
+    server.createSession(serverTransport)
+    client.connect(clientTransport)
+
+    val result =
+      client.getPrompt(
+        GetPromptRequest(
+          GetPromptRequestParams(
+            name = "explore_reporting_data",
+            arguments = mapOf("measurement_consumer" to "measurementConsumers/mc1"),
+          )
+        )
+      )
+
+    val text = (result.messages.single().content as TextContent).text
+    assertThat(text).contains("measurementConsumers/mc1")
+    assertThat(text).contains("list_event_groups")
+    assertThat(text).contains("list_reporting_sets")
+    assertThat(text).contains("list_impression_qualification_filters")
+
+    client.close()
+  }
+
+  @Test
+  fun getPromptRendersWorkflowWithProvidedArguments() = runBlocking {
+    val server = ReportingMcpServer.createServer(createFakeApiClientWithServices()) { "test-token" }
+    val (clientTransport, serverTransport) = ChannelTransport.createLinkedPair()
+    val client = Client(clientInfo = Implementation(name = "test-client", version = "0.1"))
+    server.createSession(serverTransport)
+    client.connect(clientTransport)
+
+    // The rendered prompt should interpolate the provided MeasurementConsumer and reference the
+    // tools the agent must call, in order.
+    val result =
+      client.getPrompt(
+        GetPromptRequest(
+          GetPromptRequestParams(
+            name = "create_basic_report_workflow",
+            arguments = mapOf("measurement_consumer" to "measurementConsumers/mc1"),
+          )
+        )
+      )
+
+    val text = (result.messages.single().content as TextContent).text
+    assertThat(text).contains("measurementConsumers/mc1")
+    assertThat(text).contains("create_basic_report")
+    assertThat(text).contains("impression_qualification_filters")
+    assertThat(text).contains("result_group_metric_spec")
+
+    client.close()
+  }
+
+  @Test
+  fun getInterpretPromptRendersWithReportName() = runBlocking {
+    val server = ReportingMcpServer.createServer(createFakeApiClientWithServices()) { "test-token" }
+    val (clientTransport, serverTransport) = ChannelTransport.createLinkedPair()
+    val client = Client(clientInfo = Implementation(name = "test-client", version = "0.1"))
+    server.createSession(serverTransport)
+    client.connect(clientTransport)
+
+    val result =
+      client.getPrompt(
+        GetPromptRequest(
+          GetPromptRequestParams(
+            name = "interpret_basic_report",
+            arguments = mapOf("basic_report" to "measurementConsumers/mc1/basicReports/br1"),
+          )
+        )
+      )
+
+    val text = (result.messages.single().content as TextContent).text
+    assertThat(text).contains("measurementConsumers/mc1/basicReports/br1")
+    assertThat(text).contains("get_basic_report")
+    assertThat(text).contains("SUCCEEDED")
+
+    client.close()
+  }
+
+  @Test
+  fun getCompareCampaignsPromptRendersWithMeasurementConsumer() = runBlocking {
+    val server = ReportingMcpServer.createServer(createFakeApiClientWithServices()) { "test-token" }
+    val (clientTransport, serverTransport) = ChannelTransport.createLinkedPair()
+    val client = Client(clientInfo = Implementation(name = "test-client", version = "0.1"))
+    server.createSession(serverTransport)
+    client.connect(clientTransport)
+
+    val result =
+      client.getPrompt(
+        GetPromptRequest(
+          GetPromptRequestParams(
+            name = "compare_campaigns",
+            arguments = mapOf("measurement_consumer" to "measurementConsumers/mc1"),
+          )
+        )
+      )
+
+    val text = (result.messages.single().content as TextContent).text
+    assertThat(text).contains("measurementConsumers/mc1")
+    assertThat(text).contains("list_basic_reports")
+    assertThat(text).contains("create_time_after")
+
+    client.close()
   }
 
   @Test
