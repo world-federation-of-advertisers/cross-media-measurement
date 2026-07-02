@@ -111,6 +111,13 @@ message SubpoolAssignerParams {
   // Phase-2 WorkItem).
   string model_blob_path = 9 [(google.api.field_behavior) = REQUIRED];
 
+  // Cloud Storage for the compiled VID model blob named by `model_blob_path`.
+  // The compiled model lives in its own Cloud Storage project, separate from
+  // the impression and map storage above, so it carries a dedicated project
+  // here.
+  StorageParams model_storage_params = 17
+      [(google.api.field_behavior) = REQUIRED];
+
   // Inclusive start of the model line's active window. Impressions whose
   // event timestamp is before this point are dropped before labeling.
   // Mirrors `ModelLine.active_start_time` from the public API.
@@ -165,4 +172,13 @@ message SubpoolAssignerParams {
     (google.api.resource_reference).type =
         "edpaggregator.halo-cmm.org/PoolAssignmentJob"
   ];
+
+  // Maximum total `RawImpressionUploadFile.size_bytes` packed into a single
+  // memoized Phase-2 `VidLabelingJob` (the bin-packing threshold). Forwarded by
+  // the VID Labeling Dispatcher/Monitor from
+  // `VidLabelingConfig.max_file_batch_size_bytes` so the Phase-1 ranker's
+  // last-`RankerJob`-out fan-out bin-packs identically to the non-memoized
+  // dispatcher. REQUIRED; there is no built-in default (a wrong one OOMs or
+  // under-utilizes the Phase-2 VM). SubpoolAssignerApp validates it `> 0`.
+  int64 max_file_batch_size_bytes = 18 [(google.api.field_behavior) = REQUIRED];
 }

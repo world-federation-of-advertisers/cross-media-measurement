@@ -18,6 +18,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -63,6 +64,19 @@ message VidLabelerParams {
 
     // Mapping from event template field names to their corresponding values.
     map<string, string> event_template_field_mapping = 2;
+
+    // Inclusive start of the model line's active window. Impressions whose
+    // event timestamp is before this point are dropped before labeling.
+    // Mirrors `ModelLine.active_start_time` from the public API.
+    google.protobuf.Timestamp active_start_time = 3
+        [(google.api.field_behavior) = OPTIONAL];
+
+    // Exclusive end of the model line's active window. Impressions whose
+    // event timestamp is at or after this point are dropped before labeling.
+    // Unset means no upper bound. Mirrors `ModelLine.active_end_time` from
+    // the public API.
+    google.protobuf.Timestamp active_end_time = 4
+        [(google.api.field_behavior) = OPTIONAL];
   }
 
   // Map from model line resource name to its configuration.
@@ -83,15 +97,41 @@ message VidLabelerParams {
         "edpaggregator.halo-cmm.org/RawImpressionUpload"
   ];
 
-  // Zero-based shard index this WorkItem is responsible for.
-  int32 shard_index = 8 [(google.api.field_behavior) = REQUIRED];
+  // Cloud Storage for the compiled VID model blobs named by [model_blob_paths].
+  // The compiled model lives in its own Cloud Storage project, separate from
+  // the impression storage, so it carries a dedicated project. Set on both
+  // paths (reuses field 8, freed by the removed static-sharding `shard_index`).
+  StorageParams model_storage_params = 8
+      [(google.api.field_behavior) = OPTIONAL];
 
-  // Total number of shards for this dispatch.
-  int32 total_shards = 9 [(google.api.field_behavior) = REQUIRED];
+  // The `VidLabelingJob` this WorkItem fulfils: the bin-packed file batch plus
+  // the model lines it covers. The TEE marks it `SUCCEEDED`/`FAILED`; the
+  // last-job-out flips each covered model line to `COMPLETED`. Set on both
+  // paths (reuses field 9, freed by the removed static-sharding
+  // `total_shards`).
+  string vid_labeling_job = 9 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference).type =
+        "edpaggregator.halo-cmm.org/VidLabelingJob"
+  ];
 
   // Map from model line resource name to its model blob path. Resolved by the
   // dispatcher from ModelShard so the TEE app does not need to interact with
   // the VID Repository API.
   map<string, string> model_blob_paths = 10
       [(google.api.field_behavior) = REQUIRED];
+
+  // Reserved for `memoized_params`, added by the memoized-path PR (#4072)
+  // stacked above this one. Pinned here so an unrelated PR cannot claim field
+  // 11 if this PR merges first; #4072 replaces this with the field definition.
+  reserved 11;
+
+  // The `ModelLine`s this WorkItem labels: exactly one on the memoized path,
+  // the bundled set on the non-memoized path. Distinct from
+  // [override_model_lines], which is the operator-header override applied on
+  // top. Set on both paths.
+  repeated string model_lines = 12 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+  ];
 }
