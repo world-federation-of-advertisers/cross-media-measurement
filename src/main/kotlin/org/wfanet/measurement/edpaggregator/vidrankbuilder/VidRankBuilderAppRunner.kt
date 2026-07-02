@@ -16,25 +16,21 @@
 
 package org.wfanet.measurement.edpaggregator.vidrankbuilder
 
-import com.google.cloud.storage.StorageOptions
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Parser
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.edpaggregator.BaseTeeAppRunner
+import org.wfanet.measurement.edpaggregator.BaseVidLabelingTeeAppRunner
+import org.wfanet.measurement.edpaggregator.gcsHadoopConfiguration
 import org.wfanet.measurement.edpaggregator.runBlockingWithTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams.StorageParams
-import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
-import org.wfanet.measurement.storage.ConditionalOperationStorageClient
-import org.wfanet.measurement.storage.SelectedStorageClient
 import picocli.CommandLine
 
 /**
@@ -49,7 +45,10 @@ import picocli.CommandLine
  * to [VidRankBuilderApp.run].
  */
 @CommandLine.Command(name = "vid_rank_builder_app_runner")
-class VidRankBuilderAppRunner : BaseTeeAppRunner() {
+class VidRankBuilderAppRunner :
+  BaseVidLabelingTeeAppRunner(
+    hadoopConfigurationFor = { cfg -> gcsHadoopConfiguration(requireNotNull(cfg.projectId)) }
+  ) {
 
   @CommandLine.Option(
     names = ["--vid-labeler-queue"],
@@ -99,8 +98,12 @@ class VidRankBuilderAppRunner : BaseTeeAppRunner() {
         workItemAttemptsClient = workItemAttemptsClient,
         kmsClients = kmsClientsMap,
         retentionDaysByDataProvider = retentionDaysByDataProvider,
-        buildSubpoolMapStorageClient = ::buildStorageClient,
-        buildVidRankMapStorageClient = ::buildStorageClient,
+        buildSubpoolMapStorageClient = { sp ->
+          buildStorageClient(storageConfig(sp.gcsProjectId).copy(blobPrefix = sp.blobPrefix))
+        },
+        buildVidRankMapStorageClient = { sp ->
+          buildStorageClient(storageConfig(sp.gcsProjectId).copy(blobPrefix = sp.blobPrefix))
+        },
         rankerJobsStub = rankerJobsClient,
         rankIndexBlobsStub = rankIndexBlobsClient,
         rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesClient,
@@ -110,30 +113,6 @@ class VidRankBuilderAppRunner : BaseTeeAppRunner() {
       )
 
     runBlockingWithTelemetry { vidRankBuilderApp.run() }
-  }
-
-  // TODO(world-federation-of-advertisers/cross-media-measurement#3903): once
-  //   BaseVidLabelingTeeAppRunner lands on main (branch
-  // marcopremier/base-vid-labeling-tee-app-runner),
-  //   extend it and replace the local storage-client helper(s) with the shared base helpers
-  //   (buildStorageClient / buildParquetStorageClient / readCompiledModelBlob / kekUriFor).
-  /**
-   * Builds a bucket-rooted [ConditionalOperationStorageClient] for [storageParams], parsing the
-   * bucket from the `gs://` blob_prefix and authenticating to GCS as the Confidential Space VM's
-   * attached service account. Mirrors the deployed VID Labeling functions' storage-client
-   * construction.
-   */
-  private fun buildStorageClient(storageParams: StorageParams): ConditionalOperationStorageClient {
-    val blobUri = SelectedStorageClient.parseBlobUri(storageParams.blobPrefix)
-    val storageOptions =
-      StorageOptions.newBuilder()
-        .apply {
-          if (storageParams.gcsProjectId.isNotEmpty()) {
-            setProjectId(storageParams.gcsProjectId)
-          }
-        }
-        .build()
-    return GcsStorageClient(storageOptions.service, blobUri.bucket)
   }
 
   companion object {
