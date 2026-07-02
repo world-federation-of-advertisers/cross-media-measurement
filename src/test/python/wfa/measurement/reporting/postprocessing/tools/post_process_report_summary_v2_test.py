@@ -1748,6 +1748,190 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
 
 
 
+    def test_full_shape_collapsing_rsrs_all_alias_paths_back_filled(self):
+        # Coverage for the alias code paths not exercised by the simpler
+        # whole_campaign-reach tests: two RSRs share (impression_filter,
+        # frozenset(data_providers)) via permuted data_providers ordering. Each
+        # carries cumulative_results (drives _record_measurement_list_aliases,
+        # a list-of-reach path), non_cumulative_results with frequency bins
+        # (drives the strict=True zip through _record_measurement_set_aliases
+        # -- covering k_reach-bin aliasing on multiple bins per week), and
+        # whole_campaign_result with frequency bins (drives the whole_campaign
+        # _record_measurement_set_aliases branch, including its own k_reach).
+        # Impression aliasing is not exercised here because on this branch the
+        # pre-#4141 impression equality (union = sum(singles)) degenerates to
+        # 0 without per-EDP primitives; #4141 tightens that guard so a follow-
+        # up expansion of this test to add impression_count can land there.
+        proto = ('cmms_measurement_consumer_id: "MC1"\n'
+                 'external_report_result_id: 456\n'
+                 'population: 34288880\n'
+                 'report_summary_set_results {\n'
+                 '    external_reporting_set_result_id: 1\n'
+                 '    impression_filter: "ami"\n'
+                 '    set_operation: "union"\n'
+                 '    data_providers: "edp1"\n'
+                 '    data_providers: "edp2"\n'
+                 '    metric_frequency_spec { weekly: MONDAY }\n'
+                 '    cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 14 }\n'
+                 '            end { year: 2021 month: 3 day: 15 }\n'
+                 '        }\n'
+                 '        reach { value: 1000 standard_deviation: 0 metric: "a_cum_w1_reach" }\n'
+                 '    }\n'
+                 '    cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 15 }\n'
+                 '            end { year: 2021 month: 3 day: 22 }\n'
+                 '        }\n'
+                 '        reach { value: 2500 standard_deviation: 0 metric: "a_cum_w2_reach" }\n'
+                 '    }\n'
+                 '    non_cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 14 }\n'
+                 '            end { year: 2021 month: 3 day: 15 }\n'
+                 '        }\n'
+                 '        reach { value: 1000 standard_deviation: 0 metric: "a_nc_w1_reach" }\n'
+                 '        frequency {\n'
+                 '            metric: "a_nc_w1_freq"\n'
+                 '            bins { key: 1 value { value: 600 standard_deviation: 0 } }\n'
+                 '            bins { key: 2 value { value: 400 standard_deviation: 0 } }\n'
+                 '        }\n'
+                 '    }\n'
+                 '    non_cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 15 }\n'
+                 '            end { year: 2021 month: 3 day: 22 }\n'
+                 '        }\n'
+                 '        reach { value: 1500 standard_deviation: 0 metric: "a_nc_w2_reach" }\n'
+                 '        frequency {\n'
+                 '            metric: "a_nc_w2_freq"\n'
+                 '            bins { key: 1 value { value: 900 standard_deviation: 0 } }\n'
+                 '            bins { key: 2 value { value: 600 standard_deviation: 0 } }\n'
+                 '        }\n'
+                 '    }\n'
+                 '    whole_campaign_result {\n'
+                 '        reach { value: 2500 standard_deviation: 0 metric: "a_wc_reach" }\n'
+                 '        frequency {\n'
+                 '            metric: "a_wc_freq"\n'
+                 '            bins { key: 1 value { value: 1500 standard_deviation: 0 } }\n'
+                 '            bins { key: 2 value { value: 1000 standard_deviation: 0 } }\n'
+                 '        }\n'
+                 '    }\n'
+                 '}\n'
+                 'report_summary_set_results {\n'
+                 '    external_reporting_set_result_id: 2\n'
+                 '    impression_filter: "ami"\n'
+                 '    set_operation: "union"\n'
+                 '    data_providers: "edp2"\n'
+                 '    data_providers: "edp1"\n'
+                 '    metric_frequency_spec { weekly: MONDAY }\n'
+                 '    cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 14 }\n'
+                 '            end { year: 2021 month: 3 day: 15 }\n'
+                 '        }\n'
+                 '        reach { value: 1000 standard_deviation: 0 metric: "b_cum_w1_reach" }\n'
+                 '    }\n'
+                 '    cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 15 }\n'
+                 '            end { year: 2021 month: 3 day: 22 }\n'
+                 '        }\n'
+                 '        reach { value: 2500 standard_deviation: 0 metric: "b_cum_w2_reach" }\n'
+                 '    }\n'
+                 '    non_cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 14 }\n'
+                 '            end { year: 2021 month: 3 day: 15 }\n'
+                 '        }\n'
+                 '        reach { value: 1000 standard_deviation: 0 metric: "b_nc_w1_reach" }\n'
+                 '        frequency {\n'
+                 '            metric: "b_nc_w1_freq"\n'
+                 '            bins { key: 1 value { value: 600 standard_deviation: 0 } }\n'
+                 '            bins { key: 2 value { value: 400 standard_deviation: 0 } }\n'
+                 '        }\n'
+                 '    }\n'
+                 '    non_cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 15 }\n'
+                 '            end { year: 2021 month: 3 day: 22 }\n'
+                 '        }\n'
+                 '        reach { value: 1500 standard_deviation: 0 metric: "b_nc_w2_reach" }\n'
+                 '        frequency {\n'
+                 '            metric: "b_nc_w2_freq"\n'
+                 '            bins { key: 1 value { value: 900 standard_deviation: 0 } }\n'
+                 '            bins { key: 2 value { value: 600 standard_deviation: 0 } }\n'
+                 '        }\n'
+                 '    }\n'
+                 '    whole_campaign_result {\n'
+                 '        reach { value: 2500 standard_deviation: 0 metric: "b_wc_reach" }\n'
+                 '        frequency {\n'
+                 '            metric: "b_wc_freq"\n'
+                 '            bins { key: 1 value { value: 1500 standard_deviation: 0 } }\n'
+                 '            bins { key: 2 value { value: 1000 standard_deviation: 0 } }\n'
+                 '        }\n'
+                 '    }\n'
+                 '}\n')
+        report_summary = text_format.Parse(
+            proto, report_summary_v2_pb2.ReportSummaryV2()
+        )
+        result = ReportSummaryV2Processor(report_summary, []).process()
+
+        # Cumulative reach: exercises _record_measurement_list_aliases. Both
+        # a_* and b_* names must be present with equal values.
+        for a_name, b_name, expected in [
+            ("a_cum_w1_reach", "b_cum_w1_reach", 1000),
+            ("a_cum_w2_reach", "b_cum_w2_reach", 2500),
+        ]:
+            self.assertIn(a_name, result.updated_measurements)
+            self.assertIn(b_name, result.updated_measurements)
+            self.assertEqual(
+                result.updated_measurements[a_name],
+                result.updated_measurements[b_name])
+            self.assertEqual(result.updated_measurements[a_name], expected)
+
+        # Non-cumulative reach: exercises the strict=True zip through
+        # _record_measurement_set_aliases (the reach arm of MeasurementSet).
+        for a_name, b_name in [
+            ("a_nc_w1_reach", "b_nc_w1_reach"),
+            ("a_nc_w2_reach", "b_nc_w2_reach"),
+        ]:
+            self.assertIn(a_name, result.updated_measurements)
+            self.assertIn(b_name, result.updated_measurements)
+            self.assertEqual(
+                result.updated_measurements[a_name],
+                result.updated_measurements[b_name])
+
+        # Non-cumulative frequency-bin aliasing (k_reach-bin path).
+        for a_prefix, b_prefix in [("a_nc_w1_freq", "b_nc_w1_freq"),
+                                   ("a_nc_w2_freq", "b_nc_w2_freq")]:
+            for bin_label in (1, 2):
+                a_name = f"{a_prefix}-bin-{bin_label}"
+                b_name = f"{b_prefix}-bin-{bin_label}"
+                self.assertIn(a_name, result.updated_measurements)
+                self.assertIn(b_name, result.updated_measurements)
+                self.assertEqual(
+                    result.updated_measurements[a_name],
+                    result.updated_measurements[b_name])
+
+        # Whole-campaign reach + frequency bins.
+        self.assertIn("a_wc_reach", result.updated_measurements)
+        self.assertIn("b_wc_reach", result.updated_measurements)
+        self.assertEqual(
+            result.updated_measurements["a_wc_reach"],
+            result.updated_measurements["b_wc_reach"])
+        for bin_label in (1, 2):
+            a_name = f"a_wc_freq-bin-{bin_label}"
+            b_name = f"b_wc_freq-bin-{bin_label}"
+            self.assertIn(a_name, result.updated_measurements)
+            self.assertIn(b_name, result.updated_measurements)
+            self.assertEqual(
+                result.updated_measurements[a_name],
+                result.updated_measurements[b_name])
+
+
+
 def read_file_to_string(filename: str) -> str:
     try:
         with open(filename, 'r') as file:
