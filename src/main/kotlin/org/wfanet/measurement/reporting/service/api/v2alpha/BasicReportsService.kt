@@ -808,6 +808,11 @@ class BasicReportsService(
                 limit = 1000
               }
             )
+            // Only unfiltered ReportingSets are valid reuse targets, since minted and synthesized
+            // ReportingSets never have a filter. Filtered ReportingSets under the Campaign Group
+            // are silently skipped here.
+            // TODO(world-federation-of-advertisers/cross-media-measurement#4144): Reject filtered
+            //   ReportingSets at request time instead of silently ignoring them.
             .filter { it.filter.isEmpty() }
             .collect {
               val reportingSet = it.toReportingSet()
@@ -962,7 +967,8 @@ class BasicReportsService(
       val collidingName = nameByDataProviderSet.put(dataProviderSet, name)
       if (collidingName != null) {
         throw InvalidFieldValueException(componentsFieldPath) { fieldPath ->
-          "$fieldPath entries $name and $collidingName resolve to the same DataProvider set"
+          "$fieldPath entries $name and $collidingName resolve to the same DataProvider set; " +
+            "this would collide in per-DataProvider metric bucketing"
         }
       }
     }
