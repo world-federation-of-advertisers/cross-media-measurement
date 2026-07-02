@@ -22,6 +22,7 @@ import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
+import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -32,6 +33,8 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
+import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.ParquetStorageClient
 import org.wfanet.measurement.storage.parquetRow
 import org.wfanet.measurement.storage.parquetValue
@@ -51,6 +54,9 @@ class BaseVidLabelingTeeAppRunnerTest {
 
     fun parquetClient(kms: KmsClient): ParquetStorageClient =
       buildParquetStorageClient(StorageConfig(), kms)
+
+    fun storageClient(cfg: StorageConfig): ConditionalOperationStorageClient =
+      buildStorageClient(cfg)
   }
 
   @Test
@@ -81,4 +87,22 @@ class BaseVidLabelingTeeAppRunnerTest {
       assertThat(rows).hasSize(1)
       assertThat(rows[0].getValue("event_id").stringValue).isEqualTo("e1")
     }
+
+  @Test
+  fun `buildStorageClient round-trips multiple relative keys under one bucket`() = runBlocking {
+    // A file://-rooted multi-key store: the prefix's first path segment is the bucket, resolved
+    // under the temp root. buildStorageClient must return a bucket-rooted (multi-key) client, NOT
+    // a single-blob SelectedStorageClient, so several distinct keys round-trip. Rooting a
+    // single-blob client at a bare "gs://" (the prior bug) would reject every real key.
+    tempDir.newFolder("rank-maps")
+    val cfg = StorageConfig(rootDirectory = tempDir.root, blobPrefix = "file:///rank-maps/prefix")
+    val client: ConditionalOperationStorageClient =
+      TestRunner(tempDir.root.absolutePath, Configuration()).storageClient(cfg)
+
+    client.writeBlob("snapshot-1", flow { emit(ByteString.copyFromUtf8("one")) })
+    client.writeBlob("snapshot-2", flow { emit(ByteString.copyFromUtf8("two")) })
+
+    assertThat(client.getBlob("snapshot-1")!!.read().flatten().toStringUtf8()).isEqualTo("one")
+    assertThat(client.getBlob("snapshot-2")!!.read().flatten().toStringUtf8()).isEqualTo("two")
+  }
 }
