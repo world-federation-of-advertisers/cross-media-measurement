@@ -7,9 +7,18 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
+    name = "vid_labeling_config_validation",
+    srcs = ["VidLabelingConfigValidation.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/config/edpaggregator:vid_labeling_config_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
     name = "vid_labeling_dispatcher_function",
     srcs = ["VidLabelingDispatcherFunction.kt"],
     deps = [
+        ":vid_labeling_config_validation",
         "//imports/java/io/opentelemetry/api:context",
         "//imports/java/io/opentelemetry/extension:kotlin",
         "//imports/java/io/opentelemetry/instrumentation/grpc",
@@ -57,6 +66,7 @@ kt_jvm_library(
     name = "vid_labeling_monitor_function",
     srcs = ["VidLabelingMonitorFunction.kt"],
     deps = [
+        ":vid_labeling_config_validation",
         "//imports/java/io/opentelemetry/instrumentation/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common:env_vars",
         "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:edp_aggregator_config",

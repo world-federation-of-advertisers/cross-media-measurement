@@ -229,6 +229,8 @@ class VidLabelingDispatcherFunction : HttpFunction {
       require(config.numberOfShards > 0) {
         "number_of_shards must be positive for data provider: ${config.dataProvider}"
       }
+      // Fail fast on per-model-line config the TEE would otherwise only reject at Phase-2.
+      requireValidModelLineConfigs(config)
       val modelLineConfigs = convertModelLineConfigs(config.modelLineConfigsMap)
 
       val dispatchSequencer =
