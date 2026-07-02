@@ -222,7 +222,8 @@ class VidRankBuilderApp(
           eventTemplateDescriptorBlobUri = params.eventTemplateDescriptorBlobUri
           eventTemplateType = params.eventTemplateType
           // Per-impression entity-key columns for Phase-2 (read per row from these columns).
-          entityKeyFieldMapping.putAll(params.entityKeyFieldMappingMap)
+          requiredEntityKeyFieldMapping.putAll(params.requiredEntityKeyFieldMappingMap)
+          optionalEntityKeyFieldMapping.putAll(params.optionalEntityKeyFieldMappingMap)
           // Active-window pass-through (OPTIONAL): Phase-2 drops impressions outside this window.
           if (params.hasActiveStartTime()) {
             activeStartTime = params.activeStartTime
