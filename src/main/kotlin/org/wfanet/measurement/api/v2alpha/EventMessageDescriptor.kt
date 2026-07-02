@@ -76,12 +76,20 @@ class EventMessageDescriptor(eventDescriptor: Descriptors.Descriptor) {
           for (templateField in field.messageType.fields) {
             if (isOneofArm(templateField)) {
               // MESSAGE-typed field (typically inside a `oneof`) whose message
-              // has template_field-annotated fields. Enumerate its nested
-              // fields under `<template>.<arm>.<field>`, inheriting the
-              // parent template's media type. Handles the market-template
-              // shape `Common.oneof edp_specific { Edp1 edp1 = ...; }` where
-              // Edp1's own fields carry the annotations.
+              // has template_field-annotated fields. Enumerate the annotated
+              // nested fields under `<template>.<arm>.<field>`, inheriting
+              // the parent template's media type. Handles the market-
+              // template shape `Common.oneof edp_specific { Edp1 edp1 = ...; }`
+              // where Edp1's own fields carry the annotations.
+              //
+              // Only annotated nested fields are enumerated: `isOneofArm`
+              // triggers on ANY annotated child, but the arm's message may
+              // also contain unannotated helper fields (private-use encoding
+              // fields, etc.) that should not be exposed as template fields.
               for (nestedField in templateField.messageType.fields) {
+                if (!nestedField.options.hasExtension(EventAnnotationsProto.templateField)) {
+                  continue
+                }
                 validateEventTemplateField(nestedField)
                 val nestedFieldAnnotation: EventFieldDescriptor =
                   nestedField.options.getExtension(EventAnnotationsProto.templateField)

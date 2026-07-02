@@ -141,7 +141,7 @@ message TestingOnly {
   }
 
   // Test-only oneof mirroring the `Common.oneof edp_specific` pattern
-  // real market templates use (Origin UK, Aquila US) to expose EDP-specific
+  // real market templates use (production deployments) to expose EDP-specific
   // event fields. Three arms so IQF-side, DimensionSpec-filter-side, and
   // DimensionSpec-grouping-side tests each address a distinct nested path
   // without either poisoning the other's assertion shape. All arms
