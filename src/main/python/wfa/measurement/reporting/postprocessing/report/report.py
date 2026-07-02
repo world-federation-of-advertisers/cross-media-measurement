@@ -1193,6 +1193,12 @@ class Report:
               comb for comb in whole_campaign_edp_combinations
               if len(comb) == 1 and comb.issubset(edp_combination)
           ]
+          # Skip the union = sum(singles) equality when no per-EDP RSRs exist.
+          # Without this guard, an empty single_edp_subset produces
+          # union_impression = 0, which contradicts the measured value and
+          # makes the QP problem primal-infeasible.
+          if not single_edp_subset:
+            continue
           spec.add_equal_relation(
               set_id_one=self._get_measurement_index(
                   metric_report.get_whole_campaign_impression_measurement(
@@ -1214,6 +1220,10 @@ class Report:
               comb for comb in weekly_non_cumulative_edp_combinations
               if len(comb) == 1 and comb.issubset(edp_combination)
           ]
+          # Skip the union = sum(singles) equality when no per-EDP RSRs exist
+          # (see whole_campaign branch above for rationale).
+          if not single_edp_subset:
+            continue
           for period in range(0, self._num_periods):
               spec.add_equal_relation(
                   set_id_one=self._get_measurement_index(

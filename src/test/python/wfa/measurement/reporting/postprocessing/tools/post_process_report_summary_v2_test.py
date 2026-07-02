@@ -1747,6 +1747,73 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             self.assertEqual(result.updated_measurements[name], 500)
 
 
+    def test_union_only_report_solver_feasibility(self):
+        # Regression for the primal-infeasibility in _add_impression_relations_to_spec
+        # when a report has only a union RSR (no per-EDP primitives).
+        #
+        # Previously, the union = sum(per-EDP) equality constraint was emitted with
+        # an empty singletons list, degenerating to `union_impression = 0`. Combined
+        # with the measured value's own equality, the QP solver saw contradictory
+        # equalities on the same variable and returned SOLUTION_NOT_FOUND.
+        #
+        # This shape corresponds to a BasicReport requesting `reporting_unit.cumulative
+        # + reporting_unit.non_cumulative` weekly with no `component` subfield -- a
+        # plausible caller shape (weekly cross-publisher aggregate dashboard).
+        proto = ('cmms_measurement_consumer_id: "MC1"\n'
+                 'external_report_result_id: 456\n'
+                 'population: 34288880\n'
+                 'report_summary_set_results {\n'
+                 '    external_reporting_set_result_id: 1\n'
+                 '    impression_filter: "ami"\n'
+                 '    set_operation: "union"\n'
+                 '    data_providers: "edp1"\n'
+                 '    data_providers: "edp2"\n'
+                 '    metric_frequency_spec { weekly: MONDAY }\n'
+                 '    cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 14 }\n'
+                 '            end { year: 2021 month: 3 day: 15 }\n'
+                 '        }\n'
+                 '        reach { value: 1454 standard_deviation: 0 metric: "cum_w1_reach" }\n'
+                 '    }\n'
+                 '    cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 15 }\n'
+                 '            end { year: 2021 month: 3 day: 18 }\n'
+                 '        }\n'
+                 '        reach { value: 5330 standard_deviation: 0 metric: "cum_w2_reach" }\n'
+                 '    }\n'
+                 '    non_cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 14 }\n'
+                 '            end { year: 2021 month: 3 day: 15 }\n'
+                 '        }\n'
+                 '        reach { value: 1454 standard_deviation: 0 metric: "nc_w1_reach" }\n'
+                 '        impression_count { value: 2126 standard_deviation: 0 metric: "nc_w1_impr" }\n'
+                 '    }\n'
+                 '    non_cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 15 }\n'
+                 '            end { year: 2021 month: 3 day: 18 }\n'
+                 '        }\n'
+                 '        reach { value: 4211 standard_deviation: 0 metric: "nc_w2_reach" }\n'
+                 '        impression_count { value: 6734 standard_deviation: 0 metric: "nc_w2_impr" }\n'
+                 '    }\n'
+                 '}\n')
+        report_summary = text_format.Parse(
+            proto, report_summary_v2_pb2.ReportSummaryV2()
+        )
+        result = ReportSummaryV2Processor(report_summary, []).process()
+        # Every measurement should be present in updated_measurements with its
+        # unchanged value (sigma=0 means no correction).
+        self.assertEqual(result.updated_measurements["cum_w1_reach"], 1454)
+        self.assertEqual(result.updated_measurements["cum_w2_reach"], 5330)
+        self.assertEqual(result.updated_measurements["nc_w1_reach"], 1454)
+        self.assertEqual(result.updated_measurements["nc_w2_reach"], 4211)
+        self.assertEqual(result.updated_measurements["nc_w1_impr"], 2126)
+        self.assertEqual(result.updated_measurements["nc_w2_impr"], 6734)
+
+
 
 def read_file_to_string(filename: str) -> str:
     try:
