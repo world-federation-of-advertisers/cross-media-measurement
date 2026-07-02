@@ -57,6 +57,19 @@ Before deploying the dashboard, ensure the following are in place:
     If you see `ERROR: (gcloud.beta.services.identity.create) PERMISSION_DENIED:
     Service Usage API has not been used in project ... before or it is disabled`
     on the first `terraform apply`, this is the fix.
+
+    Once Service Usage is on, enable the two BigQuery APIs the dashboard uses
+    that are not on by default. Otherwise `terraform apply` fails with
+    `Error creating Connection: googleapi: Error 403: BigQuery Connection API
+    has not been used in project ... before or it is disabled` (for
+    `google_bigquery_connection` resources) or the equivalent 403 on
+    scheduled-query creation:
+    ```shell
+    gcloud services enable \
+      bigqueryconnection.googleapis.com \
+      bigquerydatatransfer.googleapis.com \
+      --project=MY_PROJECT
+    ```
 4.  The Terraform service account has the following project-level roles
     (granted out-of-band — Terraform does not bootstrap its own credentials):
     *   `roles/bigquery.admin` — create datasets, tables, connections,
