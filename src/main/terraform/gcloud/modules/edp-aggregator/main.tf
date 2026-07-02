@@ -194,6 +194,13 @@ module "config_files_bucket" {
   location = var.edp_aggregator_buckets_location
 }
 
+module "vid_models_bucket" {
+  source = "../storage-bucket"
+
+  name     = "vid-models-storage"
+  location = var.edp_aggregator_buckets_location
+}
+
 resource "google_storage_bucket_object" "upload_data_watcher_config" {
   name   = var.data_watcher_config.destination
   bucket = module.config_files_bucket.storage_bucket.name
@@ -780,6 +787,14 @@ resource "google_storage_bucket_iam_member" "vid_labeling_config_storage_viewer"
   for_each = var.vid_labeling_workers
 
   bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.vid_labeling_tee_app[each.key].mig_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "vid_labeling_model_storage_viewer" {
+  for_each = var.vid_labeling_workers
+
+  bucket = module.vid_models_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.vid_labeling_tee_app[each.key].mig_service_account.email}"
 }
