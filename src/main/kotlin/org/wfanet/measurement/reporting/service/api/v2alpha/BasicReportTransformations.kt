@@ -232,13 +232,57 @@ private fun InternalEventTemplateField.FieldValue.toCelValue(
   fieldInfo: EventMessageDescriptor.EventTemplateFieldInfo
 ): String {
   return when (selectorCase) {
-    InternalEventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> stringValue
+    InternalEventTemplateField.FieldValue.SelectorCase.STRING_VALUE ->
+      stringValue.toCelStringLiteral()
     InternalEventTemplateField.FieldValue.SelectorCase.ENUM_VALUE ->
       checkNotNull(fieldInfo.enumType?.findValueByName(enumValue)).number.toString()
     InternalEventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> boolValue.toString()
-    InternalEventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> floatValue.toString()
+    InternalEventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE ->
+      floatValue.toCelNumericLiteral()
     InternalEventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> error("No field value")
   }
+}
+
+/**
+ * Encodes [this] as a CEL double-quoted string literal, escaping backslash, double-quote, and
+ * control characters per the CEL string-literal grammar
+ * (https://github.com/google/cel-spec/blob/master/doc/langdef.md#string-literals).
+ *
+ * Printable non-ASCII characters are passed through as UTF-8 -- CEL accepts them as-is in string
+ * literals -- rather than being re-escaped to `\uXXXX`. This keeps generated CEL readable in server
+ * logs.
+ */
+private fun String.toCelStringLiteral(): String {
+  val out = StringBuilder(length + 2)
+  out.append('"')
+  for (c in this) {
+    when {
+      c == '\\' -> out.append("\\\\")
+      c == '"' -> out.append("\\\"")
+      c == '\n' -> out.append("\\n")
+      c == '\r' -> out.append("\\r")
+      c == '\t' -> out.append("\\t")
+      c.code < 0x20 -> out.append("\\u").append("%04x".format(c.code))
+      else -> out.append(c)
+    }
+  }
+  out.append('"')
+  return out.toString()
+}
+
+/**
+ * Encodes [this] as a CEL numeric literal. Rejects `NaN` and infinities: CEL renders these as bare
+ * identifiers (`NaN`, `Infinity`, `-Infinity`) rather than numeric literals, so `Kotlin`'s
+ * `Float.toString()` output would produce a filter that fails to compile. Semantically, `NaN ==
+ * NaN` is `false` in IEEE 754 -- a reach comparison against `NaN` is meaningless -- so rejecting
+ * upstream is the right shape even if CEL supported the literal.
+ */
+private fun Float.toCelNumericLiteral(): String {
+  require(isFinite()) {
+    "Cannot encode non-finite float ${this} as a CEL numeric literal; NaN and infinities are not " +
+      "meaningful in filter comparisons and have no valid CEL representation."
+  }
+  return toString()
 }
 
 /**
