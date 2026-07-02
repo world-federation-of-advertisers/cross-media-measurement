@@ -1799,6 +1799,10 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
                  '        reach { value: 4211 standard_deviation: 0 metric: "nc_w2_reach" }\n'
                  '        impression_count { value: 6734 standard_deviation: 0 metric: "nc_w2_impr" }\n'
                  '    }\n'
+                 '    whole_campaign_result {\n'
+                 '        reach { value: 5330 standard_deviation: 0 metric: "wc_reach" }\n'
+                 '        impression_count { value: 8860 standard_deviation: 0 metric: "wc_impr" }\n'
+                 '    }\n'
                  '}\n')
         report_summary = text_format.Parse(
             proto, report_summary_v2_pb2.ReportSummaryV2()
@@ -1812,6 +1816,133 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         self.assertEqual(result.updated_measurements["nc_w2_reach"], 4211)
         self.assertEqual(result.updated_measurements["nc_w1_impr"], 2126)
         self.assertEqual(result.updated_measurements["nc_w2_impr"], 6734)
+        # whole_campaign shape exercises the whole_campaign branch of the
+        # tightened guard -- with only a union RSR present, the branch's
+        # single_edp_subset is empty and must be skipped.
+        self.assertEqual(result.updated_measurements["wc_reach"], 5330)
+        self.assertEqual(result.updated_measurements["wc_impr"], 8860)
+
+
+
+    def test_partial_singleton_cover_whole_campaign_impression_skipped(self):
+        # Regression for the partial-cover shape on the whole_campaign branch of
+        # _add_impression_relations_to_spec. Pre-fix (empty-only guard) the
+        # {edp1, edp2, edp3} whole-campaign impression equality would fire with
+        # single_edp_subset = [{edp1}, {edp2}] and silently constrain
+        # union_impression = edp1_impression + edp2_impression, which is wrong
+        # (edp3's contribution is dropped, and the solver adjusts edp1 and edp2
+        # downward to compensate). Post-fix (< len guard) the equality is skipped
+        # and every impression measurement flows through unchanged.
+        proto = ('cmms_measurement_consumer_id: "MC1"\n'
+                 'external_report_result_id: 456\n'
+                 'population: 34288880\n'
+                 'report_summary_set_results {\n'
+                 '    external_reporting_set_result_id: 1\n'
+                 '    impression_filter: "ami"\n'
+                 '    set_operation: "union"\n'
+                 '    data_providers: "edp1"\n'
+                 '    data_providers: "edp2"\n'
+                 '    data_providers: "edp3"\n'
+                 '    whole_campaign_result {\n'
+                 '        reach { value: 12000 standard_deviation: 0 metric: "union_reach" }\n'
+                 '        impression_count { value: 30000 standard_deviation: 0 metric: "union_impr" }\n'
+                 '    }\n'
+                 '}\n'
+                 'report_summary_set_results {\n'
+                 '    external_reporting_set_result_id: 2\n'
+                 '    impression_filter: "ami"\n'
+                 '    set_operation: "union"\n'
+                 '    data_providers: "edp1"\n'
+                 '    whole_campaign_result {\n'
+                 '        reach { value: 5000 standard_deviation: 0 metric: "edp1_reach" }\n'
+                 '        impression_count { value: 8000 standard_deviation: 0 metric: "edp1_impr" }\n'
+                 '    }\n'
+                 '}\n'
+                 'report_summary_set_results {\n'
+                 '    external_reporting_set_result_id: 3\n'
+                 '    impression_filter: "ami"\n'
+                 '    set_operation: "union"\n'
+                 '    data_providers: "edp2"\n'
+                 '    whole_campaign_result {\n'
+                 '        reach { value: 4000 standard_deviation: 0 metric: "edp2_reach" }\n'
+                 '        impression_count { value: 7000 standard_deviation: 0 metric: "edp2_impr" }\n'
+                 '    }\n'
+                 '}\n')
+        report_summary = text_format.Parse(
+            proto, report_summary_v2_pb2.ReportSummaryV2()
+        )
+        result = ReportSummaryV2Processor(report_summary, []).process()
+        # With sigma=0 and the partial-cover equality skipped, every impression
+        # value flows through unchanged. Pre-fix, union_impr would be adjusted
+        # down to edp1_impr + edp2_impr = 15000 (not 30000).
+        self.assertEqual(result.updated_measurements["union_impr"], 30000)
+        self.assertEqual(result.updated_measurements["edp1_impr"], 8000)
+        self.assertEqual(result.updated_measurements["edp2_impr"], 7000)
+
+    def test_partial_singleton_cover_weekly_non_cumulative_impression_skipped(self):
+        # Regression for the partial-cover shape on the weekly_non_cumulative
+        # branch of _add_impression_relations_to_spec (analog of the
+        # whole_campaign test above).
+        proto = ('cmms_measurement_consumer_id: "MC1"\n'
+                 'external_report_result_id: 456\n'
+                 'population: 34288880\n'
+                 'report_summary_set_results {\n'
+                 '    external_reporting_set_result_id: 1\n'
+                 '    impression_filter: "ami"\n'
+                 '    set_operation: "union"\n'
+                 '    data_providers: "edp1"\n'
+                 '    data_providers: "edp2"\n'
+                 '    data_providers: "edp3"\n'
+                 '    metric_frequency_spec { weekly: MONDAY }\n'
+                 '    non_cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 14 }\n'
+                 '            end { year: 2021 month: 3 day: 15 }\n'
+                 '        }\n'
+                 '        reach { value: 12000 standard_deviation: 0 metric: "union_nc_reach" }\n'
+                 '        impression_count { value: 30000 standard_deviation: 0 metric: "union_nc_impr" }\n'
+                 '    }\n'
+                 '}\n'
+                 'report_summary_set_results {\n'
+                 '    external_reporting_set_result_id: 2\n'
+                 '    impression_filter: "ami"\n'
+                 '    set_operation: "union"\n'
+                 '    data_providers: "edp1"\n'
+                 '    metric_frequency_spec { weekly: MONDAY }\n'
+                 '    non_cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 14 }\n'
+                 '            end { year: 2021 month: 3 day: 15 }\n'
+                 '        }\n'
+                 '        reach { value: 5000 standard_deviation: 0 metric: "edp1_nc_reach" }\n'
+                 '        impression_count { value: 8000 standard_deviation: 0 metric: "edp1_nc_impr" }\n'
+                 '    }\n'
+                 '}\n'
+                 'report_summary_set_results {\n'
+                 '    external_reporting_set_result_id: 3\n'
+                 '    impression_filter: "ami"\n'
+                 '    set_operation: "union"\n'
+                 '    data_providers: "edp2"\n'
+                 '    metric_frequency_spec { weekly: MONDAY }\n'
+                 '    non_cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 14 }\n'
+                 '            end { year: 2021 month: 3 day: 15 }\n'
+                 '        }\n'
+                 '        reach { value: 4000 standard_deviation: 0 metric: "edp2_nc_reach" }\n'
+                 '        impression_count { value: 7000 standard_deviation: 0 metric: "edp2_nc_impr" }\n'
+                 '    }\n'
+                 '}\n')
+        report_summary = text_format.Parse(
+            proto, report_summary_v2_pb2.ReportSummaryV2()
+        )
+        result = ReportSummaryV2Processor(report_summary, []).process()
+        # Pre-fix, union_nc_impr would be adjusted down to edp1_nc_impr +
+        # edp2_nc_impr = 15000 (not 30000). Post-fix, every impression flows
+        # through unchanged.
+        self.assertEqual(result.updated_measurements["union_nc_impr"], 30000)
+        self.assertEqual(result.updated_measurements["edp1_nc_impr"], 8000)
+        self.assertEqual(result.updated_measurements["edp2_nc_impr"], 7000)
 
 
 
