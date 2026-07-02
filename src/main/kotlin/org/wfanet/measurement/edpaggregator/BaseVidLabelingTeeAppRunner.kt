@@ -21,6 +21,7 @@ import com.google.protobuf.ByteString
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.ParquetEncryptionConfig
 import org.wfanet.measurement.storage.ParquetStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -47,16 +48,28 @@ abstract class BaseVidLabelingTeeAppRunner(
   }
 
   /**
-   * A bucket-rooted GCS [SelectedStorageClient] for [cfg] (resolves absolute gs:// URIs). The
-   * concrete type also satisfies `ConditionalOperationStorageClient` consumers (e.g. the
-   * subpool-map / rank-map stores).
+   * A bucket-rooted, multi-key [ConditionalOperationStorageClient] for the store at
+   * [StorageConfig.blobPrefix] (its `gs://` / `file://` scheme selects the backend).
+   *
+   * The subpool-map and rank-index stores are multi-key: one client serves many relative keys under
+   * one bucket. This returns the [SelectedStorageClient.underlyingClient] (a bucket-rooted
+   * `GcsStorageClient` / `FileSystemStorageClient`), NOT the [SelectedStorageClient] itself — the
+   * latter is single-blob (it asserts the requested key equals its one constructor key), so rooting
+   * it at a bare `gs://` would reject every real key. Callers write/read relative keys under the
+   * prefix's bucket.
    */
-  protected fun buildStorageClient(cfg: StorageConfig): SelectedStorageClient =
-    SelectedStorageClient(
-      SelectedStorageClient.parseBlobUri(storageRootUri),
-      cfg.rootDirectory,
-      cfg.projectId,
-    )
+  protected fun buildStorageClient(cfg: StorageConfig): ConditionalOperationStorageClient {
+    val blobPrefix =
+      requireNotNull(cfg.blobPrefix) {
+        "StorageConfig.blobPrefix must be set to build a multi-key storage client"
+      }
+    return SelectedStorageClient(
+        SelectedStorageClient.parseBlobUri(blobPrefix),
+        cfg.rootDirectory,
+        cfg.projectId,
+      )
+      .underlyingClient
+  }
 
   /** A [ParquetStorageClient] for raw-impression reads, PME-decrypting via [kms]. */
   protected fun buildParquetStorageClient(
