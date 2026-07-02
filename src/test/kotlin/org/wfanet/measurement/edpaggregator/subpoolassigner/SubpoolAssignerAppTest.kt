@@ -58,7 +58,8 @@ class SubpoolAssignerAppTest {
     eventTemplateFieldMapping.put("banner_ad.viewable", "raw_viewable")
     eventTemplateDescriptorBlobUri = "descriptor/event-template.pb"
     eventTemplateType = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
-    entityKeyFieldMapping.put("household", "hh_col")
+    requiredEntityKeyFieldMapping.put("household", "hh_col")
+    optionalEntityKeyFieldMapping.put("creative", "cr_col")
     totalShards = 4
     maxFileBatchSizeBytes = 777
     activeStartTime = timestamp { seconds = 1000 }
@@ -101,7 +102,8 @@ class SubpoolAssignerAppTest {
     assertThat(template.eventTemplateType)
       .isEqualTo("wfa.measurement.api.v2alpha.event_templates.testing.TestEvent")
     // Per-impression entity-key columns forwarded for the Phase-2 fan-out.
-    assertThat(template.entityKeyFieldMappingMap).containsExactly("household", "hh_col")
+    assertThat(template.requiredEntityKeyFieldMappingMap).containsExactly("household", "hh_col")
+    assertThat(template.optionalEntityKeyFieldMappingMap).containsExactly("creative", "cr_col")
     // Active-window timestamps forwarded verbatim from Phase-0 for the Phase-2 fan-out.
     assertThat(template.activeStartTime).isEqualTo(timestamp { seconds = 1000 })
     assertThat(template.activeEndTime).isEqualTo(timestamp { seconds = 2000 })
