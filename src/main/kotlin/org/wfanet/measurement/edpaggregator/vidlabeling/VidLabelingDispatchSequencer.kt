@@ -730,7 +730,8 @@ class VidLabelingDispatchSequencer(
         eventTemplateType = modelLineConfig.eventTemplateType
         // Pass-through so the Phase-1 last-out can stamp the per-impression entity-key columns on
         // the memoized VidLabeler ModelLineConfig.
-        entityKeyFieldMapping.putAll(modelLineConfig.entityKeyFieldMappingMap)
+        requiredEntityKeyFieldMapping.putAll(modelLineConfig.requiredEntityKeyFieldMappingMap)
+        optionalEntityKeyFieldMapping.putAll(modelLineConfig.optionalEntityKeyFieldMappingMap)
         this.poolAssignmentJob = poolAssignmentJob
       }
 
