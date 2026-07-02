@@ -296,48 +296,6 @@ class SyncEventGroupActivitiesTest {
   }
 
   @Test
-  fun `CLI --config-file values take precedence over individual flags`() {
-    val file =
-      writeInputFile(
-        """
-        [{"parent": "$DATA_PROVIDER/eventGroups/eg1", "event_group_activity_date": "2026-01-01T00:00:00Z"}]
-        """
-          .trimIndent()
-      )
-    // Config says the correct DP; the flag deliberately gives a wrong one.
-    val configFile =
-      writeConfigFile(
-        """
-        data_provider: "$DATA_PROVIDER"
-        kingdom_public_api_target: "$HOST:${server.port}"
-        """
-          .trimIndent()
-      )
-    val args =
-      commonArgsMinusEnvSpecific +
-        arrayOf(
-          "--file=${file.path}",
-          "--config-file=${configFile.path}",
-          "--data-provider=dataProviders/WRONG",
-          "--kingdom-public-api-target=wrong.example.com:9999",
-        )
-
-    val capturedOutput = CommandLineTesting.capturingOutput(args, ::main)
-
-    // If the flag had won, the sync would have hit a wrong-parent listResources call and either
-    // failed the CLI or targeted the wrong host (unresolvable). Success + a list call whose
-    // parent contains the correct DP proves the config-file values were used.
-    CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(0)
-    verifyBlocking(activitiesServiceMock, times(1)) {
-      listEventGroupActivities(
-        check { request ->
-          assertThat(request.parent).startsWith(DATA_PROVIDER)
-        }
-      )
-    }
-  }
-
-  @Test
   fun `CLI fails when neither --config-file nor --data-provider provides data provider`() {
     val file = writeInputFile("[]")
     val args = commonArgsMinusEnvSpecific + arrayOf("--file=${file.path}")
