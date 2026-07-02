@@ -86,17 +86,7 @@ class VidLabelingSinkTest {
     contexts: List<ModelLineContext>,
     converter: ImpressionConverter = FakeImpressionConverter(),
     fileEntityKeys: FileEntityKeys =
-      FileEntityKeys(
-        eventGroupReferenceId = "eg-ref",
-        entityKeys =
-          listOf(
-            LabeledImpressionKt.entityKey {
-              entityType = "household"
-              entityId = "h-1"
-            }
-          ),
-        eventDate = LocalDate.parse("2026-06-30"),
-      ),
+      FileEntityKeys(eventGroupReferenceId = "eg-ref", eventDate = LocalDate.parse("2026-06-30")),
     encryptKmsClient: KmsClient = kmsClient,
     encryptionKeySemaphore: Semaphore =
       Semaphore(VidLabelingSink.DEFAULT_ENCRYPTION_KEY_PARALLELISM),

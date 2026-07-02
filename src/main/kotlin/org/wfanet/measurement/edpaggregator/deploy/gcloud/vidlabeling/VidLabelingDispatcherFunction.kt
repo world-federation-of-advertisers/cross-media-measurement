@@ -400,6 +400,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
           eventTemplateFieldMapping.putAll(configModelLine.eventTemplateFieldMappingMap)
           eventTemplateDescriptorBlobUri = configModelLine.eventTemplateDescriptorBlobUri
           eventTemplateType = configModelLine.eventTemplateType
+          entityKeyFieldMapping.putAll(configModelLine.entityKeyFieldMappingMap)
         }
       }
     }
