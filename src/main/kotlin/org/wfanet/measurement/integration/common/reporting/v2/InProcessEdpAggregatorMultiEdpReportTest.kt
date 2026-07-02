@@ -322,12 +322,9 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
           .withCallCredentials(credentials)
           .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
 
-      println(
-        "[hypothesis E] state=${completedBasicReport.state} " +
-          "resultGroups=${completedBasicReport.resultGroupsList.size} " +
-          "results-per-group=${completedBasicReport.resultGroupsList.map { it.resultsList.size }}"
-      )
       assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+      assertThat(completedBasicReport.resultGroupsList).hasSize(1)
+      assertThat(completedBasicReport.resultGroupsList.single().resultsList).isNotEmpty()
       assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
     }
 }
