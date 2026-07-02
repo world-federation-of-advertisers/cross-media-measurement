@@ -63,6 +63,42 @@ class EventMessageDescriptor(eventDescriptor: Descriptors.Descriptor) {
           val mediaType = templateAnnotation.mediaType
 
           for (templateField in field.messageType.fields) {
+            if (isNestedArm(templateField)) {
+              // MESSAGE-typed field (typically inside a `oneof`) whose message
+              // has template_field-annotated fields. Enumerate its nested
+              // fields under `<template>.<arm>.<field>`, inheriting the
+              // parent template's media type. Handles the market-template
+              // shape `Common.oneof edp_specific { Edp1 edp1 = ...; }` where
+              // Edp1's own fields carry the annotations.
+              for (nestedField in templateField.messageType.fields) {
+                validateEventTemplateField(nestedField)
+                val nestedFieldAnnotation: EventFieldDescriptor =
+                  nestedField.options.getExtension(EventAnnotationsProto.templateField)
+                val nestedIsPopulationAttribute = nestedFieldAnnotation.populationAttribute
+                val nestedSupportedReportingFeatures =
+                  buildSupportedReportingFeatures(nestedFieldAnnotation)
+                val nestedEnumType =
+                  if (nestedField.type == Descriptors.FieldDescriptor.Type.ENUM) {
+                    nestedField.enumType
+                  } else {
+                    null
+                  }
+                val nestedPath =
+                  "${templateAnnotation.name}.${templateField.name}.${nestedField.name}"
+                put(
+                  nestedPath,
+                  EventTemplateFieldInfo(
+                    mediaType = mediaType,
+                    isPopulationAttribute = nestedIsPopulationAttribute,
+                    supportedReportingFeatures = nestedSupportedReportingFeatures,
+                    type = nestedField.type,
+                    enumType = nestedEnumType,
+                  ),
+                )
+              }
+              continue
+            }
+
             validateEventTemplateField(templateField)
 
             val eventTemplateFieldName = "${templateAnnotation.name}.${templateField.name}"
@@ -91,6 +127,25 @@ class EventMessageDescriptor(eventDescriptor: Descriptors.Descriptor) {
             )
           }
         }
+      }
+    }
+
+    /**
+     * Returns `true` when [field] is a MESSAGE-typed field whose message type contains at least one
+     * nested field carrying the `template_field` annotation. In practice this is the arm of a
+     * `oneof` (see the `Common.oneof edp_specific { Edp1 edp1 = ...; }` pattern used by real market
+     * templates) where the arm's own message holds the template-annotated fields rather than the
+     * arm itself. Treated by [buildEventTemplateFieldsByPath] as a nested pseudo- template so its
+     * fields become reachable via `<template>.<arm>.<field>` paths.
+     */
+    private fun isNestedArm(field: Descriptors.FieldDescriptor): Boolean {
+      if (field.type != Descriptors.FieldDescriptor.Type.MESSAGE) return false
+      // Exempt well-known types the MESSAGE branch already allows as leaf template fields.
+      val fullName = field.messageType.fullName
+      if (fullName == Duration.getDescriptor().fullName) return false
+      if (fullName == Timestamp.getDescriptor().fullName) return false
+      return field.messageType.fields.any {
+        it.options.hasExtension(EventAnnotationsProto.templateField)
       }
     }
 

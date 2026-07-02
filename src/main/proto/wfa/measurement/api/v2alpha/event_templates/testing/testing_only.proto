@@ -82,4 +82,52 @@ message TestingOnly {
         reporting_features: FILTERABLE
         version_added: 1
       }];
+
+  // Nested message used as an arm of `testing_oneof` below. Exercises
+  // EventMessageDescriptor's oneof-arm descent + BasicReportTransformations'
+  // nested-path null-guard emission via the IQF (impression_qualification)
+  // code path. DO NOT MIMIC.
+  message TestingArmIqf {
+    enum TestingArmIqfEnum {
+      TESTING_ARM_IQF_ENUM_UNSPECIFIED = 0;
+      ARM_IQF_1 = 1;
+      ARM_IQF_2 = 2;
+    }
+    TestingArmIqfEnum testing_arm_iqf_enum = 1
+        [(.wfa.measurement.api.v2alpha.template_field) = {
+          display_name: "Testing Arm IQF Enum (test-only, DO NOT MIMIC)"
+          reporting_features: IMPRESSION_QUALIFICATION
+          version_added: 1
+        }];
+  }
+
+  // Nested message used as an arm of `testing_oneof` below. Exercises the
+  // same oneof-arm descent + null-guard emission via the DimensionSpec
+  // (dimension_spec.filters / dimension_spec.grouping) code path. DO NOT
+  // MIMIC.
+  message TestingArmFilterable {
+    enum TestingArmFilterableEnum {
+      TESTING_ARM_FILTERABLE_ENUM_UNSPECIFIED = 0;
+      ARM_FILT_1 = 1;
+      ARM_FILT_2 = 2;
+    }
+    TestingArmFilterableEnum testing_arm_filterable_enum = 1
+        [(.wfa.measurement.api.v2alpha.template_field) = {
+          display_name: "Testing Arm Filterable Enum (test-only, DO NOT MIMIC)"
+          population_attribute: true
+          reporting_features: FILTERABLE
+          version_added: 1
+        }];
+  }
+
+  // Test-only oneof mirroring the `Common.oneof edp_specific` pattern
+  // real market templates use (Origin UK, Aquila US) to expose EDP-specific
+  // event fields. Two arms so IQF-side and DimensionSpec-side tests each
+  // address a distinct nested path without either poisoning the other's
+  // assertion shape. Both arms inherit TestingOnly's OTHER media_type.
+  // DO NOT MIMIC.
+  oneof testing_oneof {
+    TestingArmIqf testing_arm_iqf = 4;
+    TestingArmFilterable testing_arm_filterable = 5;
+  }
 }

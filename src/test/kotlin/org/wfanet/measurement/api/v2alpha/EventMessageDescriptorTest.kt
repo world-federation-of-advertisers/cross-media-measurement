@@ -27,6 +27,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.MissingFieldAn
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.MissingTemplateAnnotationEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestingOnly
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.UnsupportedFieldTypeEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.UnsupportedRepeatedFieldEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.UnsupportedReportingFeatureEvent
@@ -39,7 +40,7 @@ class EventMessageDescriptorTest {
     val eventMessageDescriptor =
       EventMessageDescriptor(typeRegistry.find(TestEvent.getDescriptor().fullName))
 
-    assertThat(eventMessageDescriptor.eventTemplateFieldsByPath).hasSize(6)
+    assertThat(eventMessageDescriptor.eventTemplateFieldsByPath).hasSize(11)
     assertThat(eventMessageDescriptor.eventTemplateFieldsByPath)
       .containsExactly(
         "person.gender",
@@ -119,6 +120,71 @@ class EventMessageDescriptorTest {
             ),
           type = Descriptors.FieldDescriptor.Type.BOOL,
           enumType = null,
+        ),
+        "testing_only.testing_string",
+        EventMessageDescriptor.EventTemplateFieldInfo(
+          mediaType = MediaType.OTHER,
+          isPopulationAttribute = false,
+          supportedReportingFeatures =
+            EventMessageDescriptor.SupportedReportingFeatures(
+              groupable = false,
+              filterable = false,
+              impressionQualification = true,
+            ),
+          type = Descriptors.FieldDescriptor.Type.STRING,
+          enumType = null,
+        ),
+        "testing_only.testing_float",
+        EventMessageDescriptor.EventTemplateFieldInfo(
+          mediaType = MediaType.OTHER,
+          isPopulationAttribute = false,
+          supportedReportingFeatures =
+            EventMessageDescriptor.SupportedReportingFeatures(
+              groupable = false,
+              filterable = false,
+              impressionQualification = true,
+            ),
+          type = Descriptors.FieldDescriptor.Type.FLOAT,
+          enumType = null,
+        ),
+        "testing_only.testing_string_filterable",
+        EventMessageDescriptor.EventTemplateFieldInfo(
+          mediaType = MediaType.OTHER,
+          isPopulationAttribute = true,
+          supportedReportingFeatures =
+            EventMessageDescriptor.SupportedReportingFeatures(
+              groupable = false,
+              filterable = true,
+              impressionQualification = false,
+            ),
+          type = Descriptors.FieldDescriptor.Type.STRING,
+          enumType = null,
+        ),
+        "testing_only.testing_arm_iqf.testing_arm_iqf_enum",
+        EventMessageDescriptor.EventTemplateFieldInfo(
+          mediaType = MediaType.OTHER,
+          isPopulationAttribute = false,
+          supportedReportingFeatures =
+            EventMessageDescriptor.SupportedReportingFeatures(
+              groupable = false,
+              filterable = false,
+              impressionQualification = true,
+            ),
+          type = Descriptors.FieldDescriptor.Type.ENUM,
+          enumType = TestingOnly.TestingArmIqf.TestingArmIqfEnum.getDescriptor(),
+        ),
+        "testing_only.testing_arm_filterable.testing_arm_filterable_enum",
+        EventMessageDescriptor.EventTemplateFieldInfo(
+          mediaType = MediaType.OTHER,
+          isPopulationAttribute = true,
+          supportedReportingFeatures =
+            EventMessageDescriptor.SupportedReportingFeatures(
+              groupable = false,
+              filterable = true,
+              impressionQualification = false,
+            ),
+          type = Descriptors.FieldDescriptor.Type.ENUM,
+          enumType = TestingOnly.TestingArmFilterable.TestingArmFilterableEnum.getDescriptor(),
         ),
       )
   }

@@ -29,6 +29,7 @@ import org.projectnessie.cel.EnvOption
 import org.projectnessie.cel.checker.Decls
 import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestingOnly
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
@@ -3561,7 +3562,10 @@ class BasicReportTransformationsTest {
     // explicitly here so CEL can resolve `testing_only.*` field references. See #4148.
     val celTypeRegistry = ProtoTypeRegistry.newRegistry()
     celTypeRegistry.registerMessage(TestEvent.getDefaultInstance())
+    celTypeRegistry.registerMessage(Person.getDefaultInstance())
     celTypeRegistry.registerMessage(TestingOnly.getDefaultInstance())
+    celTypeRegistry.registerMessage(TestingOnly.TestingArmIqf.getDefaultInstance())
+    celTypeRegistry.registerMessage(TestingOnly.TestingArmFilterable.getDefaultInstance())
     val descriptor = TestEvent.getDescriptor()
     val env =
       Env.newEnv(
@@ -3578,5 +3582,88 @@ class BasicReportTransformationsTest {
     if (astAndIssues.hasIssues()) {
       fail("CEL failed to compile: $filter\nIssues: ${astAndIssues.issues}")
     }
+  }
+
+  // ---- oneof / nested-arm handling tests (issue #4147) ----
+
+  @Test
+  fun `IQF-side buildCelExpression emits nested-arm null guard for oneof arm path`() {
+    // testing_only.testing_arm_iqf.testing_arm_iqf_enum is IMPRESSION_QUALIFICATION on a field
+    // nested inside the oneof arm TestingArmIqf. Because oneof arms can be unset (unlike
+    // top-level template fields whose proto3 default is a zero-instance message), the CEL
+    // needs a `<template>.<arm> != null` guard before dereferencing the nested field.
+    val filter =
+      buildCelExpression(
+        impressionQualificationFilterSpecs =
+          listOf(
+            impressionQualificationFilterSpec {
+              mediaType = MediaType.OTHER
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "testing_only.testing_arm_iqf.testing_arm_iqf_enum"
+                  value = EventTemplateFieldKt.fieldValue { enumValue = "ARM_IQF_1" }
+                }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter)
+      .contains(
+        "testing_only.testing_arm_iqf != null && " +
+          "testing_only.testing_arm_iqf.testing_arm_iqf_enum == 1"
+      )
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `DimensionSpec-side buildCelExpression emits nested-arm null guard for oneof arm path`() {
+    // testing_only.testing_arm_filterable.testing_arm_filterable_enum is
+    // FILTERABLE + POPULATION_ATTRIBUTE. Same nested-arm null-guard semantics apply on the
+    // DimensionSpec code path — unlike the IQF-side, this path emits no template-level
+    // null-guard, so the arm-null-guard is the only guard on the emitted term.
+    val filter =
+      buildCelExpression(
+        dimensionSpecFilters =
+          listOf(
+            eventFilter {
+              terms += eventTemplateField {
+                path = "testing_only.testing_arm_filterable.testing_arm_filterable_enum"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "ARM_FILT_1" }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter)
+      .contains(
+        "testing_only.testing_arm_filterable != null && " +
+          "testing_only.testing_arm_filterable.testing_arm_filterable_enum == 1"
+      )
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `top-level template paths still emit without a nested-arm guard`() {
+    // Regression: single-dot paths (`<template>.<field>`) do NOT get an arm-null-guard because
+    // the proto3 default for an unset top-level message is a zero-instance, not null. If
+    // buildCelTerm ever over-triggers and wraps top-level terms, the emitted CEL would grow a
+    // spurious `testing_only != null && ...` clause and break existing test assertions.
+    val filter =
+      buildCelExpression(
+        dimensionSpecFilters =
+          listOf(
+            eventFilter {
+              terms += eventTemplateField {
+                path = "person.gender"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    // Exactly the bare term, no null-guard clause.
+    assertThat(filter).isEqualTo("person.gender == 1")
+    assertCompilesCleanly(filter)
   }
 }

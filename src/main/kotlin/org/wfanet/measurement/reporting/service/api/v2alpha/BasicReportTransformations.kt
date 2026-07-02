@@ -198,7 +198,7 @@ fun buildCelExpression(
               )) {
               val term: InternalEventTemplateField = eventFilter.termsList.single()
               val termValue = term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path))
-              add("${term.path} == $termValue")
+              add(buildCelTerm(term.path, termValue))
             }
           }
           .joinToString(" && ")
@@ -383,9 +383,31 @@ fun buildCelExpression(
           InternalEventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
       )
       val termValue = term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path))
-      "${term.path} == $termValue"
+      buildCelTerm(term.path, termValue)
     }
   }
+}
+
+/**
+ * Builds a CEL term of the form `<path> == <literal>` with a null-guard `<template>.<arm> != null
+ * && ` prefixed when [path] addresses a field nested inside a `oneof` arm (i.e. has two dots).
+ * Nested-arm paths need the guard because an unset oneof arm evaluates to null and accessing a
+ * field on it trips CEL evaluation. Top-level template paths (`<template>.<field>`) don't need the
+ * guard here: proto3 defaults the top-level message to a zero-instance, so accessing its fields
+ * yields defaults, not null.
+ *
+ * The IQF-side [buildCelExpression] adds a separate `<template> != null` clause covering the
+ * template-inclusion semantics; the DimensionSpec-side path emits no template-level guard, only the
+ * nested-arm guard emitted here.
+ */
+private fun buildCelTerm(path: String, valueLiteral: String): String {
+  val segments = path.split('.')
+  if (segments.size <= 2) {
+    return "$path == $valueLiteral"
+  }
+  // path = <template>.<arm>.<field>[.<field>...]. Guard on <template>.<arm>.
+  val armPath = "${segments[0]}.${segments[1]}"
+  return "$armPath != null && $path == $valueLiteral"
 }
 
 /**
