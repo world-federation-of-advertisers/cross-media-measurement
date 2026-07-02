@@ -25,6 +25,7 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState
 import org.wfanet.measurement.internal.edpaggregator.RankerState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionBatchState
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingState
 
@@ -42,6 +43,8 @@ object Errors {
     RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
     RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
     RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+    RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+    RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
     RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
     RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
     VID_LABELING_JOB_NOT_FOUND,
@@ -78,6 +81,9 @@ object Errors {
     ETAG("etag"),
     BATCH_RESOURCE_ID("batchResourceId"),
     RAW_IMPRESSION_UPLOAD_RESOURCE_ID("rawImpressionUploadResourceId"),
+    CMMS_MODEL_LINE("cmmsModelLine"),
+    RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE("rawImpressionUploadModelLineState"),
+    EXPECTED_RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATES("expectedRawImpressionUploadModelLineStates"),
     FILE_RESOURCE_ID("fileResourceId"),
     VID_LABELING_JOB_RESOURCE_ID("vidLabelingJobResourceId"),
     VID_LABELING_JOB_STATE("vidLabelingJobState"),
@@ -288,6 +294,45 @@ class RawImpressionUploadNotFoundException(
     mapOf(
       Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
       Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+    ),
+    cause,
+  )
+
+class RawImpressionUploadModelLineNotFoundException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  cmmsModelLine: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+    "RawImpressionUploadModelLine not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+      Errors.Metadata.CMMS_MODEL_LINE to cmmsModelLine,
+    ),
+    cause,
+  )
+
+class RawImpressionUploadModelLineStateInvalidException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  cmmsModelLine: String,
+  actualState: RawImpressionUploadModelLineState,
+  expectedStates: Collection<RawImpressionUploadModelLineState>,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+    "RawImpressionUploadModelLine state invalid: expected one of $expectedStates but was $actualState",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+      Errors.Metadata.CMMS_MODEL_LINE to cmmsModelLine,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE to actualState.name,
+      Errors.Metadata.EXPECTED_RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATES to
+        expectedStates.joinToString(",") { state -> state.name },
     ),
     cause,
   )
