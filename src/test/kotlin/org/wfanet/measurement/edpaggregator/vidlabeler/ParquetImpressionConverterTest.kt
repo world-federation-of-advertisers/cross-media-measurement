@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeler
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.util.Timestamps
 import java.time.LocalDate
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -27,7 +28,6 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.storage.ParquetValue
@@ -43,25 +43,14 @@ class ParquetImpressionConverterTest {
       labelerInputFieldMapping.put("timestamp_usec", "ts")
       eventTemplateFieldMapping.put("person.gender", "gender")
       eventTemplateFieldMapping.put("person.age_group", "age")
+      // Entity keys are read per row from these columns (no longer from the footer).
+      entityKeyFieldMapping.put("creative", "cr_col")
+      entityKeyFieldMapping.put("placement", "pl_col")
     }
 
-  // Entity keys as the reader supplies them from the file's footer ("Option Y").
+  // The footer now carries only the event group reference id and event date.
   private val fileEntityKeys =
-    FileEntityKeys(
-      eventGroupReferenceId = EVENT_GROUP,
-      entityKeys =
-        listOf(
-          entityKey {
-            entityType = "creative"
-            entityId = "c-1"
-          },
-          entityKey {
-            entityType = "placement"
-            entityId = "p-9"
-          },
-        ),
-      eventDate = LocalDate.parse("2026-06-30"),
-    )
+    FileEntityKeys(eventGroupReferenceId = EVENT_GROUP, eventDate = LocalDate.parse("2026-06-30"))
 
   private fun digestedEvent(row: Map<String, ParquetValue>): ParquetDigestedEvent =
     DigestedEvent(row, EventIdDigest(0L, 0))
@@ -75,6 +64,8 @@ class ParquetImpressionConverterTest {
         "ts" to parquetValue { int64Value = 1_700_000_000_000_000L },
         "gender" to parquetValue { stringValue = "MALE" },
         "age" to parquetValue { stringValue = "YEARS_18_TO_34" },
+        "cr_col" to parquetValue { stringValue = "c-1" },
+        "pl_col" to parquetValue { stringValue = "p-9" },
       )
 
     val converted = converter.convert(digestedEvent(row), config, fileEntityKeys)
@@ -98,12 +89,14 @@ class ParquetImpressionConverterTest {
       VidLabelerParamsKt.modelLineConfig {
         labelerInputFieldMapping.put("event_id.id", "eid")
         labelerInputFieldMapping.put("timestamp_usec", "ts")
+        entityKeyFieldMapping.put("creative", "cr_col")
       }
     val converter = ParquetImpressionConverter(eventDescriptor)
     val row =
       mapOf(
         "eid" to parquetValue { stringValue = "event-2" },
         "ts" to parquetValue { int64Value = 5L },
+        "cr_col" to parquetValue { stringValue = "c-1" },
       )
 
     val converted = converter.convert(digestedEvent(row), emptyMappingConfig, fileEntityKeys)
@@ -113,6 +106,23 @@ class ParquetImpressionConverterTest {
     assertThat(event).isEqualTo(TestEvent.getDefaultInstance())
     assertThat(converted.event.typeUrl)
       .isEqualTo("type.googleapis.com/" + TestEvent.getDescriptor().fullName)
+  }
+
+  @Test
+  fun `convert throws when all entity-key columns are null`() {
+    val converter = ParquetImpressionConverter(eventDescriptor)
+    // No cr_col / pl_col columns -> every mapped entity column is unset.
+    val row =
+      mapOf(
+        "eid" to parquetValue { stringValue = "event-3" },
+        "ts" to parquetValue { int64Value = 5L },
+        "gender" to parquetValue { stringValue = "MALE" },
+        "age" to parquetValue { stringValue = "YEARS_18_TO_34" },
+      )
+
+    assertFailsWith<IllegalArgumentException> {
+      converter.convert(digestedEvent(row), config, fileEntityKeys)
+    }
   }
 
   companion object {
