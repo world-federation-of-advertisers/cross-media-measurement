@@ -33,8 +33,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
  * * `event_time_micros` is read from `LabelerInput.timestamp_usec` (mapped via the same mapping);
  * * the output `event` is built as a [com.google.protobuf.Any]-packed [eventDescriptor] message
  *   projected via the model line's `event_template_field_mapping` (empty mapping -> empty event);
- * * the `entity_keys` are read per row from the model line's `entity_key_field_mapping` columns
- *   (see [EntityKeyMapper]), and `event_group_reference_id` is taken from the per-file
+ * * the `entity_keys` are read per row from the model line's required/optional entity-key column
+ *   mappings (see [EntityKeyMapper]), and `event_group_reference_id` is taken from the per-file
  *   [FileEntityKeys] that the reader read from the file's plaintext Parquet footer.
  *
  * One instance is built per (WorkItem, model line) by the runner factory, so [config] is fixed
@@ -60,7 +60,11 @@ class ParquetImpressionConverter(private val eventDescriptor: Descriptors.Descri
     if (cachedConfig !== config) {
       labelerInputMapper = LabelerInputMapper(config.labelerInputFieldMappingMap)
       eventMessageMapper = EventMessageMapper(eventDescriptor, config.eventTemplateFieldMappingMap)
-      entityKeyMapper = EntityKeyMapper(config.entityKeyFieldMappingMap)
+      entityKeyMapper =
+        EntityKeyMapper(
+          config.requiredEntityKeyFieldMappingMap,
+          config.optionalEntityKeyFieldMappingMap,
+        )
       cachedConfig = config
     }
     return Triple(labelerInputMapper, eventMessageMapper, entityKeyMapper)

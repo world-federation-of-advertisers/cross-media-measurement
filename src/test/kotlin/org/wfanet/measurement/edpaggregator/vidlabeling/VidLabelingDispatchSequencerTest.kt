@@ -867,8 +867,11 @@ class VidLabelingDispatchSequencerTest {
           .getValue(MODEL_LINE)
       assertThat(modelLineConfig.activeStartTime).isEqualTo(ACTIVE_START_TIME)
       assertThat(modelLineConfig.activeEndTime).isEqualTo(ACTIVE_END_TIME)
-      // The per-impression entity-key mapping survives the per-WorkItem ModelLineConfig rebuild.
-      assertThat(modelLineConfig.entityKeyFieldMappingMap).containsExactly("household", "hh_col")
+      // The per-impression entity-key mappings survive the per-WorkItem ModelLineConfig rebuild.
+      assertThat(modelLineConfig.requiredEntityKeyFieldMappingMap)
+        .containsExactly("household", "hh_col")
+      assertThat(modelLineConfig.optionalEntityKeyFieldMappingMap)
+        .containsExactly("creative", "cr_col")
     }
 
   @Test
@@ -1115,7 +1118,8 @@ class VidLabelingDispatchSequencerTest {
                 .setFieldPath("gender")
                 .setScalar(ScalarColumn.newBuilder().setColumn("user_gender"))
                 .build()
-            entityKeyFieldMapping["household"] = "hh_col"
+            requiredEntityKeyFieldMapping["household"] = "hh_col"
+            optionalEntityKeyFieldMapping["creative"] = "cr_col"
           },
         MODEL_LINE_2 to
           VidLabelerParamsKt.modelLineConfig {

@@ -44,8 +44,8 @@ class ParquetImpressionConverterTest {
       eventTemplateFieldMapping.put("person.gender", "gender")
       eventTemplateFieldMapping.put("person.age_group", "age")
       // Entity keys are read per row from these columns (no longer from the footer).
-      entityKeyFieldMapping.put("creative", "cr_col")
-      entityKeyFieldMapping.put("placement", "pl_col")
+      optionalEntityKeyFieldMapping.put("creative", "cr_col")
+      optionalEntityKeyFieldMapping.put("placement", "pl_col")
     }
 
   // The footer now carries only the event group reference id and event date.
@@ -89,7 +89,7 @@ class ParquetImpressionConverterTest {
       VidLabelerParamsKt.modelLineConfig {
         labelerInputFieldMapping.put("event_id.id", "eid")
         labelerInputFieldMapping.put("timestamp_usec", "ts")
-        entityKeyFieldMapping.put("creative", "cr_col")
+        optionalEntityKeyFieldMapping.put("creative", "cr_col")
       }
     val converter = ParquetImpressionConverter(eventDescriptor)
     val row =
