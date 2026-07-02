@@ -150,6 +150,10 @@ resource "google_compute_region_instance_group_manager" "mig" {
     instance_template = google_compute_instance_template.confidential_vm_template.id
   }
   distribution_policy_zones = var.mig_distribution_policy_zones
+  # ANY picks whichever listed zone has capacity (or an unused reservation) at
+  # insert time, instead of trying to keep VM counts even across zones. Matches
+  # the availability-first intent of widening distribution_policy_zones.
+  distribution_policy_target_shape = "ANY"
   lifecycle {
     create_before_destroy = true
   }
