@@ -49,3 +49,37 @@ java_binary(
     main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingDispatcherFunction",
     runtime_deps = [":vid_labeling_dispatcher_function"],
 )
+
+kt_jvm_library(
+    name = "vid_labeling_monitor_function",
+    srcs = ["VidLabelingMonitorFunction.kt"],
+    deps = [
+        "//imports/java/io/opentelemetry/instrumentation/grpc",
+        "//src/main/kotlin/org/wfanet/measurement/common:env_vars",
+        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:edp_aggregator_config",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:interceptors",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:vid_labeling_dispatch_sequencer",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:vid_labeling_monitor",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_rollouts_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_shards_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:vid_labeling_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:transport_layer_security_params_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeler_params_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+java_binary(
+    name = "VidLabelingMonitorFunction",
+    main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingMonitorFunction",
+    runtime_deps = [":vid_labeling_monitor_function"],
+)
