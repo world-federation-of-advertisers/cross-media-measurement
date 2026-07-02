@@ -229,11 +229,16 @@ message VidRankBuilderParams {
   // `event_template_descriptor_blob_uri`).
   string event_template_type = 22 [(google.api.field_behavior) = OPTIONAL];
 
-  // Mapping from entity_type to the raw-impression Parquet column holding that
-  // entity's id. Not consumed by the Phase-1 ranker; forwarded verbatim by the
-  // SubpoolAssigner Phase-0 last-shard-out from
-  // SubpoolAssignerParams.entity_key_field_mapping so the last-RankerJob-out
-  // stamps it on the Phase-2 VidLabeler ModelLineConfig (Phase-2 reads entity
-  // keys per row from these columns).
-  map<string, string> entity_key_field_mapping = 23;
+  reserved 23;
+  reserved "entity_key_field_mapping";
+
+  // Entity types that every impression MUST have. Not consumed by the Phase-1
+  // ranker; forwarded verbatim by the SubpoolAssigner Phase-0 last-shard-out
+  // from SubpoolAssignerParams.required_entity_key_field_mapping so the
+  // last-RankerJob-out stamps it on the Phase-2 VidLabeler ModelLineConfig.
+  map<string, string> required_entity_key_field_mapping = 24;
+
+  // Entity types an impression MAY have. Pass-through, same as
+  // required_entity_key_field_mapping; keys MUST be disjoint from it.
+  map<string, string> optional_entity_key_field_mapping = 25;
 }
