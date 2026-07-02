@@ -42,8 +42,8 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.Wo
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.ParquetStorageClient
-import org.wfanet.measurement.storage.StorageClient
 
 /**
  * Phase-0 TEE/queue adapter for the memoized VID assignment pipeline.
@@ -109,7 +109,7 @@ class SubpoolAssignerApp(
   private val buildParquetStorageClient: (StorageConfig) -> ParquetStorageClient = {
     TODO("Wire ParquetStorageClient construction from StorageConfig in SubpoolAssignerAppRunner")
   },
-  private val buildSubpoolMapStorageClient: (StorageConfig) -> StorageClient = {
+  private val buildSubpoolMapStorageClient: (StorageConfig) -> ConditionalOperationStorageClient = {
     TODO(
       "Wire subpool-map StorageClient construction from StorageConfig in SubpoolAssignerAppRunner"
     )
