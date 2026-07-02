@@ -18,8 +18,7 @@ in the same `edp-aggregator-config` ConfigMap as the textproto. The same
 Kustomization deploys cleanly across dev, head, and qa.
 
 For background on the underlying sync semantics (idempotency, per-EventGroup
-isolation, retries, max-delete safety guard, dry-run mode), see the KDoc on
-`EventGroupActivitySync`.
+isolation, retries, sync modes), see the KDoc on `EventGroupActivitySync`.
 
 ## Before You Start
 
@@ -122,9 +121,10 @@ The workflow stages three new files into the kustomization dir before
 
 ## Validate a Run
 
-The dev overlay deploys with `--dry-run` *off* by default; the cron's daily
-run will mutate `EventGroupActivity` state. For first-time validation,
-trigger an immediate run instead of waiting for the schedule:
+The dev overlay deploys with `--mode=preview` by default; the cron computes
+creates and deletes and reports them via metrics without touching the Kingdom.
+To validate against a fresh deploy, trigger an immediate run instead of
+waiting for the schedule:
 
 ```shell
 kubectl create job --from=cronjob/sync-event-group-activities-edp7-cronjob \
@@ -143,11 +143,11 @@ Expect a structured `Sync result:` block:
 Sync result:
   totalInputRecords: <N>
   eventGroupsSucceeded: <N>
-  eventGroupsGuardSkipped: 0
   eventGroupsFailed: 0
   activitiesCreated: <N>
   activitiesDeleted: 0
   activitiesUnchanged: 0
+  activitiesWouldDelete: <N>
 ```
 
 To verify against the Kingdom directly:
@@ -163,13 +163,21 @@ grpcurl \
   wfa.measurement.api.v2alpha.EventGroupActivities/ListEventGroupActivities
 ```
 
-If you want a dry-run validation pass before letting the cron mutate state,
-temporarily append `"--dry-run"` to the `_syncEventGroupActivitiesArgs.edp7`
-entry in
-[`edp_aggregator_gke.cue`](../../src/main/k8s/dev/edp_aggregator_gke.cue),
-redeploy via `configure-edp-aggregator.yml`, trigger a manual run, and
-verify the diff in the logs without checking the Kingdom (none was
-mutated). Remove the flag and redeploy to enable mutations.
+## Switch to Mutating Modes
+
+The cron ships in `--mode=preview` (no mutations). Progress through the
+modes as confidence grows:
+
+-   `preview` — compute creates and would-deletes, apply nothing. Verify
+    counts via metrics or the `Sync result:` log block.
+-   `append` — apply creates only; compute and meter would-deletes without
+    applying. Safe for input files that may be truncated.
+-   `sync` — apply both creates and deletes. Enable only after the
+    upstream pipeline is producing full, non-truncated files.
+
+To change modes, edit the `--mode=...` entry in
+[`_syncEventGroupActivitiesArgs.edp7`](../../src/main/k8s/dev/edp_aggregator_gke.cue)
+and redeploy via `configure-edp-aggregator.yml`.
 
 ## Monitoring
 
@@ -178,17 +186,18 @@ OpenTelemetry metrics published by `EventGroupActivitySyncMetrics`:
 -   `edpa.event_group_activity.activities_created`
 -   `edpa.event_group_activity.activities_deleted`
 -   `edpa.event_group_activity.activities_unchanged`
--   `edpa.event_group_activity.event_groups_processed{outcome=success|guard_skipped|failed}`
+-   `edpa.event_group_activity.event_groups_processed{outcome=success|failed}`
 -   `edpa.event_group_activity.sync_errors{error_type=...}`
--   `edpa.event_group_activity.deletes_skipped_guard`
+-   `edpa.event_group_activity.would_delete_count{mode=append|preview}`
 -   `edpa.event_group_activity.sync_latency`
 
 All metrics carry a `data_provider_name` attribute, so dashboards/alerts
 split cleanly per EDP across multiple CronJob entries.
 
 A run exits non-zero only when `eventGroupsFailed > 0` (an RPC failure
-during list/batch). Guard-skipped runs exit zero — alert on the
-`deletes_skipped_guard` counter, not the K8s Job failure count.
+during list/batch). `preview` and `append` runs that suppress deletes exit
+zero — alert on the `would_delete_count` counter, not the K8s Job failure
+count.
 
 ## Adding More EDPs
 
@@ -269,10 +278,10 @@ garbage-collected on next deploy. Verify with
 -   **`Record parent ... is not an EventGroup under DataProvider`:** the
     input file contains records for a different DataProvider, or has a
     malformed parent. This aborts the entire sync; fix the input upstream.
--   **`eventGroupsGuardSkipped > 0`:** for one or more EventGroups, the
-    deletion fraction exceeded `--max-delete-fraction` (default 1.0,
-    disabled). Tune the flag if your input is expected to fluctuate, or fix
-    the input.
+-   **`activitiesWouldDelete > 0` on a `preview` / `append` run:** the sync
+    would have deleted the reported number of activities in `sync` mode.
+    Confirm this matches expectations before switching modes; if the count
+    looks high, the input file is probably truncated — fix upstream.
 -   **Workflow fails at "Write sync-event-group-activities config" with
     `vars.EVENT_GROUP_ACTIVITY_SYNC_<EDP>_CONFIG_CONTENT is empty for environment <env>`:**
     the GitHub variable is unset on this environment. Set it (Settings
