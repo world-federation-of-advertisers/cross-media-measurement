@@ -23,6 +23,7 @@ import com.google.protobuf.ExtensionRegistry
 import java.util.concurrent.ConcurrentHashMap
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
+import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
@@ -135,11 +136,12 @@ class VidLabelerAppRunner : BaseTeeAppRunner() {
   /**
    * Resolves the [config]'s EventTemplate event [Descriptors.Descriptor] by loading the
    * `FileDescriptorSet` at [VidLabelerParams.ModelLineConfig.getEventTemplateDescriptorBlobUri]
-   * from EDPA config storage and finding
-   * [VidLabelerParams.ModelLineConfig.getEventTemplateTypeName] within it (mirrors
-   * `ResultsFulfillerAppRunner.buildModelLineMap`). Cached per (blob URI, type name).
+   * from EDPA config storage and finding [VidLabelerParams.ModelLineConfig.getEventTemplateType]
+   * within it (mirrors `ResultsFulfillerAppRunner.buildModelLineMap`). Cached per (blob URI, type
+   * name).
    */
-  private suspend fun resolveEventDescriptor(
+  @VisibleForTesting
+  suspend fun resolveEventDescriptor(
     config: VidLabelerParams.ModelLineConfig
   ): Descriptors.Descriptor {
     val blobUri = config.eventTemplateDescriptorBlobUri
