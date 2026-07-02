@@ -285,6 +285,13 @@ private fun String.toCelStringLiteral(): String {
  * numeric literals as `double`, so bit-exact equality against a proto `float` field is not
  * guaranteed. Continuous-float IMPRESSION_QUALIFICATION fields are discouraged (see
  * `testing_only.proto`); prefer enums or bool buckets.
+ *
+ * The `require(isFinite())` here is a belt + suspenders backstop.
+ * [org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping]'s
+ * config-time validation rejects non-finite `FLOAT_VALUE` in a base IQF spec at server startup, so
+ * under the normal flow (base IQF -> mapping validation -> transformer) this branch never fires. It
+ * exists to catch callers that bypass mapping validation (tests, alternative config loaders, direct
+ * transformer invocation).
  */
 private fun Float.toCelNumericLiteral(): String {
   require(isFinite()) {

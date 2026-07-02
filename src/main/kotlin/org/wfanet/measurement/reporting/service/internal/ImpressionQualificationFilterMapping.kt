@@ -189,6 +189,13 @@ class ImpressionQualificationFilterMapping(
             if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.FLOAT) {
               return false
             }
+            // Reject NaN / +Infinity / -Infinity: these have no valid CEL numeric-literal
+            // representation (BasicReportTransformations.toCelNumericLiteral would throw). Fail
+            // fast at server startup so a misconfigured base IQF refuses to load instead of
+            // surfacing as INTERNAL from a gRPC handler at first request.
+            if (!eventTemplateField.value.floatValue.isFinite()) {
+              return false
+            }
           }
           ImpressionQualificationFilterConfig.EventTemplateField.FieldValue.SelectorCase
             .SELECTOR_NOT_SET -> {
