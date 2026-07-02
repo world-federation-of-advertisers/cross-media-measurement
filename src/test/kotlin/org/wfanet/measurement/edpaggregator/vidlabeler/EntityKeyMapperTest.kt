@@ -27,69 +27,84 @@ import org.wfanet.measurement.storage.parquetValue
 @RunWith(JUnit4::class)
 class EntityKeyMapperTest {
   // entity_type -> raw-impression column name; LinkedHashMap so iteration order is deterministic.
-  private val mapping = linkedMapOf("household" to "hh_col", "creative" to "cr_col")
+  private val required = linkedMapOf("person" to "person_col")
+  private val optional = linkedMapOf("household" to "hh_col", "creative" to "cr_col")
 
   @Test
-  fun `maps all set columns to entity keys in mapping order`() {
+  fun `maps required then optional columns to entity keys in order`() {
     val row =
       mapOf(
+        "person_col" to parquetValue { stringValue = "p-1" },
         "hh_col" to parquetValue { stringValue = "hh-1" },
         "cr_col" to parquetValue { stringValue = "cr-9" },
       )
 
-    val keys = EntityKeyMapper(mapping).map(row)
+    val keys = EntityKeyMapper(required, optional).map(row)
 
     assertThat(keys.map { it.entityType to it.entityId })
-      .containsExactly("household" to "hh-1", "creative" to "cr-9")
+      .containsExactly("person" to "p-1", "household" to "hh-1", "creative" to "cr-9")
       .inOrder()
   }
 
   @Test
-  fun `omits entity types whose column is absent or unset`() {
+  fun `omits optional entity types whose column is absent, unset, or empty`() {
     // hh_col set; cr_col explicitly unset (KIND_NOT_SET). An absent column behaves the same way.
-    val row = mapOf("hh_col" to parquetValue { stringValue = "hh-1" }, "cr_col" to parquetValue {})
-
-    val keys = EntityKeyMapper(mapping).map(row)
-
-    assertThat(keys.map { it.entityType to it.entityId }).containsExactly("household" to "hh-1")
-  }
-
-  @Test
-  fun `treats an empty-string cell as unset`() {
     val row =
       mapOf(
+        "person_col" to parquetValue { stringValue = "p-1" },
         "hh_col" to parquetValue { stringValue = "hh-1" },
-        "cr_col" to parquetValue { stringValue = "" },
+        "cr_col" to parquetValue {},
       )
 
-    val keys = EntityKeyMapper(mapping).map(row)
+    val keys = EntityKeyMapper(required, optional).map(row)
 
-    assertThat(keys.map { it.entityType to it.entityId }).containsExactly("household" to "hh-1")
+    assertThat(keys.map { it.entityType to it.entityId })
+      .containsExactly("person" to "p-1", "household" to "hh-1")
+      .inOrder()
   }
 
   @Test
-  fun `throws when all mapped columns are null or empty`() {
-    // hh_col absent; cr_col empty string -> both unset.
+  fun `throws when a required column is null or empty`() {
+    val row =
+      mapOf(
+        "person_col" to parquetValue { stringValue = "" },
+        "hh_col" to parquetValue { stringValue = "hh-1" },
+      )
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> { EntityKeyMapper(required, optional).map(row) }
+    assertThat(exception).hasMessageThat().contains("person_col")
+  }
+
+  @Test
+  fun `throws when no required types and every optional column is unset`() {
     val row = mapOf("cr_col" to parquetValue { stringValue = "" })
 
-    assertFailsWith<IllegalArgumentException> { EntityKeyMapper(mapping).map(row) }
+    assertFailsWith<IllegalArgumentException> { EntityKeyMapper(emptyMap(), optional).map(row) }
   }
 
   @Test
   fun `throws on a non-string column kind`() {
     val row =
       mapOf(
-        "hh_col" to parquetValue { stringValue = "hh-1" },
-        "cr_col" to parquetValue { bytesValue = ByteString.copyFromUtf8("cr-9") },
+        "person_col" to parquetValue { stringValue = "p-1" },
+        "hh_col" to parquetValue { bytesValue = ByteString.copyFromUtf8("hh-1") },
       )
 
-    assertFailsWith<IllegalStateException> { EntityKeyMapper(mapping).map(row) }
+    assertFailsWith<IllegalStateException> { EntityKeyMapper(required, optional).map(row) }
   }
 
   @Test
-  fun `throws on an empty mapping`() {
-    assertFailsWith<IllegalArgumentException> {
-      EntityKeyMapper(emptyMap()).map(mapOf("x" to parquetValue { stringValue = "y" }))
-    }
+  fun `throws at construction when required and optional keys overlap`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        EntityKeyMapper(linkedMapOf("person" to "a"), linkedMapOf("person" to "b"))
+      }
+    assertThat(exception).hasMessageThat().contains("person")
+  }
+
+  @Test
+  fun `throws at construction when both mappings are empty`() {
+    assertFailsWith<IllegalArgumentException> { EntityKeyMapper(emptyMap(), emptyMap()) }
   }
 }
