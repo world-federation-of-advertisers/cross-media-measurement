@@ -1947,19 +1947,19 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
 
 
     def test_full_shape_collapsing_rsrs_all_alias_paths_back_filled(self):
-        # Coverage for the alias code paths not exercised by the simpler
-        # whole_campaign-reach tests: two RSRs share (impression_filter,
-        # frozenset(data_providers)) via permuted data_providers ordering. Each
-        # carries cumulative_results (drives _record_measurement_list_aliases,
-        # a list-of-reach path), non_cumulative_results with frequency bins
+        # Coverage for every alias code path in one shot: two RSRs share
+        # (impression_filter, frozenset(data_providers)) via permuted
+        # data_providers ordering. Each carries cumulative_results (drives
+        # _record_measurement_list_aliases, a list-of-reach path),
+        # non_cumulative_results with impression_count and frequency bins
         # (drives the strict=True zip through _record_measurement_set_aliases
-        # -- covering k_reach-bin aliasing on multiple bins per week), and
-        # whole_campaign_result with frequency bins (drives the whole_campaign
-        # _record_measurement_set_aliases branch, including its own k_reach).
-        # Impression aliasing is not exercised here because on this branch the
-        # pre-#4141 impression equality (union = sum(singles)) degenerates to
-        # 0 without per-EDP primitives; #4141 tightens that guard so a follow-
-        # up expansion of this test to add impression_count can land there.
+        # -- covering reach arm, impression arm, and k_reach-bin aliasing), and
+        # whole_campaign_result with impression_count and frequency bins
+        # (drives the whole_campaign _record_measurement_set_aliases branch,
+        # including all three of its arms). Impression aliasing is
+        # solver-feasible on this branch (unlike #4136 in isolation) because
+        # the partial-cover impression-equality guard tightened in this PR
+        # skips union = sum(singles) when singletons are absent.
         proto = ('cmms_measurement_consumer_id: "MC1"\n'
                  'external_report_result_id: 456\n'
                  'population: 34288880\n'
@@ -1990,6 +1990,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
                  '            end { year: 2021 month: 3 day: 15 }\n'
                  '        }\n'
                  '        reach { value: 1000 standard_deviation: 0 metric: "a_nc_w1_reach" }\n'
+                 '        impression_count { value: 3000 standard_deviation: 0 metric: "a_nc_w1_impr" }\n'
                  '        frequency {\n'
                  '            metric: "a_nc_w1_freq"\n'
                  '            bins { key: 1 value { value: 600 standard_deviation: 0 } }\n'
@@ -2002,6 +2003,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
                  '            end { year: 2021 month: 3 day: 22 }\n'
                  '        }\n'
                  '        reach { value: 1500 standard_deviation: 0 metric: "a_nc_w2_reach" }\n'
+                 '        impression_count { value: 4500 standard_deviation: 0 metric: "a_nc_w2_impr" }\n'
                  '        frequency {\n'
                  '            metric: "a_nc_w2_freq"\n'
                  '            bins { key: 1 value { value: 900 standard_deviation: 0 } }\n'
@@ -2010,6 +2012,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
                  '    }\n'
                  '    whole_campaign_result {\n'
                  '        reach { value: 2500 standard_deviation: 0 metric: "a_wc_reach" }\n'
+                 '        impression_count { value: 7500 standard_deviation: 0 metric: "a_wc_impr" }\n'
                  '        frequency {\n'
                  '            metric: "a_wc_freq"\n'
                  '            bins { key: 1 value { value: 1500 standard_deviation: 0 } }\n'
@@ -2044,6 +2047,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
                  '            end { year: 2021 month: 3 day: 15 }\n'
                  '        }\n'
                  '        reach { value: 1000 standard_deviation: 0 metric: "b_nc_w1_reach" }\n'
+                 '        impression_count { value: 3000 standard_deviation: 0 metric: "b_nc_w1_impr" }\n'
                  '        frequency {\n'
                  '            metric: "b_nc_w1_freq"\n'
                  '            bins { key: 1 value { value: 600 standard_deviation: 0 } }\n'
@@ -2056,6 +2060,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
                  '            end { year: 2021 month: 3 day: 22 }\n'
                  '        }\n'
                  '        reach { value: 1500 standard_deviation: 0 metric: "b_nc_w2_reach" }\n'
+                 '        impression_count { value: 4500 standard_deviation: 0 metric: "b_nc_w2_impr" }\n'
                  '        frequency {\n'
                  '            metric: "b_nc_w2_freq"\n'
                  '            bins { key: 1 value { value: 900 standard_deviation: 0 } }\n'
@@ -2064,6 +2069,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
                  '    }\n'
                  '    whole_campaign_result {\n'
                  '        reach { value: 2500 standard_deviation: 0 metric: "b_wc_reach" }\n'
+                 '        impression_count { value: 7500 standard_deviation: 0 metric: "b_wc_impr" }\n'
                  '        frequency {\n'
                  '            metric: "b_wc_freq"\n'
                  '            bins { key: 1 value { value: 1500 standard_deviation: 0 } }\n'
@@ -2089,17 +2095,21 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
                 result.updated_measurements[b_name])
             self.assertEqual(result.updated_measurements[a_name], expected)
 
-        # Non-cumulative reach: exercises the strict=True zip through
-        # _record_measurement_set_aliases (the reach arm of MeasurementSet).
-        for a_name, b_name in [
-            ("a_nc_w1_reach", "b_nc_w1_reach"),
-            ("a_nc_w2_reach", "b_nc_w2_reach"),
+        # Non-cumulative reach + impression: exercises the strict=True zip
+        # through _record_measurement_set_aliases for both the reach arm and
+        # the impression arm of MeasurementSet.
+        for a_name, b_name, expected in [
+            ("a_nc_w1_reach", "b_nc_w1_reach", 1000),
+            ("a_nc_w1_impr", "b_nc_w1_impr", 3000),
+            ("a_nc_w2_reach", "b_nc_w2_reach", 1500),
+            ("a_nc_w2_impr", "b_nc_w2_impr", 4500),
         ]:
             self.assertIn(a_name, result.updated_measurements)
             self.assertIn(b_name, result.updated_measurements)
             self.assertEqual(
                 result.updated_measurements[a_name],
                 result.updated_measurements[b_name])
+            self.assertEqual(result.updated_measurements[a_name], expected)
 
         # Non-cumulative frequency-bin aliasing (k_reach-bin path).
         for a_prefix, b_prefix in [("a_nc_w1_freq", "b_nc_w1_freq"),
@@ -2113,12 +2123,17 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
                     result.updated_measurements[a_name],
                     result.updated_measurements[b_name])
 
-        # Whole-campaign reach + frequency bins.
-        self.assertIn("a_wc_reach", result.updated_measurements)
-        self.assertIn("b_wc_reach", result.updated_measurements)
-        self.assertEqual(
-            result.updated_measurements["a_wc_reach"],
-            result.updated_measurements["b_wc_reach"])
+        # Whole-campaign reach + impression + frequency bins.
+        for a_name, b_name, expected in [
+            ("a_wc_reach", "b_wc_reach", 2500),
+            ("a_wc_impr", "b_wc_impr", 7500),
+        ]:
+            self.assertIn(a_name, result.updated_measurements)
+            self.assertIn(b_name, result.updated_measurements)
+            self.assertEqual(
+                result.updated_measurements[a_name],
+                result.updated_measurements[b_name])
+            self.assertEqual(result.updated_measurements[a_name], expected)
         for bin_label in (1, 2):
             a_name = f"a_wc_freq-bin-{bin_label}"
             b_name = f"b_wc_freq-bin-{bin_label}"
