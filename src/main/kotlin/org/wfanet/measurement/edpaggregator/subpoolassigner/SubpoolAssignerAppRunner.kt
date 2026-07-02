@@ -62,7 +62,9 @@ class SubpoolAssignerAppRunner :
   private lateinit var vidRankBuilderQueue: String
 
   private val getStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
-    storageConfig(storageParams.gcsProjectId)
+    // Carry blob_prefix so buildStorageClient can root the multi-key subpool-map store at its
+    // bucket.
+    storageConfig(storageParams.gcsProjectId).copy(blobPrefix = storageParams.blobPrefix)
   }
 
   override fun run() {

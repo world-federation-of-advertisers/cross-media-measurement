@@ -98,8 +98,12 @@ class VidRankBuilderAppRunner :
         workItemAttemptsClient = workItemAttemptsClient,
         kmsClients = kmsClientsMap,
         retentionDaysByDataProvider = retentionDaysByDataProvider,
-        buildSubpoolMapStorageClient = { sp -> buildStorageClient(storageConfig(sp.gcsProjectId)) },
-        buildVidRankMapStorageClient = { sp -> buildStorageClient(storageConfig(sp.gcsProjectId)) },
+        buildSubpoolMapStorageClient = { sp ->
+          buildStorageClient(storageConfig(sp.gcsProjectId).copy(blobPrefix = sp.blobPrefix))
+        },
+        buildVidRankMapStorageClient = { sp ->
+          buildStorageClient(storageConfig(sp.gcsProjectId).copy(blobPrefix = sp.blobPrefix))
+        },
         rankerJobsStub = rankerJobsClient,
         rankIndexBlobsStub = rankIndexBlobsClient,
         rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesClient,
