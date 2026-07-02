@@ -14,6 +14,11 @@
 
 name: "Configure EDP simulators"
 
+run-name: >-
+  Configure EDP simulators [${{ inputs.environment }}] |
+  apply=${{ inputs.apply }},
+  image-tag=${{ inputs.existing-image-tag }}
+
 on:
   workflow_call:
     inputs:

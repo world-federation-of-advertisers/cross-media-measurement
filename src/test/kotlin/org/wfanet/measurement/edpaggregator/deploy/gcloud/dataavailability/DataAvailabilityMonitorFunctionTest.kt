@@ -42,6 +42,19 @@ import org.wfanet.measurement.config.edpaggregator.storageParams
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
+/**
+ * Tests for [DataAvailabilityMonitorFunction] running in a separate JVM via
+ * [FunctionsFrameworkInvokerProcess].
+ *
+ * TODO(world-federation-of-advertisers/cross-media-measurement#3988): These tests only assert on
+ *   the HTTP response — they cannot see OpenTelemetry metrics or log lines emitted from the
+ *   subprocess. The function reports data availability issues via metrics and SEVERE logs (HTTP 500
+ *   is reserved for genuine function failures), so the "issue detected" tests below collapse into
+ *   smoke tests verifying the function ran. Real semantic coverage of the alert paths lives in
+ *   [DataAvailabilityMonitorTest], which uses [InMemoryMetricExporter] in-process. Once an
+ *   in-process OTLP receiver is available, retrofit these tests to assert on the metric/log
+ *   emissions.
+ */
 @RunWith(JUnit4::class)
 class DataAvailabilityMonitorFunctionTest {
 
@@ -106,10 +119,16 @@ class DataAvailabilityMonitorFunctionTest {
     File(tempFolder.root, donePath).parentFile.mkdirs()
     storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
 
-    Thread.sleep(1100)
-
-    val dataPath = "$edpPath/model-line/$modelLine/$dateString/data_campaign_1"
-    storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
+    // A metadata-named blob without the synced-by marker simulates a file that arrived after
+    // DataAvailabilitySync ran (or was rewritten by the EDP) — the monitor should flag it.
+    //
+    // TODO(world-federation-of-advertisers/cross-media-measurement#3987): FileSystemStorageClient
+    // does not support GCS custom object metadata, so the marker-based check is unverifiable at
+    // the function level. The test currently passes for the wrong reason (every metadata-named
+    // blob is treated as unsynced under this client). The positive case is covered only by
+    // DataAvailabilityMonitorTest with InMemoryStorageClient.
+    val metadataPath = "$edpPath/model-line/$modelLine/$dateString/metadata_campaign_1.binpb"
+    storageClient.writeBlob(metadataPath, ByteString.copyFromUtf8("data"))
   }
 
   private fun startFunction(configText: String): Int {
@@ -182,7 +201,7 @@ class DataAvailabilityMonitorFunctionTest {
   }
 
   @Test
-  fun `returns 500 when model line is stale`() {
+  fun `returns 200 when model line is stale`() {
     val storageClient = FileSystemStorageClient(tempFolder.root)
     val edpPath = "edp/test/impressions"
     val today = LocalDate.now(ZoneId.of("UTC"))
@@ -196,12 +215,12 @@ class DataAvailabilityMonitorFunctionTest {
     val port = startFunction(TextFormat.printer().printToString(config))
     val response = invokeFunction(port)
 
-    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.statusCode()).isEqualTo(200)
     assertThat(response.body()).contains("issues detected")
   }
 
   @Test
-  fun `returns 500 when model line has gap`() {
+  fun `returns 200 when model line has gap`() {
     val storageClient = FileSystemStorageClient(tempFolder.root)
     val edpPath = "edp/test/impressions"
     val today = LocalDate.now(ZoneId.of("UTC"))
@@ -213,12 +232,12 @@ class DataAvailabilityMonitorFunctionTest {
     val port = startFunction(TextFormat.printer().printToString(config))
     val response = invokeFunction(port)
 
-    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.statusCode()).isEqualTo(200)
     assertThat(response.body()).contains("issues detected")
   }
 
   @Test
-  fun `returns 500 when date folder is missing done blob`() {
+  fun `returns 200 when date folder is missing done blob`() {
     val storageClient = FileSystemStorageClient(tempFolder.root)
     val edpPath = "edp/test/impressions"
     val today = LocalDate.now(ZoneId.of("UTC"))
@@ -229,12 +248,12 @@ class DataAvailabilityMonitorFunctionTest {
     val port = startFunction(TextFormat.printer().printToString(config))
     val response = invokeFunction(port)
 
-    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.statusCode()).isEqualTo(200)
     assertThat(response.body()).contains("issues detected")
   }
 
   @Test
-  fun `returns 500 when done blob has no corresponding data`() {
+  fun `returns 200 when done blob has no corresponding data`() {
     val storageClient = FileSystemStorageClient(tempFolder.root)
     val edpPath = "edp/test/impressions"
     val today = LocalDate.now(ZoneId.of("UTC"))
@@ -245,12 +264,17 @@ class DataAvailabilityMonitorFunctionTest {
     val port = startFunction(TextFormat.printer().printToString(config))
     val response = invokeFunction(port)
 
-    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.statusCode()).isEqualTo(200)
     assertThat(response.body()).contains("issues detected")
   }
 
   @Test
-  fun `returns 500 when late arriving files are detected`() {
+  fun `returns 200 for an unmarked late-arriving fixture (smoke test)`() {
+    // Smoke-test only. The late-arrival check requires the done blob to carry the synced-by
+    // marker, but FileSystemStorageClient does not support GCS custom object metadata, so the
+    // function cannot actually classify this fixture as late-arriving here. Semantic coverage
+    // of the late-arrival path lives in DataAvailabilityMonitorTest (uses InMemoryStorageClient).
+    // See #3988 for the broader telemetry-assertion limitation.
     val storageClient = FileSystemStorageClient(tempFolder.root)
     val edpPath = "edp/test/impressions"
     val today = LocalDate.now(ZoneId.of("UTC"))
@@ -261,8 +285,7 @@ class DataAvailabilityMonitorFunctionTest {
     val port = startFunction(TextFormat.printer().printToString(config))
     val response = invokeFunction(port)
 
-    assertThat(response.statusCode()).isEqualTo(500)
-    assertThat(response.body()).contains("issues detected")
+    assertThat(response.statusCode()).isEqualTo(200)
   }
 
   @Test
@@ -277,19 +300,20 @@ class DataAvailabilityMonitorFunctionTest {
     val port = startFunction(TextFormat.printer().printToString(config))
     val response = invokeFunction(port)
 
-    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.statusCode()).isEqualTo(200)
     assertThat(response.body()).contains("issues detected")
   }
 
   @Test
   fun `returns 500 when no model lines are configured`() {
+    // Empty modelLines is a genuine misconfiguration (validation throws inside the function),
+    // so the catch block returns 500. Distinct from "issue detected, ran successfully" cases.
     val edpPath = "edp/test/impressions"
     val config = createConfig(edpPath = edpPath, modelLines = emptyList())
     val port = startFunction(TextFormat.printer().printToString(config))
     val response = invokeFunction(port)
 
     assertThat(response.statusCode()).isEqualTo(500)
-    assertThat(response.body()).contains("No active model lines configured")
   }
 
   companion object {

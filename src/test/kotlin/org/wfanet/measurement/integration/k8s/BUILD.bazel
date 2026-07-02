@@ -234,3 +234,28 @@ java_test(
     test_class = "org.wfanet.measurement.integration.k8s.EdpAggregatorCorrectnessTest",
     runtime_deps = [":edp_aggregator_correctness_test"],
 )
+
+kt_jvm_library(
+    name = "dashboard_isolation_test_lib",
+    srcs = ["DashboardIsolationTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard:dashboard_isolation_checks",
+        "@maven//:com_google_auth_google_auth_library_oauth2_http",
+        "@maven//:com_google_cloud_google_cloud_bigquery",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+java_test(
+    name = "DashboardIsolationTest",
+    timeout = "moderate",
+    tags = [
+        "exclusive",
+        "external",
+        "manual",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.k8s.DashboardIsolationTest",
+    runtime_deps = [":dashboard_isolation_test_lib"],
+)

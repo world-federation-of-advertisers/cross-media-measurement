@@ -1,0 +1,86 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha.event_group_metadata.testing;
+
+import "google/type/date.proto";
+import "wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto";
+import "wfa/virtual_people/common/demographic.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha.event_group_metadata.testing";
+option java_multiple_files = true;
+
+// Specification for generating synthetic events by running labeler input IDs
+// through a VID labeler model.
+//
+// Instead of specifying VID ranges directly (as in `SyntheticEventGroupSpec`),
+// this spec defines labeler input ID ranges with demographic distributions.
+// Each labeler input ID is converted to a string and passed through a VID
+// labeler model, which assigns VIDs via hash-based routing and a demographic
+// correction matrix.
+message LabelerInputEventGroupSpec {
+  // A range of labeler input IDs (inclusive start, exclusive end).
+  message IdRange {
+    int64 start = 1;
+    int64 end_exclusive = 2;
+  }
+
+  // Assigns demographics and frequency to a range of labeler input IDs.
+  //
+  // Each labeler input ID in the range is converted to a string
+  // (`id.toString()`) and used as the labeler's
+  // `profile_info.proprietary_id_space_1_user_info.user_id`. Demographics are
+  // set on the labeler input ID's
+  // `profile_info.proprietary_id_space_1_user_info.demo.demo_bucket`.
+  message DemographicDistribution {
+    IdRange id_range = 1;
+
+    // Demographics for every labeler input ID in [id_range]. Copied directly
+    // onto the labeler input's
+    // `profile_info.proprietary_id_space_1_user_info.demo.demo_bucket`, so any
+    // field the labeler model understands (gender, age, social_grade, etc.)
+    // can be set here.
+    wfa_virtual_people.DemoBucket demo_bucket = 2;
+
+    // Total frequency for each labeler input ID in this distribution over the
+    // containing date range.
+    int64 frequency = 3;
+
+    // Non-population field values for events in this distribution (e.g.
+    // viewability flags). Same key format as
+    // `SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec.non_population_field_values`.
+    map<string, FieldValue> non_population_field_values = 4;
+  }
+
+  // Date range and demographic distributions for event generation.
+  message DateSpec {
+    message DateRange {
+      google.type.Date start = 1;
+      google.type.Date end_exclusive = 2;
+    }
+
+    DateRange date_range = 1;
+
+    // Demographic distributions with per-distribution frequency.
+    //
+    // Order is not semantically meaningful: the converter produces equivalent
+    // output for any permutation of this list.
+    repeated DemographicDistribution demographic_distributions = 2;
+  }
+
+  // Date ranges with their demographic distributions.
+  repeated DateSpec date_specs = 1;
+}

@@ -26,6 +26,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek.ProtobufFormat
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
@@ -57,7 +58,7 @@ object EncryptedStorage {
 
   /** Builds a envelope encryption storage client wrapped by Mesos Record IO Storage Client. */
   fun buildEncryptedMesosStorageClient(
-    storageClient: StorageClient,
+    storageClient: ConditionalOperationStorageClient,
     kmsClient: KmsClient,
     kekUri: String,
     encryptedDek: EncryptedDek,

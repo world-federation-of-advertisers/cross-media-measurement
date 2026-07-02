@@ -355,3 +355,57 @@ variable "data_availability_monitor_uber_jar_path" {
   description = "Path to DataAvailabilityMonitor uber jar."
   type        = string
 }
+
+variable "data_provider_resource_ids" {
+  type        = map(string)
+  nullable    = false
+  description = "Map of EDP name to DataProviderResourceId"
+}
+
+variable "dashboard_operators" {
+  type        = list(string)
+  nullable    = false
+  description = "Users/groups granted platform access to dashboard tables and EDP SA impersonation for testing"
+}
+
+variable "dashboard_deletion_protection" {
+  type        = bool
+  default     = true
+  description = "Enable deletion protection on dashboard BigQuery tables. Set to false for dev."
+}
+
+variable "edp_aggregator_spanner_project" {
+  type        = string
+  nullable    = false
+  description = "GCP project containing the EDP Aggregator Spanner instance"
+}
+
+variable "edp_aggregator_spanner_instance" {
+  type        = string
+  nullable    = false
+  description = "EDP Aggregator Spanner instance name"
+}
+
+variable "kingdom_spanner_project" {
+  type        = string
+  nullable    = false
+  description = "GCP project containing the Kingdom Spanner instance"
+}
+
+variable "kingdom_spanner_instance" {
+  type        = string
+  nullable    = false
+  description = "Kingdom Spanner instance name"
+}
+
+variable "reporting_spanner_project" {
+  type        = string
+  nullable    = false
+  description = "GCP project containing the Reporting Spanner instance"
+}
+
+variable "reporting_spanner_instance" {
+  type        = string
+  nullable    = false
+  description = "Reporting Spanner instance name"
+}

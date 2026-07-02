@@ -1,0 +1,68 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+package(default_testonly = True)
+
+kt_jvm_test(
+    name = "SubpoolFingerprintsAccumulatorTest",
+    srcs = ["SubpoolFingerprintsAccumulatorTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.subpoolassigner.SubpoolFingerprintsAccumulatorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/subpoolassigner:subpool_fingerprints_accumulator",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_test(
+    name = "SubpoolAssignmentSinkTest",
+    srcs = ["SubpoolAssignmentSinkTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.subpoolassigner.SubpoolAssignmentSinkTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:event_id_digest",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:labeler_input_mapper",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:raw_impression_source",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/subpoolassigner:pool_emit_labeler",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/subpoolassigner:subpool_assignment_sink",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/subpoolassigner:subpool_fingerprints_accumulator",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/utils:active_window",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/sdk",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/sdk/testing",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/proto/wfa/measurement/storage:parquet_row_kt_jvm_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_test(
+    name = "SubpoolAssignerTest",
+    srcs = ["SubpoolAssignerTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.subpoolassigner.SubpoolAssignerTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:labeler_input_mapper",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:raw_impression_source",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:subpool_fingerprints_store",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/subpoolassigner:pool_emit_labeler",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/subpoolassigner:subpool_assigner",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/subpoolassigner:subpool_fingerprints_accumulator",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/utils:active_window",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:pool_assignment_job_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:ranker_job_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_rank_builder_params_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:date_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_kt_jvm_proto",
+    ],
+)
