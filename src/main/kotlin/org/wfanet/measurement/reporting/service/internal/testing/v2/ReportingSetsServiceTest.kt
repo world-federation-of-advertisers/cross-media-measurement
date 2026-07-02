@@ -1428,7 +1428,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     }
 
   @Test
-  fun `batchGetReportingSets resolves Campaign Group with multiple members`(): Unit = runBlocking {
+  fun `ReportingSet reads resolve Campaign Group with multiple members`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -1481,7 +1481,20 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
       )
     }
 
-    val readBackByExternalId: Map<String, ReportingSet> =
+    // Both read paths resolve external_campaign_group_id through the same shared join
+    // (baseSqlJoins), so assert on batchGetReportingSets and the streaming/list path.
+    fun assertResolvesToCampaignGroup(readByExternalId: Map<String, ReportingSet>) {
+      // The Campaign Group must resolve to itself, not to one of its members.
+      assertThat(readByExternalId.getValue(campaignGroupId).externalCampaignGroupId)
+        .isEqualTo(campaignGroupId)
+      // Every member must resolve to the Campaign Group.
+      for (memberId in memberIds) {
+        assertThat(readByExternalId.getValue(memberId).externalCampaignGroupId)
+          .isEqualTo(campaignGroupId)
+      }
+    }
+
+    assertResolvesToCampaignGroup(
       service
         .batchGetReportingSets(
           batchGetReportingSetsRequest {
@@ -1492,16 +1505,21 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         )
         .reportingSetsList
         .associateBy { it.externalReportingSetId }
+    )
 
-    // The Campaign Group must resolve to itself, not to one of its members.
-    assertThat(readBackByExternalId.getValue(campaignGroupId).externalCampaignGroupId)
-      .isEqualTo(campaignGroupId)
-
-    // Every member must resolve to the Campaign Group.
-    for (memberId in memberIds) {
-      assertThat(readBackByExternalId.getValue(memberId).externalCampaignGroupId)
-        .isEqualTo(campaignGroupId)
-    }
+    assertResolvesToCampaignGroup(
+      service
+        .streamReportingSets(
+          streamReportingSetsRequest {
+            filter =
+              StreamReportingSetsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              }
+          }
+        )
+        .toList()
+        .associateBy { it.externalReportingSetId }
+    )
   }
 
   @Test
