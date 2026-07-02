@@ -24,15 +24,16 @@ import io.opentelemetry.api.metrics.Meter
  * OpenTelemetry metrics for EventGroup activity synchronization.
  *
  * Tracks created, deleted, and unchanged activity counts, the number of EventGroups processed, the
- * number of recoverable sync errors, the number of EventGroups whose deletions were skipped by the
- * data-loss guard, and the overall sync latency.
+ * number of recoverable sync errors, the number of deletes computed but suppressed by the delete
+ * mode, and the overall sync latency.
  *
  * Attributes:
  * - data_provider_name: The data provider performing the sync.
- * - outcome: For [eventGroupsProcessed], the per-EventGroup outcome (`success`, `guard_skipped`, or
- *   `failed`).
+ * - outcome: For [eventGroupsProcessed], the per-EventGroup outcome (`success` or `failed`).
  * - error_type: For [syncErrors], the gRPC status code name or exception class that caused the
  *   failure.
+ * - mode: For [wouldDeleteCount], the sync mode that suppressed the deletes (`append` or `preview`;
+ *   `sync` never meters this counter).
  */
 class EventGroupActivitySyncMetrics(meter: Meter) {
   /** Counter for EventGroupActivities created (present in input but missing in the Kingdom). */
@@ -71,13 +72,15 @@ class EventGroupActivitySyncMetrics(meter: Meter) {
       .build()
 
   /**
-   * Counter for EventGroups whose deletions were skipped because the fraction of existing
-   * activities to delete exceeded the configured max delete fraction (data-loss guard).
+   * Counter for EventGroupActivity deletes that were computed but not applied because the
+   * configured [SyncMode] suppressed them, split by `mode`.
    */
-  val deletesSkippedGuard: LongCounter =
+  val wouldDeleteCount: LongCounter =
     meter
-      .counterBuilder("edpa.event_group_activity.deletes_skipped_guard")
-      .setDescription("Number of EventGroups whose deletions were skipped by the max-delete guard")
+      .counterBuilder("edpa.event_group_activity.would_delete_count")
+      .setDescription(
+        "Number of EventGroupActivity deletes computed but not applied due to delete mode"
+      )
       .build()
 
   /** Histogram for overall sync operation latency. */
