@@ -26,21 +26,12 @@ import org.junit.runners.JUnit4
 @RunWith(JUnit4::class)
 class FileEntityKeysTest {
   @Test
-  fun `fromFooterMetadata parses event group reference id, entity keys, and max event date`() {
-    val metadata =
-      mapOf(
-        "event_group_reference_id" to "eg-1",
-        "entity_keys" to
-          """[{"entity_type":"creative","entity_id":"c-1"},{"entity_type":"placement","entity_id":"p-9"}]""",
-        "event_date" to "2026-06-30",
-      )
+  fun `fromFooterMetadata parses event group reference id and event date`() {
+    val metadata = mapOf("event_group_reference_id" to "eg-1", "event_date" to "2026-06-30")
 
     val fileEntityKeys = FileEntityKeys.fromFooterMetadata(metadata)
 
     assertThat(fileEntityKeys.eventGroupReferenceId).isEqualTo("eg-1")
-    assertThat(fileEntityKeys.entityKeys.map { it.entityType to it.entityId })
-      .containsExactly("creative" to "c-1", "placement" to "p-9")
-      .inOrder()
     assertThat(fileEntityKeys.eventDate).isEqualTo(LocalDate.of(2026, 6, 30))
   }
 
@@ -48,12 +39,7 @@ class FileEntityKeysTest {
   fun `fromFooterMetadata throws when event_date is missing`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        FileEntityKeys.fromFooterMetadata(
-          mapOf(
-            "event_group_reference_id" to "eg-1",
-            "entity_keys" to """[{"entity_type":"creative","entity_id":"c-1"}]""",
-          )
-        )
+        FileEntityKeys.fromFooterMetadata(mapOf("event_group_reference_id" to "eg-1"))
       }
     assertThat(exception).hasMessageThat().contains("event_date")
   }
@@ -63,58 +49,18 @@ class FileEntityKeysTest {
     val exception =
       assertFailsWith<IllegalArgumentException> {
         FileEntityKeys.fromFooterMetadata(
-          mapOf(
-            "event_group_reference_id" to "eg-1",
-            "entity_keys" to """[{"entity_type":"creative","entity_id":"c-1"}]""",
-            "event_date" to "30-06-2026",
-          )
+          mapOf("event_group_reference_id" to "eg-1", "event_date" to "30-06-2026")
         )
       }
     assertThat(exception).hasMessageThat().contains("event_date")
   }
 
   @Test
-  fun `fromFooterMetadata throws when entity_keys is missing`() {
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        FileEntityKeys.fromFooterMetadata(mapOf("event_group_reference_id" to "eg-1"))
-      }
-    assertThat(exception).hasMessageThat().contains("entity_keys")
-  }
-
-  @Test
-  fun `fromFooterMetadata throws when entity_keys is an empty array`() {
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        FileEntityKeys.fromFooterMetadata(
-          mapOf("event_group_reference_id" to "eg-1", "entity_keys" to "[]")
-        )
-      }
-    assertThat(exception).hasMessageThat().contains("at least one entity key")
-  }
-
-  @Test
   fun `fromFooterMetadata throws when event_group_reference_id is missing`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        FileEntityKeys.fromFooterMetadata(
-          mapOf("entity_keys" to """[{"entity_type":"creative","entity_id":"c-1"}]""")
-        )
+        FileEntityKeys.fromFooterMetadata(mapOf("event_date" to "2026-06-30"))
       }
     assertThat(exception).hasMessageThat().contains("event_group_reference_id")
-  }
-
-  @Test
-  fun `fromFooterMetadata throws when an entity key is missing a field`() {
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        FileEntityKeys.fromFooterMetadata(
-          mapOf(
-            "event_group_reference_id" to "eg-1",
-            "entity_keys" to """[{"entity_type":"creative"}]""",
-          )
-        )
-      }
-    assertThat(exception).hasMessageThat().contains("entity_id")
   }
 }

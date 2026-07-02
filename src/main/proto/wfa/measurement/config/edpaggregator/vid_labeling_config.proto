@@ -63,6 +63,14 @@ message VidLabelingConfig {
     // Full proto name of the event message within that FileDescriptorSet that
     // event_template_field_mapping targets.
     string event_template_type = 4;
+
+    // Mapping from entity_type (the DataProvider's taxonomy label, which
+    // becomes LabeledImpression.EntityKey.entity_type) to the raw-impression
+    // Parquet column holding that entity's id for the impression. One string
+    // column per entity_type; a NULL/empty cell means the impression is not
+    // associated with that entity_type. Copied onto
+    // VidLabelerParams.ModelLineConfig; read per row by the Phase-2 TEE.
+    map<string, string> entity_key_field_mapping = 5;
   }
 
   // Map from model line resource name to its configuration.
