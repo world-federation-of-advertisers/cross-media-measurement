@@ -221,6 +221,8 @@ class VidRankBuilderApp(
           // (and its type) onto the memoized VidLabeler ModelLineConfig.
           eventTemplateDescriptorBlobUri = params.eventTemplateDescriptorBlobUri
           eventTemplateType = params.eventTemplateType
+          // Per-impression entity-key columns for Phase-2 (read per row from these columns).
+          entityKeyFieldMapping.putAll(params.entityKeyFieldMappingMap)
           // Active-window pass-through (OPTIONAL): Phase-2 drops impressions outside this window.
           if (params.hasActiveStartTime()) {
             activeStartTime = params.activeStartTime
