@@ -98,13 +98,22 @@ message VidLabelerParams {
     // event_template_field_mapping targets.
     string event_template_type = 6 [(google.api.field_behavior) = OPTIONAL];
 
+    reserved 7;
+    reserved "entity_key_field_mapping";
+
     // Mapping from entity_type (the DataProvider's taxonomy label, which
     // becomes LabeledImpression.EntityKey.entity_type) to the raw-impression
-    // Parquet column holding that entity's id for the impression. One string
-    // column per entity_type; a NULL/empty cell means the impression is not
-    // associated with that entity_type. Read per row by the TEE; entity keys
-    // are no longer carried in the file footer.
-    map<string, string> entity_key_field_mapping = 7;
+    // Parquet column holding that entity's id. One string column per
+    // entity_type. Every impression MUST have a non-null, non-empty value in
+    // each of these columns. Read per row by the TEE; entity keys are not
+    // carried in the file footer.
+    map<string, string> required_entity_key_field_mapping = 8;
+
+    // Like required_entity_key_field_mapping, but an impression MAY omit these:
+    // a NULL/empty cell means the impression is not associated with that
+    // entity_type. Keys MUST be disjoint from
+    // required_entity_key_field_mapping.
+    map<string, string> optional_entity_key_field_mapping = 9;
   }
 
   // Map from model line resource name to its configuration.
