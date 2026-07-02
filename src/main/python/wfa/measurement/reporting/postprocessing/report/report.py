@@ -1193,6 +1193,23 @@ class Report:
               comb for comb in whole_campaign_edp_combinations
               if len(comb) == 1 and comb.issubset(edp_combination)
           ]
+          # Skip the union = sum(singles) equality unless the singleton cover
+          # is complete for this edp_combination. Two failure modes are folded
+          # into one guard:
+          #   - empty single_edp_subset (report has only union RSRs, no per-EDP
+          #     primitives): union = 0 contradicts the measured value and makes
+          #     the QP problem primal-infeasible.
+          #   - partial single_edp_subset (some per-EDP primitives present but
+          #     not all): union = sum(present_singles) silently under-counts by
+          #     the missing EDPs' contribution, which the solver satisfies by
+          #     adjusting the present singles' impressions downward.
+          # Reachable when a BasicReport has multiple result_group_specs with
+          # asymmetric reporting_units (spec 1: {A,B} with components; spec 2:
+          # {A,B,C} without components) -- their RSRs aggregate into one
+          # metric_report and the {A,B,C} equality picks up spec 1's partial
+          # [{A},{B}] singleton cover.
+          if len(single_edp_subset) < len(edp_combination):
+            continue
           spec.add_equal_relation(
               set_id_one=self._get_measurement_index(
                   metric_report.get_whole_campaign_impression_measurement(
@@ -1214,6 +1231,11 @@ class Report:
               comb for comb in weekly_non_cumulative_edp_combinations
               if len(comb) == 1 and comb.issubset(edp_combination)
           ]
+          # Skip the union = sum(singles) equality unless the singleton cover
+          # is complete (see whole_campaign branch above for the full rationale;
+          # empty -> primal-infeasible, partial -> silently under-counts).
+          if len(single_edp_subset) < len(edp_combination):
+            continue
           for period in range(0, self._num_periods):
               spec.add_equal_relation(
                   set_id_one=self._get_measurement_index(

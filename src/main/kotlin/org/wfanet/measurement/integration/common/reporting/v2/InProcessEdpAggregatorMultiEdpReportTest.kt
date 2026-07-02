@@ -15,6 +15,7 @@
 package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.common.truth.Truth.assertThat
+import com.google.type.DayOfWeek
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -25,10 +26,13 @@ import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
+import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.basicReport
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
+import org.wfanet.measurement.reporting.v2alpha.metricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.reportingUnit
+import org.wfanet.measurement.reporting.v2alpha.resultGroupMetricSpec
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 /**
@@ -260,6 +264,67 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
         .containsExactly(EXPECTED_EDP_SPEC2_REACH, EXPECTED_EDP_SPEC1_REACH)
         .inOrder()
 
+      assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
+    }
+
+  // Hypothesis E: weekly `reporting_unit.non_cumulative + reporting_unit.cumulative`
+  // (BOTH) with no per-EDP components. Mirror of A on the reporting-unit axis: the
+  // union RS ID is the SAME across both windows but each window has only one of
+  // cumulative/non_cumulative populated.
+  @Test
+  fun `hypothesis E - weekly reporting_unit cumulative plus non_cumulative no components`() =
+    runBlocking {
+      val eventGroups = getMultiEdpEventGroups()
+      check(eventGroups.size > 1)
+
+      val baseRequest =
+        buildCreateBasicReportRequest(
+          eventGroups,
+          "hypothesis-e-campaign",
+          "hypothesis-e-basicreport",
+          includeIqfFilter = false,
+        )
+      val hypothesisSpec =
+        baseRequest.basicReport.resultGroupSpecsList.single().copy {
+          title = "hypothesis-e"
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                nonCumulative =
+                  ResultGroupMetricSpecKt.basicMetricSetSpec {
+                    reach = true
+                    impressions = true
+                  }
+              }
+          }
+        }
+      val createBasicReportRequest =
+        baseRequest.copy {
+          basicReport =
+            basicReport.copy {
+              resultGroupSpecs.clear()
+              resultGroupSpecs += hypothesisSpec
+            }
+        }
+
+      val createdBasicReport =
+        reportingBasicReportsClient
+          .withCallCredentials(credentials)
+          .createBasicReport(createBasicReportRequest)
+
+      executeBasicReportsReportsJob(createdBasicReport.name)
+      executeReportProcessorJob()
+
+      val completedBasicReport =
+        reportingBasicReportsClient
+          .withCallCredentials(credentials)
+          .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+      assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+      assertThat(completedBasicReport.resultGroupsList).hasSize(1)
+      assertThat(completedBasicReport.resultGroupsList.single().resultsList).isNotEmpty()
       assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
     }
 }
