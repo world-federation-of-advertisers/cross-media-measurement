@@ -248,6 +248,8 @@ class SubpoolAssignerApp(
         // last-out can stamp it on the Phase-2 VidLabeler ModelLineConfig, which requires it.
         eventTemplateDescriptorBlobUri = params.eventTemplateDescriptorBlobUri
         eventTemplateType = params.eventTemplateType
+        // Per-impression entity-key columns pass-through (OPTIONAL), mirroring the descriptor.
+        entityKeyFieldMapping.putAll(params.entityKeyFieldMappingMap)
         totalShards = params.totalShards
         // Phase-2 bin-packing cap (REQUIRED), forwarded verbatim so the Phase-1 last-out can batch
         // the upload's files without round-tripping to the dispatcher.
