@@ -59,20 +59,37 @@ message VidLabelingConfig {
   map<string, ModelLineConfig> model_line_configs = 5
       [(google.api.field_behavior) = REQUIRED];
 
-  // Optional; if provided, indicates what model lines to use.
-  repeated string override_model_lines = 6 [
-    (google.api.field_behavior) = OPTIONAL,
-    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
-  ];
-
   // Cloud Function TLS connection params for the RawImpressionMetadata
   // storage service.
-  TransportLayerSecurityParams raw_impression_metadata_storage_connection = 7
+  TransportLayerSecurityParams raw_impression_metadata_storage_connection = 6
       [(google.api.field_behavior) = REQUIRED];
 
-  // Maximum batch size in bytes for partitioning raw impression files.
-  // If unset, defaults to 10 GB (10000000000 bytes).
-  int64 max_batch_size_bytes = 8 [(google.api.field_behavior) = OPTIONAL];
+  // Number of static shards for dispatching work items.
+  int32 number_of_shards = 7 [(google.api.field_behavior) = REQUIRED];
+
+  // TLS connection params for the VID Repository ModelLines service.
+  TransportLayerSecurityParams model_lines_connection = 8
+      [(google.api.field_behavior) = REQUIRED];
+
+  // TLS connection params for the VID Repository ModelShards service.
+  TransportLayerSecurityParams model_shards_connection = 9
+      [(google.api.field_behavior) = REQUIRED];
+
+  // TLS connection params for the VID Repository ModelRollouts service.
+  TransportLayerSecurityParams model_rollouts_connection = 10
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Resource name of the model suite. Used as parent for ListModelLines.
+  string model_suite = 11 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelSuite"
+  ];
+
+  // TLS connection params for the Secure Computation control plane
+  // (WorkItemsService). Distinct from the RawImpressionMetadata storage
+  // connection.
+  TransportLayerSecurityParams control_plane_connection = 12
+      [(google.api.field_behavior) = REQUIRED];
 }
 
 // Wrapper containing VID Labeling configurations for all EDPs.

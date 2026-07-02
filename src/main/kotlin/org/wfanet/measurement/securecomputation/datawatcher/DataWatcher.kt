@@ -145,10 +145,10 @@ class DataWatcher(
         .header("Authorization", "Bearer $jwt")
         .header(DATA_WATCHER_PATH_HEADER, path)
 
-    if (IMPRESSION_METADATA_RESOURCE_ID_KEY in objectMetadata) {
+    if (WatchedBlobs.IMPRESSION_METADATA_RESOURCE_ID_KEY in objectMetadata) {
       requestBuilder.header(
         IMPRESSION_METADATA_RESOURCE_ID_HEADER,
-        objectMetadata.getValue(IMPRESSION_METADATA_RESOURCE_ID_KEY),
+        objectMetadata.getValue(WatchedBlobs.IMPRESSION_METADATA_RESOURCE_ID_KEY),
       )
     }
 
@@ -257,8 +257,6 @@ class DataWatcher(
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
     private const val IMPRESSION_METADATA_RESOURCE_ID_HEADER: String =
       "X-Impression-Metadata-Resource-Id"
-    private const val IMPRESSION_METADATA_RESOURCE_ID_KEY: String =
-      "impression-metadata-resource-id"
 
     private val ATTR_SINK_TYPE_KEY = AttributeKey.stringKey("edpa.data_watcher.sink_type")
     private val ATTR_WORK_ITEM_ID_KEY = AttributeKey.stringKey("edpa.data_watcher.work_item_id")

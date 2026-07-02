@@ -414,44 +414,38 @@ abstract class RequisitionMetadataServiceTest {
     }
 
   @Test
-  fun `batchCreateRequisitionMetadata throws ALREADY_EXISTS for existing blobUri`() = runBlocking {
-    val duplicateBlobUri = "duplicate-blob-uri"
-    service.batchCreateRequisitionMetadata(
-      batchCreateRequisitionMetadataRequest {
-        requests += createRequisitionMetadataRequest {
-          requisitionMetadata = REQUISITION_METADATA.copy { blobUri = duplicateBlobUri }
-          requestId = UUID.randomUUID().toString()
+  fun `batchCreateRequisitionMetadata allows distinct cmms requisitions to share one blob uri`() =
+    runBlocking {
+      // Multi-requisition groups (one GroupedRequisitions blob covering N requisitions for a
+      // (reportId, updateTime) tuple) require multiple metadata rows to share one blob_uri.
+      // The legacy unique constraint on (DataProviderResourceId, BlobUri) was dropped by
+      // drop-blob-uri-index.sql; the batch path no longer rejects shared blob_uri.
+      val sharedBlobUri = "shared-blob-uri"
+      service.batchCreateRequisitionMetadata(
+        batchCreateRequisitionMetadataRequest {
+          requests += createRequisitionMetadataRequest {
+            requisitionMetadata = REQUISITION_METADATA.copy { blobUri = sharedBlobUri }
+            requestId = UUID.randomUUID().toString()
+          }
         }
+      )
+
+      val secondRequest = createRequisitionMetadataRequest {
+        requisitionMetadata = REQUISITION_METADATA_2.copy { blobUri = sharedBlobUri }
+        requestId = UUID.randomUUID().toString()
       }
-    )
 
-    val conflictingRequest = createRequisitionMetadataRequest {
-      requisitionMetadata = REQUISITION_METADATA_2.copy { blobUri = duplicateBlobUri }
-      requestId = UUID.randomUUID().toString()
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
+      val response =
         service.batchCreateRequisitionMetadata(
           batchCreateRequisitionMetadataRequest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-            requests += conflictingRequest
+            requests += secondRequest
           }
         )
-      }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI.name
-          metadata[Errors.Metadata.DATA_PROVIDER_RESOURCE_ID.key] =
-            REQUISITION_METADATA.dataProviderResourceId
-          metadata[Errors.Metadata.BLOB_URI.key] = duplicateBlobUri
-        }
-      )
-  }
+      assertThat(response.requisitionMetadataList).hasSize(1)
+      assertThat(response.requisitionMetadataList.single().blobUri).isEqualTo(sharedBlobUri)
+    }
 
   @Test
   fun `batchCreateRequisitionMetadata throws ALREADY_EXISTS for existing cmmsRequisition`() =
@@ -565,40 +559,36 @@ abstract class RequisitionMetadataServiceTest {
     }
 
   @Test
-  fun `batchCreateRequisitionMetadata throws INVALID_ARGUMENT for duplicate blob uri in the batch requests`() =
-    runBlocking {
-      val request = createRequisitionMetadataRequest {
-        requisitionMetadata = REQUISITION_METADATA
-        requestId = UUID.randomUUID().toString()
-      }
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.batchCreateRequisitionMetadata(
-            batchCreateRequisitionMetadataRequest {
-              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-              requests += request
-              requests +=
-                request.copy {
-                  requisitionMetadata =
-                    requisitionMetadata.copy { cmmsRequisition = "different-cmms-requisition" }
-                  requestId = UUID.randomUUID().toString()
-                }
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.1.requisition_metadata.blob_uri"
-          }
-        )
+  fun `batchCreateRequisitionMetadata allows multiple rows in the batch to share one blob uri`():
+    Unit = runBlocking {
+    val request = createRequisitionMetadataRequest {
+      requisitionMetadata = REQUISITION_METADATA
+      requestId = UUID.randomUUID().toString()
     }
+
+    val response =
+      service.batchCreateRequisitionMetadata(
+        batchCreateRequisitionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          requests += request
+          requests +=
+            request.copy {
+              requisitionMetadata =
+                requisitionMetadata.copy {
+                  cmmsRequisition = "different-cmms-requisition"
+                  requisitionMetadataResourceId = REQUISITION_METADATA_RESOURCE_ID_2
+                }
+              requestId = UUID.randomUUID().toString()
+            }
+        }
+      )
+
+    // Both rows persist under the shared blob_uri. The dropped check used to reject this with
+    // INVALID_ARGUMENT; the schema-level constraint was removed by drop-blob-uri-index.sql to
+    // support multi-requisition grouped blobs.
+    assertThat(response.requisitionMetadataList).hasSize(2)
+    assertThat(response.requisitionMetadataList.map { it.blobUri }.distinct()).hasSize(1)
+  }
 
   @Test
   fun `batchCreateRequisitionMetadata throws INVALID_ARGUMENT for duplicate request id in the batch requests`() =

@@ -441,6 +441,7 @@ class BasicReportsServiceTest {
           name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
           campaignGroupDisplayName = campaignGroup.displayName
           state = BasicReport.State.RUNNING
+          effectiveCampaignGroup = this.campaignGroup
           reportingInterval =
             basicReport.reportingInterval.copy {
               effectiveReportStart = basicReport.reportingInterval.reportStart
@@ -1472,6 +1473,7 @@ class BasicReportsServiceTest {
           name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
           campaignGroupDisplayName = campaignGroup.displayName
           state = BasicReport.State.RUNNING
+          effectiveCampaignGroup = this.campaignGroup
           effectiveImpressionQualificationFilters += basicReport.impressionQualificationFiltersList
           reportingInterval =
             basicReport.reportingInterval.copy {
@@ -3086,6 +3088,7 @@ class BasicReportsServiceTest {
           name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
           campaignGroupDisplayName = campaignGroup.displayName
           state = BasicReport.State.RUNNING
+          effectiveCampaignGroup = this.campaignGroup
           reportingInterval =
             basicReport.reportingInterval.copy {
               effectiveReportStart = basicReport.reportingInterval.reportStart
@@ -3207,6 +3210,7 @@ class BasicReportsServiceTest {
           name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
           campaignGroupDisplayName = campaignGroup.displayName
           state = BasicReport.State.RUNNING
+          effectiveCampaignGroup = this.campaignGroup
           effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
             impressionQualificationFilter =
               ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
@@ -3340,6 +3344,7 @@ class BasicReportsServiceTest {
             name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
             campaignGroupDisplayName = campaignGroup.displayName
             state = BasicReport.State.RUNNING
+            effectiveCampaignGroup = this.campaignGroup
             reportingInterval =
               basicReport.reportingInterval.copy {
                 effectiveReportStart = basicReport.reportingInterval.reportStart
@@ -5895,6 +5900,433 @@ class BasicReportsServiceTest {
           }
         )
     }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when two specs share dim and selector but differ in DayOfWeek`() =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      // Two specs share reporting_unit, dimension_spec, and selector kind
+      // (weekly), but differ in DayOfWeek. The post-processor groups by
+      // (selector kind), not by full metric_frequency value, so these would
+      // collapse to the same dim and silently overwrite each other's
+      // measurements during noise correction. Reject up front.
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs +=
+              resultGroupSpecs[0].copy {
+                metricFrequency = metricFrequencySpec { weekly = DayOfWeek.TUESDAY }
+              }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs[1].metric_frequency"
+          }
+        )
+      // Error message references BOTH colliding entries by index so a
+      // consumer can directly inspect the prior spec, not just the
+      // failing one.
+      assertThat(exception.status.description).contains("result_group_specs[0].metric_frequency")
+    }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when specs differ only in filter order and DayOfWeek`() =
+    runBlocking {
+      // Two specs whose dimension_spec.filters lists are the SAME conjunction
+      // but in PERMUTED order, and which differ only in DayOfWeek. The
+      // downstream pipeline normalizes filter order before generating RSRs
+      // (Normalization.normalizeEventFilters), so these would collapse to the
+      // same dim in the post-processor -- the same silent-overwrite bug as
+      // the DayOfWeek-only case above. The collision key must canonicalize
+      // (sort filters) before comparing, otherwise this slips through.
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            // BASIC_REPORT.resultGroupSpecs[0].dimensionSpec.filters is
+            // [age_group=18_TO_34, gender=MALE]. Reverse it and pair with a
+            // different DayOfWeek -- raw `toByteString()` would treat the two
+            // as distinct dims.
+            val original = resultGroupSpecs[0]
+            val reversedFilters = original.dimensionSpec.filtersList.reversed()
+            resultGroupSpecs +=
+              original.copy {
+                metricFrequency = metricFrequencySpec { weekly = DayOfWeek.TUESDAY }
+                dimensionSpec =
+                  original.dimensionSpec.copy {
+                    filters.clear()
+                    filters += reversedFilters
+                  }
+              }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs[1].metric_frequency"
+          }
+        )
+      assertThat(exception.status.description).contains("result_group_specs[0].metric_frequency")
+    }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when specs differ only in grouping field order and DayOfWeek`() =
+    runBlocking {
+      // Two specs whose dimension_spec.grouping.event_template_fields lists are
+      // the SAME set but in PERMUTED order, paired with different DayOfWeeks.
+      // Grouping is consumed as a set downstream (each path appears at most
+      // once per the proto contract), so these would collapse to the same dim
+      // in the post-processor. normalizeDimensionSpec sorts the grouping list
+      // before keying; without that sort, raw `toByteString()` would treat the
+      // two specs as distinct dims.
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            // Replace the seed spec's grouping with [gender, social_grade_group]
+            // and clear filters so neither grouping path overlaps a filter path
+            // (the existing validator forbids that within a single dimensionSpec).
+            // Then add a sibling spec with the PERMUTED grouping order and a
+            // different DayOfWeek -- the only difference between the two specs.
+            val original = resultGroupSpecs[0]
+            val baseGrouping = listOf("person.gender", "person.social_grade_group")
+            resultGroupSpecs.clear()
+            resultGroupSpecs +=
+              original.copy {
+                dimensionSpec =
+                  original.dimensionSpec.copy {
+                    grouping = DimensionSpecKt.grouping { eventTemplateFields += baseGrouping }
+                    filters.clear()
+                  }
+              }
+            resultGroupSpecs +=
+              original.copy {
+                metricFrequency = metricFrequencySpec { weekly = DayOfWeek.TUESDAY }
+                dimensionSpec =
+                  original.dimensionSpec.copy {
+                    grouping =
+                      DimensionSpecKt.grouping { eventTemplateFields += baseGrouping.reversed() }
+                    filters.clear()
+                  }
+              }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs[1].metric_frequency"
+          }
+        )
+      assertThat(exception.status.description).contains("result_group_specs[0].metric_frequency")
+    }
+
+  @Test
+  fun `createBasicReport accepts duplicate result_group_specs with identical metric_frequency`():
+    Unit = runBlocking {
+    // Two specs sharing dim AND identical metric_frequency value. These
+    // dedup at the job-level (collapsed to a single RSR) and must NOT be
+    // rejected by the collision validator. Pins the
+    // `existing.frequency != frequency` short-circuit in the
+    // ResultGroupSpecCollisionKey check.
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
+          campaignGroup = campaignGroupKey.toName()
+          // Append an exact duplicate of resultGroupSpecs[0].
+          resultGroupSpecs += resultGroupSpecs[0]
+        }
+      basicReportId = "a1234"
+    }
+
+    withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+  }
+
+  @Test
+  fun `createBasicReport accepts specs that differ in reporting unit and metric_frequency`(): Unit =
+    runBlocking {
+      // Two specs that differ in reportingUnit AND metric_frequency. The
+      // collision key includes reportingUnit, so this is not a collision
+      // and must NOT be rejected. Pins that the collision check isn't
+      // over-eager when only metric_frequency differs.
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+              // Campaign group must contain both DPs since the second spec's
+              // reportingUnit references the second DP.
+              primitive =
+                ReportingSetKt.primitive {
+                  eventGroupKeys +=
+                    ReportingSetKt.PrimitiveKt.eventGroupKey {
+                      cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                      cmmsEventGroupId = "1235"
+                    }
+                  eventGroupKeys +=
+                    ReportingSetKt.PrimitiveKt.eventGroupKey {
+                      cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId + "b"
+                      cmmsEventGroupId = "1236"
+                    }
+                }
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs +=
+              resultGroupSpecs[0].copy {
+                reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() + "b" }
+                metricFrequency = metricFrequencySpec { weekly = DayOfWeek.TUESDAY }
+              }
+          }
+        basicReportId = "a1234"
+      }
+
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+    }
+
+  @Test
+  fun `createBasicReport accepts specs that differ in dimension_spec and metric_frequency`(): Unit =
+    runBlocking {
+      // Two specs that differ in dimensionSpec AND metric_frequency. The
+      // collision key includes dimensionSpec, so this is not a collision
+      // and must NOT be rejected.
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            val original = resultGroupSpecs[0]
+            resultGroupSpecs +=
+              original.copy {
+                metricFrequency = metricFrequencySpec { weekly = DayOfWeek.TUESDAY }
+                dimensionSpec =
+                  original.dimensionSpec.copy {
+                    filters.clear()
+                    filters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "person.age_group"
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_35_TO_54" }
+                      }
+                    }
+                  }
+              }
+          }
+        basicReportId = "a1234"
+      }
+
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+    }
+
+  @Test
+  fun `createBasicReport accepts specs that differ only in selector kind`(): Unit = runBlocking {
+    // Two specs sharing dim but differing in metric_frequency selector
+    // kind (one weekly, one total). This is the legitimate cross-window
+    // pairing the reconciler in PR #4054 is designed to handle and must
+    // NOT be rejected. Pins that selectorCase distinguishes the
+    // collision key.
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
+          campaignGroup = campaignGroupKey.toName()
+          val original = resultGroupSpecs[0]
+          resultGroupSpecs +=
+            original.copy {
+              metricFrequency = metricFrequencySpec { total = true }
+              // When metric_frequency is total, non_cumulative metrics are
+              // forbidden (redundant with cumulative). Clear them.
+              resultGroupMetricSpec =
+                original.resultGroupMetricSpec.copy {
+                  reportingUnit =
+                    original.resultGroupMetricSpec.reportingUnit.copy { clearNonCumulative() }
+                  component =
+                    original.resultGroupMetricSpec.component.copy {
+                      clearNonCumulative()
+                      clearNonCumulativeUnique()
+                    }
+                }
+            }
+        }
+      basicReportId = "a1234"
+    }
+
+    withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+  }
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reporting unit missing components`() =
@@ -9386,6 +9818,7 @@ class BasicReportsServiceTest {
               )
               .toName()
           campaignGroupDisplayName = INTERNAL_CAMPAIGN_GROUP.displayName
+          effectiveCampaignGroup = campaignGroup
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
             effectiveReportStart = dateTime { day = 3 }
@@ -10191,6 +10624,7 @@ class BasicReportsServiceTest {
               )
               .toName()
           campaignGroupDisplayName = INTERNAL_CAMPAIGN_GROUP.displayName
+          effectiveCampaignGroup = campaignGroup
           title = "title"
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
@@ -10454,6 +10888,7 @@ class BasicReportsServiceTest {
               )
               .toName()
           campaignGroupDisplayName = INTERNAL_CAMPAIGN_GROUP.displayName
+          effectiveCampaignGroup = campaignGroup
           title = "title"
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
@@ -10568,6 +11003,7 @@ class BasicReportsServiceTest {
                 )
                 .toName()
             campaignGroupDisplayName = INTERNAL_CAMPAIGN_GROUP.displayName
+            effectiveCampaignGroup = campaignGroup
             title = "title"
             reportingInterval = reportingInterval {
               reportStart = dateTime { day = 3 }
@@ -10681,6 +11117,7 @@ class BasicReportsServiceTest {
               )
               .toName()
           campaignGroupDisplayName = INTERNAL_CAMPAIGN_GROUP.displayName
+          effectiveCampaignGroup = campaignGroup
           title = "title"
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
@@ -11208,6 +11645,7 @@ class BasicReportsServiceTest {
                 )
                 .toName()
             campaignGroupDisplayName = INTERNAL_CAMPAIGN_GROUP.displayName
+            effectiveCampaignGroup = campaignGroup
             title = "title"
             reportingInterval = reportingInterval {
               reportStart = dateTime { day = 3 }

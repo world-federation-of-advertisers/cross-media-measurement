@@ -47,15 +47,43 @@ message BasicReport {
   // of the EventGroups that may be reported on.
   //
   // EventGroups may span DataProviders and MediaTypes.
+  //
+  // Optional. May be omitted only when every component in every
+  // `result_group_specs` entry's `reporting_unit` is a ReportingSet (custom
+  // group). In that case the server synthesizes a campaign group from the
+  // union of those ReportingSets' EventGroups and reports it via
+  // `effective_campaign_group`. Must be set when any component is a
+  // DataProvider.
   string campaign_group = 3 [
     (google.api.resource_reference) = {
       type: "reporting.halo-cmm.org/ReportingSet"
     },
-    (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // Denormalized. The display_name of the campaign_group
+  // Resource name of the campaign group ReportingSet actually used for the
+  // report.
+  //
+  // Same as `campaign_group` when `campaign_group` is set. When
+  // `campaign_group` is omitted (custom-group-only mode), this is the campaign
+  // group the server synthesizes from the union of the EventGroups of the
+  // ReportingSet components in `result_group_specs`.
+  //
+  // A synthesized campaign group is a real, measurement-consumer-owned
+  // ReportingSet: it is retrievable via `GetReportingSet` and appears in
+  // `ListReportingSets`. Like any campaign group, its own `campaign_group`
+  // field self-references.
+  string effective_campaign_group = 14 [
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/ReportingSet"
+    },
+    (google.api.field_behavior) = OUTPUT_ONLY
+  ];
+
+  // Denormalized. The display_name of the campaign_group.
+  //
+  // Empty when the campaign group is server-synthesized, as the synthesized
+  // ReportingSet has no display_name.
   string campaign_group_display_name = 4
       [(google.api.field_behavior) = OUTPUT_ONLY];
 

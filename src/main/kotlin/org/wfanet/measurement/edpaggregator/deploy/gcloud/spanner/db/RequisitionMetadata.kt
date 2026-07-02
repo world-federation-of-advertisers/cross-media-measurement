@@ -32,7 +32,6 @@ import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataAlreadyExistsByBlobUriException
 import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataAlreadyExistsByCmmsRequisitionException
 import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataNotFoundByCmmsRequisitionException
 import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataNotFoundException
@@ -429,11 +428,11 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchCreateRequisitionMetadat
   val existingRequestIdToRequisitionMetadata: Map<String, RequisitionMetadataResult> =
     getRequisitionMetadataByCreateRequestIds(dataProviderResourceId, requests.map { it.requestId })
 
-  val existingBlobUriToRequisitionMetadata: Map<String, RequisitionMetadataResult> =
-    getRequisitionMetadataByBlobUris(
-      dataProviderResourceId,
-      requests.map { it.requisitionMetadata.blobUri },
-    )
+  // Multiple RequisitionMetadata rows may legitimately share a BlobUri: one grouped requisitions
+  // blob covers every requisition for a (reportId, updateTime) tuple, so every metadata row in
+  // such a batch points at the same blob. The legacy unique index on
+  // (DataProviderResourceId, BlobUri) was dropped by drop-blob-uri-index.sql; the batch path no
+  // longer rejects shared blob_uri.
 
   val existingCmmsRequisitionToRequisitionMetadata: Map<String, RequisitionMetadataResult> =
     getRequisitionMetadataByCmmsRequisitions(
@@ -446,14 +445,6 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchCreateRequisitionMetadat
       .filter { !existingRequestIdToRequisitionMetadata.containsKey(it.requestId) }
       .map { request ->
         val requisitionMetadata = request.requisitionMetadata
-
-        if (existingBlobUriToRequisitionMetadata.containsKey(requisitionMetadata.blobUri)) {
-          throw RequisitionMetadataAlreadyExistsByBlobUriException(
-              requisitionMetadata.dataProviderResourceId,
-              requisitionMetadata.blobUri,
-            )
-            .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-        }
 
         if (
           existingCmmsRequisitionToRequisitionMetadata.containsKey(

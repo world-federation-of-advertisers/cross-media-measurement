@@ -58,6 +58,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.updateImpressionMetadataRequest
+import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -182,6 +183,22 @@ class DataAvailabilitySync(
         saveImpressionMetadata(metadataWithBlobKeys)
       }
 
+      // 2b. Stamp the `done` blob with the synced-by marker. The marker means "the
+      // ImpressionMetadata store is updated for this date" — Spanner records are persisted
+      // and metadata blobs are stamped. It does NOT imply that Kingdom data availability has
+      // been updated: gap detection at step 5 may skip the Kingdom publish entirely when
+      // errorIfGapsExist=true, and Kingdom publish has its own failure signal
+      // (`cmmsRpcErrorsCounter`) when it is attempted.
+      //
+      // DataAvailabilityMonitor uses the marker to tell late-arrival from never-arrived: a done
+      // blob older than its threshold without this marker means Sync did not (yet) update the
+      // ImpressionMetadata store for the date.
+      storageClient.updateBlobMetadata(
+        blobKey = doneBlobUri.key,
+        metadata =
+          mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE),
+      )
+
       // 3. Retrieve model line bound from ImpressionMetadataStorage for all model lines
       val modelLineBounds: ComputeModelLineBoundsResponse =
         impressionMetadataServiceStub.computeModelLineBounds(
@@ -212,42 +229,57 @@ class DataAvailabilitySync(
           }
         }
 
-      // Check for date gaps before updating availability intervals.
-      // A new monitor is created per sync call because activeModelLines is derived from the
-      // metadata in this sync batch, which may vary between invocations. This intentionally only
-      // checks model lines present in the current trigger; model lines without metadata in this
-      // batch are not covered here.
-      val gapMonitor =
-        DataAvailabilityMonitor(
-          storageClient = storageClient,
-          edpImpressionPath = edpImpressionPath,
-          activeModelLines = impressionMetadataMap.keys,
-          impressionMetadataStub = null,
-          dataProviderName = null,
-        )
-      val gapResult = gapMonitor.checkGaps()
-      // A model line is blocked from publishing when it has a true gap (a missing date between two
-      // finalized dates) OR when a date inside its finalized range [earliestDate, latestDate] still
-      // has no "done" blob. The latter is data that is present but not yet finalized within the
-      // already-published window, so publishing now would advertise availability over an interval
-      // that is not actually complete. Unfinalized dates that trail after latestDate or lead before
-      // earliestDate are ignored here — they extend the window rather than punching a hole in it.
-      val modelLinesBlocked =
-        gapResult.statuses.filter { status ->
-          val earliest = status.earliestDate
-          val inRangeUnfinalized =
-            earliest != null &&
-              status.datesWithoutDoneBlob.orEmpty().any { it in earliest..status.latestDate }
-          !status.gapDates.isNullOrEmpty() || inRangeUnfinalized
+      // Check, per model line present in this batch, for date gaps or in-range unfinalized
+      // dates before updating availability intervals. Done locally via
+      // DataAvailabilityBlobs.enumerateDateInfo — Sync doesn't need DataAvailabilityMonitor's
+      // staleness/threshold/metrics machinery, only the storage-level date classification.
+      //
+      // A model line is blocked from publishing when it has a true gap (a missing date between
+      // two finalized dates) OR when a date inside its finalized range
+      // [earliestFinalized, latestFinalized] still has no "done" blob. Unfinalized dates that
+      // trail after latestFinalized or lead before earliestFinalized are ignored — they extend
+      // the window rather than punching a hole in it.
+      val blockedDetails = mutableListOf<String>()
+      for (modelLineKey in impressionMetadataMap.keys) {
+        val modelLinePrefix =
+          if (edpImpressionPath.isEmpty()) "model-line/${modelLineKey.modelLineId}/"
+          else "$edpImpressionPath/model-line/${modelLineKey.modelLineId}/"
+        val enumerated = DataAvailabilityBlobs.enumerateDateInfo(storageClient, modelLinePrefix)
+        val finalized = enumerated.datesWithDoneBlob.keys
+        val unfinalized = enumerated.datesWithoutDoneBlob
+        val gaps = DataAvailabilityBlobs.findGaps(finalized + unfinalized)
+        val earliest = finalized.minOrNull()
+        val latest = finalized.maxOrNull()
+        val inRangeUnfinalized =
+          earliest != null && latest != null && unfinalized.any { it in earliest..latest }
+        if (gaps.isNotEmpty() || inRangeUnfinalized) {
+          blockedDetails.add(
+            "Model line ${modelLineKey.toName()} gap dates: $gaps, " +
+              "unfinalized dates: $unfinalized"
+          )
         }
-      if (modelLinesBlocked.isNotEmpty()) {
-        val blockDetails =
-          modelLinesBlocked.joinToString("; ") { status ->
-            "Model line ${status.modelLineKey.toName()} gap dates: ${status.gapDates}, " +
-              "unfinalized dates: ${status.datesWithoutDoneBlob}"
-          }
+
+        // Emit per-batch date-status metrics for the dates Sync just classified, mirroring
+        // what DataAvailabilityMonitor emits when invoked on the same paths. The healthy count
+        // here is "finalized minus in-range unfinalized blockers" — Sync's per-batch view, not
+        // Monitor's full late-arrival/unprocessed-done check.
+        val healthyCount = if (gaps.isEmpty() && !inRangeUnfinalized) finalized.size else 0
+        emitDateStatusMetric(modelLineKey, DataAvailabilityMonitorMetrics.STATUS_GAP, gaps.size)
+        emitDateStatusMetric(
+          modelLineKey,
+          DataAvailabilityMonitorMetrics.STATUS_WITHOUT_DONE_BLOB,
+          unfinalized.size,
+        )
+        emitDateStatusMetric(
+          modelLineKey,
+          DataAvailabilityMonitorMetrics.STATUS_HEALTHY,
+          healthyCount,
+        )
+      }
+      if (blockedDetails.isNotEmpty()) {
         logger.warning(
-          "Date gaps or in-range unfinalized dates detected in $edpImpressionPath. $blockDetails"
+          "Date gaps or in-range unfinalized dates detected in $edpImpressionPath. " +
+            blockedDetails.joinToString("; ")
         )
         if (errorIfGapsExist) {
           logger.warning(
@@ -313,6 +345,23 @@ class DataAvailabilitySync(
     metrics.syncDurationHistogram.record(
       syncDuration,
       Attributes.of(DATA_PROVIDER_KEY_ATTR, dataProviderName, SYNC_STATUS_ATTR, syncStatus),
+    )
+  }
+
+  private fun emitDateStatusMetric(modelLineKey: ModelLineKey, status: String, count: Int) {
+    if (count <= 0) return
+    DataAvailabilityMonitorMetrics.dateStatusCounter.add(
+      count.toLong(),
+      Attributes.of(
+        DataAvailabilityMonitorMetrics.MODEL_LINE_ATTR,
+        modelLineKey.toName(),
+        DataAvailabilityMonitorMetrics.EDP_IMPRESSION_PATH_ATTR,
+        edpImpressionPath,
+        DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR,
+        status,
+        DataAvailabilityMonitorMetrics.SOURCE_ATTR,
+        DataAvailabilityMonitorMetrics.SOURCE_SYNC,
+      ),
     )
   }
 
@@ -388,19 +437,34 @@ class DataAvailabilitySync(
             .impressionMetadataList
         }
 
-      // Set GCS object metadata for lifecycle management and cleanup
-      for (resultMetadata in createResponses + updateResponses) {
-        val metadataBlobUri = SelectedStorageClient.parseBlobUri(resultMetadata.blobUri)
+      // Set GCS object metadata on every scanned metadata blob — not just newly
+      // created/updated ones. A re-sync of a date whose metadata content is unchanged would
+      // land in neither `createResponses` nor `updateResponses` (contentAwareRequestId
+      // dedupes), but the marker stamp must still run so DataAvailabilityMonitor sees the
+      // blob as synced. Resource IDs come from the response when available, else from the
+      // pre-existing entries listed up-front.
+      val resourceIdByBlobUri: Map<String, ImpressionMetadata> =
+        (existingByBlobUri +
+          createResponses.associateBy { it.blobUri } +
+          updateResponses.associateBy { it.blobUri })
+      for (item in impressionMetadataList) {
+        val blobUri = item.impressionMetadata.blobUri
+        val resultMetadata = resourceIdByBlobUri.getValue(blobUri)
+        val metadataBlobUri = SelectedStorageClient.parseBlobUri(blobUri)
         val customCreateTime = resultMetadata.interval.startTime.toInstant()
 
         storageClient.updateBlobMetadata(
           blobKey = metadataBlobUri.key,
           customCreateTime = customCreateTime,
-          metadata = mapOf(IMPRESSION_METADATA_RESOURCE_ID_KEY to resultMetadata.name),
+          metadata =
+            mapOf(
+              WatchedBlobs.IMPRESSION_METADATA_RESOURCE_ID_KEY to resultMetadata.name,
+              DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE,
+            ),
         )
 
         // Also update the impressions blob with Custom-Time (no resource ID needed)
-        val impressionsBlobKey = impressionsBlobKeyByMetadataUri.getValue(resultMetadata.blobUri)
+        val impressionsBlobKey = impressionsBlobKeyByMetadataUri.getValue(blobUri)
         storageClient.updateBlobMetadata(
           blobKey = impressionsBlobKey,
           customCreateTime = customCreateTime,
@@ -481,98 +545,93 @@ class DataAvailabilitySync(
   ): Map<ModelLineKey, List<ImpressionMetadataWithBlobKey>> {
     val impressionMetadataMap =
       mutableMapOf<ModelLineKey, MutableList<ImpressionMetadataWithBlobKey>>()
-    impressionMetadataBlobs
-      .filter { impressionMetadataBlob ->
-        val fileName = impressionMetadataBlob.blobKey.substringAfterLast("/").lowercase()
-        METADATA_FILE_NAME in fileName
-      }
-      .collect { impressionMetadataBlob ->
-        val fileName = impressionMetadataBlob.blobKey.substringAfterLast("/").lowercase()
-        val bytes: ByteString = impressionMetadataBlob.read().flatten()
+    impressionMetadataBlobs.filter(DataAvailabilityBlobs::isMetadataBlob).collect {
+      impressionMetadataBlob ->
+      val fileName = impressionMetadataBlob.blobKey.substringAfterLast("/").lowercase()
+      val bytes: ByteString = impressionMetadataBlob.read().flatten()
 
-        // Build the blob details object
-        val blobDetails =
-          if (fileName.endsWith(PROTO_FILE_SUFFIX)) {
-            BlobDetails.parseFrom(bytes)
-          } else if (fileName.endsWith(JSON_FILE_SUFFIX)) {
-            val builder = BlobDetails.newBuilder()
-            JsonFormat.parser().ignoringUnknownFields().merge(bytes.toString(UTF_8), builder)
-            builder.build()
-          } else {
-            throw IllegalArgumentException("Unsupported file extension for metadata: $fileName")
-          }
-
-        // Validate intervals
-        require(blobDetails.interval.hasStartTime() && blobDetails.interval.hasEndTime()) {
-          "Found interval without start or end time for blob detail with blob_uri = ${blobDetails.blobUri}"
+      // Build the blob details object
+      val blobDetails =
+        if (fileName.endsWith(PROTO_FILE_SUFFIX)) {
+          BlobDetails.parseFrom(bytes)
+        } else if (fileName.endsWith(JSON_FILE_SUFFIX)) {
+          val builder = BlobDetails.newBuilder()
+          JsonFormat.parser().ignoringUnknownFields().merge(bytes.toString(UTF_8), builder)
+          builder.build()
+        } else {
+          throw IllegalArgumentException("Unsupported file extension for metadata: $fileName")
         }
-        // At least one of event_group_reference_id or entity_keys must identify the
-        // EventGroup that produced this blob. Both empty means the metadata cannot be
-        // associated with any EventGroup downstream.
-        require(
-          blobDetails.eventGroupReferenceId.isNotEmpty() || blobDetails.entityKeysList.isNotEmpty()
-        ) {
-          "BlobDetails must have either event_group_reference_id or entity_keys populated " +
+
+      // Validate intervals
+      require(blobDetails.interval.hasStartTime() && blobDetails.interval.hasEndTime()) {
+        "Found interval without start or end time for blob detail with blob_uri = ${blobDetails.blobUri}"
+      }
+      // At least one of event_group_reference_id or entity_keys must identify the
+      // EventGroup that produced this blob. Both empty means the metadata cannot be
+      // associated with any EventGroup downstream.
+      require(
+        blobDetails.eventGroupReferenceId.isNotEmpty() || blobDetails.entityKeysList.isNotEmpty()
+      ) {
+        "BlobDetails must have either event_group_reference_id or entity_keys populated " +
+          "for blob_uri = ${blobDetails.blobUri}"
+      }
+      // Every EntityKeyGroup must be well-formed: a non-empty entity_type and at least
+      // one non-empty entity_id. Malformed groups would create unusable EntityKey entries
+      // on the resulting ImpressionMetadata.
+      blobDetails.entityKeysList.forEachIndexed { groupIndex, group ->
+        require(group.entityType.isNotEmpty()) {
+          "BlobDetails entity_keys[$groupIndex].entity_type is empty " +
             "for blob_uri = ${blobDetails.blobUri}"
         }
-        // Every EntityKeyGroup must be well-formed: a non-empty entity_type and at least
-        // one non-empty entity_id. Malformed groups would create unusable EntityKey entries
-        // on the resulting ImpressionMetadata.
-        blobDetails.entityKeysList.forEachIndexed { groupIndex, group ->
-          require(group.entityType.isNotEmpty()) {
-            "BlobDetails entity_keys[$groupIndex].entity_type is empty " +
-              "for blob_uri = ${blobDetails.blobUri}"
-          }
-          require(group.entityIdsList.isNotEmpty()) {
-            "BlobDetails entity_keys[$groupIndex].entity_ids is empty " +
-              "for blob_uri = ${blobDetails.blobUri}"
-          }
-          group.entityIdsList.forEachIndexed { idIndex, entityId ->
-            require(entityId.isNotEmpty()) {
-              "BlobDetails entity_keys[$groupIndex].entity_ids[$idIndex] is empty " +
-                "for blob_uri = ${blobDetails.blobUri}"
-            }
-          }
+        require(group.entityIdsList.isNotEmpty()) {
+          "BlobDetails entity_keys[$groupIndex].entity_ids is empty " +
+            "for blob_uri = ${blobDetails.blobUri}"
         }
-        val impressionBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
-        val metadataBlobUri =
-          when (doneBlobUri.scheme) {
-            "gs" ->
-              "${doneBlobUri.scheme}://${doneBlobUri.bucket}/${impressionMetadataBlob.blobKey}"
-            "file" ->
-              "${doneBlobUri.scheme}:///${doneBlobUri.bucket}/${impressionMetadataBlob.blobKey}"
-            else -> throw IllegalArgumentException("Unsupported scheme: ${doneBlobUri.scheme}")
+        group.entityIdsList.forEachIndexed { idIndex, entityId ->
+          require(entityId.isNotEmpty()) {
+            "BlobDetails entity_keys[$groupIndex].entity_ids[$idIndex] is empty " +
+              "for blob_uri = ${blobDetails.blobUri}"
           }
-        logger.info("Checking impression blob presence: ${impressionBlobUri.key}")
-        val impressionBlob = storageClient.getBlob(impressionBlobUri.key)
-        if (impressionBlob == null) {
-          logger.info(
-            "Encrypted impressions blob non found for metadata: ${impressionMetadataBlob.blobKey}."
-          )
-        } else {
-          logger.info("MetadataBlobUri is: $metadataBlobUri")
-          val impressionMetadata = impressionMetadata {
-            this.blobUri = metadataBlobUri
-            blobTypeUrl = BLOB_TYPE_URL
-            eventGroupReferenceId = blobDetails.eventGroupReferenceId
-            modelLine = blobDetails.modelLine
-            interval = blobDetails.interval
-            entityKeys += blobDetails.entityKeysList.flatMap { it.toEntityKeys() }
-          }
-          val modelLineKey =
-            requireNotNull(ModelLineKey.fromName(blobDetails.modelLine)) {
-              "Invalid model line resource name: ${blobDetails.modelLine}"
-            }
-          impressionMetadataMap
-            .getOrPut(modelLineKey) { mutableListOf() }
-            .add(
-              ImpressionMetadataWithBlobKey(
-                impressionMetadata = impressionMetadata,
-                impressionsBlobKey = impressionBlobUri.key,
-              )
-            )
         }
       }
+      val impressionBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
+      val metadataBlobUri =
+        when (doneBlobUri.scheme) {
+          "gs" -> "${doneBlobUri.scheme}://${doneBlobUri.bucket}/${impressionMetadataBlob.blobKey}"
+          "file" ->
+            "${doneBlobUri.scheme}:///${doneBlobUri.bucket}/${impressionMetadataBlob.blobKey}"
+          else -> throw IllegalArgumentException("Unsupported scheme: ${doneBlobUri.scheme}")
+        }
+      logger.info("Checking impression blob presence: ${impressionBlobUri.key}")
+      val impressionBlob = storageClient.getBlob(impressionBlobUri.key)
+      if (impressionBlob == null) {
+        logger.info(
+          "Encrypted impressions blob non found for metadata: ${impressionMetadataBlob.blobKey}."
+        )
+      } else {
+        logger.info("MetadataBlobUri is: $metadataBlobUri")
+        val impressionMetadata = impressionMetadata {
+          this.blobUri = metadataBlobUri
+          blobTypeUrl = BLOB_TYPE_URL
+          eventGroupReferenceId = blobDetails.eventGroupReferenceId
+          modelLine = blobDetails.modelLine
+          interval = blobDetails.interval
+          entityKeys += blobDetails.entityKeysList.flatMap { it.toEntityKeys() }
+        }
+        val modelLineKey =
+          requireNotNull(ModelLineKey.fromName(blobDetails.modelLine)) {
+            "Invalid model line resource name: ${blobDetails.modelLine}"
+          }
+        impressionMetadataMap
+          .getOrPut(modelLineKey) { mutableListOf() }
+          .add(
+            ImpressionMetadataWithBlobKey(
+              impressionMetadata = impressionMetadata,
+              impressionsBlobKey = impressionBlobUri.key,
+            )
+          )
+      }
+    }
     return impressionMetadataMap
   }
 
@@ -651,16 +710,9 @@ class DataAvailabilitySync(
       "ReplaceDataAvailabilityIntervals"
     // Protobuf string fields cannot contain null bytes, so this eliminates any collision risk.
     private const val FIELD_SEPARATOR = "\u0000"
-    private const val METADATA_FILE_NAME = "metadata"
     private const val PROTO_FILE_SUFFIX = ".binpb"
     private const val JSON_FILE_SUFFIX = ".json"
     private const val BLOB_TYPE_URL =
       "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
-
-    /**
-     * GCS custom metadata key for storing ImpressionMetadata resource name. Will appear as
-     * x-goog-meta-impression-metadata-resource-id in GCS.
-     */
-    const val IMPRESSION_METADATA_RESOURCE_ID_KEY = "impression-metadata-resource-id"
   }
 }
