@@ -43,11 +43,6 @@ services: {
 				port:       9010
 				protocol:   "TCP"
 				targetPort: 9010
-			}, {
-				name:       "http"
-				port:       9020
-				protocol:   "TCP"
-				targetPort: 9020
 			}]
 		}
 	}
@@ -65,6 +60,11 @@ pods: {
 		spec: {
 			_containers: "\(Pod.metadata.name)": {
 				image: "gcr.io/cloud-spanner-emulator/emulator:\(_spannerEmulatorVersion)"
+				command: ["./emulator_main"]
+				args: [
+					"--host_port=0.0.0.0:9010",
+					"--log_requests",
+				]
 			}
 			// Emulator DB is in memory, so restarting may hide data loss.
 			restartPolicy: "Never"
