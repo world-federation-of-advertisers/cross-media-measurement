@@ -18,6 +18,10 @@ package org.wfanet.measurement.reporting.mcp
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import io.grpc.Metadata
+import io.grpc.ServerCall
+import io.grpc.ServerCallHandler
+import io.grpc.ServerInterceptor
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.inprocess.InProcessChannelBuilder
@@ -35,6 +39,7 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
@@ -270,10 +275,7 @@ class ReportingMcpServerTest {
     client.connect(clientTransport)
 
     val result =
-      client.callTool(
-        "get_basic_report",
-        buildJsonObject { put("name", "measurementConsumers/mc1/basicReports/nonexistent") },
-      )
+      client.callTool("get_basic_report", buildJsonObject { put("name", NONEXISTENT_REPORT) })
 
     assertThat(result.isError).isTrue()
     val text = (result.content[0] as TextContent).text
@@ -423,11 +425,92 @@ class ReportingMcpServerTest {
     }
   }
 
-  private fun createFakeApiClientWithServices(): ReportingPublicApiClient {
+  @Test
+  fun forwardsPerRequestBearerTokenAsCallCredentials() = runBlocking {
+    val capturedAuthorization = AtomicReference<String?>()
+    val apiClient =
+      createFakeApiClientWithServices(
+        interceptor = AuthorizationCapturingInterceptor(capturedAuthorization)
+      )
+
+    // Each POST builds a fresh stateless server bound to that request's token; the token must be
+    // attached as call credentials on the downstream gRPC call.
+    suspend fun callGetBasicReport(bearerToken: String) {
+      val server = ReportingMcpServer.createServer(apiClient) { bearerToken }
+      val (clientTransport, serverTransport) = ChannelTransport.createLinkedPair()
+      val client = Client(clientInfo = Implementation(name = "test-client", version = "0.1"))
+      server.createSession(serverTransport)
+      client.connect(clientTransport)
+      client.callTool(
+        "get_basic_report",
+        buildJsonObject { put("name", "measurementConsumers/mc1/basicReports/br1") },
+      )
+      client.close()
+    }
+
+    callGetBasicReport("token-abc")
+    assertThat(capturedAuthorization.get()).isEqualTo("Bearer token-abc")
+
+    // A different token on the next request is forwarded as-is, proving the token is read per
+    // request rather than captured once per session.
+    callGetBasicReport("token-xyz")
+    assertThat(capturedAuthorization.get()).isEqualTo("Bearer token-xyz")
+  }
+
+  @Test
+  fun callToolWithExpiredOrInvalidTokenReturnsClearAuthError() = runBlocking {
+    val apiClient = createFakeApiClientWithServices()
+    val server = ReportingMcpServer.createServer(apiClient) { "expired-token" }
+
+    val (clientTransport, serverTransport) = ChannelTransport.createLinkedPair()
+    val client = Client(clientInfo = Implementation(name = "test-client", version = "0.1"))
+
+    server.createSession(serverTransport)
+    client.connect(clientTransport)
+
+    // The fake backend rejects this name with UNAUTHENTICATED, mimicking an expired/invalid token.
+    val result =
+      client.callTool("get_basic_report", buildJsonObject { put("name", UNAUTHENTICATED_REPORT) })
+
+    assertThat(result.isError).isTrue()
+    val text = (result.content[0] as TextContent).text
+    assertThat(text).contains("Authentication failed")
+
+    client.close()
+  }
+
+  @Test
+  fun callToolWithPermissionDeniedReturnsClearAccessError() = runBlocking {
+    val apiClient = createFakeApiClientWithServices()
+    val server = ReportingMcpServer.createServer(apiClient) { "test-token" }
+
+    val (clientTransport, serverTransport) = ChannelTransport.createLinkedPair()
+    val client = Client(clientInfo = Implementation(name = "test-client", version = "0.1"))
+
+    server.createSession(serverTransport)
+    client.connect(clientTransport)
+
+    // The fake backend rejects this name with PERMISSION_DENIED (authenticated but not authorized).
+    val result =
+      client.callTool("get_basic_report", buildJsonObject { put("name", PERMISSION_DENIED_REPORT) })
+
+    assertThat(result.isError).isTrue()
+    val text = (result.content[0] as TextContent).text
+    assertThat(text).contains("Access denied")
+
+    client.close()
+  }
+
+  private fun createFakeApiClientWithServices(
+    interceptor: ServerInterceptor? = null
+  ): ReportingPublicApiClient {
     val serverName = InProcessServerBuilder.generateName()
+    val serverBuilder = InProcessServerBuilder.forName(serverName).directExecutor()
+    if (interceptor != null) {
+      serverBuilder.intercept(interceptor)
+    }
     grpcCleanup.register(
-      InProcessServerBuilder.forName(serverName)
-        .directExecutor()
+      serverBuilder
         .addService(
           object : BasicReportsGrpcKt.BasicReportsCoroutineImplBase() {
             override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport =
@@ -436,8 +519,13 @@ class ReportingMcpServerTest {
               }
 
             override suspend fun getBasicReport(request: GetBasicReportRequest): BasicReport {
-              if (request.name.contains("nonexistent")) {
-                throw StatusException(Status.NOT_FOUND.withDescription("Not found"))
+              when (request.name) {
+                UNAUTHENTICATED_REPORT ->
+                  throw StatusException(Status.UNAUTHENTICATED.withDescription("Invalid token"))
+                PERMISSION_DENIED_REPORT ->
+                  throw StatusException(Status.PERMISSION_DENIED.withDescription("No access"))
+                NONEXISTENT_REPORT ->
+                  throw StatusException(Status.NOT_FOUND.withDescription("Not found"))
               }
               return basicReport { name = request.name }
             }
@@ -497,5 +585,30 @@ class ReportingMcpServerTest {
       impressionQualificationFilters =
         ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub(channel),
     )
+  }
+
+  companion object {
+    private const val NONEXISTENT_REPORT = "measurementConsumers/mc1/basicReports/nonexistent"
+    private const val UNAUTHENTICATED_REPORT =
+      "measurementConsumers/mc1/basicReports/unauthenticated"
+    private const val PERMISSION_DENIED_REPORT =
+      "measurementConsumers/mc1/basicReports/permission-denied"
+
+    private val AUTHORIZATION_METADATA_KEY: Metadata.Key<String> =
+      Metadata.Key.of("authorization", Metadata.ASCII_STRING_MARSHALLER)
+
+    /** Captures the `authorization` metadata of the most recent intercepted gRPC call. */
+    private class AuthorizationCapturingInterceptor(
+      private val captured: AtomicReference<String?>
+    ) : ServerInterceptor {
+      override fun <ReqT, RespT> interceptCall(
+        call: ServerCall<ReqT, RespT>,
+        headers: Metadata,
+        next: ServerCallHandler<ReqT, RespT>,
+      ): ServerCall.Listener<ReqT> {
+        captured.set(headers.get(AUTHORIZATION_METADATA_KEY))
+        return next.startCall(call, headers)
+      }
+    }
   }
 }
