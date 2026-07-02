@@ -196,4 +196,11 @@ message SubpoolAssignerParams {
   // `event_template_field_mapping` targets. Pass-through for Phase-2 (see
   // `event_template_descriptor_blob_uri`).
   string event_template_type = 20 [(google.api.field_behavior) = OPTIONAL];
+
+  // Mapping from entity_type to the raw-impression Parquet column holding that
+  // entity's id. Not consumed by the Phase-0 SubpoolAssigner; carried as
+  // pass-through so the last-shard-out stamps it on the VidRankBuilder Phase-1
+  // WorkItem, which the Phase-1 last-out stamps on the Phase-2 VidLabeler
+  // ModelLineConfig (Phase-2 reads entity keys per row from these columns).
+  map<string, string> entity_key_field_mapping = 21;
 }

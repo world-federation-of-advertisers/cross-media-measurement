@@ -224,4 +224,12 @@ message VidRankBuilderParams {
   // `event_template_field_mapping` targets. Pass-through for Phase-2 (see
   // `event_template_descriptor_blob_uri`).
   string event_template_type = 22 [(google.api.field_behavior) = OPTIONAL];
+
+  // Mapping from entity_type to the raw-impression Parquet column holding that
+  // entity's id. Not consumed by the Phase-1 ranker; forwarded verbatim by the
+  // SubpoolAssigner Phase-0 last-shard-out from
+  // SubpoolAssignerParams.entity_key_field_mapping so the last-RankerJob-out
+  // stamps it on the Phase-2 VidLabeler ModelLineConfig (Phase-2 reads entity
+  // keys per row from these columns).
+  map<string, string> entity_key_field_mapping = 23;
 }
