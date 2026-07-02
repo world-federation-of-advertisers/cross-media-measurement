@@ -62,16 +62,17 @@ import org.wfanet.measurement.edpaggregator.telemetry.withSpan
  */
 data class SpotRecord(val parent: String, val eventGroupActivityDate: Instant)
 
-/**
- * Controls how the sync applies deletes (activities present in the Kingdom but absent from input).
- */
-enum class DeleteMode {
-  /** Apply both creates and deletes. */
-  FULL,
-  /** Apply creates only; never delete. Computed deletes are counted and metered but not applied. */
-  SKIP_DELETES,
-  /** Apply creates; compute deletes and report them without applying. */
-  DRY_RUN_DELETES,
+/** Controls which mutations the sync applies for each EventGroup. */
+enum class SyncMode {
+  /** Write creates and deletes to make the Kingdom match the input exactly. */
+  SYNC,
+  /**
+   * Write creates only; leave Kingdom records absent from input untouched (record would-be
+   * deletes).
+   */
+  APPEND,
+  /** Make no mutating calls; log the planned diff (creates + would-be deletes). */
+  PREVIEW,
 }
 
 /** Aggregate result of an [EventGroupActivitySync.sync] run. */
@@ -112,11 +113,11 @@ data class SyncError(val eventGroup: String, val message: String, val cause: Thr
  *   Every input record's [SpotRecord.parent] must be an EventGroup under this DataProvider.
  * @property listPageSize page size used when listing existing activities.
  * @property batchSize maximum number of activities per batch update/delete request.
- * @property deleteMode controls whether computed deletes are applied. [DeleteMode.FULL] applies
- *   both creates and deletes. [DeleteMode.SKIP_DELETES] and [DeleteMode.DRY_RUN_DELETES] apply
- *   creates only and never delete; the computed delete count is reported via
- *   [SyncResult.activitiesWouldDelete] and metered. This protects against truncated or partial
- *   input files causing mass deletions.
+ * @property mode controls which mutations are applied. [SyncMode.SYNC] applies both creates and
+ *   deletes. [SyncMode.APPEND] applies creates only and never deletes; the computed delete count is
+ *   reported via [SyncResult.activitiesWouldDelete] and metered. [SyncMode.PREVIEW] makes no
+ *   mutating calls and reports the would-be created/deleted counts. This protects against truncated
+ *   or partial input files causing mass deletions.
  * @property maxAttempts maximum number of attempts (including the first) for each gRPC call when it
  *   fails with a transient status (UNAVAILABLE or DEADLINE_EXCEEDED).
  * @property retryBackoff exponential backoff used between transient retries.
@@ -128,7 +129,7 @@ class EventGroupActivitySync(
   private val dataProviderName: String,
   private val listPageSize: Int,
   private val batchSize: Int = 1000,
-  private val deleteMode: DeleteMode = DeleteMode.FULL,
+  private val mode: SyncMode = SyncMode.SYNC,
   private val maxAttempts: Int = 3,
   private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
   private val tracer: Tracer = GlobalOpenTelemetry.getTracer("wfa.edpa"),
@@ -152,13 +153,11 @@ class EventGroupActivitySync(
    * DataProvider) abort the entire sync.
    *
    * @param inputActivities the desired activities, grouped internally by EventGroup parent.
-   * @param dryRun when true, lists and diffs but makes no BatchUpdate/BatchDelete calls. The
-   *   returned [SyncResult] still reports the would-be created/deleted/unchanged counts.
    * @return a [SyncResult] with totals and any per-EventGroup [SyncError]s.
    * @throws IllegalArgumentException if any record's parent is not a concrete EventGroup under
    *   [dataProviderName].
    */
-  suspend fun sync(inputActivities: Flow<SpotRecord>, dryRun: Boolean = false): SyncResult {
+  suspend fun sync(inputActivities: Flow<SpotRecord>): SyncResult {
     return withSpan(
       tracer,
       "EventGroupActivitySync",
@@ -211,22 +210,22 @@ class EventGroupActivitySync(
           val datesToDelete: Set<LocalDate> = existingDates - fileDates
           val unchanged: Int = fileDates.intersect(existingDates).size
 
-          val applyDeletes: Boolean = deleteMode == DeleteMode.FULL
+          val applyCreates: Boolean = mode != SyncMode.PREVIEW
+          val applyDeletes: Boolean = mode == SyncMode.SYNC
 
           logger.info(
             "EventGroup $eventGroupName: ${datesToCreate.size} to create, " +
-              "${datesToDelete.size} to delete, $unchanged unchanged (dryRun=$dryRun, " +
-              "deleteMode=$deleteMode)"
+              "${datesToDelete.size} to delete, $unchanged unchanged (mode=$mode)"
           )
 
-          if (!dryRun) {
+          if (applyCreates) {
             for (batch in datesToCreate.sorted().chunked(batchSize)) {
               upsertBatch(eventGroupKey, eventGroupName, batch)
             }
-            if (applyDeletes) {
-              for (batch in datesToDelete.sorted().chunked(batchSize)) {
-                deleteBatch(eventGroupKey, eventGroupName, batch)
-              }
+          }
+          if (applyDeletes) {
+            for (batch in datesToDelete.sorted().chunked(batchSize)) {
+              deleteBatch(eventGroupKey, eventGroupName, batch)
             }
           }
 
@@ -241,7 +240,7 @@ class EventGroupActivitySync(
                 datesToDelete.size.toLong(),
                 Attributes.builder()
                   .putAll(metricAttributes())
-                  .put(AttributeKey.stringKey("mode"), deleteMode.name.lowercase())
+                  .put(AttributeKey.stringKey("mode"), mode.name.lowercase())
                   .build(),
               )
             }

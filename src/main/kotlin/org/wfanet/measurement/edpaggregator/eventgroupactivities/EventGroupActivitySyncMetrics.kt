@@ -32,8 +32,8 @@ import io.opentelemetry.api.metrics.Meter
  * - outcome: For [eventGroupsProcessed], the per-EventGroup outcome (`success` or `failed`).
  * - error_type: For [syncErrors], the gRPC status code name or exception class that caused the
  *   failure.
- * - mode: For [wouldDeleteCount], the delete mode that suppressed the deletes (`skip_deletes` or
- *   `dry_run_deletes`; `full` never meters this counter).
+ * - mode: For [wouldDeleteCount], the sync mode that suppressed the deletes (`append` or `preview`;
+ *   `sync` never meters this counter).
  */
 class EventGroupActivitySyncMetrics(meter: Meter) {
   /** Counter for EventGroupActivities created (present in input but missing in the Kingdom). */
@@ -73,7 +73,7 @@ class EventGroupActivitySyncMetrics(meter: Meter) {
 
   /**
    * Counter for EventGroupActivity deletes that were computed but not applied because the
-   * configured [DeleteMode] suppressed them, split by `mode`.
+   * configured [SyncMode] suppressed them, split by `mode`.
    */
   val wouldDeleteCount: LongCounter =
     meter

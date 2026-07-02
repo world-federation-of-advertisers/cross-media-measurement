@@ -109,14 +109,14 @@ class EventGroupActivitySyncTest {
 
   private fun newSync(
     throttler: Throttler = newThrottler(),
-    deleteMode: DeleteMode = DeleteMode.FULL,
+    mode: SyncMode = SyncMode.SYNC,
   ): EventGroupActivitySync =
     EventGroupActivitySync(
       eventGroupActivitiesClient = activitiesStub,
       throttler = throttler,
       dataProviderName = DATA_PROVIDER,
       listPageSize = LIST_PAGE_SIZE,
-      deleteMode = deleteMode,
+      mode = mode,
       // Fast backoff so retry tests do not sleep for the production default.
       retryBackoff = ExponentialBackoff(initialDelay = JavaDuration.ofMillis(1)),
     )
@@ -407,14 +407,12 @@ class EventGroupActivitySyncTest {
   }
 
   @Test
-  fun `sync with SKIP_DELETES applies creates but not deletes`() {
+  fun `sync with APPEND applies creates but not deletes`() {
     stubExistingDates("eg1", listOf("2026-01-01", "2026-01-02", "2026-01-03"))
     // File keeps one existing date, drops two (would-delete), and adds one new date (create).
     val records = listOf(spotRecord("eg1", "2026-01-01"), spotRecord("eg1", "2026-01-04"))
 
-    val result = runBlocking {
-      newSync(deleteMode = DeleteMode.SKIP_DELETES).sync(records.asFlow())
-    }
+    val result = runBlocking { newSync(mode = SyncMode.APPEND).sync(records.asFlow()) }
 
     assertThat(result.activitiesCreated).isEqualTo(1)
     assertThat(result.activitiesDeleted).isEqualTo(0)
@@ -428,30 +426,11 @@ class EventGroupActivitySyncTest {
   }
 
   @Test
-  fun `sync with DRY_RUN_DELETES applies creates but not deletes`() {
-    stubExistingDates("eg1", listOf("2026-01-01", "2026-01-02", "2026-01-03"))
-    val records = listOf(spotRecord("eg1", "2026-01-01"), spotRecord("eg1", "2026-01-04"))
-
-    val result = runBlocking {
-      newSync(deleteMode = DeleteMode.DRY_RUN_DELETES).sync(records.asFlow())
-    }
-
-    assertThat(result.activitiesCreated).isEqualTo(1)
-    assertThat(result.activitiesDeleted).isEqualTo(0)
-    assertThat(result.activitiesWouldDelete).isEqualTo(2)
-    assertThat(result.activitiesUnchanged).isEqualTo(1)
-    assertThat(result.eventGroupsSucceeded).isEqualTo(1)
-    assertThat(result.errors).isEmpty()
-    verifyBlocking(activitiesServiceMock, times(1)) { batchUpdateEventGroupActivities(any()) }
-    verifyBlocking(activitiesServiceMock, never()) { batchDeleteEventGroupActivities(any()) }
-  }
-
-  @Test
-  fun `sync with FULL applies deletes`() {
+  fun `sync with SYNC applies deletes`() {
     stubExistingDates("eg1", listOf("2026-01-01", "2026-01-02", "2026-01-03"))
     val records = listOf(spotRecord("eg1", "2026-01-01"))
 
-    val result = runBlocking { newSync(deleteMode = DeleteMode.FULL).sync(records.asFlow()) }
+    val result = runBlocking { newSync(mode = SyncMode.SYNC).sync(records.asFlow()) }
 
     assertThat(result.activitiesDeleted).isEqualTo(2)
     assertThat(result.activitiesWouldDelete).isEqualTo(0)
@@ -517,15 +496,16 @@ class EventGroupActivitySyncTest {
   }
 
   @Test
-  fun `sync dry-run computes counts without making mutating calls`() {
+  fun `sync with PREVIEW computes counts without making mutating calls`() {
     stubExistingDates("eg1", listOf("2026-01-01", "2026-01-02"))
-    // One unchanged (2026-01-01), one to delete (2026-01-02), one to create (2026-01-03).
+    // One unchanged (2026-01-01), one would-delete (2026-01-02), one would-create (2026-01-03).
     val records = listOf(spotRecord("eg1", "2026-01-01"), spotRecord("eg1", "2026-01-03"))
 
-    val result = runBlocking { newSync().sync(records.asFlow(), dryRun = true) }
+    val result = runBlocking { newSync(mode = SyncMode.PREVIEW).sync(records.asFlow()) }
 
     assertThat(result.activitiesCreated).isEqualTo(1)
-    assertThat(result.activitiesDeleted).isEqualTo(1)
+    assertThat(result.activitiesDeleted).isEqualTo(0)
+    assertThat(result.activitiesWouldDelete).isEqualTo(1)
     assertThat(result.activitiesUnchanged).isEqualTo(1)
     verifyBlocking(activitiesServiceMock, times(0)) { batchUpdateEventGroupActivities(any()) }
     verifyBlocking(activitiesServiceMock, times(0)) { batchDeleteEventGroupActivities(any()) }
