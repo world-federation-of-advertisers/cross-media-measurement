@@ -31,9 +31,11 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigestExtractor
+import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.service.VidLabelingJobKey
+import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -320,10 +322,7 @@ class VidLabelerApp(
       MemoizedRankIndex.load(rankIndexBlobsStub, rankIndexStore, dataProvider, modelLine)
 
     // The raw event-id column is the raw-impression field mapped to LabelerInput's `event_id.id`.
-    val eventIdColumn =
-      requireNotNull(config.labelerInputFieldMappingMap[EVENT_ID_FIELD_PATH]) {
-        "labeler_input_field_mapping must map '$EVENT_ID_FIELD_PATH' to the raw event-id column"
-      }
+    val eventIdColumn = resolveEventIdColumn(config)
 
     // File-list mode: label exactly the RawImpressionUploadFiles carried on this WorkItem's
     // VidLabelingJob (the bin-packed batch), each read whole (no fingerprint-shard filter).
@@ -340,6 +339,12 @@ class VidLabelerApp(
         eventIdDigestExtractor = eventIdDigestExtractor,
         inputFiles = inputFiles,
       )
+
+    // Schema-drift guard (#3993): fail fast if a mapped raw column is missing from the file schema
+    // (e.g. renamed upstream) instead of silently unsetting the field on every labeled impression.
+    rawImpressionSource.validateSchema(
+      LabelerInputMapper(config.labelerInputFieldMappingList).referencedColumnKinds()
+    )
 
     val activeWindow =
       ActiveWindow.of(
@@ -406,10 +411,7 @@ class VidLabelerApp(
     // read it from the first bundled line's config.
     val firstModelLine = modelLines.first()
     val firstConfig = configsByModelLine.getValue(firstModelLine)
-    val eventIdColumn =
-      requireNotNull(firstConfig.labelerInputFieldMappingMap[EVENT_ID_FIELD_PATH]) {
-        "labeler_input_field_mapping must map '$EVENT_ID_FIELD_PATH' to the raw event-id column"
-      }
+    val eventIdColumn = resolveEventIdColumn(firstConfig)
 
     val rawImpressionSource =
       RawImpressionSource(
@@ -424,6 +426,18 @@ class VidLabelerApp(
         eventIdDigestExtractor = eventIdDigestExtractor,
         inputFiles = inputFiles,
       )
+
+    // Schema-drift guard (#3993): every column any bundled model line reads must exist in the file
+    // schema; fail fast at the first file rather than silently unsetting fields for every row.
+    val mergedColumnKinds =
+      LinkedHashMap<String, Set<org.wfanet.measurement.storage.ParquetValue.KindCase>>()
+    for (modelLineConfig in configsByModelLine.values) {
+      for ((column, kinds) in
+        LabelerInputMapper(modelLineConfig.labelerInputFieldMappingList).referencedColumnKinds()) {
+        mergedColumnKinds[column] = mergedColumnKinds[column]?.let { it intersect kinds } ?: kinds
+      }
+    }
+    rawImpressionSource.validateSchema(mergedColumnKinds)
 
     val modelLineSpecs =
       modelLines.map { modelLine ->
@@ -721,6 +735,24 @@ class VidLabelerApp(
 
     /** LabelerInput field path whose mapped raw column carries the event id used for the digest. */
     private const val EVENT_ID_FIELD_PATH = "event_id.id"
+
+    /**
+     * The raw event-id column: the scalar column mapped to [EVENT_ID_FIELD_PATH]. The digest path
+     * needs a single column to hash, so this entry must be a plain scalar source.
+     */
+    private fun resolveEventIdColumn(config: VidLabelerParams.ModelLineConfig): String {
+      val mapping =
+        requireNotNull(
+          config.labelerInputFieldMappingList.find { it.fieldPath == EVENT_ID_FIELD_PATH }
+        ) {
+          "labeler_input_field_mapping must map '$EVENT_ID_FIELD_PATH' to the raw event-id column"
+        }
+      require(mapping.sourceCase == LabelerInputFieldMapping.SourceCase.SCALAR) {
+        "labeler_input_field_mapping '$EVENT_ID_FIELD_PATH' must be a scalar column for the digest, " +
+          "got ${mapping.sourceCase}"
+      }
+      return mapping.scalar.column
+    }
 
     /** Nanoseconds per second, for converting [System.nanoTime] deltas to seconds. */
     private const val NANOS_PER_SECOND = 1_000_000_000.0
