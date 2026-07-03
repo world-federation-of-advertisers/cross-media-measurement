@@ -137,9 +137,7 @@ class VidRankBuilderTest {
   }
 
   /** Echoes each created `VidLabelingJob` back with a deterministic name (mirrors the service). */
-  private fun vidLabelingJobsMock(
-    existing: List<VidLabelingJob> = emptyList()
-  ): VidLabelingJobServiceCoroutineStub = mock {
+  private fun vidLabelingJobsMock(): VidLabelingJobServiceCoroutineStub = mock {
     onBlocking { batchCreateVidLabelingJobs(any(), any()) } doAnswer
       { invocation ->
         val request = invocation.getArgument<BatchCreateVidLabelingJobsRequest>(0)
@@ -150,8 +148,6 @@ class VidRankBuilderTest {
           }
         }
       }
-    onBlocking { listVidLabelingJobs(any(), any()) } doReturn
-      listVidLabelingJobsResponse { vidLabelingJobs += existing }
   }
 
   private fun filesMock(): RawImpressionUploadFileServiceCoroutineStub = mock {
@@ -473,28 +469,13 @@ class VidRankBuilderTest {
   }
 
   @Test
-  fun `redelivery of an already-succeeded last job re-publishes existing jobs without re-ranking`() =
+  fun `redelivery of an already-succeeded last job re-runs the idempotent fan-out without re-ranking`() =
     runBlocking {
       val ranker = rankerMock()
       // Job already SUCCEEDED; all jobs succeeded; parent still RANKING -> recover last-job-out.
       val rankerJobs = rankerJobsMock(state = RankerJob.State.SUCCEEDED)
-      // Two VidLabelingJobs already exist from the original last-job-out.
-      val vidLabelingJobs =
-        vidLabelingJobsMock(
-          existing =
-            listOf(
-              vidLabelingJob {
-                name = "$UPLOAD/vidLabelingJobs/job0"
-                cmmsModelLines += MODEL_LINE
-                rawImpressionUploadFiles += "$UPLOAD/files/0"
-              },
-              vidLabelingJob {
-                name = "$UPLOAD/vidLabelingJobs/job1"
-                cmmsModelLines += MODEL_LINE
-                rawImpressionUploadFiles += "$UPLOAD/files/1"
-              },
-            )
-        )
+      val jobRequests = mutableListOf<BatchCreateVidLabelingJobsRequest>()
+      val vidLabelingJobs = recordingVidLabelingJobs(jobRequests)
       val modelLines = modelLinesMock(RawImpressionUploadModelLine.State.RANKING)
       val files = filesMock()
       val published = mutableListOf<CreateWorkItemRequest>()
@@ -511,18 +492,18 @@ class VidRankBuilderTest {
           .run()
 
       assertThat(result.lastJobOut).isTrue()
+      // Recovery must neither re-rank nor re-mark the RankerJob succeeded.
       verifyBlocking(ranker, never()) { rank(any(), any(), any()) }
       verifyBlocking(rankerJobs, never()) { markRankerJobSucceeded(any(), any()) }
-      // Recovery re-publishes from the existing jobs; it neither re-lists files nor re-creates
-      // jobs.
-      verifyBlocking(vidLabelingJobs) { listVidLabelingJobs(any(), any()) }
-      verifyBlocking(vidLabelingJobs, never()) { batchCreateVidLabelingJobs(any(), any()) }
-      verifyBlocking(files, never()) { listRawImpressionUploadFiles(any(), any()) }
-      assertThat(published).hasSize(2)
-      // Files live on the existing VidLabelingJob (the TEE gets it); the WorkItem carries only the
-      // job name, so assert recovery republished a WorkItem per existing job.
-      assertThat(published.map { publishedParams(it).vidLabelingJob })
-        .containsExactly("$UPLOAD/vidLabelingJobs/job0", "$UPLOAD/vidLabelingJobs/job1")
+      // Recovery re-runs the same idempotent fan-out as first delivery: re-list files, re-create,
+      // publish. The batch-index request_id makes BatchCreateVidLabelingJobs an AIP-155 replay for
+      // rows a crashed prior attempt already created while still creating any it missed (a prior
+      // republish-existing recovery silently lost the missing batches).
+      verifyBlocking(files) { listRawImpressionUploadFiles(any(), any()) }
+      verifyBlocking(vidLabelingJobs) { batchCreateVidLabelingJobs(any(), any()) }
+      assertThat(published).hasSize(1)
+      assertThat(createdFileBatches(jobRequests).single())
+        .containsExactly("$UPLOAD/files/0", "$UPLOAD/files/1", "$UPLOAD/files/2")
       verifyBlocking(modelLines) { markRawImpressionUploadModelLineLabeling(any(), any()) }
     }
 
