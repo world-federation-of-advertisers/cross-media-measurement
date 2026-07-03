@@ -31,12 +31,14 @@ import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
@@ -201,7 +203,11 @@ class VidRankBuilderAppTest {
     modelStorageParams = storageParams("model")
     rankerJob = RANKER_JOB
     totalShards = 1
-    labelerInputFieldMapping.put("event_id.id", "raw_event_id")
+    labelerInputFieldMapping +=
+      LabelerInputFieldMapping.newBuilder()
+        .setFieldPath("event_id.id")
+        .setScalar(ScalarColumn.newBuilder().setColumn("raw_event_id"))
+        .build()
     eventTemplateFieldMapping.put("banner_ad.viewable", "raw_viewable")
     maxFileBatchSizeBytes = 1_000_000_000
     activeStartTime = timestamp { seconds = 1000 }
@@ -367,8 +373,13 @@ class VidRankBuilderAppTest {
       assertThat(labelerParams.modelStorageParams.gcsProjectId).isEqualTo("test-project")
       assertThat(labelerParams.vidLabelingJob).isNotEmpty()
       val modelLineConfig = labelerParams.modelLineConfigsMap.getValue(MODEL_LINE)
-      assertThat(modelLineConfig.labelerInputFieldMappingMap)
-        .containsExactly("event_id.id", "raw_event_id")
+      assertThat(modelLineConfig.labelerInputFieldMappingList)
+        .containsExactly(
+          LabelerInputFieldMapping.newBuilder()
+            .setFieldPath("event_id.id")
+            .setScalar(ScalarColumn.newBuilder().setColumn("raw_event_id"))
+            .build()
+        )
       assertThat(modelLineConfig.eventTemplateFieldMappingMap)
         .containsExactly("banner_ad.viewable", "raw_viewable")
       // Active-window forwarded Phase-0 -> Phase-1 -> Phase-2 ModelLineConfig.
