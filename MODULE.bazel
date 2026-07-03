@@ -43,13 +43,14 @@ bazel_dep(
     repo_name = "wfa_common_jvm",
 )
 
-# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#395): temporary override pinning the
-# branch that adds ParquetBlob.readSchema(); drop once common-jvm#395 is merged + released and bump
-# the common-jvm version above.
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#394): temporary override pinning the top
+# of the stacked pair common-jvm#395 (adds ParquetBlob.readSchema()) -> common-jvm#394 (adds the
+# ParquetStorageClient.writeBlob footer key-value metadata overload, needed by the cloud test); drop
+# once both merge + release and bump the common-jvm version above.
 archive_override(
     module_name = "common-jvm",
-    strip_prefix = "common-jvm-c33a0b2e98eff5114fcca9a24a5e5c7fbbe10290",
-    urls = ["https://github.com/world-federation-of-advertisers/common-jvm/archive/c33a0b2e98eff5114fcca9a24a5e5c7fbbe10290.tar.gz"],
+    strip_prefix = "common-jvm-cff538745bb6c03b8dc291c74a4e925a0f866560",
+    urls = ["https://github.com/world-federation-of-advertisers/common-jvm/archive/cff538745bb6c03b8dc291c74a4e925a0f866560.tar.gz"],
 )
 
 bazel_dep(
