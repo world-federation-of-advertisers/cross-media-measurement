@@ -396,7 +396,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
     ): Map<String, VidLabelerParams.ModelLineConfig> {
       return configModelLines.mapValues { (_, configModelLine) ->
         VidLabelerParamsKt.modelLineConfig {
-          labelerInputFieldMapping.putAll(configModelLine.labelerInputFieldMappingMap)
+          labelerInputFieldMapping.addAll(configModelLine.labelerInputFieldMappingList)
           eventTemplateFieldMapping.putAll(configModelLine.eventTemplateFieldMappingMap)
         }
       }

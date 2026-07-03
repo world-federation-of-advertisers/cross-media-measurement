@@ -235,6 +235,35 @@ class RawImpressionSource(
    *   per file. The returned sink's [BlobSink.processBatch] is invoked concurrently (see
    *   [BlobSink]); any state shared across files captured by this lambda must be concurrency-safe.
    */
+  /**
+   * Reads the schema of the upload's first input file and fails if any column the mapping needs is
+   * absent or has an incompatible type, so a renamed/dropped/retyped raw-impression column fails
+   * loud at startup rather than silently leaving the target
+   * [org.wfanet.virtualpeople.common.LabelerInput] field unset (or throwing) on every row
+   * (schema-drift detection, cross-media-measurement#3993). The schema is derived from the first
+   * row, so an **empty (zero-row)** first file fails loud immediately (there is also nothing to
+   * process). No-op if [columnKinds] is empty or the upload has no files.
+   *
+   * @param columnKinds column -> the [ParquetValue.KindCase]s the mapper accepts for it (see
+   *   [org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper.referencedColumnKinds]).
+   */
+  suspend fun validateSchema(columnKinds: Map<String, Set<ParquetValue.KindCase>>) {
+    if (columnKinds.isEmpty()) return
+    val firstUri = discoverBlobUris().firstOrNull() ?: return
+    val parquetBlob =
+      parquetStorageClient.getBlob(firstUri) ?: error("Raw-impression blob not found: $firstUri")
+    val schema: Map<String, ParquetValue.KindCase> = parquetBlob.readSchema()
+    require(schema.isNotEmpty()) {
+      "Raw-impression file '$firstUri' for upload $rawImpressionUpload is empty (0 rows): cannot " +
+        "validate the labeler-input schema and there is nothing to process."
+    }
+    validateColumnsAgainstSchema(
+      columnKinds,
+      schema,
+      "upload $rawImpressionUpload (file $firstUri)",
+    )
+  }
+
   suspend fun streamBlobs(openSink: suspend (blobUri: String) -> BlobSink) {
     val blobUris = discoverBlobUris()
     logger.info(

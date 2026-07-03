@@ -62,11 +62,13 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
@@ -772,11 +774,25 @@ class VidLabelingDispatcherTest {
       mapOf(
         MODEL_LINE_1 to
           VidLabelerParamsKt.modelLineConfig {
-            labelerInputFieldMapping["age"] = "user_age"
-            labelerInputFieldMapping["gender"] = "user_gender"
+            labelerInputFieldMapping +=
+              LabelerInputFieldMapping.newBuilder()
+                .setFieldPath("age")
+                .setScalar(ScalarColumn.newBuilder().setColumn("user_age"))
+                .build()
+            labelerInputFieldMapping +=
+              LabelerInputFieldMapping.newBuilder()
+                .setFieldPath("gender")
+                .setScalar(ScalarColumn.newBuilder().setColumn("user_gender"))
+                .build()
           },
         MODEL_LINE_2 to
-          VidLabelerParamsKt.modelLineConfig { labelerInputFieldMapping["age"] = "user_age" },
+          VidLabelerParamsKt.modelLineConfig {
+            labelerInputFieldMapping +=
+              LabelerInputFieldMapping.newBuilder()
+                .setFieldPath("age")
+                .setScalar(ScalarColumn.newBuilder().setColumn("user_age"))
+                .build()
+          },
       )
   }
 }

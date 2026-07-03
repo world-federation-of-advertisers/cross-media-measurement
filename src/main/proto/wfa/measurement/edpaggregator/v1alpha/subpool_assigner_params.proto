@@ -19,6 +19,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/edpaggregator/v1alpha/labeler_input_field_mapping.proto";
 import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -148,7 +149,8 @@ message SubpoolAssignerParams {
   //
   // Also carried as pass-through for VidRankBuilder Phase-1 / VidLabeler
   // Phase-2 WorkItem construction by the last-shard-out.
-  map<string, string> labeler_input_field_mapping = 14;
+  reserved 14;
+  repeated LabelerInputFieldMapping labeler_input_field_mapping = 24;
 
   // Mapping from event template field names to their corresponding raw
   // impression field names. Mirrors the per-(EDP, model line) mapping
