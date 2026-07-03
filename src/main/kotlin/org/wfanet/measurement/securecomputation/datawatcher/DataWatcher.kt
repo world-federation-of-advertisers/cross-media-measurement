@@ -152,6 +152,15 @@ class DataWatcher(
       )
     }
 
+    // The VidLabelingDispatcher requires the source blob's GCS generation (for idempotent
+    // request ids); DataWatcherFunction stashes it in objectMetadata under GENERATION_METADATA_KEY.
+    if (GENERATION_METADATA_KEY in objectMetadata) {
+      requestBuilder.header(
+        DATA_WATCHER_GENERATION_HEADER,
+        objectMetadata.getValue(GENERATION_METADATA_KEY),
+      )
+    }
+
     val request =
       requestBuilder
         .POST(HttpRequest.BodyPublishers.ofString(httpEndpointConfig.appParams.toJson()))
@@ -255,6 +264,10 @@ class DataWatcher(
   companion object {
     private val logger: Logger = Logger.getLogger(DataWatcher::class.java.name)
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
+    private const val DATA_WATCHER_GENERATION_HEADER: String = "X-DataWatcher-Generation"
+
+    /** Reserved objectMetadata key DataWatcherFunction uses to carry the GCS object generation. */
+    const val GENERATION_METADATA_KEY: String = "__datawatcher_object_generation__"
     private const val IMPRESSION_METADATA_RESOURCE_ID_HEADER: String =
       "X-Impression-Metadata-Resource-Id"
 
