@@ -215,7 +215,7 @@ class VidRankBuilderApp(
       modelLineConfigs.put(
         params.modelLine,
         VidLabelerParamsKt.modelLineConfig {
-          labelerInputFieldMapping.putAll(params.labelerInputFieldMappingMap)
+          labelerInputFieldMapping.addAll(params.labelerInputFieldMappingList)
           eventTemplateFieldMapping.putAll(params.eventTemplateFieldMappingMap)
           // Phase-2 requires the event-template descriptor to build the labeled output; stamp it
           // (and its type) onto the memoized VidLabeler ModelLineConfig.
