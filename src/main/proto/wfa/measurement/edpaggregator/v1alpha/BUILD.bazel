@@ -22,6 +22,20 @@ kt_jvm_proto_library(
 )
 
 proto_library(
+    name = "labeler_input_field_mapping_proto",
+    srcs = ["labeler_input_field_mapping.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "labeler_input_field_mapping_kt_jvm_proto",
+    deps = [":labeler_input_field_mapping_proto"],
+)
+
+proto_library(
     name = "encrypted_dek_proto",
     srcs = ["encrypted_dek.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
@@ -89,6 +103,7 @@ proto_library(
     srcs = ["vid_labeler_params.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
+        ":labeler_input_field_mapping_proto",
         ":transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
@@ -108,6 +123,7 @@ proto_library(
     srcs = ["subpool_assigner_params.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
+        ":labeler_input_field_mapping_proto",
         ":transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
@@ -128,6 +144,7 @@ proto_library(
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
         ":encrypted_dek_proto",
+        ":labeler_input_field_mapping_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_googleapis//google/type:date_proto",

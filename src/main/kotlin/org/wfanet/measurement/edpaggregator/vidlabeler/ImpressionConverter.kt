@@ -27,7 +27,7 @@ import org.wfanet.virtualpeople.common.LabelerInput
  * This is the seam between the raw-impression reader (which hands out rows keyed by **Parquet
  * column name** — see [ParquetDigestedEvent]) and the VirtualPeople [LabelerInput]. The conversion
  * is model-line-specific because the column→field mapping lives in
- * [VidLabelerParams.ModelLineConfig.getLabelerInputFieldMappingMap].
+ * [VidLabelerParams.ModelLineConfig.getLabelerInputFieldMappingList].
  *
  * It is injected (rather than implemented inline) so the labeling pipeline can be built and tested
  * before the Parquet schema is finalized: tests supply a fake, and the production converter is

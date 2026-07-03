@@ -33,7 +33,9 @@ private const val EVENT_ID_FIELD_PATH = "event_id.id"
  */
 fun requireValidModelLineConfigs(config: VidLabelingConfig) {
   for ((modelLine, modelLineConfig) in config.modelLineConfigsMap) {
-    require(modelLineConfig.labelerInputFieldMappingMap.containsKey(EVENT_ID_FIELD_PATH)) {
+    require(
+      modelLineConfig.labelerInputFieldMappingList.any { it.fieldPath == EVENT_ID_FIELD_PATH }
+    ) {
       "labeler_input_field_mapping must map '$EVENT_ID_FIELD_PATH' for model line $modelLine on " +
         config.dataProvider
     }

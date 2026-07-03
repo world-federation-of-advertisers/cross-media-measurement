@@ -54,6 +54,7 @@ import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
@@ -63,6 +64,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServi
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
@@ -583,8 +585,16 @@ class VidLabelingMonitorTest {
       mapOf(
         MODEL_LINE to
           VidLabelerParamsKt.modelLineConfig {
-            labelerInputFieldMapping["age"] = "user_age"
-            labelerInputFieldMapping["gender"] = "user_gender"
+            labelerInputFieldMapping +=
+              LabelerInputFieldMapping.newBuilder()
+                .setFieldPath("age")
+                .setScalar(ScalarColumn.newBuilder().setColumn("user_age"))
+                .build()
+            labelerInputFieldMapping +=
+              LabelerInputFieldMapping.newBuilder()
+                .setFieldPath("gender")
+                .setScalar(ScalarColumn.newBuilder().setColumn("user_gender"))
+                .build()
           }
       )
   }

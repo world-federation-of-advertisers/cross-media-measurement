@@ -548,7 +548,7 @@ class VidLabelingDispatchSequencer(
             "No resolved ModelLine for model line: $modelLineName"
           }
         VidLabelerParamsKt.modelLineConfig {
-          labelerInputFieldMapping.putAll(modelLineConfig.labelerInputFieldMappingMap)
+          labelerInputFieldMapping.addAll(modelLineConfig.labelerInputFieldMappingList)
           eventTemplateFieldMapping.putAll(modelLineConfig.eventTemplateFieldMappingMap)
           // The active window lets the TEE drop out-of-window impressions before labeling.
           activeStartTime = resolvedModelLine.activeStartTime
@@ -714,7 +714,7 @@ class VidLabelingDispatchSequencer(
         }
         this.shardIndex = shardIndex
         totalShards = numberOfShards
-        labelerInputFieldMapping.putAll(modelLineConfig.labelerInputFieldMappingMap)
+        labelerInputFieldMapping.addAll(modelLineConfig.labelerInputFieldMappingList)
         eventTemplateFieldMapping.putAll(modelLineConfig.eventTemplateFieldMappingMap)
         this.poolAssignmentJob = poolAssignmentJob
       }
