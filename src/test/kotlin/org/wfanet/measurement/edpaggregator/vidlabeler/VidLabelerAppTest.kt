@@ -55,6 +55,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededResponseKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
@@ -62,6 +63,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
@@ -239,7 +241,11 @@ class VidLabelerAppTest {
     modelLineConfigs.put(
       MODEL_LINE,
       VidLabelerParamsKt.modelLineConfig {
-        labelerInputFieldMapping.put("event_id.id", "event_id_column")
+        labelerInputFieldMapping +=
+          LabelerInputFieldMapping.newBuilder()
+            .setFieldPath("event_id.id")
+            .setScalar(ScalarColumn.newBuilder().setColumn("event_id_column"))
+            .build()
       },
     )
     // Shared payload is top-level; MemoizedParams carries only the rank-index storage.
@@ -272,7 +278,11 @@ class VidLabelerAppTest {
     modelLineConfigs.put(
       MODEL_LINE,
       VidLabelerParamsKt.modelLineConfig {
-        labelerInputFieldMapping.put("event_id.id", "event_id_column")
+        labelerInputFieldMapping +=
+          LabelerInputFieldMapping.newBuilder()
+            .setFieldPath("event_id.id")
+            .setScalar(ScalarColumn.newBuilder().setColumn("event_id_column"))
+            .build()
       },
     )
     modelLines += MODEL_LINE
