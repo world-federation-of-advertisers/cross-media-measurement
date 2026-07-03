@@ -118,9 +118,11 @@ stats, and reports results/failures to the Kingdom. Concrete mills:
 | `HonestMajorityShareShuffleMill` | `.../mill/shareshuffle/HonestMajorityShareShuffleMill.kt` | HMSS |
 | `TrusTeeMill` | `.../mill/trustee/TrusTeeMill.kt` | TrusTEE (single aggregator in a TEE) |
 
-`MillType` (`.../mill/MillType.kt`) maps `ComputationType` to a mill type and
-declares each protocol's `prioritizedStages` (e.g. the initialization phase),
-which are passed to `ClaimWork` so that new computations get picked up promptly.
+The `ComputationType.millType` and `ComputationType.prioritizedStages` extension
+properties (in `.../mill/MillType.kt`) map each `ComputationType` to a `MillType`
+enum value and to that protocol's prioritized stages (e.g. the initialization
+phase), which are passed to `ClaimWork` so that new computations get picked up
+promptly.
 
 ## Services and daemons
 
@@ -377,9 +379,14 @@ through thin JNI wrappers:
   the response proto. `JniReachOnlyLiquidLegionsV2Encryption` (same directory)
   does the same but calls the generated
   `ReachOnlyLiquidLegionsV2EncryptionUtility` JNI methods. Both also delegate
-  `combineElGamalPublicKeys` to `SketchEncrypterAdapter`. The mill loads native
-  libraries in a companion `init` block (e.g. `estimators`,
-  `sketch_encrypter_adapter`).
+  `combineElGamalPublicKeys` to `SketchEncrypterAdapter`, and each loads its own
+  native libraries in a companion `init` block:
+  `JniLiquidLegionsV2Encryption` loads `liquid_legions_v2_encryption_utility` +
+  `sketch_encrypter_adapter`, and `JniReachOnlyLiquidLegionsV2Encryption` loads
+  `reach_only_liquid_legions_v2_encryption_utility` + `sketch_encrypter_adapter`.
+  The `estimators` library is loaded separately by `LiquidLegionsV2Mill`'s own
+  companion `init` (alongside `sketch_encrypter_adapter`), not by the JNI
+  wrappers.
 - `JniHonestMajorityShareShuffleCryptor`
   (`.../mill/shareshuffle/crypto/`) wraps
   `honest_majority_share_shuffle_utility`.

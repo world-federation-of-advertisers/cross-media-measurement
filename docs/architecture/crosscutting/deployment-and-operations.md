@@ -326,7 +326,11 @@ in API calls; static process configuration lives in separate, unversioned
     types `Llv2ProtocolConfigConfig`, `HmssProtocolConfigConfig`, and
     `TrusTeeProtocolConfigConfig` (note the doubled `Config` suffix; Reach-Only
     LLv2 has its own textproto but reuses the `Llv2ProtocolConfigConfig`
-    message); rate-limit config; the authority-key-identifier→principal map.
+    message — and note these three `*ProtocolConfigConfig` messages are defined
+    in the `internal.kingdom` tier,
+    `internal/kingdom/protocol_config_config.proto`, not under a `config/`
+    package, even though they serve as static process config); rate-limit
+    config; the authority-key-identifier→principal map.
 *   Access: `PermissionsConfig`, `OpenIdProvidersConfig` (under `config/access`).
     The `AuthorityKeyToPrincipalMap` referenced above lives under `config/`
     (package `wfa.measurement.config`), not `config/access`.

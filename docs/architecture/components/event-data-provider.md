@@ -61,7 +61,7 @@ graph TD
   DP --> REQ
   PBM --> EF
   DC --> PBM
-  RF -->|direct fulfillment / refusal| KING[(Kingdom Requisitions API)]
+  EA & SIM -->|direct fulfillment / refusal| KING[(Kingdom Requisitions API)]
   REQ -->|FulfillRequisitionRequest stream<br/>HMSS shares / TrusTEE payload| DUCHY[(Duchy RequisitionFulfillment API)]
 ```
 
@@ -131,8 +131,9 @@ delta)` and the `DirectNoiseMechanism` enum (`NONE` [testing only],
 
 `DynamicClipping` (`differentialprivacy/DynamicClipping.kt`) implements the
 clipping algorithm for `IMPRESSION` and `DURATION` measurements. Given an ACDP
-`rho` and a frequency histogram it produces a `Result(noisedCumulativeHistogram,
-threshold)`, adding continuous Gaussian noise scaled by
+`rho` and a frequency histogram it produces a
+`Result(noisedCumulativeHistogramList, threshold)`, adding continuous Gaussian
+noise scaled by
 `BAR_SENSITIVITY * sqrt(maxThreshold / (2*rho))` and refining the threshold and
 the "remaining" privacy charge to improve accuracy below the threshold. It
 requires Gaussian noise and ACDP composition. (No production caller in this repo
@@ -230,8 +231,9 @@ isRefund, createTime)`.
   thread-safe; suitable for small MC counts, single-run estimation, or tests.
 * `PostgresBackingStore`
   (`.../deploy/common/postgres/PostgresBackingStore.kt`) — JDBC-based Postgres
-  implementation. It runs a manual `begin transaction`, disallows nested
-  transactions, and on `close()` rolls back.
+  implementation. It runs a manual `begin transaction` and disallows nested
+  transactions; its own `close()` only closes the connection, while it is
+  `PostgresBackingStoreTransactionContext.close()` that rolls the transaction back.
 
 **Postgres schema** (`.../deploy/common/postgres/ledger.sql`):
 
@@ -258,7 +260,9 @@ This subsystem exposes a Kotlin/Maven library API rather than a network API. It
 `Requisition`, `PopulationSpec`, `FulfillRequisitionRequest`), plus the
 any-sketch `FrequencyVector` proto (`org.wfanet.frequencycount.FrequencyVector`,
 Bazel target `//src/main/proto/wfa/frequency_count:frequency_vector_kt_jvm_proto`,
-which aliases `@any_sketch//src/main/proto/wfa/frequency_count:frequency_vector_proto`).
+a `kt_jvm_proto_library` wrapping
+`@any_sketch//src/main/proto/wfa/frequency_count:frequency_vector_proto` via
+`deps`, not an `alias`).
 Several targets are published as Maven artifacts (see their `BUILD.bazel`
 `maven_coordinates` tags):
 

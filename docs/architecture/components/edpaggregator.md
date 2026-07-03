@@ -261,7 +261,9 @@ and validates its params (`data_provider` and both storage-params), resolves the
 per-`DataProvider` decrypt/encrypt KMS clients, and builds the `StorageConfig`,
 but ends with a single TODO to call `VidLabeler.labelBatch()` once the labeler
 implementation lands. In both cases the pipeline services and protos exist but
-the Phase-1/Phase-2 compute is still being implemented.
+the Phase-1/Phase-2 compute is still being implemented. Phase-0's
+`SubpoolAssignerApp` is further along but also not yet wired end-to-end (its
+runner leaves several collaborators as throwing/null defaults — see §7.3).
 
 ## 5. Data Model & Storage
 
@@ -433,7 +435,12 @@ unimplemented. `VidLabelerApp.runWork` is likewise a stub, so no VID labeling or
 encrypted output is produced yet. (The similar flip and per-shard fan-out in
 `VidLabelingDispatchSequencer` serve the non-memoized direct-to-Phase-2 path
 driven by the Dispatcher/Monitor, not by the ranker.) By contrast, the
-`SubpoolAssigner`->`VidRankBuilder` fan-out shown above is implemented.
+`SubpoolAssigner`->`VidRankBuilder` fan-out *logic* shown above is coded — but
+not yet wired end-to-end: `SubpoolAssignerAppRunner` does not supply five
+collaborators that `SubpoolAssignerApp` leaves as throwing/null defaults (the
+Parquet storage client, the subpool-map storage client, the pool-emit VID model
+loader, the subpool-map KEK-URI resolver, and the `RawImpressionUploadFileService`
+stub), so a real Phase-0 `runWork` cannot complete at this commit.
 
 Phase 0 (`SubpoolAssigner`) is the analog of `ResultsFulfiller`: it streams one
 shard's raw impressions, active-window-filters and labels them into sub-pools,
@@ -488,8 +495,9 @@ Google Cloud-specific (`deploy/gcloud/`) trees. The gcloud tree contains the
 Spanner internal API server and DB layer (`deploy/gcloud/spanner/`, with schema
 in `src/main/resources/edpaggregator/spanner/`), the Cloud Functions
 (`requisitionfetcher/`, `eventgroups/`, `dataavailability/`, `vidlabeling/`),
-and operational tooling (`deploy/gcloud/dashboard/` compliance checks,
-`deploy/gcloud/spanner/tools/`). TEE apps ship as containers driven by the
+and operational tooling (`deploy/gcloud/dashboard/` compliance checks). (A
+`deploy/gcloud/spanner/tools/` package exists but currently holds only a
+`BUILD.bazel`.) TEE apps ship as containers driven by the
 `*AppRunner` picocli entry points. Configuration is delivered as text protos in
 a config bucket (`EDPA_CONFIG_STORAGE_BUCKET`), and secrets via Secret Manager.
 Kubernetes/Terraform deployment definitions for the whole system live outside
@@ -533,7 +541,9 @@ line with the project testing standards.
     idempotency requirements). `VidLabelerApp.runWork` implements param
     unpacking, validation, and KMS/storage-config resolution, with a single TODO
     deferring the actual `VidLabeler.labelBatch()` call. The data model,
-    services, and Phase-0 logic are in place but Phase-1/Phase-2 compute is still
+    services, and Phase-0 logic are coded, but even Phase-0 is not yet wired
+    end-to-end (`SubpoolAssignerAppRunner` leaves five `SubpoolAssignerApp`
+    collaborators as throwing/null defaults); Phase-1/Phase-2 compute is still
     landing.
 
 ## See Also

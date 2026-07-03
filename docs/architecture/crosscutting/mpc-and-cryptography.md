@@ -177,6 +177,7 @@ sequenceDiagram
   participant AGG as Aggregator
   Note over NA,AGG: Initialization + Setup
   NA->>NA: CompleteInitializationPhase (fresh ElGamal key)
+  AGG->>AGG: CompleteInitializationPhase (fresh ElGamal key)
   NA->>NA: CompleteSetupPhase (add noise registers, shuffle)
   AGG->>AGG: CompleteSetupPhase (combine CRVs, add noise, shuffle)
   Note over NA,AGG: Execution 1 (join)

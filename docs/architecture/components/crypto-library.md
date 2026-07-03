@@ -48,7 +48,7 @@ flowchart TD
     Wrapper["*_encryption_utility_wrapper.cc<br/>(JniWrap: bytes <-> proto)"]
     Util["*_encryption_utility.cc<br/>(per-phase protocol logic)"]
     Cryptor["ProtocolCryptor<br/>ElGamal + Pohlig-Hellman"]
-    Ext["@any_sketch, @private_join_and_compute,<br/>@tink_cc, @wfa_common_cpp"]
+    Ext["@any_sketch, @com_google_private_join_and_compute,<br/>@tink_cc, @wfa_common_cpp"]
   end
   Mill --> IFace --> Jni --> Swig --> Wrapper --> Util --> Cryptor --> Ext
   Util --> Ext
@@ -377,9 +377,9 @@ Build notes:
 *   SWIG is a build-time requirement; the `java_wrap_cc` rule reruns SWIG on each
     build to regenerate the Java wrappers from the current headers (see
     `src/main/swig/protocol/liquidlegionsv2/README.md`).
-*   The heavy crypto dependencies (`@private_join_and_compute`, `@any_sketch`,
-    `@tink_cc`) are external Bazel modules, keeping the audited crypto surface out
-    of this repo.
+*   The heavy crypto dependencies (`@com_google_private_join_and_compute`,
+    `@any_sketch`, `@tink_cc`) are external Bazel modules, keeping the audited
+    crypto surface out of this repo.
 
 ## Testing Approach
 

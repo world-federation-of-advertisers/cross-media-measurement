@@ -161,9 +161,13 @@ This is the **only** tier with database access. It is a hybrid:
 - **Spanner-backed** (`deploy/v2/gcloud/spanner/`): `SpannerBasicReportsService`
   and `SpannerReportResultsService`. These are only constructed when a Spanner
   client, an IQF mapping, and an event-message descriptor are all present
-  (i.e. `--basic-reports-enabled`), so `basicReportsService`,
-  `impressionQualificationFiltersService`, and `reportResultsService` are
-  nullable in `Services`.
+  (i.e. `--basic-reports-enabled`), so `basicReportsService` and
+  `reportResultsService` are nullable in `Services`.
+- **Non-Spanner** (`deploy/v2/common/service/`):
+  `ImpressionQualificationFiltersService` (serves the configured IQF mapping) is
+  constructed whenever the IQF mapping alone is present — not the full
+  `--basic-reports-enabled` trio — so `impressionQualificationFiltersService` is
+  likewise nullable in `Services`, but gated independently.
 
 Internal service RPCs are lower-level than the public ones — e.g. internal
 `Metrics` has `StreamMetrics`, `BatchCreateMetrics`, `BatchGetMetrics`,
@@ -305,8 +309,9 @@ The Kotlin `ReportProcessor` writes each `ReportPostProcessorLog` to a GCS
 bucket keyed by report create-time and name (see `getBlobKey` in
 `postprocessing/v2alpha/ReportProcessor.kt`). The bucket is only read back by a
 separate operator diagnostic CLI, `log_processor.py`
-(`postprocessing/tools/`), for inspecting the stored
-`ReportPostProcessorResult`; it is not part of the correction pipeline. The
+(`postprocessing/tools/`), for inspecting the stored `ReportPostProcessorLog`
+(which embeds per-report `ReportPostProcessorResult`s); it is not part of the
+correction pipeline. The
 QP-solver post-processing path itself never touches GCS — it communicates via
 temp `.binpb` files (Kotlin path) or the internal Reporting gRPC API (deployed
 CronJob).
@@ -333,7 +338,7 @@ Three tiers, following the project's public-vs-internal separation:
    and internal `Measurements`.
 3. **Config** (`src/main/proto/wfa/measurement/config/reporting/`). Unversioned process
    configuration: `MetricSpecConfig` (default DP params, VID sampling with
-   fixed/random start, per-protocol defaults), `MeasurementConsumerConfig(s)`
+   fixed/random start, per-metric-type defaults), `MeasurementConsumerConfig(s)`
    (offline principal + signing material per MC), `EncryptionKeyPairConfig`,
    `ImpressionQualificationFilterConfig`.
 

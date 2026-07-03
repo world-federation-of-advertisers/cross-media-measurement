@@ -6,7 +6,7 @@ Measurement that touches an individual costs some privacy budget; the PBM tracks
 how much budget has already been spent per "privacy bucket" (a slice of
 population, VID interval, and date) and refuses to overcharge any single bucket.
 This protects an individual from being re-identified through repeated,
-overlapping queries. Accounting is done under Advanced/Almost Concentrated
+overlapping queries. Accounting is done under Almost Concentrated
 Differential Privacy (ACDP) composition, which requires Gaussian noise. The PBM
 is a library that runs inside the EDP (and, in a newer WIP variant, inside the
 EDP Aggregator), not a standalone gRPC service.

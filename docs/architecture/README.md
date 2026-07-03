@@ -9,7 +9,7 @@ mutually authenticated gRPC. The core privacy idea combines two techniques:
 across two or more independent **Duchies** so that a result can only be produced
 by their cooperation and none can decrypt alone; and **differential privacy
 (DP)**, which injects calibrated noise into every published aggregate and charges
-a per-population **privacy budget** so that overlapping queries cannot be
+a per-bucket **privacy budget** so that overlapping queries cannot be
 differenced to re-identify an individual. A **Kingdom** coordinates the
 measurement lifecycle, **Data Providers** (typically via the **EDP Aggregator**)
 fulfill the Kingdom's `Requisition`s with encrypted sketches or secret shares,

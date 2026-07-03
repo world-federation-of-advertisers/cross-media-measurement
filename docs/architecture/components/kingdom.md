@@ -249,10 +249,14 @@ entries live in one row family and are deleted atomically.
     (`measurement_log_entry_details.proto`), `DuchyMeasurementLogEntryDetails`
     (`duchy_measurement_log_entry_details.proto`), `RecurringExchangeDetails`,
     `ExchangeDetails`, `PopulationDetails`.
-*   **State + `UpdateTime` indexes.** `MeasurementsByState (State, UpdateTime)`
-    and `RequisitionsByState (DataProviderId, State)` let workers efficiently
-    find work to do. The Requisition *data* itself is stored at the Duchy — the
-    Kingdom only tracks state and metadata.
+*   **State + `UpdateTime` indexes.** `MeasurementsByContinuationToken`
+    (`MeasurementIndexShardId, UpdateTime, ExternalComputationId, State`,
+    `NULL_FILTERED`) and `RequisitionsByState (DataProviderId, State)` let workers
+    efficiently find work to do. (The base schema's `MeasurementsByState (State,
+    UpdateTime)` index was dropped and replaced by
+    `MeasurementsByContinuationToken` in a later migration, then sharded and
+    null-filtered to avoid hotspotting.) The Requisition *data* itself is stored
+    at the Duchy — the Kingdom only tracks state and metadata.
 *   **Uniqueness indexes** enforce external-ID lookups and idempotency (e.g.
     `MeasurementsByCreateRequestId`, `MeasurementsByExternalComputationId`,
     `CertificatesBySubjectKeyIdentifier`,

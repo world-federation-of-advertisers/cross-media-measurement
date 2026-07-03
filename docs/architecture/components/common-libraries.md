@@ -255,7 +255,8 @@ pieces are:
 
 *   **`common/tools/OpenIdProvider.kt`** — a Picocli CLI (`OpenIdProvider`) that
     acts as a fake OpenID Connect provider for testing the Access-protected APIs.
-    Subcommands: `get-jwks` (prints the JWKS for an `OpenIdProvidersConfig`) and
+    Subcommands: `get-jwks` (takes `--issuer` and `--keyset` and prints that
+    provider's JWKS, which can then populate an `OpenIdProvidersConfig`) and
     `generate-access-token` (mints a signed JWT). It loads a Tink keyset in
     binary format and delegates to `common-jvm`'s
     `common.grpc.testing.OpenIdProvider`. See
@@ -278,9 +279,10 @@ the *abstractions* others use for storage:
         — AKID-to-principal-resource-name entries.
     *   `DuchyCertConfig` (`config/duchy_cert_config.proto`) — Duchy identity /
         certificate registry consumed by `DuchyInfo`.
-    *   `FutureDisposition` (aliased from the external
-        `@wfa_measurement_proto//.../type:future_disposition_proto`) — the field
-        option read by `ApiChangeMetricsInterceptor`.
+    *   `FutureDisposition` — unlike the three above, a **`type`-tier** proto
+        (aliased from `@wfa_measurement_proto//.../type:future_disposition_proto`),
+        not a config proto; it defines the field option read by
+        `ApiChangeMetricsInterceptor`.
 *   **Blob/object storage** — `common/edpaggregator/BlobLoader.kt` loads config
     blobs through `common-jvm`'s `SelectedStorageClient`, which transparently
     supports `gs://` (Google Cloud Storage) and `file://` (local, for tests)
