@@ -318,9 +318,11 @@ computation id:
   orders non-aggregators by `sha1Hash(elGamalPublicKey + globalComputationId)`
   and appends the aggregator last, storing this list in
   `LiquidLegionsSketchAggregationV2.ComputationDetails.participant`. At runtime
-  `LiquidLegionsV2Mill.nextDuchyId` simply indexes into that stored,
-  already-ordered participant list to find the next hop and the aggregator. (The
-  reach-only variant does the same via `ReachOnlyLiquidLegionsV2Starter`.)
+  `LiquidLegionsV2Mill.nextDuchyId` indexes into that stored, already-ordered
+  participant list to find the next hop in the ring
+  (`duchyList[(index + 1) % size]`), while the aggregator is found separately as
+  the last element of that same ordered list (`participantList.last().duchyId`).
+  (The reach-only variant does the same via `ReachOnlyLiquidLegionsV2Starter`.)
 - For HMSS, roles are fixed by config
   (`HonestMajorityShareShuffleSetupConfig`: first/second non-aggregator and
   aggregator); the `FIRST_NON_AGGREGATOR` is the one the Herald triggers to start.
@@ -369,12 +371,15 @@ The heavy cryptography is implemented in C++ under
 `src/main/cc/wfa/measurement/internal/duchy/protocol` and invoked from Kotlin
 through thin JNI wrappers:
 
-- `JniLiquidLegionsV2Encryption` /
-  `JniReachOnlyLiquidLegionsV2Encryption`
-  (`.../mill/liquidlegionsv2/crypto/`) — serialize a request proto to bytes, call
-  the generated `LiquidLegionsV2EncryptionUtility` JNI methods, and parse the
-  response proto. The mill loads native libraries in a companion `init` block
-  (e.g. `estimators`, `sketch_encrypter_adapter`).
+- `JniLiquidLegionsV2Encryption`
+  (`.../mill/liquidlegionsv2/crypto/`) — serializes a request proto to bytes,
+  calls the generated `LiquidLegionsV2EncryptionUtility` JNI methods, and parses
+  the response proto. `JniReachOnlyLiquidLegionsV2Encryption` (same directory)
+  does the same but calls the generated
+  `ReachOnlyLiquidLegionsV2EncryptionUtility` JNI methods. Both also delegate
+  `combineElGamalPublicKeys` to `SketchEncrypterAdapter`. The mill loads native
+  libraries in a companion `init` block (e.g. `estimators`,
+  `sketch_encrypter_adapter`).
 - `JniHonestMajorityShareShuffleCryptor`
   (`.../mill/shareshuffle/crypto/`) wraps
   `honest_majority_share_shuffle_utility`.

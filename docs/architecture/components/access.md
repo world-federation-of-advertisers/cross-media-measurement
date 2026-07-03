@@ -178,8 +178,11 @@ There are two gRPC servers.
 ## Data model and storage
 
 The Spanner schema is defined as a Liquibase-formatted SQL changelog:
-`src/main/resources/access/spanner/create-access-schema.sql` (referenced by
-`deploy/gcloud/spanner/testing/Schemata.kt`). Tables:
+`src/main/resources/access/spanner/create-access-schema.sql`, included by
+`changelog.yaml`. Tests reference the schema via `Schemata.ACCESS_CHANGELOG_PATH`
+in `deploy/gcloud/spanner/testing/Schemata.kt`, which points at `changelog.yaml`;
+the `.sql` file is reached through the changelog's `include` rather than being
+named directly. Tables:
 
 | Table | Purpose | Notes |
 | --- | --- | --- |
@@ -325,10 +328,11 @@ already-trusted services. There are two sides to this handoff:
 *   **Forwarding (caller side).** A service propagates its current principal
     downstream by decorating the outbound stub with
     `AbstractStub.withForwardedTrustedCredentials()`, which serializes the
-    `Principal` and scopes into binary gRPC metadata (`x-trusted-principal-bin`,
-    `x-trusted-scopes`). Reporting does this when relaying to internal-facing
-    services, e.g. `reportsStub.withForwardedTrustedCredentials()` in
-    `ReportsService.kt` and `BasicReportsService.kt`.
+    `Principal` into a binary gRPC metadata key (`x-trusted-principal-bin`) and
+    the scopes into an ASCII metadata key (`x-trusted-scopes`, a space-separated
+    string). Reporting does this when relaying to internal-facing services, e.g.
+    `reportsStub.withForwardedTrustedCredentials()` in `BasicReportsService.kt`
+    and `metricsStub.withForwardedTrustedCredentials()` in `ReportsService.kt`.
 *   **Accepting (receiving side).** The receiving service installs
     `TrustedPrincipalAuthInterceptor`, which reads that metadata (instead of
     re-verifying a credential) and installs the `Principal` and scopes into the

@@ -348,9 +348,12 @@ comes from *where* the work runs and *how* channels are secured.
 ## Deployment Artifacts
 
 *   **Cloud-agnostic core:** `service/`, `service/internal/`,
-    `controlplane/v1alpha/`, `datawatcher/DataWatcher.kt`, `teesdk/` — no cloud
-    SDK dependencies (queue access is via the `WorkItemPublisher` interface and
-    `common-jvm`'s `QueueSubscriber`).
+    `controlplane/v1alpha/`, `teesdk/` — queue access is via the
+    `WorkItemPublisher` interface and `common-jvm`'s `QueueSubscriber`. Note that
+    `datawatcher/DataWatcher.kt` is *not* fully cloud-agnostic: it depends on the
+    Google auth SDK (`com.google.auth.oauth2` `GoogleCredentials`/`IdToken`/
+    `IdTokenProvider`), defaulting to Application Default Credentials for
+    HTTP-sink ID-token authentication.
 *   **Google Cloud implementations** under `deploy/gcloud/`: Spanner services,
     `GoogleWorkItemPublisher` (Pub/Sub), `DataWatcherFunction` (Cloud Function),
     `DeadLetterQueueListener`, and the `UpdateSchema` binary/image
@@ -376,7 +379,9 @@ mirroring `src/main/`. Patterns observed:
     emulator (`GooglePubSubEmulatorProvider`) — real dependencies over mocks.
 *   **`DataWatcherSubscribingStorageClient`** (`datawatcher/testing/`) is a
     `testonly` `StorageClient` that emulates GCS notifications by driving a
-    `DataWatcher` in-process, enabling `DataWatcherTest`.
+    `DataWatcher` in-process on `writeBlob`; it is used by the in-process
+    EDP-Aggregator integration tests (`DataWatcherTest` itself constructs a
+    `DataWatcher` directly and calls `receivePath`).
 *   **`BaseTeeApplicationTest`** exercises the SDK's ack/nack and control-plane
     reporting logic; `DeadLetterQueueListenerTest`,
     `SecurecomputationSchemaTest`, and the Cloud Function tracing/invocation
@@ -387,10 +392,16 @@ mirroring `src/main/`. Patterns observed:
 ## Notable Design Decisions & Gotchas
 
 *   **The framework is generic; the payload is opaque.** `WorkItem.work_item_params`
-    is a `google.protobuf.Any` whose type is validated only against the queue's
-    declared `app_params_type_url`. The subsystem has no compile-time knowledge
-    of EDP-Aggregator params — new workload types are onboarded by adding a queue
-    to `QueuesConfig` and a watched path to `DataWatcherConfig`.
+    is a `google.protobuf.Any` (packing a `WorkItemParams` whose `app_params` is
+    itself an `Any`). By convention (per the proto comment) the `app_params`
+    `type_url` is expected to match the queue's declared `app_params_type_url`, but
+    the subsystem performs no runtime validation of the type against the queue
+    config: a mismatch is not detected at enqueue time and instead surfaces later
+    when the TEE app's `runWork` fails to unpack the `Any`
+    (`InvalidProtocolBufferException`, causing the `WorkItem` to be marked failed).
+    The subsystem has no compile-time knowledge of EDP-Aggregator params — new
+    workload types are onboarded by adding a queue to `QueuesConfig` and a watched
+    path to `DataWatcherConfig`.
 *   **Two sink types.** A `WatchedPath` can enqueue a control-plane `WorkItem`
     *or* fire a plain HTTP webhook (`HttpEndpointSink`); they are mutually
     exclusive via `oneof sink_config`.

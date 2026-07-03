@@ -113,7 +113,7 @@ which is the only process that touches Spanner.
     `DataServices` instance — here a `SpannerDataServices`
     (`.../deploy/gcloud/spanner/SpannerDataServices.kt`), invoked as
     `dataServices.buildDataServices(...)` in `KingdomDataServer.kt`. That
-    instance method instantiates ~25 `Spanner*Service` classes into a
+    instance method instantiates 26 `Spanner*Service` classes into a
     `KingdomDataServices` record. Each service takes an `IdGenerator` (random
     external + internal IDs), an `AsyncDatabaseClient`, and a coroutine context.
 *   Loads deployment config from flags at startup: `DuchyInfo`, `DuchyIds`, and
@@ -135,9 +135,11 @@ which is the only process that touches Spanner.
     internal data server over mutual TLS.
 *   Installs a stack of interceptors: `AccountAuthenticationServerInterceptor`
     (OpenID-based account auth), `ApiKeyAuthenticationServerInterceptor`
-    (`MeasurementConsumer` API keys), `AkidPrincipalServerInterceptor` +
-    `AuthorityKeyServerInterceptor` (mTLS authority-key-identifier → principal
-    lookup via `--authority-key-identifier-to-principal-map-file`),
+    (`MeasurementConsumer` API keys), `AuthorityKeyServerInterceptor`
+    (extracts the mTLS client certificate's authority-key-identifier into the
+    request context) + `AkidPrincipalServerInterceptor` (maps that AKID to a
+    principal via `AkidPrincipalLookup`, configured with
+    `--authority-key-identifier-to-principal-map-file`),
     `RateLimitingServerInterceptor`, and `ApiChangeMetricsInterceptor`.
 *   Protocol enablement is flag-driven: `--enable-ro-llv2-protocol`,
     `--enable-hmss`, `--enable-trustee`, plus per-`MeasurementConsumer`
@@ -252,7 +254,7 @@ entries live in one row family and are deleted atomically.
     find work to do. The Requisition *data* itself is stored at the Duchy — the
     Kingdom only tracks state and metadata.
 *   **Uniqueness indexes** enforce external-ID lookups and idempotency (e.g.
-    `MeasurementsByProvidedId`, `MeasurementsByExternalComputationId`,
+    `MeasurementsByCreateRequestId`, `MeasurementsByExternalComputationId`,
     `CertificatesBySubjectKeyIdentifier`,
     `MeasurementConsumerApiKeysByAuthenticationKeyHash`).
 
@@ -271,7 +273,9 @@ AIP-compliant CRUD + custom methods for external callers. Resource names use
 external IDs (e.g. `measurementConsumers/{id}/measurements/{id}`). Auth is via
 `MeasurementConsumer` API keys, OpenID accounts, and/or mTLS client
 certificates mapped to principals. Notable service:
-`MeasurementsService` validates consent-signaling signatures and resolves the
+`MeasurementsService` validates request structure (checking that the
+`MeasurementSpec` is well-formed and that each `encrypted_requisition_spec`
+contains a `SignedMessage`) and resolves the
 per-`MeasurementConsumer`-enabled protocol before delegating to the internal
 `Measurements` service.
 
@@ -287,8 +291,13 @@ standard CRUD (e.g. `SetParticipantRequisitionParams`,
 
 ### 6.3 Internal API (`internal/kingdom`)
 
-The Spanner-backed contract, called only by the two edge servers. Works
-entirely in terms of external IDs and full entity protos with `View`s (e.g.
+The Spanner-backed contract, called by the two edge servers (public v2alpha
+and system v1alpha) and by the Kingdom's batch/cron jobs
+(`CompletedMeasurementsDeletionJob`, `PendingMeasurementsCancellationJob`,
+`ExchangesDeletionJob`, `OperationalMetricsExportJob`), which each open a
+direct mutual-TLS gRPC channel to the internal data server via
+`--internal-api-target`. Works entirely in terms of external IDs and full
+entity protos with `View`s (e.g.
 `Measurement.View.{DEFAULT, COMPUTATION, COMPUTATION_STATS}`). Services include
 `Measurements`, `Requisitions`, `ComputationParticipants`,
 `MeasurementLogEntries`, `DataProviders`, `MeasurementConsumers`,
@@ -375,8 +384,12 @@ append progress to `MeasurementLogEntries` / `DuchyMeasurementLogEntries`.
 ### 7.2 Data exchange (panel matching)
 
 `RecurringExchange`s are scheduled by `NextExchangeDate`; the Kingdom
-materializes daily `Exchange`s and `ExchangeStep`s. A worker claims a ready step
-via `ClaimReadyExchangeStep`, runs it, and reports outcome through
+materializes `Exchange`s and `ExchangeStep`s per scheduled date, with the
+cadence set by the `RecurringExchange`'s `cron_schedule` (e.g.
+`@daily`/`@weekly`/`@monthly`/`@yearly`). Materialization happens lazily when a
+worker claims a ready step via `ClaimReadyExchangeStep` for a
+`RecurringExchange` whose `NextExchangeDate` is due. The worker then runs the
+step and reports the outcome through
 `ExchangeStepAttempt` transitions (`FinishExchangeStepAttempt`). This backs the
 `panelmatch` deployment flavor (see `src/main/k8s/panelmatch`).
 
@@ -387,15 +400,30 @@ event-level data or holds any part of the decryption key. Its cryptographic
 responsibilities are:
 
 *   **Consent signaling.** It stores and serves X.509 `Certificate`s and
-    verifies signatures over `MeasurementSpec` / `RequisitionSpec` at the
-    public API boundary. Certificates carry a `SubjectKeyIdentifier` (SKID),
-    used both for uniqueness and as the mTLS principal identity.
+    stores the consent-signaling signature over `MeasurementSpec` so that
+    `DataProvider`s can verify it at fulfillment time. The public
+    `MeasurementsService` only structurally validates the request (unpacking
+    the `MeasurementSpec` and checking that each `encrypted_requisition_spec`
+    contains a `SignedMessage`, which it stores opaquely); it performs no
+    cryptographic signature verification. That verification is done by the
+    `DataProvider` (see `RequisitionFulfiller`), and since the
+    `RequisitionSpec` is encrypted for the `DataProvider` the Kingdom cannot
+    verify a signature over its plaintext. Certificates carry a
+    `SubjectKeyIdentifier` (SKID), used for uniqueness (enforced by the
+    `CertificatesBySubjectKeyIdentifier` unique index). The mTLS principal
+    identity, by contrast, is derived from the client certificate's Authority
+    Key Identifier (AKID) via `AuthorityKeyServerInterceptor` +
+    `AkidPrincipalServerInterceptor` (see [Section 4.2](#42-public-v2alpha-api-server)).
 *   **Opaque encrypted payloads.** Encrypted `RequisitionSpec`s
     (`Measurement.DataProviderValue.encrypted_requisition_spec`) and encrypted
     results (`Measurement.ResultInfo.encrypted_result`) pass through and are
     stored by the Kingdom without being decryptable by it.
-*   **Nonce hashes.** `nonce_hash` values are recorded per `DataProvider` and
-    checked against the `nonce` supplied at fulfillment, binding fulfillment to
+*   **Nonce hashes.** `nonce_hash` values are recorded per `DataProvider`
+    (`Measurement.DataProviderValue.nonce_hash`, carried into
+    `RequisitionDetails.nonce_hash`), and the `nonce` supplied at fulfillment is
+    stored (`FulfillRequisition`). The Kingdom does not itself check the `nonce`
+    against its hash; that check (`verifyDataProviderParticipation`) is
+    performed by the Duchies (e.g. `LiquidLegionsV2Mill`) to bind fulfillment to
     the original requisition.
 *   **Protocol/DP params.** Differential-privacy and protocol parameters
     (`ProtocolConfig`, `differential_privacy.proto`, per-participant
@@ -409,9 +437,14 @@ for the trust model and protocol cryptography.
 ## 9. Deployment Artifacts
 
 Deployment is described in CUE under `src/main/k8s/` and rendered to
-Kubernetes manifests. The base `src/main/k8s/kingdom.cue` is cloud-agnostic;
-`src/main/k8s/dev/kingdom_gke.cue` and `src/main/k8s/local/kingdom.cue`
-specialize for Google Cloud (GKE) and local testing respectively.
+Kubernetes manifests. The base `src/main/k8s/kingdom.cue` is the shared
+template (`#Kingdom`) that already assumes Cloud Spanner (it embeds
+`#SpannerConfig`, the `gcp-kingdom-data-server` deployment, and the
+`update-kingdom-schema` init container); `src/main/k8s/dev/kingdom_gke.cue`
+adds the GKE-specific specialization (Workload Identity service accounts, node
+selectors, BigQuery/Google Cloud project, external addresses) and
+`src/main/k8s/local/kingdom.cue` specializes for local testing (Spanner
+emulator).
 
 *   **Deployments:** `gcp-kingdom-data-server` (internal, with an
     `update-kingdom-schema` init container that applies Liquibase migrations),
@@ -443,8 +476,13 @@ implementations (`SpannerKingdomDataServer`, `OperationalMetricsExport`).
     contract* rather than Spanner internals, and are shared across
     implementations. A deterministic `SequentialIdGenerator` makes IDs
     reproducible.
-*   **Spanner integration.** Spanner-backed tests use the in-tree Spanner
-    emulator harness under `.../deploy/gcloud/spanner/testing`.
+*   **Spanner integration.** Spanner-backed tests use the external Spanner
+    emulator harness from common-jvm (`SpannerEmulatorRule` /
+    `SpannerEmulatorDatabaseRule` / `UsingSpannerEmulator` in
+    `org.wfanet.measurement.gcloud.spanner.testing`), combined with
+    kingdom-specific schema and base-class support under
+    `.../deploy/gcloud/spanner/testing` (`Schemata` for the changelog resource
+    path, `KingdomDatabaseTestBase`).
 *   **Conventions.** Truth/ProtoTruth assertions, fakes over mocks, and many
     small cases — consistent with `docs/testing-standards.md`. Tests mirror the
     `src/main` path under `src/test`.
@@ -464,9 +502,11 @@ implementations (`SpannerKingdomDataServer`, `OperationalMetricsExport`).
 *   **Optimistic concurrency via etags.** Many transitions accept an optional
     `etag` (derived from the commit timestamp) and abort on mismatch, so
     concurrent clients don't clobber each other.
-*   **Protocol-dependent branching everywhere.** `CreateMeasurements`,
-    `SetParticipantRequisitionParams`, and `FulfillRequisition` all `when` on
-    `ProtocolConfig.ProtocolCase`; adding a protocol means touching each. HMSS
+*   **Protocol-dependent branching everywhere.** `CreateMeasurements` and
+    `FulfillRequisition` both `when` on `ProtocolConfig.ProtocolCase`, and
+    `SetParticipantRequisitionParams` `when`s on the analogous
+    `SetParticipantRequisitionParamsRequest.ProtocolCase`; adding a protocol
+    means touching each. HMSS
     and TrusTEE skip the `PENDING_PARTICIPANT_CONFIRMATION` step that LLv2
     requires.
 *   **JSON debugging columns were dropped.** The base
@@ -478,8 +518,12 @@ implementations (`SpannerKingdomDataServer`, `OperationalMetricsExport`).
     etc.). They survive only in the pre-migration text of the base schema file;
     the live schema no longer has them.
 *   **No Duchies table.** Adding/removing a Duchy is a config change, not a DB
-    change; `CreateMeasurements` refuses to build a computation if there aren't
-    enough *active* Duchies (`DuchyNotActiveException`).
+    change. `CreateMeasurements` throws `DuchyNotActiveException` if a
+    *required* Duchy (from the protocol config or a `DataProvider`'s
+    required-Duchy list) is inactive at creation time, and separately refuses
+    (via a plain `IllegalStateException`, "Not enough active duchies to run the
+    computation") when fewer than the protocol's minimum number of active
+    Duchies are available.
 *   **The Kingdom mostly doesn't call out.** Duchies pull work by streaming;
     the Kingdom rarely initiates outbound RPCs, which keeps its blast radius and
     trust surface small.

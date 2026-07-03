@@ -59,7 +59,7 @@ This convention also drives *where the code lives at all*: anything generic
 enough to be useful outside CMMS is expected to migrate to `common-jvm`. Several
 files carry explicit `TODO(...): Move this to common-jvm.` markers
 (`Flows.kt`, `SortedLists.kt`, `grpc/Context.kt`, `grpc/BUILD.bazel`,
-`identity/PrincipalIdentity.kt`), signalling code that is currently in-repo but
+`identity/BUILD.bazel`), signalling code that is currently in-repo but
 destined for the shared module.
 
 ## Where It Sits in the System

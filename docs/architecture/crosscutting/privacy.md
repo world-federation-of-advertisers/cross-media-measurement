@@ -52,7 +52,7 @@ globally.
 
 ```mermaid
 flowchart TB
-  KING["Kingdom<br/>sets ProtocolConfig.noise_mechanism<br/>(DISCRETE_GAUSSIAN / CONTINUOUS_GAUSSIAN)"]
+  KING["Kingdom<br/>sets per-protocol noise_mechanism<br/>(LiquidLegionsV2.noise_mechanism = DISCRETE_GAUSSIAN;<br/>Direct offers CONTINUOUS_GAUSSIAN)"]
   subgraph EDPside["EDP side (per requisition)"]
     VERIFY["Verify noise mechanism<br/>(refuse if not Gaussian)"]
     MAP["PrivacyQueryMapper<br/>MeasurementSpec+RequisitionSpec -> AcdpQuery"]
@@ -118,8 +118,9 @@ the *uncorrupted-party count*, and the selected `NoiseMechanism`. The concrete
 implementations come from the external `@any_sketch` module. In LLv2 the noise
 registers are added and shuffled during the setup and execution phases and
 subtracted at the aggregator during reach/frequency estimation; in HMSS each
-non-aggregator adds discrete-Gaussian noise *shares* that cancel to a known
-offset at aggregation. See the
+non-aggregator adds distributed noise *shares* (discrete-Gaussian under ACDP,
+though `GetBlindHistogramNoiser` also supports geometric) whose known baseline
+offset (`shift_offset * kWorkerCount`) is subtracted at aggregation. See the
 [Duchy](../components/duchy.md) and
 [crypto-library](../components/crypto-library.md) docs for the per-phase detail.
 
@@ -168,10 +169,15 @@ reuses the CEL event-filtration machinery.
     `PrivacyLandscape` proto with ordered `Dimension`s.
 *   `PrivacyBucketFilter` expands a `LandscapeMask` into the set of
     `PrivacyBucketGroup`s a filter touches, using a `PrivacyBucketMapper` that
-    compiles the CEL filter with only the demographic/VID fields marked as
-    **`operativeFields`**. Non-operative predicates collapse to `true` (via
-    `EventFilters.toOperativeNegationNormalForm`), so a query is *conservatively*
-    charged against every bucket it could possibly touch. This filtration
+    compiles the CEL filter with only the demographic fields (e.g.
+    `person.age_group` / `person.gender`) marked as **`operativeFields`**; the VID
+    dimension is enumerated separately by iterating
+    `PrivacyLandscape.vidsIntervalStartPoints`, range-filtered by the mask's
+    `vidSampleStart`/`vidSampleWidth`. Non-operative predicates collapse to `true`
+    during normalization (`EventFilterValidator.compile` applies the private
+    `Expr.toOperativeNegationNormalForm`, reached via `EventFilters.compileProgram`),
+    so a query is *conservatively* charged against every bucket it could possibly
+    touch. This filtration
     contract is the same one described in the
     [Event Data Provider libraries](../components/event-data-provider.md) doc.
 
@@ -246,7 +252,7 @@ sequenceDiagram
   alt not Gaussian
     EDP->>K: refuse SPEC_INVALID (INCORRECT_NOISE_MECHANISM)
   else Gaussian
-    EDP->>Map: getMpcAcdpQuery / getDirectAcdpQuery(spec, eventSpecs)
+    EDP->>Map: getMpcAcdpQuery(reference, spec, eventSpecs, contributorCount) / getDirectAcdpQuery(reference, spec, eventSpecs)
     Map-->>EDP: AcdpQuery(reference, landscapeMask, acdpCharge)
     EDP->>PBM: chargePrivacyBudgetInAcdp(acdpQuery)
     PBM->>PBM: filter -> PrivacyBucketGroups

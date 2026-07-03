@@ -55,9 +55,9 @@ flowchart TB
 
   MC -->|"CreateReport / GetReport"| REP
   REP -->|"authz check"| ACC
-  REP -->|"CMMS public v2alpha<br/>(CreateMeasurement / GetMeasurement)"| K
+  REP -->|"CMMS public v2alpha<br/>(BatchCreateMeasurements / BatchGetMeasurements)"| K
   EDPA -->|"public v2alpha<br/>(ListRequisitions / fulfill direct)"| K
-  EDPA -->|"RequisitionFulfillment<br/>(encrypted sketch / HMSS shares)"| D1
+  EDPA -->|"RequisitionFulfillment<br/>(HMSS shares / TrusTEE frequency vectors)"| D1
   EDPA -->|"RequisitionFulfillment"| D2
   D1 <-->|"system v1alpha<br/>(stream computations, set result)"| K
   D2 <-->|"system v1alpha"| K

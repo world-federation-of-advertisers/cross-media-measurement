@@ -25,7 +25,7 @@ responsibilities map almost one-to-one onto the packages under
 | Results fulfilling | Reads a grouped-requisitions blob, builds per-VID frequency vectors from impressions, and fulfills via the protocol-specific fulfiller. | `resultsfulfiller` |
 | Event group sync | Reconciles the EDP's event groups with the Kingdom (create / update / delete). | `eventgroups` |
 | Data availability | Publishes the EDP's per-model-line data availability intervals to the Kingdom and maintains `ImpressionMetadata`. | `dataavailability` |
-| Raw impression handling | Reads/writes encrypted RecordIO raw-impression blobs, digests event IDs, packs files. | `rawimpressions` |
+| Raw impression handling | Reads encrypted Parquet raw-impression files, writes encrypted RecordIO blobs, digests event IDs, packs files. | `rawimpressions` |
 | VID sub-pool assignment | Phase-0 of VID labeling: labels raw impressions into sub-pools, writes fingerprint blobs, fans out ranking. | `subpoolassigner` |
 | VID rank building | Phase-1: allocates dense ranks to fingerprints per sub-pool, maintaining cumulative rank-index blobs. | `vidrankbuilder` |
 | VID labeling | Phase-2 labeler plus the dispatcher/monitor that sequence the whole pipeline. | `vidlabeler`, `vidlabeling` |
@@ -72,7 +72,7 @@ flowchart TB
   EGS <-->|batch create/update/delete| KEG
   DAS -->|replaceDataAvailabilityIntervals| KDP
   DAS -->|ImpressionMetadata| MS
-  GCS -.done blob.-> DW
+  GCS -.grouped blob / done blob.-> DW
   DW -->|createWorkItem \n control-plane-queue sink| WI
   DW -->|HTTP POST \n X-DataWatcher-Path \n http-endpoint sink| DAS
   DW -->|HTTP POST \n X-DataWatcher-Path \n http-endpoint sink| VLD
@@ -106,8 +106,9 @@ Key relationships:
     `X-DataWatcher-Path` header — to invoke a Cloud Function. The
     `DataAvailabilitySyncFunction` and `VidLabelingDispatcherFunction` are driven
     over this HTTP path (they read `X-DataWatcher-Path`), not via `WorkItem`s. TEE
-    apps (`ResultsFulfiller`, `SubpoolAssigner`, `VidRankBuilder`, `VidLabeler`)
-    subscribe to the control-plane queues via `BaseTeeApplication`. See
+    apps (`ResultsFulfillerApp`, `SubpoolAssignerApp`, `VidRankBuilderApp`,
+    `VidLabelerApp`) subscribe to the control-plane queues via
+    `BaseTeeApplication`. See
     [./securecomputation.md](./securecomputation.md).
 *   **eventdataprovider libraries.** The EDPA does not re-implement the core
     requisition-fulfillment math. It depends on
@@ -213,8 +214,8 @@ The EDPA runs three kinds of processes.
 
 | Server | Class | What it serves |
 | --- | --- | --- |
-| Metadata Storage public API | `deploy/common/server/SystemApiServer.kt` (`EdpAggregatorApiServer`) | The v1alpha metadata services; a thin facade that forwards to the internal API over mTLS. |
-| Internal API | `deploy/gcloud/spanner/InternalApiServer.kt` (`EdpAggregatorInternalApiServer`) | The Spanner-backed internal services. |
+| Metadata Storage public API | `deploy/common/server/SystemApiServer.kt`, class `SystemApiServer` (server name `EdpAggregatorApiServer`) | The v1alpha metadata services; a thin facade that forwards to the internal API over mTLS. |
+| Internal API | `deploy/gcloud/spanner/InternalApiServer.kt`, class `InternalApiServer` (server name `EdpAggregatorInternalApiServer`) | The Spanner-backed internal services. |
 
 `service/v1alpha/Services.kt` wires nine public services, each delegating to an
 internal stub: `RequisitionMetadataService`, `ImpressionMetadataService`,
@@ -231,7 +232,8 @@ implementations (`Spanner*Service.kt`).
 | Requisition fetch | `deploy/gcloud/requisitionfetcher/RequisitionFetcherFunction.kt` | HTTP (Cloud Scheduler) |
 | Event group sync | `deploy/gcloud/eventgroups/EventGroupSyncFunction.kt` | HTTP / event |
 | Data availability sync | `deploy/gcloud/dataavailability/DataAvailabilitySyncFunction.kt` | HTTP (`HttpFunction`) from `DataWatcher` on a "done" blob |
-| Data availability monitor / cleanup | `.../DataAvailabilityMonitorFunction.kt`, `.../DataAvailabilityCleanupFunction.kt` | Cloud Scheduler |
+| Data availability monitor | `.../DataAvailabilityMonitorFunction.kt` | Cloud Scheduler |
+| Data availability cleanup | `.../DataAvailabilityCleanupFunction.kt` | HTTP (`HttpFunction`) from `DataWatcher` on a GCS `OBJECT_DELETE` event (reads `X-DataWatcher-Path`) |
 | VID labeling dispatcher | `deploy/gcloud/vidlabeling/VidLabelingDispatcherFunction.kt` | HTTP (`HttpFunction`) from `DataWatcher` on a "done" blob (fast path) |
 | VID labeling monitor | `deploy/gcloud/vidlabeling/VidLabelingMonitorFunction.kt` | Cloud Scheduler (backstop) |
 
@@ -252,9 +254,14 @@ Each TEE app extends `BaseTeeApplication` (from
 subscription, unpacks a `WorkItemParams.appParams` of the app-specific params
 proto (e.g. `ResultsFulfillerParams`, `SubpoolAssignerParams`,
 `VidRankBuilderParams`, `VidLabelerParams`), and runs. Runners subclass
-`BaseTeeAppRunner`. `VidRankBuilderApp.runWork` and `VidLabelerApp.runWork` are
-currently scaffolds with detailed TODOs — the pipeline services and protos exist
-but the Phase-1/Phase-2 compute is still being implemented.
+`BaseTeeAppRunner`. `VidRankBuilderApp.runWork` is currently a scaffold: after
+unpacking its params it is a detailed multi-step TODO block (the Phase-1 pipeline
+plus an idempotency-on-redelivery TODO). `VidLabelerApp.runWork` already unpacks
+and validates its params (`data_provider` and both storage-params), resolves the
+per-`DataProvider` decrypt/encrypt KMS clients, and builds the `StorageConfig`,
+but ends with a single TODO to call `VidLabeler.labelBatch()` once the labeler
+implementation lands. In both cases the pipeline services and protos exist but
+the Phase-1/Phase-2 compute is still being implemented.
 
 ## 5. Data Model & Storage
 
@@ -285,8 +292,11 @@ The internal protos live under
 `RawImpressionMetadataBatchFile`, `RawImpressionUpload`, `RankerJob`,
 `PoolAssignmentJob`, `RankIndexBlob`, `VidLabelingJob`, etc. (there is no
 standalone `RawImpressionMetadata` proto — only the `*Batch` / `*BatchFile`
-variants), each with a companion `*_state.proto` enum. State lifecycles (from
-the `*_state.proto` files):
+variants), most with a companion `*_state.proto` enum. (`RawImpressionMetadataBatchFile`
+and `RankIndexBlob` carry no lifecycle state field and so have no state enum; the
+companion for `RawImpressionMetadataBatch` is `raw_impression_batch_state.proto`,
+defining `RawImpressionBatchState`.) State lifecycles (from the `*_state.proto`
+files):
 
 *   `RequisitionMetadataState`: `STORED → QUEUED → PROCESSING → FULFILLED`, plus
     `REFUSED` and `WITHDRAWN`.
@@ -300,9 +310,9 @@ the `*_state.proto` files):
 ### Blob storage
 
 Blob storage holds the grouped-requisitions blobs (`Any`-packed
-`GroupedRequisitions`), the encrypted raw-impression and VID-labeled-impression
-RecordIO files, `SubpoolFingerprints` and `RankIndexMap` blobs, and per-EDP
-config text protos. A `done` marker blob in a folder is the completion signal
+`GroupedRequisitions`), the encrypted Parquet raw-impression files and the
+encrypted RecordIO VID-labeled-impression files, the `SubpoolFingerprints` and
+`RankIndexMap` RecordIO blobs, and per-EDP config text protos. A `done` marker blob in a folder is the completion signal
 that `DataWatcher` and the sync functions react to. Storage is abstracted behind
 `StorageClient` / `SelectedStorageClient`, with `GcsStorageClient` and
 `FileSystemStorageClient` backends chosen by config/env.
@@ -368,9 +378,10 @@ refused to the Kingdom and recorded as `REFUSED` metadata.
 
 ### 7.2 Results fulfillment (TEE)
 
-A `done` blob for a grouped-requisitions write triggers `DataWatcher`, which
-creates a `WorkItem` carrying `ResultsFulfillerParams` and the blob path. The
-`ResultsFulfillerApp` TEE picks it up:
+Writing the grouped-requisitions blob triggers `DataWatcher` (its `WatchedPath`
+regex matches the blob path directly), which creates a `WorkItem` carrying
+`ResultsFulfillerParams` and the blob path. The `ResultsFulfillerApp` TEE picks
+it up:
 
 1.  Load `GroupedRequisitions` from the blob; resolve storage configs and the
     per-EDP `KmsClient`.
@@ -385,7 +396,10 @@ creates a `WorkItem` carrying `ResultsFulfillerParams` and the blob path. The
 Driven off `RawImpressionUploadModelLineState`. `VidLabelingDispatcher`
 (fast path, on upload) and `VidLabelingMonitor` (scheduled backstop) share a
 `VidLabelingDispatchSequencer` that enforces "at most one upload per
-`DataProvider` at a time" and starts work for the oldest `CREATED` upload.
+`(DataProvider, ModelLine)` at a time" (different model lines run in parallel,
+even across different uploads of the same `DataProvider`), dispatching each
+eligible `CREATED` model line whose `cmmsModelLine` is not already in flight,
+oldest-upload-first (FIFO) within a given model line.
 
 ```mermaid
 sequenceDiagram
@@ -401,20 +415,38 @@ sequenceDiagram
   Note over SA: last shard out merges per-subpool blobs,<br/>fans out RankerJobs, flips model line -> RANKING
   SA->>RB: WorkItem per RankerJob
   RB->>RB: allocate dense ranks (RankAllocator), write RankIndexBlobs
-  RB->>MS: MarkRankerJobSucceeded (-> RANKER_STATE_SUCCEEDED)
-  Note over RB: last ranker out flips -> LABELING,<br/>publishes VidLabeler WorkItems per shard
-  RB->>VL: WorkItem per shard
-  VL->>VL: label impressions with VIDs -> encrypted output
+  RB->>MS: (planned) MarkRankerJobSucceeded (-> RANKER_STATE_SUCCEEDED)
+  Note over RB: (planned) last ranker out will flip -> LABELING<br/>and publish VidLabeler WorkItems per shard
+  RB->>VL: (planned) WorkItem per shard
+  VL->>VL: (planned) label impressions with VIDs -> encrypted output
 ```
+
+The steps marked `(planned)` reflect the intended Phase-1/Phase-2 design, not
+current behavior. `VidRankBuilderApp.runWork` is still a TODO scaffold: it does
+not yet call `MarkRankerJobSucceeded`, flip the model line to `LABELING`, or
+publish any `VidLabeler` `WorkItem`s. The `MarkRankerJobSucceeded` RPC, the
+`RANKER_STATE_SUCCEEDED` transition, and the ranker's `is_last_job` detection
+exist and are tested only in the internal service (`SpannerRankerJobService`);
+the `LABELING` state and its `MarkRawImpressionUploadModelLineLabeling` RPC also
+exist, but the ranker-driven flip and per-shard `VidLabeler` fan-out are
+unimplemented. `VidLabelerApp.runWork` is likewise a stub, so no VID labeling or
+encrypted output is produced yet. (The similar flip and per-shard fan-out in
+`VidLabelingDispatchSequencer` serve the non-memoized direct-to-Phase-2 path
+driven by the Dispatcher/Monitor, not by the ranker.) By contrast, the
+`SubpoolAssigner`->`VidRankBuilder` fan-out shown above is implemented.
 
 Phase 0 (`SubpoolAssigner`) is the analog of `ResultsFulfiller`: it streams one
 shard's raw impressions, active-window-filters and labels them into sub-pools,
 writes one DEK-encrypted RecordIO blob per sub-pool, and — as the last shard out
 — merges the per-shard blobs and fans out ranking. Phase 1 (`VidRankBuilder`)
 allocates dense ranks per sub-pool and maintains cumulative + day-only
-rank-index blobs, with a retention sweep. Phase 2 (`VidLabeler`) applies the
-resulting VID assignment to raw impressions. Every step is written to be
-idempotent on Pub/Sub redelivery via deterministic `request_id`s and etag CAS.
+rank-index blobs, with a retention sweep. Phase 2 (`VidLabeler`) is intended to
+apply the resulting VID assignment to raw impressions, but is not yet
+implemented: `VidLabelerApp.runWork` currently only unpacks/validates
+`VidLabelerParams`, resolves KMS clients and storage config, then stops at a TODO
+to call `VidLabeler.labelBatch()`; no `VidLabeler` class or labeling logic exists
+yet. Every step is written to be idempotent on Pub/Sub redelivery via
+deterministic `request_id`s and etag CAS.
 
 ### 7.4 Event group sync & data availability
 
@@ -434,9 +466,12 @@ pattern).
     `EncryptedStorage.kt` / `rawimpressions/EncryptedRecordIoStore.kt` apply
     Tink primitives.
 *   **Consent signaling.** `ResultsFulfillerApp` loads the EDP's consent
-    certificate and encryption/signing keys (`ConsentSignalingConfig`) to
-    decrypt `RequisitionSpec`s (`decryptRequisitionSpec`) and to sign/encrypt
-    direct results.
+    certificate and encryption/signing keys from its `ConsentParams`
+    (`results_fulfiller_params.proto`) and passes them to the `ResultsFulfiller`
+    it orchestrates, which decrypts `RequisitionSpec`s (`decryptRequisitionSpec`)
+    and signs/encrypts direct results. Those key files are populated on disk by
+    `ResultsFulfillerAppRunner`, which reads the EDP's `ConsentSignalingConfig`
+    (in `EventDataProviderConfig`) and pulls the secrets from Secret Manager.
 *   **Differential privacy & k-anonymity.** Noise is added via the
     `eventdataprovider.noiser` library (continuous Gaussian, or none);
     k-anonymity minimum thresholds are enforced by `ResultMinimumThresholder`.
@@ -493,11 +528,13 @@ line with the project testing standards.
 *   **Config is not API.** Static process config (KMS/TLS/consent, storage,
     field mappings) lives in unversioned `config/edpaggregator` protos, kept
     distinct from the versioned v1alpha API per the API standards.
-*   **Work in progress.** `VidRankBuilderApp.runWork` and `VidLabelerApp.runWork`
-    are scaffolds with extensive TODOs; the data model, services, and Phase-0
-    logic are in place but Phase-1/Phase-2 compute is still landing (see the
-    TODOs referencing cross-media-measurement #3956, #3958, #3998, #3999,
-    #4009, #4119).
+*   **Work in progress.** `VidRankBuilderApp.runWork` is a scaffold with two
+    extensive multi-part TODO blocks (the full Phase-1 pipeline and its
+    idempotency requirements). `VidLabelerApp.runWork` implements param
+    unpacking, validation, and KMS/storage-config resolution, with a single TODO
+    deferring the actual `VidLabeler.labelBatch()` call. The data model,
+    services, and Phase-0 logic are in place but Phase-1/Phase-2 compute is still
+    landing.
 
 ## See Also
 

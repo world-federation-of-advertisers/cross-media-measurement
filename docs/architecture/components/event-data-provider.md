@@ -35,9 +35,11 @@ provide:
 
 These are leaf libraries. They depend on the public v2alpha API protos
 (`//src/main/proto/wfa/measurement/api/v2alpha`), `common-jvm`, and the
-`any-sketch` frequency-count native code, but no Halo *server* depends on them in
-the reverse direction. Their consumers are the components that actually run at an
-EDP.
+`any-sketch` frequency-count native code, but no Kingdom or Duchy server depends
+on them in the reverse direction. (The Reporting Public API server is an
+exception: via `measurementconsumer/stats` it depends on `noiser` and
+`privacybudgetmanagement`'s `AcdpParamsConverter` for variance computation.)
+Their consumers are the components that actually run at an EDP.
 
 ```mermaid
 graph TD
@@ -73,7 +75,10 @@ both `FulfillRequisitionRequestBuilder` variants together with
 `resultsfulfiller/fulfillers/HMShuffleMeasurementFulfiller.kt` and
 `.../TrusTeeMeasurementFulfiller.kt`);
 `loadtest/dataprovider/EdpSimulator.kt` (takes a
-`privacybudgetmanagement.PrivacyBudgetManager` and the fulfillment builders), and
+`privacybudgetmanagement.PrivacyBudgetManager` as a constructor parameter, along
+with the nested `FulfillRequisitionRequestBuilder.EncryptionParams` config; its
+base class `AbstractEdpSimulator` uses `FrequencyVectorBuilder` and both
+`FulfillRequisitionRequestBuilder` variants to build fulfillment requests), and
 `reporting/service/api/v2alpha` / `measurementconsumer/stats` (noiser/DP params).
 Direct fulfillment/refusal calls flow to the Kingdom's Requisitions API. The
 HMSS and TrusTEE `FulfillRequisitionRequest` streams constructed by this
@@ -184,9 +189,12 @@ only; concrete validators are supplied by callers.
   FarmHash fingerprint of `(vid || HASH_SALT)`. Implementations:
   `InMemoryVidIndexMap` (sequential, `HashMap`) and `ParallelInMemoryVidIndexMap`
   (coroutine-sharded hashing into a FastUtil `Int2IntOpenHashMap` for large
-  populations). Both can also be built from a `Flow<VidIndexMapEntry>` and validate
-  consistency against the `PopulationSpec`
-  (`InconsistentIndexMapAndPopulationSpecException`).
+  populations). `InMemoryVidIndexMap` can also be built from a
+  `Flow<VidIndexMapEntry>` (`suspend fun build(populationSpec, indexMapEntries)`),
+  validating consistency against the `PopulationSpec` and throwing
+  `InconsistentIndexMapAndPopulationSpecException` on mismatch.
+  `ParallelInMemoryVidIndexMap` only supports `build(populationSpec, partitionCount)`
+  and has no Flow-based constructor or index-map consistency check.
 * `requisition/v2alpha/shareshuffle/FulfillRequisitionRequestBuilder.kt` and
   `requisition/v2alpha/trustee/FulfillRequisitionRequestBuilder.kt` —
   protocol-specific request builders (see
@@ -230,7 +238,7 @@ isRefund, createTime)`.
 | Table | Key columns | Purpose |
 | --- | --- | --- |
 | `PrivacyBucketAcdpCharges` | PK `(MeasurementConsumerId, Date, AgeGroup, Gender, VidStart)`, plus `Rho`, `Theta` | One row per privacy bucket holding the aggregated ACDP charge. Charges are added with an `ON CONFLICT ... DO UPDATE` upsert. |
-| `LedgerEntries` | `(MeasurementConsumerId, ReferenceId, IsRefund, CreateTime)`, indexed by `(MeasurementConsumerId, ReferenceId)` | Timestamped record of each charge/refund transaction, used for idempotency/replay detection. |
+| `LedgerEntries` | columns `(MeasurementConsumerId, ReferenceId, IsRefund, CreateTime)` (no PK), indexed by `(MeasurementConsumerId, ReferenceId)` | Timestamped record of each charge/refund transaction, used for idempotency/replay detection. |
 
 `Gender` and `AgeGroup` are Postgres enum types. Notably this ledger is keyed on
 the external `MeasurementConsumerId` (not a database internal ID) and stores no
@@ -239,15 +247,18 @@ Kingdom/Duchy Spanner databases.
 
 The only proto owned by this subsystem is `VidIndexMapEntry`
 (`src/main/proto/wfa/measurement/eventdataprovider/shareshuffle/vid_index_map_entry.proto`),
-a serialization helper carrying `key` (the VID), an `index`, and a
-`unit_interval_value` so a client can filter VIDs against a `VidSamplingInterval`.
-It is not a DB-row `Details` message.
+a serialization helper carrying `key` (the VID) and a nested `Value` message
+holding `index` and `unit_interval_value`, so a client can filter VIDs against a
+`VidSamplingInterval`. It is not a DB-row `Details` message.
 
 ## API surface
 
 This subsystem exposes a Kotlin/Maven library API rather than a network API. It
 *consumes* the public v2alpha protos (`MeasurementSpec`, `RequisitionSpec`,
-`Requisition`, `PopulationSpec`, `FulfillRequisitionRequest`, `FrequencyVector`).
+`Requisition`, `PopulationSpec`, `FulfillRequisitionRequest`), plus the
+any-sketch `FrequencyVector` proto (`org.wfanet.frequencycount.FrequencyVector`,
+Bazel target `//src/main/proto/wfa/frequency_count:frequency_vector_kt_jvm_proto`,
+which aliases `@any_sketch//src/main/proto/wfa/frequency_count:frequency_vector_proto`).
 Several targets are published as Maven artifacts (see their `BUILD.bazel`
 `maven_coordinates` tags):
 
@@ -274,8 +285,9 @@ sequenceDiagram
   participant Filter as PrivacyBucketFilter
   participant Ledger as PrivacyBudgetLedger
   participant Store as BackingStore (Postgres/InMemory)
+  participant Tx as TxContext (PrivacyBudgetLedgerTransactionContext)
 
-  Caller->>Mapper: getMpcAcdpQuery / getDirectAcdpQuery(reference, measurementSpec, eventSpecs)
+  Caller->>Mapper: getMpcAcdpQuery(reference, measurementSpec, eventSpecs, contributorCount) / getDirectAcdpQuery(reference, measurementSpec, eventSpecs)
   Mapper->>Mapper: AcdpParamsConverter -> AcdpCharge(rho, theta)
   Mapper-->>Caller: AcdpQuery(reference, LandscapeMask, acdpCharge)
   Caller->>PBM: chargePrivacyBudgetInAcdp(acdpQuery)
@@ -283,14 +295,15 @@ sequenceDiagram
   Filter-->>PBM: Set<PrivacyBucketGroup>
   PBM->>Ledger: chargeInAcdp(reference, buckets, {charge})
   Ledger->>Store: startTransaction()
-  Ledger->>Store: hasLedgerEntry(reference)?  (idempotency)
-  Ledger->>Store: findAcdpBalanceEntries(buckets)
+  Store-->>Ledger: TxContext
+  Ledger->>Tx: hasLedgerEntry(reference)?  (idempotency)
+  Ledger->>Tx: findAcdpBalanceEntries(buckets)
   Ledger->>Ledger: Composition.totalPrivacyBudgetUsageUnderAcdpComposition(...)
   alt any bucket would exceed maxDelta
     Ledger-->>Caller: throw PrivacyBudgetManagerException(PRIVACY_BUDGET_EXCEEDED)
   else within budget
-    Ledger->>Store: addAcdpLedgerEntries(buckets, charge, reference)
-    Ledger->>Store: commit()
+    Ledger->>Tx: addAcdpLedgerEntries(buckets, charge, reference)
+    Ledger->>Tx: commit()
   end
 ```
 
@@ -424,8 +437,10 @@ be verified against the same contract.
   interface).
 * **Postgres store is JDBC-blocking.** `PostgresBackingStore` carries TODOs to
   move to R2DBC and to run blocking IO on an appropriate dispatcher.
-* **VID limits.** VIDs must be `< Integer.MAX_VALUE` and populations up to ~2B are
-  supported (per the `VidIndexMapEntry` proto comment); `FrequencyVectorBuilder`
+* **VID limits.** VIDs must be `< Integer.MAX_VALUE` (enforced by a `require`
+  check in `VidIndexMap`/`InMemoryVidIndexMap`/`ParallelInMemoryVidIndexMap`) and
+  populations up to ~2B are supported (per the `VidIndexMapEntry` proto comment:
+  "Only populations of up to about 2B are supported"); `FrequencyVectorBuilder`
   requires population size `< Int.MAX_VALUE`.
 
 ## See also

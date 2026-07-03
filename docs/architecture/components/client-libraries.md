@@ -60,7 +60,7 @@ flowchart LR
     FILT["eventfiltration"]
   end
 
-  KING["Kingdom public API\n(Requisitions, Certificates,\nPopulations,\nModelRollouts/Releases)"]
+  KING["Kingdom public API\n(Requisitions, Certificates;\nPopulations, ModelRollouts/Releases\n— PDP only)"]
   DUCHY["Duchies\n(RequisitionFulfillment)"]
 
   EDP --> RF

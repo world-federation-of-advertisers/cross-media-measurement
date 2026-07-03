@@ -106,7 +106,7 @@ Only a small number of `v2alpha` protos are defined *locally* in this repo under
     fields and `PreviousPageEnd` cursors.
 *   The `event_group_metadata/testing/` and `event_templates/testing/` trees —
     example/test event-template message definitions (e.g. `TestEvent`, `Person`,
-    `Video`, `BannerAd`, and the `market/v1` templates) marked `testonly`.
+    `Video`, `Banner`, and the `market/v1` templates) marked `testonly`.
 
 ### Access API — `access.v1alpha` (local, public)
 
@@ -166,7 +166,8 @@ server→database contracts, one subtree per component:
 | Subtree | Purpose |
 | --- | --- |
 | `internal/kingdom` | Kingdom persistence (largest: ~85 protos) |
-| `internal/reporting/v2` | Reporting persistence + postprocessing |
+| `internal/reporting/v2` | Reporting persistence (reports, metrics, reporting sets, report schedules, basic reports, result groups) |
+| `internal/reporting/postprocessing` | Report post-processing types (`report_summary.proto`, `report_post_processor_result.proto`, `constraint.proto`; package `wfa.measurement.internal.reporting.postprocessing`) |
 | `internal/access` | Access persistence |
 | `internal/duchy` (+ `config`, `protocol`) | Duchy computation state & MPC protocol messages |
 | `internal/edpaggregator` | EDP aggregation metadata (impressions, requisitions, jobs) |
@@ -181,8 +182,10 @@ message carries `external_measurement_consumer_id`, `external_measurement_id`,
 and `external_computation_id` (the `external_*` fields are the API-exposed
 identifiers, per [docs/api-standards.md](../../api-standards.md)), plus `View`
 enums (`DEFAULT`, `COMPUTATION`, `COMPUTATION_STATS`) that shape which child
-collections are returned, and denormalized `ParentMeasurement`/`DataProviderValue`
-sub-messages. Internal services are plain gRPC (no resource names): e.g.
+collections are returned, and a denormalized `DataProviderValue` sub-message (used
+in the `data_providers` map). The related `ParentMeasurement` sub-message lives on
+`Requisition` (as `Requisition.parent_measurement`), holding fields copied from
+the parent `Measurement`. Internal services are plain gRPC (no resource names): e.g.
 `Measurements` in `measurements_service.proto` exposes `CreateMeasurement`,
 `GetMeasurementByComputationId`, `StreamMeasurements` (streaming, cursor via a
 `Filter.After` oneof), and batch methods keyed by `external_*_id` fields.
@@ -299,7 +302,10 @@ throughout the protos and documented in
 *   `oneof` for mutually exclusive protocol configs (e.g. the MPC protocol oneof
     across LLv2 / RO-LLv2 / HMSS / TrusTEE); requirement documented on the oneof,
     not per-field.
-*   Enums always define an `UNSPECIFIED = 0` default.
+*   Enums conventionally define a 0/default value — usually `*_UNSPECIFIED` per
+    api-standards.md — though some internal enums use other 0 values (e.g.
+    `Measurement.View`'s `DEFAULT`, `ErrorCode`'s `UNKNOWN_ERROR`,
+    `ComputationBlobDependency`'s `UNKNOWN`).
 *   `reserved` directives for removed field numbers (e.g. `Filter { reserved 5, 6; }`).
 *   Messages whose name ends in **`Details`** hold the serialized portion of a DB
     row, e.g. `MeasurementDetails`, `RequisitionDetails`, `CertificateDetails`

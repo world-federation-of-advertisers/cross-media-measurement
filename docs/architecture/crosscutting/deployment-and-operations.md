@@ -97,21 +97,24 @@ Key topology facts, each grounded in the component docs:
 ## 2. The `deploy/` package convention
 
 Every subsystem separates **cloud-agnostic** code from **cloud-specific** code
-using a consistent directory layout under its `deploy/` tree. This is the same
+using a similar directory layout under its `deploy/` tree. This is the same
 "`common` means shared among siblings" rule described in
 [common-libraries.md](../components/common-libraries.md), applied to deployment.
+The layout below is a composite — no single subsystem has every subdirectory,
+and the exact set varies (see the per-subsystem notes that follow).
 
 ```
 .../<subsystem>/deploy/
   common/          # cloud-agnostic: abstract servers, daemons, job entry points, interfaces
     server/        #   e.g. KingdomDataServer, DuchyDataServer, PublicApiServer
-    job/ daemon/   #   e.g. MillJobScheduler, retention jobs
+    job/ daemon/   #   e.g. MillJobScheduler (daemon: Duchy only), retention jobs
+    postgres/      #   Postgres backend (Duchy internal DB)
   gcloud/          # Google Cloud implementations
     spanner/       #   Spanner-backed internal services + db/ layer
     server/        #   Gcs*/Spanner* concrete servers
-    job/ datawatcher/ publisher/ ...
-  aws/             # AWS implementations (Duchy only, today)
-  postgres/        # Postgres backend (Duchy internal DB, Reporting core entities)
+    job/           #   plus datawatcher/ publisher/ under securecomputation only
+    postgres/      #   Postgres backend (Reporting core entities)
+  aws/             # AWS implementations (Duchy only, today) — incl. aws/postgres
 ```
 
 Concretely:
@@ -156,9 +159,11 @@ Notable image families:
     `duchy/async-computation-control`).
 *   **Job images** — retention/cron jobs (`kingdom/completed-measurements-deletion`,
     `duchy/computations-cleaner`) and the Reporting jobs.
-*   **Schema-updater images** — e.g. `kingdom/spanner-update-schema`,
-    `duchy/spanner-update-schema`, `duchy/postgres-update-schema`. These wrap
-    common-jvm's Spanner `UpdateSchema` and are run as **init containers** (§4.3).
+*   **Schema-updater images** — the `*spanner-update-schema` images
+    (`kingdom/spanner-update-schema`, `duchy/spanner-update-schema`) wrap
+    common-jvm's Spanner `UpdateSchema`, while `duchy/postgres-update-schema`
+    wraps common-jvm's Postgres `UpdateSchema`. All are run as **init
+    containers** (§4.3).
 *   **TrusTEE mill / TEE app images** — for Confidential Space these must be
     **signed** (by the Sign Images workflow) so the enclave will run them; see
     [`enabling-trustee-in-kingdom-and-duchy.md`](../../operations/enabling-trustee-in-kingdom-and-duchy.md).
@@ -185,9 +190,11 @@ system uses, plus CMMS-specific conventions:
 | `#JavaOptions` | Standardized JVM flags (RAM percentages, heap-dump-on-OOM to `/run/heap-dumps`) |
 
 The base `#ExternalService` just sets `LoadBalancer`; the cloud overlays refine
-it — e.g. `src/main/k8s/dev/base_eks.cue` adds AWS NLB annotations
-(`aws-load-balancer-type: nlb`, `internet-facing`, EIP allocations) and smaller
-default JVM heaps, demonstrating how the same base is specialized per cloud.
+it — e.g. `src/main/k8s/dev/base_eks.cue` refines `#ExternalService` with AWS NLB
+annotations (`aws-load-balancer-type: nlb`, `internet-facing` scheme, optional
+EIP allocations) and separately refines `#JavaOptions` with a smaller default JVM
+heap (`maxHeapSize` default 64M), demonstrating how the same base is specialized
+per cloud.
 
 ### 4.2 Base vs. cloud vs. local layering
 
@@ -314,12 +321,15 @@ configuration: **versioned API messages are only for data that crosses the wire
 in API calls; static process configuration lives in separate, unversioned
 `config` protos.** Examples surfaced as mounted files / flags:
 
-*   Kingdom: `DuchyInfo` / `DuchyIds`, per-protocol config textprotos
-    (`Llv2ProtocolConfig`, `RoLlv2ProtocolConfig`, `HmssProtocolConfig`,
-    `TrusTeeProtocolConfig`), rate-limit config, the
-    authority-key-identifier→principal map.
-*   Access: `PermissionsConfig`, `OpenIdProvidersConfig`,
-    `AuthorityKeyToPrincipalMap` (under `config/access`).
+*   Kingdom: `DuchyInfo` (a Kotlin object driven by the `DuchyCertConfig`
+    textproto) and `DuchyIdConfig`; per-protocol config textprotos of message
+    types `Llv2ProtocolConfigConfig`, `HmssProtocolConfigConfig`, and
+    `TrusTeeProtocolConfigConfig` (note the doubled `Config` suffix; Reach-Only
+    LLv2 has its own textproto but reuses the `Llv2ProtocolConfigConfig`
+    message); rate-limit config; the authority-key-identifier→principal map.
+*   Access: `PermissionsConfig`, `OpenIdProvidersConfig` (under `config/access`).
+    The `AuthorityKeyToPrincipalMap` referenced above lives under `config/`
+    (package `wfa.measurement.config`), not `config/access`.
 *   Secure Computation: `QueuesConfig`, `DataWatcherConfig` (under
     `config/securecomputation`).
 *   EDPA: per-EDP KMS/TLS/consent config and fetcher/sync configs (under

@@ -107,9 +107,13 @@ Note this schema uses the MC-facing `MeasurementConsumerId` and a textual
 
 `PrivacyBudgetLedger.chargeInAcdp` runs a single transaction that:
 
-1.  Short-circuits if the `Reference` already has a ledger entry
-    (idempotent replay via `hasLedgerEntry`).
-2.  For non-refunds, checks each targeted `PrivacyBucketGroup`: it reads the
+1.  Skips only the budget *check* (not the write) when the `Reference` already
+    has a ledger entry (`hasLedgerEntry`). The charge is still applied, so
+    charging the same reference twice re-applies the charge rather than replaying
+    idempotently; the only true short-circuit is the empty-collection guard
+    (no buckets or no charges).
+2.  For non-refunds without an existing entry, checks each targeted
+    `PrivacyBucketGroup`: it reads the
     bucket's current aggregated `AcdpCharge` and asks whether adding the new
     charge would exceed budget under ACDP composition
     (`exceedsUnderAcdpComposition`). If any bucket fails, it throws
@@ -206,7 +210,7 @@ Bazel proto targets: `charges_kt_jvm_proto`, `query_kt_jvm_proto`,
 | File | Role |
 | --- | --- |
 | `PrivacyBudgetManager.kt` | Orchestrates `charge(queries, groupId)`: dedupe already-committed queries, build the delta `Slice`, read targeted rows, `checkAndAggregate` (TODO), write, commit, then write the audit log. Also does landscape-chain mapping in `processBucketsForLandscape`. |
-| `Ledger.kt` | `Ledger` / `TransactionContext` interfaces: `readQueries`, `readChargeRows`, `write`, `commit` (batch size 1000). |
+| `Ledger.kt` | `Ledger` / `TransactionContext` interfaces. `Ledger` defines only `startTransaction()`; `TransactionContext` declares `readQueries`, `readChargeRows`, `write`, `commit` (batch size 1000). |
 | `Slice.kt` | `LedgerRowKey` (EDP, MC, event-group ref id, date), `BucketIndex(populationIndex, vidIntervalIndex)`, `PrivacyBucket`, and `Slice` — a `LedgerRowKey -> Charges` map with charge merge/aggregation helpers. |
 | `LandscapeProcessor.kt` | `getBuckets` (turn masks into buckets via proto reflection + CEL over generated `DynamicMessage`s; 300 VID intervals via `NUM_VID_INTERVALS`) and `mapBuckets` (translate population indices across landscapes). Caches landscape and mapping computations. |
 | `AuditLog.kt` | `AuditLog.write(queries, groupId)` — EDP-owned durable log of charged queries, returns a reference (e.g. blob URL). |
@@ -244,9 +248,14 @@ Because the population schema can evolve, `PostgresLedger` is pinned to an
 `activeLandscapeId` and validates that every `Query` targets it
 (`INVALID_PRIVACY_LANDSCAPE_IDS` otherwise). Migrating to a new landscape is an
 offline backfill: create a new `PrivacyCharges` table, mark the new landscape
-`BACKFILLING` in `PrivacyChargesMetadata`, remap every row's `Charges` proto with
-`PrivacyLandscapeMapping` via `LandscapeProcessor.mapBuckets`, then flip the state
-to `READY` (see comments in `deploy/postgres/ledger.sql`). At charge time the PBM
+`BACKFILLING` in `PrivacyChargesMetadata`, remap every row's serialized `Charges`
+blob by applying the `PrivacyLandscapeMapping` (the bucket/population-index
+remapping logic in `LandscapeProcessor.mapBuckets`, which operates on
+`List<PrivacyBucket>`), then flip the state to `READY` (see comments in
+`deploy/postgres/ledger.sql`). This offline backfill job is not yet implemented;
+`mapBuckets` is currently only wired into charge-time query mapping via
+`PrivacyBudgetManager.processBucketsForLandscape`, not the offline row migration.
+At charge time the PBM
 can also map an incoming query defined against an older landscape up to the active
 landscape by walking the `landscapeMappingChain` of `MappingNode`s
 (`PrivacyBudgetManager.processBucketsForLandscape`).
@@ -284,8 +293,12 @@ cloud-specific split under `deploy/`:
     schema notes it is "Postgres compatible SQL").
 *   `deploy/gcloud/GcsAuditLog.kt` (new) — Google Cloud Storage audit log (WIP).
 
-The EDP simulators wire an `InMemoryBackingStore`-backed PBM by default; a real
-deployment substitutes `PostgresBackingStore`. `EdpSimulatorRunner` and
+The EDP simulators wire an `InMemoryBackingStore`-backed PBM by default; a
+production EDP deployment would supply a durable backing store such as
+`PostgresBackingStore` (which exists as a tested `PrivacyBudgetLedgerBackingStore`
+reference implementation but is not currently wired into any runner in this repo
+— its only instantiation is `PostgresBackingStoreTest`).
+`EdpSimulatorRunner` and
 `LegacyMetadataEdpSimulatorRunner` obtain theirs from
 `loadtest/config/PrivacyBudgets.kt` `createNoOpPrivacyBudgetManager`, while
 `InProcessEdpSimulator` constructs a `PrivacyBudgetManager(...,
@@ -308,7 +321,9 @@ The PBM does not do cryptography; it does DP accounting. The relevant mechanisms
 
 *   Backing-store contract tests: `AbstractPrivacyBudgetLedgerStoreTest`
     (in `eventdataprovider/privacybudgetmanagement/testing/`) is subclassed by
-    `TestInMemoryBackingStore` and by the Postgres store test
+    `InMemoryBackingStoreTest`
+    (`src/test/.../privacybudgetmanagement/InMemoryBackingStoreTest.kt`) and by
+    the Postgres store test
     (`src/test/.../deploy/common/postgres/PostgresBackingStoreTest.kt`), so the
     in-memory and Postgres implementations are held to the same contract.
 *   Test doubles / fakes: `InMemoryBackingStore`; `TestPrivacyBucketMapper`,

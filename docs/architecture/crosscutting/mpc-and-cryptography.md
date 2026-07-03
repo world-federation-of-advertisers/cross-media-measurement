@@ -24,8 +24,9 @@ measurement deployment runs 2+ Duchies, operated by independent organizations.
 For the public-key protocols (the Liquid Legions family), the **composite
 public key is the product of every participating Duchy's local ElGamal key**, so
 a ciphertext must be *partially decrypted by every participant in turn* before
-it becomes plaintext; see `combineElGamalPublicKeys` and the layered-ElGamal
-discussion in the
+it becomes plaintext; see `combineElGamalPublicKeys` (a Kotlin crypto-worker
+method invoked over JNI, backed by the external `sketch_encrypter_adapter`
+native library) and the layered-ElGamal discussion in the
 [crypto library doc](../components/crypto-library.md#cryptography-and-privacy-mechanisms).
 This is why **all participants in that computation must cooperate**: any one of
 them can stall the computation, but none can decrypt alone or reconstruct another
@@ -111,10 +112,18 @@ The per-protocol Mill/crypto mapping is:
 | TrusTEE | `TrusTeeMill` | `TrusTeeProcessor` (no ring) | TEE processor, not a ring cipher |
 
 Everything crossing JNI is a raw `byte[]` / serialized proto, and a non-OK C++
-`absl::Status` surfaces as a Java `RuntimeException`. Because the tests can swap
-the JNI implementation for a fake (via the Kotlin protocol interfaces and
-`InProcessDuchy.kt`), higher-level tests run without the native libraries. See
-the [crypto library doc](../components/crypto-library.md#jni-swig-bridge) for
+`absl::Status` surfaces as a Java `RuntimeException`. The per-Mill unit tests
+(e.g. `ReachFrequencyLiquidLegionsV2MillTest`, `ReachOnlyLiquidLegionsV2MillTest`,
+`HonestMajorityShareShuffleMillTest`) run without the native libraries by
+injecting a mock of the Kotlin protocol interface
+(`LiquidLegionsV2Encryption` / `ReachOnlyLiquidLegionsV2Encryption` /
+`HonestMajorityShareShuffleCryptor`) as the Mill's `cryptoWorker`.
+`InProcessDuchy.kt`, by contrast, wires the real `Jni*` crypto workers
+(`JniLiquidLegionsV2Encryption`, `JniReachOnlyLiquidLegionsV2Encryption`,
+`JniHonestMajorityShareShuffleCryptor`), each of which calls
+`System.loadLibrary` in its companion `init`, so `InProcessDuchy`-based
+integration tests do load the native libraries. See the
+[crypto library doc](../components/crypto-library.md#jni-swig-bridge) for
 the full SWIG bridge and native-target layout.
 
 ## The deterministic ring
@@ -130,7 +139,9 @@ coordination**, so it is derived deterministically:
     `LiquidLegionsSketchAggregationV2.ComputationDetails.participant`. The
     reach-only variant does the same via `ReachOnlyLiquidLegionsV2Starter`.
 *   At runtime `LiquidLegionsV2Mill.nextDuchyId` simply indexes into that stored,
-    already-ordered list to find the next hop and the aggregator.
+    already-ordered list to find the next hop (index+1 mod size). The aggregator
+    is obtained separately as the last element of the list
+    (`participantList.last().duchyId`), not via `nextDuchyId`.
 
 Because the hash depends on public keys and the global computation id — both
 known to every participant — each node independently agrees on the same ring for a
@@ -210,11 +221,11 @@ sequenceDiagram
   participant W1 as First non-aggregator
   participant W2 as Second non-aggregator
   participant AGG as Aggregator
-  W1->>W1: CompleteReach[AndFrequency]ShufflePhase (expand seeds, add noise, combine, shuffle)
-  W2->>W2: CompleteReach[AndFrequency]ShufflePhase
+  W1->>W1: CompleteReachOnly/ReachAndFrequencyShufflePhase (expand seeds, add noise, combine, shuffle)
+  W2->>W2: CompleteReachOnly/ReachAndFrequencyShufflePhase
   W1->>AGG: combined_frequency_vector
   W2->>AGG: combined_frequency_vector
-  AGG->>AGG: CompleteReach[AndFrequency]AggregationPhase (sum mod ring, subtract noise) => reach + frequency
+  AGG->>AGG: CompleteReachOnly/ReachAndFrequencyAggregationPhase (sum mod ring, subtract noise) => reach + frequency
 ```
 
 The `NonAggregatorOrder` (FIRST / SECOND) determines the order in which each

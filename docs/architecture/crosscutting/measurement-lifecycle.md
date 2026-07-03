@@ -83,7 +83,8 @@ sequenceDiagram
   Note over KI: last Requisition fulfilled →<br/>PENDING_PARTICIPANT_CONFIRMATION (LLv2)<br/>or PENDING_COMPUTATION (HMSS/TrusTEE)<br/>or SUCCEEDED (direct)
 
   KS-->>H: StreamActiveComputations (PENDING_PARTICIPANT_CONFIRMATION)
-  H->>KS: ConfirmComputationParticipant (LLv2 only)
+  H->>H: drive into CONFIRMATION_PHASE (LLv2 only)
+  M->>KS: ConfirmComputationParticipant (LLv2 only)
   KS-->>H: StreamActiveComputations (PENDING_COMPUTATION)
   H->>H: start local computation (out of WAIT_TO_START)
   loop each protocol stage
@@ -119,9 +120,12 @@ call.
 
 ### 3.2 Kingdom registers the Measurement and derives Requisitions
 
-The Kingdom's public `MeasurementsService` validates the consent-signaling
-signatures and resolves the enabled protocol, then delegates to the internal
-`Measurements` service. The internal `CreateMeasurements` writer
+The Kingdom's public `MeasurementsService` performs structural validation of the
+`MeasurementSpec` (public-key presence, privacy params, sampling interval, nonce
+hashes) and resolves the enabled protocol, then delegates to the internal
+`Measurements` service. Consent-signaling signatures are stored opaquely and are
+verified later by each `DataProvider` at requisition fulfillment (see §3.4), not
+by the Kingdom at registration. The internal `CreateMeasurements` writer
 (`src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/writers/CreateMeasurements.kt`,
 per [../components/kingdom.md](../components/kingdom.md) §7.1):
 
@@ -137,10 +141,14 @@ per [../components/kingdom.md](../components/kingdom.md) §7.1):
 
 Each Duchy's `Herald` streams the Kingdom's system
 `Computations.StreamActiveComputations` and, on a `PENDING_REQUISITION_PARAMS`
-computation, creates it locally and drives its Mill to produce protocol params
-(an ElGamal key for the LLv2 family; an HPKE key pair / seed for HMSS). The Duchy
-calls system `SetParticipantRequisitionParams`. When **all** participants have
-set params, the Kingdom writer moves the `Measurement` to
+computation, creates it locally so that its Mill can produce protocol params.
+For the LLv2 family the Mill's initialization phase generates the ElGamal key
+pair. For HMSS the Herald itself
+(`HonestMajorityShareShuffleStarter.createComputation`) generates the random
+seed and HPKE key pair at computation-creation time, and the Mill only signs the
+public key. The Duchy calls system `SetParticipantRequisitionParams`. When
+**all** participants have set params, the Kingdom writer moves the `Measurement`
+to
 `PENDING_REQUISITION_FULFILLMENT` and flips its `Requisition`s to `UNFULFILLED`,
 which is the state that makes them visible to `DataProvider`s on the public API.
 (HMSS/TrusTEE participants go straight to `READY`; LLv2/RO-LLv2 go through
@@ -185,9 +193,11 @@ writer advances the `Measurement` to `PENDING_PARTICIPANT_CONFIRMATION`
 ### 3.5 Kingdom schedules the computation; Duchies confirm
 
 For LLv2/RO-LLv2 the Kingdom now needs a confirmation round: each Duchy's Herald
-sees `PENDING_PARTICIPANT_CONFIRMATION` and calls
-`ConfirmComputationParticipant`; when all reach `READY`, the Kingdom moves the
-`Measurement` to `PENDING_COMPUTATION` (HMSS/TrusTEE skip this step). See
+sees `PENDING_PARTICIPANT_CONFIRMATION` and drives its local computation into the
+`CONFIRMATION_PHASE`; its Mill then runs that phase and calls the system
+`ConfirmComputationParticipant`. When all participants reach `READY`, the Kingdom
+moves the `Measurement` to `PENDING_COMPUTATION` (HMSS/TrusTEE skip this step).
+See
 [../components/kingdom.md](../components/kingdom.md) §7.1 and
 [../components/duchy.md](../components/duchy.md).
 

@@ -174,8 +174,14 @@ Each Kotlin JNI class loads the native library in a companion-object `init`
 block (e.g. `System.loadLibrary("liquid_legions_v2_encryption_utility")`; the
 LLv2 class also loads `sketch_encrypter_adapter`), then for every method calls
 `Response.parseFrom(Utility.completeX(request.toByteArray()))`. The interfaces
-themselves (`LiquidLegionsV2Encryption.kt`, etc.) let tests and the in-process
-integration harness (`InProcessDuchy.kt`) swap the JNI implementation for a fake.
+themselves (`LiquidLegionsV2Encryption`, `ReachOnlyLiquidLegionsV2Encryption`,
+`HonestMajorityShareShuffleCryptor`) let unit tests substitute a Mockito mock
+crypto worker (e.g. `ReachFrequencyLiquidLegionsV2MillTest`,
+`ReachOnlyLiquidLegionsV2MillTest`, and `HonestMajorityShareShuffleMillTest` each
+mock the interface) so the Mills can be tested without the native libraries. The
+in-process integration harness `InProcessDuchy.kt`, by contrast, wires in the
+real JNI implementations (`JniLiquidLegionsV2Encryption`,
+`JniReachOnlyLiquidLegionsV2Encryption`, `JniHonestMajorityShareShuffleCryptor`).
 
 ## Data Model (Protos)
 

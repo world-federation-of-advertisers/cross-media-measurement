@@ -58,7 +58,8 @@ flowchart LR
   JOBS[Report scheduling / BasicReport jobs] --> PUB
   JOBS --> INT
   JOBS --> KING
-  POST[Python post-processor] -.reads/writes.-> GCS[(GCS log bucket)]
+  RP[ReportProcessor Kotlin] -.writes.-> GCS[(GCS log bucket)]
+  LOGCLI[log_processor Python CLI] -.reads.-> GCS
 ```
 
 - **Upstream (callers):** MC operators/UIs/CLI, and the Reporting MCP server on
@@ -184,11 +185,19 @@ Defined in `job/` with executors in `deploy/v2/common/job/`:
   schedule iteration state.
 - **`BasicReportsReportsJob`** (`job/BasicReportsReportsJob.kt`, executor
   `BasicReportsReportsJobExecutor.kt`, image `basic-reports-reports`). Polls
-  internal `BasicReport`s, drives the underlying `Report`(s) to completion,
-  transforms `MetricResult`s into `ResultGroup`/`ReportResult` structures
-  (noisy + denoised `BasicMetricSet`s), and writes them via
-  `ReportResults` internal RPCs; `FailBasicReport` on error. It does **not**
-  compute variance itself — variance is computed upstream in `MetricsService`
+  internal `BasicReport`s in state `REPORT_CREATED`, reads the corresponding
+  `Report` via the public `Reports` stub, and when that `Report` is
+  `SUCCEEDED` transforms its `MetricResult`s into internal
+  `ReportResult`/`ReportingSetResult` structures holding **noisy** values only
+  (`NoisyReportResultValues` / `NoisyMetricSet`), writing them via the
+  `ReportResults` internal RPCs (`CreateReportResult`,
+  `BatchCreateReportingSetResults`); on `FAILED` it calls `FailBasicReport`, and
+  on `RUNNING` it does nothing. It does **not** build public `ResultGroup`
+  structures and does **not** compute denoised `BasicMetricSet`s — the
+  processed/denoised `BasicMetricSet` values are produced later by the separate
+  Python report-result post-processor and written via
+  `AddProcessedResultValues`. It also does **not** compute variance itself —
+  variance is computed upstream in `MetricsService`
   (`variances.computeMetricVariance(...)`). This job simply copies the
   already-computed public `UnivariateStatistics` (with `standardDeviation`) from
   the `Report`/`Metric` results into `NoisyMetricSet.UnivariateStatistics` via
@@ -198,8 +207,9 @@ Defined in `job/` with executors in `deploy/v2/common/job/`:
 
 ### 4.4 MCP server
 
-`mcp/ReportingMcpServer.kt` (daemon `mcp/ReportingMcpServerDaemon.kt`, image
-`reporting-mcp-server`) exposes the public API to LLM agents over the Model
+`mcp/ReportingMcpServer.kt` (daemon `mcp/ReportingMcpServerDaemon.kt`,
+deployment `reporting-mcp-server`, image `reporting/mcp/server`) exposes the
+public API to LLM agents over the Model
 Context Protocol using stateless Streamable HTTP
 (`mcpStatelessStreamableHttp`). It forwards the caller's `Authorization: Bearer`
 token to the Reporting public API via `ReportingPublicApiClient`
@@ -215,12 +225,17 @@ public API uses (via `ToolSupport.PROTO_JSON_PARSER` / `PROTO_JSON_PRINTER`).
 
 ### 4.5 gRPC-JSON gateway (Go)
 
-`src/main/go/reporting/grpcgateway.go` (image `reporting-grpc-gateway`, built by
+`src/main/go/reporting/grpcgateway.go` (deployed as the `reporting-grpc-gateway`
+Deployment/Service; image repository `reporting/grpc-gateway`, built by
 `//src/main/go/reporting:grpc_gateway_image`) is a small Go program that
 provides gRPC-JSON transcoding (`google.api.http` REST). It uses
 [`grpc-gateway`](https://github.com/grpc-ecosystem/grpc-gateway) to expose a
-REST/JSON front end and proxies calls over a mutual TLS gRPC connection to the
-Reporting `v2alpha` public API server (`--reporting-public-api-target`). It
+REST/JSON front end and proxies calls over a server-authenticated (one-way) TLS
+gRPC connection to the Reporting `v2alpha` public API server
+(`--reporting-public-api-target`): the gateway verifies the server certificate
+against the trusted CAs from `--cert-collection-file` but does not present a
+client certificate. Its own `--tls-cert-file` / `--tls-key-file` serve the
+inbound HTTPS/REST listener. It
 registers handlers for `EventGroups`, `ReportingSets`,
 `ImpressionQualificationFilters`, and `BasicReports` (from the Reporting API)
 plus `DataProviders` and `EventGroupMetadataDescriptors` (from the CMMS API),
@@ -286,30 +301,37 @@ row readers/writers (`BasicReports.kt`, `ReportResults.kt`,
 
 ### 5.3 GCS (post-processor logs)
 
-`ReportProcessor` writes each `ReportPostProcessorLog` to a GCS bucket keyed by
-report create-time and name (see `getBlobKey` in
-`postprocessing/v2alpha/ReportProcessor.kt`).
+The Kotlin `ReportProcessor` writes each `ReportPostProcessorLog` to a GCS
+bucket keyed by report create-time and name (see `getBlobKey` in
+`postprocessing/v2alpha/ReportProcessor.kt`). The bucket is only read back by a
+separate operator diagnostic CLI, `log_processor.py`
+(`postprocessing/tools/`), for inspecting the stored
+`ReportPostProcessorResult`; it is not part of the correction pipeline. The
+QP-solver post-processing path itself never touches GCS — it communicates via
+temp `.binpb` files (Kotlin path) or the internal Reporting gRPC API (deployed
+CronJob).
 
 ## 6. API Surface
 
 Three tiers, following the project's public-vs-internal separation:
 
-1. **Public `v2alpha`** (`proto/wfa/measurement/reporting/v2alpha/`). Consumed
+1. **Public `v2alpha`** (`src/main/proto/wfa/measurement/reporting/v2alpha/`). Consumed
    by MC clients. Resources: `Report`, `ReportingSet`, `Metric` (+ `MetricSpec`,
    `MetricResult`, `UnivariateStatistics`), `MetricCalculationSpec`,
    `BasicReport` (+ `ResultGroup`, `ResultGroupSpec`, `ReportingUnit`,
    `ImpressionQualificationFilter`), `EventGroup`, `ReportSchedule`,
    `ReportScheduleIteration`. Follows AIPs with two documented exceptions
-   (`proto/wfa/measurement/reporting/README.md`): structured filter/order
+   (`src/main/proto/wfa/measurement/reporting/README.md`): structured filter/order
    messages instead of AIP-160/AIP-132 strings. Errors carry an `ErrorInfo`
    reason in the `reporting.halo-cmm.org` domain.
-2. **Internal `v2`** (`proto/wfa/measurement/internal/reporting/v2/`). Used only
+2. **Internal `v2`** (`src/main/proto/wfa/measurement/internal/reporting/v2/`). Used only
    between the public server, jobs, and the internal server. Exposes internal
    IDs and DB-row `*Details` messages (`BasicReportDetails`,
-   `BasicReportResultDetails`, and the `MetricDetails`/`MeasurementDetails`
-   etc.). Contains services with no public equivalent such as `ReportResults`
+   `BasicReportResultDetails`, and the nested `Metric.Details`/`Measurement.Details`,
+   stored in the `MetricDetails`/`MeasurementDetails` columns). Contains services
+   with no public equivalent such as `ReportResults`
    and internal `Measurements`.
-3. **Config** (`proto/wfa/measurement/config/reporting/`). Unversioned process
+3. **Config** (`src/main/proto/wfa/measurement/config/reporting/`). Unversioned process
    configuration: `MetricSpecConfig` (default DP params, VID sampling with
    fixed/random start, per-protocol defaults), `MeasurementConsumerConfig(s)`
    (offline principal + signing material per MC), `EncryptionKeyPairConfig`,
@@ -364,8 +386,10 @@ sequenceDiagram
 `MetricsService` builds the CMMS `Measurement`s: it constructs an unsigned
 `MeasurementSpec` (with `reportingMetadata`), signs it with the MC signing key
 (`signMeasurementSpec`), builds and encrypts per-DataProvider `RequisitionSpec`s
-(`signRequisitionSpec` + `encryptRequisitionSpec`), and submits via the Kingdom
-`Measurements` stub (`createCmmsMeasurements`).
+(`signRequisitionSpec` + `encryptRequisitionSpec`), and submits them through
+`MeasurementSupplier.createCmmsMeasurements`, which calls the Kingdom
+`Measurements` stub's `batchCreateMeasurements` RPC (via the
+`batchCreateCmmsMeasurements` helper).
 
 ### 7.2 GetReport / result synchronization
 
@@ -389,9 +413,13 @@ measurement's `protocolConfig`.
 group** `ReportingSet` from the union of the referenced custom groups'
 EventGroups when `campaign_group` is omitted (reflected in
 `effective_campaign_group`), and inserts a `BasicReport` into Spanner. The
-`BasicReportsReportsJob` then drives the underlying `Report`(s), computes noisy
-and denoised `BasicMetricSet`s, and stores them in the `ReportResults` Spanner
-tree; reads render `ResultGroup`s from those rows.
+`BasicReportsReportsJob` then drives the underlying `Report`(s) to completion,
+computes the noisy results (serialized as `NoisyMetricSet` in
+`unprocessedReportResultValues`), and writes them into the `ReportResults`
+Spanner tree. The denoised, consistency-corrected `BasicMetricSet` values
+(`processedReportResultValues`) are produced separately by the Python
+`PostProcessReportResultJob`, which writes them back via the internal
+`AddProcessedResultValues` RPC; reads render `ResultGroup`s from those rows.
 
 ### 7.4 Scheduling
 
@@ -402,10 +430,12 @@ API using trusted-principal authentication.
 
 ## 8. Cryptography and Privacy Mechanisms
 
-- **Differential privacy.** Every metric carries DP params
-  (`DifferentialPrivacyParams` epsilon/delta) and a VID sampling interval;
-  defaults come from `MetricSpecConfig`. The chosen noise mechanism is recorded
-  and used when computing variances.
+- **Differential privacy.** Most metric types (reach, reach-and-frequency,
+  impression count, watch duration) carry DP params
+  (`DifferentialPrivacyParams` epsilon/delta) and a VID sampling interval within
+  their `SamplingAndPrivacyParams`; population-count metrics
+  (`PopulationCountParams`) carry neither. Defaults come from `MetricSpecConfig`.
+  The chosen noise mechanism is recorded and used when computing variances.
 - **Envelope of MC keys.** The Reporting server never sees plaintext event data;
   it only decrypts aggregate `Measurement` results using the MC's private key
   loaded through `EncryptionKeyPairStore` (`InMemoryEncryptionKeyPairStore`),
@@ -498,7 +528,7 @@ base server is `InternalReportingServer`.
 - Following project standards, tests target the public gRPC contract using
   in-process servers and fakes (e.g. fake Kingdom stubs) rather than mocks, and
   use Truth/ProtoTruth assertions. Integration wiring is shared via
-  `//src/main/kotlin/org/wfanet/measurement/integration/common/reporting`.
+  `//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2`.
 - Python post-processing has its own tests under
   `src/test/python/wfa/measurement/reporting/postprocessing/` (solver, report
   conversion, summary conversion) with `.textproto`/`.json` fixtures.
