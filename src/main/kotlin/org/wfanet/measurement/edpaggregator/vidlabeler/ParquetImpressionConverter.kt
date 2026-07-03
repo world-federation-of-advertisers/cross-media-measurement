@@ -58,7 +58,7 @@ class ParquetImpressionConverter(private val eventDescriptor: Descriptors.Descri
     config: VidLabelerParams.ModelLineConfig
   ): Triple<LabelerInputMapper, EventMessageMapper, EntityKeyMapper> {
     if (cachedConfig !== config) {
-      labelerInputMapper = LabelerInputMapper(config.labelerInputFieldMappingMap)
+      labelerInputMapper = LabelerInputMapper(config.labelerInputFieldMappingList)
       eventMessageMapper = EventMessageMapper(eventDescriptor, config.eventTemplateFieldMappingMap)
       entityKeyMapper =
         EntityKeyMapper(

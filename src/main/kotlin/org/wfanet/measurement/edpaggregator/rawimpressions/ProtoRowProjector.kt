@@ -181,7 +181,9 @@ object ProtoRowProjector {
             }
           KindCase.INT32_VALUE,
           KindCase.UINT32_VALUE ->
-            requireNotNull(fd.enumType.findValueByNumber(asLong(value, column).toIntExact(column))) {
+            requireNotNull(
+              fd.enumType.findValueByNumber(asLong(value, column).toIntExact(column))
+            ) {
               "Column '$column' has no ${fd.enumType.name} enum value for number"
             }
           else ->
