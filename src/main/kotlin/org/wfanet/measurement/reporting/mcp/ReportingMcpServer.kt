@@ -59,7 +59,8 @@ private const val BEARER_PREFIX = "Bearer "
  * When [oauthProtectedResource] and [oauthAuthorizationServers] are set, the server also serves
  * OAuth 2.0 Protected Resource Metadata (RFC 9728) at `/.well-known/oauth-protected-resource` so
  * MCP clients can discover the authorization server; otherwise that endpoint is absent and behavior
- * is unchanged.
+ * is unchanged. [oauthScopesSupported] and [oauthResourceDocumentation], when non-empty, are
+ * advertised in that metadata (RFC 9728 `scopes_supported` and `resource_documentation`).
  *
  * The bearer token is read per request and resolved lazily inside each tool call: a missing token
  * throws [IllegalArgumentException], which the tool error handler turns into a clean tool error
@@ -70,6 +71,8 @@ fun Application.installReportingMcp(
   allowedHosts: List<String> = emptyList(),
   oauthProtectedResource: String? = null,
   oauthAuthorizationServers: List<String> = emptyList(),
+  oauthScopesSupported: List<String> = emptyList(),
+  oauthResourceDocumentation: String? = null,
 ) {
   install(CORS) {
     anyHost()
@@ -100,7 +103,12 @@ fun Application.installReportingMcp(
     if (oauthProtectedResource != null && oauthAuthorizationServers.isNotEmpty()) {
       get("/.well-known/oauth-protected-resource") {
         call.respondText(
-          oauthProtectedResourceMetadata(oauthProtectedResource, oauthAuthorizationServers),
+          oauthProtectedResourceMetadata(
+            oauthProtectedResource,
+            oauthAuthorizationServers,
+            oauthScopesSupported,
+            oauthResourceDocumentation,
+          ),
           ContentType.Application.Json,
         )
       }
@@ -115,11 +123,19 @@ fun Application.installReportingMcp(
 private fun oauthProtectedResourceMetadata(
   resource: String,
   authorizationServers: List<String>,
+  scopesSupported: List<String>,
+  resourceDocumentation: String?,
 ): String =
   buildJsonObject {
       put("resource", resource)
       putJsonArray("authorization_servers") { authorizationServers.forEach { add(it) } }
       putJsonArray("bearer_methods_supported") { add("header") }
+      if (scopesSupported.isNotEmpty()) {
+        putJsonArray("scopes_supported") { scopesSupported.forEach { add(it) } }
+      }
+      if (resourceDocumentation != null) {
+        put("resource_documentation", resourceDocumentation)
+      }
     }
     .toString()
 

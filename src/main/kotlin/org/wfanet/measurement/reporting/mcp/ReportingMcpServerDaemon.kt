@@ -97,6 +97,8 @@ class ReportingMcpServerDaemon : Runnable {
           mcpServerFlags.allowedHosts,
           mcpServerFlags.oauthProtectedResource,
           mcpServerFlags.oauthAuthorizationServers,
+          mcpServerFlags.oauthScopesSupported,
+          mcpServerFlags.oauthResourceDocumentation,
         )
       }
       .start(wait = true)
@@ -179,6 +181,31 @@ class McpServerFlags {
       ],
   )
   var oauthAuthorizationServers: List<String> = emptyList()
+    private set
+
+  @CommandLine.Option(
+    names = ["--oauth-scope"],
+    description =
+      [
+        "OAuth 2.0 scope a client should request to access this resource (RFC 9728 " +
+          "scopes_supported; may be repeated). When set, it is advertised in the Protected " +
+          "Resource Metadata so clients know which scopes to request. Unset (default) omits the " +
+          "field."
+      ],
+  )
+  var oauthScopesSupported: List<String> = emptyList()
+    private set
+
+  @CommandLine.Option(
+    names = ["--oauth-resource-documentation"],
+    description =
+      [
+        "URL of human-readable documentation for this resource (RFC 9728 resource_documentation). " +
+          "When set, it is advertised in the Protected Resource Metadata. Unset (default) omits " +
+          "the field."
+      ],
+  )
+  var oauthResourceDocumentation: String? = null
     private set
 
   @set:CommandLine.Option(
