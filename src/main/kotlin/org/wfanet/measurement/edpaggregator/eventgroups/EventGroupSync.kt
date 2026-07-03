@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.eventgroups
 
+import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
@@ -23,13 +24,17 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Tracer
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadata as CmmsEventGroupMetadataMessage
@@ -42,6 +47,9 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter as lis
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerClientAccountKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
+import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.batchCreateEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.deleteEventGroupRequest
@@ -88,6 +96,24 @@ data class EntityKeyId(
   val entityId: String,
   val measurementConsumer: String,
 )
+
+/** A buffered batch write request tagged with identifying info for response zipping and metrics. */
+private data class PendingWrite<T>(
+  val eventGroupReferenceId: String,
+  val entityType: String,
+  val entityId: String,
+  val startTime: TimeMark,
+  val request: T,
+)
+
+/** The write a queued EventGroup needs: a batched create, a batched update, or nothing. */
+private sealed interface WriteAction {
+  data class Create(val request: CreateEventGroupRequest) : WriteAction
+
+  data class Update(val request: UpdateEventGroupRequest) : WriteAction
+
+  object None : WriteAction
+}
 
 /*
  * Syncs event groups with the CMMS Public API.
@@ -167,10 +193,39 @@ class EventGroupSync(
             )
           }
 
-      val edpEventGroupsList = eventGroups.toList()
+      // Buffers for batched create/update writes, each capped at [MAX_BATCH_SIZE]. Every entry
+      // carries its eventGroupReferenceId so the batch response can be zipped back into the output.
+      val pendingCreates = mutableListOf<PendingWrite<CreateEventGroupRequest>>()
+      val pendingUpdates = mutableListOf<PendingWrite<UpdateEventGroupRequest>>()
 
-      for (eventGroup in edpEventGroupsList) {
+      // Collect the EDP EventGroups as a stream rather than materializing the full decoded list.
+      eventGroups.collect { eventGroup ->
         if (eventGroup.state == EventGroup.State.DELETED) {
+          // A delete acts on an entity-keyed EventGroup, and only needs to act as a barrier when a
+          // queued create/update targets that same EventGroup: flushing first keeps the buffered
+          // write from being reordered after the delete (which would NOT_FOUND or leave CMMS
+          // inconsistent with the input order). Unrelated deletes skip the flush so they don't
+          // collapse batch sizes. Buffers are bounded by MAX_BATCH_SIZE, so the scan is cheap.
+          if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
+            val entityType = eventGroup.entityKey.entityType
+            val entityId = eventGroup.entityKey.entityId
+            val measurementConsumer = eventGroup.measurementConsumer
+            val targetsBufferedWrite =
+              pendingCreates.any {
+                it.entityType == entityType &&
+                  it.entityId == entityId &&
+                  it.request.eventGroup.measurementConsumer == measurementConsumer
+              } ||
+                pendingUpdates.any {
+                  it.entityType == entityType &&
+                    it.entityId == entityId &&
+                    it.request.eventGroup.measurementConsumer == measurementConsumer
+                }
+            if (targetsBufferedWrite) {
+              flushCreates(pendingCreates)
+              flushUpdates(pendingUpdates)
+            }
+          }
           try {
             validateDeletedEventGroup(eventGroup)
           } catch (e: Exception) {
@@ -183,7 +238,7 @@ class EventGroupSync(
                 ": Validation failed"
             }
             metrics.invalidEventGroupFailure.add(1, metricAttributes())
-            continue
+            return@collect
           }
 
           if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
@@ -199,7 +254,7 @@ class EventGroupSync(
               metrics.syncDeleted.add(1, metricAttributes())
             }
           }
-          continue
+          return@collect
         }
 
         try {
@@ -214,7 +269,7 @@ class EventGroupSync(
               ": Validation failed"
           }
           metrics.invalidEventGroupFailure.add(1, metricAttributes())
-          continue
+          return@collect
         }
 
         val measurementConsumerKeys: Set<MeasurementConsumerKey> =
@@ -230,15 +285,20 @@ class EventGroupSync(
                 ": No measurement consumer resolved"
             }
             metrics.syncFailure.add(1, metricAttributes())
-            continue
+            return@collect
           }
 
         for (measurementConsumerKey in measurementConsumerKeys) {
           try {
             val eventGroupWithConsumer =
               eventGroup.copy { measurementConsumer = measurementConsumerKey.toName() }
-            syncEventGroupItem(eventGroupWithConsumer, cmmsEventGroups, cmmsEventGroupsByEntityKey)
-              ?.let { emit(it) }
+            queueEventGroupItem(
+              eventGroupWithConsumer,
+              cmmsEventGroups,
+              cmmsEventGroupsByEntityKey,
+              pendingCreates,
+              pendingUpdates,
+            )
           } catch (e: Exception) {
             if (e is CancellationException) throw e
             logger.log(Level.SEVERE, e) {
@@ -253,96 +313,408 @@ class EventGroupSync(
           }
         }
       }
+
+      // Flush any remaining buffered writes after the input stream is exhausted.
+      flushCreates(pendingCreates)
+      flushUpdates(pendingUpdates)
     }
   }
 
   /**
-   * Synchronizes a single event group entry.
+   * Queues a single resolved EventGroup for a batched create or update.
    *
-   * @param eventGroup The event group to be synchronized.
-   * @param syncedEventGroups A map keyed by [EventGroupKey], containing already-synced event groups
-   *   as values. Used to detect duplicates or previously processed items.
-   * @return A [MappedEventGroup] if the sync succeeds; `null` if the sync fails or the item is
-   *   skipped.
+   * The create-vs-update decision is made against the precache via [findExistingEventGroup]. An
+   * EventGroup that needs no change is emitted immediately with no RPC. Otherwise the request is
+   * appended to the matching buffer, which is flushed as one batched RPC once it reaches
+   * [MAX_BATCH_SIZE].
    */
-  private suspend fun syncEventGroupItem(
+  private suspend fun FlowCollector<MappedEventGroup>.queueEventGroupItem(
     eventGroup: EventGroup,
-    syncedEventGroups: Map<EventGroupKey, CmmsEventGroup>,
-    syncedEventGroupsByEntityKey: Map<EntityKeyId, CmmsEventGroup>,
-  ): MappedEventGroup? {
-    val eventGroupRefId = eventGroup.eventGroupReferenceId
+    existingByKey: Map<EventGroupKey, CmmsEventGroup>,
+    existingByEntityKey: Map<EntityKeyId, CmmsEventGroup>,
+    pendingCreates: MutableList<PendingWrite<CreateEventGroupRequest>>,
+    pendingUpdates: MutableList<PendingWrite<UpdateEventGroupRequest>>,
+  ) {
+    val referenceId = eventGroup.eventGroupReferenceId
+    val entityType = eventGroup.entityKey.entityType
+    val entityId = eventGroup.entityKey.entityId
+    // Per-item start, captured before queueing so latency includes time spent buffered before
+    // flush.
+    val itemStartTime = TimeSource.Monotonic.markNow()
 
-    return try {
+    // Decide create / update / no-op for this event group inside the per-item span. This makes no
+    // RPCs, so the span reflects only this item; buffering and flushing happen after the span, so a
+    // flushed batch is never attributed to the current item's span/trace.
+    val action: WriteAction =
       withSpan(
         tracer,
         "EventGroupSync.Item",
         Attributes.of(
           AttributeKey.stringKey("event_group_reference_id"),
-          eventGroupRefId,
+          referenceId,
           AttributeKey.stringKey("data_provider_name"),
           edpName,
         ),
         errorMessage = "Event Group sync failed",
       ) { _ ->
-        // Start timing for sync latency
-        val syncStartTime = TimeSource.Monotonic.markNow()
-
-        // Record sync attempt
         metrics.syncAttempts.add(1, metricAttributes())
-
         val existingEventGroup: CmmsEventGroup? =
-          findExistingEventGroup(eventGroup, syncedEventGroups, syncedEventGroupsByEntityKey)
+          findExistingEventGroup(eventGroup, existingByKey, existingByEntityKey)
 
-        val syncedEventGroup: CmmsEventGroup =
-          if (existingEventGroup != null) {
-            val updatedEventGroup: CmmsEventGroup = updateEventGroup(existingEventGroup, eventGroup)
-            if (updatedEventGroup != existingEventGroup) {
-              updateCmmsEventGroup(updatedEventGroup)
-            } else {
-              existingEventGroup
-            }
+        if (existingEventGroup == null) {
+          WriteAction.Create(buildCreateRequest(eventGroup))
+        } else {
+          val updatedEventGroup: CmmsEventGroup = updateEventGroup(existingEventGroup, eventGroup)
+          if (updatedEventGroup == existingEventGroup) {
+            // Already up to date; emit the mapping without issuing a write RPC.
+            metrics.syncSuccess.add(1, metricAttributes())
+            metrics.syncLatency.record(
+              itemStartTime.elapsedNow().inWholeMilliseconds / 1000.0,
+              metricAttributes(),
+            )
+            emit(
+              mappedEventGroup {
+                eventGroupReferenceId = existingEventGroup.eventGroupReferenceId
+                eventGroupResource = existingEventGroup.name
+              }
+            )
+            WriteAction.None
           } else {
-            createCmmsEventGroup(edpName, eventGroup)
+            WriteAction.Update(updateEventGroupRequest { this.eventGroup = updatedEventGroup })
           }
+        }
+      }
 
-        // Record sync success and latency
-        metrics.syncSuccess.add(1, metricAttributes())
+    when (action) {
+      is WriteAction.Create -> {
+        // A duplicate request_id within one BatchCreateEventGroups call is rejected by the kingdom,
+        // so flush first if it is already buffered. Duplicate input rows then land in separate
+        // batches, where the kingdom dedupes by request_id (idempotent) instead of failing the
+        // batch.
+        if (pendingCreates.any { it.request.requestId == action.request.requestId }) {
+          flushCreates(pendingCreates)
+        }
+        pendingCreates.add(
+          PendingWrite(referenceId, entityType, entityId, itemStartTime, action.request)
+        )
+        if (pendingCreates.size >= MAX_BATCH_SIZE) {
+          flushCreates(pendingCreates)
+        }
+      }
+      is WriteAction.Update -> {
+        // Likewise avoid two updates to the same EventGroup resource within one batch.
+        if (pendingUpdates.any { it.request.eventGroup.name == action.request.eventGroup.name }) {
+          flushUpdates(pendingUpdates)
+        }
+        pendingUpdates.add(
+          PendingWrite(referenceId, entityType, entityId, itemStartTime, action.request)
+        )
+        if (pendingUpdates.size >= MAX_BATCH_SIZE) {
+          flushUpdates(pendingUpdates)
+        }
+      }
+      WriteAction.None -> {}
+    }
+  }
 
-        val syncLatency = syncStartTime.elapsedNow().inWholeMilliseconds / 1000.0
-        metrics.syncLatency.record(syncLatency, metricAttributes())
-
+  /**
+   * Flushes buffered creates as one [batchCreateEventGroups] RPC and emits the resulting mappings.
+   */
+  private suspend fun FlowCollector<MappedEventGroup>.flushCreates(
+    pendingCreates: MutableList<PendingWrite<CreateEventGroupRequest>>
+  ) {
+    if (pendingCreates.isEmpty()) {
+      return
+    }
+    val response =
+      try {
+        throttler.onReady {
+          withSpan(
+            tracer,
+            "EventGroupSync.BatchCreate",
+            Attributes.of(
+              AttributeKey.longKey("batch_size"),
+              pendingCreates.size.toLong(),
+              AttributeKey.stringKey("data_provider_name"),
+              edpName,
+            ),
+            errorMessage = "BatchCreateEventGroups failed",
+          ) { _ ->
+            eventGroupsStub.batchCreateEventGroups(
+              batchCreateEventGroupsRequest {
+                parent = edpName
+                requests += pendingCreates.map { it.request }
+              }
+            )
+          }
+        }
+      } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        if (isPerRequestFailure(e)) {
+          // A single bad sub-request poisoned the atomic batch. Fall back to per-item creates so
+          // one bad EventGroup doesn't block the rest, matching the pre-batching resilience.
+          flushCreatesIndividually(pendingCreates, e)
+        } else {
+          // Transient / infra failure affects the whole batch, so fanning out per-item retries
+          // would fire N doomed RPCs and inflate the failure metric N-fold for one blip. Record a
+          // single batched failure and let the run's retry handle it.
+          recordBatchFailure(e, pendingCreates)
+        }
+        pendingCreates.clear()
+        return
+      }
+    // Pair responses to requests by (referenceId, measurementConsumer) rather than list position,
+    // since the batch response order is not guaranteed. The per-batch dedup guard keeps this key
+    // unique within the batch.
+    val pendingByKey =
+      pendingCreates.associateBy {
+        EventGroupKey(
+          it.request.eventGroup.eventGroupReferenceId,
+          it.request.eventGroup.measurementConsumer,
+        )
+      }
+    response.eventGroupsList.forEach { syncedEventGroup ->
+      val item =
+        pendingByKey[
+          EventGroupKey(
+            syncedEventGroup.eventGroupReferenceId,
+            syncedEventGroup.measurementConsumer,
+          )]
+      if (item == null) {
+        // A well-behaved kingdom only returns EventGroups we requested; skip an unmatched response
+        // entry rather than aborting the whole sync run.
+        logger.warning {
+          "BatchCreateEventGroups returned an unrequested EventGroup ${syncedEventGroup.name}" +
+            " (referenceId=${syncedEventGroup.eventGroupReferenceId}); skipping"
+        }
+        return@forEach
+      }
+      metrics.syncSuccess.add(1, metricAttributes())
+      metrics.syncLatency.record(
+        item.startTime.elapsedNow().inWholeMilliseconds / 1000.0,
+        metricAttributes(),
+      )
+      emit(
         mappedEventGroup {
-          eventGroupReferenceId = syncedEventGroup.eventGroupReferenceId
+          eventGroupReferenceId = item.eventGroupReferenceId
           eventGroupResource = syncedEventGroup.name
         }
-      }
-    } catch (e: Exception) {
-      if (e is CancellationException) throw e
-
-      val errorType =
-        if (e is StatusException || e.cause is StatusException) {
-          val status = (e as? StatusException ?: e.cause as StatusException).status
-          status.code.name
-        } else {
-          e.javaClass.simpleName
-        }
-
-      metrics.syncFailure.add(
-        1,
-        Attributes.builder()
-          .putAll(metricAttributes())
-          .put(AttributeKey.stringKey("error_type"), errorType)
-          .put(AttributeKey.stringKey("event_group_reference_id"), eventGroup.eventGroupReferenceId)
-          .put(AttributeKey.stringKey("entity_type"), eventGroup.entityKey.entityType)
-          .put(AttributeKey.stringKey("entity_id"), eventGroup.entityKey.entityId)
-          .build(),
       )
+    }
+    pendingCreates.clear()
+  }
 
-      logger.log(Level.SEVERE, e) {
-        "Unable to process Event Group ${eventGroup.eventGroupReferenceId}: " +
-          "error_type=$errorType"
+  /**
+   * Issues each buffered create as an individual RPC after a batch failure, isolating the bad
+   * item(s) so valid EventGroups still sync.
+   */
+  private suspend fun FlowCollector<MappedEventGroup>.flushCreatesIndividually(
+    pending: List<PendingWrite<CreateEventGroupRequest>>,
+    batchError: Exception,
+  ) {
+    logger.log(Level.WARNING, batchError) {
+      "Batch create of ${pending.size} Event Groups failed; retrying individually"
+    }
+    for (item in pending) {
+      try {
+        val syncedEventGroup = throttler.onReady { eventGroupsStub.createEventGroup(item.request) }
+        metrics.syncSuccess.add(1, metricAttributes())
+        metrics.syncLatency.record(
+          item.startTime.elapsedNow().inWholeMilliseconds / 1000.0,
+          metricAttributes(),
+        )
+        emit(
+          mappedEventGroup {
+            eventGroupReferenceId = item.eventGroupReferenceId
+            eventGroupResource = syncedEventGroup.name
+          }
+        )
+      } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        recordItemFailure(e, item)
       }
-      null
+    }
+  }
+
+  /**
+   * Flushes buffered updates as one [batchUpdateEventGroups] RPC and emits the resulting mappings.
+   */
+  private suspend fun FlowCollector<MappedEventGroup>.flushUpdates(
+    pendingUpdates: MutableList<PendingWrite<UpdateEventGroupRequest>>
+  ) {
+    if (pendingUpdates.isEmpty()) {
+      return
+    }
+    val response =
+      try {
+        throttler.onReady {
+          withSpan(
+            tracer,
+            "EventGroupSync.BatchUpdate",
+            Attributes.of(
+              AttributeKey.longKey("batch_size"),
+              pendingUpdates.size.toLong(),
+              AttributeKey.stringKey("data_provider_name"),
+              edpName,
+            ),
+            errorMessage = "BatchUpdateEventGroups failed",
+          ) { _ ->
+            eventGroupsStub.batchUpdateEventGroups(
+              batchUpdateEventGroupsRequest {
+                parent = edpName
+                requests += pendingUpdates.map { it.request }
+              }
+            )
+          }
+        }
+      } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        if (isPerRequestFailure(e)) {
+          // A single bad sub-request poisoned the atomic batch. Fall back to per-item updates so
+          // one bad EventGroup doesn't block the rest, matching the pre-batching resilience.
+          flushUpdatesIndividually(pendingUpdates, e)
+        } else {
+          // Transient / infra failure affects the whole batch, so fanning out per-item retries
+          // would fire N doomed RPCs and inflate the failure metric N-fold for one blip. Record a
+          // single batched failure and let the run's retry handle it.
+          recordBatchFailure(e, pendingUpdates)
+        }
+        pendingUpdates.clear()
+        return
+      }
+    // Pair responses to requests by EventGroup resource name (unique within the batch via the dedup
+    // guard) rather than list position, since the batch response order is not guaranteed.
+    val pendingByName = pendingUpdates.associateBy { it.request.eventGroup.name }
+    response.eventGroupsList.forEach { syncedEventGroup ->
+      val item = pendingByName[syncedEventGroup.name]
+      if (item == null) {
+        // A well-behaved kingdom only returns EventGroups we requested; skip an unmatched response
+        // entry rather than aborting the whole sync run.
+        logger.warning {
+          "BatchUpdateEventGroups returned an unrequested EventGroup ${syncedEventGroup.name};" +
+            " skipping"
+        }
+        return@forEach
+      }
+      metrics.syncSuccess.add(1, metricAttributes())
+      metrics.syncLatency.record(
+        item.startTime.elapsedNow().inWholeMilliseconds / 1000.0,
+        metricAttributes(),
+      )
+      emit(
+        mappedEventGroup {
+          eventGroupReferenceId = item.eventGroupReferenceId
+          eventGroupResource = syncedEventGroup.name
+        }
+      )
+    }
+    pendingUpdates.clear()
+  }
+
+  /**
+   * Issues each buffered update as an individual RPC after a batch failure, isolating the bad
+   * item(s) so valid EventGroups still sync.
+   */
+  private suspend fun FlowCollector<MappedEventGroup>.flushUpdatesIndividually(
+    pending: List<PendingWrite<UpdateEventGroupRequest>>,
+    batchError: Exception,
+  ) {
+    logger.log(Level.WARNING, batchError) {
+      "Batch update of ${pending.size} Event Groups failed; retrying individually"
+    }
+    for (item in pending) {
+      try {
+        val syncedEventGroup = throttler.onReady { eventGroupsStub.updateEventGroup(item.request) }
+        metrics.syncSuccess.add(1, metricAttributes())
+        metrics.syncLatency.record(
+          item.startTime.elapsedNow().inWholeMilliseconds / 1000.0,
+          metricAttributes(),
+        )
+        emit(
+          mappedEventGroup {
+            eventGroupReferenceId = item.eventGroupReferenceId
+            eventGroupResource = syncedEventGroup.name
+          }
+        )
+      } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        recordItemFailure(e, item)
+      }
+    }
+  }
+
+  /**
+   * Records a single failed sync as one [EventGroupSyncMetrics.syncFailure] with item attributes.
+   */
+  private fun recordItemFailure(e: Exception, item: PendingWrite<*>) {
+    val errorType = errorTypeOf(e)
+    metrics.syncFailure.add(
+      1,
+      Attributes.builder()
+        .putAll(metricAttributes())
+        .put(AttributeKey.stringKey("error_type"), errorType)
+        .put(AttributeKey.stringKey("event_group_reference_id"), item.eventGroupReferenceId)
+        .put(AttributeKey.stringKey("entity_type"), item.entityType)
+        .put(AttributeKey.stringKey("entity_id"), item.entityId)
+        .build(),
+    )
+    logger.log(Level.SEVERE, e) {
+      "Unable to sync Event Group ${item.eventGroupReferenceId}: error_type=$errorType"
+    }
+  }
+
+  /**
+   * Records a whole-batch failure as a single [EventGroupSyncMetrics.syncFailure] increment
+   * counting the affected items, tagged only with the batch-level error so a transient infra blip
+   * does not fan out into per-item time series. Used when the batch RPC fails for a non-per-request
+   * reason.
+   */
+  private fun recordBatchFailure(e: Exception, pending: List<PendingWrite<*>>) {
+    val errorType = errorTypeOf(e)
+    metrics.syncFailure.add(
+      pending.size.toLong(),
+      Attributes.builder()
+        .putAll(metricAttributes())
+        .put(AttributeKey.stringKey("error_type"), errorType)
+        .build(),
+    )
+    logger.log(Level.SEVERE, e) {
+      "Batch of ${pending.size} Event Groups failed with a transient error (error_type=$errorType);" +
+        " leaving for retry"
+    }
+  }
+
+  /**
+   * gRPC status code of [e] (directly or via its cause), or `null` if it is not a
+   * [StatusException].
+   */
+  private fun statusCodeOf(e: Exception): Status.Code? =
+    (e as? StatusException ?: e.cause as? StatusException)?.status?.code
+
+  private fun errorTypeOf(e: Exception): String = statusCodeOf(e)?.name ?: e.javaClass.simpleName
+
+  /**
+   * Whether a failed batch RPC is attributable to a single bad sub-request (so a per-item retry can
+   * isolate it) rather than a transient/infra failure that affects the whole batch.
+   */
+  private fun isPerRequestFailure(e: Exception): Boolean =
+    statusCodeOf(e) in PER_REQUEST_FAILURE_CODES
+
+  /** Builds a [CreateEventGroupRequest] for [eventGroup] without issuing it. */
+  private fun buildCreateRequest(eventGroup: EventGroup): CreateEventGroupRequest {
+    return createEventGroupRequest {
+      parent = edpName
+      requestId = "${eventGroup.eventGroupReferenceId}-${eventGroup.measurementConsumer}"
+      this.eventGroup = cmmsEventGroup {
+        measurementConsumer = eventGroup.measurementConsumer
+        eventGroupReferenceId = eventGroup.eventGroupReferenceId
+        this.eventGroupMetadata = eventGroup.toCmmsEventGroupMetadata()
+        mediaTypes += eventGroup.mediaTypesList.map { it.toCmmsMediaType() }
+        dataAvailabilityInterval = eventGroup.dataAvailabilityInterval
+        if (eventGroup.hasEntityKey()) {
+          this.entityKey = eventGroup.entityKey.toCmmsEntityKey()
+        }
+      }
     }
   }
 
@@ -442,44 +814,11 @@ class EventGroupSync(
   }
 
   /*
-   * Updates the Cmms Public API with a [CmmsEventGroup].
-   */
-  private suspend fun updateCmmsEventGroup(eventGroup: CmmsEventGroup): CmmsEventGroup {
-    return throttler.onReady {
-      eventGroupsStub.updateEventGroup(updateEventGroupRequest { this.eventGroup = eventGroup })
-    }
-  }
-
-  /*
    * Deletes an EventGroup from CMMS.
    */
   private suspend fun deleteCmmsEventGroup(eventGroup: CmmsEventGroup) {
     val request = deleteEventGroupRequest { name = eventGroup.name }
     throttler.onReady { eventGroupsStub.deleteEventGroup(request) }
-  }
-
-  /*
-   * Calls the Cmms Public API to create a [CmmsEventGroup] from an [EventGroup].
-   */
-  private suspend fun createCmmsEventGroup(
-    edpName: String,
-    eventGroup: EventGroup,
-  ): CmmsEventGroup {
-    val request = createEventGroupRequest {
-      parent = edpName
-      requestId = "${eventGroup.eventGroupReferenceId}-${eventGroup.measurementConsumer}"
-      this.eventGroup = cmmsEventGroup {
-        measurementConsumer = eventGroup.measurementConsumer
-        eventGroupReferenceId = eventGroup.eventGroupReferenceId
-        this.eventGroupMetadata = eventGroup.toCmmsEventGroupMetadata()
-        mediaTypes += eventGroup.mediaTypesList.map { it.toCmmsMediaType() }
-        dataAvailabilityInterval = eventGroup.dataAvailabilityInterval
-        if (eventGroup.hasEntityKey()) {
-          this.entityKey = eventGroup.entityKey.toCmmsEntityKey()
-        }
-      }
-    }
-    return throttler.onReady { eventGroupsStub.createEventGroup(request) }
   }
 
   /*
@@ -600,6 +939,22 @@ class EventGroupSync(
   }
 
   companion object {
+    /** Maximum number of sub-requests per BatchCreate/BatchUpdate EventGroups RPC. */
+    private const val MAX_BATCH_SIZE = 50
+
+    /**
+     * gRPC status codes for a failed batch RPC that are attributable to an individual sub-request
+     * (so retrying per item isolates the bad one). Anything else is treated as a transient/infra
+     * failure affecting the whole batch, which is recorded without a per-item retry fan-out.
+     */
+    private val PER_REQUEST_FAILURE_CODES =
+      setOf(
+        Status.Code.INVALID_ARGUMENT,
+        Status.Code.FAILED_PRECONDITION,
+        Status.Code.NOT_FOUND,
+        Status.Code.ALREADY_EXISTS,
+      )
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     /*

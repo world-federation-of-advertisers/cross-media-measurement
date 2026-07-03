@@ -68,12 +68,11 @@ object Normalization {
    * `ReportingUnit.components` is semantically a set (order does not affect downstream metric
    * calculation), so order-only differences must not produce distinct dim keys.
    *
-   * Only the `dataProviderKeys` variant is implemented today (the BasicReport path). The
-   * `reportingSetKeys` variant is reserved for AdvancedReport and currently has no caller; a future
-   * AdvancedReport normalization path must extend this function rather than rely on the
-   * silent-passthrough that the old early `if (hasDataProviderKeys())` shape allowed -- that would
-   * silently un-normalize AdvancedReport input and reintroduce the order-sensitive dim-key bug
-   * PR #4057 was written to prevent.
+   * Both component variants are normalized: `dataProviderKeys` (DataProvider components) is sorted
+   * by `cmmsDataProviderId`, and `reportingSetKeys` (ReportingSet components) is sorted by
+   * `externalReportingSetId`. Any new component variant must extend this `when` rather than rely on
+   * a silent passthrough -- that would un-normalize the input and reintroduce the order-sensitive
+   * dim-key bug PR #4057 was written to prevent.
    */
   fun normalizeReportingUnit(reportingUnit: ReportingUnit): ReportingUnit {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -88,12 +87,17 @@ object Normalization {
                 }
             }
         }
-      ReportingUnit.ComponentsCase.COMPONENTS_NOT_SET -> reportingUnit
       ReportingUnit.ComponentsCase.REPORTING_SET_KEYS ->
-        throw IllegalArgumentException(
-          "normalizeReportingUnit does not yet handle the reportingSetKeys variant; " +
-            "extend this function (sort by a stable key) when adding an AdvancedReport caller."
-        )
+        reportingUnit.copy {
+          reportingSetKeys =
+            ReportingUnitKt.reportingSetKeys {
+              reportingSetKeys +=
+                reportingUnit.reportingSetKeys.reportingSetKeysList.sortedBy {
+                  it.externalReportingSetId
+                }
+            }
+        }
+      ReportingUnit.ComponentsCase.COMPONENTS_NOT_SET -> reportingUnit
     }
   }
 

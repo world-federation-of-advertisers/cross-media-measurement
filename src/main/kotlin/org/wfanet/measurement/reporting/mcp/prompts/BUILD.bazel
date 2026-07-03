@@ -1,0 +1,14 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/reporting/mcp:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/reporting/mcp:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "reporting_prompts",
+    srcs = ["ReportingPrompts.kt"],
+    deps = [
+        "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
+    ],
+)

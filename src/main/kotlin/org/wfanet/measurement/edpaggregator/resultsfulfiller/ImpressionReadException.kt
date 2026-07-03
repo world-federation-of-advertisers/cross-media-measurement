@@ -32,10 +32,17 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
  *   handling and recovery strategies.
  * @property message optional human-readable description providing additional context about the
  *   failure. If null, only the error code and blob key are available.
+ * @param cause the underlying [Throwable] that triggered this failure, when one exists. Wrapping
+ *   the cause preserves diagnostics (e.g. `InvalidProtocolBufferException` size-limit errors) that
+ *   would otherwise be lost behind the generic [Code.INVALID_FORMAT] code.
  * @constructor Creates a new impression read exception with the specified error details.
  */
-class ImpressionReadException(val blobKey: String, val code: Code, message: String? = null) :
-  Exception(message) {
+class ImpressionReadException(
+  val blobKey: String,
+  val code: Code,
+  message: String? = null,
+  cause: Throwable? = null,
+) : Exception(message, cause) {
 
   /**
    * Categorizes impression reading failures.

@@ -32,12 +32,14 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsResponse
 import org.wfanet.measurement.internal.reporting.v2.CreateReportingSetRequest
+import org.wfanet.measurement.internal.reporting.v2.EnsureSynthesizedCampaignGroupReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsResponse
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReportingSet
+import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.EnsureSynthesizedCampaignGroupReportingSet
 import org.wfanet.measurement.reporting.service.internal.CampaignGroupInvalidException
 import org.wfanet.measurement.reporting.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
@@ -94,6 +96,33 @@ class PostgresReportingSetsService(
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     } catch (e: CampaignGroupInvalidException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+  }
+
+  override suspend fun ensureSynthesizedCampaignGroupReportingSet(
+    request: EnsureSynthesizedCampaignGroupReportingSetRequest
+  ): ReportingSet {
+    val externalReportingSetId = request.externalReportingSetId
+    grpcRequire(externalReportingSetId.isNotEmpty()) { "External reporting set ID is not set." }
+    grpcRequire(request.reportingSet.hasPrimitive()) {
+      "Synthesized campaign group must be a primitive ReportingSet."
+    }
+    grpcRequire(request.reportingSet.primitive.eventGroupKeysList.isNotEmpty()) {
+      "Synthesized campaign group must have at least one EventGroup."
+    }
+    grpcRequire(request.reportingSet.externalCampaignGroupId == externalReportingSetId) {
+      "Synthesized campaign group must be self-referencing."
+    }
+    grpcRequire(request.reportingSet.filter.isEmpty()) {
+      "Synthesized campaign group must not have a filter."
+    }
+
+    return try {
+      EnsureSynthesizedCampaignGroupReportingSet(request).execute(client, idGenerator)
+    } catch (e: MeasurementConsumerNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: ReportingSetAlreadyExistsException) {
+      throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
     }
   }
 
