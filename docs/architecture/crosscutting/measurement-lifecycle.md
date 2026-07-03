@@ -23,7 +23,7 @@ links; it deliberately does not repeat their internals.
 | Kingdom | [../components/kingdom.md](../components/kingdom.md) | Central coordinator: registers `Measurement`s, derives `Requisition`s, drives the state machine, coordinates Duchies, stores the encrypted result. |
 | DataProvider (EDP) libraries | [../components/event-data-provider.md](../components/event-data-provider.md), [../components/client-libraries.md](../components/client-libraries.md) | Reference libraries to filter events, add DP noise, enforce a privacy budget, and build fulfillment requests. |
 | EDP Aggregator (EDPA) | [../components/edpaggregator.md](../components/edpaggregator.md) | Deployable EDP integration: fetches `Requisition`s, computes frequency vectors in TEEs, fulfills to Duchies/Kingdom. |
-| Duchies (2+) | [../components/duchy.md](../components/duchy.md) | MPC worker nodes, each holding a key share; run the protocol rounds and report the result. |
+| Duchies (2+) | [../components/duchy.md](../components/duchy.md) | MPC worker nodes; participating Duchies hold protocol-specific key material, run the protocol rounds, and report the result. |
 | Crypto library (C++) | [../components/crypto-library.md](../components/crypto-library.md) | Native per-round MPC crypto invoked by the Duchy Mills over JNI. |
 | API & proto contract | [../components/api-and-protos.md](../components/api-and-protos.md) | Public v2alpha, system v1alpha, and internal proto tiers that all of the above speak. |
 
@@ -255,11 +255,11 @@ stateDiagram-v2
   [*] --> PENDING_REQUISITION_PARAMS: CreateMeasurement (computed)
   [*] --> PENDING_REQUISITION_FULFILLMENT: CreateMeasurement (direct)
 
-  PENDING_REQUISITION_PARAMS --> PENDING_REQUISITION_FULFILLMENT: all Duchies SetParticipantRequisitionParams
+  PENDING_REQUISITION_PARAMS --> PENDING_REQUISITION_FULFILLMENT: all participants SetParticipantRequisitionParams
   PENDING_REQUISITION_FULFILLMENT --> PENDING_PARTICIPANT_CONFIRMATION: all Requisitions fulfilled (LLv2 / RO-LLv2)
   PENDING_REQUISITION_FULFILLMENT --> PENDING_COMPUTATION: all Requisitions fulfilled (HMSS / TrusTEE)
   PENDING_REQUISITION_FULFILLMENT --> SUCCEEDED: all Requisitions fulfilled (direct)
-  PENDING_PARTICIPANT_CONFIRMATION --> PENDING_COMPUTATION: all Duchies ConfirmComputationParticipant
+  PENDING_PARTICIPANT_CONFIRMATION --> PENDING_COMPUTATION: all participants ConfirmComputationParticipant
   PENDING_COMPUTATION --> SUCCEEDED: aggregator SetComputationResult
   PENDING_REQUISITION_PARAMS --> FAILED: FailComputationParticipant
   PENDING_REQUISITION_FULFILLMENT --> CANCELLED: CancelMeasurement
@@ -274,13 +274,13 @@ stateDiagram-v2
 Also in `.../internal/kingdom/measurement.proto` (`enum State`:
 `STATE_UNSPECIFIED`, `PENDING_PARAMS`, `UNFULFILLED`, `FULFILLED`, `REFUSED`,
 `WITHDRAWN`). A `Requisition` starts in `PENDING_PARAMS` (invisible to
-`DataProvider`s), flips to `UNFULFILLED` once all Duchy params are set, and ends
-in `FULFILLED` or `REFUSED`.
+`DataProvider`s), flips to `UNFULFILLED` once all participant params are set, and
+ends in `FULFILLED` or `REFUSED`.
 
 ```mermaid
 stateDiagram-v2
   [*] --> PENDING_PARAMS: CreateMeasurement (computed)
-  PENDING_PARAMS --> UNFULFILLED: all Duchies set params (now visible to DataProvider)
+  PENDING_PARAMS --> UNFULFILLED: all participants set params (now visible to DataProvider)
   UNFULFILLED --> FULFILLED: DataProvider fulfills (direct to Kingdom, or via a Duchy)
   UNFULFILLED --> REFUSED: DataProvider refuses (invalid / unfulfillable)
   UNFULFILLED --> WITHDRAWN: withdrawn
@@ -317,9 +317,10 @@ data in the clear. That property is spread across the components in this flow:
     per-`DataProvider` `RequisitionSpec`; the Kingdom verifies signatures at the
     public boundary but stores the encrypted payloads opaquely. Certificates are
     served by the Kingdom (see [../components/kingdom.md](../components/kingdom.md) §8).
-*   **Split key shares.** Each Duchy holds only a share of the decryption key, so
-    reconstructing a plaintext requires cooperation of a majority
-    (see [../components/duchy.md](../components/duchy.md), [../components/crypto-library.md](../components/crypto-library.md)).
+*   **Split key shares.** For the public-key MPC protocols, each Duchy holds only
+    a share of the decryption key, so decrypting a result requires the configured
+    Duchies to participate (see [../components/duchy.md](../components/duchy.md),
+    [../components/crypto-library.md](../components/crypto-library.md)).
 *   **Differential privacy + privacy budget.** EDPs add calibrated DP noise and
     charge a per-EDP privacy-budget ledger before fulfilling, refusing on
     overcharge (see [../components/event-data-provider.md](../components/event-data-provider.md)

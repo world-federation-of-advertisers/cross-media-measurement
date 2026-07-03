@@ -9,8 +9,8 @@ and validating and building the wire-format requests that fulfill a requisition.
 These are libraries (reference implementations), not deployable servers: they are
 packaged as Maven artifacts and consumed by callers such as the deployable
 [EDP Aggregator](./edpaggregator.md) and the load-test `EdpSimulator`. This
-subsystem is distinct from the newer standalone
-[privacy-budget-manager service](./privacy-budget-manager.md)
+subsystem is distinct from the newer
+[EDP-Aggregator Privacy Budget Manager](./privacy-budget-manager.md)
 (`org.wfanet.measurement.privacybudgetmanager`), which is a separate component.
 
 ## Purpose and responsibilities
@@ -59,8 +59,8 @@ graph TD
   DP --> REQ
   PBM --> EF
   DC --> PBM
-  REQ -->|FulfillRequisitionRequest stream| KING[(Kingdom Requisitions API)]
-  REQ -->|HMSS shares / TrusTEE payload| DUCHY[(Duchies / TEE)]
+  RF -->|direct fulfillment / refusal| KING[(Kingdom Requisitions API)]
+  REQ -->|FulfillRequisitionRequest stream<br/>HMSS shares / TrusTEE payload| DUCHY[(Duchy RequisitionFulfillment API)]
 ```
 
 Verified consumers outside the `eventdataprovider` tree include
@@ -75,8 +75,11 @@ both `FulfillRequisitionRequestBuilder` variants together with
 `loadtest/dataprovider/EdpSimulator.kt` (takes a
 `privacybudgetmanagement.PrivacyBudgetManager` and the fulfillment builders), and
 `reporting/service/api/v2alpha` / `measurementconsumer/stats` (noiser/DP params).
-The fulfillment requests flow to the Kingdom's Requisitions API and their
-payloads are consumed by the [Duchies](./duchy.md) (HMSS) or a TEE (TrusTEE).
+Direct fulfillment/refusal calls flow to the Kingdom's Requisitions API. The
+HMSS and TrusTEE `FulfillRequisitionRequest` streams constructed by this
+subpackage are sent by callers to Duchy `RequisitionFulfillment` stubs; their
+payloads are then consumed by the [Duchies](./duchy.md) (HMSS) or the Duchy-side
+TrusTEE protocol.
 
 ## Key modules and packages
 
@@ -197,7 +200,8 @@ only; concrete validators are supplied by callers.
 None. This subsystem contains no gRPC services, servers, or daemon entry points.
 It is a set of libraries invoked in-process by EDP-side components. The
 `FulfillRequisitionRequestBuilder` classes only *construct* the request messages;
-the gRPC streaming call to the Kingdom's Requisitions API is made by the caller.
+the gRPC streaming call to a Duchy's `RequisitionFulfillment` API is made by the
+caller.
 
 ## Data model and storage
 
@@ -354,8 +358,8 @@ processed and skipped.
 There are no Kubernetes manifests specific to this subsystem — it ships no
 servers. The one deployment-flavored artifact is the Postgres reference ledger
 under `privacybudgetmanagement/deploy/common/postgres/` (schema + JDBC backing
-store). It is "cloud-agnostic" Postgres-compatible SQL; the standalone PBM
-*service* under `org.wfanet.measurement.privacybudgetmanager/deploy/{postgres,gcloud}`
+store). It is "cloud-agnostic" Postgres-compatible SQL; the newer PBM
+implementation under `org.wfanet.measurement.privacybudgetmanager/deploy/{postgres,gcloud}`
 is a separate component and is not part of these libraries. The requisition
 libraries are shipped as Maven artifacts (including the `requisition-native`
 artifact that bundles `libsecret_share_generator_adapter.so`, per
@@ -398,9 +402,9 @@ be verified against the same contract.
   granularity (e.g. event-group-level).
 * **Two `PrivacyBudgetManager` classes exist.** The library one is
   `org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager`;
-  a different, newer service lives at
+  a different, newer implementation lives at
   `org.wfanet.measurement.privacybudgetmanager.PrivacyBudgetManager` (see the
-  [privacy-budget-manager service](./privacy-budget-manager.md)). They are not the
+  [Privacy Budget Manager](./privacy-budget-manager.md)). They are not the
   same component — do not conflate them.
 * **ACDP/Gaussian coupling.** The ledger and converters only support Gaussian
   (or discrete-Gaussian) noise under ACDP composition; `AcdpParamsConverter` has a

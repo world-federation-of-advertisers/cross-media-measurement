@@ -55,7 +55,7 @@ flowchart LR
     INT --> DB[(Cloud Spanner)]
   end
 
-  Duchy -->|RequisitionFulfillment<br/>at Duchy| EDP
+  EDP -->|RequisitionFulfillment<br/>at Duchy| Duchy
 ```
 
 *   **Callers of the public API:** `MeasurementConsumer`s (create measurements,
@@ -318,11 +318,11 @@ stateDiagram-v2
   [*] --> PENDING_REQUISITION_PARAMS: CreateMeasurement (computed)
   [*] --> PENDING_REQUISITION_FULFILLMENT: CreateMeasurement (direct)
 
-  PENDING_REQUISITION_PARAMS --> PENDING_REQUISITION_FULFILLMENT: all Duchies SetParticipantRequisitionParams
+  PENDING_REQUISITION_PARAMS --> PENDING_REQUISITION_FULFILLMENT: all participants SetParticipantRequisitionParams
   PENDING_REQUISITION_FULFILLMENT --> PENDING_PARTICIPANT_CONFIRMATION: all Requisitions fulfilled (LLv2 / RO-LLv2)
   PENDING_REQUISITION_FULFILLMENT --> PENDING_COMPUTATION: all Requisitions fulfilled (HMSS / TrusTEE)
   PENDING_REQUISITION_FULFILLMENT --> SUCCEEDED: all Requisitions fulfilled (direct)
-  PENDING_PARTICIPANT_CONFIRMATION --> PENDING_COMPUTATION: all Duchies ConfirmComputationParticipant
+  PENDING_PARTICIPANT_CONFIRMATION --> PENDING_COMPUTATION: all participants ConfirmComputationParticipant
   PENDING_COMPUTATION --> SUCCEEDED: aggregator SetComputationResult
   PENDING_REQUISITION_PARAMS --> FAILED: FailComputationParticipant
   PENDING_REQUISITION_FULFILLMENT --> CANCELLED: CancelMeasurement
@@ -350,8 +350,10 @@ Step-by-step for a computed (MPC) measurement:
     (HMSS/TrusTEE). When *all* participants reach that state, it transitions the
     `Measurement` to `PENDING_REQUISITION_FULFILLMENT` and flips its
     `Requisition`s to `UNFULFILLED` (now visible to `DataProvider`s).
-3.  **Fulfillment.** `DataProvider`s fulfill each `Requisition` (computed
-    protocols fulfill via the Duchy's system `FulfillRequisition`). The
+3.  **Fulfillment.** `DataProvider`s fulfill each `Requisition`. Direct
+    protocols call the Kingdom public `FulfillDirectRequisition`; computed
+    protocols stream to a Duchy's public `RequisitionFulfillment` service, and
+    the Duchy then calls the Kingdom system `FulfillRequisition`. The
     `FulfillRequisition` writer (`.../writers/FulfillRequisition.kt`), when the
     last `Requisition` is fulfilled, advances the `Measurement` to
     `PENDING_PARTICIPANT_CONFIRMATION` (LLv2/RO-LLv2),

@@ -134,7 +134,7 @@ used to prepare event data for private membership. The client-side crypto lives
 under `client/`: `eventpreprocessing/` wraps event preprocessing
 (`preprocess_events.*`) and `privatemembership/` holds the private-membership,
 query-preparer, and query-result-decryption utilities. Each of these has its own
-SWIG bridge (see [JNI / SWIG Bridge](#jni--swig-bridge)).
+SWIG bridge (see [JNI / SWIG Bridge](#jni-swig-bridge)).
 
 ## JNI / SWIG Bridge
 
@@ -331,8 +331,9 @@ workers consistent.
 ## Cryptography and Privacy Mechanisms
 
 *   **Layered / commutative ElGamal.** The composite public key is the product of
-    every Duchy's local key, so a ciphertext must be partially decrypted by all
-    Duchies before it becomes plaintext; no single Duchy can decrypt alone.
+    every participating Duchy's local key, so a ciphertext must be partially
+    decrypted by all participants before it becomes plaintext; no single Duchy
+    can decrypt alone.
     `combineElGamalPublicKeys` (via the `sketch_encrypter_adapter` native lib)
     forms that composite key.
 *   **Pohlig-Hellman blinding.** `Blind` replaces the outermost ElGamal layer

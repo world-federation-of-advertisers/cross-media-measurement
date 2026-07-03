@@ -84,7 +84,7 @@ see how it fits into the whole.
 | Component | Doc | Purpose |
 | --- | --- | --- |
 | Kingdom | [kingdom.md](./components/kingdom.md) | Central coordinator: owns the entity registry, drives the `Measurement` lifecycle state machine, tracks `Requisition`s, and coordinates the `Duchy` participants; sole owner of the Kingdom Spanner DB. |
-| Duchy | [duchy.md](./components/duchy.md) | MPC worker node that holds a decryption-key share and runs the privacy-preserving measurement protocols, coordinated by the Kingdom. |
+| Duchy | [duchy.md](./components/duchy.md) | Worker node that runs the privacy-preserving measurement protocols with protocol-specific secret material, coordinated by the Kingdom. |
 | EDP Aggregator | [edpaggregator.md](./components/edpaggregator.md) | Deployable `DataProvider` integration: fetches requisitions, computes frequency vectors in TEEs, fulfills results to the Kingdom/Duchies, and syncs event-group/data-availability metadata. |
 | Reporting | [reporting.md](./components/reporting.md) | Product-facing layer that turns CMMS MPC measurements into reach/frequency/impression/watch-duration/population reports via a public v2alpha API, an MCP server, and post-processing jobs. |
 | Secure Computation (TEE) | [securecomputation.md](./components/securecomputation.md) | Generic cloud-hosted work queue and orchestration control plane for TEE (Confidential Space) workloads: turns landed data into `WorkItem`s and dispatches them to enclave apps. |
@@ -114,7 +114,7 @@ narratives and are best read after the components they reference.
 | Term | Meaning |
 | --- | --- |
 | **Kingdom** | The single central-coordinator deployment. It configures reports, derives the requisitions and computations needed, coordinates the Duchies, and makes completed results accessible. It never holds any part of the decryption key. |
-| **Duchy** | One of 2+ independently operated MPC worker deployments. Each holds a *share* of the decryption key, so all Duchies must participate to run a computation and decrypt a result. |
+| **Duchy** | One of 2+ independently operated MPC worker deployments. For public-key MPC protocols, each participating Duchy holds a *share* of the decryption key, so all participants in that computation must cooperate to produce a result. |
 | **Requisition** | The Kingdom's request to a specific `DataProvider` for the data needed to fulfill a measurement. The Kingdom tracks its state (open/fulfilled/refused); the data itself lives at a Duchy (computed) or is decrypted transiently by the EDP (direct). |
 | **Sketch** | A compact, HyperLogLog-like data structure a publisher computes over its events for privacy-preserving cardinality/frequency estimation, encrypted under the Duchies' combined public key before being sent. (Newer protocols like HMSS instead send additive secret shares of a frequency vector.) |
 | **MeasurementConsumer (MC)** | The advertiser/consumer that requests measurements and owns the private key that decrypts the aggregate results. |

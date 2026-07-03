@@ -97,7 +97,7 @@ measurement via the `ProtocolConfig` it stamps onto every `Requisition`
 operations guide
 [../../operations/enabling-gaussian-noise-and-acdp-pbm.md](../../operations/enabling-gaussian-noise-and-acdp-pbm.md)
 documents flipping `noise_mechanism` to `DISCRETE_GAUSSIAN` in the Kingdom's
-`Llv2ProtocolConfigConfig` / `RoLlv2ProtocolConfigConfig` and ensuring
+`Llv2ProtocolConfigConfig` textprotos for LLv2 and RO-LLv2, and ensuring
 `CONTINUOUS_GAUSSIAN` for direct measurements. The `NoiseMechanism` enum itself
 (`NOISE_MECHANISM_UNSPECIFIED`, `GEOMETRIC`, `DISCRETE_GAUSSIAN`,
 `CONTINUOUS_GAUSSIAN`, `NONE`) lives in

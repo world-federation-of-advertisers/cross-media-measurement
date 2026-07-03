@@ -22,18 +22,20 @@ homomorphic ones.
 The whole design rests on **no single party being trusted with plaintext**. A
 measurement deployment runs 2+ Duchies, operated by independent organizations.
 For the public-key protocols (the Liquid Legions family), the **composite
-public key is the product of every Duchy's local ElGamal key**, so a ciphertext
-must be *partially decrypted by every Duchy in turn* before it becomes plaintext
-— see `combineElGamalPublicKeys` and the layered-ElGamal discussion in the
+public key is the product of every participating Duchy's local ElGamal key**, so
+a ciphertext must be *partially decrypted by every participant in turn* before
+it becomes plaintext; see `combineElGamalPublicKeys` and the layered-ElGamal
+discussion in the
 [crypto library doc](../components/crypto-library.md#cryptography-and-privacy-mechanisms).
-This is why **all Duchies must participate**: any one of them can stall a
-computation, but none can decrypt alone or reconstruct another publisher's data.
+This is why **all participants in that computation must cooperate**: any one of
+them can stall the computation, but none can decrypt alone or reconstruct another
+publisher's data.
 
 The same "share split" idea takes different concrete forms per protocol:
 
 | Protocol | Key/secret each Duchy holds | Why cooperation is required |
 | --- | --- | --- |
-| Liquid Legions V2 / Reach-Only LLv2 | A local ElGamal key pair (created in the initialization phase) | The composite key is the product of all local keys; decryption is layered around the ring |
+| Liquid Legions V2 / Reach-Only LLv2 | A local ElGamal key pair (created in the initialization phase) | The composite key is the product of all participating local keys; decryption is layered around the ring |
 | Honest Majority Share Shuffle (HMSS) | An HPKE key pair / PRNG seed (non-aggregators); the data providers send *additive shares* of the frequency vector | The frequency vector is only recoverable by summing all shares mod the ring modulus |
 | TrusTEE | No cross-Duchy key split; a single aggregator runs in an attested enclave, with envelope-encrypted inputs released only to that enclave | The Trusted Execution Environment (not a key split) is what enforces confidentiality |
 
@@ -63,7 +65,7 @@ The Kingdom's view of a computation and which protocol it uses lives in the
 (`src/main/proto/wfa/measurement/system/v1alpha/computation.proto`), whose
 `MpcProtocolConfig` selects one of Liquid Legions V2, Reach-Only LLv2, Honest
 Majority Share Shuffle, or TrusTEE. For the tier structure of these protos see
-the [API & Protobuf Layer](../components/api-and-protos.md#system-api--systemv1alpha).
+the [API & Protobuf Layer](../components/api-and-protos.md#system-api-systemv1alpha).
 
 ## How a Duchy drives the crypto
 
@@ -112,7 +114,7 @@ Everything crossing JNI is a raw `byte[]` / serialized proto, and a non-OK C++
 `absl::Status` surfaces as a Java `RuntimeException`. Because the tests can swap
 the JNI implementation for a fake (via the Kotlin protocol interfaces and
 `InProcessDuchy.kt`), higher-level tests run without the native libraries. See
-the [crypto library doc](../components/crypto-library.md#jni--swig-bridge) for
+the [crypto library doc](../components/crypto-library.md#jni-swig-bridge) for
 the full SWIG bridge and native-target layout.
 
 ## The deterministic ring
@@ -131,7 +133,7 @@ coordination**, so it is derived deterministically:
     already-ordered list to find the next hop and the aggregator.
 
 Because the hash depends on public keys and the global computation id — both
-known to every Duchy — each node independently agrees on the same ring for a
+known to every participant — each node independently agrees on the same ring for a
 given computation. (`.../duchy/utils/DuchyOrder.kt` defines a standalone
 `getDuchyOrderByPublicKeysAndComputationId` helper, but per the
 [Duchy doc](../components/duchy.md#deterministic-multi-duchy-ordering) it is only
@@ -264,7 +266,7 @@ data-encryption keys are released (via Workload Identity Federation, using a
 Confidential Space attestation token) only to a correctly attested workload — the
 crux of the confidentiality guarantee for enclave-based work. See the Secure
 Computation doc's
-[trust & attestation model](../components/securecomputation.md#cryptography-trust--attestation-model).
+[trust & attestation model](../components/securecomputation.md#cryptography-trust-attestation-model).
 
 ## Comparison at a glance
 

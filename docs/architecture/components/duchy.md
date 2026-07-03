@@ -2,9 +2,10 @@
 
 The Duchy is an MPC (secure multiparty computation) worker node in the WFA
 Cross-Media Measurement system. A deployment runs two or more independent
-Duchies, each holding a share of the decryption key, so that no single operator
-can see cross-publisher measurement data in the clear. Each Duchy watches the
-Kingdom for computations it should participate in, records them in its own
+Duchies; for public-key MPC protocols, each participating Duchy holds a share of
+the decryption key so that no single operator can see cross-publisher
+measurement data in the clear. Each Duchy watches the Kingdom for computations
+it should participate in, records them in its own
 `Computations` database, and runs protocol stages through a pipeline of "Mill"
 workers that call into a C++ crypto library over JNI. Duchies talk to each other
 directly over an inter-Duchy `ComputationControl` API to pass encrypted
@@ -18,9 +19,10 @@ results back to the Kingdom.
   (one-round), Honest Majority Share Shuffle (HMSS), and TrusTEE.
 - **Track computation lifecycle.** Mirror the Kingdom's view of active
   computations into a local relational database, moving each through its stages.
-- **Hold and use key shares.** Each Duchy contributes an ElGamal key
-  (LLv2 family) or an HPKE key pair / seed (HMSS) so decryption requires
-  cooperation of the majority of Duchies.
+- **Hold and use protocol-specific secret material.** LLv2-family Duchies
+  contribute local ElGamal keys to a composite key, HMSS non-aggregators hold
+  HPKE key pairs / seeds for share handling, and TrusTEE relies on TEE
+  attestation rather than a cross-Duchy key split.
 - **Fulfill requisitions.** Accept encrypted measurement data from Data
   Providers (`RequisitionFulfillment`), store the blobs, and mark the requisition
   fulfilled at the Kingdom.
@@ -432,8 +434,8 @@ internal state.
   is not repeated.
 - **Deterministic ring, no coordination.** For LLv2 the Herald sorts the
   non-aggregators by `sha1Hash(elGamalPublicKey + globalComputationId)` and
-  appends the aggregator last, so every Duchy independently agrees on the ring
-  for a given computation.
+  appends the aggregator last, so every participating Duchy independently agrees
+  on the ring for a given computation.
 - **Duchy-internal-only DB access.** The relational DB and internal IDs are never
   exposed outside internal API servers; external APIs use the global computation
   id and external requisition ids.
