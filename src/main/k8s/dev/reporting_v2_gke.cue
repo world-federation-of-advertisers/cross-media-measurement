@@ -14,11 +14,12 @@
 
 package k8s
 
-_pdpName:                      string @tag("pdp_name")
-_reportingBasicReportsEnabled: string @tag("basic_reports_enabled")
-_reportingSecretName:          string @tag("secret_name")
-_reportingMcConfigSecretName:  string @tag("mc_config_secret_name")
-_publicApiAddressName:         string @tag("public_api_address_name")
+_pdpName:                      string       @tag("pdp_name")
+_reportingBasicReportsEnabled: string       @tag("basic_reports_enabled")
+_reportingSecretName:          string       @tag("secret_name")
+_reportingMcConfigSecretName:  string       @tag("mc_config_secret_name")
+_publicApiAddressName:         string       @tag("public_api_address_name")
+_mcpHost:                      *"" | string @tag("mcp_host")
 _accessPublicApiAddressName:   "access-public"
 
 #KingdomApiTarget: #GrpcTarget & {
@@ -51,6 +52,40 @@ _accessPublicApiAddressName:   "access-public"
 	}
 }
 
+// External exposure for the MCP server (Option B): a GKE Ingress terminates
+// HTTPS with a Google-managed certificate and forwards HTTP to the in-cluster
+// plain-HTTP MCP service, so the server itself stays unchanged.
+_reportingMcpManagedCertificate: {
+	apiVersion: "networking.gke.io/v1"
+	kind:       "ManagedCertificate"
+	metadata: name: "reporting-mcp"
+	spec: domains: [_mcpHost]
+}
+
+_reportingMcpIngress: {
+	apiVersion: "networking.k8s.io/v1"
+	kind:       "Ingress"
+	metadata: {
+		name: "reporting-mcp-ingress"
+		annotations: {
+			"kubernetes.io/ingress.class":            "gce"
+			"networking.gke.io/managed-certificates": "reporting-mcp"
+		}
+		labels: "app.kubernetes.io/part-of": #AppName
+	}
+	spec: rules: [{
+		host: _mcpHost
+		http: paths: [{
+			path:     "/"
+			pathType: "Prefix"
+			backend: service: {
+				name: "reporting-mcp-server"
+				port: number: 8080
+			}
+		}]
+	}]
+}
+
 objectSets: [
 	defaultNetworkPolicies,
 	reporting.serviceAccounts,
@@ -59,6 +94,7 @@ objectSets: [
 	reporting.services,
 	reporting.cronJobs,
 	reporting.networkPolicies,
+	if _mcpHost != "" {[_reportingMcpManagedCertificate, _reportingMcpIngress]},
 ]
 
 reporting: #Reporting & {
@@ -122,5 +158,8 @@ reporting: #Reporting & {
 		"reporting-v2alpha-public-api-server": _ipAddressName: _publicApiAddressName
 		"reporting-grpc-gateway": _ipAddressName:              _publicApiAddressName
 		"access-public-api-server": _ipAddressName:            _accessPublicApiAddressName
+		if _mcpHost != "" {
+			"reporting-mcp-server": metadata: annotations: "cloud.google.com/neg": "{\"ingress\": true}"
+		}
 	}
 }
