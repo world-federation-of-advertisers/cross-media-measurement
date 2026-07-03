@@ -29,7 +29,6 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileBinPacker
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
-import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
@@ -46,7 +45,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.getRankerJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRankerJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
@@ -125,6 +123,10 @@ class VidRankBuilder(
   init {
     require(maxFileBatchSizeBytes > 0) { "maxFileBatchSizeBytes must be > 0" }
     require(maxJobsPerBatchCreate > 0) { "maxJobsPerBatchCreate must be > 0" }
+    // Fail fast at construction rather than on the eventual last-job-out (possibly days later), so
+    // a
+    // deployment missing the queue is caught before any RankerJob is processed.
+    require(vidLabelerQueue.isNotEmpty()) { "vidLabelerQueue must be configured" }
   }
 
   /**
@@ -190,7 +192,7 @@ class VidRankBuilder(
         requireNotNull(getParent()) {
           "RawImpressionUploadModelLine not found for $modelLine under $rawImpressionUpload"
         }
-      runLastJobOut(parent, fromRecovery = false)
+      runLastJobOut(parent)
       return Result(subpoolMapBlobUris.size, lastJobOut = true)
     }
     return Result(subpoolMapBlobUris.size, lastJobOut = false)
@@ -216,7 +218,7 @@ class VidRankBuilder(
       return Result(0, lastJobOut = false)
     }
     logger.info("RankerJob $rankerJob already SUCCEEDED; recovering last-job-out")
-    runLastJobOut(parent, fromRecovery = true)
+    runLastJobOut(parent)
     return Result(0, lastJobOut = true)
   }
 
@@ -225,21 +227,24 @@ class VidRankBuilder(
    * `RawImpressionUploadModelLine` `RANKING` -> `LABELING`. The flip is last so `LABELING` is the
    * durable completion marker (a redelivery before the flip re-runs the idempotent fan-out).
    *
-   * On the fresh last-job-out ([fromRecovery] = false) it creates the file-batched
-   * `VidLabelingJob`s and publishes a WorkItem for each. On the recovery path ([fromRecovery] =
-   * true — a redelivered already-`SUCCEEDED` job) it re-publishes from the `VidLabelingJob`s that
-   * were already created, never re-listing the upload's files (which may have changed since the
-   * original last-job-out), so recovery is a pure function of what was already created.
+   * Runs [fanOutLabeling] on BOTH first delivery and recovery (a redelivered already-`SUCCEEDED`
+   * job whose parent is still `RANKING`). Re-running is safe — and, crucially, re-CREATES any
+   * `VidLabelingJob` batches a crashed prior last-job-out never got to — because of the
+   * **file-list-frozen-after-CREATED** invariant: a `RawImpressionUploadFile` list is written once
+   * by the dispatcher at upload registration and never mutated once the upload is past `CREATED`,
+   * so re-listing yields the same files, [RawImpressionFileBinPacker.pack] is deterministic over
+   * them, and the batch-index-keyed `request_id` (see [createVidLabelingJobs]) makes
+   * `BatchCreateVidLabelingJobs` an AIP-155 replay for rows already created while still creating
+   * any missed. (A prior recovery-only re-publish of existing rows silently lost batches when the
+   * original crashed mid-`createVidLabelingJobs`.) If a future change could mutate the file list
+   * post-`CREATED`, recovery would need a different strategy.
    */
-  private suspend fun runLastJobOut(parent: RawImpressionUploadModelLine, fromRecovery: Boolean) {
+  private suspend fun runLastJobOut(parent: RawImpressionUploadModelLine) {
     if (parent.state != RawImpressionUploadModelLine.State.RANKING) {
       logger.info("Parent ${parent.name} already past RANKING; last-job-out already complete")
       return
     }
-    require(vidLabelerQueue.isNotEmpty()) {
-      "vid_labeler_queue must be configured to fan out Phase-2 for $modelLine"
-    }
-    val published = if (fromRecovery) republishExistingLabelingJobs() else fanOutLabeling()
+    val published = fanOutLabeling()
     markParentLabeling(parent)
     if (published == 0) {
       // No `VidLabelingJob` exists for this (upload, model line) — an empty upload with no
@@ -279,35 +284,6 @@ class VidRankBuilder(
     val labelingJobs = createVidLabelingJobs(batches)
     labelingJobs.forEach { job -> publishVidLabelerWorkItem(job) }
     return labelingJobs.size
-  }
-
-  /**
-   * Re-publishes a Phase-2 WorkItem for every existing `VidLabelingJob` of this (upload, model
-   * line). Used on the recovery path: rather than re-listing the upload's files, recovery reads
-   * back exactly the jobs that were already created and re-publishes them (publish is idempotent —
-   * `ALREADY_EXISTS` tolerated). Returns the number of WorkItems published.
-   */
-  private suspend fun republishExistingLabelingJobs(): Int {
-    var published = 0
-    vidLabelingJobsStub
-      .listResources { pageToken: String ->
-        val response =
-          listVidLabelingJobs(
-            listVidLabelingJobsRequest {
-              parent = rawImpressionUpload
-              filter = ListVidLabelingJobsRequestKt.filter { cmmsModelLine = modelLine }
-              this.pageToken = pageToken
-            }
-          )
-        ResourceList(response.vidLabelingJobsList, response.nextPageToken)
-      }
-      .collect { page ->
-        page.forEach { job ->
-          publishVidLabelerWorkItem(job)
-          published++
-        }
-      }
-    return published
   }
 
   /** Lists every (non-deleted) `RawImpressionUploadFile` under this upload. */
