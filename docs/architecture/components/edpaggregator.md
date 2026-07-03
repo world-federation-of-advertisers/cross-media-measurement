@@ -1,8 +1,8 @@
 # EDP Aggregator (EDPA)
 
 The Event Data Provider Aggregator is the subsystem that lets a `DataProvider`
-(EDP) participate in the Cross-Media Measurement System at scale without hand-
-rolling its own integration. It fetches unfulfilled requisitions from the
+(EDP) participate in the Cross-Media Measurement System at scale without
+hand-rolling its own integration. It fetches unfulfilled requisitions from the
 Kingdom, groups them, computes frequency vectors from the EDP's impression data
 inside Trusted Execution Environments (TEEs), fulfills the results back to the
 Kingdom/Duchies, and keeps the Kingdom informed about which event groups exist
@@ -198,7 +198,7 @@ and `ActiveWindow.kt`; `vidlabeling/VidLabelingDispatcher.kt`,
 
 `BaseTeeAppRunner.kt` is the shared CLI base for TEE container entry points; it
 loads mTLS material from Secret Manager, builds per-EDP `KmsClient`s via
-Workload Identity Federation (GCP or GCP→AWS), builds the mutual-TLS channels to
+Workload Identity Federation (GCP or GCP→AWS), builds the mutual TLS channels to
 the Secure Computation and Metadata Storage public APIs, and initializes
 telemetry. `StorageConfig.kt`, `EncryptedStorage.kt`, `BlobUris.kt`, and
 `ConfigLoader.kt` are storage/config helpers.
@@ -449,7 +449,7 @@ pattern).
 ## 9. Deployment Artifacts
 
 Code under `deploy/` splits into cloud-agnostic (`deploy/common/`) and
-Google-Cloud-specific (`deploy/gcloud/`) trees. The gcloud tree contains: the
+Google Cloud-specific (`deploy/gcloud/`) trees. The gcloud tree contains the
 Spanner internal API server and DB layer (`deploy/gcloud/spanner/`, with schema
 in `src/main/resources/edpaggregator/spanner/`), the Cloud Functions
 (`requisitionfetcher/`, `eventgroups/`, `dataavailability/`, `vidlabeling/`),

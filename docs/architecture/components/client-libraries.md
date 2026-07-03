@@ -153,7 +153,7 @@ It:
     (`--data-provider-consent-signaling-*`), its Tink encryption private keyset
     (`--data-provider-encryption-private-keyset`), and builds a
     `DataProviderData`.
-2.  Builds a mutual-TLS gRPC channel (`buildMutualTlsChannel`) to the Kingdom
+2.  Builds a mutual TLS gRPC channel (`buildMutualTlsChannel`) to the Kingdom
     public API and creates coroutine stubs for Certificates, Requisitions,
     ModelRollouts, ModelReleases, and Populations.
 3.  Loads one or more serialized `FileDescriptorSet`s (`--event-message-descriptor-set`)
@@ -326,8 +326,8 @@ sequence, or iterable of VIDs:
 
 The library returns *variances*; the reporting layer converts them to a
 `standardDeviation` on `univariateStatistics` (see `MetricsService.kt`), and
-`isReachTooSmallForComputingRelativeFrequencyVariance` guards against relative-
-frequency estimates when the reach confidence interval covers zero.
+`isReachTooSmallForComputingRelativeFrequencyVariance` guards against
+relative-frequency estimates when the reach confidence interval covers zero.
 
 ## Cryptography / privacy mechanisms
 

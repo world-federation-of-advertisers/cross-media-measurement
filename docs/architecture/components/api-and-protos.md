@@ -71,7 +71,7 @@ flowchart TB
 
 ### Public CMMS API — `v2alpha`
 
-This is the primary externally-facing API. A key architectural fact: **the CMMS
+This is the primary externally facing API. A key architectural fact: **the CMMS
 public `v2alpha` message and service protos are not defined in this repository.**
 They live in the external Bazel module `cross-media-measurement-api` (repo name
 `@wfa_measurement_proto`, pinned in `MODULE.bazel` — see the `bazel_dep` for
@@ -296,7 +296,7 @@ throughout the protos and documented in
     `singular`, `plural`; `[(google.api.resource_reference)]` on name fields.
 *   `[(google.api.method_signature)]` on RPCs for convenience client methods.
 *   `etag` fields for optimistic concurrency on mutations.
-*   `oneof` for mutually-exclusive protocol configs (e.g. the MPC protocol oneof
+*   `oneof` for mutually exclusive protocol configs (e.g. the MPC protocol oneof
     across LLv2 / RO-LLv2 / HMSS / TrusTEE); requirement documented on the oneof,
     not per-field.
 *   Enums always define an `UNSPECIFIED = 0` default.

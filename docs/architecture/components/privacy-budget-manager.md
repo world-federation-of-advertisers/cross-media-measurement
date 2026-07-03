@@ -4,7 +4,7 @@ The Privacy Budget Manager (PBM) is the differential-privacy accounting ledger
 that a Data Provider (EDP) consults before fulfilling a requisition. Every
 Measurement that touches an individual costs some privacy budget; the PBM tracks
 how much budget has already been spent per "privacy bucket" (a slice of
-population x VID-interval x date) and refuses to over-charge any single bucket.
+population, VID interval, and date) and refuses to overcharge any single bucket.
 This protects an individual from being re-identified through repeated,
 overlapping queries. Accounting is done under Advanced/Almost Concentrated
 Differential Privacy (ACDP) composition, which requires Gaussian noise. The PBM
@@ -340,7 +340,7 @@ The PBM does not do cryptography; it does DP accounting. The relevant mechanisms
     configurable.
 *   **Idempotency is reference-based and approximate.** `hasLedgerEntry` (legacy)
     only checks the most recent entry's `isRefund`, which can misbehave with
-    concurrent in-flight entries sharing an MC-id/reference-id.
+    concurrent in-flight entries sharing an MC ID/reference ID.
 *   **Landscape evolution requires an offline backfill.** Changing dimensions
     means rebuilding the `PrivacyCharges` table via `PrivacyLandscapeMapping`; the
     ledger refuses queries while the active landscape is not `READY`.

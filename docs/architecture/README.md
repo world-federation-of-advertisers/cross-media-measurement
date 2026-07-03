@@ -4,7 +4,7 @@ The WFA Cross-Media Measurement System (CMMS) measures cross-publisher,
 cross-media **reach and frequency** without any single party ever seeing another
 publisher's individual-level data in the clear. It is a federation of
 independently operated deployments that trust each other only over
-mutually-authenticated gRPC. The core privacy idea combines two techniques:
+mutually authenticated gRPC. The core privacy idea combines two techniques:
 **secure multiparty computation (MPC)**, which splits the decryption capability
 across two or more independent **Duchies** so that a result can only be produced
 by their cooperation and none can decrypt alone; and **differential privacy
@@ -22,7 +22,7 @@ their internals.
 
 The diagram below shows the deployment actors and the primary flows between them.
 Each actor is an independently operated deployment; all inter-deployment traffic
-is mutually-authenticated gRPC. For the full end-to-end walkthrough see
+is mutually authenticated gRPC. For the full end-to-end walkthrough see
 [Measurement Lifecycle](./crosscutting/measurement-lifecycle.md).
 
 ```mermaid
@@ -92,7 +92,7 @@ see how it fits into the whole.
 | Cryptographic Library (C++) | [crypto-library.md](./components/crypto-library.md) | Native C++ engine performing the per-round MPC crypto (ElGamal/Pohlig-Hellman, LLv2, RO-LLv2, HMSS, distributed DP noise), invoked by the Duchy Mill over a SWIG/JNI bridge. |
 | Client & Actor Libraries | [client-libraries.md](./components/client-libraries.md) | Reusable Kotlin SDKs that CMMS actors (MeasurementConsumer, DataProvider, Population Data Provider) use to authenticate, verify/decrypt consent-signaled specs, compute results, and compute variance. |
 | Event Data Provider Libraries | [event-data-provider.md](./components/event-data-provider.md) | Reusable EDP libraries to filter events, add DP noise, enforce a per-EDP privacy budget, and build/validate requisition-fulfillment wire requests. |
-| Privacy Budget Manager | [privacy-budget-manager.md](./components/privacy-budget-manager.md) | Differential-privacy accounting ledger an EDP consults before fulfilling a `Requisition`, tracking per-bucket ACDP budget and refusing over-charge. |
+| Privacy Budget Manager | [privacy-budget-manager.md](./components/privacy-budget-manager.md) | Differential privacy accounting ledger an EDP consults before fulfilling a `Requisition`, tracking per-bucket ACDP budget and refusing overcharge. |
 | Common & Cloud Libraries | [common-libraries.md](./components/common-libraries.md) | Shared in-repo infrastructure (gRPC interceptors/errors, mTLS identity, resource-name helpers, Kubernetes client, config loading) plus thin Google Cloud abstractions layered on `common-jvm`. |
 | API & Protobuf Layer | [api-and-protos.md](./components/api-and-protos.md) | Cross-cutting protobuf/gRPC contract (public, system, internal, config/type tiers) that defines every inter-component message, service, and resource name. |
 

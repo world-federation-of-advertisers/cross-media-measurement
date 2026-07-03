@@ -3,9 +3,9 @@
 The Access subsystem is the authentication and authorization service for the
 Cross-Media Measurement (CMM) system's application-layer APIs (most notably the
 [Reporting](./reporting.md) API). It maps an incoming caller's credentials
-(an OAuth bearer token or a mutual-TLS client certificate) to a `Principal`,
+(an OAuth bearer token or a mutual TLS client certificate) to a `Principal`,
 and it answers the question "does this `Principal` have permission *X* on
-protected resource *Y*?" using a Google-IAM-style model of `Principal`, `Role`,
+protected resource *Y*?" using a Google IAM-style model of `Principal`, `Role`,
 `Permission`, and `Policy`. It ships as two gRPC servers plus a client library
 that other services embed to enforce access checks; the model is backed by a
 Cloud Spanner database, with a static config file supplying the catalog of
@@ -153,7 +153,7 @@ There are two gRPC servers.
 *   Hosts the four public services (`Principals`, `Permissions`, `Roles`,
     `Policies`) wired by `service/v1alpha/Services.kt`.
 *   It is a thin, cloud-agnostic layer: each public service is a client of the
-    corresponding internal service over a mutual-TLS channel
+    corresponding internal service over a mutual TLS channel
     (`--access-internal-api-target`). The public services validate/convert
     requests, translate resource *names* to resource *IDs*, and map internal
     error reasons to public gRPC statuses (see e.g.
@@ -374,7 +374,7 @@ an `update-access-schema` init container, the `access` Spanner database config,
 and mounts for `permissions_config.textproto` and the AKID-to-principal map.
 The public API server is exposed as an external gRPC service; the internal
 server is cluster-internal. The `deploy/common/server/` split (cloud-agnostic)
-vs `deploy/gcloud/spanner/` (Google-Cloud-specific) follows the project's
+vs `deploy/gcloud/spanner/` (Google Cloud-specific) follows the project's
 deployment layering.
 
 ## Testing approach
@@ -390,7 +390,7 @@ deployment layering.
     `Authentication.withPrincipalAndScopes` seeds the gRPC `Context` for tests,
     and `PrincipalMatcher` / `PermissionMatcher` / `ProtectedResourceMatcher`
     support mockable expectations against the Access stubs.
-*   Consumers such as Reporting exercise the full flow in in-process
+*   Consumers such as Reporting exercise the full flow through in-process
     integration tests (e.g.
     `src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2/`).
 

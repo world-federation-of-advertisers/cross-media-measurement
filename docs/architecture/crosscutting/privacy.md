@@ -23,7 +23,7 @@ MPC and consent-signaling protect data *in transit and during computation*: raw
 impressions never leave an EDP in the clear, and no single Duchy can decrypt a
 sketch alone. But the *published aggregate itself* is a leak channel. Without DP,
 an adversary who can influence which population a query covers could difference
-two nearly-identical queries — for example `reach(everyone)` vs.
+two nearly identical queries — for example `reach(everyone)` vs.
 `reach(everyone except Alice)` — and recover whether Alice was reached. DP
 defends against exactly this differencing/membership-inference class of attack:
 
@@ -193,8 +193,8 @@ which requires Gaussian noise. Each charge is a pair `AcdpCharge(rho, theta)`.
     accounts for the *distributed* discrete-Gaussian noise summed across
     `contributorCount` Duchies (memoized); `getDirectAcdpCharge` handles direct
     continuous Gaussian with sensitivity 1 and `theta = 0`. The converter is
-    **Gaussian-only** — its own comment states it "will not work with other
-    noising mechanism(e.g. Laplace)."
+    **Gaussian-only** — its own comment states that it "will not work with other
+    noising mechanisms (e.g. Laplace)."
 *   `Composition.totalPrivacyBudgetUsageUnderAcdpComposition`
     (`.../Composition.kt`) sums `rho` and `theta` over all charges accumulated in
     a bucket and minimizes over the Rényi order alpha (via an Apache Commons
@@ -371,5 +371,3 @@ composition idea. Full detail on each is in the
     — sets the `ProtocolConfig` noise mechanism per measurement.
 *   [../../operations/enabling-gaussian-noise-and-acdp-pbm.md](../../operations/enabling-gaussian-noise-and-acdp-pbm.md)
     — operational rollout of Gaussian noise + ACDP composition.
-</content>
-</invoke>

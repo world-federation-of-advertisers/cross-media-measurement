@@ -417,9 +417,5 @@ mirroring `src/main/`. Patterns observed:
     apps and their params.
 *   [Duchy](./duchy.md) — home of the *TrusTEE measurement protocol* (distinct
     from this generic TEE framework).
-*   `../crosscutting/observability.md` — OpenTelemetry metrics/tracing used
-    throughout the data watcher and servers.
-*   `../crosscutting/messaging.md` — the shared queue/Pub/Sub abstractions
-    (`WorkItemPublisher`, `QueueSubscriber`).
-</content>
-</invoke>
+*   [Deployment & Operations](../crosscutting/deployment-and-operations.md) —
+    queue, Pub/Sub, and Confidential Space deployment context.

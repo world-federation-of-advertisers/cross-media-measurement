@@ -304,5 +304,3 @@ Computation doc's
     `Computation` resource and `MpcProtocolConfig` that select the protocol.
 *   [Kingdom](../components/kingdom.md) — the coordinator that assigns Duchies to
     a computation and drives its lifecycle.
-</content>
-</invoke>

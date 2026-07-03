@@ -3,7 +3,7 @@
 The WFA Cross-Media Measurement System (CMMS) is not a single deployable — it is
 a federation of independently operated deployments (one **Kingdom**, two or more
 **Duchies**, one or more **Data Provider** stacks, and a **Reporting/Access**
-stack) that trust each other only over mutually-authenticated gRPC. This
+stack) that trust each other only over mutually authenticated gRPC. This
 cross-cutting doc explains how those pieces are built into container images,
 described as Kubernetes manifests, wired to their cloud dependencies (Spanner,
 Postgres, Cloud Storage, Pub/Sub, KMS, Confidential Space), and kept running: the
@@ -18,7 +18,7 @@ run.
 ## 1. Deployment topology
 
 A production CMMS instance is spread across **mutually distrusting operators**.
-The multi-party-computation trust model requires that no single operator controls
+The MPC trust model requires that no single operator controls
 enough of the system to deanonymize measurement data, so the deployments are
 physically and organizationally separate and may even run on different clouds.
 
@@ -255,7 +255,7 @@ scheduler. See [duchy.md](../components/duchy.md).
 | Reporting | `report-result-post-processor` | (per config) | initContainer drives `BasicReport`s, main container runs Python noise-correction |
 
 The Kingdom retention schedules and their `--dry-run` / `--time-to-live` /
-`--days-to-live` flags are the subject of
+`--days-to-live` flags are covered in
 [`updating-retention-policies.md`](../../operations/updating-retention-policies.md)
 (see §6.3). EDPA and Secure Computation do their scheduling differently: EDPA
 Cloud Functions are triggered by **Cloud Scheduler** (HTTP) or by the
@@ -429,5 +429,3 @@ Deployment-time security rests on mutual TLS and a config-driven identity map:
 *   Standards: [`docs/api-standards.md`](../../api-standards.md) (config vs. API),
     [`docs/bazel-build-standards.md`](../../bazel-build-standards.md) (image/target
     conventions).
-</content>
-</invoke>

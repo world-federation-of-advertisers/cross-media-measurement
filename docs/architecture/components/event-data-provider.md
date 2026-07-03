@@ -4,7 +4,7 @@ The Event Data Provider (EDP) libraries are a collection of reusable, mostly
 stateless Kotlin components that a Data Provider uses to fulfill Halo
 requisitions correctly and privately. They cover four concerns: filtering events
 against a market-specific event schema using CEL expressions, adding
-differentially-private noise, tracking and enforcing a per-EDP privacy budget,
+differentially private noise, tracking and enforcing a per-EDP privacy budget,
 and validating and building the wire-format requests that fulfill a requisition.
 These are libraries (reference implementations), not deployable servers: they are
 packaged as Maven artifacts and consumed by callers such as the deployable
@@ -307,7 +307,7 @@ processed and skipped.
    `FrequencyVector` data (modulo `ringModulus`) to produce a `SecretShare` (a
    share vector plus a share seed).
 3. Sign the share seed with the EDP's `SigningKeyHandle` and encrypt it to the
-   duchy's public key (`consent.client.dataprovider.signRandomSeed` /
+   Duchy's public key (`consent.client.dataprovider.signRandomSeed` /
    `encryptRandomSeed`).
 4. Emit a `Sequence<FulfillRequisitionRequest>`: a header (requisition
    fingerprint, nonce, encrypted `secretSeed`, `registerCount`, DP certificate)
@@ -335,7 +335,7 @@ processed and skipped.
 * **ACDP accounting** — the budget is tracked in Almost-Concentrated Differential
   Privacy `(rho, theta)` space. `AcdpParamsConverter` converts per-query
   `(epsilon, delta)` to `(rho, theta)`: `getMpcAcdpCharge` accounts for the
-  distributed discrete-Gaussian noise across `contributorCount` duchies, while
+  distributed discrete-Gaussian noise across `contributorCount` Duchies, while
   `getDirectAcdpCharge` sets `theta = 0` and derives `rho` from the Gaussian sigma.
   This conversion is Gaussian-only. `Composition.totalPrivacyBudgetUsageUnderAcdpComposition`
   optimizes over the Rényi order alpha (via a `BrentOptimizer`) to compute the

@@ -45,7 +45,7 @@ The heavy generic machinery — Tink crypto, storage clients, `Instrumentation`
 coroutine/flow helpers, and the entire Google Cloud SDK wrapper layer — comes
 from `common-jvm`.
 
-## The "common Means Shared Among Siblings" Convention
+## The `common` Directory Convention
 
 Per [`AGENTS.md`](../../../AGENTS.md), a `common/` directory holds code shared
 across *sibling* packages under the same parent. `//foo/common` is used by
@@ -102,12 +102,11 @@ flowchart TD
 *   **What it calls:** the JDK, gRPC-Java, Kotlin coroutines, protobuf, the
     Kubernetes Java client, and — for anything non-trivial — `common-jvm`.
 
-See the sibling component docs it underpins: [`./kingdom.md`](./kingdom.md),
+See the sibling component docs that it underpins: [`./kingdom.md`](./kingdom.md),
 [`./duchy.md`](./duchy.md), [`./reporting.md`](./reporting.md),
 [`./edpaggregator.md`](./edpaggregator.md), and
 [`./securecomputation.md`](./securecomputation.md). Cross-cutting topics are in
-[`../crosscutting/`](../crosscutting/) (e.g. an eventual
-`../crosscutting/observability.md` and `../crosscutting/security.md`).
+[`../crosscutting/`](../crosscutting/).
 
 ## Key Modules & Packages
 
@@ -411,9 +410,8 @@ security-relevant responsibilities are:
 
 ## Google Cloud Abstractions (`gcloud`)
 
-The prompt calls out the "Google Cloud abstractions under `gcloud` (Spanner,
-Cloud Storage, Pub/Sub, etc.)". In this repository the `org.wfanet.measurement.gcloud`
-tree contains **only** `gcloud/testing/FunctionsFrameworkInvokerProcess.kt` and a
+In this repository, the `org.wfanet.measurement.gcloud` tree contains **only**
+`gcloud/testing/FunctionsFrameworkInvokerProcess.kt` and a
 `package_group` in `gcloud/BUILD.bazel` naming the deploy packages allowed to use
 Google Cloud code. The actual abstractions live in the **`common-jvm` module**
 and are referenced as `@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/...`.
@@ -463,7 +461,7 @@ Truth (`assertThat`), and prefer small focused cases. Present tests include:
 
 *   `ratelimit/TokenBucketTest.kt` and `grpc/RateLimiterProviderTest.kt` /
     `grpc/RateLimitingServerInterceptorTest.kt` — token-bucket semantics and
-    interceptor behaviour.
+    interceptor behavior.
 *   `throttler/MaximumRateThrottlerTest.kt`, `api/ETagsTest.kt`,
     `api/grpc/ListResourcesTest.kt`, `FillableTemplateTest.kt`,
     `SortedListsTest.kt`, `TimestampsTest.kt`.

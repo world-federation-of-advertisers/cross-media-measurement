@@ -127,10 +127,10 @@ per [../components/kingdom.md](../components/kingdom.md) §7.1):
 
 *   inserts the `Measurement` in state `PENDING_REQUISITION_PARAMS` (computed) or
     `PENDING_REQUISITION_FULFILLMENT` (direct);
-*   computes the required Duchy set from the `ProtocolConfig` and per-
-    `DataProvider` required Duchies, and inserts one `ComputationParticipant` per
-    included **active** Duchy (there is no `Duchies` table — the set is fixed by
-    config, so `CreateMeasurements` refuses if too few are active);
+*   computes the required Duchy set from the `ProtocolConfig` and per-DataProvider
+    required Duchies, and inserts one `ComputationParticipant` per included
+    **active** Duchy (there is no `Duchies` table — the set is fixed by config,
+    so `CreateMeasurements` refuses if too few are active);
 *   inserts one `Requisition` per `DataProvider` in `PENDING_PARAMS`.
 
 ### 3.3 Duchies supply requisition params
@@ -322,7 +322,7 @@ data in the clear. That property is spread across the components in this flow:
     (see [../components/duchy.md](../components/duchy.md), [../components/crypto-library.md](../components/crypto-library.md)).
 *   **Differential privacy + privacy budget.** EDPs add calibrated DP noise and
     charge a per-EDP privacy-budget ledger before fulfilling, refusing on
-    over-charge (see [../components/event-data-provider.md](../components/event-data-provider.md)
+    overcharge (see [../components/event-data-provider.md](../components/event-data-provider.md)
     and [../components/privacy-budget-manager.md](../components/privacy-budget-manager.md)).
 *   **TEE isolation.** In the EDPA path, plaintext impressions and unwrapped DEKs
     exist only inside Confidential Space TEEs
@@ -362,5 +362,3 @@ data in the clear. That property is spread across the components in this flow:
     EDP/MC libraries used inside the fulfillment and composition steps.
 *   [../components/api-and-protos.md](../components/api-and-protos.md) — the
     public / system / internal proto tiers this flow crosses.
-</content>
-</invoke>

@@ -1,7 +1,7 @@
 # Cryptographic Library (C++)
 
 The cryptographic library is the native C++ engine that performs the actual
-secure-multiparty-computation (MPC) math for the WFA Cross-Media Measurement
+secure multiparty computation (MPC) math for the WFA Cross-Media Measurement
 system. It implements the round-by-round crypto for the reach and frequency
 protocols (Liquid Legions V2, Reach-Only LLv2, Honest Majority Share Shuffle),
 plus the panel-matching commutative encryption used by the private-matching
@@ -13,7 +13,7 @@ share-arithmetic work happens in this library.
 ## Purpose and Responsibilities
 
 The library provides the crypto primitives and per-phase protocol logic that a
-duchy needs to jointly compute reach and frequency without any single party
+Duchy needs to jointly compute reach and frequency without any single party
 seeing the underlying data:
 
 *   **ElGamal / commutative encryption primitives** — blinding, layered
@@ -26,7 +26,7 @@ seeing the underlying data:
 *   **Honest Majority Share Shuffle (HMSS)** — an additive-secret-sharing
     protocol over frequency vectors that uses PRNG-derived shares and shuffling
     rather than public-key crypto on each register.
-*   **Distributed noise generation** — building the differentially-private
+*   **Distributed noise generation** — building the differentially private
     noisers (geometric / discrete Gaussian) that each honest party contributes.
 *   **Panel-match commutative crypto** — deterministic commutative cipher, AES,
     HKDF, and event preprocessing used by the panel-matching client tooling.
@@ -250,7 +250,7 @@ The core operations `ProtocolCryptor` exposes (from `protocol_cryptor.h`):
 
 ## Liquid Legions V2 Flow
 
-LLv2 is a three-round protocol run across an ordered ring of duchies with one
+LLv2 is a three-round protocol run across an ordered ring of Duchies with one
 designated aggregator. Each phase is a separate C++ function (documented inline
 in `liquid_legions_v2_encryption_utility.h`); the Mill calls them in order and
 ships the resulting byte blob to the next worker.
@@ -331,8 +331,8 @@ workers consistent.
 ## Cryptography and Privacy Mechanisms
 
 *   **Layered / commutative ElGamal.** The composite public key is the product of
-    every duchy's local key, so a ciphertext must be partially decrypted by all
-    duchies before it becomes plaintext; no single duchy can decrypt alone.
+    every Duchy's local key, so a ciphertext must be partially decrypted by all
+    Duchies before it becomes plaintext; no single Duchy can decrypt alone.
     `combineElGamalPublicKeys` (via the `sketch_encrypter_adapter` native lib)
     forms that composite key.
 *   **Pohlig-Hellman blinding.** `Blind` replaces the outermost ElGamal layer

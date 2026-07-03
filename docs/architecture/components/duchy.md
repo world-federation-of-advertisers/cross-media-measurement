@@ -13,7 +13,7 @@ results back to the Kingdom.
 
 ## Purpose and responsibilities
 
-- **Participate in MPC protocols.** Execute the local half of each supported
+- **Participate in MPC protocols.** Execute the local part of each supported
   protocol: Liquid Legions V2 (three-round), Reach-Only Liquid Legions V2
   (one-round), Honest Majority Share Shuffle (HMSS), and TrusTEE.
 - **Track computation lifecycle.** Mirror the Kingdom's view of active
@@ -201,8 +201,8 @@ Highlights:
 
 Details messages are stored as serialized bytes in the DB. Central ones:
 
-- `ComputationDetails` (`.../internal/duchy/computation_details.proto`) — per-
-  computation config, including `KingdomComputationDetails` (written by the
+- `ComputationDetails` (`.../internal/duchy/computation_details.proto`) —
+  per-computation config, including `KingdomComputationDetails` (written by the
   Herald, consumed by Mills: public API version, `MeasurementSpec`, measurement
   public key, participant count) and a `oneof protocol` with per-protocol
   `ComputationDetails` (e.g.
@@ -235,7 +235,7 @@ elsewhere (`.../deploy/common/server/ForwardedStorage*Server.kt`).
 Three distinct API layers, matching the project's API conventions:
 
 1. **Public v2alpha** (`wfa.measurement.api.v2alpha`) — `RequisitionFulfillment`,
-   the only externally-facing (Data Provider) API the Duchy hosts.
+   the only externally facing (Data Provider) API the Duchy hosts.
 2. **System v1alpha** (`wfa.measurement.system.v1alpha`) — the inter-component
    API. The Duchy *serves* `ComputationControl` (peer-to-peer) and is a *client*
    of the Kingdom's `Computations`, `ComputationParticipants`,
@@ -316,8 +316,8 @@ computation id:
   orders non-aggregators by `sha1Hash(elGamalPublicKey + globalComputationId)`
   and appends the aggregator last, storing this list in
   `LiquidLegionsSketchAggregationV2.ComputationDetails.participant`. At runtime
-  `LiquidLegionsV2Mill.nextDuchyId` simply indexes into that stored, already-
-  ordered participant list to find the next hop and the aggregator. (The
+  `LiquidLegionsV2Mill.nextDuchyId` simply indexes into that stored,
+  already-ordered participant list to find the next hop and the aggregator. (The
   reach-only variant does the same via `ReachOnlyLiquidLegionsV2Starter`.)
 - For HMSS, roles are fixed by config
   (`HonestMajorityShareShuffleSetupConfig`: first/second non-aggregator and
@@ -422,8 +422,8 @@ internal state.
 - **Optimistic concurrency + work locks.** Every mutating internal call carries
   the token `version`; a mismatch returns `ABORTED`. Work is claimed via a lock
   (`LockOwner`/`LockExpirationTime`); an expired lock lets another worker retake
-  the computation. `EnqueueComputation` uses `expected_owner` to avoid a lock-
-  handoff race.
+  the computation. `EnqueueComputation` uses `expected_owner` to avoid a
+  lock-handoff race.
 - **Idempotent, tolerant stage advancement.** `AsyncComputationControlService`
   treats a request one stage behind as a no-op and one stage ahead as catch-up,
   which is what makes retried inter-Duchy `AdvanceComputation` calls safe.

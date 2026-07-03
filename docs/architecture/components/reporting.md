@@ -77,7 +77,7 @@ flowchart LR
 
 The Reporting server is itself a gRPC server that is also a gRPC client, so it
 follows the project rule of catching `StatusException` at each Kingdom/internal
-call site and re-mapping the status (see `createReport` in
+call site and remapping the status (see `createReport` in
 `src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/ReportsService.kt`).
 
 ## 3. Key Modules and Packages
@@ -115,7 +115,7 @@ Protos live under:
 ### 4.1 Public API server
 
 Entry point: `deploy/v2/common/server/V2AlphaPublicApiServer.kt`
-(binary `V2AlphaPublicApiServer`). It opens a mutual-TLS channel to the Kingdom
+(binary `V2AlphaPublicApiServer`). It opens a mutual TLS channel to the Kingdom
 (`kingdomChannel`) and to the internal Reporting server, wires an
 `Authorization` client to the Access system, loads `MetricSpecConfig` (and an
 optional BasicReport-specific `MetricSpecConfig`), and starts these public
@@ -147,7 +147,7 @@ it references use `halo.wfanet.org` (e.g. `halo.wfanet.org/EventGroup`,
 ### 4.2 Internal server
 
 Entry points: `deploy/v2/common/server/InternalReportingServer.kt` and the
-Google-Cloud variant `deploy/v2/gcloud/server/GCloudInternalReportingServer.kt`
+Google Cloud variant `deploy/v2/gcloud/server/GCloudInternalReportingServer.kt`
 (binary image `postgres-internal-reporting-server`). `DataServices.create(...)`
 in `deploy/v2/common/service/DataServices.kt` assembles the `Services` bundle.
 
@@ -219,7 +219,7 @@ public API uses (via `ToolSupport.PROTO_JSON_PARSER` / `PROTO_JSON_PRINTER`).
 `//src/main/go/reporting:grpc_gateway_image`) is a small Go program that
 provides gRPC-JSON transcoding (`google.api.http` REST). It uses
 [`grpc-gateway`](https://github.com/grpc-ecosystem/grpc-gateway) to expose a
-REST/JSON front end and proxies calls over a mutual-TLS gRPC connection to the
+REST/JSON front end and proxies calls over a mutual TLS gRPC connection to the
 Reporting `v2alpha` public API server (`--reporting-public-api-target`). It
 registers handlers for `EventGroups`, `ReportingSets`,
 `ImpressionQualificationFilters`, and `BasicReports` (from the Reporting API)
@@ -483,7 +483,7 @@ flag (`--basic-reports-enabled`) gates the Spanner-backed services. Container
 images are produced by `java_image` targets in the corresponding `BUILD.bazel`
 files (e.g. `deploy/v2/common/server/BUILD.bazel`); the gateway image is an
 `oci_image` over a Go `go_binary` (`//src/main/go/reporting:grpc_gateway_image`)
-and the post-processor main container is a Python image. The Google-Cloud
+and the post-processor main container is a Python image. The Google Cloud
 internal server binary is `GCloudInternalReportingServer`; the cloud-agnostic
 base server is `InternalReportingServer`.
 
