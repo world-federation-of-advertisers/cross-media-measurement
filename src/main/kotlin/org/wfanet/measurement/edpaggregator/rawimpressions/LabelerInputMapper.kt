@@ -36,8 +36,8 @@ import org.wfanet.virtualpeople.common.LabelerInput
  * * [LabelerInputFieldMapping.getAgeRange]: fill an age `{min_age, max_age}` sub-message from a
  *   single int column, a min/max column pair, or a string bucket looked up in an operator-defined
  *   `bucket_table` (any label, e.g. "18-24" or "65 and over" -> `{min_age, max_age}`).
- * * [LabelerInputFieldMapping.getCompositeIdentity]: set the leaf from the first non-null of several
- *   columns (identity fallback).
+ * * [LabelerInputFieldMapping.getCompositeIdentity]: set the leaf from the first non-null of
+ *   several columns (identity fallback).
  *
  * Scalar path resolution and value coercion are delegated to [ProtoRowProjector] (shared with the
  * event-template and entity-key mappers); this class adds the enum/age/composite sources on top.
@@ -87,8 +87,8 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
    * Every raw-impression column this mapping reads, mapped to the set of [ParquetValue] kinds the
    * mapper accepts for it. Used for first-file schema-drift validation (see
    * [validateColumnsAgainstSchema]) so a renamed/typo'd column (missing) or a retyped column
-   * (incompatible kind) fails loud at file open rather than silently unsetting the target field — or
-   * throwing on every row — during labeling.
+   * (incompatible kind) fails loud at file open rather than silently unsetting the target field —
+   * or throwing on every row — during labeling.
    */
   fun referencedColumnKinds(): Map<String, Set<KindCase>> = referencedColumnKinds
 
@@ -186,7 +186,9 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
       }
     }
 
-    /** Records [column] -> the kinds accepted for it, intersecting when a column is mapped twice. */
+    /**
+     * Records [column] -> the kinds accepted for it, intersecting when a column is mapped twice.
+     */
     private fun record(
       columnKinds: MutableMap<String, Set<KindCase>>,
       column: String,
