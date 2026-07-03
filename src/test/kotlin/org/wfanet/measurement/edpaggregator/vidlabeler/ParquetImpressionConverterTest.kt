@@ -28,6 +28,8 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
+import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.storage.ParquetValue
@@ -39,8 +41,16 @@ class ParquetImpressionConverterTest {
 
   private val config: VidLabelerParams.ModelLineConfig =
     VidLabelerParamsKt.modelLineConfig {
-      labelerInputFieldMapping.put("event_id.id", "eid")
-      labelerInputFieldMapping.put("timestamp_usec", "ts")
+      labelerInputFieldMapping +=
+        LabelerInputFieldMapping.newBuilder()
+          .setFieldPath("event_id.id")
+          .setScalar(ScalarColumn.newBuilder().setColumn("eid"))
+          .build()
+      labelerInputFieldMapping +=
+        LabelerInputFieldMapping.newBuilder()
+          .setFieldPath("timestamp_usec")
+          .setScalar(ScalarColumn.newBuilder().setColumn("ts"))
+          .build()
       eventTemplateFieldMapping.put("person.gender", "gender")
       eventTemplateFieldMapping.put("person.age_group", "age")
       // Entity keys are read per row from these columns (no longer from the footer).
@@ -87,8 +97,16 @@ class ParquetImpressionConverterTest {
   fun `convert with empty event_template_field_mapping yields an empty event of the type`() {
     val emptyMappingConfig =
       VidLabelerParamsKt.modelLineConfig {
-        labelerInputFieldMapping.put("event_id.id", "eid")
-        labelerInputFieldMapping.put("timestamp_usec", "ts")
+        labelerInputFieldMapping +=
+          LabelerInputFieldMapping.newBuilder()
+            .setFieldPath("event_id.id")
+            .setScalar(ScalarColumn.newBuilder().setColumn("eid"))
+            .build()
+        labelerInputFieldMapping +=
+          LabelerInputFieldMapping.newBuilder()
+            .setFieldPath("timestamp_usec")
+            .setScalar(ScalarColumn.newBuilder().setColumn("ts"))
+            .build()
         optionalEntityKeyFieldMapping.put("creative", "cr_col")
       }
     val converter = ParquetImpressionConverter(eventDescriptor)
