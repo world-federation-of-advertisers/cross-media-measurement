@@ -20,6 +20,7 @@ import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/type/date.proto";
 import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
+import "wfa/measurement/edpaggregator/v1alpha/labeler_input_field_mapping.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
@@ -115,7 +116,8 @@ message VidRankBuilderParams {
   //
   // Not consumed by the Phase-1 ranker. Pass-through for the Phase-2
   // VidLabeler WorkItem.
-  map<string, string> labeler_input_field_mapping = 10;
+  reserved 10;
+  repeated LabelerInputFieldMapping labeler_input_field_mapping = 26;
 
   // Mapping from event template field names to their corresponding raw
   // impression field names. Mirrors the per-(EDP, model line) mapping

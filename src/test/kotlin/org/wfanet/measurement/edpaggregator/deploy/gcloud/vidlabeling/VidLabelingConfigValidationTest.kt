@@ -23,6 +23,8 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigKt
 import org.wfanet.measurement.config.edpaggregator.vidLabelingConfig
+import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 
 @RunWith(JUnit4::class)
 class VidLabelingConfigValidationTest {
@@ -32,7 +34,11 @@ class VidLabelingConfigValidationTest {
       dataProvider = DATA_PROVIDER
       modelLineConfigs[MODEL_LINE] =
         VidLabelingConfigKt.modelLineConfig {
-          labelerInputFieldMapping["event_id.id"] = "event_id_col"
+          labelerInputFieldMapping +=
+            LabelerInputFieldMapping.newBuilder()
+              .setFieldPath("event_id.id")
+              .setScalar(ScalarColumn.newBuilder().setColumn("event_id_col"))
+              .build()
         }
     }
 
@@ -44,7 +50,13 @@ class VidLabelingConfigValidationTest {
     val config = vidLabelingConfig {
       dataProvider = DATA_PROVIDER
       modelLineConfigs[MODEL_LINE] =
-        VidLabelingConfigKt.modelLineConfig { labelerInputFieldMapping["age"] = "age_col" }
+        VidLabelingConfigKt.modelLineConfig {
+          labelerInputFieldMapping +=
+            LabelerInputFieldMapping.newBuilder()
+              .setFieldPath("age")
+              .setScalar(ScalarColumn.newBuilder().setColumn("age_col"))
+              .build()
+        }
     }
 
     val exception =
