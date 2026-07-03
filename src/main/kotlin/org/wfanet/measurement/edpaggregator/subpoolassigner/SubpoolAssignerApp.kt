@@ -255,7 +255,7 @@ class SubpoolAssignerApp(
         rawImpressionUpload = params.rawImpressionUpload
         modelLine = params.modelLine
         modelBlobPath = params.modelBlobPath
-        labelerInputFieldMapping.putAll(params.labelerInputFieldMappingMap)
+        labelerInputFieldMapping.addAll(params.labelerInputFieldMappingList)
         eventTemplateFieldMapping.putAll(params.eventTemplateFieldMappingMap)
         // Event-template descriptor pass-through (OPTIONAL): forwarded verbatim so the Phase-1
         // last-out can stamp it on the Phase-2 VidLabeler ModelLineConfig, which requires it.

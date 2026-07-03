@@ -22,6 +22,8 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
@@ -54,7 +56,11 @@ class SubpoolAssignerAppTest {
     rawImpressionUpload = UPLOAD
     modelLine = MODEL_LINE
     modelBlobPath = "model/blob"
-    labelerInputFieldMapping.put("event_id.id", "raw_event_id")
+    labelerInputFieldMapping +=
+      LabelerInputFieldMapping.newBuilder()
+        .setFieldPath("event_id.id")
+        .setScalar(ScalarColumn.newBuilder().setColumn("raw_event_id"))
+        .build()
     eventTemplateFieldMapping.put("banner_ad.viewable", "raw_viewable")
     eventTemplateDescriptorBlobUri = "descriptor/event-template.pb"
     eventTemplateType = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
@@ -93,7 +99,13 @@ class SubpoolAssignerAppTest {
     assertThat(template.modelLine).isEqualTo(MODEL_LINE)
     assertThat(template.modelBlobPath).isEqualTo("model/blob")
     assertThat(template.totalShards).isEqualTo(4)
-    assertThat(template.labelerInputFieldMappingMap).containsExactly("event_id.id", "raw_event_id")
+    assertThat(template.labelerInputFieldMappingList)
+      .containsExactly(
+        LabelerInputFieldMapping.newBuilder()
+          .setFieldPath("event_id.id")
+          .setScalar(ScalarColumn.newBuilder().setColumn("raw_event_id"))
+          .build()
+      )
     assertThat(template.eventTemplateFieldMappingMap)
       .containsExactly("banner_ad.viewable", "raw_viewable")
     // Event-template descriptor forwarded so the Phase-1 last-out can stamp it on Phase-2, which
