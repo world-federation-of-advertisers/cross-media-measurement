@@ -401,7 +401,6 @@ class VidLabelingDispatchSequencer(
     val poolAssignmentJobsByShard: Map<Int, String> =
       createPoolAssignmentJobs(uploadName, modelLine.cmmsModelLine)
 
-    val uploadId: String = uploadName.substringAfterLast("/")
     for (shardIndex in 0 until numberOfShards) {
       val poolAssignmentJob: String =
         requireNotNull(poolAssignmentJobsByShard[shardIndex]) {
@@ -416,7 +415,6 @@ class VidLabelingDispatchSequencer(
         modelLineConfig = modelLineConfig,
         poolAssignmentJob = poolAssignmentJob,
         shardIndex = shardIndex,
-        uploadId = uploadId,
       )
     }
     markPoolAssigning(modelLine.name, modelLine.etag)
@@ -577,7 +575,7 @@ class VidLabelingDispatchSequencer(
         vidLabelingJob = vidLabelingJobName
       }
 
-    val workItemId = "vid-labeling-${vidLabelingJobName.substringAfterLast("/")}"
+    val workItemId = RequestIds.forVidLabelingWorkItem(vidLabelingJobName)
     val request = createWorkItemRequest {
       this.workItemId = workItemId
       workItem = workItem {
@@ -698,7 +696,6 @@ class VidLabelingDispatchSequencer(
     modelLineConfig: VidLabelerParams.ModelLineConfig,
     poolAssignmentJob: String,
     shardIndex: Int,
-    uploadId: String,
   ) {
     // Start from the shared template (data provider, storage params, TLS connection) and fill in
     // the per-shard fields. `copy` carries every template field, so a field added to the template
@@ -720,7 +717,7 @@ class VidLabelingDispatchSequencer(
       }
 
     val workItemId =
-      "subpool-assigner-$uploadId-${modelLineName.substringAfterLast("/")}-shard-$shardIndex"
+      RequestIds.forSubpoolAssignerWorkItem(uploadName, modelLineName, shardIndex)
     val request = createWorkItemRequest {
       this.workItemId = workItemId
       workItem = workItem {

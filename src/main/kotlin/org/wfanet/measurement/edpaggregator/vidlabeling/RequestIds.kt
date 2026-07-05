@@ -65,5 +65,20 @@ object RequestIds {
   fun forVidLabelingJob(uploadName: String, modelLineNames: List<String>, batchIndex: Int): String =
     fromKey("vidLabelingJob:$uploadName:${modelLineNames.sorted().joinToString(",")}:$batchIndex")
 
+  /**
+   * WorkItem resource id for a memoized SubpoolAssigner WorkItem. Must satisfy RFC 1034
+   * (<=63 chars, letter-start, [a-zA-Z0-9-], no '_'): Kingdom model-line ids contain '_' and
+   * uploads use long UUIDs, so derive a bounded letter-prefixed deterministic UUID from the key.
+   */
+  fun forSubpoolAssignerWorkItem(
+    uploadName: String,
+    modelLineName: String,
+    shardIndex: Int,
+  ): String = "sa-" + fromKey("subpoolAssignerWorkItem:$uploadName:$modelLineName:$shardIndex")
+
+  /** WorkItem resource id for a non-memoized VidLabeling WorkItem (see [forSubpoolAssignerWorkItem]). */
+  fun forVidLabelingWorkItem(vidLabelingJobName: String): String =
+    "vl-" + fromKey("vidLabelingWorkItem:$vidLabelingJobName")
+
   private fun fromKey(key: String): String = UUID.nameUUIDFromBytes(key.toByteArray()).toString()
 }
