@@ -350,8 +350,9 @@ locals {
         mig_service_account_name      = "subpool-assigner-sa"
         single_instance_assignment    = 1
         min_replicas                  = 0
-        max_replicas                  = 64
-        machine_type                  = "c4d-standard-32"
+        max_replicas                  = 8
+        machine_type                  = "n2d-highmem-16"
+        disk_type                     = "pd-balanced"
         java_tool_options             = "-Xmx96G"
         docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/subpool_assigner:${var.image_tag}"
         tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/subpool_assigner"
@@ -376,8 +377,9 @@ locals {
         mig_service_account_name      = "vid-rank-builder-sa"
         single_instance_assignment    = 1
         min_replicas                  = 0
-        max_replicas                  = 64
+        max_replicas                  = 8
         machine_type                  = "n2d-highmem-16"
+        disk_type                     = "pd-balanced"
         java_tool_options             = "-Xmx96G"
         docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_rank_builder:${var.image_tag}"
         tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_rank_builder"
@@ -402,8 +404,9 @@ locals {
         mig_service_account_name      = "vid-labeler-sa"
         single_instance_assignment    = 1
         min_replicas                  = 0
-        max_replicas                  = 64
+        max_replicas                  = 8
         machine_type                  = "n2d-highmem-16"
+        disk_type                     = "pd-balanced"
         java_tool_options             = "-Xmx96G"
         docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_labeler:${var.image_tag}"
         tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_labeler"
