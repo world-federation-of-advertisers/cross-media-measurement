@@ -3372,6 +3372,31 @@ class BasicReportTransformationsTest {
   }
 
   @Test
+  fun `toCelValue escapes DEL (0x7F) in STRING literal`() {
+    // DEL has its own branch in toCelStringLiteral (mapped to \u007f) distinct from the
+    // generic control-char < 0x20 branch. Pin it directly so a future refactor can't
+    // silently collapse the branches and end up emitting DEL as a raw byte.
+    val filter =
+      buildCelExpression(
+        impressionQualificationFilterSpecs =
+          listOf(
+            impressionQualificationFilterSpec {
+              mediaType = MediaType.OTHER
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "testing_only.testing_string"
+                  value = EventTemplateFieldKt.fieldValue { stringValue = "before\u007Fafter" }
+                }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter).contains("testing_only.testing_string == \"before\\u007fafter\"")
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
   fun `toCelValue passes through printable non-ASCII in STRING literal`() {
     val filter =
       buildCelExpression(
@@ -3479,6 +3504,31 @@ class BasicReportTransformationsTest {
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
       )
     assertThat(filter).contains("testing_only.testing_float == 0.5")
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `toCelValue emits subnormal FLOAT literal (Float MIN_VALUE) without rejection`() {
+    // Pin subnormals as accepted -- isFinite() is true for them, and a future overzealous
+    // tightening of the finite-value guard (e.g. adding an isNormal() check) would silently
+    // reject legitimate values. Float.MIN_VALUE = 1.4e-45f, the smallest positive subnormal.
+    val filter =
+      buildCelExpression(
+        impressionQualificationFilterSpecs =
+          listOf(
+            impressionQualificationFilterSpec {
+              mediaType = MediaType.OTHER
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "testing_only.testing_float"
+                  value = EventTemplateFieldKt.fieldValue { floatValue = Float.MIN_VALUE }
+                }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter).contains("testing_only.testing_float ==")
     assertCompilesCleanly(filter)
   }
 
