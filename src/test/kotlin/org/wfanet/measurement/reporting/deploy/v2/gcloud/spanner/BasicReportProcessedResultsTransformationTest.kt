@@ -2038,6 +2038,114 @@ class BasicReportProcessedResultsTransformationTest {
   }
 
   @Test
+  fun `buildResultGroups skips per-composite component metrics when a composite's window bucket is absent`() {
+    // Regression for the REPORTING_SET-keyed `continue` in buildResults (mirror of the
+    // DATA_PROVIDER-branch test above). Under a weekly cadence with `component.non_cumulative`
+    // requested on a ReportingSet-keyed reporting_unit, per-composite RSRs live in per-week
+    // buckets keyed by `(non_cumulative_start=Monday, end=Monday)`. If one composite's RSR is
+    // missing from a given window's map (legitimate coverage gap: nothing was computed for
+    // that composite in that window), the read must skip that composite's metric slice rather
+    // than throw NoSuchElementException.
+    val componentReportingSet1Id = "component-reporting-set-1"
+    val componentReportingSet2Id = "component-reporting-set-2"
+
+    val basicReport = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      details = basicReportDetails {
+        impressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        effectiveImpressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        reportingInterval = REPORTING_INTERVAL
+        resultGroupSpecs += resultGroupSpec {
+          title = "reporting-set-component-partial-coverage"
+          reportingUnit = reportingUnit {
+            reportingSetKeys =
+              ReportingUnitKt.reportingSetKeys {
+                reportingSetKeys += reportingSetKey {
+                  externalReportingSetId = componentReportingSet1Id
+                }
+                reportingSetKeys += reportingSetKey {
+                  externalReportingSetId = componentReportingSet2Id
+                }
+              }
+          }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+          dimensionSpec = dimensionSpec {}
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                nonCumulative =
+                  ResultGroupMetricSpecKt.basicMetricSetSpec {
+                    reach = true
+                    impressions = true
+                  }
+              }
+          }
+        }
+      }
+    }
+
+    val weeklyStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
+    val reportingSetResults =
+      listOf(
+        // Only component 1 has data for this week. Component 2's RSR is intentionally absent.
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 1
+          dimension =
+            ReportingSetResultKt.dimension {
+              externalReportingSetId = componentReportingSet1Id
+              externalImpressionQualificationFilterId =
+                IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
+              metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+              grouping = ReportingSetResultKt.DimensionKt.grouping {}
+            }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart = weeklyStart
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  processedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      nonCumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 10
+                          impressions = 100
+                        }
+                    }
+                }
+            }
+        }
+      )
+
+    // Must not throw NoSuchElementException: Key <componentReportingSet2Id> is missing.
+    val resultGroups =
+      BasicReportProcessedResultsTransformation.buildResultGroups(
+        basicReport,
+        reportingSetResults,
+        primitiveInfoByDataProviderId = emptyMap(),
+        compositeReportingSetIdBySetExpression = emptyMap(),
+      )
+
+    val perWeekResult = resultGroups.single().resultsList.single()
+    val componentByRsId =
+      perWeekResult.metricSet.reportingSetComponentsList.associateBy { it.externalReportingSetId }
+    // Only the composite with data appears; the missing one is silently skipped.
+    standardAssertThat(componentByRsId.keys).containsExactly(componentReportingSet1Id)
+    standardAssertThat(componentByRsId.getValue(componentReportingSet1Id).value.nonCumulative.reach)
+      .isEqualTo(10L)
+    standardAssertThat(
+        componentByRsId.getValue(componentReportingSet1Id).value.nonCumulative.impressions
+      )
+      .isEqualTo(100L)
+  }
+
+  @Test
   fun `buildResultGroups creates result groups correctly when reporting unit with 3 components`() {
     val basicReport = basicReport {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
