@@ -393,13 +393,15 @@ scheduled queries**. If the compliance/isolation checks are failing because
 `report_detail_edp` hasn't yet been refreshed to include a new BasicReport:
 
 1.  Verify the BasicReport is `state: SUCCEEDED` (via the Reporting API).
-2.  Check `bq show <project>:dashboard.report_detail_edp | jq '{numRows,
-    lastModifiedTime}'` &mdash; if `lastModifiedTime` is before the
-    BasicReport completed, the query hasn't cycled yet.
+2.  Check `bq show --format=prettyjson <project>:dashboard.report_detail_edp
+    | jq '{numRows, lastModifiedTime}'` &mdash; if `lastModifiedTime` is
+    before the BasicReport completed, the query hasn't cycled yet.
 3.  Wait for the natural hourly cycle, OR trigger the query manually via the
     BigQuery Data Transfer REST API:
     ```shell
     curl -sS -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+      -H 'Content-Type: application/json' \
+      --data "{\"requestedRunTime\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
       "https://bigquerydatatransfer.googleapis.com/v1/projects/<project>/locations/us-central1/transferConfigs/<config-id>:startManualRuns"
     ```
     (You need `roles/bigquerydatatransfer.admin` on the project; find

@@ -48,7 +48,7 @@ MeasurementSystem \
   --tls-cert-file=secretfiles/mc_tls.pem \
   --tls-key-file=secretfiles/mc_tls.key \
   --cert-collection-file=secretfiles/kingdom_root.pem \
-  --kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
+  --kingdom-public-api-target=v2alpha.kingdom.<env>.halo-cmm.org:8443 \
   data-providers \
   get --name=dataProviders/AbCdEf_12345
 ```
@@ -397,7 +397,7 @@ Once the policy is updated:
 | `CmmsCreateTime` | TIMESTAMP | When the requisition was created |
 | `FulfilledTime` | TIMESTAMP | When the requisition was fulfilled |
 | `FulfillmentDurationSeconds` | INT64 | Time from creation to fulfillment |
-| `ReportState` | STRING | Overall report state (CREATED through SUCCEEDED/FAILED) |
+| `ReportState` | STRING | Overall report state; one of CREATED, REPORT_CREATED, UNPROCESSED_RESULTS_READY, SUCCEEDED, FAILED, INVALID, UNSPECIFIED |
 | `ReportStartDate` | DATE | Report period start |
 | `ReportEndDate` | DATE | Report period end |
 | `ImpressionQualificationFilters` | STRING | Impression qualification criteria (JSON) |
