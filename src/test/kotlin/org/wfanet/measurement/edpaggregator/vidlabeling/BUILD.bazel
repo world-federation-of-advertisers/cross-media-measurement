@@ -98,6 +98,17 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "WorkItemIdsTest",
+    srcs = ["WorkItemIdsTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIdsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:work_item_ids",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
     name = "VidLabelingMonitorTest",
     srcs = ["VidLabelingMonitorTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingMonitorTest",
