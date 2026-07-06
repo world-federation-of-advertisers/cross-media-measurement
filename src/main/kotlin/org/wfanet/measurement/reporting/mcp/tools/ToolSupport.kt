@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.mcp.tools
 
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
+import io.grpc.Status
 import io.grpc.StatusException
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.McpJson
@@ -48,10 +49,20 @@ object ToolSupport {
     return try {
       CallToolResult(content = listOf(TextContent(block())))
     } catch (e: StatusException) {
-      CallToolResult(
-        content = listOf(TextContent("gRPC error: ${e.status.code}: ${e.status.description}")),
-        isError = true,
-      )
+      // Map authentication failures to actionable guidance: the bearer token is forwarded
+      // unverified, so an expired/invalid token surfaces only here as UNAUTHENTICATED, and a bare
+      // "gRPC error: UNAUTHENTICATED" doesn't tell the caller to refresh it.
+      val message =
+        when (e.status.code) {
+          Status.Code.UNAUTHENTICATED ->
+            "Authentication failed: the bearer token is missing, expired, or invalid. " +
+              "Re-authenticate and retry."
+          Status.Code.PERMISSION_DENIED ->
+            "Access denied: the authenticated principal does not have permission for this " +
+              "operation. Check that the MeasurementConsumer has granted access."
+          else -> "gRPC error: ${e.status.code}: ${e.status.description}"
+        }
+      CallToolResult(content = listOf(TextContent(message)), isError = true)
     } catch (e: InvalidProtocolBufferException) {
       CallToolResult(
         content = listOf(TextContent("Invalid proto JSON: ${e.message}")),

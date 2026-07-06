@@ -13,6 +13,14 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "blob_uris",
+    srcs = ["BlobUris.kt"],
+    deps = [
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+    ],
+)
+
+kt_jvm_library(
     name = "encrypted_storage",
     srcs = ["EncryptedStorage.kt"],
     deps = [

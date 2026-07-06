@@ -807,6 +807,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           this.effectiveImpressionQualificationFilters +=
             retrievedBasicReport.impressionQualificationFiltersList
           this.effectiveModelLine = inProcessCmmsComponents.modelLineResourceName
+          // Server-derived: equals the caller-supplied campaign_group in DataProvider mode.
+          this.effectiveCampaignGroup = campaignGroup
           this.reportingInterval =
             this.reportingInterval.copy {
               this.effectiveReportStart =

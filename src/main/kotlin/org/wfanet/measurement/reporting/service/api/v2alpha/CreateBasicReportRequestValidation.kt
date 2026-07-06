@@ -56,6 +56,12 @@ import org.wfanet.measurement.reporting.v2alpha.ResultGroupSpec
 object CreateBasicReportRequestValidation {
   private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
 
+  /**
+   * Maximum number of components allowed in a single `reporting_unit`. Guards against accidentally
+   * large requests; can be tightened later without back-compat concerns.
+   */
+  private const val MAX_REPORTING_UNIT_COMPONENTS = 25
+
   data class ParsedFields(
     val parentKey: MeasurementConsumerKey,
     val impressionQualificationFilterKeys: Set<ImpressionQualificationFilterKey>,
@@ -82,6 +88,10 @@ object CreateBasicReportRequestValidation {
    * [request.basicReport.campaignGroup][org.wfanet.measurement.reporting.v2alpha.BasicReport.campaignGroup]
    * field.
    *
+   * @param campaignGroup the caller-supplied Campaign Group [ReportingSet], or `null` when
+   *   `campaign_group` was not specified and the Campaign Group is server-synthesized after
+   *   validation. When it was specified, every `reporting_unit` component must be a DataProvider
+   *   within the Campaign Group; when it was not, every component must be a ReportingSet.
    * @throws InvalidFieldValueException
    * @throws RequiredFieldNotSetException
    * @throws DataProviderNotFoundForCampaignGroupException
@@ -90,7 +100,7 @@ object CreateBasicReportRequestValidation {
    */
   fun validateRequest(
     request: CreateBasicReportRequest,
-    campaignGroup: ReportingSet,
+    campaignGroup: ReportingSet?,
     hasDefaultReportStartHour: Boolean,
     eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
   ): ParsedFields {
@@ -143,7 +153,7 @@ object CreateBasicReportRequestValidation {
     validateResultGroupSpecs(
       request.basicReport.resultGroupSpecsList,
       eventTemplateFieldsByPath,
-      CampaignGroupInfo(campaignGroup),
+      if (campaignGroup != null) CampaignGroupInfo(campaignGroup) else null,
     )
 
     return ParsedFields(parentKey, impressionQualificationFilterKeyByName)
@@ -155,6 +165,8 @@ object CreateBasicReportRequestValidation {
    * @param resultGroupSpecs [List] of [ResultGroupSpec] to validate
    * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message
    *   to info for the field. Used for validating [EventTemplateField]
+   * @param campaignGroupInfo information about the supplied Campaign Group, or `null` when
+   *   `campaign_group` was not specified (ReportingUnit components must then be ReportingSets)
    * @throws [RequiredFieldNotSetException] when validation fails
    * @throws [InvalidFieldValueException] when validation fails
    * @throws FieldUnimplementedException
@@ -162,7 +174,7 @@ object CreateBasicReportRequestValidation {
   private fun validateResultGroupSpecs(
     resultGroupSpecs: List<ResultGroupSpec>,
     eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
-    campaignGroupInfo: CampaignGroupInfo,
+    campaignGroupInfo: CampaignGroupInfo?,
   ) {
     val fieldPath = "basic_report.result_group_specs"
     if (resultGroupSpecs.isEmpty()) {
@@ -290,26 +302,54 @@ object CreateBasicReportRequestValidation {
   /**
    * Validates [reportingUnit] within the context of a [CreateBasicReportRequest].
    *
+   * The component type is selected by whether `campaign_group` was specified on the request:
+   * - When it was ([campaignGroupInfo] non-null): every component must be a DataProvider resource
+   *   name belonging to the Campaign Group.
+   * - When it was not ([campaignGroupInfo] `null`): every component must be a ReportingSet resource
+   *   name. The referenced ReportingSets are resolved and further validated (primitive, Measurement
+   *   Consumer-owned, distinct DataProvider sets) server-side in `BasicReportsService`, where they
+   *   are fetched for Campaign Group synthesis.
+   *
    * @param fieldPath Path of [reportingUnit] relative to the request message
-   * @param campaignGroupInfo Information about the Campaign Group for the BasicReport
+   * @param campaignGroupInfo Information about the supplied Campaign Group, or `null` when
+   *   `campaign_group` was not specified
    */
   private fun validateReportingUnit(
     reportingUnit: ReportingUnit,
     fieldPath: String,
-    campaignGroupInfo: CampaignGroupInfo,
+    campaignGroupInfo: CampaignGroupInfo?,
   ) {
-    if (reportingUnit.componentsList.isEmpty()) {
+    val components = reportingUnit.componentsList
+    if (components.isEmpty()) {
       throw InvalidFieldValueException("$fieldPath.components")
     }
+    if (components.size > MAX_REPORTING_UNIT_COMPONENTS) {
+      throw InvalidFieldValueException("$fieldPath.components") { fieldPath ->
+        "$fieldPath must not contain more than $MAX_REPORTING_UNIT_COMPONENTS components"
+      }
+    }
 
-    reportingUnit.componentsList.forEachIndexed { index, component ->
-      DataProviderKey.fromName(component)
-        ?: throw InvalidFieldValueException("$fieldPath.components[$index]") { fieldPath ->
-          "$fieldPath is not a valid data provider name"
+    if (campaignGroupInfo == null) {
+      // When campaign_group is not specified, every component must be a ReportingSet.
+      components.forEachIndexed { index, component ->
+        ReportingSetKey.fromName(component)
+          ?: throw InvalidFieldValueException("$fieldPath.components[$index]") { fieldPath ->
+            "$fieldPath is not a valid ReportingSet resource name; when campaign_group is not " +
+              "specified, all ReportingUnit components must be ReportingSets"
+          }
+      }
+    } else {
+      // When campaign_group is specified, every component must be a DataProvider within it.
+      components.forEachIndexed { index, component ->
+        DataProviderKey.fromName(component)
+          ?: throw InvalidFieldValueException("$fieldPath.components[$index]") { fieldPath ->
+            "$fieldPath is not a valid DataProvider resource name; when campaign_group is " +
+              "specified, all ReportingUnit components must be DataProviders"
+          }
+
+        if (!campaignGroupInfo.dataProviderNames.contains(component)) {
+          throw DataProviderNotFoundForCampaignGroupException(component, campaignGroupInfo.name)
         }
-
-      if (!campaignGroupInfo.dataProviderNames.contains(component)) {
-        throw DataProviderNotFoundForCampaignGroupException(component, campaignGroupInfo.name)
       }
     }
   }

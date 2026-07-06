@@ -139,7 +139,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
       AND SetExpressions.RightHandReportingSetId = RightHandReportingSets.ReportingSetId
     LEFT JOIN ReportingSets AS CampaignGroupReportingSets ON
       ReportingSets.MeasurementConsumerId = CampaignGroupReportingSets.MeasurementConsumerId
-      AND ReportingSets.CampaignGroupId = CampaignGroupReportingSets.CampaignGroupId
+      AND ReportingSets.CampaignGroupId = CampaignGroupReportingSets.ReportingSetId
     """
       .trimIndent()
 
@@ -572,6 +572,101 @@ class ReportingSetReader(private val readContext: ReadContext) {
         }
 
         ReportingSetIds(measurementConsumerId, reportingSetId, externalReportingSetId)
+      }
+      .singleOrNullIfEmpty()
+  }
+
+  /**
+   * Reads the [ReportingSet] representing a Campaign Group equivalent to a synthesized Campaign
+   * Group over [eventGroupKeys], for reuse.
+   *
+   * A synthesized Campaign Group is the filter-less union of the custom groups' EventGroups, so a
+   * ReportingSet is considered equivalent only if it:
+   * * belongs to [measurementConsumerId],
+   * * represents a Campaign Group (`CampaignGroupId == ReportingSetId`),
+   * * is primitive (`SetExpressionId IS NULL`),
+   * * has no filter (Campaign Groups are otherwise permitted to have one), and
+   * * references exactly the EventGroups in [eventGroupKeys] and no others.
+   *
+   * Display name is not part of the identity, so a matching ReportingSet may carry one.
+   *
+   * @return the IDs of the matching ReportingSet, or `null` if none exists
+   */
+  suspend fun readCampaignGroupByEventGroups(
+    measurementConsumerId: InternalId,
+    eventGroupKeys: Collection<ReportingSet.Primitive.EventGroupKey>,
+  ): ReportingSetIds? {
+    val distinctKeys = eventGroupKeys.distinct()
+    if (distinctKeys.isEmpty()) {
+      return null
+    }
+
+    // Exact set-equality via relational division: the candidate must have the
+    // same number of EventGroups as the target ($2) and all of them must be in
+    // the target set.
+    val sql =
+      StringBuilder(
+        """
+        SELECT
+          ReportingSets.MeasurementConsumerId,
+          ReportingSets.ReportingSetId,
+          ReportingSets.ExternalReportingSetId
+        FROM ReportingSets
+          JOIN ReportingSetEventGroups USING (MeasurementConsumerId, ReportingSetId)
+          JOIN EventGroups USING (MeasurementConsumerId, EventGroupId)
+        WHERE ReportingSets.MeasurementConsumerId = $1
+          AND ReportingSets.CampaignGroupId = ReportingSets.ReportingSetId
+          AND ReportingSets.SetExpressionId IS NULL
+          AND (ReportingSets.Filter IS NULL OR ReportingSets.Filter = '')
+        GROUP BY
+          ReportingSets.MeasurementConsumerId,
+          ReportingSets.ReportingSetId,
+          ReportingSets.ExternalReportingSetId
+        HAVING COUNT(*) = $2
+          AND COUNT(*) FILTER (
+            WHERE (EventGroups.CmmsDataProviderId, EventGroups.CmmsEventGroupId) IN (
+        """
+          .trimIndent()
+      )
+
+    var paramIndex = 3
+    val bindings = mutableListOf<Pair<String, String>>()
+    val tuples =
+      distinctKeys.joinToString(separator = ", ") { key ->
+        val dpParam = "$$paramIndex"
+        bindings.add(dpParam to key.cmmsDataProviderId)
+        paramIndex++
+        val egParam = "$$paramIndex"
+        bindings.add(egParam to key.cmmsEventGroupId)
+        paramIndex++
+        "($dpParam, $egParam)"
+      }
+    sql.append(tuples)
+    sql.append(
+      """
+      )
+      ) = $2
+      ORDER BY ReportingSets.ReportingSetId
+      LIMIT 1
+      """
+        .trimIndent()
+    )
+
+    val statement =
+      boundStatement(sql.toString()) {
+        bind("$1", measurementConsumerId)
+        bind("$2", distinctKeys.size)
+        bindings.forEach { (param, value) -> bind(param, value) }
+      }
+
+    return readContext
+      .executeQuery(statement)
+      .consume { row: ResultRow ->
+        ReportingSetIds(
+          row["MeasurementConsumerId"],
+          row["ReportingSetId"],
+          row["ExternalReportingSetId"],
+        )
       }
       .singleOrNullIfEmpty()
   }
