@@ -807,7 +807,12 @@ class SpannerBasicReportsService(
     //   1. Children of this BasicReport's campaign group -- covers the classic path (caller-
     //      supplied campaign group with per-primitive and per-composite children) and the
     //      synthesized-campaign-group path's server-minted composites over the caller's
-    //      reporting_unit components.
+    //      reporting_unit components. Server-minted composites get
+    //      `campaign_group = <this campaign group>` in
+    //      BasicReportTransformations.buildUnionCompositeReportingSet (line 794), so they
+    //      land in listReportingSetsByCampaignGroup's output. If that assignment ever
+    //      changes -- e.g. minted composites start using a different or empty
+    //      campaign_group -- this pre-check needs to add them to (2)'s enumeration too.
     //   2. The `reporting_unit.reportingSetKeys` references on this BasicReport's own
     //      resultGroupSpecs. In the custom-groups synthesis path these are user-supplied
     //      ReportingSets with `campaign_group = ""` (per the design convention), so they are
