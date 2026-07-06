@@ -172,11 +172,27 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
         // DimensionSpec. [buildCelExpressions] only emits three shapes today: the IQF expression
         // alone, the DimensionSpec expression alone, or `(iqf) && (dim)` -- each piece was
         // compile-checked above and `&&` of two bool expressions is bool, so the combined string
-        // is valid by construction. Anyone modifying [buildCelExpressions] to introduce a new
-        // shape (e.g. wrapping in a CEL function call, adding a third operand) must either
-        // preserve the bool-of-bools invariant or add a third validation pass here.
+        // is valid by construction on the current shapes. The third pass below re-validates the
+        // combined output as belt + suspenders: if a future edit introduces a fourth shape
+        // (wrapping in a CEL function call, a third operand, a distinct combinator) without
+        // preserving bool-of-bools, this catches it at CreateBasicReport time rather than at
+        // EDP fulfillment.
         val metricCalculationSpecFilters: List<String> =
           buildCelExpressions(impressionQualificationFilterSpecsFilters, dimensionSpecFilter)
+
+        // Composition failure is a server-side invariant violation (both pieces passed but
+        // their composition did not), so we surface as IllegalStateException routed to
+        // Status.INTERNAL by the catch-all handler in BasicReportsService.
+        for ((filterIndex, combinedFilter) in metricCalculationSpecFilters.withIndex()) {
+          CelFilterValidation.validateCelBoolean(env, combinedFilter) { issue ->
+            IllegalStateException(
+              "Combined CEL filter at spec index $specIndex, filter index " +
+                "$filterIndex failed post-composition validation: $issue. This indicates " +
+                "buildCelExpressions produced a shape not covered by the upstream per-piece " +
+                "validators."
+            )
+          }
+        }
 
         // The Primitive ReportingSets for the ReportingUnit
         val primitiveReportingSets: List<ReportingSet> =
