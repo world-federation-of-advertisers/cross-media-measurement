@@ -470,6 +470,7 @@ variable "vid_labeling_workers" {
       min_replicas                  = number
       max_replicas                  = number
       machine_type                  = string
+      disk_type                     = optional(string, "hyperdisk-balanced")
       java_tool_options             = optional(string)
       docker_image                  = string
       tee_signed_image_repo         = string
