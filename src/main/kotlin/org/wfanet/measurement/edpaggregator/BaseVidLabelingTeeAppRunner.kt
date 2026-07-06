@@ -17,6 +17,8 @@
 package org.wfanet.measurement.edpaggregator
 
 import com.google.crypto.tink.KmsClient
+import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
@@ -35,6 +37,15 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 abstract class BaseVidLabelingTeeAppRunner(
   private val hadoopConfigurationFor: (StorageConfig) -> Configuration,
 ) : BaseTeeAppRunner() {
+
+  init {
+    // Register Tink AEAD key templates (e.g. AES128_GCM) so the phase apps can generate DEKs to
+    // encrypt their outputs (subpool map / rank map / labeled impressions). Unlike the results
+    // fulfiller (which only unwraps a pre-generated DEK), the VID-labeling phases generate new
+    // keysets, so the registry must be populated. register() is idempotent.
+    AeadConfig.register()
+    StreamingAeadConfig.register()
+  }
 
   /** The per-EDP KEK URI ("the EDP's KMS key") from [EventDataProviderConfig.kms_config]. */
   protected fun kekUriFor(dataProvider: String): String {
