@@ -796,16 +796,33 @@ class SpannerBasicReportsService(
     // Legitimate partial coverage (all referenced IDs are expected but some window/IQF
     // buckets lack data) is handled by per-window containsKey guards in
     // BasicReportProcessedResultsTransformation.buildResults and still renders.
-    // The `isNotEmpty()` filter on the actual RSR set below is not for symmetry with
-    // `expectedReportingSetIds` -- `expectedReportingSetIds` values are always non-empty (they
-    // come from `ReportingSet.external_reporting_set_id` on server-minted rows read from the
-    // ReportingSets table via `listReportingSetsByCampaignGroup`, and downstream map lookups
-    // already assume non-empty). The filter guards the RSR side, where
+    // The `isNotEmpty()` filter on the actual RSR set below guards the RSR side, where
     // `Dimension.external_reporting_set_id` is `Required` in proto3 but not wire-enforced. A
     // blank field there is a distinct upstream data-quality issue, not ReportingSet
-    // corruption, and must not be misclassified as an unexpected ID.
-    val expectedReportingSetIds: Set<String> =
-      campaignGroupReportingSetIdByReportingSetKey.values.toSet()
+    // corruption, and must not be misclassified as an unexpected ID. The expected set
+    // itself is built from server-minted DB rows plus the caller's own explicit references,
+    // both of which are guaranteed non-empty upstream, so no matching filter is needed there.
+    //
+    // Two sources of legitimately-expected external_reporting_set_ids:
+    //   1. Children of this BasicReport's campaign group -- covers the classic path (caller-
+    //      supplied campaign group with per-primitive and per-composite children) and the
+    //      synthesized-campaign-group path's server-minted composites over the caller's
+    //      reporting_unit components.
+    //   2. The `reporting_unit.reportingSetKeys` references on this BasicReport's own
+    //      resultGroupSpecs. In the custom-groups synthesis path these are user-supplied
+    //      ReportingSets with `campaign_group = ""` (per the design convention), so they are
+    //      NOT children of the synthesized campaign group and would be missing from (1).
+    //      In the classic path they usually coincide with (1) but can also be off-
+    //      recommendation ReportingSets outside this campaign group.
+    val expectedReportingSetIds: Set<String> = buildSet {
+      addAll(campaignGroupReportingSetIdByReportingSetKey.values)
+      for (resultGroupSpec in basicReport.details.resultGroupSpecsList) {
+        for (reportingSetKey in
+          resultGroupSpec.reportingUnit.reportingSetKeys.reportingSetKeysList) {
+          add(reportingSetKey.externalReportingSetId)
+        }
+      }
+    }
     val unexpectedReportingSetIds: Set<String> =
       reportingSetResults
         .map { it.dimension.externalReportingSetId }
