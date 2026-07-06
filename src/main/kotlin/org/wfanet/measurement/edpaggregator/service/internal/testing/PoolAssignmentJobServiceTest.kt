@@ -939,9 +939,41 @@ abstract class PoolAssignmentJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = shard1.poolAssignmentJobResourceId
             etag = shard1.etag
+            poolOffsets += POOL_OFFSETS
+            maxEventDate = MAX_EVENT_DATE
           }
         )
       assertThat(lastResponse.hasLastShardResult()).isTrue()
+    }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded omits last_shard_result when no shard wrote impressions`() =
+    runBlocking {
+      // A last shard that wrote no impressions (no pool offsets, no max event date) must omit
+      // last_shard_result entirely rather than emit a malformed all-empty result.
+      val shard: PoolAssignmentJob =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            poolAssignmentJob = poolAssignmentJob {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
+          }
+        )
+
+      val response: MarkPoolAssignmentJobSucceededResponse =
+        service.markPoolAssignmentJobSucceeded(
+          markPoolAssignmentJobSucceededRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            poolAssignmentJobResourceId = shard.poolAssignmentJobResourceId
+            etag = shard.etag
+          }
+        )
+
+      assertThat(response.hasLastShardResult()).isFalse()
     }
 
   @Test
@@ -1028,6 +1060,75 @@ abstract class PoolAssignmentJobServiceTest {
     }
 
   @Test
+  fun `markPoolAssignmentJobSucceeded replay of non-last shard omits last_shard_result`() =
+    runBlocking {
+      // AIP-155: a replay must reproduce the ORIGINAL response. Marking shard0 first is not the
+      // last shard, so its response omits last_shard_result. After shard1 drains the group, a
+      // replay of shard0 must still omit last_shard_result rather than re-derive it as the last.
+      val requestId: String = UUID.randomUUID().toString()
+      val shard0: PoolAssignmentJob =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            poolAssignmentJob = poolAssignmentJob {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
+          }
+        )
+      val shard1: PoolAssignmentJob =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            poolAssignmentJob = poolAssignmentJob {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 1
+            }
+          }
+        )
+
+      val first: MarkPoolAssignmentJobSucceededResponse =
+        service.markPoolAssignmentJobSucceeded(
+          markPoolAssignmentJobSucceededRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            poolAssignmentJobResourceId = shard0.poolAssignmentJobResourceId
+            etag = shard0.etag
+            this.requestId = requestId
+          }
+        )
+      assertThat(first.hasLastShardResult()).isFalse()
+
+      // Drain the group: shard1 is the last shard and reaches SUCCEEDED after shard0.
+      service.markPoolAssignmentJobSucceeded(
+        markPoolAssignmentJobSucceededRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          poolAssignmentJobResourceId = shard1.poolAssignmentJobResourceId
+          etag = shard1.etag
+          poolOffsets += POOL_OFFSETS
+          maxEventDate = MAX_EVENT_DATE
+        }
+      )
+
+      val replay: MarkPoolAssignmentJobSucceededResponse =
+        service.markPoolAssignmentJobSucceeded(
+          markPoolAssignmentJobSucceededRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            poolAssignmentJobResourceId = shard0.poolAssignmentJobResourceId
+            etag = shard0.etag
+            this.requestId = requestId
+          }
+        )
+
+      assertThat(replay.poolAssignmentJob).isEqualTo(first.poolAssignmentJob)
+      assertThat(replay.hasLastShardResult()).isFalse()
+    }
+
+  @Test
   fun `markPoolAssignmentJobSucceeded scopes last shard detection per model line`() = runBlocking {
     createRawImpressionUploadModelLine(
       DATA_PROVIDER_RESOURCE_ID,
@@ -1093,6 +1194,7 @@ abstract class PoolAssignmentJobServiceTest {
           poolAssignmentJobResourceId = modelLineAShard1.poolAssignmentJobResourceId
           etag = modelLineAShard1.etag
           poolOffsets += POOL_OFFSETS
+          maxEventDate = MAX_EVENT_DATE
         }
       )
 
