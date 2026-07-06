@@ -33,7 +33,6 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * phase's own *Params.StorageParams mapping stays in its runner.
  */
 abstract class BaseVidLabelingTeeAppRunner(
-  private val storageRootUri: String = "gs://",
   private val hadoopConfigurationFor: (StorageConfig) -> Configuration,
 ) : BaseTeeAppRunner() {
 
@@ -78,8 +77,15 @@ abstract class BaseVidLabelingTeeAppRunner(
   ): ParquetStorageClient =
     ParquetStorageClient(
       conf = hadoopConfigurationFor(cfg),
-      // RawImpressionSource hands absolute gs:// URIs, so the root is only the FileSystem selector.
-      rootPath = Path(storageRootUri),
+      // RawImpressionSource hands absolute gs:// URIs, so the root only selects the FileSystem;
+      // ParquetStorageClient still requires a bucket in the root, so use the configured
+      // raw-impression bucket (cfg.blobPrefix, e.g. "gs://<bucket>") rather than a bare "gs://".
+      rootPath =
+        Path(
+          requireNotNull(cfg.blobPrefix) {
+            "StorageConfig.blobPrefix must be set to root the raw-impression ParquetStorageClient"
+          }
+        ),
       encryptionConfig = ParquetEncryptionConfig(kmsProvider = { kms }),
     )
 
