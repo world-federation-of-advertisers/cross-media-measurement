@@ -33,7 +33,7 @@
       "groupSlug": "python-requirements",
       "matchManagers": ["pip_requirements"],
       "matchFileNames": ["requirements_lock.txt"],
-      "matchPackageNames": ["*", "!grpcio", "!protobuf"],      
+      "matchPackageNames": ["!grpcio", "!protobuf"],      
       "recreateWhen": "never"
     },
     {
