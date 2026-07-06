@@ -9,6 +9,22 @@ BigQuery or Looker Studio.
 Each EDP gets a dedicated Google Cloud service account that provides access to
 3 BigQuery tables. Row access policies ensure each EDP sees only their own data.
 
+Deployment-specific values appear as placeholders throughout this guide:
+
+*   `<KINGDOM_PUBLIC_API_TARGET>` — the Kingdom public API host:port
+*   `<REPORTING_API_HOST>` — the Reporting public API host
+*   `<REPORTING_API_AUDIENCE>` / `<REPORTING_API_ISSUER>` /
+    `<REPORTING_API_JWKS_KEYSET>` — the audience / OIDC issuer / signing
+    keyset configured in the Reporting server's `OpenIdProvidersConfig`
+
+Substitute the values for your deployment. For the WFA reference environments
+these follow the pattern `v2alpha.kingdom.<env>.halo-cmm.org:8443` /
+`v2alpha.reporting.<env>.halo-cmm.org` / `reporting.<env>.halo-cmm.org` /
+`https://auth.halo-cmm.local` and the checked-in
+`src/main/k8s/testing/secretfiles/open_id_provider.tink` keyset; an adopter
+running their own kingdom (e.g. `aquiladashboard.com`) uses their own hosts,
+audience, issuer, and keyset.
+
 ### What the EDP Can See
 
 | Table | What It Shows |
@@ -48,7 +64,7 @@ MeasurementSystem \
   --tls-cert-file=secretfiles/mc_tls.pem \
   --tls-key-file=secretfiles/mc_tls.key \
   --cert-collection-file=secretfiles/kingdom_root.pem \
-  --kingdom-public-api-target=v2alpha.kingdom.<env>.halo-cmm.org:8443 \
+  --kingdom-public-api-target=<KINGDOM_PUBLIC_API_TARGET> \
   data-providers \
   get --name=dataProviders/AbCdEf_12345
 ```
@@ -146,10 +162,10 @@ To seed:
 
     ```shell
     bazel run //src/main/kotlin/org/wfanet/measurement/common/tools:OpenIdProvider -- \
-      --issuer='https://auth.halo-cmm.local' \
-      --keyset=$PWD/src/main/k8s/testing/secretfiles/open_id_provider.tink \
+      --issuer='<REPORTING_API_ISSUER>' \
+      --keyset=<REPORTING_API_JWKS_KEYSET> \
       generate-access-token \
-      --audience='reporting.<env>.halo-cmm.org' \
+      --audience='<REPORTING_API_AUDIENCE>' \
       --subject='mc-user@example.com' \
       --scope='*' \
       --ttl=1h
@@ -162,7 +178,7 @@ To seed:
 
     ```shell
     curl -sk -H "Authorization: Bearer $TOKEN" \
-      "https://v2alpha.reporting.<env>.halo-cmm.org/v2alpha/measurementConsumers/<MC_ID>/eventGroups?pageSize=200" \
+      "https://<REPORTING_API_HOST>/v2alpha/measurementConsumers/<MC_ID>/eventGroups?pageSize=200" \
       | jq '.eventGroups[] | select(.cmmsDataProvider == "dataProviders/<NEW_EDP_RESOURCE_ID>")'
     ```
 
