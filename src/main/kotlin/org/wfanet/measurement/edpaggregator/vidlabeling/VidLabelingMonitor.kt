@@ -90,6 +90,12 @@ class VidLabelingMonitor(
       get() = dispatchError || stuckUploads.isNotEmpty() || failedModelLines.isNotEmpty()
   }
 
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4044): stuck-POOL_ASSIGNING
+  //   phase-transition recovery is deferred until the PoolAssignmentJobService implementation
+  //   (#4044) is in this branch base. Both the O(1) "all PoolAssignmentJobs SUCCEEDED" detection
+  //   (ListPoolAssignmentJobs total_size with a state filter) and end-to-end recovery require
+  //   that service, which is not yet in ancestry. Stuck-RANKING/stuck-LABELING recovery and the
+  //   data-quality checks do not depend on it.
   /** Delegates dispatch to the sequencer, then reports health issues for this DataProvider. */
   suspend fun run(): MonitorResult {
     val dispatch: VidLabelingDispatchSequencer.DispatchResult =
