@@ -58,6 +58,20 @@ abstract class BaseVidLabelingTeeAppRunner(
   }
 
   /**
+   * The per-EDP KEK URI, or null when [dataProvider] has no configured KEK URI. EDPs that do not use
+   * the VID Labeling pipeline (e.g. AWS/direct-path EDPs) legitimately leave `kms_config.kek_uri`
+   * unset in the shared all-EDP config and never produce pipeline work, so callers skip them rather
+   * than eagerly requiring a KEK URI that will never be used.
+   */
+  protected fun kekUriForOrNull(dataProvider: String): String? {
+    val edpConfig =
+      edpsConfig.eventDataProviderConfigList.firstOrNull { it.dataProvider == dataProvider }
+        ?: return null
+    val kekUri = edpConfig.kmsConfig.kekUri
+    return if (kekUri.isNotEmpty()) kekUri else null
+  }
+
+  /**
    * A bucket-rooted, multi-key [ConditionalOperationStorageClient] for the store at
    * [StorageConfig.blobPrefix] (its `gs://` / `file://` scheme selects the backend).
    *

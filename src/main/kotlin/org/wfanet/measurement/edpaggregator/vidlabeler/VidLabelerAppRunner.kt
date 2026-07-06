@@ -74,8 +74,17 @@ class VidLabelerAppRunner :
     saveCommonEdpaCerts()
     val kmsClients: Map<String, KmsClient> = buildKmsClientsMap()
     // Per-EDP output KEK for the non-memoized Phase-2 path (the memoized path derives its KEK
-    // from the rank-index blobs). Same EDPs as [kmsClients]; kekUriFor reads kms_config.kek_uri.
-    val encryptKekUris: Map<String, String> = kmsClients.keys.associateWith { kekUriFor(it) }
+    // from the rank-index blobs). Only EDPs that use the VID Labeling pipeline set
+    // kms_config.kek_uri; AWS/direct-path EDPs (e.g. edpa_meta) leave it unset in the shared
+    // all-EDP config and never produce Phase-2 work, so skip them here instead of failing to boot.
+    val encryptKekUris: Map<String, String> = buildMap {
+      for (dataProvider in kmsClients.keys) {
+        val kekUri = kekUriForOrNull(dataProvider)
+        if (kekUri != null) {
+          put(dataProvider, kekUri)
+        }
+      }
+    }
 
     val pubSubClient = DefaultGooglePubSubClient()
     val queueSubscriber = createQueueSubscriber(pubSubClient)
