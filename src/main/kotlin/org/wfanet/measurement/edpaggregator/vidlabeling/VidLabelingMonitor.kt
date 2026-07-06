@@ -17,23 +17,46 @@
 package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import com.google.protobuf.util.Timestamps
+import io.grpc.Status
+import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
+import java.security.MessageDigest
 import java.time.Clock
 import java.time.Duration
+import java.time.LocalDate
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
+import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.storage.StorageClient
 
 /**
  * Monitors the VID labeling pipeline for one `DataProvider` and drives dispatch sequencing.
@@ -70,6 +93,13 @@ class VidLabelingMonitor(
   private val dispatchSequencer: VidLabelingDispatchSequencer,
   private val dataProviderName: String,
   private val stalenessThreshold: Duration,
+  private val rawImpressionUploadFileStub:
+    RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub,
+  private val rawImpressionsStorageClient: StorageClient,
+  private val vidLabeledImpressionsStorageClient: StorageClient,
+  private val rankerJobStub: RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub,
+  private val vidLabelingJobStub: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub,
+  private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   private val clock: Clock = Clock.systemUTC(),
 ) {
 
@@ -85,9 +115,27 @@ class VidLabelingMonitor(
     val failedModelLines: List<String>,
     /** Whether the dispatch sequencer threw this run (dispatch is broken for this DataProvider). */
     val dispatchError: Boolean,
+    /** Raw impression files (under COMPLETED model lines) missing their VID-labeled output. */
+    val missingLabeledOutputs: Long,
+    /** Files whose create time is after their date folder done blob. */
+    val lateArrivingFiles: Long,
+    /** Date folders that exist but have no done blob. */
+    val missingDoneBlobs: Long,
+    /** Date folders whose done blob exists but that hold no data files. */
+    val zeroImpressionDates: Long,
+    /** Stuck phase transitions the Monitor re-triggered this run. */
+    val recoveredTransitions: Int,
   ) {
     val hasIssues: Boolean
-      get() = dispatchError || stuckUploads.isNotEmpty() || failedModelLines.isNotEmpty()
+      get() =
+        dispatchError ||
+          stuckUploads.isNotEmpty() ||
+          failedModelLines.isNotEmpty() ||
+          missingLabeledOutputs > 0 ||
+          lateArrivingFiles > 0 ||
+          missingDoneBlobs > 0 ||
+          zeroImpressionDates > 0 ||
+          recoveredTransitions > 0
   }
 
   // TODO(world-federation-of-advertisers/cross-media-measurement#4044): stuck-POOL_ASSIGNING
@@ -115,6 +163,11 @@ class VidLabelingMonitor(
           stuckUploads = emptyList(),
           failedModelLines = emptyList(),
           dispatchError = true,
+          missingLabeledOutputs = 0,
+          lateArrivingFiles = 0,
+          missingDoneBlobs = 0,
+          zeroImpressionDates = 0,
+          recoveredTransitions = 0,
         )
       }
     VidLabelingMonitorMetrics.dispatchErrorsGauge.set(0, dataProviderAttributes())
@@ -129,12 +182,19 @@ class VidLabelingMonitor(
     )
 
     val (stuckUploads, failedModelLines) = checkFailuresAndStaleness()
+    val recoveredTransitions = recoverStuckPhases()
+    val dataQuality = checkDataQuality()
     return MonitorResult(
       dispatchedUpload = dispatch.dispatchedUpload,
       queuedUploads = dispatch.queuedUploads,
       stuckUploads = stuckUploads,
       failedModelLines = failedModelLines,
       dispatchError = false,
+      missingLabeledOutputs = dataQuality.missingLabeledOutputs,
+      lateArrivingFiles = dataQuality.lateArrivingFiles,
+      missingDoneBlobs = dataQuality.missingDoneBlobs,
+      zeroImpressionDates = dataQuality.zeroImpressionDates,
+      recoveredTransitions = recoveredTransitions,
     )
   }
 
@@ -239,6 +299,331 @@ class VidLabelingMonitor(
       }
       .flattenConcat()
       .toList()
+
+  /** Alert-only data-quality signals gathered this run. */
+  private data class DataQualityResult(
+    val missingLabeledOutputs: Long,
+    val lateArrivingFiles: Long,
+    val missingDoneBlobs: Long,
+    val zeroImpressionDates: Long,
+  )
+
+  /** Raw-impression storage-crawl signals (a subset of [DataQualityResult]). */
+  private data class StorageQuality(
+    val missingDoneBlobs: Long,
+    val zeroImpressionDates: Long,
+    val lateArrivingFiles: Long,
+  )
+
+  /**
+   * Runs the alert-only data-quality checks and sets their gauges (every run, including 0, so a
+   * recovered DataProvider reads back to 0). These MUST NOT block dispatch or recovery, so any
+   * failure is logged at WARNING and swallowed -- a bad crawl never fails the monitor run.
+   */
+  private suspend fun checkDataQuality(): DataQualityResult {
+    return try {
+      val storage = checkRawImpressionStorageQuality()
+      val missingLabeled = checkLabelingCompleteness()
+      val attrs = dataProviderAttributes()
+      VidLabelingMonitorMetrics.missingLabeledOutputsGauge.set(missingLabeled, attrs)
+      VidLabelingMonitorMetrics.missingDoneBlobsGauge.set(storage.missingDoneBlobs, attrs)
+      VidLabelingMonitorMetrics.zeroImpressionDatesGauge.set(storage.zeroImpressionDates, attrs)
+      VidLabelingMonitorMetrics.lateArrivingFilesGauge.set(storage.lateArrivingFiles, attrs)
+      DataQualityResult(
+        missingLabeledOutputs = missingLabeled,
+        lateArrivingFiles = storage.lateArrivingFiles,
+        missingDoneBlobs = storage.missingDoneBlobs,
+        zeroImpressionDates = storage.zeroImpressionDates,
+      )
+    } catch (e: Exception) {
+      logger.log(
+        Level.WARNING,
+        "Data-quality checks failed for $dataProviderName (non-blocking)",
+        e,
+      )
+      DataQualityResult(0L, 0L, 0L, 0L)
+    }
+  }
+
+  /**
+   * Crawls the raw-impression date folders and counts (a) date folders with no done blob, (b) date
+   * folders whose done blob exists but that hold no data files, and (c) files whose create time is
+   * after their date's done blob (written after the EDP marked the date done). The date-folder
+   * parent prefix is derived from each upload's own `done_blob_uri` (key `<prefix>/<date>/done`),
+   * so the per-EDP path is discovered rather than assumed; non-date folders are skipped by
+   * [DataAvailabilityBlobs.enumerateDateInfo].
+   */
+  private suspend fun checkRawImpressionStorageQuality(): StorageQuality {
+    val uploads =
+      listUploads(RawImpressionUpload.State.CREATED) +
+        listUploads(RawImpressionUpload.State.ACTIVE) +
+        listUploads(RawImpressionUpload.State.COMPLETED) +
+        listUploads(RawImpressionUpload.State.FAILED)
+    val dateFolderPrefixes: Set<String> =
+      uploads
+        .mapNotNull { upload ->
+          val key = SelectedStorageClient.parseBlobUri(upload.doneBlobUri).key
+          val dateFolder = key.substringBeforeLast('/', "")
+          if (dateFolder.isEmpty()) {
+            return@mapNotNull null
+          }
+          val parent = dateFolder.substringBeforeLast('/', "")
+          if (parent.isEmpty()) "" else "$parent/"
+        }
+        .toSet()
+
+    var missingDoneBlobs = 0L
+    var zeroImpressionDates = 0L
+    var lateArrivingFiles = 0L
+    for (prefix in dateFolderPrefixes) {
+      val info = DataAvailabilityBlobs.enumerateDateInfo(rawImpressionsStorageClient, prefix)
+      missingDoneBlobs += info.datesWithoutDoneBlob.size.toLong()
+      for ((date: LocalDate, doneBlob) in info.datesWithDoneBlob) {
+        val dataFiles =
+          rawImpressionsStorageClient.listBlobs("$prefix$date/").toList().filterNot {
+            it.blobKey.endsWith("/done")
+          }
+        if (dataFiles.isEmpty()) {
+          zeroImpressionDates++
+        }
+        lateArrivingFiles += dataFiles.count { it.createTime.isAfter(doneBlob.createTime) }.toLong()
+      }
+    }
+    return StorageQuality(missingDoneBlobs, zeroImpressionDates, lateArrivingFiles)
+  }
+
+  /**
+   * Counts, across COMPLETED uploads and their COMPLETED model lines, the raw impression files with
+   * no matching VID-labeled output. The output key SHA is `SHA-256("<blobUri>|<modelLine>")` (see
+   * `VidLabelingSink.outputBlobKey`), so the expected SHA for each raw file is recomputed here and
+   * checked against the SHAs actually present under `model-line/<modelLineId>/` (across dates),
+   * ignoring the `.metadata.binpb` sidecars.
+   */
+  private suspend fun checkLabelingCompleteness(): Long {
+    var missing = 0L
+    for (upload in listUploads(RawImpressionUpload.State.COMPLETED)) {
+      val files = listUploadFiles(upload.name)
+      if (files.isEmpty()) {
+        continue
+      }
+      val completedModelLines =
+        listUploadModelLines(upload.name).filter {
+          it.state == RawImpressionUploadModelLine.State.COMPLETED
+        }
+      for (modelLine in completedModelLines) {
+        val modelLineId = ModelLineKey.fromName(modelLine.cmmsModelLine)?.modelLineId ?: continue
+        val expectedShas =
+          files.map { labeledOutputSha(it.blobUri, modelLine.cmmsModelLine) }.toSet()
+        val actualShas =
+          vidLabeledImpressionsStorageClient
+            .listBlobs("model-line/$modelLineId/")
+            .toList()
+            .filterNot { it.blobKey.endsWith(".metadata.binpb") }
+            .map { it.blobKey.substringAfterLast('/') }
+            .toSet()
+        missing += expectedShas.count { it !in actualShas }.toLong()
+      }
+    }
+    return missing
+  }
+
+  private fun labeledOutputSha(inputBlobUri: String, modelLine: String): String =
+    MessageDigest.getInstance("SHA-256")
+      .digest("$inputBlobUri|$modelLine".toByteArray(Charsets.UTF_8))
+      .joinToString("") { "%02x".format(it) }
+
+  /** Lists the `RawImpressionUploadFile` children of [uploadName]. */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  private suspend fun listUploadFiles(uploadName: String): List<RawImpressionUploadFile> =
+    rawImpressionUploadFileStub
+      .listResources { pageToken: String ->
+        val response =
+          rawImpressionUploadFileStub.listRawImpressionUploadFiles(
+            listRawImpressionUploadFilesRequest {
+              parent = uploadName
+              if (pageToken.isNotEmpty()) {
+                this.pageToken = pageToken
+              }
+            }
+          )
+        ResourceList(response.rawImpressionUploadFilesList, response.nextPageToken)
+      }
+      .flattenConcat()
+      .toList()
+
+  /**
+   * Re-triggers stuck memoized phase transitions for this DataProvider and returns how many were
+   * recovered. A `(upload, model line)` whose child jobs are all SUCCEEDED but whose parent state
+   * never advanced (a last-out gate failure) is recovered by re-publishing ONE existing WorkItem
+   * for it: the TEE skips the already-SUCCEEDED job and re-runs its idempotent, parent-state-gated
+   * last-out, which performs the fan-out / completion. Never marks anything FAILED.
+   *
+   * Only a model line stuck in the phase longer than [stalenessThreshold] is recovered, so a
+   * legitimately in-flight last-out is never raced. Stuck `POOL_ASSIGNING` recovery is deferred
+   * to #4044 (see the TODO above [run]); it needs `PoolAssignmentJobService`, which is not in this
+   * base.
+   */
+  private suspend fun recoverStuckPhases(): Int {
+    val nowNanos: Long = Timestamps.toNanos(Timestamps.fromMillis(clock.millis()))
+    val thresholdNanos: Long = stalenessThreshold.toNanos()
+    var recovered = 0
+    for (upload in listUploads(RawImpressionUpload.State.ACTIVE)) {
+      for (modelLine in listUploadModelLines(upload.name)) {
+        if (nowNanos - Timestamps.toNanos(modelLine.updateTime) <= thresholdNanos) {
+          continue
+        }
+        val recoveredThis =
+          when (modelLine.state) {
+            RawImpressionUploadModelLine.State.RANKING ->
+              recoverIfAllRankerJobsSucceeded(upload.name, modelLine.cmmsModelLine)
+            RawImpressionUploadModelLine.State.LABELING ->
+              recoverIfAllVidLabelingJobsSucceeded(upload.name, modelLine.cmmsModelLine)
+            // POOL_ASSIGNING recovery deferred to #4044 (PoolAssignmentJobService not in base).
+            else -> false
+          }
+        if (recoveredThis) {
+          recovered++
+          VidLabelingMonitorMetrics.phaseTransitionsRecoveredCounter.add(
+            1,
+            dataProviderAttributes(),
+          )
+        }
+      }
+    }
+    return recovered
+  }
+
+  /**
+   * O(1) check (List `total_size`) that every `RankerJob` for `(uploadName, modelLine)` is
+   * SUCCEEDED; if so, re-publishes one of their WorkItems to advance RANKING.
+   */
+  private suspend fun recoverIfAllRankerJobsSucceeded(
+    uploadName: String,
+    modelLine: String,
+  ): Boolean {
+    val total =
+      rankerJobStub
+        .listRankerJobs(
+          listRankerJobsRequest {
+            parent = uploadName
+            filter = ListRankerJobsRequestKt.filter { cmmsModelLine = modelLine }
+            pageSize = 0
+          }
+        )
+        .totalSize
+    if (total == 0) {
+      return false
+    }
+    val nonSucceeded =
+      rankerJobStub
+        .listRankerJobs(
+          listRankerJobsRequest {
+            parent = uploadName
+            filter =
+              ListRankerJobsRequestKt.filter {
+                cmmsModelLine = modelLine
+                stateIn += listOf(RankerJob.State.CREATED, RankerJob.State.FAILED)
+              }
+            pageSize = 0
+          }
+        )
+        .totalSize
+    if (nonSucceeded > 0) {
+      return false
+    }
+    val job =
+      rankerJobStub
+        .listRankerJobs(
+          listRankerJobsRequest {
+            parent = uploadName
+            filter =
+              ListRankerJobsRequestKt.filter {
+                cmmsModelLine = modelLine
+                stateIn += RankerJob.State.SUCCEEDED
+              }
+            pageSize = 1
+          }
+        )
+        .rankerJobsList
+        .firstOrNull() ?: return false
+    return republishWorkItem("vid-rank-builder-${job.name.substringAfterLast('/')}")
+  }
+
+  /**
+   * Checks (via bounded single-page lists, since `ListVidLabelingJobs` exposes no `total_size`)
+   * that every `VidLabelingJob` for `(uploadName, modelLine)` is SUCCEEDED; if so, re-publishes one
+   * of their WorkItems so the labeler completes the parent and writes the done blob.
+   */
+  private suspend fun recoverIfAllVidLabelingJobsSucceeded(
+    uploadName: String,
+    modelLine: String,
+  ): Boolean {
+    if (vidLabelingJobsInState(uploadName, modelLine, VidLabelingJob.State.CREATED).isNotEmpty()) {
+      return false
+    }
+    if (vidLabelingJobsInState(uploadName, modelLine, VidLabelingJob.State.FAILED).isNotEmpty()) {
+      return false
+    }
+    val job =
+      vidLabelingJobsInState(uploadName, modelLine, VidLabelingJob.State.SUCCEEDED).firstOrNull()
+        ?: return false
+    return republishWorkItem("vid-labeling-${job.name.substringAfterLast('/')}")
+  }
+
+  private suspend fun vidLabelingJobsInState(
+    uploadName: String,
+    modelLine: String,
+    state: VidLabelingJob.State,
+  ): List<VidLabelingJob> =
+    vidLabelingJobStub
+      .listVidLabelingJobs(
+        listVidLabelingJobsRequest {
+          parent = uploadName
+          filter =
+            ListVidLabelingJobsRequestKt.filter {
+              cmmsModelLine = modelLine
+              this.state = state
+            }
+          pageSize = 1
+        }
+      )
+      .vidLabelingJobsList
+
+  /**
+   * Re-publishes the existing WorkItem named `workItems/[workItemId]` under a deterministic
+   * recovery id by fetching its queue + params and creating a fresh WorkItem (there is no
+   * re-enqueue RPC, and re-creating with the same id no-ops on ALREADY_EXISTS). Returns whether a
+   * new recovery WorkItem was published (a benign ALREADY_EXISTS means one is already in flight).
+   */
+  private suspend fun republishWorkItem(workItemId: String): Boolean {
+    val existing =
+      try {
+        workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
+      } catch (e: StatusException) {
+        logger.warning("Cannot recover: WorkItem $workItemId unavailable (${e.status.code})")
+        return false
+      }
+    return try {
+      workItemsStub.createWorkItem(
+        createWorkItemRequest {
+          this.workItemId = "$workItemId-monitor-recovery"
+          workItem = workItem {
+            queue = existing.queue
+            workItemParams = existing.workItemParams
+          }
+        }
+      )
+      logger.info("Recovered a stuck transition by re-publishing WorkItem $workItemId")
+      true
+    } catch (e: StatusException) {
+      if (e.status.code == Status.Code.ALREADY_EXISTS) {
+        // A recovery WorkItem is already in flight for this transition; nothing more to do.
+        false
+      } else {
+        throw e
+      }
+    }
+  }
 
   private fun dataProviderAttributes(): Attributes =
     Attributes.of(VidLabelingMonitorMetrics.DATA_PROVIDER_ATTR, dataProviderName)
