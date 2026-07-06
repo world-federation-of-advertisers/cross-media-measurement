@@ -142,11 +142,11 @@ dashboard_operators = ["group:edpa-dashboard-operators@example.com"]
 # Spanner project and instance for each database connection.
 # In a single-project setup, all can point to the same project/instance.
 kingdom_spanner_project    = "my-kingdom-project"
-kingdom_spanner_instance   = "halo-cmms"
+kingdom_spanner_instance   = "my-spanner-instance"
 reporting_spanner_project  = "my-reporting-project"
-reporting_spanner_instance = "halo-cmms"
+reporting_spanner_instance = "my-spanner-instance"
 edp_aggregator_spanner_project  = "my-edpa-project"
-edp_aggregator_spanner_instance = "halo-cmms"
+edp_aggregator_spanner_instance = "my-spanner-instance"
 ```
 
 The fourth BigQuery connection — `reporting-postgres-conn` (Cloud SQL

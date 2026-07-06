@@ -17,13 +17,15 @@ Deployment-specific values appear as placeholders throughout this guide:
     `<REPORTING_API_JWKS_KEYSET>` — the audience / OIDC issuer / signing
     keyset configured in the Reporting server's `OpenIdProvidersConfig`
 
-Substitute the values for your deployment. For the WFA reference environments
-these follow the pattern `v2alpha.kingdom.<env>.halo-cmm.org:8443` /
+Substitute the values for your deployment. The reference `halo-cmm.org`
+environments follow the pattern `v2alpha.kingdom.<env>.halo-cmm.org:8443` /
 `v2alpha.reporting.<env>.halo-cmm.org` / `reporting.<env>.halo-cmm.org` /
 `https://auth.halo-cmm.local` and the checked-in
-`src/main/k8s/testing/secretfiles/open_id_provider.tink` keyset; an adopter
-running their own kingdom (e.g. `aquiladashboard.com`) uses their own hosts,
-audience, issuer, and keyset.
+`src/main/k8s/testing/secretfiles/open_id_provider.tink` keyset. An adopter
+running their own CMMS deployment substitutes their own hosts, audience,
+issuer, and JWKS keyset — the values come from the deployment's Kingdom
+`v2alpha` and Reporting `v2alpha` public API configuration and the Reporting
+server's `OpenIdProvidersConfig`.
 
 ### What the EDP Can See
 
