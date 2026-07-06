@@ -86,6 +86,11 @@ class EventMessageDescriptor(eventDescriptor: Descriptors.Descriptor) {
               // triggers on ANY annotated child, but the arm's message may
               // also contain unannotated helper fields (private-use encoding
               // fields, etc.) that should not be exposed as template fields.
+              //
+              // One-level descent only: `validateEventTemplateField` below
+              // rejects MESSAGE-typed nested fields (other than Duration /
+              // Timestamp), so nested pseudo-templates cannot chain further.
+              // Deeper nesting is deferred until a real deployment needs it.
               for (nestedField in templateField.messageType.fields) {
                 if (!nestedField.options.hasExtension(EventAnnotationsProto.templateField)) {
                   continue

@@ -404,10 +404,17 @@ fun buildCelExpression(
  */
 private fun buildCelTerm(path: String, valueLiteral: String): String {
   val segments = path.split('.')
-  if (segments.size <= 2) {
+  // EventMessageDescriptor is the sole source of paths and only emits
+  // <template>.<field> (2 segments) or <template>.<arm>.<field> (3 segments).
+  // Fail loudly on any other shape so hand-assembled paths from a future
+  // caller don't silently trip the wrong guard placement.
+  require(segments.size in 2..3) {
+    "Unexpected template field path shape: '$path' (expected 2 or 3 segments)"
+  }
+  if (segments.size == 2) {
     return "$path == $valueLiteral"
   }
-  // path = <template>.<arm>.<field>[.<field>...]. Guard on <template>.<arm>.
+  // path = <template>.<arm>.<field>. Guard on <template>.<arm>.
   val armPath = "${segments[0]}.${segments[1]}"
   return "$armPath != null && $path == $valueLiteral"
 }

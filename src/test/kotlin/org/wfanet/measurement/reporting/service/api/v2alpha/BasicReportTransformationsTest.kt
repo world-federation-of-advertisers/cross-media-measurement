@@ -3566,6 +3566,7 @@ class BasicReportTransformationsTest {
     celTypeRegistry.registerMessage(TestingOnly.getDefaultInstance())
     celTypeRegistry.registerMessage(TestingOnly.TestingArmIqf.getDefaultInstance())
     celTypeRegistry.registerMessage(TestingOnly.TestingArmFilterable.getDefaultInstance())
+    celTypeRegistry.registerMessage(TestingOnly.TestingArmGroupable.getDefaultInstance())
     val descriptor = TestEvent.getDescriptor()
     val env =
       Env.newEnv(
