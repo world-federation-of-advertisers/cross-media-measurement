@@ -139,7 +139,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
       AND SetExpressions.RightHandReportingSetId = RightHandReportingSets.ReportingSetId
     LEFT JOIN ReportingSets AS CampaignGroupReportingSets ON
       ReportingSets.MeasurementConsumerId = CampaignGroupReportingSets.MeasurementConsumerId
-      AND ReportingSets.CampaignGroupId = CampaignGroupReportingSets.CampaignGroupId
+      AND ReportingSets.CampaignGroupId = CampaignGroupReportingSets.ReportingSetId
     """
       .trimIndent()
 
