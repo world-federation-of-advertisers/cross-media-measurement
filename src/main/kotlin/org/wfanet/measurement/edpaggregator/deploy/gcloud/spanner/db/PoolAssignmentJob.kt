@@ -21,6 +21,7 @@ import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
+import com.google.protobuf.Timestamp
 import com.google.type.Date
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -36,6 +37,7 @@ import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.internal.edpaggregator.EncryptedDek as InternalEncryptedDek
 import org.wfanet.measurement.internal.edpaggregator.ListPoolAssignmentJobsPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListPoolAssignmentJobsRequest
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJob
@@ -328,6 +330,51 @@ suspend fun AsyncDatabaseClient.ReadContext.countNonSucceededPoolAssignmentJobs(
 }
 
 /**
+ * Counts SUCCEEDED [PoolAssignmentJob] sibling rows (excluding [poolAssignmentJobId]) in the given
+ * (upload, model line) group whose `UpdateTime` is strictly later than [updateTime].
+ *
+ * Used by MarkSucceeded replay to reconstruct whether a shard was the original last to reach
+ * SUCCEEDED: it was iff no sibling transitioned to SUCCEEDED after it. Commit timestamps are
+ * strictly ordered because every mark writes the shared parent model line row, serializing the
+ * txns.
+ */
+suspend fun AsyncDatabaseClient.ReadContext.countPoolAssignmentJobSiblingsSucceededAfter(
+  dataProviderResourceId: String,
+  rawImpressionUploadId: Long,
+  cmmsModelLine: String,
+  poolAssignmentJobId: Long,
+  updateTime: Timestamp,
+): Long {
+  val sql =
+    """
+    SELECT COUNT(*) AS cnt
+    FROM PoolAssignmentJob
+    WHERE DataProviderResourceId = @dataProviderResourceId
+      AND RawImpressionUploadId = @rawImpressionUploadId
+      AND CmmsModelLine = @cmmsModelLine
+      AND PoolAssignmentJobId != @poolAssignmentJobId
+      AND CAST(State AS INT64) = @succeededState
+      AND UpdateTime > @updateTime
+    """
+      .trimIndent()
+
+  val row: Struct =
+    executeQuery(
+        statement(sql) {
+          bind("dataProviderResourceId").to(dataProviderResourceId)
+          bind("rawImpressionUploadId").to(rawImpressionUploadId)
+          bind("cmmsModelLine").to(cmmsModelLine)
+          bind("poolAssignmentJobId").to(poolAssignmentJobId)
+          bind("succeededState").to(State.POOL_ASSIGNMENT_STATE_SUCCEEDED.number.toLong())
+          bind("updateTime").to(updateTime.toGcloudTimestamp())
+        }
+      )
+      .singleOrNullIfEmpty() ?: return 0
+
+  return row.getLong("cnt")
+}
+
+/**
  * Reads the `PoolOffsets` of a [RawImpressionUploadModelLine] for the given (upload, model line).
  *
  * Used by MarkSucceeded to populate the last-shard pool offsets that trigger Phase 1.
@@ -485,7 +532,12 @@ private object PoolAssignmentJobEntity {
           errorMessage = struct.getString("ErrorMessage")
         }
         if (!struct.isNull("EncryptedDek")) {
-          encryptedDek = struct.getProtoMessage("EncryptedDek", EncryptedDek.getDefaultInstance())
+          // Column type is the internal EncryptedDek (schema #3989) but this proto's field is the
+          // v1alpha type; read as internal, then re-parse the wire-compatible bytes into the
+          // field's type.
+          val internalDek =
+            struct.getProtoMessage("EncryptedDek", InternalEncryptedDek.getDefaultInstance())
+          encryptedDek = EncryptedDek.parseFrom(internalDek.toByteString())
         }
         etag = ETags.computeETag(updateTime.toInstant())
       },

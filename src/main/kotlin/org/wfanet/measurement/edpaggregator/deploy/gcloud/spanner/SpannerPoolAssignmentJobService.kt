@@ -34,6 +34,7 @@ import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.PoolAssignmentJobResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countNonSucceededPoolAssignmentJobs
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countPoolAssignmentJobSiblingsSucceededAfter
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findPoolAssignmentJobByRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findPoolAssignmentJobsByRequestIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getPoolAssignmentJobByResourceId
@@ -467,9 +468,10 @@ class SpannerPoolAssignmentJobService(
 
         val currentJob = result.poolAssignmentJob
 
-        // Idempotency: a replay of the same request_id returns the ORIGINAL response,
-        // re-deriving last-shard status. Safe because SUCCEEDED is terminal: once all
-        // shards for this (upload, model line) are SUCCEEDED, that stays true.
+        // Idempotency: a replay must reproduce the ORIGINAL response (AIP-155), so re-derive the
+        // original last-shard status rather than re-deciding from current state: this shard was
+        // last
+        // iff all siblings are now SUCCEEDED AND none reached SUCCEEDED after it.
         if (
           currentJob.state == State.POOL_ASSIGNMENT_STATE_SUCCEEDED &&
             request.requestId.isNotEmpty() &&
@@ -480,7 +482,14 @@ class SpannerPoolAssignmentJobService(
               request.dataProviderResourceId,
               result.rawImpressionUploadId,
               currentJob.cmmsModelLine,
-            ) == 0L
+            ) == 0L &&
+              txn.countPoolAssignmentJobSiblingsSucceededAfter(
+                request.dataProviderResourceId,
+                result.rawImpressionUploadId,
+                currentJob.cmmsModelLine,
+                result.poolAssignmentJobId,
+                currentJob.updateTime,
+              ) == 0L
           // On replay the merged outputs are already persisted (committed by the original
           // mark), so re-read them from the parent model line.
           val mergeState =
@@ -607,11 +616,20 @@ class SpannerPoolAssignmentJobService(
         }
 
       if (txnResult.isLastShard) {
-        lastShardResult =
-          MarkPoolAssignmentJobSucceededResponseKt.lastShardResult {
-            poolOffsets += txnResult.poolOffsets
-            txnResult.maxEventDate?.let { maxEventDate = it }
-          }
+        val hasOffsets = txnResult.poolOffsets.isNotEmpty()
+        val hasMaxEventDate = txnResult.maxEventDate != null
+        check(hasOffsets == hasMaxEventDate) {
+          "LastShardResult invariant violated: pool_offsets present=$hasOffsets but " +
+            "max_event_date present=$hasMaxEventDate"
+        }
+        // Omit LastShardResult when no shard wrote impressions.
+        if (hasOffsets) {
+          lastShardResult =
+            MarkPoolAssignmentJobSucceededResponseKt.lastShardResult {
+              poolOffsets += txnResult.poolOffsets
+              maxEventDate = txnResult.maxEventDate!!
+            }
+        }
       }
     }
   }
