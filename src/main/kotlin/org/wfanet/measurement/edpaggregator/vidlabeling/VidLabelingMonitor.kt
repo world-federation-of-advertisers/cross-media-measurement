@@ -546,7 +546,7 @@ class VidLabelingMonitor(
         )
         .rankerJobsList
         .firstOrNull() ?: return false
-    return republishWorkItem("vid-rank-builder-${job.name.substringAfterLast('/')}")
+    return republishWorkItem(WorkItemIds.forVidRankBuilder(job.name))
   }
 
   /**
@@ -567,7 +567,7 @@ class VidLabelingMonitor(
     val job =
       vidLabelingJobsInState(uploadName, modelLine, VidLabelingJob.State.SUCCEEDED).firstOrNull()
         ?: return false
-    return republishWorkItem("vid-labeling-${job.name.substringAfterLast('/')}")
+    return republishWorkItem(WorkItemIds.forVidLabeler(job.name))
   }
 
   private suspend fun vidLabelingJobsInState(

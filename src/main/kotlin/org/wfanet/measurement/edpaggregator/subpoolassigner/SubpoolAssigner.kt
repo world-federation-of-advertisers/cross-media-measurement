@@ -282,9 +282,9 @@ class SubpoolAssigner(
           )
         }
       // NOTE(world-federation-of-advertisers/cross-media-measurement#3999): mergeSubpool writes
-      //   unconditionally (see SubpoolFingerprintsStore.mergeSubpool). This recovery path re-runs the
-      //   merge idempotently by re-writing the merged blob, which a write-if-absent precondition would
-      //   break — so the merge is deliberately left unconditional.
+      //   unconditionally (see SubpoolFingerprintsStore.mergeSubpool). This recovery path
+      //   re-runs the merge idempotently by re-writing the merged blob, which a write-if-absent
+      //   precondition would break — so the merge is deliberately left unconditional.
       store.mergeSubpool(inputs, mergedSubpoolKey(poolOffset), mergedDek)
     }
 
