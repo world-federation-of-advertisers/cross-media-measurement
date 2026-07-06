@@ -779,7 +779,7 @@ class VidLabelingDispatchSequencerTest {
       verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(captor.capture()) }
       // One WorkItem per bin-packed VidLabelingJob; the ID is derived from the job resource id.
       assertThat(captor.allValues.map { it.workItemId })
-        .containsExactly("vid-labeling-job-0", "vid-labeling-job-1")
+        .containsExactly("vid-labeler-job-0", "vid-labeler-job-1")
       // The WorkItem's VidLabelerParams carries the RawImpressionUpload resource name + its job.
       val vidLabelerParams =
         captor.firstValue.workItem.workItemParams

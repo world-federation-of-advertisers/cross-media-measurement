@@ -41,6 +41,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
@@ -90,6 +91,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
@@ -680,7 +683,16 @@ class VidLabelingMonitorTest {
       nonSucceeded = 0,
       succeededJobName = "$DATA_PROVIDER/rawImpressionUploads/active-1/rankerJobs/rj1",
     )
-    whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = "queues/ranker" })
+    // The monitor must re-derive the EXACT WorkItem id the SubpoolAssigner published for the ranker
+    // job (WorkItemIds.forVidRankBuilder); only that name resolves, any other one 404s.
+    whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<GetWorkItemRequest>(0)
+      if (request.name == "workItems/vid-rank-builder-rj1") {
+        workItem { queue = "queues/ranker" }
+      } else {
+        throw Status.NOT_FOUND.asRuntimeException()
+      }
+    }
     whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
 
     val result = createMonitor().run()
@@ -690,6 +702,11 @@ class VidLabelingMonitorTest {
         collectMetrics().counterValue("edpa.vid_labeling_monitor.phase_transitions_recovered")
       )
       .isEqualTo(1)
+    val createCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService) { createWorkItem(createCaptor.capture()) }
+    assertThat(createCaptor.firstValue.workItemId)
+      .isEqualTo("vid-rank-builder-rj1-monitor-recovery")
+    assertThat(createCaptor.firstValue.workItem.queue).isEqualTo("queues/ranker")
   }
 
   @Test
@@ -712,12 +729,26 @@ class VidLabelingMonitorTest {
         }
       }
     }
-    whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = "queues/labeler" })
+    // A memoized model line reaches LABELING via the ranker fan-out, whose Phase-2 WorkItem the
+    // ranker names WorkItemIds.forVidLabeler ("vid-labeler-<jobId>"). The monitor MUST re-derive
+    // that same id; the earlier "vid-labeling-<jobId>" form 404s and recovery silently no-ops.
+    whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<GetWorkItemRequest>(0)
+      if (request.name == "workItems/vid-labeler-vj1") {
+        workItem { queue = "queues/labeler" }
+      } else {
+        throw Status.NOT_FOUND.asRuntimeException()
+      }
+    }
     whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
 
     val result = createMonitor().run()
 
     assertThat(result.recoveredTransitions).isEqualTo(1)
+    val createCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService) { createWorkItem(createCaptor.capture()) }
+    assertThat(createCaptor.firstValue.workItemId).isEqualTo("vid-labeler-vj1-monitor-recovery")
+    assertThat(createCaptor.firstValue.workItem.queue).isEqualTo("queues/labeler")
   }
 
   @Test

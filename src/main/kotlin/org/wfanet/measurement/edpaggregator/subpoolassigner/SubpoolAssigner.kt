@@ -53,6 +53,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markPoolAssignmentJobSucceed
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineRankingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
+import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
@@ -281,9 +282,9 @@ class SubpoolAssigner(
           )
         }
       // NOTE(world-federation-of-advertisers/cross-media-measurement#3999): mergeSubpool writes
-      //   unconditionally (see SubpoolFingerprintsStore.mergeSubpool). This recovery path re-runs the
-      //   merge idempotently by re-writing the merged blob, which a write-if-absent precondition would
-      //   break — so the merge is deliberately left unconditional.
+      //   unconditionally (see SubpoolFingerprintsStore.mergeSubpool). This recovery path
+      //   re-runs the merge idempotently by re-writing the merged blob, which a write-if-absent
+      //   precondition would break — so the merge is deliberately left unconditional.
       store.mergeSubpool(inputs, mergedSubpoolKey(poolOffset), mergedDek)
     }
 
@@ -371,7 +372,7 @@ class SubpoolAssigner(
         offsets.forEach { subpoolMapBlobUris.put(it, mergedSubpoolKey(it)) }
         offsets.forEach { subpoolRankedSizes.put(it, labeler.rankedSize(it)) }
       }
-    val workItemId = "vid-rank-builder-${rankerJob.name.substringAfterLast('/')}"
+    val workItemId = WorkItemIds.forVidRankBuilder(rankerJob.name)
     try {
       workItemsStub.createWorkItem(
         createWorkItemRequest {
