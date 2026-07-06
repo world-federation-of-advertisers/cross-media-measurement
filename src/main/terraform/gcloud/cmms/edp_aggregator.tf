@@ -350,12 +350,13 @@ locals {
         mig_service_account_name      = "subpool-assigner-sa"
         single_instance_assignment    = 1
         min_replicas                  = 0
-        max_replicas                  = 64
-        machine_type                  = "c4d-standard-32"
+        max_replicas                  = 8
+        machine_type                  = "n2d-highmem-16"
+        disk_type                     = "pd-balanced"
         java_tool_options             = "-Xmx96G"
         docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/subpool_assigner:${var.image_tag}"
         tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/subpool_assigner"
-        mig_distribution_policy_zones = ["us-central1-a"]
+        mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
         app_flags = concat(local.vid_labeling_common_app_flags, [
           "--subscription-id", "subpool-assigner-subscription",
           "--vid-rank-builder-queue", "vid-rank-builder-queue",
@@ -376,12 +377,13 @@ locals {
         mig_service_account_name      = "vid-rank-builder-sa"
         single_instance_assignment    = 1
         min_replicas                  = 0
-        max_replicas                  = 64
+        max_replicas                  = 8
         machine_type                  = "n2d-highmem-16"
+        disk_type                     = "pd-balanced"
         java_tool_options             = "-Xmx96G"
         docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_rank_builder:${var.image_tag}"
         tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_rank_builder"
-        mig_distribution_policy_zones = ["us-central1-a"]
+        mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
         app_flags = concat(local.vid_labeling_common_app_flags, [
           "--subscription-id", "vid-rank-builder-subscription",
           "--vid-labeler-queue", "vid-labeler-queue",
@@ -402,12 +404,13 @@ locals {
         mig_service_account_name      = "vid-labeler-sa"
         single_instance_assignment    = 1
         min_replicas                  = 0
-        max_replicas                  = 64
+        max_replicas                  = 8
         machine_type                  = "n2d-highmem-16"
+        disk_type                     = "pd-balanced"
         java_tool_options             = "-Xmx96G"
         docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_labeler:${var.image_tag}"
         tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_labeler"
-        mig_distribution_policy_zones = ["us-central1-a"]
+        mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
         app_flags = concat(local.vid_labeling_common_app_flags, [
           "--subscription-id", "vid-labeler-subscription",
         ])

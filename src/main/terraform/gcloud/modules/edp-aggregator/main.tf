@@ -754,6 +754,7 @@ module "vid_labeling_tee_app" {
   min_replicas                  = each.value.worker.min_replicas
   max_replicas                  = each.value.worker.max_replicas
   machine_type                  = each.value.worker.machine_type
+  disk_type                     = each.value.worker.disk_type
   java_tool_options             = each.value.worker.java_tool_options
   docker_image                  = each.value.worker.docker_image
   mig_distribution_policy_zones = each.value.worker.mig_distribution_policy_zones
