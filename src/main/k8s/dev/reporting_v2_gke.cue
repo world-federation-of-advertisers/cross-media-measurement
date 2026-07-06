@@ -20,6 +20,7 @@ _reportingSecretName:          string       @tag("secret_name")
 _reportingMcConfigSecretName:  string       @tag("mc_config_secret_name")
 _publicApiAddressName:         string       @tag("public_api_address_name")
 _mcpHost:                      *"" | string @tag("mcp_host")
+_oauthIssuer:                  *"" | string @tag("oauth_issuer")
 _accessPublicApiAddressName:   "access-public"
 
 #KingdomApiTarget: #GrpcTarget & {
@@ -68,8 +69,9 @@ _reportingMcpIngress: {
 	metadata: {
 		name: "reporting-mcp-ingress"
 		annotations: {
-			"kubernetes.io/ingress.class":            "gce"
-			"networking.gke.io/managed-certificates": "reporting-mcp"
+			"kubernetes.io/ingress.class":                 "gce"
+			"networking.gke.io/managed-certificates":      "reporting-mcp"
+			"kubernetes.io/ingress.global-static-ip-name": "reporting-mcp"
 		}
 		labels: "app.kubernetes.io/part-of": #AppName
 	}
@@ -145,6 +147,12 @@ reporting: #Reporting & {
 			_container: {
 				_javaOptions: maxHeapSize: #PublicServerMaxHeapSize
 				resources: #PublicServerResourceRequirements
+			}
+			if _mcpHost != "" && _oauthIssuer != "" {
+				_oauthArgs: [
+					"--oauth-protected-resource=https://" + _mcpHost,
+					"--oauth-authorization-server=" + _oauthIssuer,
+				]
 			}
 		}
 		"access-internal-api-server": {

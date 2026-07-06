@@ -43,3 +43,17 @@ module "reporting_v2" {
 resource "google_compute_address" "reporting_v2alpha" {
   name = "reporting-v2alpha"
 }
+
+# Global static IP for the Reporting MCP server's GKE Ingress (Option B). The
+# address is pre-created per environment (so DNS resolves before the first
+# deploy, letting the managed certificate provision); the import block adopts
+# the pre-created address rather than failing with "already exists". Remove the
+# import block after the first successful apply in each environment.
+import {
+  to = google_compute_global_address.reporting_mcp
+  id = "reporting-mcp"
+}
+
+resource "google_compute_global_address" "reporting_mcp" {
+  name = "reporting-mcp"
+}
