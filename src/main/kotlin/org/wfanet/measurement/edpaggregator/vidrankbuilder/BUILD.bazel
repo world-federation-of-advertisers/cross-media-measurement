@@ -1,4 +1,6 @@
+load("@rules_java//java:defs.bzl", "java_binary")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("//src/main/docker:macros.bzl", "java_image")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
@@ -159,4 +161,24 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:google_pub_sub_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
+)
+
+java_binary(
+    name = "VidRankBuilder",
+    main_class = "org.wfanet.measurement.edpaggregator.vidrankbuilder.VidRankBuilderAppRunner",
+    runtime_deps = [
+        ":vid_rank_builder_app_runner",
+    ],
+)
+
+java_image(
+    name = "vid_rank_builder_image",
+    base = "@java_image_base_root",
+    binary = ":VidRankBuilder",
+    labels = {
+        "tee.launch_policy.allow_env_override": "EDPA_CONFIG_STORAGE_BUCKET,JAVA_TOOL_OPTIONS,OTEL_SERVICE_NAME,OTEL_METRICS_EXPORTER,OTEL_TRACES_EXPORTER,OTEL_LOGS_EXPORTER,OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID,OTEL_METRIC_EXPORT_INTERVAL",
+        "tee.launch_policy.log_redirect": "always",
+    },
+    main_class = "org.wfanet.measurement.edpaggregator.vidrankbuilder.VidRankBuilderAppRunner",
+    visibility = ["//src:docker_image_deployment"],
 )
