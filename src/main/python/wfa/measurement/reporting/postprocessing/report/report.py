@@ -1208,6 +1208,10 @@ class Report:
           # {A,B,C} without components) -- their RSRs aggregate into one
           # metric_report and the {A,B,C} equality picks up spec 1's partial
           # [{A},{B}] singleton cover.
+          # Without this guard, the caller-visible symptom is
+          # BasicReport.state=FAILED with empty result_details -- the
+          # ValueError from primal-infeasibility is swallowed by
+          # _process_basic_report's bare `except Exception:` (see #4133).
           if len(single_edp_subset) < len(edp_combination):
             continue
           spec.add_equal_relation(
