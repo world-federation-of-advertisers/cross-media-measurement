@@ -167,6 +167,19 @@ object VidLabelingMonitorMetrics {
         .ofLongs()
         .build()
 
+  /**
+   * Number of stuck phase transitions re-triggered by the Monitor over time. Keyed by
+   * [DATA_PROVIDER_ATTR]. A counter because each recovery is a discrete event whose cumulative
+   * total is meaningful.
+   */
+  val phaseTransitionsRecoveredCounter: LongCounter
+    get() =
+      Instrumentation.meter
+        .counterBuilder("edpa.vid_labeling_monitor.phase_transitions_recovered")
+        .setDescription("Stuck phase transitions re-triggered by the Monitor")
+        .setUnit("{transition}")
+        .build()
+
   /** Attribute key for the `DataProvider` resource name. */
   val DATA_PROVIDER_ATTR: AttributeKey<String> =
     AttributeKey.stringKey("edpa.vid_labeling_monitor.data_provider")

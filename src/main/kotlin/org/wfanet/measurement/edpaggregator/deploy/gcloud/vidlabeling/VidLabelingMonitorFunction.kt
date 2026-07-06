@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
+import com.google.cloud.storage.StorageOptions
 import io.grpc.Channel
 import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
@@ -44,6 +45,7 @@ import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
@@ -57,7 +59,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingMonitor
+import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
+import org.wfanet.measurement.storage.StorageClient
 
 /** Channel cache key using TLS params, target, and optional hostname override. */
 private data class ChannelKey(
@@ -233,6 +237,9 @@ class VidLabelingMonitorFunction : HttpFunction {
     // VidLabelingJobService is served by the same RawImpressionMetadata storage deployment.
     val vidLabelingJobStub =
       VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(rawImpressionUploadChannel)
+    // RankerJobService is served by the same RawImpressionMetadata storage deployment.
+    val rankerJobStub =
+      RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(rawImpressionUploadChannel)
     val dispatchSequencer =
       VidLabelingDispatchSequencer(
         rawImpressionUploadStub = rawImpressionUploadStub,
@@ -261,6 +268,20 @@ class VidLabelingMonitorFunction : HttpFunction {
         dispatchSequencer = dispatchSequencer,
         dataProviderName = config.dataProvider,
         stalenessThreshold = config.stalenessThreshold.toDuration(),
+        rawImpressionUploadFileStub = rawImpressionUploadFileStub,
+        rawImpressionsStorageClient =
+          createStorageClient(
+            config.rawImpressionsStorageParams.gcs.bucketName,
+            config.rawImpressionsStorageParams.gcs.projectId,
+          ),
+        vidLabeledImpressionsStorageClient =
+          createStorageClient(
+            config.vidLabeledImpressionsStorageParams.gcs.bucketName,
+            config.vidLabeledImpressionsStorageParams.gcs.projectId,
+          ),
+        rankerJobStub = rankerJobStub,
+        vidLabelingJobStub = vidLabelingJobStub,
+        workItemsStub = workItemsStub,
       )
 
     val result = monitor.run()
@@ -350,6 +371,21 @@ class VidLabelingMonitorFunction : HttpFunction {
     ): Channel {
       val channel = getOrCreateChannel(connectionParams, target, hostName)
       return ClientInterceptors.intercept(channel, grpcTelemetry.newClientInterceptor())
+    }
+
+    /** Builds a bucket-rooted [StorageClient] for the data-quality crawl. */
+    private fun createStorageClient(bucketName: String, projectId: String): StorageClient {
+      return GcsStorageClient(
+        StorageOptions.newBuilder()
+          .also { builder ->
+            if (projectId.isNotEmpty()) {
+              builder.setProjectId(projectId)
+            }
+          }
+          .build()
+          .service,
+        bucketName,
+      )
     }
 
     private fun buildVidLabelerParamsTemplate(config: VidLabelingConfig): VidLabelerParams {
