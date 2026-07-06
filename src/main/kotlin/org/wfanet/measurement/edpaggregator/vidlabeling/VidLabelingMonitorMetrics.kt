@@ -103,6 +103,70 @@ object VidLabelingMonitorMetrics {
         .ofLongs()
         .build()
 
+  /**
+   * Current number of raw impression files missing one or more of their expected VID-labeled output
+   * files this scan. Keyed by [DATA_PROVIDER_ATTR].
+   *
+   * A gauge (not a counter): a steady-state data-quality observation, set each run (including `0`)
+   * so a recovered DataProvider reads back to `0` rather than a counter that grows forever.
+   */
+  val missingLabeledOutputsGauge: LongGauge
+    get() =
+      Instrumentation.meter
+        .gaugeBuilder("edpa.vid_labeling_monitor.missing_labeled_outputs")
+        .setDescription(
+          "Raw impression files missing one or more expected VID-labeled outputs (per model line)"
+        )
+        .setUnit("{file}")
+        .ofLongs()
+        .build()
+
+  /**
+   * Current number of raw impression files whose Cloud Storage create time is after the date
+   * folder's `done` blob create time this scan (the EDP wrote `done` before all files were in
+   * place). Keyed by [DATA_PROVIDER_ATTR].
+   *
+   * A gauge (not a counter): a steady-state data-quality observation, set each run (including `0`).
+   */
+  val lateArrivingFilesGauge: LongGauge
+    get() =
+      Instrumentation.meter
+        .gaugeBuilder("edpa.vid_labeling_monitor.late_arriving_files")
+        .setDescription("Files uploaded after the date folder's done blob was written")
+        .setUnit("{file}")
+        .ofLongs()
+        .build()
+
+  /**
+   * Current number of date folders that exist but have no `done` blob this scan (a partial or
+   * incomplete upload). Keyed by [DATA_PROVIDER_ATTR].
+   *
+   * A gauge (not a counter): a steady-state data-quality observation, set each run (including `0`).
+   */
+  val missingDoneBlobsGauge: LongGauge
+    get() =
+      Instrumentation.meter
+        .gaugeBuilder("edpa.vid_labeling_monitor.missing_done_blobs")
+        .setDescription("Date folders that exist but have no done blob")
+        .setUnit("{date}")
+        .ofLongs()
+        .build()
+
+  /**
+   * Current number of date folders whose `done` blob exists but that contain no data files this
+   * scan. Keyed by [DATA_PROVIDER_ATTR].
+   *
+   * A gauge (not a counter): a steady-state data-quality observation, set each run (including `0`).
+   */
+  val zeroImpressionDatesGauge: LongGauge
+    get() =
+      Instrumentation.meter
+        .gaugeBuilder("edpa.vid_labeling_monitor.zero_impression_dates")
+        .setDescription("Date folders whose done blob exists but that contain no data files")
+        .setUnit("{date}")
+        .ofLongs()
+        .build()
+
   /** Attribute key for the `DataProvider` resource name. */
   val DATA_PROVIDER_ATTR: AttributeKey<String> =
     AttributeKey.stringKey("edpa.vid_labeling_monitor.data_provider")
