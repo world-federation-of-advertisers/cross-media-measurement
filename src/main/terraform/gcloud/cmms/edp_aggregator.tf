@@ -376,7 +376,7 @@ locals {
         java_tool_options             = "-Xmx96G -Djdk.util.jar.enableMultiRelease=false"
         docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/subpool_assigner:${var.image_tag}"
         tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/subpool_assigner"
-        mig_distribution_policy_zones = ["us-central1-a"]
+        mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
         app_flags = concat(local.vid_labeling_common_app_flags, [
           "--subscription-id", "subpool-assigner-subscription",
           "--vid-rank-builder-queue", "vid-rank-builder-queue",
@@ -403,7 +403,7 @@ locals {
         java_tool_options             = "-Xmx96G -Djdk.util.jar.enableMultiRelease=false"
         docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_rank_builder:${var.image_tag}"
         tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_rank_builder"
-        mig_distribution_policy_zones = ["us-central1-a"]
+        mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
         app_flags = concat(local.vid_labeling_common_app_flags, [
           "--subscription-id", "vid-rank-builder-subscription",
           "--vid-labeler-queue", "vid-labeler-queue",
@@ -430,7 +430,7 @@ locals {
         java_tool_options             = "-Xmx96G -Djdk.util.jar.enableMultiRelease=false"
         docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_labeler:${var.image_tag}"
         tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_labeler"
-        mig_distribution_policy_zones = ["us-central1-a"]
+        mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
         app_flags = concat(local.vid_labeling_common_app_flags, [
           "--subscription-id", "vid-labeler-subscription",
         ])
