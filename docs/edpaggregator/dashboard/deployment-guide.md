@@ -208,11 +208,18 @@ Terraform creates all resources in this order:
 After Terraform applies successfully, the tables are empty. The scheduled
 queries run hourly via MERGE. To populate tables immediately:
 
+`<REGION>` in the examples below is the GCP region the dashboard resources
+are deployed in — the CI reads it from the `BIGQUERY_REGION` GitHub
+environment variable. All dashboard tables, connections, and scheduled
+queries are created via `data.google_client_config.default.region` in
+`dashboard.tf`, so any GCP region GCP supports for BigQuery Data Transfer
+works.
+
 ### Trigger Scheduled Queries Manually
 
 ```shell
 # List dashboard transfer configs
-bq ls --transfer_config --transfer_location=us-central1 --project_id=MY_PROJECT \
+bq ls --transfer_config --transfer_location=<REGION> --project_id=MY_PROJECT \
   --filter='dataSourceIds:scheduled_query'
 
 # Trigger a manual run for each config. CONFIG_RESOURCE_NAME is the
@@ -247,7 +254,7 @@ role grants only what the check needs.
 bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard/tools:DashboardComplianceCheck -- \
   --impersonate-service-account=dashboard-compliance@MY_PROJECT.iam.gserviceaccount.com \
   --project=MY_PROJECT \
-  --region=us-central1 \
+  --region=<REGION> \
   --edp=edp1:AbCdEf_12345 \
   --edp=edp2:GhIjKl_67890 \
   --edp=edp3:MnOpQr_24680
@@ -402,10 +409,10 @@ scheduled queries**. If the compliance/isolation checks are failing because
     curl -sS -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" \
       -H 'Content-Type: application/json' \
       --data "{\"requestedRunTime\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
-      "https://bigquerydatatransfer.googleapis.com/v1/projects/<project>/locations/us-central1/transferConfigs/<config-id>:startManualRuns"
+      "https://bigquerydatatransfer.googleapis.com/v1/projects/<project>/locations/<region>/transferConfigs/<config-id>:startManualRuns"
     ```
     (You need `roles/bigquerydatatransfer.admin` on the project; find
-    `<config-id>` via `bq ls --transfer_config --transfer_location=us-central1 --project_id=<project> --filter='dataSourceIds:scheduled_query'`.)
+    `<config-id>` via `bq ls --transfer_config --transfer_location=<region> --project_id=<project> --filter='dataSourceIds:scheduled_query'`.)
 4.  Once `report_detail_edp` has been refreshed, `gh api
     .../actions/runs/<RUN_ID>/rerun-failed-jobs --method POST` will re-run
     the remaining failing dashboard checks against the updated data.

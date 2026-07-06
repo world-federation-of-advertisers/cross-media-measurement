@@ -217,7 +217,7 @@ tested permissions):
 bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard/tools:DashboardComplianceCheck -- \
   --impersonate-service-account=dashboard-compliance@MY_PROJECT.iam.gserviceaccount.com \
   --project=MY_PROJECT \
-  --region=us-central1 \
+  --region=<REGION> \
   --edp=edp1:AbCdEf_12345 \
   --edp=edp2:GhIjKl_67890 \
   --edp=edp3:MnOpQr_24680 \
