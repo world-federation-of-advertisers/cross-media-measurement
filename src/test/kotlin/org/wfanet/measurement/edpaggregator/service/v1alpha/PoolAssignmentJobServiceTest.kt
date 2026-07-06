@@ -681,6 +681,7 @@ class PoolAssignmentJobServiceTest {
 
     assertThat(response.poolAssignmentJob.state).isEqualTo(PoolAssignmentJob.State.SUCCEEDED)
     assertThat(response.poolAssignmentJob.name).isEqualTo(created.name)
+    assertThat(response.poolAssignmentJob.encryptedDek).isEqualTo(ENCRYPTED_DEK)
   }
 
   @Test

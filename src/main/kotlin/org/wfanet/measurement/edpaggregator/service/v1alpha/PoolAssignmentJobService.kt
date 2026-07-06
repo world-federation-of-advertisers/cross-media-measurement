@@ -484,6 +484,9 @@ internal fun InternalPoolAssignmentJob.toPublic(): PoolAssignmentJob {
     if (source.errorMessage.isNotEmpty()) {
       errorMessage = source.errorMessage
     }
+    if (source.hasEncryptedDek()) {
+      encryptedDek = source.encryptedDek
+    }
     if (source.etag.isNotEmpty()) {
       etag = source.etag
     }
