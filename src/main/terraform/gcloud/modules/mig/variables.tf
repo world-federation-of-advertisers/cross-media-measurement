@@ -80,6 +80,13 @@ variable "machine_type" {
   nullable    = false
 }
 
+variable "disk_type" {
+  description = "The boot disk type. Use a hyperdisk-* type only for machine families that support it; use pd-balanced for families that do not (e.g. N2D)."
+  type        = string
+  default     = "hyperdisk-balanced"
+  nullable    = false
+}
+
 variable "docker_image" {
   description = "The docker image to be deployed."
   type        = string
