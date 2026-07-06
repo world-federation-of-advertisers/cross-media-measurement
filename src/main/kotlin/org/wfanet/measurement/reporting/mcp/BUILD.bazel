@@ -18,6 +18,7 @@ kt_jvm_library(
         "//imports/java/io/ktor/server:cors",
         "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/prompts:reporting_prompts",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/tools:basic_report_tools",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/tools:event_group_tools",
         "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/tools:iqf_tools",
