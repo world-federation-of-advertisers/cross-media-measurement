@@ -796,6 +796,14 @@ class SpannerBasicReportsService(
     // Legitimate partial coverage (all referenced IDs are expected but some window/IQF
     // buckets lack data) is handled by per-window containsKey guards in
     // BasicReportProcessedResultsTransformation.buildResults and still renders.
+    // The `isNotEmpty()` filter on the actual RSR set below is not for symmetry with
+    // `expectedReportingSetIds` -- `expectedReportingSetIds` values are always non-empty (they
+    // come from `ReportingSet.external_reporting_set_id` on server-minted rows read from the
+    // ReportingSets table via `listReportingSetsByCampaignGroup`, and downstream map lookups
+    // already assume non-empty). The filter guards the RSR side, where
+    // `Dimension.external_reporting_set_id` is `Required` in proto3 but not wire-enforced. A
+    // blank field there is a distinct upstream data-quality issue, not ReportingSet
+    // corruption, and must not be misclassified as an unexpected ID.
     val expectedReportingSetIds: Set<String> =
       campaignGroupReportingSetIdByReportingSetKey.values.toSet()
     val unexpectedReportingSetIds: Set<String> =
