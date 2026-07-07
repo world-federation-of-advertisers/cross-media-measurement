@@ -32,8 +32,8 @@ import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RawImpressionUploadModelLineResult
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countInProgressModelLinesForModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countNonCompletedRawImpressionUploadModelLines
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findInProgressModelLinesForModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpressionUploadModelLineByRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpressionUploadModelLinesByRequestIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadId
@@ -46,6 +46,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawIm
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadState
 import org.wfanet.measurement.edpaggregator.service.internal.EtagMismatchException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
+import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadModelLineConcurrentException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadModelLineNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadModelLineStateInvalidException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
@@ -574,19 +575,19 @@ class SpannerRawImpressionUploadModelLineService(
         // One upload in-flight per (DataProvider, cmms_model_line): concurrent Phase-1 rankers
         // would corrupt the shared cumulative rank index.
         if (nextState in PROCESSING_STATES) {
-          val concurrent =
-            txn.countInProgressModelLinesForModelLine(
+          val conflicts =
+            txn.findInProgressModelLinesForModelLine(
               dataProviderResourceId,
               result.rawImpressionUploadModelLine.cmmsModelLine,
               excludeRawImpressionUploadId = result.rawImpressionUploadId,
             )
-          if (concurrent > 0L) {
-            throw RawImpressionUploadModelLineStateInvalidException(
+          if (conflicts.isNotEmpty()) {
+            throw RawImpressionUploadModelLineConcurrentException(
                 dataProviderResourceId,
-                rawImpressionUploadResourceId,
                 rawImpressionUploadModelLineResourceId,
-                result.rawImpressionUploadModelLine.state,
-                validPreviousStates,
+                result.rawImpressionUploadModelLine.cmmsModelLine,
+                nextState,
+                conflicts.map { it.rawImpressionUploadResourceId to it.state },
               )
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           }

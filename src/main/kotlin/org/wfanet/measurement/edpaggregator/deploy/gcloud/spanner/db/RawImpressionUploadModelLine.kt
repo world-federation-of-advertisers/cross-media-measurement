@@ -22,6 +22,7 @@ import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
@@ -109,35 +110,45 @@ suspend fun AsyncDatabaseClient.ReadContext.countNonCompletedRawImpressionUpload
   return row.getLong("NonCompletedCount")
 }
 
+/** A conflicting in-progress model-line row: the owning upload's resource ID and its state. */
+data class InProgressModelLine(val rawImpressionUploadResourceId: String, val state: State)
+
 /**
- * Counts model-line rows for ([dataProviderResourceId], [cmmsModelLine]) that are in a processing
- * state (POOL_ASSIGNING/RANKING/LABELING) under an upload OTHER than
- * [excludeRawImpressionUploadId].
+ * Finds up to [limit] model-line rows for ([dataProviderResourceId], [cmmsModelLine]) that are in a
+ * processing state (POOL_ASSIGNING/RANKING/LABELING) under an upload OTHER than
+ * [excludeRawImpressionUploadId], returning each conflicting upload's resource ID and state.
  *
- * Used to enforce the one-in-flight-upload-per-(DataProvider, model line) rule.
+ * Used to enforce the one-in-flight-upload-per-(DataProvider, model line) rule and to name the
+ * blocking upload(s) when the rule rejects a transition.
  */
-suspend fun AsyncDatabaseClient.ReadContext.countInProgressModelLinesForModelLine(
+suspend fun AsyncDatabaseClient.ReadContext.findInProgressModelLinesForModelLine(
   dataProviderResourceId: String,
   cmmsModelLine: String,
   excludeRawImpressionUploadId: Long,
-): Long {
+  limit: Int = 5,
+): List<InProgressModelLine> {
   val sql =
     """
-    SELECT COUNT(*) AS InProgressCount
+    SELECT
+      RawImpressionUpload.RawImpressionUploadResourceId AS RawImpressionUploadResourceId,
+      RawImpressionUploadModelLine.State AS State
     FROM RawImpressionUploadModelLine
-    WHERE DataProviderResourceId = @dataProviderResourceId
-      AND CmmsModelLine = @cmmsModelLine
-      AND RawImpressionUploadId != @excludeRawImpressionUploadId
-      AND CAST(State AS INT64) IN UNNEST(@inProgressStates)
+    JOIN RawImpressionUpload USING (DataProviderResourceId, RawImpressionUploadId)
+    WHERE RawImpressionUploadModelLine.DataProviderResourceId = @dataProviderResourceId
+      AND RawImpressionUploadModelLine.CmmsModelLine = @cmmsModelLine
+      AND RawImpressionUploadModelLine.RawImpressionUploadId != @excludeRawImpressionUploadId
+      AND CAST(RawImpressionUploadModelLine.State AS INT64) IN UNNEST(@inProgressStates)
+    LIMIT @limit
     """
       .trimIndent()
 
-  val row: Struct =
+  return buildList {
     executeQuery(
         statement(sql) {
           bind("dataProviderResourceId").to(dataProviderResourceId)
           bind("cmmsModelLine").to(cmmsModelLine)
           bind("excludeRawImpressionUploadId").to(excludeRawImpressionUploadId)
+          bind("limit").to(limit.toLong())
           bind("inProgressStates")
             .toInt64Array(
               listOf(
@@ -148,8 +159,15 @@ suspend fun AsyncDatabaseClient.ReadContext.countInProgressModelLinesForModelLin
             )
         }
       )
-      .singleOrNullIfEmpty() ?: return 0
-  return row.getLong("InProgressCount")
+      .collect { row ->
+        add(
+          InProgressModelLine(
+            row.getString("RawImpressionUploadResourceId"),
+            row.getProtoEnum("State", State::forNumber),
+          )
+        )
+      }
+  }
 }
 
 /** Buffers an update to the parent [RawImpressionUpload] row's state. */
