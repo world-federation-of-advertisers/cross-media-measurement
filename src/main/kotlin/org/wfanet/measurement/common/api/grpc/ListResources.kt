@@ -17,6 +17,8 @@
 package org.wfanet.measurement.common.api.grpc
 
 import com.google.protobuf.Message
+import io.grpc.Status
+import io.grpc.StatusException
 import io.grpc.kotlin.AbstractCoroutineStub
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -84,6 +86,67 @@ inline fun <R : Message, reified T, S : AbstractCoroutineStub<S>> S.listResource
       remaining -= resourceList.size
       nextPageToken = resourceList.nextPageToken
       if (nextPageToken == emptyPageToken || remaining == 0) {
+        break
+      }
+    }
+  }
+}
+
+/**
+ * Lists resources from a paginated List method on this stub with an adaptive page size.
+ *
+ * The user-supplied [list] lambda receives the page token and the page size to use. On a
+ * `RESOURCE_EXHAUSTED` failure from the server (typically the gRPC inbound message size limit, e.g.
+ * 4MB), the page size is halved and the same page is retried until either the call succeeds or the
+ * page size has been reduced to [minPageSize] (at which point the original error is rethrown). Once
+ * a reduced size has worked, the smaller size is used for subsequent pages to avoid repeating the
+ * doomed-large-page step on every page.
+ *
+ * @param startingPageSize initial page size for the first request.
+ * @param minPageSize floor below which the page size will not be reduced; if a request still fails
+ *   with `RESOURCE_EXHAUSTED` at this size, the error is rethrown.
+ * @param pageToken page token for the initial request.
+ * @param onPageSizeReduced callback invoked whenever the page size is reduced after
+ *   `RESOURCE_EXHAUSTED`. Useful for emitting metrics or logging.
+ * @param list function which calls the appropriate List method on the stub using the supplied page
+ *   token and page size.
+ */
+inline fun <R : Message, reified T, S : AbstractCoroutineStub<S>> S
+  .listResourcesWithAdaptivePageSize(
+  startingPageSize: Int,
+  minPageSize: Int = 1,
+  pageToken: T = getEmptyPageToken(),
+  crossinline onPageSizeReduced: (oldPageSize: Int, newPageSize: Int) -> Unit = { _, _ -> },
+  crossinline list: suspend S.(pageToken: T, pageSize: Int) -> ResourceList<R, T>,
+): Flow<ResourceList<R, T>> {
+  require(startingPageSize >= minPageSize) {
+    "startingPageSize ($startingPageSize) must be >= minPageSize ($minPageSize)"
+  }
+  require(minPageSize >= 1) { "minPageSize must be at least 1" }
+  val emptyPageToken: T = getEmptyPageToken()
+  return flow {
+    var nextPageToken = pageToken
+    var pageSize = startingPageSize
+    while (true) {
+      coroutineContext.ensureActive()
+
+      var resourceList: ResourceList<R, T>? = null
+      while (resourceList == null) {
+        try {
+          resourceList = list(nextPageToken, pageSize)
+        } catch (e: StatusException) {
+          if (e.status.code != Status.Code.RESOURCE_EXHAUSTED || pageSize <= minPageSize) {
+            throw e
+          }
+          val reduced = (pageSize / 2).coerceAtLeast(minPageSize)
+          onPageSizeReduced(pageSize, reduced)
+          pageSize = reduced
+        }
+      }
+      emit(resourceList)
+
+      nextPageToken = resourceList.nextPageToken
+      if (nextPageToken == emptyPageToken) {
         break
       }
     }
