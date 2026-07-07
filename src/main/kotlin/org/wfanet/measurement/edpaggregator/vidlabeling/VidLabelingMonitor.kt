@@ -32,7 +32,6 @@ import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
-import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
@@ -173,9 +172,10 @@ class VidLabelingMonitor(
       dataProviderAttributes(),
     )
 
-    val (stuckUploads, failedModelLines) = checkFailuresAndStaleness()
-    val recoveredTransitions = recoverStuckPhases()
-    val dataQuality = checkDataQuality()
+    val snapshot = RunSnapshot(listAllUploads().groupBy { it.state })
+    val (stuckUploads, failedModelLines) = checkFailuresAndStaleness(snapshot)
+    val recoveredTransitions = recoverStuckPhases(snapshot)
+    val dataQuality = checkDataQuality(snapshot)
     return MonitorResult(
       dispatchedUpload = dispatch.dispatchedUpload,
       queuedUploads = dispatch.queuedUploads,
@@ -197,13 +197,18 @@ class VidLabelingMonitor(
    *
    * @return stuck upload names and failed model line names.
    */
-  private suspend fun checkFailuresAndStaleness(): Pair<List<String>, List<String>> {
+  private suspend fun checkFailuresAndStaleness(
+    snapshot: RunSnapshot
+  ): Pair<List<String>, List<String>> {
     // CREATED (not yet activated by the sequencer) and ACTIVE (in flight) are the non-terminal
     // states eligible for the staleness check. FAILED is terminal but is still scanned below so a
     // rolled-up FAILED upload's model lines surface.
-    val createdUploads: List<RawImpressionUpload> = listUploads(RawImpressionUpload.State.CREATED)
-    val activeUploads: List<RawImpressionUpload> = listUploads(RawImpressionUpload.State.ACTIVE)
-    val failedUploads: List<RawImpressionUpload> = listUploads(RawImpressionUpload.State.FAILED)
+    val createdUploads: List<RawImpressionUpload> =
+      snapshot.uploads(RawImpressionUpload.State.CREATED)
+    val activeUploads: List<RawImpressionUpload> =
+      snapshot.uploads(RawImpressionUpload.State.ACTIVE)
+    val failedUploads: List<RawImpressionUpload> =
+      snapshot.uploads(RawImpressionUpload.State.FAILED)
     val nowNanos: Long = Timestamps.toNanos(Timestamps.fromMillis(clock.millis()))
     val thresholdNanos: Long = stalenessThreshold.toNanos()
 
@@ -220,14 +225,15 @@ class VidLabelingMonitor(
     )
 
     // Scan CREATED/ACTIVE/FAILED uploads for FAILED model lines: a rolled-up FAILED upload's lines
-    // must surface, as must a FAILED line under an otherwise-live upload.
-    // N+1: one ListRawImpressionUploadModelLines per upload, bounded by the small number of
-    // concurrent uploads per DataProvider (sequencing keeps it low), so acceptable here.
+    // must surface, as must a FAILED line under an otherwise-live upload. Model lines come from the
+    // shared snapshot, so each upload is listed at most once per tick (reused by
+    // recoverStuckPhases).
     val failedLinesByUpload: Map<String, List<String>> =
       (createdUploads + activeUploads + failedUploads)
         .associate { upload ->
           upload.name to
-            listUploadModelLines(upload.name)
+            snapshot
+              .modelLines(upload.name)
               .filter { it.state == RawImpressionUploadModelLine.State.FAILED }
               .map { it.name }
         }
@@ -246,9 +252,35 @@ class VidLabelingMonitor(
     return stuckUploads to failedModelLines
   }
 
-  /** Lists this DataProvider's uploads in [state]. */
+  /**
+   * One tick's view of this DataProvider's uploads (fetched with a single [listAllUploads] and
+   * grouped by state) plus a per-upload model-line cache, so each upload's model lines are listed
+   * at most once per tick across all checks (1 + N list RPCs per tick instead of one list per
+   * check).
+   */
+  private inner class RunSnapshot(
+    private val uploadsByState: Map<RawImpressionUpload.State, List<RawImpressionUpload>>
+  ) {
+    private val modelLinesByUpload = mutableMapOf<String, List<RawImpressionUploadModelLine>>()
+
+    /** Uploads in [state] (empty if none). */
+    fun uploads(state: RawImpressionUpload.State): List<RawImpressionUpload> =
+      uploadsByState[state].orEmpty()
+
+    /** Every upload across all states. */
+    fun allUploads(): List<RawImpressionUpload> = uploadsByState.values.flatten()
+
+    /** [uploadName]'s model lines, listed once per tick and memoized. */
+    suspend fun modelLines(uploadName: String): List<RawImpressionUploadModelLine> =
+      modelLinesByUpload.getOrPut(uploadName) { listUploadModelLines(uploadName) }
+  }
+
+  /**
+   * Lists every one of this DataProvider's uploads in a single RPC. An empty `state_in` matches all
+   * states, so one list per tick covers every state; [RunSnapshot] groups the result in memory.
+   */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  private suspend fun listUploads(state: RawImpressionUpload.State): List<RawImpressionUpload> =
+  private suspend fun listAllUploads(): List<RawImpressionUpload> =
     rawImpressionUploadStub
       .listResources { pageToken: String ->
         // Let StatusException propagate with its gRPC Status.Code intact (this monitor is not a
@@ -261,7 +293,6 @@ class VidLabelingMonitor(
           rawImpressionUploadStub.listRawImpressionUploads(
             listRawImpressionUploadsRequest {
               parent = dataProviderName
-              filter = ListRawImpressionUploadsRequestKt.filter { stateIn += state }
               if (pageToken.isNotEmpty()) {
                 this.pageToken = pageToken
               }
@@ -312,10 +343,10 @@ class VidLabelingMonitor(
    * recovered DataProvider reads back to 0). These MUST NOT block dispatch or recovery, so any
    * failure is logged at WARNING and swallowed -- a bad crawl never fails the monitor run.
    */
-  private suspend fun checkDataQuality(): DataQualityResult {
+  private suspend fun checkDataQuality(snapshot: RunSnapshot): DataQualityResult {
     return try {
-      val storage = checkRawImpressionStorageQuality()
-      val missingLabeled = checkLabelingCompleteness()
+      val storage = checkRawImpressionStorageQuality(snapshot)
+      val missingLabeled = checkLabelingCompleteness(snapshot)
       val attrs = dataProviderAttributes()
       VidLabelingMonitorMetrics.missingLabeledOutputsGauge.set(missingLabeled, attrs)
       VidLabelingMonitorMetrics.missingDoneBlobsGauge.set(storage.missingDoneBlobs, attrs)
@@ -345,12 +376,8 @@ class VidLabelingMonitor(
    * so the per-EDP path is discovered rather than assumed; non-date folders are skipped by
    * [DataAvailabilityBlobs.enumerateDateInfo].
    */
-  private suspend fun checkRawImpressionStorageQuality(): StorageQuality {
-    val uploads =
-      listUploads(RawImpressionUpload.State.CREATED) +
-        listUploads(RawImpressionUpload.State.ACTIVE) +
-        listUploads(RawImpressionUpload.State.COMPLETED) +
-        listUploads(RawImpressionUpload.State.FAILED)
+  private suspend fun checkRawImpressionStorageQuality(snapshot: RunSnapshot): StorageQuality {
+    val uploads = snapshot.allUploads()
     val dateFolderPrefixes: Set<String> =
       uploads
         .mapNotNull { upload ->
@@ -393,11 +420,11 @@ class VidLabelingMonitor(
    * -- rather than a storage-blob census -- avoids the false positive such a model line would
    * otherwise raise on every scheduler tick.
    */
-  private suspend fun checkLabelingCompleteness(): Long {
+  private suspend fun checkLabelingCompleteness(snapshot: RunSnapshot): Long {
     var missing = 0L
-    for (upload in listUploads(RawImpressionUpload.State.COMPLETED)) {
+    for (upload in snapshot.uploads(RawImpressionUpload.State.COMPLETED)) {
       val completedModelLines =
-        listUploadModelLines(upload.name).filter {
+        snapshot.modelLines(upload.name).filter {
           it.state == RawImpressionUploadModelLine.State.COMPLETED
         }
       for (modelLine in completedModelLines) {
@@ -462,12 +489,12 @@ class VidLabelingMonitor(
    * to #4044 (see the TODO above [run]); it needs `PoolAssignmentJobService`, which is not in this
    * base.
    */
-  private suspend fun recoverStuckPhases(): Int {
+  private suspend fun recoverStuckPhases(snapshot: RunSnapshot): Int {
     val nowNanos: Long = Timestamps.toNanos(Timestamps.fromMillis(clock.millis()))
     val thresholdNanos: Long = stalenessThreshold.toNanos()
     var recovered = 0
-    for (upload in listUploads(RawImpressionUpload.State.ACTIVE)) {
-      for (modelLine in listUploadModelLines(upload.name)) {
+    for (upload in snapshot.uploads(RawImpressionUpload.State.ACTIVE)) {
+      for (modelLine in snapshot.modelLines(upload.name)) {
         if (nowNanos - Timestamps.toNanos(modelLine.updateTime) <= thresholdNanos) {
           continue
         }
