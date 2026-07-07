@@ -162,9 +162,7 @@ class VidLabelingMonitorFunction : HttpFunction {
     require(config.numberOfShards > 0) {
       "number_of_shards must be positive for data provider: ${config.dataProvider}"
     }
-    require(config.hasStalenessThreshold()) {
-      "staleness_threshold must be set for data provider: ${config.dataProvider}"
-    }
+    requireValidStalenessThreshold(config)
     // Fail fast on per-model-line config the TEE would otherwise only reject at Phase-2.
     requireValidModelLineConfigs(config)
 
