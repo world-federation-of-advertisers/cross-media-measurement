@@ -22,6 +22,9 @@ import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
+import org.wfanet.measurement.common.cel.CelFilterValidator
+import org.wfanet.measurement.common.cel.CelValidationException
+import org.wfanet.measurement.common.cel.toCelValue
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField as InternalEventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
@@ -29,6 +32,7 @@ import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.reporting.service.api.ImpressionQualificationFilterInvalidCelException
+import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.internal.Normalization
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.EventFilter
@@ -162,11 +166,11 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
           "basic_report.result_group_specs[$specIndex].dimension_spec.filters"
         val dimensionSpecFilter: String =
           buildCelExpression(resultGroupSpec.dimensionSpec.filtersList, eventTemplateFieldsByPath)
-        CelFilterValidation.validateCelBooleanFilter(
-          env,
-          dimensionSpecFilter,
-          dimensionSpecFieldPath,
-        )
+        try {
+          CelFilterValidator.validateBoolean(env, dimensionSpecFilter)
+        } catch (e: CelValidationException) {
+          throw InvalidFieldValueException(dimensionSpecFieldPath) { "$it is ${e.message}" }
+        }
 
         // List of filters to be used in creating the MetricCalculationSpecs given the
         // DimensionSpec. [buildCelExpressions] only emits three shapes today: the IQF expression
@@ -184,10 +188,12 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
         // their composition did not), so we surface as IllegalStateException routed to
         // Status.INTERNAL by the catch-all handler in BasicReportsService.
         for ((filterIndex, combinedFilter) in metricCalculationSpecFilters.withIndex()) {
-          CelFilterValidation.validateCelBoolean(env, combinedFilter) { issue ->
-            IllegalStateException(
+          try {
+            CelFilterValidator.validateBoolean(env, combinedFilter)
+          } catch (e: CelValidationException) {
+            error(
               "Combined CEL filter at spec index $specIndex, filter index " +
-                "$filterIndex failed post-composition validation: $issue. This indicates " +
+                "$filterIndex failed post-composition validation: ${e.message}. This indicates " +
                 "buildCelExpressions produced a shape not covered by the upstream per-piece " +
                 "validators."
             )
@@ -325,44 +331,32 @@ fun validateImpressionQualificationFilterCel(
   filter: String,
   source: ImpressionQualificationFilterSpecsSource,
 ) {
-  when (source) {
-    is ImpressionQualificationFilterSpecsSource.Custom ->
-      CelFilterValidation.validateCelBooleanFilter(
-        env,
-        filter,
-        "basic_report.impression_qualification_filters[${source.requestIndex}].custom",
-      )
-    is ImpressionQualificationFilterSpecsSource.Base ->
-      CelFilterValidation.validateCelBoolean(env, filter) { issue ->
-        ImpressionQualificationFilterInvalidCelException(
+  try {
+    CelFilterValidator.validateBoolean(env, filter)
+  } catch (e: CelValidationException) {
+    val issue: String = e.message ?: "validation failed"
+    when (source) {
+      is ImpressionQualificationFilterSpecsSource.Custom ->
+        throw InvalidFieldValueException(
+          "basic_report.impression_qualification_filters[${source.requestIndex}].custom"
+        ) {
+          "$it is $issue"
+        }
+      is ImpressionQualificationFilterSpecsSource.Base ->
+        throw ImpressionQualificationFilterInvalidCelException(
           impressionQualificationFilter =
             "(base) ${source.externalImpressionQualificationFilterId}",
           celIssue = issue,
         )
-      }
-    is ImpressionQualificationFilterSpecsSource.Named ->
-      CelFilterValidation.validateCelBoolean(env, filter) { issue ->
-        ImpressionQualificationFilterInvalidCelException(
+      is ImpressionQualificationFilterSpecsSource.Named ->
+        throw ImpressionQualificationFilterInvalidCelException(
           impressionQualificationFilter =
             "${source.impressionQualificationFilterName} " +
               "(basic_report.impression_qualification_filters[${source.requestIndex}]" +
               ".impression_qualification_filter)",
           celIssue = issue,
         )
-      }
-  }
-}
-
-private fun InternalEventTemplateField.FieldValue.toCelValue(
-  fieldInfo: EventMessageDescriptor.EventTemplateFieldInfo
-): String {
-  return when (selectorCase) {
-    InternalEventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> stringValue
-    InternalEventTemplateField.FieldValue.SelectorCase.ENUM_VALUE ->
-      checkNotNull(fieldInfo.enumType?.findValueByName(enumValue)).number.toString()
-    InternalEventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> boolValue.toString()
-    InternalEventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> floatValue.toString()
-    InternalEventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> error("No field value")
+    }
   }
 }
 

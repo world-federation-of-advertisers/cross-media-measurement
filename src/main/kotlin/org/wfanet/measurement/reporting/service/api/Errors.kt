@@ -61,7 +61,6 @@ object Errors {
     REPORTING_SET("reportingSet"),
     FIELD_NAME("fieldName"),
     IMPRESSION_QUALIFICATION_FILTER("impressionQualificationFilter"),
-    CEL_ISSUE("celIssue"),
     MODEL_LINE("modelLine"),
     DATA_PROVIDER("dataProvider"),
     EVENT_TEMPLATE_FIELD_PATH("eventTemplateFieldPath"),
@@ -322,8 +321,15 @@ class EventTemplateFieldInvalidException(
  * A CEL filter string generated for an
  * [org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilter] from a server-controlled
  * source (a base IQF from `--base-impression-qualification-filters`, or a registry-resolved named
- * IQF) failed to compile or returned a non-boolean. Indicates a server misconfiguration; callers
- * should map to `Status.INTERNAL`.
+ * IQF) failed to compile or returned a non-boolean.
+ *
+ * This should not fire in normal operation:
+ * [org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping]
+ * validates every base / named IQF's generated CEL at server startup and refuses to boot on
+ * failure. This exception remains as a backstop for code paths that bypass startup validation (test
+ * fixtures, alternative loaders, direct constructor calls) so a server bug does not silently emit
+ * malformed CEL to downstream persistence. Its wire status (`Status.INTERNAL`) reflects that: it
+ * means a server invariant is broken, not a caller error.
  */
 class ImpressionQualificationFilterInvalidCelException(
   impressionQualificationFilter: String,
@@ -333,9 +339,6 @@ class ImpressionQualificationFilterInvalidCelException(
   ServiceException(
     Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_INVALID_CEL,
     "ImpressionQualificationFilter $impressionQualificationFilter generated invalid CEL: $celIssue",
-    mapOf(
-      Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER to impressionQualificationFilter,
-      Errors.Metadata.CEL_ISSUE to celIssue,
-    ),
+    mapOf(Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER to impressionQualificationFilter),
     cause,
   )

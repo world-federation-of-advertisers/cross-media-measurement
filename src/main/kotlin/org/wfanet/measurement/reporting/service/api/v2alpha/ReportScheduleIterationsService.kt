@@ -26,6 +26,8 @@ import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.cel.buildCelEnvironment
+import org.wfanet.measurement.common.cel.filterList
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.internal.reporting.v2.ListReportScheduleIterationsRequest as InternalListReportScheduleIterationsRequest

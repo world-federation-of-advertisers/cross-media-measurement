@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.reporting.service.api.v2alpha
+package org.wfanet.measurement.common.cel
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
