@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeling
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.util.Timestamps
+import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import io.opentelemetry.api.GlobalOpenTelemetry
@@ -69,6 +70,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpc
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
@@ -184,6 +186,7 @@ class VidLabelingMonitorTest {
     RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(grpcTestServerRule.channel)
   }
   private val rawImpressionsStorageClient = InMemoryStorageClient()
+  private val vidLabeledImpressionsStorageClient = InMemoryStorageClient()
 
   private val fixedClock: Clock = Clock.fixed(FIXED_NOW, ZoneId.of("UTC"))
 
@@ -253,7 +256,9 @@ class VidLabelingMonitorTest {
       dispatchSequencer = createSequencer(),
       dataProviderName = DATA_PROVIDER,
       stalenessThreshold = STALENESS_THRESHOLD,
+      rawImpressionUploadFileStub = rawImpressionUploadFileStub,
       rawImpressionsStorageClient = rawImpressionsStorageClient,
+      vidLabeledImpressionsStorageClient = vidLabeledImpressionsStorageClient,
       rankerJobStub = rankerJobStub,
       vidLabelingJobStub = vidLabelingJobStub,
       workItemsStub = workItemsStub,
@@ -590,6 +595,19 @@ class VidLabelingMonitorTest {
     }
   }
 
+  private suspend fun seedLabeled(vararg keys: String) {
+    for (key in keys) {
+      vidLabeledImpressionsStorageClient.writeBlob(key, flowOf(ByteString.copyFromUtf8("x")))
+    }
+  }
+
+  private suspend fun stubFiles(vararg files: RawImpressionUploadFile) {
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(
+        listRawImpressionUploadFilesResponse { rawImpressionUploadFiles += files.toList() }
+      )
+  }
+
   /**
    * Stubs `listRankerJobs` for a `(upload, model line)`: the unfiltered count returns [total], the
    * CREATED/FAILED count returns [nonSucceeded], and the SUCCEEDED page returns one job named
@@ -612,21 +630,42 @@ class VidLabelingMonitorTest {
   }
 
   @Test
-  fun `reports missing done blobs for a date folder without a done blob`() = runBlocking {
-    stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
-    stubModelLines()
-    seedRaw("edp7/2026-06-02/data-1")
+  fun `reports missing done blobs for a registered date folder without a done blob`() =
+    runBlocking {
+      stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+      stubModelLines()
+      stubFiles(
+        rawImpressionUploadFile {
+          blobUri = "gs://raw-bucket/edp7/2026-06-02/data-1"
+          eventDate = date {
+            year = 2026
+            month = 6
+            day = 2
+          }
+        }
+      )
+      seedRaw("edp7/2026-06-02/data-1")
 
-    createMonitor().run()
+      createMonitor().run()
 
-    assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_done_blobs"))
-      .isEqualTo(1)
-  }
+      assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_done_blobs"))
+        .isEqualTo(1)
+    }
 
   @Test
   fun `reports zero-impression dates for a done blob with no data files`() = runBlocking {
     stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
     stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        eventDate = date {
+          year = 2026
+          month = 6
+          day = 1
+        }
+      }
+    )
     seedRaw("edp7/2026-06-01/done")
 
     createMonitor().run()
@@ -640,6 +679,16 @@ class VidLabelingMonitorTest {
   fun `reports late-arriving files uploaded after the done blob`() = runBlocking {
     stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
     stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-late"
+        eventDate = date {
+          year = 2026
+          month = 6
+          day = 1
+        }
+      }
+    )
     seedRaw("edp7/2026-06-01/done")
     kotlinx.coroutines.delay(5)
     seedRaw("edp7/2026-06-01/data-late")
@@ -651,7 +700,30 @@ class VidLabelingMonitorTest {
   }
 
   @Test
-  fun `reports missing labeled outputs for non-succeeded jobs under a completed model line`() =
+  fun `reports missing raw files for a registered file absent from storage`() = runBlocking {
+    // Directional metadata -> storage signal: the file is registered (with an event_date) but its
+    // blob is gone from storage (data loss).
+    stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        eventDate = date {
+          year = 2026
+          month = 6
+          day = 1
+        }
+      }
+    )
+
+    createMonitor().run()
+
+    assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_raw_files"))
+      .isEqualTo(1)
+  }
+
+  @Test
+  fun `reports missing labeled outputs for a completed model line and date with no done blob`() =
     runBlocking {
       stubUploads(
         completed = listOf(upload("done-1", RawImpressionUpload.State.COMPLETED, FIXED_NOW))
@@ -663,53 +735,55 @@ class VidLabelingMonitorTest {
           RawImpressionUploadModelLine.State.COMPLETED,
         )
       )
-      // Two CREATED + one FAILED job never reached SUCCEEDED under a COMPLETED model line.
-      whenever(vidLabelingJobService.listVidLabelingJobs(any())).thenAnswer { invocation ->
-        val request = invocation.getArgument<ListVidLabelingJobsRequest>(0)
-        listVidLabelingJobsResponse {
-          when (request.filter.state) {
-            VidLabelingJob.State.CREATED -> {
-              vidLabelingJobs += vidLabelingJob { name = "$MODEL_LINE/vidLabelingJobs/c1" }
-              vidLabelingJobs += vidLabelingJob { name = "$MODEL_LINE/vidLabelingJobs/c2" }
-            }
-            VidLabelingJob.State.FAILED -> vidLabelingJobs += vidLabelingJob {
-                name = "$MODEL_LINE/vidLabelingJobs/f1"
-              }
-            else -> {}
+      // One registered file dated 2026-06-01; no labeled done blob for (ml1, 2026-06-01).
+      stubFiles(
+        rawImpressionUploadFile {
+          blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+          eventDate = date {
+            year = 2026
+            month = 6
+            day = 1
           }
         }
-      }
+      )
 
       createMonitor().run()
 
       assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_labeled_outputs"))
-        .isEqualTo(3)
+        .isEqualTo(1)
     }
 
   @Test
-  fun `does not report missing labeled outputs when all jobs succeeded even if no blobs written`() =
-    runBlocking {
-      // Regression for the false positive: a backfill whose events all fall outside the active
-      // window writes zero output blobs, but its jobs still reach SUCCEEDED, so nothing is missing.
-      stubUploads(
-        completed = listOf(upload("done-1", RawImpressionUpload.State.COMPLETED, FIXED_NOW))
+  fun `does not report missing labeled outputs when the labeled done blob exists`() = runBlocking {
+    // The labeler writes model-line/<id>/<date>/done for the input event date whether or not any
+    // impression survived filtering, so a fully-dropped date is finalized and not a false positive.
+    stubUploads(
+      completed = listOf(upload("done-1", RawImpressionUpload.State.COMPLETED, FIXED_NOW))
+    )
+    stubModelLines(
+      modelLine(
+        "$DATA_PROVIDER/rawImpressionUploads/done-1",
+        MODEL_LINE,
+        RawImpressionUploadModelLine.State.COMPLETED,
       )
-      stubModelLines(
-        modelLine(
-          "$DATA_PROVIDER/rawImpressionUploads/done-1",
-          MODEL_LINE,
-          RawImpressionUploadModelLine.State.COMPLETED,
-        )
-      )
-      // No CREATED or FAILED jobs: every VidLabelingJob succeeded.
-      whenever(vidLabelingJobService.listVidLabelingJobs(any()))
-        .thenReturn(listVidLabelingJobsResponse {})
+    )
+    stubFiles(
+      rawImpressionUploadFile {
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        eventDate = date {
+          year = 2026
+          month = 6
+          day = 1
+        }
+      }
+    )
+    seedLabeled("model-line/ml1/2026-06-01/done")
 
-      createMonitor().run()
+    createMonitor().run()
 
-      assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_labeled_outputs"))
-        .isEqualTo(0)
-    }
+    assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_labeled_outputs"))
+      .isEqualTo(0)
+  }
 
   @Test
   fun `recovers a stuck RANKING model line by re-publishing a WorkItem`() = runBlocking {

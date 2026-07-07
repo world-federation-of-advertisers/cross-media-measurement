@@ -27,21 +27,24 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
-import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsRequest
@@ -88,6 +91,9 @@ class VidLabelingMonitor(
   private val dataProviderName: String,
   private val stalenessThreshold: Duration,
   private val rawImpressionsStorageClient: StorageClient,
+  private val rawImpressionUploadFileStub:
+    RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub,
+  private val vidLabeledImpressionsStorageClient: StorageClient,
   private val rankerJobStub: RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub,
   private val vidLabelingJobStub: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub,
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
@@ -106,7 +112,9 @@ class VidLabelingMonitor(
     val failedModelLines: List<String>,
     /** Whether the dispatch sequencer threw this run (dispatch is broken for this DataProvider). */
     val dispatchError: Boolean,
-    /** `VidLabelingJob`s under COMPLETED model lines that did not reach SUCCEEDED. */
+    /**
+     * `(model line, event date)` pairs under COMPLETED model lines missing their labeled done blob.
+     */
     val missingLabeledOutputs: Long,
     /** Files whose create time is after their date folder done blob. */
     val lateArrivingFiles: Long,
@@ -114,6 +122,8 @@ class VidLabelingMonitor(
     val missingDoneBlobs: Long,
     /** Date folders whose done blob exists but that hold no data files. */
     val zeroImpressionDates: Long,
+    /** Registered raw impression files whose blob is absent from storage (data loss). */
+    val missingRawFiles: Long,
     /** Stuck phase transitions the Monitor re-triggered this run. */
     val recoveredTransitions: Int,
   ) {
@@ -126,6 +136,7 @@ class VidLabelingMonitor(
           lateArrivingFiles > 0 ||
           missingDoneBlobs > 0 ||
           zeroImpressionDates > 0 ||
+          missingRawFiles > 0 ||
           recoveredTransitions > 0
   }
 
@@ -158,6 +169,7 @@ class VidLabelingMonitor(
           lateArrivingFiles = 0,
           missingDoneBlobs = 0,
           zeroImpressionDates = 0,
+          missingRawFiles = 0,
           recoveredTransitions = 0,
         )
       }
@@ -186,6 +198,7 @@ class VidLabelingMonitor(
       lateArrivingFiles = dataQuality.lateArrivingFiles,
       missingDoneBlobs = dataQuality.missingDoneBlobs,
       zeroImpressionDates = dataQuality.zeroImpressionDates,
+      missingRawFiles = dataQuality.missingRawFiles,
       recoveredTransitions = recoveredTransitions,
     )
   }
@@ -323,16 +336,37 @@ class VidLabelingMonitor(
       .flattenConcat()
       .toList()
 
+  /** Lists the `RawImpressionUploadFile` children of [uploadName]. */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  private suspend fun listUploadFiles(uploadName: String): List<RawImpressionUploadFile> =
+    rawImpressionUploadFileStub
+      .listResources { pageToken: String ->
+        val response =
+          rawImpressionUploadFileStub.listRawImpressionUploadFiles(
+            listRawImpressionUploadFilesRequest {
+              parent = uploadName
+              if (pageToken.isNotEmpty()) {
+                this.pageToken = pageToken
+              }
+            }
+          )
+        ResourceList(response.rawImpressionUploadFilesList, response.nextPageToken)
+      }
+      .flattenConcat()
+      .toList()
+
   /** Alert-only data-quality signals gathered this run. */
   private data class DataQualityResult(
     val missingLabeledOutputs: Long,
     val lateArrivingFiles: Long,
     val missingDoneBlobs: Long,
     val zeroImpressionDates: Long,
+    val missingRawFiles: Long,
   )
 
   /** Raw-impression storage-crawl signals (a subset of [DataQualityResult]). */
   private data class StorageQuality(
+    val missingRawFiles: Long,
     val missingDoneBlobs: Long,
     val zeroImpressionDates: Long,
     val lateArrivingFiles: Long,
@@ -352,11 +386,13 @@ class VidLabelingMonitor(
       VidLabelingMonitorMetrics.missingDoneBlobsGauge.set(storage.missingDoneBlobs, attrs)
       VidLabelingMonitorMetrics.zeroImpressionDatesGauge.set(storage.zeroImpressionDates, attrs)
       VidLabelingMonitorMetrics.lateArrivingFilesGauge.set(storage.lateArrivingFiles, attrs)
+      VidLabelingMonitorMetrics.missingRawFilesGauge.set(storage.missingRawFiles, attrs)
       DataQualityResult(
         missingLabeledOutputs = missingLabeled,
         lateArrivingFiles = storage.lateArrivingFiles,
         missingDoneBlobs = storage.missingDoneBlobs,
         zeroImpressionDates = storage.zeroImpressionDates,
+        missingRawFiles = storage.missingRawFiles,
       )
     } catch (e: Exception) {
       logger.log(
@@ -364,118 +400,114 @@ class VidLabelingMonitor(
         "Data-quality checks failed for $dataProviderName (non-blocking)",
         e,
       )
-      DataQualityResult(0L, 0L, 0L, 0L)
+      DataQualityResult(0L, 0L, 0L, 0L, 0L)
     }
   }
 
   /**
-   * Crawls the raw-impression date folders and counts (a) date folders with no done blob, (b) date
-   * folders whose done blob exists but that hold no data files, and (c) files whose create time is
-   * after their date's done blob (written after the EDP marked the date done). The date-folder
-   * parent prefix is derived from each upload's own `done_blob_uri` (key `<prefix>/<date>/done`),
-   * so the per-EDP path is discovered rather than assumed; non-date folders are skipped by
-   * [DataAvailabilityBlobs.enumerateDateInfo].
+   * Reconciles registered raw-impression files (the metadata source of truth) against raw storage,
+   * keyed off each file's `event_date`. Reports (a) `missing_raw_files`: a file registered in
+   * metadata whose blob is absent from storage (data loss -- e.g. retention deleted it); (b)
+   * `missing_done_blobs`: an event-date folder with registered files but no `done` blob; (c)
+   * `zero_impression_dates`: a folder whose `done` blob exists but that holds no data files; and
+   * (d) `late_arriving_files`: files whose storage create time is after the folder's `done` blob.
+   * The date folders come from metadata (`event_date` + `blob_uri`), not a string-parsed
+   * `done_blob_uri`, so coverage follows what was registered and metadata-vs-storage divergence is
+   * detectable.
    */
   private suspend fun checkRawImpressionStorageQuality(snapshot: RunSnapshot): StorageQuality {
-    val uploads = snapshot.allUploads()
-    val dateFolderPrefixes: Set<String> =
-      uploads
-        .mapNotNull { upload ->
-          val key = SelectedStorageClient.parseBlobUri(upload.doneBlobUri).key
-          val dateFolder = key.substringBeforeLast('/', "")
-          if (dateFolder.isEmpty()) {
-            return@mapNotNull null
-          }
-          val parent = dateFolder.substringBeforeLast('/', "")
-          if (parent.isEmpty()) "" else "$parent/"
+    // Registered files are the source of truth: each carries its event_date (from the footer) and
+    // blob_uri (its storage location).
+    data class DatedFile(val key: String, val eventDate: LocalDate)
+    val files: List<DatedFile> =
+      snapshot
+        .allUploads()
+        .flatMap { upload -> listUploadFiles(upload.name) }
+        .filter { it.hasEventDate() }
+        .map { file ->
+          DatedFile(
+            SelectedStorageClient.parseBlobUri(file.blobUri).key,
+            LocalDate.of(file.eventDate.year, file.eventDate.month, file.eventDate.day),
+          )
+        }
+
+    // (data loss) A file registered in metadata whose blob is no longer in storage.
+    var missingRawFiles = 0L
+    for (file in files) {
+      if (rawImpressionsStorageClient.getBlob(file.key) == null) {
+        missingRawFiles++
+      }
+    }
+
+    // Reconcile each event-date folder. The folder's trailing segment must equal the file's
+    // event_date, so a file stored under a path that disagrees with its footer date is not counted
+    // as a spurious date folder.
+    val dateFolders: Set<String> =
+      files
+        .mapNotNull { file ->
+          val folder = file.key.substringBeforeLast('/', "")
+          if (folder.substringAfterLast('/') == file.eventDate.toString()) folder else null
         }
         .toSet()
 
     var missingDoneBlobs = 0L
     var zeroImpressionDates = 0L
     var lateArrivingFiles = 0L
-    for (prefix in dateFolderPrefixes) {
-      val info = DataAvailabilityBlobs.enumerateDateInfo(rawImpressionsStorageClient, prefix)
-      missingDoneBlobs += info.datesWithoutDoneBlob.size.toLong()
-      for ((date: LocalDate, doneBlob) in info.datesWithDoneBlob) {
-        val dataFiles =
-          rawImpressionsStorageClient.listBlobs("$prefix$date/").toList().filterNot {
-            it.blobKey.endsWith("/done")
-          }
-        if (dataFiles.isEmpty()) {
-          zeroImpressionDates++
-        }
-        lateArrivingFiles += dataFiles.count { it.createTime.isAfter(doneBlob.createTime) }.toLong()
+    for (dateFolder in dateFolders) {
+      val doneBlob = rawImpressionsStorageClient.getBlob("$dateFolder/done")
+      if (doneBlob == null) {
+        missingDoneBlobs++
+        continue
       }
+      val dataFiles =
+        rawImpressionsStorageClient.listBlobs("$dateFolder/").toList().filterNot {
+          it.blobKey.endsWith("/done")
+        }
+      if (dataFiles.isEmpty()) {
+        zeroImpressionDates++
+      }
+      lateArrivingFiles += dataFiles.count { it.createTime.isAfter(doneBlob.createTime) }.toLong()
     }
-    return StorageQuality(missingDoneBlobs, zeroImpressionDates, lateArrivingFiles)
+    return StorageQuality(missingRawFiles, missingDoneBlobs, zeroImpressionDates, lateArrivingFiles)
   }
 
   /**
-   * Counts, across COMPLETED uploads and their COMPLETED model lines, the `VidLabelingJob`s that
-   * did not reach SUCCEEDED (CREATED = never processed, FAILED = processing failed). The labeler
-   * marks a job SUCCEEDED when it finishes processing, whether or not it wrote any output blob, so
-   * a model line whose every impression is legitimately dropped (e.g. a backfill whose events fall
-   * outside the model line's active window) still SUCCEEDs and is NOT counted. Keying off job state
-   * -- rather than a storage-blob census -- avoids the false positive such a model line would
-   * otherwise raise on every scheduler tick.
+   * Counts, across COMPLETED uploads and their COMPLETED model lines, the `(model line, event
+   * date)` pairs missing their labeled `done` blob at `model-line/<modelLineId>/<event_date>/done`.
+   *
+   * The event dates come from the upload's registered `RawImpressionUploadFile`s (`event_date`,
+   * populated at registration from the file's plaintext footer). At last-job-out the labeler writes
+   * that `done` blob for the input event date whether or not any impression survived filtering, so
+   * a legitimately all-dropped date still has its `done` blob (no false positive) while a genuinely
+   * unfinalized (model line, date) is flagged.
    */
   private suspend fun checkLabelingCompleteness(snapshot: RunSnapshot): Long {
     var missing = 0L
     for (upload in snapshot.uploads(RawImpressionUpload.State.COMPLETED)) {
+      val eventDates: Set<LocalDate> =
+        listUploadFiles(upload.name)
+          .filter { it.hasEventDate() }
+          .map { LocalDate.of(it.eventDate.year, it.eventDate.month, it.eventDate.day) }
+          .toSet()
+      if (eventDates.isEmpty()) {
+        continue
+      }
       val completedModelLines =
         snapshot.modelLines(upload.name).filter {
           it.state == RawImpressionUploadModelLine.State.COMPLETED
         }
       for (modelLine in completedModelLines) {
-        missing +=
-          countVidLabelingJobsInState(
-            upload.name,
-            modelLine.cmmsModelLine,
-            VidLabelingJob.State.CREATED,
-          )
-        missing +=
-          countVidLabelingJobsInState(
-            upload.name,
-            modelLine.cmmsModelLine,
-            VidLabelingJob.State.FAILED,
-          )
+        val modelLineId = ModelLineKey.fromName(modelLine.cmmsModelLine)?.modelLineId ?: continue
+        for (eventDate in eventDates) {
+          val doneKey = "model-line/$modelLineId/$eventDate/done"
+          if (vidLabeledImpressionsStorageClient.getBlob(doneKey) == null) {
+            missing++
+          }
+        }
       }
     }
     return missing
   }
-
-  /**
-   * Total number of `VidLabelingJob`s for `(uploadName, modelLine)` in [state] (fully paginated).
-   */
-  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  private suspend fun countVidLabelingJobsInState(
-    uploadName: String,
-    modelLine: String,
-    state: VidLabelingJob.State,
-  ): Long =
-    vidLabelingJobStub
-      .listResources { pageToken: String ->
-        val response =
-          vidLabelingJobStub.listVidLabelingJobs(
-            listVidLabelingJobsRequest {
-              parent = uploadName
-              filter =
-                ListVidLabelingJobsRequestKt.filter {
-                  cmmsModelLine = modelLine
-                  this.state = state
-                }
-              if (pageToken.isNotEmpty()) {
-                this.pageToken = pageToken
-              }
-            }
-          )
-        ResourceList(response.vidLabelingJobsList, response.nextPageToken)
-      }
-      .flattenConcat()
-      .toList()
-      .size
-      .toLong()
 
   /**
    * Re-triggers stuck memoized phase transitions for this DataProvider and returns how many were
