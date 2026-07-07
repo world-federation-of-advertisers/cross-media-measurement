@@ -510,7 +510,22 @@ variable "vid_labeling_monitor_config" {
 }
 
 variable "vid_labeling_monitor_scheduler_config" {
-  description = "Configuration for Google Cloud Scheduler to trigger the VidLabelingMonitor."
+  description = "Configuration for Google Cloud Scheduler to trigger the VidLabelingMonitor health cadence (?mode=health)."
+  type = object({
+    schedule                  = string
+    time_zone                 = string
+    name                      = string
+    function_url              = string
+    scheduler_sa_display_name = string
+    scheduler_sa_description  = string
+    scheduler_job_description = string
+    scheduler_job_name        = optional(string)
+  })
+  nullable = false
+}
+
+variable "vid_labeling_dispatch_scheduler_config" {
+  description = "Configuration for Google Cloud Scheduler to trigger the VidLabelingMonitor dispatch cadence (?mode=dispatch)."
   type = object({
     schedule                  = string
     time_zone                 = string

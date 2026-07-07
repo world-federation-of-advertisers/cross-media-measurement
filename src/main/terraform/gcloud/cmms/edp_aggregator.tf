@@ -309,15 +309,35 @@ locals {
     destination = "vid-labeling-monitor-config.textproto"
   }
 
+  # Health cadence: staleness alerting, stuck-phase recovery, and data-quality
+  # checks (VidLabelingMonitor.runHealth, selected by ?mode=health). Runs once
+  # daily, matching the DataAvailabilityMonitor, so recovery attempts are spaced
+  # a day apart and never race an in-flight last-out (see staleness_threshold's
+  # 24h floor). Health is duration-based, so a faster cadence buys nothing.
   vid_labeling_monitor_scheduler_config = {
-    schedule                  = "*/5 * * * *" # Every 5 minutes
+    schedule                  = "0 6 * * *" # Daily at 06:00
     time_zone                 = "UTC"
     name                      = "vid-labeling-monitor-scheduler"
-    function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/vid-labeling-monitor"
-    scheduler_sa_display_name = "VID Labeling Monitor Scheduler"
-    scheduler_sa_description  = "Service account for Cloud Scheduler to trigger the VID labeling monitor"
-    scheduler_job_description = "Scheduled job to sequence VID labeling dispatch and monitor pipeline health"
+    function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/vid-labeling-monitor?mode=health"
+    scheduler_sa_display_name = "VID Labeling Monitor Health Scheduler"
+    scheduler_sa_description  = "Service account for Cloud Scheduler to trigger VID labeling monitor health checks"
+    scheduler_job_description = "Daily job running VID labeling staleness, stuck-phase recovery, and data-quality checks"
     scheduler_job_name        = "vid-labeling-monitor"
+  }
+
+  # Dispatch cadence: publish WorkItems for newly-registered uploads
+  # (VidLabelingMonitor.runDispatch, selected by ?mode=dispatch). Runs every 6h
+  # so new uploads start promptly; dispatch is user-visible latency, so it wants
+  # a fast clock independent of the slow health cadence.
+  vid_labeling_dispatch_scheduler_config = {
+    schedule                  = "0 */6 * * *" # Every 6 hours
+    time_zone                 = "UTC"
+    name                      = "vid-labeling-dispatch-scheduler"
+    function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/vid-labeling-monitor?mode=dispatch"
+    scheduler_sa_display_name = "VID Labeling Dispatch Scheduler"
+    scheduler_sa_description  = "Service account for Cloud Scheduler to trigger VID labeling dispatch"
+    scheduler_job_description = "Six-hourly job dispatching VID labeling WorkItems for newly-registered uploads"
+    scheduler_job_name        = "vid-labeling-dispatcher"
   }
 
   # Shared TEE-app flags (from BaseTeeAppRunner) reused by the three VID Labeling
@@ -478,5 +498,6 @@ module "edp_aggregator" {
   vid_labeling_dispatcher_config                  = local.vid_labeling_dispatcher_config
   vid_labeling_monitor_config                     = local.vid_labeling_monitor_config
   vid_labeling_monitor_scheduler_config           = local.vid_labeling_monitor_scheduler_config
+  vid_labeling_dispatch_scheduler_config          = local.vid_labeling_dispatch_scheduler_config
   spanner_instance                              = google_spanner_instance.spanner_instance
 }
