@@ -876,6 +876,13 @@ module "vid_labeling_monitor_cloud_scheduler" {
   depends_on                = [module.vid_labeling_monitor_cloud_function]
 }
 
+module "vid_labeling_dispatch_cloud_scheduler" {
+  source                    = "../cloud-scheduler"
+  terraform_service_account = var.terraform_service_account
+  scheduler_config          = var.vid_labeling_dispatch_scheduler_config
+  depends_on                = [module.vid_labeling_monitor_cloud_function]
+}
+
 resource "google_storage_bucket_iam_member" "vid_labeling_monitor_storage_viewer" {
   depends_on = [module.vid_labeling_monitor_cloud_function]
   bucket     = module.edp_aggregator_bucket.storage_bucket.name
