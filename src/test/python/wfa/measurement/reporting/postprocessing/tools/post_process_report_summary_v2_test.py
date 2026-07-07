@@ -1617,14 +1617,15 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
                             100)
 
 
-    def test_duplicate_edp_combination_metric_names_back_filled(self):
+    def test_duplicate_edp_combination_metric_names_propagated(self):
         # Two ReportSummarySetResults with identical (impression_filter,
         # frozenset(data_providers)) but different metric names -- the shape
-        # produced by two composite ReportingSets whose set-expressions permute
-        # the same DP list (two-anchor stackedIncrementalReach). The solver
-        # sees one bucket (correct), but both RSRs must appear in
-        # updated_measurements so the response builder can look each up by its
-        # own metric name.
+        # produced by two composite ReportingSets whose set-expressions
+        # permute the same DataProvider list (two-anchor
+        # stackedIncrementalReach). The solver sees one bucket (correct),
+        # but the response builder still looks each ReportSummarySetResult
+        # up by its own metric name, so both metric names must appear in
+        # updated_measurements.
         report_summary_textproto = """
             cmms_measurement_consumer_id: "NsQ4CS3K1to"
             external_report_result_id: 456
@@ -1666,8 +1667,8 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         result = ReportSummaryV2Processor(report_summary, []).process()
 
         # Both metric names present, both equal to the solver's single
-        # per-bucket solved value. Without the alias back-fill, only the
-        # winning name (whichever proto-message ordering the dict-overwrite
+        # per-bucket solved value. Without alias propagation, only the
+        # canonical name (whichever proto-message ordering the dict-overwrite
         # settled on) would be present and the other lookup would KeyError.
         self.assertIn("anchor_dp1_reach", result.updated_measurements)
         self.assertIn("anchor_dp2_reach", result.updated_measurements)
@@ -1677,16 +1678,16 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         )
         self.assertEqual(result.updated_measurements["anchor_dp1_reach"], 500)
 
-    def test_three_composites_collapse_all_names_back_filled(self):
+    def test_three_composites_collapse_all_names_propagated(self):
         # Three ReportSummarySetResults with identical (impression_filter,
-        # edp_combination). Exercises the alias-chain resolution: RSR1 gets
-        # displaced by RSR2, RSR2 gets displaced by RSR3, so at record time
-        # RSR1's alias must chain through to RSR3 rather than pointing at
-        # RSR2 (which is itself no longer in updated_measurements after the
-        # solver runs). Without _add_alias resolving through the chain, the
-        # single-hop back-fill loop would skip RSR1 (canonical=name2 not in
-        # updated_measurements) whenever dict iteration puts the RSR1->RSR2
-        # entry before the RSR2->RSR3 entry.
+        # edp_combination). Exercises the alias-chain resolution: results
+        # 1 and 2 get aliased to result 3 in turn. At record time, result 1's
+        # alias must chain through to result 3 rather than pointing at
+        # result 2's metric-name (which is itself no longer in
+        # updated_measurements after the solver runs). Without _add_alias
+        # resolving through the chain, the single-hop propagation loop would
+        # skip result 1 whenever dict iteration puts the (result 1 -> result 2)
+        # entry before the (result 2 -> result 3) entry.
         report_summary_textproto = """
             cmms_measurement_consumer_id: "NsQ4CS3K1to"
             external_report_result_id: 456
@@ -1748,20 +1749,23 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
 
 
 
-    def test_full_shape_collapsing_rsrs_all_alias_paths_back_filled(self):
+    def test_full_shape_collapsing_results_all_alias_paths_propagated(self):
         # Coverage for the alias code paths not exercised by the simpler
-        # whole_campaign-reach tests: two RSRs share (impression_filter,
-        # frozenset(data_providers)) via permuted data_providers ordering. Each
-        # carries cumulative_results (drives _record_measurement_list_aliases,
-        # a list-of-reach path), non_cumulative_results with frequency bins
-        # (drives the strict=True zip through _record_measurement_set_aliases
-        # -- covering k_reach-bin aliasing on multiple bins per week), and
-        # whole_campaign_result with frequency bins (drives the whole_campaign
+        # whole_campaign-reach tests: two ReportSummarySetResults share
+        # (impression_filter, frozenset(data_providers)) via permuted
+        # data_providers ordering. Each carries cumulative_results (drives
+        # _record_measurement_list_aliases, a list-of-reach path),
+        # non_cumulative_results with frequency bins (drives the strict=True
+        # zip through _record_measurement_set_aliases -- covering k_reach-bin
+        # aliasing on multiple bins per week), and whole_campaign_result with
+        # frequency bins (drives the whole_campaign
         # _record_measurement_set_aliases branch, including its own k_reach).
-        # Impression aliasing is not exercised here because on this branch the
-        # pre-#4141 impression equality (union = sum(singles)) degenerates to
-        # 0 without per-EDP primitives; #4141 tightens that guard so a follow-
-        # up expansion of this test to add impression_count can land there.
+        # Impression aliasing is not exercised here because on this branch
+        # the pre-#4141 cross-publisher-total-equals-sum-of-per-EDP-totals
+        # constraint has an empty sum without per-EDP primitives and leaves
+        # the solver with no solution; #4141 tightens that guard so a
+        # follow-up expansion of this test to add impression_count can
+        # land there.
         proto = ('cmms_measurement_consumer_id: "MC1"\n'
                  'external_report_result_id: 456\n'
                  'population: 34288880\n'
