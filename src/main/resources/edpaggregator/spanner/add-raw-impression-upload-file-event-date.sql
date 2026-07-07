@@ -19,6 +19,9 @@
 -- UTC calendar date of a raw impression file's impressions (one day per file),
 -- populated at registration from the file's plaintext Parquet footer. Consumers
 -- reconcile registered files against dated storage/output folders without opening
--- each file. Nullable so it can be added to an existing (possibly non-empty)
--- table; new files always set it.
+-- each file. Required: Spanner cannot add a NOT NULL column to an existing table,
+-- so the column is added nullable and then marked NOT NULL (the table is empty at
+-- this point because the feature is not yet deployed).
 ALTER TABLE RawImpressionUploadFile ADD COLUMN EventDate DATE;
+
+ALTER TABLE RawImpressionUploadFile ALTER COLUMN EventDate DATE NOT NULL;
