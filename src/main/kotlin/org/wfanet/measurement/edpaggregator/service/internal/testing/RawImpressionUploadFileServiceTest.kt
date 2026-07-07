@@ -17,6 +17,8 @@ package org.wfanet.measurement.edpaggregator.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Timestamp
 import com.google.rpc.errorInfo
+import com.google.type.Date
+import com.google.type.date
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -65,6 +67,7 @@ abstract class RawImpressionUploadFileServiceTest {
     uploadResourceId: String,
     blobUri: String = BLOB_URI,
     requestId: String = UUID.randomUUID().toString(),
+    eventDate: Date = EVENT_DATE,
   ): RawImpressionUploadFile {
     return fileService.createRawImpressionUploadFile(
       createRawImpressionUploadFileRequest {
@@ -72,6 +75,7 @@ abstract class RawImpressionUploadFileServiceTest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = uploadResourceId
           this.blobUri = blobUri
+          this.eventDate = eventDate
         }
         this.requestId = requestId
       }
@@ -90,6 +94,7 @@ abstract class RawImpressionUploadFileServiceTest {
     assertThat(file.rawImpressionUploadResourceId).isEqualTo(uploadId)
     assertThat(file.fileResourceId).isNotEmpty()
     assertThat(file.blobUri).isEqualTo(BLOB_URI)
+    assertThat(file.eventDate).isEqualTo(EVENT_DATE)
     assertThat(file.createTime.toInstant()).isGreaterThan(startTime)
     assertThat(file.updateTime).isEqualTo(file.createTime)
   }
@@ -903,6 +908,11 @@ abstract class RawImpressionUploadFileServiceTest {
   companion object {
     private const val DATA_PROVIDER_RESOURCE_ID = "data-provider-1"
     private const val BLOB_URI = "gs://bucket/path/to/file"
+    private val EVENT_DATE: Date = date {
+      year = 2026
+      month = 6
+      day = 1
+    }
     private val FAR_FUTURE: Timestamp = Timestamp.newBuilder().setSeconds(4102444800L).build()
   }
 }
