@@ -19,6 +19,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
@@ -48,6 +49,17 @@ message RawImpressionUploadFile {
   // into VID labeling jobs.
   int64 size_bytes = 6 [
     (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // UTC calendar date of the file's impressions.
+  //
+  // A raw impression file holds one day of events. Read from the file's
+  // plaintext Parquet footer at registration so consumers can reconcile
+  // registered files against dated storage/output folders without opening
+  // each file.
+  google.type.Date event_date = 7 [
+    (google.api.field_behavior) = OPTIONAL,
     (google.api.field_behavior) = IMMUTABLE
   ];
 

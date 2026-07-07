@@ -18,11 +18,14 @@ package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
+import com.google.type.Date
+import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import java.time.Clock
+import java.time.LocalDate
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
@@ -77,6 +80,8 @@ import org.wfanet.measurement.storage.StorageClient
  * @param overrideModelLines if non-empty, use these model lines instead of querying the API.
  *   Overrides bypass active window checks to support backfilling past data.
  * @param modelLineConfigs field mapping configuration keyed by model line resource name.
+ * @param readEventDate reads a raw-impression file's UTC event date from its plaintext Parquet
+ *   footer (no decryption needed).
  * @param clock clock for determining active model line windows.
  * @param metrics OpenTelemetry metrics recorder.
  */
@@ -91,6 +96,7 @@ class VidLabelingDispatcher(
   private val modelSuiteName: String,
   private val overrideModelLines: List<String>,
   private val modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig>,
+  private val readEventDate: suspend (blobKey: String) -> LocalDate,
   private val clock: Clock = Clock.systemUTC(),
   private val metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
 ) {
@@ -349,6 +355,12 @@ class VidLabelingDispatcher(
       .flattenConcat()
       .firstOrNull { it.doneBlobUri == doneBlobPath }
 
+  private fun LocalDate.toProtoDate(): Date = date {
+    year = this@toProtoDate.year
+    month = this@toProtoDate.monthValue
+    day = this@toProtoDate.dayOfMonth
+  }
+
   /**
    * Creates a `RawImpressionUploadFile` for each raw impression blob in the upload.
    *
@@ -366,13 +378,16 @@ class VidLabelingDispatcher(
         parent = uploadName
         for (blob in chunk) {
           val fileBlobUri = BlobUris.buildUri(doneBlobUri, blob.blobKey)
+          val eventDate: LocalDate = readEventDate(blob.blobKey)
           requests += createRawImpressionUploadFileRequest {
             parent = uploadName
-            // size_bytes (REQUIRED) is the GCS object size from the directory listing; the
-            // Phase-1 last-out bin-packer batches files by it.
+            // size_bytes (REQUIRED) is the GCS object size from the directory listing (the Phase-1
+            // last-out bin-packer batches files by it). event_date (REQUIRED) is read from the
+            // file's plaintext Parquet footer so consumers can reconcile registered files by date.
             rawImpressionUploadFile = rawImpressionUploadFile {
               blobUri = fileBlobUri
               sizeBytes = blob.size
+              this.eventDate = eventDate.toProtoDate()
             }
             requestId = RequestIds.forRawImpressionUploadFile(uploadName, fileBlobUri)
           }

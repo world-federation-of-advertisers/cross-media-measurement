@@ -29,10 +29,13 @@ import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.time.Duration
+import java.time.LocalDate
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.Path
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
@@ -64,6 +67,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSeque
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
+import org.wfanet.measurement.storage.ParquetStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -156,6 +160,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
           )
 
       val storageClient: StorageClient = createStorageClient(doneBlobPath)
+      val parquetStorageClient: ParquetStorageClient = createParquetStorageClient(doneBlobPath)
       val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
 
       val modelLinesStub =
@@ -257,6 +262,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
       val dispatcher =
         VidLabelingDispatcher(
           storageClient = storageClient,
+          readEventDate = { blobKey -> readEventDateFromFooter(parquetStorageClient, blobKey) },
           rawImpressionUploadStub = rawImpressionUploadStub,
           rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
           rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
@@ -331,6 +337,31 @@ class VidLabelingDispatcherFunction : HttpFunction {
     }
 
     private val channelCache = ConcurrentHashMap<ChannelKey, ManagedChannel>()
+
+    /**
+     * Builds a [ParquetStorageClient] over the raw-impression storage for footer-only reads (no
+     * decryption). Mirrors [createStorageClient]'s FileSystem/GCS mode selection.
+     */
+    private fun createParquetStorageClient(doneBlobPath: String): ParquetStorageClient {
+      return if (!fileSystemPath.isNullOrEmpty()) {
+        ParquetStorageClient(
+          Configuration(),
+          Path(EnvVars.checkIsPath("VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH")),
+        )
+      } else {
+        val doneBlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
+        val conf =
+          Configuration().apply {
+            set("fs.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem")
+            set("fs.AbstractFileSystem.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFS")
+            set("fs.gs.auth.type", "COMPUTE_ENGINE")
+            System.getenv(GOOGLE_PROJECT_ID_ENV)
+              ?.takeIf { it.isNotEmpty() }
+              ?.let { set("fs.gs.project.id", it) }
+          }
+        ParquetStorageClient(conf, Path("gs://${doneBlobUri.bucket}"))
+      }
+    }
 
     private fun createStorageClient(doneBlobPath: String): StorageClient {
       return if (!fileSystemPath.isNullOrEmpty()) {
@@ -526,4 +557,21 @@ class VidLabelingDispatcherFunction : HttpFunction {
       }
     }
   }
+}
+
+/** Reads a raw-impression file's UTC event date from its plaintext Parquet footer. */
+internal suspend fun readEventDateFromFooter(
+  parquetStorageClient: ParquetStorageClient,
+  blobKey: String,
+): LocalDate {
+  val blob =
+    parquetStorageClient.getBlob(blobKey) ?: error("Raw-impression blob not found: $blobKey")
+  // FileEntityKeys.EVENT_DATE_KEY: the plaintext footer key the producer writes; readable without
+  // decryption (PLAINTEXT_FOOTER mode), so no KMS/DEK is needed here.
+  val eventDateString =
+    requireNotNull(blob.readKeyValueMetadata()["event_date"]?.takeIf { it.isNotEmpty() }) {
+      "raw-impression footer is missing the 'event_date' metadata entry for $blobKey; the producer " +
+        "must write each file's event date (ISO YYYY-MM-DD, UTC) into its plaintext footer"
+    }
+  return LocalDate.parse(eventDateString)
 }
