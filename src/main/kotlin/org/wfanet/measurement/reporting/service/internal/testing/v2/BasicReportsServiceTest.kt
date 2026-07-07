@@ -541,7 +541,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     // by classic BasicReports that reference ReportingSets outside their campaign
     // group (off-recommendation but permitted).
     //
-    // Pre-fix: the pre-check flagged such RSR references as corruption and threw
+    // Pre-fix: the pre-check flagged such ReportingSetResult references as corruption and threw
     // IllegalStateException. Post-fix: the pre-check also enumerates
     // reporting_unit.reportingSetKeys refs from the BasicReport's own
     // resultGroupSpecs, so the reference is accepted.
@@ -671,7 +671,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         }
       )
 
-    // RSR references the external component ReportingSet's ID. Pre-fix this
+    // ReportingSetResult references the external component ReportingSet's ID. Pre-fix this
     // triggered the pre-check IllegalStateException; post-fix it's accepted
     // because the external component is enumerated from
     // reporting_unit.reportingSetKeys.

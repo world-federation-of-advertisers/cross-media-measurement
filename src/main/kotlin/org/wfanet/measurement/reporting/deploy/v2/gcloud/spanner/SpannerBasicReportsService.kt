@@ -796,7 +796,8 @@ class SpannerBasicReportsService(
     // Legitimate partial coverage (all referenced IDs are expected but some window/IQF
     // buckets lack data) is handled by per-window containsKey guards in
     // BasicReportProcessedResultsTransformation.buildResults and still renders.
-    // The `isNotEmpty()` filter on the actual RSR set below guards the RSR side, where
+    // The `isNotEmpty()` filter on the actual ReportingSetResult set below guards the
+    // ReportingSetResult side, where
     // `Dimension.external_reporting_set_id` is `Required` in proto3 but not wire-enforced. A
     // blank field there is a distinct upstream data-quality issue, not ReportingSet
     // corruption, and must not be misclassified as an unexpected ID. The expected set
@@ -834,7 +835,7 @@ class SpannerBasicReportsService(
         .filter { it.isNotEmpty() && it !in expectedReportingSetIds }
         .toSet()
     if (unexpectedReportingSetIds.isNotEmpty()) {
-      throw IllegalStateException(
+      error(
         "BasicReport ${basicReport.cmmsMeasurementConsumerId}/" +
           "${basicReport.externalBasicReportId} has ReportingSetResults " +
           "referencing external_reporting_set_ids not in the campaign group's " +
