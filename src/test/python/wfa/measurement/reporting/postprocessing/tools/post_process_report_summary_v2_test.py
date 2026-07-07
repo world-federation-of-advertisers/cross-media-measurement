@@ -2151,6 +2151,60 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
                 result.updated_measurements[a_name],
                 result.updated_measurements[b_name])
 
+    def test_cadence_length_mismatch_between_collapsing_results_raises(self):
+        # Two ReportSummarySetResults share (impression_filter,
+        # frozenset(data_providers)) but disagree on cadence length: one
+        # carries 2 weekly cumulative_results, the other carries 1. This is an
+        # upstream contract violation -- _record_measurement_list_aliases must
+        # raise ValueError rather than silently truncating and leaving the
+        # extra metric-name unaliased (which would reintroduce the KeyError
+        # this alias machinery prevents).
+        proto = ('cmms_measurement_consumer_id: "MC1"\n'
+                 'external_report_result_id: 456\n'
+                 'population: 1000\n'
+                 'report_summary_set_results {\n'
+                 '    external_reporting_set_result_id: 1\n'
+                 '    impression_filter: "ami"\n'
+                 '    set_operation: "union"\n'
+                 '    data_providers: "edp1"\n'
+                 '    data_providers: "edp2"\n'
+                 '    metric_frequency_spec { weekly: MONDAY }\n'
+                 '    cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 14 }\n'
+                 '            end { year: 2021 month: 3 day: 15 }\n'
+                 '        }\n'
+                 '        reach { value: 100 standard_deviation: 0 metric: "a_w1_reach" }\n'
+                 '    }\n'
+                 '    cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 15 }\n'
+                 '            end { year: 2021 month: 3 day: 22 }\n'
+                 '        }\n'
+                 '        reach { value: 250 standard_deviation: 0 metric: "a_w2_reach" }\n'
+                 '    }\n'
+                 '}\n'
+                 'report_summary_set_results {\n'
+                 '    external_reporting_set_result_id: 2\n'
+                 '    impression_filter: "ami"\n'
+                 '    set_operation: "union"\n'
+                 '    data_providers: "edp2"\n'
+                 '    data_providers: "edp1"\n'
+                 '    metric_frequency_spec { weekly: MONDAY }\n'
+                 '    cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 14 }\n'
+                 '            end { year: 2021 month: 3 day: 15 }\n'
+                 '        }\n'
+                 '        reach { value: 100 standard_deviation: 0 metric: "b_w1_reach" }\n'
+                 '    }\n'
+                 '}\n')
+        report_summary = text_format.Parse(
+            proto, report_summary_v2_pb2.ReportSummaryV2()
+        )
+        with self.assertRaises(ValueError) as ctx:
+            ReportSummaryV2Processor(report_summary, []).process()
+        self.assertIn("must agree on cadence length", str(ctx.exception))
 
 
 def read_file_to_string(filename: str) -> str:
