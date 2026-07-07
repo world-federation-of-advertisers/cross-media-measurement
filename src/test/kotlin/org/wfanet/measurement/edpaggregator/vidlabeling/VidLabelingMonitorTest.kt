@@ -182,7 +182,6 @@ class VidLabelingMonitorTest {
     RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(grpcTestServerRule.channel)
   }
   private val rawImpressionsStorageClient = InMemoryStorageClient()
-  private val vidLabeledImpressionsStorageClient = InMemoryStorageClient()
 
   private val fixedClock: Clock = Clock.fixed(FIXED_NOW, ZoneId.of("UTC"))
 
@@ -252,9 +251,7 @@ class VidLabelingMonitorTest {
       dispatchSequencer = createSequencer(),
       dataProviderName = DATA_PROVIDER,
       stalenessThreshold = STALENESS_THRESHOLD,
-      rawImpressionUploadFileStub = rawImpressionUploadFileStub,
       rawImpressionsStorageClient = rawImpressionsStorageClient,
-      vidLabeledImpressionsStorageClient = vidLabeledImpressionsStorageClient,
       rankerJobStub = rankerJobStub,
       vidLabelingJobStub = vidLabelingJobStub,
       workItemsStub = workItemsStub,
@@ -643,30 +640,65 @@ class VidLabelingMonitorTest {
   }
 
   @Test
-  fun `reports missing labeled outputs for a completed model line with no outputs`() = runBlocking {
-    stubUploads(
-      completed = listOf(upload("done-1", RawImpressionUpload.State.COMPLETED, FIXED_NOW))
-    )
-    stubModelLines(
-      modelLine(
-        "$DATA_PROVIDER/rawImpressionUploads/done-1",
-        MODEL_LINE,
-        RawImpressionUploadModelLine.State.COMPLETED,
+  fun `reports missing labeled outputs for non-succeeded jobs under a completed model line`() =
+    runBlocking {
+      stubUploads(
+        completed = listOf(upload("done-1", RawImpressionUpload.State.COMPLETED, FIXED_NOW))
       )
-    )
-    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
-      .thenReturn(
-        listRawImpressionUploadFilesResponse {
-          rawImpressionUploadFiles += rawImpressionUploadFile { blobUri = "gs://raw/edp7/f1" }
-          rawImpressionUploadFiles += rawImpressionUploadFile { blobUri = "gs://raw/edp7/f2" }
+      stubModelLines(
+        modelLine(
+          "$DATA_PROVIDER/rawImpressionUploads/done-1",
+          MODEL_LINE,
+          RawImpressionUploadModelLine.State.COMPLETED,
+        )
+      )
+      // Two CREATED + one FAILED job never reached SUCCEEDED under a COMPLETED model line.
+      whenever(vidLabelingJobService.listVidLabelingJobs(any())).thenAnswer { invocation ->
+        val request = invocation.getArgument<ListVidLabelingJobsRequest>(0)
+        listVidLabelingJobsResponse {
+          when (request.filter.state) {
+            VidLabelingJob.State.CREATED -> {
+              vidLabelingJobs += vidLabelingJob { name = "$MODEL_LINE/vidLabelingJobs/c1" }
+              vidLabelingJobs += vidLabelingJob { name = "$MODEL_LINE/vidLabelingJobs/c2" }
+            }
+            VidLabelingJob.State.FAILED -> vidLabelingJobs += vidLabelingJob {
+                name = "$MODEL_LINE/vidLabelingJobs/f1"
+              }
+            else -> {}
+          }
         }
+      }
+
+      createMonitor().run()
+
+      assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_labeled_outputs"))
+        .isEqualTo(3)
+    }
+
+  @Test
+  fun `does not report missing labeled outputs when all jobs succeeded even if no blobs written`() =
+    runBlocking {
+      // Regression for the false positive: a backfill whose events all fall outside the active
+      // window writes zero output blobs, but its jobs still reach SUCCEEDED, so nothing is missing.
+      stubUploads(
+        completed = listOf(upload("done-1", RawImpressionUpload.State.COMPLETED, FIXED_NOW))
       )
+      stubModelLines(
+        modelLine(
+          "$DATA_PROVIDER/rawImpressionUploads/done-1",
+          MODEL_LINE,
+          RawImpressionUploadModelLine.State.COMPLETED,
+        )
+      )
+      // No CREATED or FAILED jobs: every VidLabelingJob succeeded.
+      whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+        .thenReturn(listVidLabelingJobsResponse {})
 
-    createMonitor().run()
+      createMonitor().run()
 
-    assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_labeled_outputs"))
-      .isEqualTo(2)
-  }
+      assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_labeled_outputs"))
+        .isEqualTo(0)
+    }
 
   @Test
   fun `recovers a stuck RANKING model line by re-publishing a WorkItem`() = runBlocking {
