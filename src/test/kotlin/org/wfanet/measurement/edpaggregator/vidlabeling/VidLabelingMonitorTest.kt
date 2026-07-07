@@ -411,10 +411,10 @@ class VidLabelingMonitorTest {
     whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
     stubMarkTransitions()
 
-    val result = createMonitor().run()
+    val result = createMonitor().runDispatch()
 
     assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
-    assertThat(result.hasIssues).isFalse()
+    assertThat(result.dispatchError).isFalse()
 
     val metrics = collectMetrics()
     assertThat(metrics.counterValue(UPLOADS_DISPATCHED_METRIC)).isEqualTo(1)
@@ -438,7 +438,7 @@ class VidLabelingMonitorTest {
         )
       )
 
-      val result = createMonitor().run()
+      val result = createMonitor().runDispatch()
 
       assertThat(result.dispatchedUpload).isNull()
       assertThat(result.queuedUploads).isEqualTo(1)
@@ -452,10 +452,9 @@ class VidLabelingMonitorTest {
     whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
       .thenThrow(StatusRuntimeException(Status.UNAVAILABLE))
 
-    val result = createMonitor().run()
+    val result = createMonitor().runDispatch()
 
     assertThat(result.dispatchError).isTrue()
-    assertThat(result.hasIssues).isTrue()
     assertThat(result.dispatchedUpload).isNull()
 
     val metricByName = collectMetrics().associateBy { it.name }
@@ -477,7 +476,7 @@ class VidLabelingMonitorTest {
     stubUploads(active = listOf(stuck))
     stubModelLines() // No failed model lines on the stuck upload.
 
-    val result = createMonitor().run()
+    val result = createMonitor().runHealth()
 
     assertThat(result.stuckUploads)
       .containsExactly("$DATA_PROVIDER/rawImpressionUploads/active-stuck")
@@ -490,7 +489,7 @@ class VidLabelingMonitorTest {
     stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
     stubModelLines()
 
-    val result = createMonitor().run()
+    val result = createMonitor().runHealth()
 
     assertThat(result.stuckUploads).isEmpty()
     assertThat(result.hasIssues).isFalse()
@@ -506,7 +505,7 @@ class VidLabelingMonitorTest {
     }
     stubModelLines(failedModelLine)
 
-    val result = createMonitor().run()
+    val result = createMonitor().runHealth()
 
     assertThat(result.failedModelLines)
       .containsExactly("$DATA_PROVIDER/rawImpressionUploads/active-1/modelLines/ml1")
@@ -531,7 +530,7 @@ class VidLabelingMonitorTest {
         },
       )
 
-      val result = createMonitor().run()
+      val result = createMonitor().runHealth()
 
       // Both FAILED lines surface, but failed_uploads counts the single upload, not 2.
       assertThat(result.failedModelLines).hasSize(2)
@@ -561,7 +560,7 @@ class VidLabelingMonitorTest {
       )
     )
 
-    val result = createMonitor().run()
+    val result = createMonitor().runHealth()
 
     assertThat(result.stuckUploads)
       .containsExactly("$DATA_PROVIDER/rawImpressionUploads/created-stuck")
@@ -581,7 +580,7 @@ class VidLabelingMonitorTest {
       }
     )
 
-    val result = createMonitor().run()
+    val result = createMonitor().runHealth()
 
     assertThat(result.stuckUploads).isEmpty()
     assertThat(result.failedModelLines)
@@ -646,7 +645,7 @@ class VidLabelingMonitorTest {
       )
       seedRaw("edp7/2026-06-02/data-1")
 
-      createMonitor().run()
+      createMonitor().runHealth()
 
       assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_done_blobs"))
         .isEqualTo(1)
@@ -668,7 +667,7 @@ class VidLabelingMonitorTest {
     )
     seedRaw("edp7/2026-06-01/done")
 
-    createMonitor().run()
+    createMonitor().runHealth()
 
     val metrics = collectMetrics()
     assertThat(metrics.gaugeValue("edpa.vid_labeling_monitor.zero_impression_dates")).isEqualTo(1)
@@ -693,7 +692,7 @@ class VidLabelingMonitorTest {
     kotlinx.coroutines.delay(5)
     seedRaw("edp7/2026-06-01/data-late")
 
-    createMonitor().run()
+    createMonitor().runHealth()
 
     assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.late_arriving_files"))
       .isEqualTo(1)
@@ -716,7 +715,7 @@ class VidLabelingMonitorTest {
       }
     )
 
-    createMonitor().run()
+    createMonitor().runHealth()
 
     assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_raw_files"))
       .isEqualTo(1)
@@ -747,7 +746,7 @@ class VidLabelingMonitorTest {
         }
       )
 
-      createMonitor().run()
+      createMonitor().runHealth()
 
       assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_labeled_outputs"))
         .isEqualTo(1)
@@ -779,7 +778,7 @@ class VidLabelingMonitorTest {
     )
     seedLabeled("model-line/ml1/2026-06-01/done")
 
-    createMonitor().run()
+    createMonitor().runHealth()
 
     assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_labeled_outputs"))
       .isEqualTo(0)
@@ -812,7 +811,7 @@ class VidLabelingMonitorTest {
     }
     whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
 
-    val result = createMonitor().run()
+    val result = createMonitor().runHealth()
 
     assertThat(result.recoveredTransitions).isEqualTo(1)
     assertThat(
@@ -859,7 +858,7 @@ class VidLabelingMonitorTest {
     }
     whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
 
-    val result = createMonitor().run()
+    val result = createMonitor().runHealth()
 
     assertThat(result.recoveredTransitions).isEqualTo(1)
     val createCaptor = argumentCaptor<CreateWorkItemRequest>()
@@ -880,7 +879,7 @@ class VidLabelingMonitorTest {
       }
     )
 
-    val result = createMonitor().run()
+    val result = createMonitor().runHealth()
 
     assertThat(result.recoveredTransitions).isEqualTo(0)
     assertThat(
@@ -904,19 +903,19 @@ class VidLabelingMonitorTest {
       }
     )
 
-    createMonitor().run()
+    createMonitor().runHealth()
 
-    // Exactly one unfiltered ListRawImpressionUploads (the monitor snapshot); the dispatcher's own
-    // state-filtered dispatch scan is separate and excluded by the empty-filter predicate.
+    // Exactly one unfiltered ListRawImpressionUploads: the monitor snapshot. runHealth does not
+    // dispatch, so there is no separate state-filtered dispatch scan this tick.
     val uploadRequests = argumentCaptor<ListRawImpressionUploadsRequest>()
     verifyBlocking(rawImpressionUploadService, atLeastOnce()) {
       listRawImpressionUploads(uploadRequests.capture())
     }
     assertThat(uploadRequests.allValues.count { it.filter.stateInList.isEmpty() }).isEqualTo(1)
-    // active-1's model lines are listed exactly twice this tick: once by the dispatcher's in-flight
-    // scan and once by the monitor snapshot (reused by both checkFailuresAndStaleness and
-    // recoverStuckPhases). Before the snapshot the monitor listed them per check, so this was 3.
-    verifyBlocking(rawImpressionUploadModelLineService, times(2)) {
+    // active-1's model lines are listed exactly once this tick: the monitor snapshot, reused by both
+    // checkFailuresAndStaleness and recoverStuckPhases. Before the snapshot the monitor listed them
+    // once per check, so this was 2. (runHealth does not dispatch, so there is no dispatcher scan.)
+    verifyBlocking(rawImpressionUploadModelLineService, times(1)) {
       listRawImpressionUploadModelLines(any())
     }
   }
