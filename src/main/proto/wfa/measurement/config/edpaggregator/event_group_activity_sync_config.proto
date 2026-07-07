@@ -38,8 +38,8 @@ message EventGroupActivitySyncConfig {
     string local_file_path = 6;
   }
 
-  // GCP project to use when reading `spot_data_blob_uri`. Optional; ignored when
-  // `local_file_path` is set.
+  // GCP project to use when reading `spot_data_blob_uri`. Optional; ignored
+  // when `local_file_path` is set.
   string gcs_project = 3;
 
   // gRPC target (host:port) of the Kingdom public API. Required.

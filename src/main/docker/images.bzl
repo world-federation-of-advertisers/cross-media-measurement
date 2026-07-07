@@ -318,6 +318,11 @@ REPORTING_V2_COMMON_IMAGES = [
         repository = _PREFIX + "/reporting/grpc-gateway",
         image = "//src/main/go/reporting:grpc_gateway_image",
     ),
+    struct(
+        name = "reporting_mcp_server_image",
+        repository = _PREFIX + "/reporting/mcp/server",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/mcp:reporting_mcp_server_daemon_image",
+    ),
 ]
 
 REPORTING_V2_LOCAL_IMAGES = [

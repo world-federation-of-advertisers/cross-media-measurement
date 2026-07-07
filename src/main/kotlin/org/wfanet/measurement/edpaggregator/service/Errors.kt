@@ -34,6 +34,8 @@ object Errors {
     RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
     RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
     RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+    RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+    RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_ALREADY_EXISTS,
@@ -59,6 +61,8 @@ object Errors {
     IMPRESSION_METADATA("impressionMetadata"),
     RAW_IMPRESSION_METADATA_BATCH("rawImpressionMetadataBatch"),
     RAW_IMPRESSION_METADATA_BATCH_FILE("rawImpressionMetadataBatchFile"),
+    RAW_IMPRESSION_UPLOAD("rawImpressionUpload"),
+    RAW_IMPRESSION_UPLOAD_FILE("rawImpressionUploadFile"),
     FIELD_NAME("fieldName"),
   }
 }
@@ -431,6 +435,45 @@ class RawImpressionMetadataBatchFileAlreadyExistsException(
         internalMetadata.getValue(InternalErrors.Metadata.BLOB_URI),
         cause,
       )
+    }
+  }
+}
+
+/**
+ * Thrown when a
+ * [RawImpressionUpload][org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload] cannot be
+ * found by its resource name.
+ */
+class RawImpressionUploadNotFoundException(uploadResourceName: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+    "RawImpressionUpload $uploadResourceName not found",
+    mapOf(Errors.Metadata.RAW_IMPRESSION_UPLOAD to uploadResourceName),
+    cause,
+  )
+
+class RawImpressionUploadFileNotFoundException(fileResourceName: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+    "RawImpressionUploadFile $fileResourceName not found",
+    mapOf(Errors.Metadata.RAW_IMPRESSION_UPLOAD_FILE to fileResourceName),
+    cause,
+  ) {
+  companion object : Factory<RawImpressionUploadFileNotFoundException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): RawImpressionUploadFileNotFoundException {
+      val fileKey =
+        RawImpressionUploadFileKey(
+          internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID),
+          internalMetadata.getValue(InternalErrors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID),
+          internalMetadata.getValue(InternalErrors.Metadata.FILE_RESOURCE_ID),
+        )
+      return RawImpressionUploadFileNotFoundException(fileKey.toName(), cause)
     }
   }
 }

@@ -18,7 +18,6 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.Descriptors
 import org.wfanet.measurement.api.v2alpha.DataProvider
-import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField as InternalEventTemplateField
@@ -68,8 +67,9 @@ private data class MetricCalculationSpecInfo(
  * @param campaignGroupName resource name of [ReportingSet] that is a campaign group
  * @param impressionQualificationFilterSpecsLists List of List of
  *   [ImpressionQualificationFilterSpec] for each [ReportingImpressionQualificationFilter]
- * @param dataProviderPrimitiveReportingSetMap Map of [DataProvider] resource name to primitive
- *   [ReportingSet] containing associated [EventGroup] resource names
+ * @param dataProviderPrimitiveReportingSetMap Map of reporting_unit component resource name to the
+ *   primitive [ReportingSet] used for it. The key is a [DataProvider] resource name when the
+ *   component is a DataProvider, or a [ReportingSet] resource name when it is a ReportingSet.
  * @param resultGroupSpecs List of [ResultGroupSpec] to transform
  * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for parsing [EventTemplateField]
@@ -82,10 +82,14 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
   resultGroupSpecs: List<ResultGroupSpec>,
   eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
 ): Map<ReportingSet, List<MetricCalculationSpec.Details>> {
+  // An empty CEL expression represents a match-all ImpressionQualificationFilter (e.g. AMI, which
+  // has no impression-level predicate). It must be retained so a match-all MetricCalculationSpec is
+  // still created for it. Dropping empty expressions here caused such an IQF to be silently omitted
+  // whenever it was combined with another non-empty IQF (issue #4109).
   val impressionQualificationFilterSpecsFilters: List<String> =
-    impressionQualificationFilterSpecsLists
-      .map { buildCelExpression(it, eventTemplateFieldsByPath) }
-      .filter { it.isNotEmpty() }
+    impressionQualificationFilterSpecsLists.map {
+      buildCelExpression(it, eventTemplateFieldsByPath)
+    }
 
   // This intermediate map is for reducing the number of MetricCalculationSpecs created for a given
   // ReportingSet. Without this map, MetricCalculationSpecs with everything identical except for
@@ -339,7 +343,14 @@ fun buildCelExpressions(
     if (impressionQualificationFilterSpecExpressions.isNotEmpty()) {
       if (dimensionSpecExpression.isNotEmpty()) {
         for (impressionQualificationSpecsFilter in impressionQualificationFilterSpecExpressions) {
-          add("($impressionQualificationSpecsFilter) && ($dimensionSpecExpression)")
+          if (impressionQualificationSpecsFilter.isEmpty()) {
+            // A match-all ImpressionQualificationFilter (empty expression, e.g. AMI) combined
+            // with a DimensionSpec filter is just the DimensionSpec filter. Emitting it directly
+            // avoids a malformed "() && (...)" expression (issue #4109).
+            add(dimensionSpecExpression)
+          } else {
+            add("($impressionQualificationSpecsFilter) && ($dimensionSpecExpression)")
+          }
         }
       } else {
         for (impressionQualificationSpecsFilter in impressionQualificationFilterSpecExpressions) {

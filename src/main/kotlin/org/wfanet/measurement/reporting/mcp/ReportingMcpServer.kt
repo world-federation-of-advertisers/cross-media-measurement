@@ -31,6 +31,7 @@ import io.modelcontextprotocol.kotlin.sdk.server.mcpStatelessStreamableHttp
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import io.modelcontextprotocol.kotlin.sdk.types.ServerCapabilities
 import org.wfanet.measurement.reporting.mcp.grpc.ReportingPublicApiClient
+import org.wfanet.measurement.reporting.mcp.prompts.registerReportingPrompts
 import org.wfanet.measurement.reporting.mcp.tools.registerBasicReportTools
 import org.wfanet.measurement.reporting.mcp.tools.registerEventGroupTools
 import org.wfanet.measurement.reporting.mcp.tools.registerIqfTools
@@ -112,10 +113,10 @@ object ReportingMcpServer {
           ServerOptions(
             capabilities =
               ServerCapabilities(
-                // Stateless mode: no server-to-client push (logging/notifications), so
-                // only the tools capability is advertised.
-                tools = ServerCapabilities.Tools(listChanged = false)
-                // TODO(#3834): Add prompts capability in follow-up PR.
+                // Stateless mode advertises only pull-based capabilities (tools, prompts); there
+                // is no server-to-client push (logging/notifications).
+                tools = ServerCapabilities.Tools(listChanged = false),
+                prompts = ServerCapabilities.Prompts(listChanged = false),
               )
           ),
       )
@@ -124,6 +125,7 @@ object ReportingMcpServer {
     server.registerEventGroupTools(apiClient, getBearerToken)
     server.registerReportingSetTools(apiClient, getBearerToken)
     server.registerIqfTools(apiClient, getBearerToken)
+    server.registerReportingPrompts()
 
     return server
   }

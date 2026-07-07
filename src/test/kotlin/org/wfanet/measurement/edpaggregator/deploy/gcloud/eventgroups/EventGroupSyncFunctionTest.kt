@@ -53,6 +53,8 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.wfanet.measurement.api.v2alpha.BatchCreateEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DeleteEventGroupRequest
@@ -63,6 +65,8 @@ import org.wfanet.measurement.api.v2alpha.ListClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.batchCreateEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as cmmsEventGroupMetadata
@@ -108,6 +112,27 @@ class EventGroupSyncFunctionTest() {
       .thenAnswer { invocation ->
         val eventGroup = invocation.getArgument<CreateEventGroupRequest>(0).eventGroup
         eventGroup.copy { name = "resource-name-for-${eventGroup.eventGroupReferenceId}" }
+      }
+    onBlocking { batchCreateEventGroups(any<BatchCreateEventGroupsRequest>()) }
+      .thenAnswer { invocation ->
+        batchCreateEventGroupsResponse {
+          eventGroups +=
+            invocation.getArgument<BatchCreateEventGroupsRequest>(0).requestsList.map { subRequest
+              ->
+              subRequest.eventGroup.copy {
+                name = "resource-name-for-${subRequest.eventGroup.eventGroupReferenceId}"
+              }
+            }
+        }
+      }
+    onBlocking { batchUpdateEventGroups(any<BatchUpdateEventGroupsRequest>()) }
+      .thenAnswer { invocation ->
+        batchUpdateEventGroupsResponse {
+          eventGroups +=
+            invocation.getArgument<BatchUpdateEventGroupsRequest>(0).requestsList.map {
+              it.eventGroup
+            }
+        }
       }
     onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
       .thenAnswer {
@@ -301,8 +326,8 @@ class EventGroupSyncFunctionTest() {
 
     assertThat(getResponse.statusCode()).isEqualTo(200)
 
-    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
-    verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { batchCreateEventGroups(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { batchUpdateEventGroups(any()) }
     val mappedData = runBlocking {
       MesosRecordIoStorageClient(storageClient)
         .getBlob("some/other/path/event-groups-map-uri")!!
@@ -312,7 +337,7 @@ class EventGroupSyncFunctionTest() {
         .map { it.eventGroupReferenceId to it.eventGroupResource }
     }
     assertThat(mappedData)
-      .isEqualTo(
+      .containsExactlyElementsIn(
         listOf(
           "reference-id-1" to "dataProviders/data-provider-1/eventGroups/reference-id-1",
           "reference-id-2" to "dataProviders/data-provider-2/eventGroups/reference-id-2",
@@ -421,7 +446,7 @@ class EventGroupSyncFunctionTest() {
     logger.info("Response body: ${getResponse.body()}")
 
     assertThat(getResponse.statusCode()).isEqualTo(200)
-    verifyBlocking(eventGroupsServiceMock, times(2)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { batchCreateEventGroups(any()) }
     val mappedData = runBlocking {
       MesosRecordIoStorageClient(storageClient)
         .getBlob("some/other/path/event-groups-map-uri")!!
@@ -431,7 +456,7 @@ class EventGroupSyncFunctionTest() {
         .map { it.eventGroupReferenceId to it.eventGroupResource }
     }
     assertThat(mappedData)
-      .isEqualTo(
+      .containsExactlyElementsIn(
         listOf(
           "reference-id-4" to "resource-name-for-reference-id-4",
           "reference-id-5" to "resource-name-for-reference-id-5",
@@ -539,7 +564,7 @@ class EventGroupSyncFunctionTest() {
     logger.info("Response body: ${getResponse.body()}")
 
     assertThat(getResponse.statusCode()).isEqualTo(500)
-    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
   }
 
   @Test
@@ -636,7 +661,7 @@ class EventGroupSyncFunctionTest() {
     val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
 
     assertThat(getResponse.statusCode()).isEqualTo(200)
-    verifyBlocking(eventGroupsServiceMock, times(2)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { batchCreateEventGroups(any()) }
     val mappedData = runBlocking {
       MesosRecordIoStorageClient(storageClient)
         .getBlob("some/other/path/event-groups-map-uri")!!
@@ -646,7 +671,7 @@ class EventGroupSyncFunctionTest() {
         .map { it.eventGroupReferenceId to it.eventGroupResource }
     }
     assertThat(mappedData)
-      .isEqualTo(
+      .containsExactlyElementsIn(
         listOf(
           "reference-id-4" to "resource-name-for-reference-id-4",
           "reference-id-5" to "resource-name-for-reference-id-5",
@@ -711,7 +736,7 @@ class EventGroupSyncFunctionTest() {
     val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
 
     assertThat(getResponse.statusCode()).isEqualTo(500)
-    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
   }
 
   @Test
@@ -791,7 +816,7 @@ class EventGroupSyncFunctionTest() {
     val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
 
     assertThat(getResponse.statusCode()).isEqualTo(200)
-    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { batchCreateEventGroups(any()) }
     val mappedData = runBlocking {
       MesosRecordIoStorageClient(storageClient)
         .getBlob("some/other/path/event-groups-map-uri")!!
@@ -880,10 +905,12 @@ class EventGroupSyncFunctionTest() {
 
     assertThat(getResponse.statusCode()).isEqualTo(200)
 
-    val createCaptor = argumentCaptor<CreateEventGroupRequest>()
-    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(createCaptor.capture()) }
+    val createCaptor = argumentCaptor<BatchCreateEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) {
+      batchCreateEventGroups(createCaptor.capture())
+    }
     assertThat(createCaptor.firstValue.parent).isEqualTo("some-data-provider")
-    verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { batchUpdateEventGroups(any()) }
     val mappedData = runBlocking {
       MesosRecordIoStorageClient(storageClient)
         .getBlob("some/other/path/event-groups-map-uri")!!
@@ -893,7 +920,7 @@ class EventGroupSyncFunctionTest() {
         .map { it.eventGroupReferenceId to it.eventGroupResource }
     }
     assertThat(mappedData)
-      .isEqualTo(
+      .containsExactlyElementsIn(
         listOf(
           "reference-id-1" to "dataProviders/data-provider-1/eventGroups/reference-id-1",
           "reference-id-2" to "dataProviders/data-provider-2/eventGroups/reference-id-2",
@@ -999,10 +1026,12 @@ class EventGroupSyncFunctionTest() {
 
     assertThat(getResponse.statusCode()).isEqualTo(200)
 
-    val createCaptor = argumentCaptor<CreateEventGroupRequest>()
-    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(createCaptor.capture()) }
+    val createCaptor = argumentCaptor<BatchCreateEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) {
+      batchCreateEventGroups(createCaptor.capture())
+    }
     assertThat(createCaptor.firstValue.parent).isEqualTo("some-data-provider")
-    verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { batchUpdateEventGroups(any()) }
     val mappedData = runBlocking {
       MesosRecordIoStorageClient(storageClient)
         .getBlob("some/other/path/event-groups-map-uri")!!
@@ -1012,7 +1041,7 @@ class EventGroupSyncFunctionTest() {
         .map { it.eventGroupReferenceId to it.eventGroupResource }
     }
     assertThat(mappedData)
-      .isEqualTo(
+      .containsExactlyElementsIn(
         listOf(
           "reference-id-1" to "dataProviders/data-provider-1/eventGroups/reference-id-1",
           "reference-id-2" to "dataProviders/data-provider-2/eventGroups/reference-id-2",
@@ -1069,7 +1098,7 @@ class EventGroupSyncFunctionTest() {
     val response = client.send(request, HttpResponse.BodyHandlers.ofString())
 
     assertThat(response.statusCode()).isEqualTo(500)
-    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
   }
 
   @Test
@@ -1119,7 +1148,7 @@ class EventGroupSyncFunctionTest() {
     val response = client.send(request, HttpResponse.BodyHandlers.ofString())
 
     assertThat(response.statusCode()).isEqualTo(500)
-    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
   }
 
   @Test
@@ -1219,10 +1248,13 @@ class EventGroupSyncFunctionTest() {
 
     assertThat(getResponse.statusCode()).isEqualTo(200)
 
-    val createCaptor = argumentCaptor<CreateEventGroupRequest>()
-    verifyBlocking(eventGroupsServiceMock, times(2)) { createEventGroup(createCaptor.capture()) }
+    val createCaptor = argumentCaptor<BatchCreateEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock, times(1)) {
+      batchCreateEventGroups(createCaptor.capture())
+    }
 
-    val byRefId = createCaptor.allValues.associateBy { it.eventGroup.eventGroupReferenceId }
+    val byRefId =
+      createCaptor.firstValue.requestsList.associateBy { it.eventGroup.eventGroupReferenceId }
 
     val legacy = byRefId.getValue("reference-id-mixed-legacy").eventGroup
     assertThat(legacy.hasEntityKey()).isFalse()

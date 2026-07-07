@@ -136,6 +136,8 @@ class EventGroupActivitySync(
 ) {
   private val metrics = EventGroupActivitySyncMetrics(Instrumentation.meter)
 
+  private val eventGroupParentPrefix = "$dataProviderName/eventGroups/"
+
   private fun metricAttributes(): Attributes =
     Attributes.of(AttributeKey.stringKey("data_provider_name"), dataProviderName)
 
@@ -169,15 +171,14 @@ class EventGroupActivitySync(
       // 1. VALIDATE and GROUP incrementally: every record must reference a concrete EventGroup
       // under this DataProvider. Build the map of parent -> desired activity dates as records
       // stream in.
-      val parentPrefix = "$dataProviderName/eventGroups/"
       val datesByEventGroup = mutableMapOf<String, MutableSet<LocalDate>>()
       var totalInputRecords = 0
       inputActivities.collect { record ->
-        require(record.parent.startsWith(parentPrefix)) {
+        require(record.parent.startsWith(eventGroupParentPrefix)) {
           "Record parent '${record.parent}' is not an EventGroup under DataProvider " +
             "'$dataProviderName'"
         }
-        val eventGroupId = record.parent.removePrefix(parentPrefix)
+        val eventGroupId = record.parent.removePrefix(eventGroupParentPrefix)
         require(eventGroupId != ResourceKey.WILDCARD_ID && !eventGroupId.contains('/')) {
           "Record parent '${record.parent}' must reference a concrete EventGroup, not a wildcard"
         }
