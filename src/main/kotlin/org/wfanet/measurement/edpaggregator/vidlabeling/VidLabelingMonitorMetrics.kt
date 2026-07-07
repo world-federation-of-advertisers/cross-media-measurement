@@ -104,12 +104,13 @@ object VidLabelingMonitorMetrics {
         .build()
 
   /**
-   * Current number of `VidLabelingJob`s under a COMPLETED model line that did not reach SUCCEEDED
-   * (CREATED or FAILED) this scan. Keyed by [DATA_PROVIDER_ATTR].
+   * Current number of `(model line, event date)` pairs under a COMPLETED model line that are
+   * missing their labeled `done` blob this scan. Keyed by [DATA_PROVIDER_ATTR].
    *
-   * Keyed off job state rather than a storage-blob census: the labeler marks a job SUCCEEDED when
-   * it finishes whether or not it wrote output, so a model line that legitimately drops every
-   * impression (e.g. a backfill outside the active window) reads as `0`, not a false positive.
+   * Driven off `RawImpressionUploadFile.event_date` reconciled against the labeled `done` blobs:
+   * the labeler writes `model-line/<id>/<date>/done` for the input event date whether or not any
+   * impression survived filtering, so a legitimately all-dropped date still reads as `0` (no false
+   * positive) while a genuinely unfinalized (model line, date) is flagged.
    *
    * A gauge (not a counter): a steady-state data-quality observation, set each run (including `0`)
    * so a recovered DataProvider reads back to `0` rather than a counter that grows forever.
@@ -118,8 +119,10 @@ object VidLabelingMonitorMetrics {
     get() =
       Instrumentation.meter
         .gaugeBuilder("edpa.vid_labeling_monitor.missing_labeled_outputs")
-        .setDescription("VidLabelingJobs under a COMPLETED model line that did not reach SUCCEEDED")
-        .setUnit("{job}")
+        .setDescription(
+          "(model line, event date) pairs under a COMPLETED model line missing their labeled done blob"
+        )
+        .setUnit("{date}")
         .ofLongs()
         .build()
 
@@ -135,6 +138,22 @@ object VidLabelingMonitorMetrics {
       Instrumentation.meter
         .gaugeBuilder("edpa.vid_labeling_monitor.late_arriving_files")
         .setDescription("Files uploaded after the date folder's done blob was written")
+        .setUnit("{file}")
+        .ofLongs()
+        .build()
+
+  /**
+   * Current number of raw impression files registered in metadata whose blob is absent from storage
+   * this scan (data loss -- e.g. retention deleted the file, or a folder was renamed). Keyed by
+   * [DATA_PROVIDER_ATTR].
+   *
+   * A gauge (not a counter): a steady-state data-quality observation, set each run (including `0`).
+   */
+  val missingRawFilesGauge: LongGauge
+    get() =
+      Instrumentation.meter
+        .gaugeBuilder("edpa.vid_labeling_monitor.missing_raw_files")
+        .setDescription("Files registered in metadata whose blob is absent from storage")
         .setUnit("{file}")
         .ofLongs()
         .build()
