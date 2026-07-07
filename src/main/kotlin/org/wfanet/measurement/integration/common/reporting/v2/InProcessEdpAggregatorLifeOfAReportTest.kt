@@ -135,6 +135,7 @@ import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilterKt
+import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as ReportingReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub as ReportingReportsCoroutineStub
@@ -918,6 +919,34 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         }
       }
     }
+  }
+
+  /**
+   * Creates a primitive [ReportingSet] spanning [cmmsEventGroups], for use as a [ReportingUnit]
+   * component.
+   *
+   * The `campaign_group` field is intentionally left empty: a ReportingSet component does not
+   * reference the campaign group, which the server synthesizes when `campaign_group` is not
+   * specified on the [CreateBasicReportRequest].
+   */
+  protected suspend fun createPrimitiveReportingSet(
+    reportingSetId: String,
+    displayName: String,
+    cmmsEventGroups: List<String>,
+  ): ReportingSet {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    return reportingReportingSetsClient
+      .withCallCredentials(credentials)
+      .createReportingSet(
+        createReportingSetRequest {
+          parent = measurementConsumerData.name
+          reportingSet = reportingSet {
+            this.displayName = displayName
+            primitive = ReportingSetKt.primitive { this.cmmsEventGroups += cmmsEventGroups }
+          }
+          this.reportingSetId = reportingSetId
+        }
+      )
   }
 
   protected suspend fun listMeasurements(): List<Measurement> {
