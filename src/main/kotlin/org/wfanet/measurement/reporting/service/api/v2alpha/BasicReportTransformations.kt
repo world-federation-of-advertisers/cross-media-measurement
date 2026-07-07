@@ -17,11 +17,12 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.Descriptors
-import java.util.Locale
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
+import org.wfanet.measurement.common.cel.toCelNumericLiteral
+import org.wfanet.measurement.common.cel.toCelStringLiteral
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField as InternalEventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
@@ -242,63 +243,6 @@ private fun InternalEventTemplateField.FieldValue.toCelValue(
       floatValue.toCelNumericLiteral()
     InternalEventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> error("No field value")
   }
-}
-
-/**
- * Encodes [this] as a CEL double-quoted string literal, escaping backslash, double-quote, and
- * control characters per the CEL string-literal grammar
- * (https://github.com/google/cel-spec/blob/master/doc/langdef.md#string-literals).
- *
- * Printable non-ASCII characters are passed through as UTF-8 -- CEL accepts them as-is in string
- * literals -- rather than being re-escaped to `\uXXXX`. This keeps generated CEL readable in server
- * logs.
- */
-private fun String.toCelStringLiteral(): String {
-  val out = StringBuilder(length + 2)
-  out.append('"')
-  for (c in this) {
-    when {
-      c == '\\' -> out.append("\\\\")
-      c == '"' -> out.append("\\\"")
-      c == '\n' -> out.append("\\n")
-      c == '\r' -> out.append("\\r")
-      c == '\t' -> out.append("\\t")
-      c == '\b' -> out.append("\\b")
-      c == '\u000C' -> out.append("\\f")
-      c == '\u007F' -> out.append("\\u007f")
-      c.code < 0x20 -> out.append("\\u").append(String.format(Locale.ROOT, "%04x", c.code))
-      else -> out.append(c)
-    }
-  }
-  out.append('"')
-  return out.toString()
-}
-
-/**
- * Encodes [this] as a CEL numeric literal. Rejects `NaN` and infinities: CEL renders these as bare
- * identifiers (`NaN`, `Infinity`, `-Infinity`) rather than numeric literals, so `Kotlin`'s
- * `Float.toString()` output would produce a filter that fails to compile. Semantically, `NaN ==
- * NaN` is `false` in IEEE 754 -- a reach comparison against `NaN` is meaningless -- so rejecting
- * upstream is the right shape even if CEL supported the literal.
- *
- * Note: `Float.toString()` yields the shortest decimal that round-trips to `Float`; CEL parses
- * numeric literals as `double`, so bit-exact equality against a proto `float` field is not
- * guaranteed. Continuous-float IMPRESSION_QUALIFICATION fields are discouraged (see
- * `testing_only.proto`); prefer enums or bool buckets.
- *
- * The `require(isFinite())` here is a belt + suspenders backstop.
- * [org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping]'s
- * config-time validation rejects non-finite `FLOAT_VALUE` in a base IQF spec at server startup, so
- * under the normal flow (base IQF -> mapping validation -> transformer) this branch never fires. It
- * exists to catch callers that bypass mapping validation (tests, alternative config loaders, direct
- * transformer invocation).
- */
-private fun Float.toCelNumericLiteral(): String {
-  require(isFinite()) {
-    "Cannot encode non-finite float ${this} as a CEL numeric literal; NaN and infinities are not " +
-      "meaningful in filter comparisons and have no valid CEL representation."
-  }
-  return toString()
 }
 
 /**
