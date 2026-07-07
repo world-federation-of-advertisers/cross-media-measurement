@@ -19,6 +19,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.timestamp
 import com.google.rpc.errorInfo
+import com.google.type.date
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -116,6 +117,7 @@ class RawImpressionUploadFileServiceTest {
           parent = uploadName
           rawImpressionUploadFile = rawImpressionUploadFile {
             sizeBytes = SIZE_BYTES
+            eventDate = EVENT_DATE
             blobUri = BLOB_URI_1
           }
           requestId = UUID.randomUUID().toString()
@@ -127,6 +129,7 @@ class RawImpressionUploadFileServiceTest {
     assertThat(fileKey.rawImpressionUploadId).isNotEmpty()
     assertThat(fileKey.fileId).isNotEmpty()
     assertThat(file.blobUri).isEqualTo(BLOB_URI_1)
+    assertThat(file.eventDate).isEqualTo(EVENT_DATE)
     assertThat(file.createTime.toInstant()).isGreaterThan(startTime)
     assertThat(file.updateTime).isEqualTo(file.createTime)
   }
@@ -136,6 +139,7 @@ class RawImpressionUploadFileServiceTest {
     val request = createRawImpressionUploadFileRequest {
       rawImpressionUploadFile = rawImpressionUploadFile {
         sizeBytes = SIZE_BYTES
+        eventDate = EVENT_DATE
         blobUri = BLOB_URI_1
       }
     }
@@ -159,6 +163,7 @@ class RawImpressionUploadFileServiceTest {
       parent = "dataProviders/dp1/rawImpressionUploads/nonexistent"
       rawImpressionUploadFile = rawImpressionUploadFile {
         sizeBytes = SIZE_BYTES
+        eventDate = EVENT_DATE
         blobUri = BLOB_URI_1
       }
       requestId = UUID.randomUUID().toString()
@@ -178,6 +183,7 @@ class RawImpressionUploadFileServiceTest {
           parent = uploadName
           rawImpressionUploadFile = rawImpressionUploadFile {
             sizeBytes = SIZE_BYTES
+            eventDate = EVENT_DATE
             blobUri = BLOB_URI_1
           }
           requestId = UUID.randomUUID().toString()
@@ -220,6 +226,7 @@ class RawImpressionUploadFileServiceTest {
           parent = uploadName
           rawImpressionUploadFile = rawImpressionUploadFile {
             sizeBytes = SIZE_BYTES
+            eventDate = EVENT_DATE
             blobUri = BLOB_URI_1
           }
           requestId = UUID.randomUUID().toString()
@@ -244,6 +251,7 @@ class RawImpressionUploadFileServiceTest {
           parent = uploadName
           rawImpressionUploadFile = rawImpressionUploadFile {
             sizeBytes = SIZE_BYTES
+            eventDate = EVENT_DATE
             blobUri = BLOB_URI_1
           }
           requestId = UUID.randomUUID().toString()
@@ -302,6 +310,7 @@ class RawImpressionUploadFileServiceTest {
           parent = uploadName
           rawImpressionUploadFile = rawImpressionUploadFile {
             sizeBytes = SIZE_BYTES
+            eventDate = EVENT_DATE
             blobUri = BLOB_URI_1
           }
           requestId = UUID.randomUUID().toString()
@@ -313,6 +322,7 @@ class RawImpressionUploadFileServiceTest {
           parent = uploadName
           rawImpressionUploadFile = rawImpressionUploadFile {
             sizeBytes = SIZE_BYTES
+            eventDate = EVENT_DATE
             blobUri = BLOB_URI_2
           }
           requestId = UUID.randomUUID().toString()
@@ -343,6 +353,7 @@ class RawImpressionUploadFileServiceTest {
           parent = uploadName
           rawImpressionUploadFile = rawImpressionUploadFile {
             sizeBytes = SIZE_BYTES
+            eventDate = EVENT_DATE
             blobUri = BLOB_URI_1
           }
           this.requestId = requestId
@@ -354,6 +365,7 @@ class RawImpressionUploadFileServiceTest {
           parent = uploadName
           rawImpressionUploadFile = rawImpressionUploadFile {
             sizeBytes = SIZE_BYTES
+            eventDate = EVENT_DATE
             blobUri = BLOB_URI_2
           }
           this.requestId = requestId
@@ -512,6 +524,7 @@ class RawImpressionUploadFileServiceTest {
           parent = uploadNameA
           rawImpressionUploadFile = rawImpressionUploadFile {
             sizeBytes = SIZE_BYTES
+            eventDate = EVENT_DATE
             blobUri = BLOB_URI_1
           }
           requestId = UUID.randomUUID().toString()
@@ -523,6 +536,7 @@ class RawImpressionUploadFileServiceTest {
           parent = uploadNameB
           rawImpressionUploadFile = rawImpressionUploadFile {
             sizeBytes = SIZE_BYTES
+            eventDate = EVENT_DATE
             blobUri = BLOB_URI_2
           }
           requestId = UUID.randomUUID().toString()
@@ -873,6 +887,7 @@ class RawImpressionUploadFileServiceTest {
           parent = uploadName
           rawImpressionUploadFile = rawImpressionUploadFile {
             sizeBytes = SIZE_BYTES
+            eventDate = EVENT_DATE
             blobUri = BLOB_URI_1
           }
           requestId = UUID.randomUUID().toString()
@@ -884,6 +899,7 @@ class RawImpressionUploadFileServiceTest {
           parent = uploadName
           rawImpressionUploadFile = rawImpressionUploadFile {
             sizeBytes = SIZE_BYTES
+            eventDate = EVENT_DATE
             blobUri = BLOB_URI_2
           }
           requestId = UUID.randomUUID().toString()
@@ -1055,6 +1071,11 @@ class RawImpressionUploadFileServiceTest {
     private const val BLOB_URI_1 = "gs://bucket/file1"
     private const val BLOB_URI_2 = "gs://bucket/file2"
     private const val SIZE_BYTES = 1024L
+    private val EVENT_DATE = date {
+      year = 2026
+      month = 6
+      day = 1
+    }
     private val FAR_FUTURE = timestamp { seconds = 4102444800L }
     private val uploadIdCounter = AtomicLong(0L)
   }
