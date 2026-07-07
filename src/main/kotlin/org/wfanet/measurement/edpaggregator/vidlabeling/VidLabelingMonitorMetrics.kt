@@ -201,7 +201,42 @@ object VidLabelingMonitorMetrics {
         .setUnit("{transition}")
         .build()
 
+  /**
+   * Current number of `(upload, model line)` stuck transitions whose bounded Monitor recovery is
+   * exhausted this scan: the maximum number of recovery WorkItems were published and the transition
+   * still has not advanced, so the Monitor has stopped retrying and a human must intervene. Keyed
+   * by [DATA_PROVIDER_ATTR]. This gauge is the page signal.
+   *
+   * A gauge (not a counter): a steady-state observation, set each run (including `0`).
+   */
+  val recoveryExhaustedGauge: LongGauge
+    get() =
+      Instrumentation.meter
+        .gaugeBuilder("edpa.vid_labeling_monitor.recovery_exhausted")
+        .setDescription("Stuck transitions whose bounded Monitor recovery is exhausted")
+        .setUnit("{transition}")
+        .ofLongs()
+        .build()
+
+  /**
+   * Count of Monitor recovery sub-steps that failed with a transient error, keyed by
+   * [DATA_PROVIDER_ATTR] and [RECOVERY_STEP_ATTR] (`get_original` = fetching the WorkItem to clone,
+   * `publish` = creating the recovery WorkItem). Diagnostics for why a recovery attempt did not
+   * produce a new WorkItem this tick; independent of the recovery outcome.
+   */
+  val recoveryStepFailuresCounter: LongCounter
+    get() =
+      Instrumentation.meter
+        .counterBuilder("edpa.vid_labeling_monitor.recovery_step_failures")
+        .setDescription("Monitor recovery sub-steps that failed with a transient error")
+        .setUnit("{failure}")
+        .build()
+
   /** Attribute key for the `DataProvider` resource name. */
   val DATA_PROVIDER_ATTR: AttributeKey<String> =
     AttributeKey.stringKey("edpa.vid_labeling_monitor.data_provider")
+
+  /** Attribute key for the Monitor recovery sub-step (`get_original`, `publish`). */
+  val RECOVERY_STEP_ATTR: AttributeKey<String> =
+    AttributeKey.stringKey("edpa.vid_labeling_monitor.recovery_step")
 }

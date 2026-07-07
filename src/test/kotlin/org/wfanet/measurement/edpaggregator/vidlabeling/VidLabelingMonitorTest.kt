@@ -821,7 +821,7 @@ class VidLabelingMonitorTest {
     val createCaptor = argumentCaptor<CreateWorkItemRequest>()
     verifyBlocking(workItemsService) { createWorkItem(createCaptor.capture()) }
     assertThat(createCaptor.firstValue.workItemId)
-      .isEqualTo("vid-rank-builder-rj1-monitor-recovery")
+      .isEqualTo("vid-rank-builder-rj1-monitor-recovery-1")
     assertThat(createCaptor.firstValue.workItem.queue).isEqualTo("queues/ranker")
   }
 
@@ -863,7 +863,7 @@ class VidLabelingMonitorTest {
     assertThat(result.recoveredTransitions).isEqualTo(1)
     val createCaptor = argumentCaptor<CreateWorkItemRequest>()
     verifyBlocking(workItemsService) { createWorkItem(createCaptor.capture()) }
-    assertThat(createCaptor.firstValue.workItemId).isEqualTo("vid-labeler-vj1-monitor-recovery")
+    assertThat(createCaptor.firstValue.workItemId).isEqualTo("vid-labeler-vj1-monitor-recovery-1")
     assertThat(createCaptor.firstValue.workItem.queue).isEqualTo("queues/labeler")
   }
 
@@ -886,6 +886,115 @@ class VidLabelingMonitorTest {
         collectMetrics().none { it.name == "edpa.vid_labeling_monitor.phase_transitions_recovered" }
       )
       .isTrue()
+  }
+
+  @Test
+  fun `recovery publishes the next suffix when an earlier attempt already exists`() = runBlocking {
+    stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+    stubModelLines(
+      rawImpressionUploadModelLine {
+        name = "$DATA_PROVIDER/rawImpressionUploads/active-1/modelLines/ml1"
+        cmmsModelLine = MODEL_LINE
+        state = RawImpressionUploadModelLine.State.RANKING
+      }
+    )
+    stubRankerJobs(
+      total = 2,
+      nonSucceeded = 0,
+      succeededJobName = "$DATA_PROVIDER/rawImpressionUploads/active-1/rankerJobs/rj1",
+    )
+    whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<GetWorkItemRequest>(0)
+      if (request.name == "workItems/vid-rank-builder-rj1") workItem { queue = "queues/ranker" }
+      else throw Status.NOT_FOUND.asRuntimeException()
+    }
+    // Attempt 1 was published on a prior tick and persists in the queue; attempt 2 is free.
+    whenever(workItemsService.createWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<CreateWorkItemRequest>(0)
+      if (request.workItemId == "vid-rank-builder-rj1-monitor-recovery-1")
+        throw Status.ALREADY_EXISTS.asRuntimeException()
+      else workItem {}
+    }
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.recoveredTransitions).isEqualTo(1)
+    assertThat(result.recoveryExhausted).isEqualTo(0)
+    val createCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService, times(2)) { createWorkItem(createCaptor.capture()) }
+    assertThat(createCaptor.allValues.map { it.workItemId })
+      .containsExactly(
+        "vid-rank-builder-rj1-monitor-recovery-1",
+        "vid-rank-builder-rj1-monitor-recovery-2",
+      )
+      .inOrder()
+  }
+
+  @Test
+  fun `recovery escalates when all attempts are exhausted`() = runBlocking {
+    stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+    stubModelLines(
+      rawImpressionUploadModelLine {
+        name = "$DATA_PROVIDER/rawImpressionUploads/active-1/modelLines/ml1"
+        cmmsModelLine = MODEL_LINE
+        state = RawImpressionUploadModelLine.State.RANKING
+      }
+    )
+    stubRankerJobs(
+      total = 2,
+      nonSucceeded = 0,
+      succeededJobName = "$DATA_PROVIDER/rawImpressionUploads/active-1/rankerJobs/rj1",
+    )
+    whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<GetWorkItemRequest>(0)
+      if (request.name == "workItems/vid-rank-builder-rj1") workItem { queue = "queues/ranker" }
+      else throw Status.NOT_FOUND.asRuntimeException()
+    }
+    // All MAX_RECOVERY_ATTEMPTS recovery WorkItems were published on prior ticks and remain queued.
+    whenever(workItemsService.createWorkItem(any()))
+      .thenThrow(Status.ALREADY_EXISTS.asRuntimeException())
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.recoveredTransitions).isEqualTo(0)
+    assertThat(result.recoveryExhausted).isEqualTo(1)
+    assertThat(result.hasIssues).isTrue()
+    assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.recovery_exhausted"))
+      .isEqualTo(1)
+    verifyBlocking(workItemsService, times(3)) { createWorkItem(any()) }
+  }
+
+  @Test
+  fun `recovery does not burn an attempt on a transient publish error`() = runBlocking {
+    stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+    stubModelLines(
+      rawImpressionUploadModelLine {
+        name = "$DATA_PROVIDER/rawImpressionUploads/active-1/modelLines/ml1"
+        cmmsModelLine = MODEL_LINE
+        state = RawImpressionUploadModelLine.State.RANKING
+      }
+    )
+    stubRankerJobs(
+      total = 2,
+      nonSucceeded = 0,
+      succeededJobName = "$DATA_PROVIDER/rawImpressionUploads/active-1/rankerJobs/rj1",
+    )
+    whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<GetWorkItemRequest>(0)
+      if (request.name == "workItems/vid-rank-builder-rj1") workItem { queue = "queues/ranker" }
+      else throw Status.NOT_FOUND.asRuntimeException()
+    }
+    whenever(workItemsService.createWorkItem(any()))
+      .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.recoveredTransitions).isEqualTo(0)
+    assertThat(result.recoveryExhausted).isEqualTo(0)
+    assertThat(collectMetrics().counterValue("edpa.vid_labeling_monitor.recovery_step_failures"))
+      .isEqualTo(1)
+    // Stops at the first attempt's transient error; the suffix is retried next tick.
+    verifyBlocking(workItemsService, times(1)) { createWorkItem(any()) }
   }
 
   @Test
@@ -912,7 +1021,8 @@ class VidLabelingMonitorTest {
       listRawImpressionUploads(uploadRequests.capture())
     }
     assertThat(uploadRequests.allValues.count { it.filter.stateInList.isEmpty() }).isEqualTo(1)
-    // active-1's model lines are listed exactly once this tick: the monitor snapshot, reused by both
+    // active-1's model lines are listed exactly once this tick: the monitor snapshot, reused by
+    // both
     // checkFailuresAndStaleness and recoverStuckPhases. Before the snapshot the monitor listed them
     // once per check, so this was 2. (runHealth does not dispatch, so there is no dispatcher scan.)
     verifyBlocking(rawImpressionUploadModelLineService, times(1)) {
