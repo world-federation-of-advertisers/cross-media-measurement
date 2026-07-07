@@ -768,19 +768,16 @@ module "vid_labeling_tee_app" {
   extra_metadata                = local.otel_metadata
 }
 
-resource "google_storage_bucket_iam_member" "vid_labeling_storage_viewer" {
+# The VID Labeling TEE apps read raw impressions and read/write/delete their own pipeline outputs
+# and intermediate blobs on this bucket: subpool-map and rank-index temp blobs are deleted after
+# each merge (SubpoolFingerprintsStore/RankIndexStore.delete), and labeled outputs are overwritten
+# on retry. That requires object delete in addition to create/read, so grant objectUser (create +
+# read + delete + list) rather than the create+read-only objectCreator/objectViewer pair.
+resource "google_storage_bucket_iam_member" "vid_labeling_storage_object_user" {
   for_each = var.vid_labeling_workers
 
   bucket = module.edp_aggregator_bucket.storage_bucket.name
-  role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${module.vid_labeling_tee_app[each.key].mig_service_account.email}"
-}
-
-resource "google_storage_bucket_iam_member" "vid_labeling_storage_creator" {
-  for_each = var.vid_labeling_workers
-
-  bucket = module.edp_aggregator_bucket.storage_bucket.name
-  role   = "roles/storage.objectCreator"
+  role   = "roles/storage.objectUser"
   member = "serviceAccount:${module.vid_labeling_tee_app[each.key].mig_service_account.email}"
 }
 
