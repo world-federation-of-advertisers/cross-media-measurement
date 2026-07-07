@@ -1713,7 +1713,8 @@ class BasicReportProcessedResultsTransformationTest {
     // Regression for issue #4132.
     //
     // Under a weekly cadence with `reporting_unit.cumulative` requested but no
-    // `reporting_unit.non_cumulative`, the union composite RSR is written as a single
+    // `reporting_unit.non_cumulative`, the union composite ReportingSetResult is written as a
+    // single
     // whole-report bucket keyed by `end=report_end` with NO `non_cumulative_start`. The
     // per-primitive `component.non_cumulative` RSRs are written per-week and DO have
     // `non_cumulative_start`. Those go to distinct window keys in the read map (one
@@ -1724,7 +1725,7 @@ class BasicReportProcessedResultsTransformationTest {
     // `buildComponentMetricSet` for every window, causing
     // `Map.getValue(...)` to throw `NoSuchElementException` -> `INTERNAL` from
     // `GetBasicReport`. Post-fix: the read skips a component / reporting_unit metric
-    // set when the required RSR isn't in that window.
+    // set when the required ReportingSetResult isn't in that window.
     val basicReport = basicReport {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       details = basicReportDetails {
@@ -1746,13 +1747,14 @@ class BasicReportProcessedResultsTransformationTest {
             reportingUnit =
               ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
                 // reporting_unit.cumulative under weekly = whole-report cumulative
-                // union reach; produces a single union RSR with no
+                // union reach; produces a single union ReportingSetResult with no
                 // `non_cumulative_start`.
                 cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
               }
             component =
               ResultGroupMetricSpecKt.componentMetricSetSpec {
-                // Per-primitive weekly non-cumulative; produces one RSR per primitive
+                // Per-primitive weekly non-cumulative; produces one ReportingSetResult per
+                // primitive
                 // with `non_cumulative_start=Monday, end=Monday`.
                 nonCumulative =
                   ResultGroupMetricSpecKt.basicMetricSetSpec {
@@ -1837,7 +1839,7 @@ class BasicReportProcessedResultsTransformationTest {
             }
         },
         // Composite (union): whole-report cumulative bucket with NO nonCumulativeStart.
-        // This is the RSR shape that pre-fix caused the crash.
+        // This is the ReportingSetResult shape that pre-fix caused the crash.
         reportingSetResult {
           cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
           externalReportResultId = EXTERNAL_REPORT_RESULT_ID
@@ -1931,7 +1933,7 @@ class BasicReportProcessedResultsTransformationTest {
     // Regression for the DATA_PROVIDER-keyed `continue` in buildResults. Under a weekly
     // cadence with `component.non_cumulative` requested, per-EDP RSRs live in per-week
     // buckets keyed by `(non_cumulative_start=Monday, end=Monday)`. If one primitive's
-    // RSR is missing from a given window's map (legitimate coverage gap: nothing was
+    // ReportingSetResult is missing from a given window's map (legitimate coverage gap: nothing was
     // computed for that primitive in that window), the read must skip that primitive's
     // metric slice rather than throw NoSuchElementException.
     val basicReport = basicReport {
@@ -1968,7 +1970,8 @@ class BasicReportProcessedResultsTransformationTest {
     val weeklyStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
     val reportingSetResults =
       listOf(
-        // Only primitive 1 has data for this week. Primitive 2's RSR is intentionally absent.
+        // Only primitive 1 has data for this week. Primitive 2's ReportingSetResult is
+        // intentionally absent.
         reportingSetResult {
           cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
           externalReportResultId = EXTERNAL_REPORT_RESULT_ID
@@ -2042,7 +2045,8 @@ class BasicReportProcessedResultsTransformationTest {
     // Regression for the REPORTING_SET-keyed `continue` in buildResults (mirror of the
     // DATA_PROVIDER-branch test above). Under a weekly cadence with `component.non_cumulative`
     // requested on a ReportingSet-keyed reporting_unit, per-composite RSRs live in per-week
-    // buckets keyed by `(non_cumulative_start=Monday, end=Monday)`. If one composite's RSR is
+    // buckets keyed by `(non_cumulative_start=Monday, end=Monday)`. If one composite's
+    // ReportingSetResult is
     // missing from a given window's map (legitimate coverage gap: nothing was computed for
     // that composite in that window), the read must skip that composite's metric slice rather
     // than throw NoSuchElementException.
@@ -2087,7 +2091,8 @@ class BasicReportProcessedResultsTransformationTest {
     val weeklyStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
     val reportingSetResults =
       listOf(
-        // Only component 1 has data for this week. Component 2's RSR is intentionally absent.
+        // Only component 1 has data for this week. Component 2's ReportingSetResult is
+        // intentionally absent.
         reportingSetResult {
           cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
           externalReportResultId = EXTERNAL_REPORT_RESULT_ID
