@@ -82,8 +82,8 @@ message TestingOnly {
         version_added: 1
       }];
 
-  // Nested message used as an arm of `testing_oneof` below. Exercises
-  // EventMessageDescriptor's oneof-arm descent + BasicReportTransformations'
+  // Nested message used as an member of `testing_oneof` below. Exercises
+  // EventMessageDescriptor's oneof-member descent + BasicReportTransformations'
   // nested-path null-guard emission via the IQF (impression_qualification)
   // code path. DO NOT MIMIC.
   message TestingArmIqf {
@@ -94,14 +94,14 @@ message TestingOnly {
     }
     TestingArmIqfEnum testing_arm_iqf_enum = 1
         [(.wfa.measurement.api.v2alpha.template_field) = {
-          display_name: "Testing Arm IQF Enum (test-only, DO NOT MIMIC)"
+          display_name: "Testing Member IQF Enum (test-only, DO NOT MIMIC)"
           reporting_features: IMPRESSION_QUALIFICATION
           version_added: 1
         }];
   }
 
-  // Nested message used as an arm of `testing_oneof` below. Exercises the
-  // same oneof-arm descent + null-guard emission via the DimensionSpec
+  // Nested message used as an member of `testing_oneof` below. Exercises the
+  // same oneof-member descent + null-guard emission via the DimensionSpec
   // (dimension_spec.filters / dimension_spec.grouping) code path. DO NOT
   // MIMIC.
   message TestingArmFilterable {
@@ -110,16 +110,17 @@ message TestingOnly {
       ARM_FILT_1 = 1;
       ARM_FILT_2 = 2;
     }
-    TestingArmFilterableEnum testing_arm_filterable_enum = 1
-        [(.wfa.measurement.api.v2alpha.template_field) = {
-          display_name: "Testing Arm Filterable Enum (test-only, DO NOT MIMIC)"
-          reporting_features: FILTERABLE
-          version_added: 1
-        }];
+    TestingArmFilterableEnum testing_arm_filterable_enum = 1 [
+      (.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Testing Member Filterable Enum (test-only, DO NOT MIMIC)"
+        reporting_features: FILTERABLE
+        version_added: 1
+      }
+    ];
   }
 
-  // Nested message used as an arm of `testing_oneof` below. Exercises the
-  // same oneof-arm descent + null-guard emission via the DimensionSpec
+  // Nested message used as an member of `testing_oneof` below. Exercises the
+  // same oneof-member descent + null-guard emission via the DimensionSpec
   // grouping (dimension_spec.grouping.eventTemplateFields) code path,
   // which turns each enum value into a separate CEL predicate. DO NOT
   // MIMIC.
@@ -129,19 +130,20 @@ message TestingOnly {
       ARM_GRP_1 = 1;
       ARM_GRP_2 = 2;
     }
-    TestingArmGroupableEnum testing_arm_groupable_enum = 1
-        [(.wfa.measurement.api.v2alpha.template_field) = {
-          display_name: "Testing Arm Groupable Enum (test-only, DO NOT MIMIC)"
-          reporting_features: GROUPABLE
-          version_added: 1
-        }];
+    TestingArmGroupableEnum testing_arm_groupable_enum = 1 [
+      (.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Testing Member Groupable Enum (test-only, DO NOT MIMIC)"
+        reporting_features: GROUPABLE
+        version_added: 1
+      }
+    ];
   }
 
   // Test-only oneof mirroring the `Common.oneof edp_specific` pattern
   // real market templates use (production deployments) to expose EDP-specific
-  // event fields. Three arms so IQF-side, DimensionSpec-filter-side, and
+  // event fields. Three members so IQF-side, DimensionSpec-filter-side, and
   // DimensionSpec-grouping-side tests each address a distinct nested path
-  // without either poisoning the other's assertion shape. All arms
+  // without either poisoning the other's assertion shape. All members
   // inherit TestingOnly's OTHER media_type. DO NOT MIMIC.
   oneof testing_oneof {
     TestingArmIqf testing_arm_iqf = 4;

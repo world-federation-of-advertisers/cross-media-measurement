@@ -132,6 +132,7 @@ class BasicReportsService(
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
   private val defaultReportStartHour: ZonedHour? = null,
   private val baseExternalImpressionQualificationFilterIds: Iterable<String>,
+  private val emitCelNullGuardsForNestedMembers: Boolean = false,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   data class ZonedHour(val hour: Int, val zoneId: ZoneId)
@@ -378,6 +379,7 @@ class BasicReportsService(
           reportingSetMaps.primitiveReportingSetsByDataProvider,
         resultGroupSpecs = request.basicReport.resultGroupSpecsList,
         eventTemplateFieldsByPath = eventTemplateFieldsByPath,
+        emitCelNullGuardsForNestedMembers = emitCelNullGuardsForNestedMembers,
       )
 
     val report: Report =

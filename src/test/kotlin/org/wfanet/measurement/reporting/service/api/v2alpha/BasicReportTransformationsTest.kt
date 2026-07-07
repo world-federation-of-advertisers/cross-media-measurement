@@ -3635,14 +3635,45 @@ class BasicReportTransformationsTest {
     }
   }
 
-  // ---- oneof / nested-arm handling tests (issue #4147) ----
+  // ---- oneof / nested-member handling tests (issue #4147) ----
 
   @Test
-  fun `IQF-side buildCelExpression emits nested-arm null guard for oneof arm path`() {
+  fun `IQF-side buildCelExpression emits nested-member null guard for oneof member path`() {
     // testing_only.testing_arm_iqf.testing_arm_iqf_enum is IMPRESSION_QUALIFICATION on a field
-    // nested inside the oneof arm TestingArmIqf. Because oneof arms can be unset (unlike
+    // nested inside the oneof member TestingArmIqf. Because oneof members can be unset (unlike
     // top-level template fields whose proto3 default is a zero-instance message), the CEL
-    // needs a `<template>.<arm> != null` guard before dereferencing the nested field.
+    // needs a `<template>.<member> != null` guard before dereferencing the nested field.
+    val filter =
+      buildCelExpression(
+        impressionQualificationFilterSpecs =
+          listOf(
+            impressionQualificationFilterSpec {
+              mediaType = MediaType.OTHER
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "testing_only.testing_arm_iqf.testing_arm_iqf_enum"
+                  value = EventTemplateFieldKt.fieldValue { enumValue = "ARM_IQF_1" }
+                }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        emitCelNullGuardsForNestedMembers = true,
+      )
+    assertThat(filter)
+      .contains(
+        "testing_only.testing_arm_iqf != null && " +
+          "testing_only.testing_arm_iqf.testing_arm_iqf_enum == 1"
+      )
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `IQF-side buildCelExpression omits nested-member null guard when flag is off (default)`() {
+    // Default (flag off): nested-member paths emit the bare `path == value` form. Matches the
+    // current Origin/Aquila workaround for EDPs that reject CEL filters containing `!= null`
+    // clauses. The correctness trade-off (unset oneof members return proto defaults) is
+    // documented on the flag.
     val filter =
       buildCelExpression(
         impressionQualificationFilterSpecs =
@@ -3659,20 +3690,42 @@ class BasicReportTransformationsTest {
           ),
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
       )
+    assertThat(filter).doesNotContain("testing_arm_iqf != null")
+    assertThat(filter).contains("testing_only.testing_arm_iqf.testing_arm_iqf_enum == 1")
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `DimensionSpec-side buildCelExpression emits nested-member null guard for oneof member path`() {
+    // testing_only.testing_arm_filterable.testing_arm_filterable_enum is
+    // FILTERABLE + POPULATION_ATTRIBUTE. Same nested-member null-guard semantics apply on the
+    // DimensionSpec code path — unlike the IQF-side, this path emits no template-level
+    // null-guard, so the member-null-guard is the only guard on the emitted term.
+    val filter =
+      buildCelExpression(
+        dimensionSpecFilters =
+          listOf(
+            eventFilter {
+              terms += eventTemplateField {
+                path = "testing_only.testing_arm_filterable.testing_arm_filterable_enum"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "ARM_FILT_1" }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        emitCelNullGuardsForNestedMembers = true,
+      )
     assertThat(filter)
       .contains(
-        "testing_only.testing_arm_iqf != null && " +
-          "testing_only.testing_arm_iqf.testing_arm_iqf_enum == 1"
+        "testing_only.testing_arm_filterable != null && " +
+          "testing_only.testing_arm_filterable.testing_arm_filterable_enum == 1"
       )
     assertCompilesCleanly(filter)
   }
 
   @Test
-  fun `DimensionSpec-side buildCelExpression emits nested-arm null guard for oneof arm path`() {
-    // testing_only.testing_arm_filterable.testing_arm_filterable_enum is
-    // FILTERABLE + POPULATION_ATTRIBUTE. Same nested-arm null-guard semantics apply on the
-    // DimensionSpec code path — unlike the IQF-side, this path emits no template-level
-    // null-guard, so the arm-null-guard is the only guard on the emitted term.
+  fun `DimensionSpec-side buildCelExpression omits nested-member null guard when flag is off (default)`() {
+    // Default (flag off): same bare form as the IQF-side default. See flag KDoc for trade-off.
     val filter =
       buildCelExpression(
         dimensionSpecFilters =
@@ -3686,17 +3739,15 @@ class BasicReportTransformationsTest {
           ),
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
       )
+    assertThat(filter).doesNotContain("!= null")
     assertThat(filter)
-      .contains(
-        "testing_only.testing_arm_filterable != null && " +
-          "testing_only.testing_arm_filterable.testing_arm_filterable_enum == 1"
-      )
+      .contains("testing_only.testing_arm_filterable.testing_arm_filterable_enum == 1")
     assertCompilesCleanly(filter)
   }
 
   @Test
-  fun `top-level template paths still emit without a nested-arm guard`() {
-    // Regression: single-dot paths (`<template>.<field>`) do NOT get an arm-null-guard because
+  fun `top-level template paths still emit without a nested-member guard`() {
+    // Regression: single-dot paths (`<template>.<field>`) do NOT get an member-null-guard because
     // the proto3 default for an unset top-level message is a zero-instance, not null. If
     // buildCelTerm ever over-triggers and wraps top-level terms, the emitted CEL would grow a
     // spurious `testing_only != null && ...` clause and break existing test assertions.
@@ -3719,13 +3770,13 @@ class BasicReportTransformationsTest {
   }
 
   @Test
-  fun `DimensionSpec Grouping predicates emit nested-arm null guard for oneof arm path`() {
+  fun `DimensionSpec Grouping predicates emit nested-member null guard for oneof member path`() {
     // testing_only.testing_arm_groupable.testing_arm_groupable_enum is GROUPABLE +
-    // POPULATION_ATTRIBUTE inside a oneof arm. Grouping predicates go through the same
-    // buildCelTerm helper as filter emission, so nested-arm paths get an arm-null guard per
+    // POPULATION_ATTRIBUTE inside a oneof member. Grouping predicates go through the same
+    // buildCelTerm helper as filter emission, so nested-member paths get an member-null guard per
     // emitted predicate (one per non-zero enum ordinal). Top-level template paths (single-dot)
     // still emit bare `field == N` predicates without a null-guard -- see
-    // `top-level template paths still emit without a nested-arm guard` for that regression.
+    // `top-level template paths still emit without a nested-member guard` for that regression.
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
     }
@@ -3757,13 +3808,14 @@ class BasicReportTransformationsTest {
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        emitCelNullGuardsForNestedMembers = true,
       )
 
     val detailsList =
       reportingSetMetricCalculationSpecDetailsMap.getValue(PRIMITIVE_REPORTING_SET_1)
     val grouping = detailsList.single().groupingsList.single()
     // Two enum ordinals > 0 (ARM_GRP_1 = 1, ARM_GRP_2 = 2), so two predicates, each with the
-    // arm-null guard.
+    // member-null guard.
     assertThat(grouping.predicatesList)
       .containsExactly(
         "testing_only.testing_arm_groupable != null && " +

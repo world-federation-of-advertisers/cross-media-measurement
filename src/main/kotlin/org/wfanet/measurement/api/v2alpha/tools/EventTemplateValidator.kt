@@ -103,11 +103,11 @@ class EventTemplateValidator : Runnable {
     for (field: Descriptors.FieldDescriptor in template.fields) {
       val fieldRef = "${template.name}.${field.name}"
 
-      // Oneof arm whose message carries template_field-annotated children: descend and validate
-      // those nested fields under the `<template>.<arm>.<field>` reference. Mirrors the arm-
-      // handling in `EventMessageDescriptor.isOneofArm` so this CLI validator accepts the same
+      // Oneof member whose message carries template_field-annotated children: descend and validate
+      // those nested fields under the `<template>.<member>.<field>` reference. Mirrors the member-
+      // handling in `EventMessageDescriptor.isOneofMember` so this CLI validator accepts the same
       // event-template shapes the descriptor traversal does.
-      if (isOneofArm(field)) {
+      if (isOneofMember(field)) {
         for (nestedField in field.messageType.fields) {
           if (!nestedField.options.hasExtension(EventAnnotationsProto.templateField)) continue
           validateNestedField(nestedField, "$fieldRef.${nestedField.name}")
@@ -123,7 +123,7 @@ class EventTemplateValidator : Runnable {
     }
   }
 
-  /** Validates the type constraints on a single template field (arm-nested or top-level). */
+  /** Validates the type constraints on a single template field (member-nested or top-level). */
   private fun validateNestedField(field: Descriptors.FieldDescriptor, fieldRef: String) {
     if (field.isRepeated) {
       throw ValidationException("$fieldRef is repeated")
@@ -161,10 +161,10 @@ class EventTemplateValidator : Runnable {
   /**
    * Returns `true` when [field] is a MESSAGE-typed field inside a `oneof` (including `proto3
    * optional`, which is a synthetic oneof-of-one) whose message type contains at least one nested
-   * field carrying the `template_field` annotation. See `EventMessageDescriptor.isOneofArm` for the
-   * runtime-side counterpart -- this CLI validator accepts the same shapes.
+   * field carrying the `template_field` annotation. See `EventMessageDescriptor.isOneofMember` for
+   * the runtime-side counterpart -- this CLI validator accepts the same shapes.
    */
-  private fun isOneofArm(field: Descriptors.FieldDescriptor): Boolean {
+  private fun isOneofMember(field: Descriptors.FieldDescriptor): Boolean {
     if (field.type != Descriptors.FieldDescriptor.Type.MESSAGE) return false
     if (field.containingOneof == null) return false
     val fullName = field.messageType.fullName

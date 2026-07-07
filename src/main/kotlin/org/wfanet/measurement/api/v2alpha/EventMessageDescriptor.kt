@@ -28,17 +28,15 @@ class EventMessageDescriptor(eventDescriptor: Descriptors.Descriptor) {
     val impressionQualification: Boolean,
   )
 
-  /** Contains info from [EventAnnotationsProto] and [Descriptors.FieldDescriptor] */
   /**
    * Info for a single template field, keyed by its dotted path in [eventTemplateFieldsByPath].
    *
-   * **Media-type inheritance warning (nested-arm paths):** for paths of the form
-   * `<template>.<arm>.<field>` (see the private `isOneofArm` helper), [mediaType] is inherited from
-   * the parent template. If the parent template carries no `media_type` annotation, [mediaType] is
-   * `MEDIA_TYPE_UNSPECIFIED`, which silently makes `IMPRESSION_QUALIFICATION`-tagged children
-   * unreachable to all IQF specs -- IQFs require a matching non-unspecified mediaType. Real markets
-   * typically want `IMPRESSION_QUALIFICATION` on per-mediaType templates; use `FILTERABLE` /
-   * `GROUPABLE` for cross-mediaType arm fields.
+   * For paths of the form `<template>.<member>.<field>` (see the private [isOneofMember] helper),
+   * [mediaType] is inherited from the parent template. See `EventTemplateDescriptor.media_type`'s
+   * comment in
+   * [event_annotations.proto](https://github.com/world-federation-of-advertisers/cross-media-measurement-api/blob/main/src/main/proto/wfa/measurement/api/v2alpha/event_annotations.proto)
+   * for canonical schema-design guidance (mediaType inheritance, where to place
+   * `IMPRESSION_QUALIFICATION` vs `FILTERABLE` / `GROUPABLE`).
    */
   data class EventTemplateFieldInfo(
     val mediaType: MediaType,
@@ -74,16 +72,16 @@ class EventMessageDescriptor(eventDescriptor: Descriptors.Descriptor) {
           val mediaType = templateAnnotation.mediaType
 
           for (templateField in field.messageType.fields) {
-            if (isOneofArm(templateField)) {
+            if (isOneofMember(templateField)) {
               // MESSAGE-typed field (typically inside a `oneof`) whose message
               // has template_field-annotated fields. Enumerate the annotated
-              // nested fields under `<template>.<arm>.<field>`, inheriting
+              // nested fields under `<template>.<member>.<field>`, inheriting
               // the parent template's media type. Handles the market-
               // template shape `Common.oneof edp_specific { Edp1 edp1 = ...; }`
               // where Edp1's own fields carry the annotations.
               //
-              // Only annotated nested fields are enumerated: `isOneofArm`
-              // triggers on ANY annotated child, but the arm's message may
+              // Only annotated nested fields are enumerated: `isOneofMember`
+              // triggers on ANY annotated child, but the member's message may
               // also contain unannotated helper fields (private-use encoding
               // fields, etc.) that should not be exposed as template fields.
               //
@@ -159,24 +157,24 @@ class EventMessageDescriptor(eventDescriptor: Descriptors.Descriptor) {
      * optional`, which is a synthetic oneof-of-one) whose message type contains at least one nested
      * field carrying the `template_field` annotation. Matches the shape real market templates use
      * to expose EDP-specific event fields -- `Common.oneof edp_specific { Edp1 edp1 = ...; }` --
-     * where the arm's message holds the template-annotated fields rather than the arm itself.
+     * where the member's message holds the template-annotated fields rather than the member itself.
      * Treated by [buildEventTemplateFieldsByPath] as a nested pseudo-template so its fields become
-     * reachable via `<template>.<arm>.<field>` paths and get a `<template>.<arm> != null`
-     * null-guard on the generated CEL (an unset oneof arm evaluates to null, unlike a top-level
+     * reachable via `<template>.<member>.<field>` paths and get a `<template>.<member> != null`
+     * null-guard on the generated CEL (an unset oneof member evaluates to null, unlike a top-level
      * message field whose proto3 default is a zero-instance).
      *
      * Non-oneof MESSAGE-typed fields with template-annotated children are intentionally NOT treated
      * as nested pseudo-templates. If a real deployment ever needs that shape, this predicate can be
      * loosened with a targeted test.
      *
-     * **Media-type inheritance warning:** nested-arm fields inherit their parent template's
+     * **Media-type inheritance warning:** nested-member fields inherit their parent template's
      * `media_type`. If the parent has no `media_type` annotation (e.g. a demographic-shaped
      * template like `Common`), the inherited value is `MEDIA_TYPE_UNSPECIFIED`, which silently
      * makes any `IMPRESSION_QUALIFICATION`-tagged children unreachable to all IQF specs (IQFs
      * require a matching mediaType). Real markets typically want `IMPRESSION_QUALIFICATION` on
-     * per-mediaType templates; use `FILTERABLE` / `GROUPABLE` for cross-mediaType arm fields.
+     * per-mediaType templates; use `FILTERABLE` / `GROUPABLE` for cross-mediaType member fields.
      */
-    private fun isOneofArm(field: Descriptors.FieldDescriptor): Boolean {
+    private fun isOneofMember(field: Descriptors.FieldDescriptor): Boolean {
       if (field.type != Descriptors.FieldDescriptor.Type.MESSAGE) return false
       if (field.containingOneof == null) return false
       // Exempt well-known types the MESSAGE branch already allows as leaf template fields.
