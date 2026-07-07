@@ -819,9 +819,9 @@ abstract class ReportResultsServiceTest {
       )
 
     // Composite ReportingSet under the same campaign group so that the
-    // "composite-1"-keyed RSR in BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST
+    // "composite-1"-keyed ReportingSetResult in BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST
     // maps to a known ReportingSet. SpannerBasicReportsService's corruption
-    // pre-check refuses to render any RSR whose external_reporting_set_id is
+    // pre-check refuses to render any ReportingSetResult whose external_reporting_set_id is
     // absent from the campaign group's expected set.
     reportingSetsStub.createReportingSet(
       createReportingSetRequest {
