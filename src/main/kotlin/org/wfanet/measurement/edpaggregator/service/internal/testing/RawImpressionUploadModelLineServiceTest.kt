@@ -1500,6 +1500,19 @@ abstract class RawImpressionUploadModelLineServiceTest {
           )
         }
       assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      // The rejection is a concurrency conflict (not a state violation) and names the blocking
+      // upload so an operator does not have to hand-query for it.
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT.name
+            metadata[Errors.Metadata.DATA_PROVIDER_RESOURCE_ID.key] = DATA_PROVIDER_RESOURCE_ID
+            metadata[Errors.Metadata.CMMS_MODEL_LINE.key] = CMMS_MODEL_LINE
+            metadata[Errors.Metadata.CONFLICTING_RAW_IMPRESSION_UPLOAD_RESOURCE_IDS.key] =
+              RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          }
+        )
     }
 
   companion object {
