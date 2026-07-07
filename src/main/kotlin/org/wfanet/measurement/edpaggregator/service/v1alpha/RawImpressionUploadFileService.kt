@@ -99,6 +99,11 @@ class RawImpressionUploadFileService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    if (!request.rawImpressionUploadFile.hasEventDate()) {
+      throw RequiredFieldNotSetException("raw_impression_upload_file.event_date")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
     if (request.requestId.isEmpty()) {
       throw RequiredFieldNotSetException("request_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -114,9 +119,7 @@ class RawImpressionUploadFileService(
               rawImpressionUploadResourceId = uploadKey.rawImpressionUploadId
               blobUri = request.rawImpressionUploadFile.blobUri
               sizeBytes = request.rawImpressionUploadFile.sizeBytes
-              if (request.rawImpressionUploadFile.hasEventDate()) {
-                eventDate = request.rawImpressionUploadFile.eventDate
-              }
+              eventDate = request.rawImpressionUploadFile.eventDate
             }
             requestId = request.requestId
           }
@@ -218,6 +221,12 @@ class RawImpressionUploadFileService(
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
+        if (!childRequest.rawImpressionUploadFile.hasEventDate()) {
+          throw RequiredFieldNotSetException(
+              "requests.$index.raw_impression_upload_file.event_date"
+            )
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
         val eventDate = childRequest.rawImpressionUploadFile.eventDate
 
         val requestId = childRequest.requestId
@@ -239,9 +248,7 @@ class RawImpressionUploadFileService(
             rawImpressionUploadResourceId = uploadKey.rawImpressionUploadId
             this.blobUri = blobUri
             this.sizeBytes = sizeBytes
-            if (childRequest.rawImpressionUploadFile.hasEventDate()) {
-              this.eventDate = eventDate
-            }
+            this.eventDate = eventDate
           }
           this.requestId = requestId
         }
@@ -685,9 +692,7 @@ fun InternalRawImpressionUploadFile.toPublic(): RawImpressionUploadFile {
         .toName()
     blobUri = source.blobUri
     sizeBytes = source.sizeBytes
-    if (source.hasEventDate()) {
-      eventDate = source.eventDate
-    }
+    eventDate = source.eventDate
     createTime = source.createTime
     updateTime = source.updateTime
     if (source.hasDeleteTime()) {

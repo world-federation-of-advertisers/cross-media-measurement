@@ -59,7 +59,7 @@ message RawImpressionUploadFile {
   // registered files against dated storage/output folders without opening
   // each file.
   google.type.Date event_date = 7 [
-    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
 
