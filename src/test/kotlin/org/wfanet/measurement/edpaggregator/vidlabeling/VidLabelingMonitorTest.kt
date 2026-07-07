@@ -42,7 +42,9 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.atLeastOnce
 import org.mockito.kotlin.never
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
@@ -270,13 +272,22 @@ class VidLabelingMonitorTest {
   ) {
     whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer { invocation ->
       val request = invocation.getArgument<ListRawImpressionUploadsRequest>(0)
+      val states = request.filter.stateInList
+      // An empty state_in matches all states (the monitor's single-snapshot list); a specific
+      // state_in (the dispatcher's dispatch scan) returns just those states.
       val uploads =
-        when (request.filter.stateInList.firstOrNull()) {
-          RawImpressionUpload.State.ACTIVE -> active
-          RawImpressionUpload.State.CREATED -> created
-          RawImpressionUpload.State.FAILED -> failed
-          RawImpressionUpload.State.COMPLETED -> completed
-          else -> emptyList()
+        if (states.isEmpty()) {
+          active + created + failed + completed
+        } else {
+          states.flatMap { state ->
+            when (state) {
+              RawImpressionUpload.State.ACTIVE -> active
+              RawImpressionUpload.State.CREATED -> created
+              RawImpressionUpload.State.FAILED -> failed
+              RawImpressionUpload.State.COMPLETED -> completed
+              else -> emptyList()
+            }
+          }
         }
       listRawImpressionUploadsResponse { rawImpressionUploads += uploads }
     }
@@ -802,6 +813,38 @@ class VidLabelingMonitorTest {
         collectMetrics().none { it.name == "edpa.vid_labeling_monitor.phase_transitions_recovered" }
       )
       .isTrue()
+  }
+
+  @Test
+  fun `run reads uploads and model lines as one snapshot shared across checks`() = runBlocking {
+    // An ACTIVE upload is read by both checkFailuresAndStaleness and recoverStuckPhases. The
+    // snapshot must list uploads once (a single unfiltered request) and each upload's model lines
+    // once (memoized), not once per check.
+    stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+    stubModelLines(
+      rawImpressionUploadModelLine {
+        name = "$DATA_PROVIDER/rawImpressionUploads/active-1/modelLines/ml1"
+        cmmsModelLine = MODEL_LINE
+        state = RawImpressionUploadModelLine.State.LABELING
+        updateTime = Timestamps.fromMillis(FIXED_NOW.toEpochMilli())
+      }
+    )
+
+    createMonitor().run()
+
+    // Exactly one unfiltered ListRawImpressionUploads (the monitor snapshot); the dispatcher's own
+    // state-filtered dispatch scan is separate and excluded by the empty-filter predicate.
+    val uploadRequests = argumentCaptor<ListRawImpressionUploadsRequest>()
+    verifyBlocking(rawImpressionUploadService, atLeastOnce()) {
+      listRawImpressionUploads(uploadRequests.capture())
+    }
+    assertThat(uploadRequests.allValues.count { it.filter.stateInList.isEmpty() }).isEqualTo(1)
+    // active-1's model lines are listed exactly twice this tick: once by the dispatcher's in-flight
+    // scan and once by the monitor snapshot (reused by both checkFailuresAndStaleness and
+    // recoverStuckPhases). Before the snapshot the monitor listed them per check, so this was 3.
+    verifyBlocking(rawImpressionUploadModelLineService, times(2)) {
+      listRawImpressionUploadModelLines(any())
+    }
   }
 
   companion object {
