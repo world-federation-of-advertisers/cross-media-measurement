@@ -267,12 +267,14 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
       assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
     }
 
-  // Hypothesis E: weekly `reporting_unit.non_cumulative + reporting_unit.cumulative`
-  // (BOTH) with no per-EDP components. Mirror of A on the reporting-unit axis: the
-  // union RS ID is the SAME across both windows but each window has only one of
-  // cumulative/non_cumulative populated.
+  // A cross-publisher summary report: weekly cadence, requesting both
+  // `reporting_unit.non_cumulative` (per-week incremental) and
+  // `reporting_unit.cumulative` (running total across weeks), with NO per-EDP
+  // `component` subfield. The result set carries one union `ReportingSetResult`
+  // per week bucket, and a single whole-report union `ReportingSetResult` for
+  // the cumulative side.
   @Test
-  fun `hypothesis E - weekly reporting_unit cumulative plus non_cumulative no components`() =
+  fun `weekly cross-publisher union reach and impressions succeeds with no per-EDP components`() =
     runBlocking {
       val eventGroups = getMultiEdpEventGroups()
       check(eventGroups.size > 1)
@@ -280,13 +282,13 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
       val baseRequest =
         buildCreateBasicReportRequest(
           eventGroups,
-          "hypothesis-e-campaign",
-          "hypothesis-e-basicreport",
+          "weekly-union-no-components-campaign",
+          "weekly-union-no-components-basicreport",
           includeIqfFilter = false,
         )
-      val hypothesisSpec =
+      val requestSpec =
         baseRequest.basicReport.resultGroupSpecsList.single().copy {
-          title = "hypothesis-e"
+          title = "weekly-union-no-components"
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
           resultGroupMetricSpec = resultGroupMetricSpec {
             reportingUnit =
@@ -305,7 +307,7 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
           basicReport =
             basicReport.copy {
               resultGroupSpecs.clear()
-              resultGroupSpecs += hypothesisSpec
+              resultGroupSpecs += requestSpec
             }
         }
 

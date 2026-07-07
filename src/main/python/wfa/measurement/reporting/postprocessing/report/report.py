@@ -1193,24 +1193,22 @@ class Report:
               comb for comb in whole_campaign_edp_combinations
               if len(comb) == 1 and comb.issubset(edp_combination)
           ]
-          # Skip the union = sum(singles) equality unless the singleton cover
-          # is complete for this edp_combination. Two failure modes are folded
-          # into one guard:
-          #   - empty single_edp_subset (report has only union RSRs, no per-EDP
-          #     primitives): union = 0 contradicts the measured value and makes
-          #     the QP problem primal-infeasible.
-          #   - partial single_edp_subset (some per-EDP primitives present but
-          #     not all): union = sum(present_singles) silently under-counts by
-          #     the missing EDPs' contribution, which the solver satisfies by
-          #     adjusting the present singles' impressions downward.
-          # Reachable when a BasicReport has multiple result_group_specs with
-          # asymmetric reporting_units (spec 1: {A,B} with components; spec 2:
-          # {A,B,C} without components) -- their RSRs aggregate into one
-          # metric_report and the {A,B,C} equality picks up spec 1's partial
-          # [{A},{B}] singleton cover.
-          # Without this guard, the caller-visible symptom is
-          # BasicReport.state=FAILED with empty result_details -- the
-          # ValueError from primal-infeasibility is swallowed by
+          # Only emit the "cross-publisher total equals the sum of per-EDP totals"
+          # constraint when a per-EDP total is available for every EDP in
+          # `edp_combination`. Two failure modes are folded into one guard:
+          #   - No per-EDP totals present (caller requested only cross-publisher
+          #     union metrics with no `component` subfield): the constraint
+          #     degenerates to "cross-publisher total = 0", which contradicts
+          #     the measured value and leaves the noise-correction solver with
+          #     no solution.
+          #   - Some per-EDP totals present but not all (e.g. multiple
+          #     result_group_specs where spec 1 requests components for {A,B}
+          #     and spec 2 requests only cross-publisher for {A,B,C}): the
+          #     constraint under-counts by the missing EDPs' contribution,
+          #     and the solver silently adjusts the present per-EDP totals
+          #     downward to satisfy it -- corrupting the reported numbers.
+          # Without this guard the caller sees BasicReport.state=FAILED with
+          # empty result_details; the underlying error is swallowed by
           # _process_basic_report's bare `except Exception:` (see #4133).
           if len(single_edp_subset) < len(edp_combination):
             continue
@@ -1235,9 +1233,11 @@ class Report:
               comb for comb in weekly_non_cumulative_edp_combinations
               if len(comb) == 1 and comb.issubset(edp_combination)
           ]
-          # Skip the union = sum(singles) equality unless the singleton cover
-          # is complete (see whole_campaign branch above for the full rationale;
-          # empty -> primal-infeasible, partial -> silently under-counts).
+          # Same guard as the whole_campaign branch above: only emit the
+          # "cross-publisher weekly total equals the sum of per-EDP weekly
+          # totals" constraint when a per-EDP total is present for every EDP.
+          # Absent guard -> either unsolvable (no per-EDP) or silently wrong
+          # (partial per-EDP).
           if len(single_edp_subset) < len(edp_combination):
             continue
           for period in range(0, self._num_periods):
