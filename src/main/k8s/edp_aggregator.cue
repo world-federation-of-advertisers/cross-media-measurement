@@ -35,6 +35,7 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 		"edp-aggregator-system-api-server":   string | *"edp-aggregator/system-api"
 		"edp-aggregator-internal-api-server": string | *"edp-aggregator/internal-api"
 		"update-edp-aggregator-schema":       string | *"edp-aggregator/update-schema"
+		"sync-event-group-activities":        string | *"edp-aggregator/sync-event-group-activities"
 	}
 	_imageConfigs: [_=string]: #ImageConfig
 	_imageConfigs: {
@@ -52,6 +53,22 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 
 	_debugVerboseGrpcClientLoggingFlag: "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
 	_debugVerboseGrpcServerLoggingFlag: "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
+
+	// Schedule for the per-EDP sync-event-group-activities cronjobs. Override in
+	// the env-specific overlay (default: daily at 06:00 UTC).
+	_syncEventGroupActivitiesCronSchedule: string | *"0 6 * * *"
+
+	// Per-EDP sync-event-group-activities cronjob configs. The overlay sets one
+	// entry per EDP. Empty by default — entries produce no cronjob.
+	//
+	// args: CLI flags passed to the sync-event-group-activities container.
+	// tlsSecret: name of the K8s Secret holding this EDP's TLS cert/key
+	//   (mounted at MountRoot/<tlsSecret>; cert/key files inside named tls.crt,
+	//   tls.key per the secretGenerator convention).
+	_syncEventGroupActivitiesArgs: [string]: {
+		args: [...string]
+		tlsSecret: string
+	}
 
 	services: [Name=_]: #GrpcService & {
 		metadata: {
@@ -146,6 +163,66 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 					ports: [{
 						port: #GrpcPort
 					}]
+				}
+			}
+		}
+		for edp, _ in _syncEventGroupActivitiesArgs {
+			"sync-event-group-activities-\(edp)": {
+				_app_label: "sync-event-group-activities-\(edp)-app"
+				_egresses: {
+					// Needs to call out to GCS (read spot-data input) and the
+					// Kingdom public API (list/create/delete EventGroupActivities).
+					any: {}
+				}
+			}
+		}
+	}
+
+	// K8s ServiceAccount that the CronJob pods run as. Set in the overlay
+	// (e.g. dev/edp_aggregator_gke.cue) and bound via Workload Identity to a
+	// GCP SA that has storage.objectViewer on the spot-data bucket.
+	_syncEventGroupActivitiesServiceAccountName: string
+
+	cronJobs: [Name=_]: #CronJob & {
+		_name:       Name
+		_secretName: _edpAggregatorSecretName
+		_system:     "edp-aggregator"
+		_container: {
+			image: _images["sync-event-group-activities"]
+			_javaOptions: maxHeapSize: "256M"
+			resources: {
+				requests: {
+					cpu:    "100m"
+					memory: "512Mi"
+				}
+				limits: {
+					memory: "512Mi"
+				}
+			}
+		}
+		spec: {
+			concurrencyPolicy: "Forbid"
+			schedule:          _syncEventGroupActivitiesCronSchedule
+			jobTemplate: spec: template: spec: #ServiceAccountPodSpec & {
+				serviceAccountName: _syncEventGroupActivitiesServiceAccountName
+				// Per-EDP secret mounts (e.g. edp7-tls) are added by the per-EDP
+				// override block below; only the shared ConfigMap mount lives here.
+				_mounts: {
+					"edp-aggregator-config": #ConfigMapMount & {
+						volumeMount: mountPath: "\(MountRoot)/config"
+					}
+				}
+			}
+		}
+	}
+	cronJobs: {
+		for edp, cfg in _syncEventGroupActivitiesArgs {
+			"sync-event-group-activities-\(edp)": {
+				_container: args: cfg.args
+				spec: jobTemplate: spec: template: spec: _mounts: {
+					"\(cfg.tlsSecret)": #SecretMount & {
+						volumeMount: mountPath: "\(MountRoot)/\(cfg.tlsSecret)"
+					}
 				}
 			}
 		}
