@@ -606,7 +606,7 @@ object BasicReportProcessedResultsTransformation {
               //      windows in this map and the reporting_unit key isn't in the per-EDP
               //      window.
               // Either way, skipping avoids a NoSuchElementException that would surface as
-              // INTERNAL from GetBasicReport.
+              // UNKNOWN from GetBasicReport (gRPC's default status for uncaught exceptions).
               if (
                 reportingUnitReportingSetId.isNotEmpty() &&
                   reportingWindowResults.value.reportResultValuesByExternalReportingSetId

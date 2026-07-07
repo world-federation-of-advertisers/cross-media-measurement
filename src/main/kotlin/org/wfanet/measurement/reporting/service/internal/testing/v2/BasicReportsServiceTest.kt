@@ -766,8 +766,18 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           externalBasicReportId = createdBasicReport.externalBasicReportId
         }
       )
-    } catch (e: Exception) {
+    } catch (e: IllegalStateException) {
+      // The pre-check throws IllegalStateException via `error(...)`. Fail if it
+      // fires -- that IS the regression this test guards against. Any other
+      // exception class (e.g. NoSuchElementException from downstream
+      // buildResults on fixture inconsistencies) is out of scope for this test.
       assertThat(e.message ?: "").doesNotContain("not in the campaign group's expected set")
+      throw e
+    } catch (e: NoSuchElementException) {
+      // Downstream buildResults may still fail on fixture inconsistencies
+      // (window / dim keys, etc.). That's out of scope for this test -- the
+      // concern is only that the pre-check accepts the external component
+      // reference. Swallow silently.
     }
   }
 
