@@ -20,7 +20,6 @@ import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
-import java.security.MessageDigest
 import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
@@ -28,7 +27,6 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
@@ -39,15 +37,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsRequest
@@ -93,10 +88,7 @@ class VidLabelingMonitor(
   private val dispatchSequencer: VidLabelingDispatchSequencer,
   private val dataProviderName: String,
   private val stalenessThreshold: Duration,
-  private val rawImpressionUploadFileStub:
-    RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub,
   private val rawImpressionsStorageClient: StorageClient,
-  private val vidLabeledImpressionsStorageClient: StorageClient,
   private val rankerJobStub: RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub,
   private val vidLabelingJobStub: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub,
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
@@ -115,7 +107,7 @@ class VidLabelingMonitor(
     val failedModelLines: List<String>,
     /** Whether the dispatch sequencer threw this run (dispatch is broken for this DataProvider). */
     val dispatchError: Boolean,
-    /** Raw impression files (under COMPLETED model lines) missing their VID-labeled output. */
+    /** `VidLabelingJob`s under COMPLETED model lines that did not reach SUCCEEDED. */
     val missingLabeledOutputs: Long,
     /** Files whose create time is after their date folder done blob. */
     val lateArrivingFiles: Long,
@@ -393,63 +385,70 @@ class VidLabelingMonitor(
   }
 
   /**
-   * Counts, across COMPLETED uploads and their COMPLETED model lines, the raw impression files with
-   * no matching VID-labeled output. The output key SHA is `SHA-256("<blobUri>|<modelLine>")` (see
-   * `VidLabelingSink.outputBlobKey`), so the expected SHA for each raw file is recomputed here and
-   * checked against the SHAs actually present under `model-line/<modelLineId>/` (across dates),
-   * ignoring the `.metadata.binpb` sidecars.
+   * Counts, across COMPLETED uploads and their COMPLETED model lines, the `VidLabelingJob`s that
+   * did not reach SUCCEEDED (CREATED = never processed, FAILED = processing failed). The labeler
+   * marks a job SUCCEEDED when it finishes processing, whether or not it wrote any output blob, so
+   * a model line whose every impression is legitimately dropped (e.g. a backfill whose events fall
+   * outside the model line's active window) still SUCCEEDs and is NOT counted. Keying off job state
+   * -- rather than a storage-blob census -- avoids the false positive such a model line would
+   * otherwise raise on every scheduler tick.
    */
   private suspend fun checkLabelingCompleteness(): Long {
     var missing = 0L
     for (upload in listUploads(RawImpressionUpload.State.COMPLETED)) {
-      val files = listUploadFiles(upload.name)
-      if (files.isEmpty()) {
-        continue
-      }
       val completedModelLines =
         listUploadModelLines(upload.name).filter {
           it.state == RawImpressionUploadModelLine.State.COMPLETED
         }
       for (modelLine in completedModelLines) {
-        val modelLineId = ModelLineKey.fromName(modelLine.cmmsModelLine)?.modelLineId ?: continue
-        val expectedShas =
-          files.map { labeledOutputSha(it.blobUri, modelLine.cmmsModelLine) }.toSet()
-        val actualShas =
-          vidLabeledImpressionsStorageClient
-            .listBlobs("model-line/$modelLineId/")
-            .toList()
-            .filterNot { it.blobKey.endsWith(".metadata.binpb") }
-            .map { it.blobKey.substringAfterLast('/') }
-            .toSet()
-        missing += expectedShas.count { it !in actualShas }.toLong()
+        missing +=
+          countVidLabelingJobsInState(
+            upload.name,
+            modelLine.cmmsModelLine,
+            VidLabelingJob.State.CREATED,
+          )
+        missing +=
+          countVidLabelingJobsInState(
+            upload.name,
+            modelLine.cmmsModelLine,
+            VidLabelingJob.State.FAILED,
+          )
       }
     }
     return missing
   }
 
-  private fun labeledOutputSha(inputBlobUri: String, modelLine: String): String =
-    MessageDigest.getInstance("SHA-256")
-      .digest("$inputBlobUri|$modelLine".toByteArray(Charsets.UTF_8))
-      .joinToString("") { "%02x".format(it) }
-
-  /** Lists the `RawImpressionUploadFile` children of [uploadName]. */
+  /**
+   * Total number of `VidLabelingJob`s for `(uploadName, modelLine)` in [state] (fully paginated).
+   */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  private suspend fun listUploadFiles(uploadName: String): List<RawImpressionUploadFile> =
-    rawImpressionUploadFileStub
+  private suspend fun countVidLabelingJobsInState(
+    uploadName: String,
+    modelLine: String,
+    state: VidLabelingJob.State,
+  ): Long =
+    vidLabelingJobStub
       .listResources { pageToken: String ->
         val response =
-          rawImpressionUploadFileStub.listRawImpressionUploadFiles(
-            listRawImpressionUploadFilesRequest {
+          vidLabelingJobStub.listVidLabelingJobs(
+            listVidLabelingJobsRequest {
               parent = uploadName
+              filter =
+                ListVidLabelingJobsRequestKt.filter {
+                  cmmsModelLine = modelLine
+                  this.state = state
+                }
               if (pageToken.isNotEmpty()) {
                 this.pageToken = pageToken
               }
             }
           )
-        ResourceList(response.rawImpressionUploadFilesList, response.nextPageToken)
+        ResourceList(response.vidLabelingJobsList, response.nextPageToken)
       }
       .flattenConcat()
       .toList()
+      .size
+      .toLong()
 
   /**
    * Re-triggers stuck memoized phase transitions for this DataProvider and returns how many were
