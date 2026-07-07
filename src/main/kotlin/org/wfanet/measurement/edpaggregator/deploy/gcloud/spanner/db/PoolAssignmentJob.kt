@@ -532,6 +532,9 @@ private object PoolAssignmentJobEntity {
           errorMessage = struct.getString("ErrorMessage")
         }
         if (!struct.isNull("EncryptedDek")) {
+          // TODO(world-federation-of-advertisers/cross-media-measurement#4173): Replace this
+          // re-parse with typed conversions once the internal proto's encrypted_dek field is typed
+          // as the internal EncryptedDek (see RankIndexBlobService for the pattern).
           // Column type is the internal EncryptedDek (schema #3989) but this proto's field is the
           // v1alpha type; read as internal, then re-parse the wire-compatible bytes into the
           // field's type.
