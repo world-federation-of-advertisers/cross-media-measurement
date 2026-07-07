@@ -93,6 +93,8 @@ jobs:
         GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         PDP_NAME: ${{ vars.PDP_NAME }}
+        MCP_HOST: ${{ vars.MCP_HOST }}
+        OPEN_ID_PROVIDER_ISSUER: ${{ vars.OPEN_ID_PROVIDER_ISSUER }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -108,6 +110,8 @@ jobs:
         build --define basic_reports_enabled=true
         build --define 'event_message_type_url=type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent'
         build --define "pdp_name=$PDP_NAME"
+        build --define "mcp_host=$MCP_HOST"
+        build --define "oauth_issuer=$OPEN_ID_PROVIDER_ISSUER"
         EOF
 
     - name: Export BAZEL_BIN
