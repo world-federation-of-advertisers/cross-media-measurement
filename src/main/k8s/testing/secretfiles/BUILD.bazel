@@ -405,6 +405,41 @@ kustomization_dir(
     } | EDP_AGGREGATOR_TLS_RENAMES,
 )
 
+# Per-EDP TLS for the sync-event-group-activities CronJob, which acts as the
+# EDP when talking to the Kingdom.
+EDP7_TLS_SRCS = [
+    "edp7_tls.pem",
+    "edp7_tls.key",
+]
+
+EDP7_TLS_RENAMES = {
+    "edp7_tls.pem": "tls.crt",
+    "edp7_tls.key": "tls.key",
+}
+
+pkg_files(
+    name = "edp7_tls_files",
+    srcs = EDP7_TLS_SRCS,
+    renames = EDP7_TLS_RENAMES,
+    visibility = ["//visibility:private"],
+)
+
+pkg_tar(
+    name = "edp7_tls_archive",
+    srcs = [":edp7_tls_files"],
+    out = "edp7_tls_files.tar",
+)
+
+kustomization_dir(
+    name = "edp7_tls",
+    srcs = [
+        "edp7_tls_kustomization.yaml",
+    ] + EDP7_TLS_SRCS,
+    renames = {
+        "edp7_tls_kustomization.yaml": "kustomization.yaml",
+    } | EDP7_TLS_RENAMES,
+)
+
 pkg_tar(
     name = "archive",
     srcs = [":secret_files"],
