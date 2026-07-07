@@ -103,15 +103,3 @@ abstract class BaseVidLabelingTeeAppRunner(
     StorageConfig(projectId = gcsProjectId)
 }
 
-/**
- * Production GCS Hadoop [Configuration] for [ParquetStorageClient], wiring the GCS connector for
- * [projectId]. Each phase runner passes this as its `hadoopConfigurationFor`; tests can instead
- * inject a `file://`-shaped [Configuration] without subclassing.
- */
-fun gcsHadoopConfiguration(projectId: String): Configuration =
-  Configuration().apply {
-    set("fs.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem")
-    set("fs.AbstractFileSystem.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFS")
-    set("fs.gs.auth.type", "COMPUTE_ENGINE")
-    set("fs.gs.project.id", projectId)
-  }

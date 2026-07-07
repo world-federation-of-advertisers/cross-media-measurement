@@ -17,7 +17,6 @@ kt_jvm_test(
 kt_jvm_test(
     name = "VidLabelingDispatcherFunctionTest",
     srcs = ["VidLabelingDispatcherFunctionTest.kt"],
-    associates = ["//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:vid_labeling_dispatcher_function"],
     data = [
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",

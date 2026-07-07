@@ -90,6 +90,7 @@ class SpannerRawImpressionUploadFileServiceTest : RawImpressionUploadFileService
         set("FileResourceId").to(fileResourceId)
         set("BlobUri").to(blobUri)
         set("SizeBytes").to(1024L)
+        set("EventDate").to(com.google.cloud.Date.fromYearMonthDay(2026, 6, 1))
         set("CreateTime").to(createTime)
         set("UpdateTime").to(createTime)
         if (deleted) {

@@ -218,7 +218,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUploadFile(
   fileResourceId: String,
   blobUri: String,
   sizeBytes: Long,
-  eventDate: com.google.type.Date?,
+  eventDate: com.google.type.Date,
   createRequestId: String,
 ) {
   bufferInsertMutation("RawImpressionUploadFile") {
@@ -229,9 +229,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUploadFile(
     set("CreateRequestId").to(createRequestId)
     set("BlobUri").to(blobUri)
     set("SizeBytes").to(sizeBytes)
-    if (eventDate != null) {
-      set("EventDate").to(eventDate.toCloudDate())
-    }
+    set("EventDate").to(eventDate.toCloudDate())
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
@@ -365,9 +363,7 @@ private fun buildRawImpressionUploadFileResult(struct: Struct): RawImpressionUpl
       fileResourceId = struct.getString("FileResourceId")
       blobUri = struct.getString("BlobUri")
       sizeBytes = struct.getLong("SizeBytes")
-      if (!struct.isNull("EventDate")) {
-        eventDate = struct.getDate("EventDate").toProtoDate()
-      }
+      eventDate = struct.getDate("EventDate").toProtoDate()
       createTime = struct.getTimestamp("CreateTime").toProto()
       updateTime = struct.getTimestamp("UpdateTime").toProto()
       if (!struct.isNull("DeleteTime")) {

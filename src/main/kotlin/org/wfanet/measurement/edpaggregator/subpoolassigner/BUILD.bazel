@@ -128,6 +128,7 @@ kt_jvm_library(
         ":virtual_people_pool_emit_labeler",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:base_vid_labeling_tee_app_runner",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:gcs_hadoop_configuration",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:pool_assignment_job_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:ranker_job_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_file_service_kt_jvm_grpc_proto",
