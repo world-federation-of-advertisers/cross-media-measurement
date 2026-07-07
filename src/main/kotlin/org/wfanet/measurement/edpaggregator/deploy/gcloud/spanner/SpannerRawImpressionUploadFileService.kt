@@ -136,6 +136,7 @@ class SpannerRawImpressionUploadFileService(
             fileResourceId,
             file.blobUri,
             file.sizeBytes,
+            file.eventDate.takeIf { file.hasEventDate() },
             requestId,
           )
           rawImpressionUploadFile {
@@ -144,6 +145,9 @@ class SpannerRawImpressionUploadFileService(
             this.fileResourceId = fileResourceId
             blobUri = file.blobUri
             sizeBytes = file.sizeBytes
+            if (file.hasEventDate()) {
+              eventDate = file.eventDate
+            }
           }
         }
       } catch (e: RawImpressionUploadNotFoundException) {
@@ -246,6 +250,7 @@ class SpannerRawImpressionUploadFileService(
             }
             val blobUri: String = subRequest.rawImpressionUploadFile.blobUri
             val sizeBytes: Long = subRequest.rawImpressionUploadFile.sizeBytes
+            val fileProto = subRequest.rawImpressionUploadFile
             val fileId: Long =
               idGenerator.generateNewId { id ->
                 txn.rawImpressionUploadFileExists(
@@ -262,6 +267,7 @@ class SpannerRawImpressionUploadFileService(
               fileResourceId,
               blobUri,
               sizeBytes,
+              fileProto.eventDate.takeIf { fileProto.hasEventDate() },
               subRequest.requestId,
             )
             rawImpressionUploadFile {
@@ -270,6 +276,9 @@ class SpannerRawImpressionUploadFileService(
               this.fileResourceId = fileResourceId
               this.blobUri = blobUri
               this.sizeBytes = sizeBytes
+              if (fileProto.hasEventDate()) {
+                eventDate = fileProto.eventDate
+              }
             }
           }
         }

@@ -27,9 +27,11 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.LocalDate
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
+import org.apache.hadoop.conf.Configuration
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -75,6 +77,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUplo
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatcherParams
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
+import org.wfanet.measurement.storage.ParquetStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
@@ -366,6 +369,17 @@ class VidLabelingDispatcherFunctionTest {
     }
     modelSuite = MODEL_SUITE
     numberOfShards = 2
+  }
+
+  @Test
+  fun `readEventDateFromFooter reads event_date from the plaintext footer`() = runBlocking {
+    val parquetStorageClient =
+      ParquetStorageClient(Configuration(), org.apache.hadoop.fs.Path(tempFolder.root.absolutePath))
+    parquetStorageClient.writeBlob("file.parquet", emptyFlow(), mapOf("event_date" to "2026-06-01"))
+
+    val eventDate = readEventDateFromFooter(parquetStorageClient, "file.parquet")
+
+    assertThat(eventDate).isEqualTo(LocalDate.parse("2026-06-01"))
   }
 
   companion object {
