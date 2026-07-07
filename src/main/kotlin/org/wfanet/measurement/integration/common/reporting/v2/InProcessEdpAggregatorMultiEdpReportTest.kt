@@ -126,9 +126,9 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
         )
       }
 
-    // Reuse the scaffolding from the DataProvider-component request (model line, reporting interval,
-    // metric spec), but omit campaign_group so the server synthesizes it, and set the ReportingUnit
-    // components to ReportingSets instead of DataProviders.
+    // Reuse the scaffolding from the DataProvider-component request (model line, reporting
+    // interval, metric spec), but omit campaign_group so the server synthesizes it, and set the
+    // ReportingUnit components to ReportingSets instead of DataProviders.
     val createBasicReportRequest =
       buildCreateBasicReportRequest(
           eventGroups,
