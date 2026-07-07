@@ -59,7 +59,8 @@ import org.wfanet.measurement.storage.StorageClient
  * Monitors the VID labeling pipeline for one `DataProvider` and drives dispatch sequencing.
  *
  * Cloud Scheduler invokes [VidLabelingMonitorFunction] periodically; per DataProvider it builds one
- * [VidLabelingMonitor] and calls [run]. This first iteration (#3958) implements:
+ * [VidLabelingMonitor] and calls [runDispatch] (fast dispatch cadence) or [runHealth] (slow health
+ * cadence). This first iteration (#3958) implements:
  * - **Dispatch sequencing:** delegated to the shared [VidLabelingDispatchSequencer], which both
  *   this monitor (the periodic backstop) and [VidLabelingDispatcher] (the upload-triggered fast
  *   path) call. The sequencer enforces "at most one upload per DataProvider runs at a time" and
@@ -100,18 +101,22 @@ class VidLabelingMonitor(
   private val clock: Clock = Clock.systemUTC(),
 ) {
 
-  /** Outcome of one monitor run for a DataProvider. */
-  data class MonitorResult(
+  /** Outcome of a dispatch-only monitor run (the fast cadence) for a DataProvider. */
+  data class DispatchOnlyResult(
     /** Resource name of the upload dispatched this run, or null if none. */
     val dispatchedUpload: String?,
     /** Number of `CREATED` uploads held behind an in-progress upload. */
     val queuedUploads: Int,
+    /** Whether the dispatch sequencer threw this run (dispatch is broken for this DataProvider). */
+    val dispatchError: Boolean,
+  )
+
+  /** Outcome of a health monitor run (the slow cadence) for a DataProvider. */
+  data class HealthResult(
     /** Resource names of uploads stuck in a non-terminal state past the SLA. */
     val stuckUploads: List<String>,
     /** Resource names of model lines in `FAILED`. */
     val failedModelLines: List<String>,
-    /** Whether the dispatch sequencer threw this run (dispatch is broken for this DataProvider). */
-    val dispatchError: Boolean,
     /**
      * `(model line, event date)` pairs under COMPLETED model lines missing their labeled done blob.
      */
@@ -129,8 +134,7 @@ class VidLabelingMonitor(
   ) {
     val hasIssues: Boolean
       get() =
-        dispatchError ||
-          stuckUploads.isNotEmpty() ||
+        stuckUploads.isNotEmpty() ||
           failedModelLines.isNotEmpty() ||
           missingLabeledOutputs > 0 ||
           lateArrivingFiles > 0 ||
@@ -146,32 +150,21 @@ class VidLabelingMonitor(
   //   (ListPoolAssignmentJobs total_size with a state filter) and end-to-end recovery require
   //   that service, which is not yet in ancestry. Stuck-RANKING/stuck-LABELING recovery and the
   //   data-quality checks do not depend on it.
-  /** Delegates dispatch to the sequencer, then reports health issues for this DataProvider. */
-  suspend fun run(): MonitorResult {
+  /**
+   * Runs the fast dispatch cadence: delegates to the shared sequencer to start the oldest queued
+   * upload for this DataProvider. Does not run any health check.
+   */
+  suspend fun runDispatch(): DispatchOnlyResult {
     val dispatch: VidLabelingDispatchSequencer.DispatchResult =
       try {
         dispatchSequencer.dispatchNext()
       } catch (e: Exception) {
         // The sequencer wraps RPC failures (list calls, model-repo unavailable, non-ALREADY_EXISTS
         // creates) as plain exceptions. Surface them as a metric so operators can tell "dispatch
-        // broken" apart from "no work to do"; the staleness/failure checks below are skipped
-        // because
-        // they share the same backend that just failed.
+        // broken" apart from "no work to do".
         VidLabelingMonitorMetrics.dispatchErrorsGauge.set(1, dataProviderAttributes())
         logger.log(Level.SEVERE, "Dispatch failed for $dataProviderName", e)
-        return MonitorResult(
-          dispatchedUpload = null,
-          queuedUploads = 0,
-          stuckUploads = emptyList(),
-          failedModelLines = emptyList(),
-          dispatchError = true,
-          missingLabeledOutputs = 0,
-          lateArrivingFiles = 0,
-          missingDoneBlobs = 0,
-          zeroImpressionDates = 0,
-          missingRawFiles = 0,
-          recoveredTransitions = 0,
-        )
+        return DispatchOnlyResult(dispatchedUpload = null, queuedUploads = 0, dispatchError = true)
       }
     VidLabelingMonitorMetrics.dispatchErrorsGauge.set(0, dataProviderAttributes())
 
@@ -183,17 +176,26 @@ class VidLabelingMonitor(
       dispatch.queuedUploads.toLong(),
       dataProviderAttributes(),
     )
+    return DispatchOnlyResult(
+      dispatchedUpload = dispatch.dispatchedUpload,
+      queuedUploads = dispatch.queuedUploads,
+      dispatchError = false,
+    )
+  }
 
+  /**
+   * Runs the slow health cadence: staleness/failure monitoring, stuck-phase recovery, and
+   * data-quality checks over a single snapshot of this DataProvider's uploads and model lines. Does
+   * not dispatch.
+   */
+  suspend fun runHealth(): HealthResult {
     val snapshot = RunSnapshot(listAllUploads().groupBy { it.state })
     val (stuckUploads, failedModelLines) = checkFailuresAndStaleness(snapshot)
     val recoveredTransitions = recoverStuckPhases(snapshot)
     val dataQuality = checkDataQuality(snapshot)
-    return MonitorResult(
-      dispatchedUpload = dispatch.dispatchedUpload,
-      queuedUploads = dispatch.queuedUploads,
+    return HealthResult(
       stuckUploads = stuckUploads,
       failedModelLines = failedModelLines,
-      dispatchError = false,
       missingLabeledOutputs = dataQuality.missingLabeledOutputs,
       lateArrivingFiles = dataQuality.lateArrivingFiles,
       missingDoneBlobs = dataQuality.missingDoneBlobs,
