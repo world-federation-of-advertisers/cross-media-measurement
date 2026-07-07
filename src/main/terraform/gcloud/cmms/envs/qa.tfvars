@@ -1,0 +1,11 @@
+spanner_processing_units                          = 1000
+secure_computation_storage_bucket_name            = "secure-computation-storage-qa-bucket"
+edpa_config_files_bucket_name                     = "edpa-configs-storage-qa-bucket"
+key_ring_name                                     = "halo"
+results_fulfiller_event_proto_descriptor_blob_uri = "gs://edpa-configs-storage-qa-bucket/results_fulfiller_event_proto_descriptor.pb"
+results_fulfiller_event_template_type_name        = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+results_fulfiller_population_spec_blob_uri        = "gs://edpa-configs-storage-qa-bucket/results-fulfiller-population-spec.textproto"
+edpa_model_line_map                               = "modelProviders/eaaPUbwUC5c/modelSuites/NMtDnLwcnNo/modelLines/PFUW1Lwcnyo"
+metadata_storage_public_api_target                = "system.edp-aggregator.qa.halo-cmm.org:8443"
+secure_computation_public_api_target              = "v1alpha.secure-computation.qa.halo-cmm.org:8443"
+dashboard_deletion_protection                     = true
