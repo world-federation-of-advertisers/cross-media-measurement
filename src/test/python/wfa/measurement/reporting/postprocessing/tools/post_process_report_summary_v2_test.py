@@ -1617,14 +1617,15 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
                             100)
 
 
-    def test_duplicate_edp_combination_metric_names_back_filled(self):
+    def test_duplicate_edp_combination_metric_names_propagated(self):
         # Two ReportSummarySetResults with identical (impression_filter,
         # frozenset(data_providers)) but different metric names -- the shape
-        # produced by two composite ReportingSets whose set-expressions permute
-        # the same DP list (two-anchor stackedIncrementalReach). The solver
-        # sees one bucket (correct), but both RSRs must appear in
-        # updated_measurements so the response builder can look each up by its
-        # own metric name.
+        # produced by two composite ReportingSets whose set-expressions
+        # permute the same DataProvider list (two-anchor
+        # stackedIncrementalReach). The solver sees one bucket (correct),
+        # but the response builder still looks each ReportSummarySetResult
+        # up by its own metric name, so both metric names must appear in
+        # updated_measurements.
         report_summary_textproto = """
             cmms_measurement_consumer_id: "NsQ4CS3K1to"
             external_report_result_id: 456
@@ -1666,8 +1667,8 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         result = ReportSummaryV2Processor(report_summary, []).process()
 
         # Both metric names present, both equal to the solver's single
-        # per-bucket solved value. Without the alias back-fill, only the
-        # winning name (whichever proto-message ordering the dict-overwrite
+        # per-bucket solved value. Without alias propagation, only the
+        # canonical name (whichever proto-message ordering the dict-overwrite
         # settled on) would be present and the other lookup would KeyError.
         self.assertIn("anchor_dp1_reach", result.updated_measurements)
         self.assertIn("anchor_dp2_reach", result.updated_measurements)
@@ -1677,16 +1678,16 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         )
         self.assertEqual(result.updated_measurements["anchor_dp1_reach"], 500)
 
-    def test_three_composites_collapse_all_names_back_filled(self):
+    def test_three_composites_collapse_all_names_propagated(self):
         # Three ReportSummarySetResults with identical (impression_filter,
-        # edp_combination). Exercises the alias-chain resolution: RSR1 gets
-        # displaced by RSR2, RSR2 gets displaced by RSR3, so at record time
-        # RSR1's alias must chain through to RSR3 rather than pointing at
-        # RSR2 (which is itself no longer in updated_measurements after the
-        # solver runs). Without _add_alias resolving through the chain, the
-        # single-hop back-fill loop would skip RSR1 (canonical=name2 not in
-        # updated_measurements) whenever dict iteration puts the RSR1->RSR2
-        # entry before the RSR2->RSR3 entry.
+        # edp_combination). Exercises the alias-chain resolution: results
+        # 1 and 2 get aliased to result 3 in turn. At record time, result 1's
+        # alias must chain through to result 3 rather than pointing at
+        # result 2's metric-name (which is itself no longer in
+        # updated_measurements after the solver runs). Without _add_alias
+        # resolving through the chain, the single-hop propagation loop would
+        # skip result 1 whenever dict iteration puts the (result 1 -> result 2)
+        # entry before the (result 2 -> result 3) entry.
         report_summary_textproto = """
             cmms_measurement_consumer_id: "NsQ4CS3K1to"
             external_report_result_id: 456
@@ -1748,17 +1749,19 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
 
 
     def test_union_only_report_solver_feasibility(self):
-        # Regression for the primal-infeasibility in _add_impression_relations_to_spec
-        # when a report has only a union RSR (no per-EDP primitives).
+        # Regression for the failure in _add_impression_relations_to_spec
+        # when a report has only cross-publisher union ReportSummarySetResults
+        # (no per-EDP primitives).
         #
-        # Previously, the union = sum(per-EDP) equality constraint was emitted with
-        # an empty singletons list, degenerating to `union_impression = 0`. Combined
-        # with the measured value's own equality, the QP solver saw contradictory
-        # equalities on the same variable and returned SOLUTION_NOT_FOUND.
+        # Previously, the "cross-publisher total equals sum of per-EDP totals"
+        # constraint was emitted with an empty per-EDP list, degenerating to
+        # "cross-publisher total = 0". Combined with the measured value's own
+        # equality, the solver had no solution and returned SOLUTION_NOT_FOUND.
         #
-        # This shape corresponds to a BasicReport requesting `reporting_unit.cumulative
-        # + reporting_unit.non_cumulative` weekly with no `component` subfield -- a
-        # plausible caller shape (weekly cross-publisher aggregate dashboard).
+        # This corresponds to a BasicReport requesting
+        # `reporting_unit.cumulative + reporting_unit.non_cumulative` weekly
+        # with no `component` subfield -- a plausible caller shape (weekly
+        # cross-publisher aggregate dashboard).
         proto = ('cmms_measurement_consumer_id: "MC1"\n'
                  'external_report_result_id: 456\n'
                  'population: 34288880\n'
@@ -1817,22 +1820,25 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         self.assertEqual(result.updated_measurements["nc_w1_impr"], 2126)
         self.assertEqual(result.updated_measurements["nc_w2_impr"], 6734)
         # whole_campaign shape exercises the whole_campaign branch of the
-        # tightened guard -- with only a union RSR present, the branch's
-        # single_edp_subset is empty and must be skipped.
+        # tightened guard -- with only a cross-publisher union
+        # ReportSummarySetResult present, no per-EDP totals exist and the
+        # constraint must be skipped.
         self.assertEqual(result.updated_measurements["wc_reach"], 5330)
         self.assertEqual(result.updated_measurements["wc_impr"], 8860)
 
 
 
-    def test_partial_singleton_cover_whole_campaign_impression_skipped(self):
-        # Regression for the partial-cover shape on the whole_campaign branch of
-        # _add_impression_relations_to_spec. Pre-fix (empty-only guard) the
-        # {edp1, edp2, edp3} whole-campaign impression equality would fire with
-        # single_edp_subset = [{edp1}, {edp2}] and silently constrain
-        # union_impression = edp1_impression + edp2_impression, which is wrong
-        # (edp3's contribution is dropped, and the solver adjusts edp1 and edp2
-        # downward to compensate). Post-fix (< len guard) the equality is skipped
-        # and every impression measurement flows through unchanged.
+    def test_partial_cover_whole_campaign_impression_skipped(self):
+        # Regression for the partial-per-EDP-cover shape on the whole_campaign
+        # branch of _add_impression_relations_to_spec. Pre-fix (empty-only
+        # guard) the {edp1, edp2, edp3} cross-publisher impression constraint
+        # would fire with only per-EDP totals for edp1 and edp2 present,
+        # silently constraining
+        # `cross-publisher total = edp1_impression + edp2_impression`, which
+        # is wrong (edp3's contribution is dropped, and the solver adjusts
+        # edp1 and edp2 downward to compensate). Post-fix (< len guard) the
+        # constraint is skipped and every impression measurement flows
+        # through unchanged.
         proto = ('cmms_measurement_consumer_id: "MC1"\n'
                  'external_report_result_id: 456\n'
                  'population: 34288880\n'
@@ -1872,17 +1878,17 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             proto, report_summary_v2_pb2.ReportSummaryV2()
         )
         result = ReportSummaryV2Processor(report_summary, []).process()
-        # With sigma=0 and the partial-cover equality skipped, every impression
+        # With sigma=0 and the partial-per-EDP-cover constraint skipped, every impression
         # value flows through unchanged. Pre-fix, union_impr would be adjusted
         # down to edp1_impr + edp2_impr = 15000 (not 30000).
         self.assertEqual(result.updated_measurements["union_impr"], 30000)
         self.assertEqual(result.updated_measurements["edp1_impr"], 8000)
         self.assertEqual(result.updated_measurements["edp2_impr"], 7000)
 
-    def test_partial_singleton_cover_weekly_non_cumulative_impression_skipped(self):
-        # Regression for the partial-cover shape on the weekly_non_cumulative
-        # branch of _add_impression_relations_to_spec (analog of the
-        # whole_campaign test above).
+    def test_partial_cover_weekly_non_cumulative_impression_skipped(self):
+        # Same partial-per-EDP-cover shape as the whole_campaign test above,
+        # on the weekly_non_cumulative branch of
+        # _add_impression_relations_to_spec.
         proto = ('cmms_measurement_consumer_id: "MC1"\n'
                  'external_report_result_id: 456\n'
                  'population: 34288880\n'
@@ -1946,20 +1952,22 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
 
 
 
-    def test_full_shape_collapsing_rsrs_all_alias_paths_back_filled(self):
-        # Coverage for every alias code path in one shot: two RSRs share
-        # (impression_filter, frozenset(data_providers)) via permuted
-        # data_providers ordering. Each carries cumulative_results (drives
+    def test_full_shape_collapsing_results_all_alias_paths_propagated(self):
+        # Coverage for every alias code path in one shot: two
+        # ReportSummarySetResults share (impression_filter,
+        # frozenset(data_providers)) via permuted data_providers ordering.
+        # Each carries cumulative_results (drives
         # _record_measurement_list_aliases, a list-of-reach path),
         # non_cumulative_results with impression_count and frequency bins
         # (drives the strict=True zip through _record_measurement_set_aliases
-        # -- covering reach arm, impression arm, and k_reach-bin aliasing), and
-        # whole_campaign_result with impression_count and frequency bins
+        # -- covering reach arm, impression arm, and k_reach-bin aliasing),
+        # and whole_campaign_result with impression_count and frequency bins
         # (drives the whole_campaign _record_measurement_set_aliases branch,
         # including all three of its arms). Impression aliasing is
         # solver-feasible on this branch (unlike #4136 in isolation) because
-        # the partial-cover impression-equality guard tightened in this PR
-        # skips union = sum(singles) when singletons are absent.
+        # the cross-publisher-total-equals-sum-of-per-EDP-totals guard
+        # tightened in this PR skips that constraint when a per-EDP total
+        # is missing for any EDP.
         proto = ('cmms_measurement_consumer_id: "MC1"\n'
                  'external_report_result_id: 456\n'
                  'population: 34288880\n'

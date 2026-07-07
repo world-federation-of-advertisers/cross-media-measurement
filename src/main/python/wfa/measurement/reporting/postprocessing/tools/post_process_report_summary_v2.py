@@ -74,19 +74,23 @@ class ReportSummaryV2Processor:
         self._whole_campaign_measurements: dict[ImpressionFilter,
                                                 dict[EdpCombination,
                                                      MeasurementSet]] = {}
-        # Map of aliased metric-name -> canonical metric-name for
-        # ReportSummarySetResults that share (impression_filter, frozenset(
-        # data_providers)) with an earlier ReportSummarySetResult. Two composite
-        # ReportingSets that differ only by DP-ordering in their set-expression
-        # have identical EG membership and thus identical underlying VIDs, so
-        # they measure the same true quantity. We feed the solver a single
-        # Measurement per (filter, edp_combination) (correct) but the response-
-        # builder in post_process_report_result.py:_process_window_results looks
-        # up each ReportingSetResult by its own metric_name -- so any RSR whose
-        # metric_name was displaced during solver-input construction has no
-        # entry in updated_measurements and crashes with KeyError. After solver
-        # completion we back-fill each displaced name with the winning name's
-        # solved value.
+        # Map of aliased-metric-name -> canonical-metric-name.
+        #
+        # Two ReportSummarySetResults that share (impression_filter,
+        # frozenset(data_providers)) measure the same true quantity -- e.g.
+        # two composite ReportingSets whose set-expressions permute the same
+        # DataProvider list have identical EventGroup membership. We feed the
+        # solver a single Measurement per (filter, edp_combination), so only
+        # one metric-name per bucket survives solver-input construction. The
+        # response builder (post_process_report_result.py:
+        # _process_window_results) then looks up each ReportSummarySetResult
+        # by its OWN metric-name and would crash with KeyError on the ones
+        # that were folded into a shared bucket.
+        #
+        # This map remembers which metric-names got folded away (aliased)
+        # into which surviving metric-name (canonical). After the solver
+        # produces corrected values, we propagate each canonical's value
+        # into its aliases so every response-builder lookup succeeds.
         self._metric_name_aliases: dict[str, str] = {}
 
     def _build_report(self) -> Report:
@@ -193,12 +197,12 @@ class ReportSummaryV2Processor:
                     if edp_combination in bucket:
                         old_sets = bucket[edp_combination]
                         # strict=True mirrors the cumulative path's
-                        # _record_measurement_list_aliases length guard: a
-                        # cadence-length mismatch between two RSRs sharing
-                        # (filter, edp_combination) is an upstream contract
-                        # violation and must raise, not silently leave the extra
-                        # displaced names un-aliased (which would reintroduce
-                        # the KeyError this PR fixes).
+                        # length guard: two ReportSummarySetResults sharing
+                        # (impression_filter, edp_combination) must agree on
+                        # cadence length. A mismatch is an upstream contract
+                        # violation and must raise; silently leaving the
+                        # extra aliased names unpropagated would reintroduce
+                        # the KeyError this fix prevents.
                         for old_set, new_set in zip(old_sets,
                                                     new_measurement_sets,
                                                     strict=True):
@@ -250,66 +254,68 @@ class ReportSummaryV2Processor:
                               impression=impression)
 
     def _record_measurement_list_aliases(
-            self, displaced: list[Measurement],
-            winning: list[Measurement]) -> None:
-        """Records each displaced Measurement's name as an alias of the
-        corresponding winning Measurement's name.
+            self, aliased: list[Measurement],
+            canonical: list[Measurement]) -> None:
+        """Records aliases for parallel weekly-cadence Measurement lists.
 
         The two lists correspond to the same weekly cadence for the same
-        (impression_filter, edp_combination) -- so entry i of `displaced` and
-        entry i of `winning` measure the same true quantity through different
-        ReportingSetResults' metric-name conventions.
+        (impression_filter, edp_combination) via two different
+        ReportSummarySetResults. Entry i of each list measures the same true
+        quantity under a different metric-name; entry i of `aliased` gets
+        recorded as an alias of entry i of `canonical`.
         """
-        if len(displaced) != len(winning):
+        if len(aliased) != len(canonical):
             raise ValueError(
-                f"Displaced measurement list has length {len(displaced)} but "
-                f"winning list has length {len(winning)}; two "
+                f"Aliased measurement list has length {len(aliased)} but "
+                f"canonical list has length {len(canonical)}; two "
                 f"ReportSummarySetResults sharing (impression_filter, "
                 f"edp_combination) must agree on cadence length.")
-        for old, new in zip(displaced, winning):
+        for old, new in zip(aliased, canonical):
             if old.name != new.name:
                 self._add_alias(old.name, new.name)
 
-    def _record_measurement_set_aliases(self, displaced: MeasurementSet,
-                                        winning: MeasurementSet) -> None:
+    def _record_measurement_set_aliases(self, aliased: MeasurementSet,
+                                        canonical: MeasurementSet) -> None:
         """Records aliases for every Measurement inside a MeasurementSet."""
-        if displaced.reach is not None and winning.reach is not None:
-            if displaced.reach.name != winning.reach.name:
-                self._add_alias(displaced.reach.name, winning.reach.name)
-        if displaced.impression is not None and winning.impression is not None:
-            if displaced.impression.name != winning.impression.name:
-                self._add_alias(displaced.impression.name,
-                                winning.impression.name)
+        if aliased.reach is not None and canonical.reach is not None:
+            if aliased.reach.name != canonical.reach.name:
+                self._add_alias(aliased.reach.name, canonical.reach.name)
+        if aliased.impression is not None and canonical.impression is not None:
+            if aliased.impression.name != canonical.impression.name:
+                self._add_alias(aliased.impression.name,
+                                canonical.impression.name)
         # k_reach: keys are frequency bins. Alias only where both sides have
-        # the same bin. If displaced has a bin absent from winning, that
-        # bin's metric_name is never back-filled; the response builder looks
+        # the same bin. If `aliased` has a bin absent from `canonical`, that
+        # bin's metric-name is never propagated; the response builder looks
         # up frequency bins with updated_measurements.get(name,
         # bin_result.value) (post_process_report_result.py:_process_window_results),
         # so it silently returns the *uncorrected raw* value rather than
-        # KeyError. This only happens on a shape divergence between two RSRs
-        # sharing (filter, edps), which we treat as an upstream contract
-        # violation.
-        for bin_key, new_meas in winning.k_reach.items():
-            old_meas = displaced.k_reach.get(bin_key)
+        # KeyError. This only happens on a shape divergence between two
+        # ReportSummarySetResults sharing (impression_filter, edp_combination),
+        # which we treat as an upstream contract violation.
+        for bin_key, new_meas in canonical.k_reach.items():
+            old_meas = aliased.k_reach.get(bin_key)
             if old_meas is not None and old_meas.name != new_meas.name:
                 self._add_alias(old_meas.name, new_meas.name)
 
     def _add_alias(self, aliased_name: str, canonical_name: str) -> None:
-        """Records aliased_name -> canonical_name and keeps
-        _metric_name_aliases flat so the back-fill loop resolves every entry
-        in one hop regardless of dict iteration order.
+        """Records `aliased_name -> canonical_name` and keeps
+        _metric_name_aliases flat so the propagation loop resolves every
+        entry in one hop regardless of dict iteration order.
 
-        Two forms of flattening:
-          1. If canonical_name is itself an aliased key (e.g. RSR1 already
-             aliased to RSR2, and now RSR2 is being aliased to RSR3), chain
-             through so the recorded target is the ultimate canonical.
-          2. If any existing alias pointed at aliased_name (i.e. a prior
-             displacement recorded X -> aliased_name because aliased_name
-             was then the canonical), retarget those entries to the new
-             canonical. Without this, when the third displacement in a
-             chain arrives, earlier entries would still point at an
-             intermediate name that is no longer in updated_measurements
-             after the solver runs, and back-fill would skip them.
+        Two forms of flattening handle chained collisions when 3 or more
+        ReportSummarySetResults share the same (impression_filter,
+        edp_combination):
+          1. If `canonical_name` is itself an aliased key (a previously
+             canonical name has since been aliased to something newer),
+             follow the chain and record the ultimate target.
+          2. If any existing alias pointed at `aliased_name` (that name
+             was previously canonical for some entries), retarget those
+             entries to the new canonical too. Without this, when the
+             third collision arrives, earlier entries would still point
+             at an intermediate name that is no longer in
+             updated_measurements after the solver runs, and the
+             propagation loop would skip them.
         """
         canonical = canonical_name
         while canonical in self._metric_name_aliases:
@@ -354,13 +360,13 @@ class ReportSummaryV2Processor:
         report_post_processor_result.updated_measurements.update(
             metric_name_to_value)
 
-        # Back-fill solved values for metric names that were displaced during
-        # solver-input construction (see _metric_name_aliases docstring on the
-        # constructor). Without this the response builder in
-        # post_process_report_result.py:_process_window_results throws
-        # KeyError when it iterates ReportingSetResults whose metric_name was
-        # not the winning one for its (impression_filter, edp_combination)
-        # bucket.
+        # Propagate solved values to metric-names that were folded away
+        # during solver-input construction (see _metric_name_aliases
+        # docstring on the constructor). Without this the response builder
+        # in post_process_report_result.py:_process_window_results throws
+        # KeyError when it iterates ReportSummarySetResults whose
+        # metric-name was not the canonical one for its
+        # (impression_filter, edp_combination) bucket.
         for aliased_name, canonical_name in self._metric_name_aliases.items():
             if canonical_name in report_post_processor_result.updated_measurements:
                 report_post_processor_result.updated_measurements[aliased_name] = (
