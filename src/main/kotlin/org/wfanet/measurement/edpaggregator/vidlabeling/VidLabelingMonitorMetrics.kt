@@ -104,8 +104,12 @@ object VidLabelingMonitorMetrics {
         .build()
 
   /**
-   * Current number of raw impression files missing one or more of their expected VID-labeled output
-   * files this scan. Keyed by [DATA_PROVIDER_ATTR].
+   * Current number of `VidLabelingJob`s under a COMPLETED model line that did not reach SUCCEEDED
+   * (CREATED or FAILED) this scan. Keyed by [DATA_PROVIDER_ATTR].
+   *
+   * Keyed off job state rather than a storage-blob census: the labeler marks a job SUCCEEDED when
+   * it finishes whether or not it wrote output, so a model line that legitimately drops every
+   * impression (e.g. a backfill outside the active window) reads as `0`, not a false positive.
    *
    * A gauge (not a counter): a steady-state data-quality observation, set each run (including `0`)
    * so a recovered DataProvider reads back to `0` rather than a counter that grows forever.
@@ -114,10 +118,8 @@ object VidLabelingMonitorMetrics {
     get() =
       Instrumentation.meter
         .gaugeBuilder("edpa.vid_labeling_monitor.missing_labeled_outputs")
-        .setDescription(
-          "Raw impression files missing one or more expected VID-labeled outputs (per model line)"
-        )
-        .setUnit("{file}")
+        .setDescription("VidLabelingJobs under a COMPLETED model line that did not reach SUCCEEDED")
+        .setUnit("{job}")
         .ofLongs()
         .build()
 
