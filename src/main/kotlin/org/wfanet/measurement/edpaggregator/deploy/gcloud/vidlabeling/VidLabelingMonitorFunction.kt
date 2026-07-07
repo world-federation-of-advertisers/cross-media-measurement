@@ -73,11 +73,17 @@ private data class ChannelKey(
 /**
  * Cloud Function that drives VID labeling dispatch sequencing and monitors pipeline health.
  *
- * Designed to be invoked on a schedule (e.g., every 30 minutes via Cloud Scheduler). For each
- * configured [VidLabelingConfig] it builds one [VidLabelingMonitor] keyed on the config's
- * `DataProvider` and runs it. Per DataProvider the monitor dispatches at most one `CREATED` upload
- * when none are `ACTIVE`, and logs uploads stuck past the staleness SLA and model lines in `FAILED`
- * at `SEVERE` for Cloud Monitoring alerting.
+ * Invoked by two Cloud Scheduler jobs against this one endpoint, selected by the `mode` query
+ * parameter (anything else is rejected with HTTP 400):
+ * - `?mode=dispatch` on a fast cadence (~6h) runs [VidLabelingMonitor.runDispatch] only, so a
+ *   newly-registered upload starts promptly.
+ * - `?mode=health` on a slow cadence (~daily, matching the DataAvailabilityMonitor) runs
+ *   [VidLabelingMonitor.runHealth] only: staleness/failure monitoring, stuck-phase recovery, and
+ *   data-quality checks. Recovery wants a slow, well-spaced clock so it never races an in-flight
+ *   last-out.
+ *
+ * For each configured [VidLabelingConfig] it builds one [VidLabelingMonitor] keyed on the config's
+ * `DataProvider` and runs the selected cadence.
  *
  * Unlike [VidLabelingDispatcherFunction], this function is not triggered by a DataWatcher "done"
  * blob and does not read storage; it lists uploads through the `RawImpressionUploadService`
@@ -111,6 +117,23 @@ private data class ChannelKey(
  * Configuration is loaded eagerly at class initialization via [runBlocking]. If the config blob is
  * unavailable at startup, the Cloud Function class will fail to load (fail-fast).
  */
+/** Cadence the [VidLabelingMonitorFunction] runs, selected by the `mode` query parameter. */
+enum class MonitorMode {
+  DISPATCH,
+  HEALTH,
+}
+
+/**
+ * Maps the `mode` query parameter to a [MonitorMode], or null if it is missing or unrecognized (the
+ * function rejects that with HTTP 400).
+ */
+fun parseMonitorMode(rawMode: String?): MonitorMode? =
+  when (rawMode) {
+    "dispatch" -> MonitorMode.DISPATCH
+    "health" -> MonitorMode.HEALTH
+    else -> null
+  }
+
 class VidLabelingMonitorFunction : HttpFunction {
   init {
     EdpaTelemetry.ensureInitialized()
@@ -118,7 +141,14 @@ class VidLabelingMonitorFunction : HttpFunction {
 
   override fun service(request: HttpRequest, response: HttpResponse) {
     try {
-      logger.info("Starting VidLabelingMonitorFunction")
+      val mode: MonitorMode? = parseMonitorMode(request.getFirstQueryParameter("mode").orElse(null))
+      if (mode == null) {
+        logger.warning("Rejecting request with missing or invalid 'mode' query parameter")
+        response.setStatusCode(400)
+        response.writer.write("Query parameter 'mode' must be 'dispatch' or 'health'.")
+        return
+      }
+      logger.info("Starting VidLabelingMonitorFunction in $mode mode")
 
       // HttpFunction.service is synchronous; runBlocking bridges to suspend functions.
       // Each config is isolated: one DataProvider's failure (e.g. a config that fails the
@@ -128,7 +158,7 @@ class VidLabelingMonitorFunction : HttpFunction {
         monitorConfigs.configsList
           .map { config ->
             try {
-              runMonitorForConfig(config)
+              runMonitorForConfig(config, mode)
             } catch (e: Exception) {
               logger.log(Level.SEVERE, "Monitor failed for ${config.dataProvider}", e)
               true
@@ -154,11 +184,12 @@ class VidLabelingMonitorFunction : HttpFunction {
   }
 
   /**
-   * Builds and runs a [VidLabelingMonitor] for a single [config]'s DataProvider.
+   * Builds a [VidLabelingMonitor] for a single [config]'s DataProvider and runs the [mode] cadence.
    *
-   * @return `true` if the monitor reported stuck uploads or failed model lines for this config.
+   * @return `true` if this config had an issue: a dispatch failure in [MonitorMode.DISPATCH], or
+   *   any health issue in [MonitorMode.HEALTH].
    */
-  private suspend fun runMonitorForConfig(config: VidLabelingConfig): Boolean {
+  private suspend fun runMonitorForConfig(config: VidLabelingConfig, mode: MonitorMode): Boolean {
     require(config.numberOfShards > 0) {
       "number_of_shards must be positive for data provider: ${config.dataProvider}"
     }
@@ -282,11 +313,16 @@ class VidLabelingMonitorFunction : HttpFunction {
         workItemsStub = workItemsStub,
       )
 
-    val result = monitor.run()
-    if (result.dispatchedUpload != null) {
-      logger.info("Dispatched ${result.dispatchedUpload} for ${config.dataProvider}")
+    return when (mode) {
+      MonitorMode.DISPATCH -> {
+        val result = monitor.runDispatch()
+        if (result.dispatchedUpload != null) {
+          logger.info("Dispatched ${result.dispatchedUpload} for ${config.dataProvider}")
+        }
+        result.dispatchError
+      }
+      MonitorMode.HEALTH -> monitor.runHealth().hasIssues
     }
-    return result.hasIssues
   }
 
   companion object {

@@ -55,3 +55,15 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
 )
+
+kt_jvm_test(
+    name = "VidLabelingMonitorModeTest",
+    srcs = ["VidLabelingMonitorModeTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingMonitorModeTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:vid_labeling_monitor_function",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
