@@ -105,6 +105,12 @@ reporting: #Reporting & {
 				resources: #PublicServerResourceRequirements
 			}
 		}
+		"reporting-mcp-server": {
+			_container: {
+				_javaOptions: maxHeapSize: #PublicServerMaxHeapSize
+				resources: #PublicServerResourceRequirements
+			}
+		}
 		"access-internal-api-server": {
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalAccessServerServiceAccount

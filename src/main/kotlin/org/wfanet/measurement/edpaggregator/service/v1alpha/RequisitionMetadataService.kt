@@ -187,7 +187,6 @@ class RequisitionMetadataService(
         ?: throw InvalidFieldValueException("parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    val blobUriSet = mutableSetOf<String>()
     val cmmsRequisitionSet = mutableSetOf<String>()
     val requestIdSet = mutableSetOf<String>()
 
@@ -198,13 +197,11 @@ class RequisitionMetadataService(
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
-        val blobUri = it.requisitionMetadata.blobUri
-        if (!blobUriSet.add(blobUri)) {
-          throw InvalidFieldValueException("requests.$index.requisition_metadata.blob_uri") {
-              "blob uri $blobUri is duplicate in the batch of requests"
-            }
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
+        // Multiple RequisitionMetadata rows may share a blob_uri: one GroupedRequisitions blob
+        // covers every requisition for a (reportId, updateTime) tuple, so every metadata row in
+        // such a batch points at the same blob. The legacy unique index on
+        // (DataProviderResourceId, BlobUri) was dropped by drop-blob-uri-index.sql; the batch
+        // path no longer dedups blob_uri across the batch.
 
         val cmmsRequisition = it.requisitionMetadata.cmmsRequisition
         if (!cmmsRequisitionSet.add(cmmsRequisition)) {

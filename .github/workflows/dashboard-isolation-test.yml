@@ -1,0 +1,201 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Run Dashboard Isolation Test
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "GitHub-managed environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - qa
+
+permissions:
+  contents: read
+
+jobs:
+  trigger-scheduled-queries:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+    environment: ${{ inputs.environment }}
+    outputs:
+      edp_config: ${{ steps.load-edp-config.outputs.edp_config }}
+    steps:
+      - name: Load EDP config from environment vars
+        id: load-edp-config
+        env:
+          EDP_CONFIG: ${{ vars.DASHBOARD_EDP_CONFIG }}
+        run: |
+          if [ -z "$EDP_CONFIG" ]; then
+            echo "vars.DASHBOARD_EDP_CONFIG is empty for environment ${{ inputs.environment }}" >&2
+            exit 1
+          fi
+          echo "edp_config=$EDP_CONFIG" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+
+      - name: Trigger all dashboard scheduled queries
+        env:
+          PROJECT: ${{ vars.GOOGLE_CLOUD_PROJECT }}
+          REGION: ${{ vars.BIGQUERY_REGION }}
+        run: |
+          set -euo pipefail
+          RUN_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          # BigQuery Data Transfer REST API directly. `bq` and `gcloud transfer` both fail
+          # under Workload Identity Federation (bq calls `gcloud config config-helper` which
+          # errors without a user account; `gcloud transfer` is the wrong service entirely).
+          # `gcloud auth print-access-token` works fine with WIF and returns a token accepted
+          # by the REST API.
+          TOKEN=$(gcloud auth print-access-token)
+          API="https://bigquerydatatransfer.googleapis.com/v1"
+
+          echo "Listing dashboard transfer configs..."
+          LIST_URL="$API/projects/$PROJECT/locations/$REGION/transferConfigs?dataSourceIds=scheduled_query&pageSize=100"
+          CONFIGS=$(curl -sS -H "Authorization: Bearer $TOKEN" "$LIST_URL" \
+            | jq -r '.transferConfigs[]? | select(.displayName | startswith("Dashboard")) | .name')
+
+          if [ -z "$CONFIGS" ]; then
+            echo "No dashboard transfer configs found"
+            exit 1
+          fi
+
+          echo "Triggering manual runs..."
+          declare -A RUN_NAMES
+          for config in $CONFIGS; do
+            echo "  Triggering: $config"
+            RUN_JSON=$(curl -sS -X POST -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Type: application/json" \
+              --data "{\"requestedRunTime\":\"$RUN_TIME\"}" \
+              "$API/$config:startManualRuns")
+            # Response contains { "runs": [ { "name": "...", ... } ] }.
+            # jq -r prints the literal string "null" (not empty) when .runs[0].name
+            # is absent, which would otherwise cause the poll loop below to hit
+            # $API/null repeatedly and fail as an opaque timeout. Fail fast instead.
+            RUN_NAME=$(echo "$RUN_JSON" | jq -r '.runs[0].name')
+            if [ -z "$RUN_NAME" ] || [ "$RUN_NAME" = "null" ]; then
+              echo "startManualRuns returned no runs for $config; response was:" >&2
+              echo "$RUN_JSON" >&2
+              exit 1
+            fi
+            RUN_NAMES[$config]=$RUN_NAME
+          done
+
+          echo "Waiting for runs to complete..."
+          MAX_WAIT=300
+          ELAPSED=0
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            ALL_DONE=true
+            for config in $CONFIGS; do
+              RUN_NAME=${RUN_NAMES[$config]}
+              STATUS=$(curl -sS -H "Authorization: Bearer $TOKEN" "$API/$RUN_NAME" | jq -r '.state')
+              if [ "$STATUS" != "SUCCEEDED" ] && [ "$STATUS" != "FAILED" ]; then
+                ALL_DONE=false
+                break
+              fi
+              if [ "$STATUS" = "FAILED" ]; then
+                echo "Transfer run failed for $config"
+                exit 1
+              fi
+            done
+            if [ "$ALL_DONE" = true ]; then
+              echo "All scheduled queries completed successfully"
+              exit 0
+            fi
+            sleep 10
+            ELAPSED=$((ELAPSED + 10))
+            echo "  Waiting... ($ELAPSED/${MAX_WAIT}s)"
+          done
+          echo "Timed out waiting for scheduled queries"
+          exit 1
+
+  run-tests:
+    needs: [trigger-scheduled-queries]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+    environment: ${{ inputs.environment }}
+    strategy:
+      matrix:
+        edp: ${{ fromJson(needs.trigger-scheduled-queries.outputs.edp_config) }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Set up Bazel
+        uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+
+      - name: Write auth.bazelrc
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+        run: |
+          cat << EOF > auth.bazelrc
+          build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+          EOF
+
+      - name: Write ~/.bazelrc
+        run: |
+          cat << EOF > ~/.bazelrc
+          common --config=ci
+          test --test_output=streamed
+          test --test_timeout=300
+          EOF
+
+      - name: Run Dashboard Isolation Tests
+        id: run-tests
+        env:
+          GOOGLE_CLOUD_PROJECT: ${{ vars.GOOGLE_CLOUD_PROJECT }}
+          BIGQUERY_REGION: ${{ vars.BIGQUERY_REGION }}
+          EDP_NAME: ${{ matrix.edp.name }}
+          EDP_RESOURCE_ID: ${{ matrix.edp.resource_id }}
+          INSPECTOR_IMPERSONATE_SA: dashboard-compliance@${{ vars.GOOGLE_CLOUD_PROJECT }}.iam.gserviceaccount.com
+          EDP_DELEGATES: dashboard-compliance@${{ vars.GOOGLE_CLOUD_PROJECT }}.iam.gserviceaccount.com
+          EDP_IMPERSONATE_SA: edp-${{ matrix.edp.name }}-dashboard@${{ vars.GOOGLE_CLOUD_PROJECT }}.iam.gserviceaccount.com
+        run: |
+          bazel test \
+          --test_env=GOOGLE_APPLICATION_CREDENTIALS \
+          --test_env=GOOGLE_CLOUD_PROJECT \
+          --test_env=BIGQUERY_REGION \
+          --test_env=EDP_NAME \
+          --test_env=EDP_RESOURCE_ID \
+          --test_env=EDP_IMPERSONATE_SA \
+          --test_env=INSPECTOR_IMPERSONATE_SA \
+          --test_env=EDP_DELEGATES \
+          //src/test/kotlin/org/wfanet/measurement/integration/k8s:DashboardIsolationTest
+
+      - name: Upload Bazel testlogs
+        continue-on-error: true
+        uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
+        if: failure() && steps.run-tests.outcome == 'failure'

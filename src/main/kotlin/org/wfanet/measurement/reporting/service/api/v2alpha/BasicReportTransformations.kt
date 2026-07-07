@@ -18,7 +18,6 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.Descriptors
 import org.wfanet.measurement.api.v2alpha.DataProvider
-import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField as InternalEventTemplateField
@@ -68,8 +67,9 @@ private data class MetricCalculationSpecInfo(
  * @param campaignGroupName resource name of [ReportingSet] that is a campaign group
  * @param impressionQualificationFilterSpecsLists List of List of
  *   [ImpressionQualificationFilterSpec] for each [ReportingImpressionQualificationFilter]
- * @param dataProviderPrimitiveReportingSetMap Map of [DataProvider] resource name to primitive
- *   [ReportingSet] containing associated [EventGroup] resource names
+ * @param dataProviderPrimitiveReportingSetMap Map of reporting_unit component resource name to the
+ *   primitive [ReportingSet] used for it. The key is a [DataProvider] resource name when the
+ *   component is a DataProvider, or a [ReportingSet] resource name when it is a ReportingSet.
  * @param resultGroupSpecs List of [ResultGroupSpec] to transform
  * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for parsing [EventTemplateField]

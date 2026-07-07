@@ -487,36 +487,33 @@ class RequisitionMetadataServiceTest {
     }
 
   @Test
-  fun `batchCreateRequisitionMetadata throws INVALID_ARGUMENT for duplicate blob uri`() =
+  fun `batchCreateRequisitionMetadata allows multiple rows sharing one blob uri`(): Unit =
     runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.batchCreateRequisitionMetadata(
-            batchCreateRequisitionMetadataRequest {
+      // A single GroupedRequisitions blob covers every requisition for a (reportId, updateTime)
+      // tuple, so every metadata row in the batch points at the same blob_uri. The legacy unique
+      // index on (DataProviderResourceId, BlobUri) was dropped by drop-blob-uri-index.sql, and
+      // the service layer no longer dedups blob_uri across the batch — assert it succeeds.
+      val sharedBlobUri = REQUISITION_METADATA.blobUri
+      val response =
+        service.batchCreateRequisitionMetadata(
+          batchCreateRequisitionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            requests += createRequisitionMetadataRequest {
               parent = DATA_PROVIDER_KEY.toName()
-              requests += createRequisitionMetadataRequest {
-                parent = DATA_PROVIDER_KEY.toName()
-                requisitionMetadata = REQUISITION_METADATA
-                requestId = REQUEST_ID
-              }
-              requests += createRequisitionMetadataRequest {
-                parent = DATA_PROVIDER_KEY.toName()
-                requisitionMetadata = REQUISITION_METADATA_3
-                requestId = UUID.randomUUID().toString()
-              }
+              requisitionMetadata = REQUISITION_METADATA
+              requestId = REQUEST_ID
             }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.1.requisition_metadata.blob_uri"
+            requests += createRequisitionMetadataRequest {
+              parent = DATA_PROVIDER_KEY.toName()
+              requisitionMetadata = REQUISITION_METADATA_3.copy { blobUri = sharedBlobUri }
+              requestId = UUID.randomUUID().toString()
+            }
           }
         )
+
+      assertThat(response.requisitionMetadataList).hasSize(2)
+      assertThat(response.requisitionMetadataList.map { it.blobUri }.toSet())
+        .containsExactly(sharedBlobUri)
     }
 
   @Test
