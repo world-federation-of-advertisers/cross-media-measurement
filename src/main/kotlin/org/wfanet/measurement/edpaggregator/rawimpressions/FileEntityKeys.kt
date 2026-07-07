@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.edpaggregator.vidlabeler
+package org.wfanet.measurement.edpaggregator.rawimpressions
 
 import java.time.LocalDate
 import java.time.format.DateTimeParseException

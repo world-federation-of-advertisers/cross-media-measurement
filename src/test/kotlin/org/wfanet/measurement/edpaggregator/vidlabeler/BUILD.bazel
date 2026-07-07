@@ -63,6 +63,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:event_id_digest",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:file_entity_keys",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:raw_impression_source",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:memoized_rank_index",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_assigner",
@@ -121,6 +122,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.vidlabeler.ParquetImpressionConverterTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:event_id_digest",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:file_entity_keys",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:raw_impression_source",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeling",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
@@ -131,19 +133,6 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//src/main/proto/wfa/measurement/storage:parquet_row_kt_jvm_proto",
-    ],
-)
-
-kt_jvm_test(
-    name = "FileEntityKeysTest",
-    srcs = ["FileEntityKeysTest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.vidlabeler.FileEntityKeysTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeling",
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
 

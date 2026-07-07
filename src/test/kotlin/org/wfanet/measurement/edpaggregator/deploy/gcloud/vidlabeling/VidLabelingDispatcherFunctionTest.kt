@@ -27,7 +27,6 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.nio.file.Paths
-import java.time.LocalDate
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
@@ -221,10 +220,19 @@ class VidLabelingDispatcherFunctionTest {
   fun `upload registers upload files and model lines`() {
     File("${tempFolder.root}/edp/edp_name/timestamp").mkdirs()
     val storageClient = FileSystemStorageClient(tempFolder.root)
+    // Use RawLocalFileSystem so writes don't emit ".crc" checksum sidecars, which the dispatcher's
+    // directory listing would otherwise pick up as bogus raw-impression files.
+    val parquetConf =
+      Configuration().apply { set("fs.file.impl", "org.apache.hadoop.fs.RawLocalFileSystem") }
+    val parquetStorageClient =
+      ParquetStorageClient(parquetConf, org.apache.hadoop.fs.Path(tempFolder.root.path))
+    // The dispatcher reads each raw-impression file's event_date from its plaintext Parquet footer,
+    // so the fixtures must be real Parquet files carrying the FileEntityKeys footer metadata.
+    val footer = mapOf("event_group_reference_id" to "eg-1", "event_date" to "2026-06-01")
     runBlocking {
       storageClient.writeBlob("edp/edp_name/timestamp/done", emptyFlow())
-      storageClient.writeBlob("edp/edp_name/timestamp/impressions_001", emptyFlow())
-      storageClient.writeBlob("edp/edp_name/timestamp/impressions_002", emptyFlow())
+      parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_001", emptyFlow(), footer)
+      parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_002", emptyFlow(), footer)
     }
 
     val port = startFunction()
@@ -369,17 +377,6 @@ class VidLabelingDispatcherFunctionTest {
     }
     modelSuite = MODEL_SUITE
     numberOfShards = 2
-  }
-
-  @Test
-  fun `readEventDateFromFooter reads event_date from the plaintext footer`() = runBlocking {
-    val parquetStorageClient =
-      ParquetStorageClient(Configuration(), org.apache.hadoop.fs.Path(tempFolder.root.absolutePath))
-    parquetStorageClient.writeBlob("file.parquet", emptyFlow(), mapOf("event_date" to "2026-06-01"))
-
-    val eventDate = readEventDateFromFooter(parquetStorageClient, "file.parquet")
-
-    assertThat(eventDate).isEqualTo(LocalDate.parse("2026-06-01"))
   }
 
   companion object {

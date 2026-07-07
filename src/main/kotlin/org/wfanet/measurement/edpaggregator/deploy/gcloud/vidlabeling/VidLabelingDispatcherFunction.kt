@@ -29,13 +29,14 @@ import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.time.Duration
-import java.time.LocalDate
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
+import org.wfanet.measurement.edpaggregator.rawimpressions.gcsHadoopConfiguration
+import org.wfanet.measurement.edpaggregator.rawimpressions.readEventDateFromFooter
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
@@ -350,16 +351,11 @@ class VidLabelingDispatcherFunction : HttpFunction {
         )
       } else {
         val doneBlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
-        val conf =
-          Configuration().apply {
-            set("fs.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem")
-            set("fs.AbstractFileSystem.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFS")
-            set("fs.gs.auth.type", "COMPUTE_ENGINE")
-            System.getenv(GOOGLE_PROJECT_ID_ENV)
-              ?.takeIf { it.isNotEmpty() }
-              ?.let { set("fs.gs.project.id", it) }
+        val projectId =
+          requireNotNull(System.getenv(GOOGLE_PROJECT_ID_ENV)?.takeIf { it.isNotEmpty() }) {
+            "$GOOGLE_PROJECT_ID_ENV must be set for GCS footer reads"
           }
-        ParquetStorageClient(conf, Path("gs://${doneBlobUri.bucket}"))
+        ParquetStorageClient(gcsHadoopConfiguration(projectId), Path("gs://${doneBlobUri.bucket}"))
       }
     }
 
@@ -559,19 +555,3 @@ class VidLabelingDispatcherFunction : HttpFunction {
   }
 }
 
-/** Reads a raw-impression file's UTC event date from its plaintext Parquet footer. */
-internal suspend fun readEventDateFromFooter(
-  parquetStorageClient: ParquetStorageClient,
-  blobKey: String,
-): LocalDate {
-  val blob =
-    parquetStorageClient.getBlob(blobKey) ?: error("Raw-impression blob not found: $blobKey")
-  // FileEntityKeys.EVENT_DATE_KEY: the plaintext footer key the producer writes; readable without
-  // decryption (PLAINTEXT_FOOTER mode), so no KMS/DEK is needed here.
-  val eventDateString =
-    requireNotNull(blob.readKeyValueMetadata()["event_date"]?.takeIf { it.isNotEmpty() }) {
-      "raw-impression footer is missing the 'event_date' metadata entry for $blobKey; the producer " +
-        "must write each file's event date (ISO YYYY-MM-DD, UTC) into its plaintext footer"
-    }
-  return LocalDate.parse(eventDateString)
-}
