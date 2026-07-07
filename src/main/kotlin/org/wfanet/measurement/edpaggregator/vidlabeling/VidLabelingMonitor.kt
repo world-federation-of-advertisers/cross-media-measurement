@@ -131,6 +131,8 @@ class VidLabelingMonitor(
     val missingRawFiles: Long,
     /** Stuck phase transitions the Monitor re-triggered this run. */
     val recoveredTransitions: Int,
+    /** Stuck transitions whose bounded recovery is exhausted (the Monitor has given up; page). */
+    val recoveryExhausted: Int,
   ) {
     val hasIssues: Boolean
       get() =
@@ -141,7 +143,8 @@ class VidLabelingMonitor(
           missingDoneBlobs > 0 ||
           zeroImpressionDates > 0 ||
           missingRawFiles > 0 ||
-          recoveredTransitions > 0
+          recoveredTransitions > 0 ||
+          recoveryExhausted > 0
   }
 
   // TODO(world-federation-of-advertisers/cross-media-measurement#4044): stuck-POOL_ASSIGNING
@@ -191,7 +194,7 @@ class VidLabelingMonitor(
   suspend fun runHealth(): HealthResult {
     val snapshot = RunSnapshot(listAllUploads().groupBy { it.state })
     val (stuckUploads, failedModelLines) = checkFailuresAndStaleness(snapshot)
-    val recoveredTransitions = recoverStuckPhases(snapshot)
+    val recovery = recoverStuckPhases(snapshot)
     val dataQuality = checkDataQuality(snapshot)
     return HealthResult(
       stuckUploads = stuckUploads,
@@ -201,7 +204,8 @@ class VidLabelingMonitor(
       missingDoneBlobs = dataQuality.missingDoneBlobs,
       zeroImpressionDates = dataQuality.zeroImpressionDates,
       missingRawFiles = dataQuality.missingRawFiles,
-      recoveredTransitions = recoveredTransitions,
+      recoveredTransitions = recovery.recovered,
+      recoveryExhausted = recovery.exhausted,
     )
   }
 
@@ -511,46 +515,80 @@ class VidLabelingMonitor(
     return missing
   }
 
+  /** Outcome of a single stuck-transition recovery attempt. */
+  private enum class RecoveryOutcome {
+    /** A new recovery WorkItem was published this tick. */
+    RECOVERED,
+    /** All [MAX_RECOVERY_ATTEMPTS] recovery WorkItems already exist; the Monitor has given up. */
+    EXHAUSTED,
+    /** Nothing to do (not stuck, precondition unmet, or a transient failure to retry next tick). */
+    NOOP,
+  }
+
+  /** Aggregate recovery outcome for one health run. */
+  private data class RecoverySummary(val recovered: Int, val exhausted: Int)
+
   /**
    * Re-triggers stuck memoized phase transitions for this DataProvider and returns how many were
-   * recovered. A `(upload, model line)` whose child jobs are all SUCCEEDED but whose parent state
-   * never advanced (a last-out gate failure) is recovered by re-publishing ONE existing WorkItem
-   * for it: the TEE skips the already-SUCCEEDED job and re-runs its idempotent, parent-state-gated
-   * last-out, which performs the fan-out / completion. Never marks anything FAILED.
+   * recovered and how many are exhausted. A `(upload, model line)` whose child jobs are all
+   * SUCCEEDED but whose parent state never advanced (a last-out gate failure) is recovered by
+   * re-publishing an existing WorkItem for it: the TEE skips the already-SUCCEEDED job and re-runs
+   * its idempotent, parent-state-gated last-out, which performs the fan-out / completion. Never
+   * marks anything FAILED.
    *
-   * Only a model line stuck in the phase longer than [stalenessThreshold] is recovered, so a
-   * legitimately in-flight last-out is never raced. Stuck `POOL_ASSIGNING` recovery is deferred
-   * to #4044 (see the TODO above [run]); it needs `PoolAssignmentJobService`, which is not in this
-   * base.
+   * Recovery is bounded: each attempt publishes a distinct `-monitor-recovery-<n>` WorkItem (the
+   * persisted WorkItem ids are the durable per-(upload, model line, phase) attempt record), up to
+   * [MAX_RECOVERY_ATTEMPTS]. Past that the transition is left stuck, the recovery-exhausted gauge
+   * is raised as the page signal, and a `SEVERE` line names the transition for the operator. Only a
+   * model line stuck longer than [stalenessThreshold] is recovered, so a legitimately in-flight
+   * last-out is never raced. Stuck `POOL_ASSIGNING` recovery is deferred to #4044 (see the TODO
+   * above [runDispatch]); it needs `PoolAssignmentJobService`, which is not in this base.
    */
-  private suspend fun recoverStuckPhases(snapshot: RunSnapshot): Int {
+  private suspend fun recoverStuckPhases(snapshot: RunSnapshot): RecoverySummary {
     val nowNanos: Long = Timestamps.toNanos(Timestamps.fromMillis(clock.millis()))
     val thresholdNanos: Long = stalenessThreshold.toNanos()
     var recovered = 0
+    var exhausted = 0
     for (upload in snapshot.uploads(RawImpressionUpload.State.ACTIVE)) {
       for (modelLine in snapshot.modelLines(upload.name)) {
         if (nowNanos - Timestamps.toNanos(modelLine.updateTime) <= thresholdNanos) {
           continue
         }
-        val recoveredThis =
+        val outcome =
           when (modelLine.state) {
             RawImpressionUploadModelLine.State.RANKING ->
               recoverIfAllRankerJobsSucceeded(upload.name, modelLine.cmmsModelLine)
             RawImpressionUploadModelLine.State.LABELING ->
               recoverIfAllVidLabelingJobsSucceeded(upload.name, modelLine.cmmsModelLine)
             // POOL_ASSIGNING recovery deferred to #4044 (PoolAssignmentJobService not in base).
-            else -> false
+            else -> RecoveryOutcome.NOOP
           }
-        if (recoveredThis) {
-          recovered++
-          VidLabelingMonitorMetrics.phaseTransitionsRecoveredCounter.add(
-            1,
-            dataProviderAttributes(),
-          )
+        when (outcome) {
+          RecoveryOutcome.RECOVERED -> {
+            recovered++
+            VidLabelingMonitorMetrics.phaseTransitionsRecoveredCounter.add(
+              1,
+              dataProviderAttributes(),
+            )
+          }
+          RecoveryOutcome.EXHAUSTED -> {
+            exhausted++
+            logger.severe(
+              "Recovery exhausted for ${upload.name} model line ${modelLine.cmmsModelLine} in " +
+                "${modelLine.state} after $MAX_RECOVERY_ATTEMPTS attempts; manual intervention " +
+                "required"
+            )
+          }
+          RecoveryOutcome.NOOP -> {}
         }
       }
     }
-    return recovered
+    // Set each run (including 0) so the page signal self-clears once the transition advances.
+    VidLabelingMonitorMetrics.recoveryExhaustedGauge.set(
+      exhausted.toLong(),
+      dataProviderAttributes(),
+    )
+    return RecoverySummary(recovered = recovered, exhausted = exhausted)
   }
 
   /**
@@ -560,7 +598,7 @@ class VidLabelingMonitor(
   private suspend fun recoverIfAllRankerJobsSucceeded(
     uploadName: String,
     modelLine: String,
-  ): Boolean {
+  ): RecoveryOutcome {
     val total =
       rankerJobStub
         .listRankerJobs(
@@ -572,7 +610,7 @@ class VidLabelingMonitor(
         )
         .totalSize
     if (total == 0) {
-      return false
+      return RecoveryOutcome.NOOP
     }
     val nonSucceeded =
       rankerJobStub
@@ -589,7 +627,7 @@ class VidLabelingMonitor(
         )
         .totalSize
     if (nonSucceeded > 0) {
-      return false
+      return RecoveryOutcome.NOOP
     }
     val job =
       rankerJobStub
@@ -605,7 +643,7 @@ class VidLabelingMonitor(
           }
         )
         .rankerJobsList
-        .firstOrNull() ?: return false
+        .firstOrNull() ?: return RecoveryOutcome.NOOP
     return republishWorkItem(WorkItemIds.forVidRankBuilder(job.name))
   }
 
@@ -617,16 +655,16 @@ class VidLabelingMonitor(
   private suspend fun recoverIfAllVidLabelingJobsSucceeded(
     uploadName: String,
     modelLine: String,
-  ): Boolean {
+  ): RecoveryOutcome {
     if (vidLabelingJobsInState(uploadName, modelLine, VidLabelingJob.State.CREATED).isNotEmpty()) {
-      return false
+      return RecoveryOutcome.NOOP
     }
     if (vidLabelingJobsInState(uploadName, modelLine, VidLabelingJob.State.FAILED).isNotEmpty()) {
-      return false
+      return RecoveryOutcome.NOOP
     }
     val job =
       vidLabelingJobsInState(uploadName, modelLine, VidLabelingJob.State.SUCCEEDED).firstOrNull()
-        ?: return false
+        ?: return RecoveryOutcome.NOOP
     return republishWorkItem(WorkItemIds.forVidLabeler(job.name))
   }
 
@@ -650,45 +688,80 @@ class VidLabelingMonitor(
       .vidLabelingJobsList
 
   /**
-   * Re-publishes the existing WorkItem named `workItems/[workItemId]` under a deterministic
-   * recovery id by fetching its queue + params and creating a fresh WorkItem (there is no
-   * re-enqueue RPC, and re-creating with the same id no-ops on ALREADY_EXISTS). Returns whether a
-   * new recovery WorkItem was published (a benign ALREADY_EXISTS means one is already in flight).
+   * Bounded re-publish of the WorkItem named `workItems/[workItemId]`: clones its queue + params
+   * and creates a fresh WorkItem under `[workItemId]-monitor-recovery-<attempt>` (there is no
+   * re-enqueue RPC). Each attempt uses a distinct suffix, so a previously-published recovery no
+   * longer blocks the next one; the persisted WorkItem rows are the durable per-transition attempt
+   * record.
+   *
+   * Returns [RecoveryOutcome.RECOVERED] when it publishes a new recovery WorkItem this tick;
+   * [RecoveryOutcome.EXHAUSTED] when all [MAX_RECOVERY_ATTEMPTS] already exist (the Monitor gives
+   * up); [RecoveryOutcome.NOOP] when the original WorkItem is unavailable or a create fails with a
+   * transient error (retried next tick — the attempt is not burned).
    */
-  private suspend fun republishWorkItem(workItemId: String): Boolean {
+  private suspend fun republishWorkItem(workItemId: String): RecoveryOutcome {
     val existing =
       try {
         workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
       } catch (e: StatusException) {
         logger.warning("Cannot recover: WorkItem $workItemId unavailable (${e.status.code})")
-        return false
+        VidLabelingMonitorMetrics.recoveryStepFailuresCounter.add(
+          1,
+          recoveryStepAttributes("get_original"),
+        )
+        return RecoveryOutcome.NOOP
       }
-    return try {
-      workItemsStub.createWorkItem(
-        createWorkItemRequest {
-          this.workItemId = "$workItemId-monitor-recovery"
-          workItem = workItem {
-            queue = existing.queue
-            workItemParams = existing.workItemParams
+    for (attempt in 1..MAX_RECOVERY_ATTEMPTS) {
+      val recoveryId = "$workItemId-monitor-recovery-$attempt"
+      try {
+        workItemsStub.createWorkItem(
+          createWorkItemRequest {
+            this.workItemId = recoveryId
+            workItem = workItem {
+              queue = existing.queue
+              workItemParams = existing.workItemParams
+            }
           }
+        )
+        logger.info(
+          "Recovered a stuck transition by re-publishing WorkItem $workItemId (attempt $attempt)"
+        )
+        return RecoveryOutcome.RECOVERED
+      } catch (e: StatusException) {
+        if (e.status.code == Status.Code.ALREADY_EXISTS) {
+          // This attempt was already published on a prior tick; try the next suffix.
+          continue
         }
-      )
-      logger.info("Recovered a stuck transition by re-publishing WorkItem $workItemId")
-      true
-    } catch (e: StatusException) {
-      if (e.status.code == Status.Code.ALREADY_EXISTS) {
-        // A recovery WorkItem is already in flight for this transition; nothing more to do.
-        false
-      } else {
-        throw e
+        logger.warning("Recovery publish failed for $recoveryId (${e.status.code})")
+        VidLabelingMonitorMetrics.recoveryStepFailuresCounter.add(
+          1,
+          recoveryStepAttributes("publish"),
+        )
+        return RecoveryOutcome.NOOP
       }
     }
+    return RecoveryOutcome.EXHAUSTED
   }
 
   private fun dataProviderAttributes(): Attributes =
     Attributes.of(VidLabelingMonitorMetrics.DATA_PROVIDER_ATTR, dataProviderName)
 
+  private fun recoveryStepAttributes(step: String): Attributes =
+    Attributes.of(
+      VidLabelingMonitorMetrics.DATA_PROVIDER_ATTR,
+      dataProviderName,
+      VidLabelingMonitorMetrics.RECOVERY_STEP_ATTR,
+      step,
+    )
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    /**
+     * Maximum number of recovery WorkItems the Monitor publishes for one stuck transition before
+     * escalating (raising [VidLabelingMonitorMetrics.recoveryExhaustedGauge] and giving up). With
+     * the daily health cadence this is ~one attempt/day, so escalation fires after ~3 days.
+     */
+    private const val MAX_RECOVERY_ATTEMPTS = 3
   }
 }
