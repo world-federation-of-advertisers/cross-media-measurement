@@ -126,7 +126,7 @@ locals {
       single_instance_assignment    = 1
       min_replicas                  = 0
       max_replicas                  = 10
-      machine_type                  = "c4d-standard-32"
+      machine_type                  = "n2d-standard-32"
       java_tool_options             = "-Xmx96G"
       docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
       mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
