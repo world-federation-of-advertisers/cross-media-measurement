@@ -25,6 +25,7 @@ import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
+import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
@@ -127,20 +128,19 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
       }
 
     // Reuse the scaffolding from the DataProvider-component request (model line, reporting
-    // interval, metric spec), but omit campaign_group so the server synthesizes it, and set the
-    // ReportingUnit components to ReportingSets instead of DataProviders.
+    // interval, metric spec), but omit campaign_group (campaignGroupId = null) so the server
+    // synthesizes it, and set the ReportingUnit components to ReportingSets instead of
+    // DataProviders.
     val createBasicReportRequest =
       buildCreateBasicReportRequest(
           eventGroups,
-          "reportingset-component-campaign",
-          "reportingset-component-basicreport",
+          campaignGroupId = null,
+          basicReportId = "reportingset-component-basicreport",
           includeIqfFilter = false,
         )
         .copy {
           basicReport =
             basicReport.copy {
-              campaignGroup = ""
-              campaignGroupDisplayName = ""
               val reportingSetComponentSpec =
                 resultGroupSpecs.single().copy {
                   reportingUnit = reportingUnit {
@@ -162,6 +162,19 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
     assertThat(createdBasicReport.campaignGroup).isEmpty()
     assertThat(createdBasicReport.effectiveCampaignGroup).isNotEmpty()
 
+    // Verify the ReportingSet-component request round-trips via getBasicReport in the RUNNING state
+    // before it is processed, so a field dropped on persist is caught here.
+    val retrievedRunningBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+    assertRunningBasicReport(
+      createBasicReportRequest,
+      createdBasicReport,
+      retrievedRunningBasicReport,
+      expectedEffectiveCampaignGroup = createdBasicReport.effectiveCampaignGroup,
+    )
+
     executeBasicReportsReportsJob(createdBasicReport.name)
     executeReportProcessorJob()
 
@@ -173,6 +186,22 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
     assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
     assertThat(completedBasicReport.campaignGroup).isEmpty()
     assertThat(completedBasicReport.effectiveCampaignGroup).isNotEmpty()
+
+    // The results are keyed by the ReportingSet component resource names. This is what
+    // distinguishes ReportingSet components from DataProvider components -- a regression that
+    // resolved the ReportingSets back to their underlying DataProviders would key by DataProvider
+    // name and still pass the numeric assertions below.
+    val componentKeys =
+      completedBasicReport.resultGroupsList
+        .single()
+        .resultsList
+        .single {
+          it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
+        }
+        .metricSet
+        .componentsList
+        .map { it.key }
+    assertThat(componentKeys).containsExactlyElementsIn(reportingSetComponents.map { it.name })
 
     assertStructuralResults(completedBasicReport)
     assertNoNoiseResults(
