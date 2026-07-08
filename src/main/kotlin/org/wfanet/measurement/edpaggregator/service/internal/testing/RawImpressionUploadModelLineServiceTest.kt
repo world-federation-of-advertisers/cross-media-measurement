@@ -89,6 +89,39 @@ abstract class RawImpressionUploadModelLineServiceTest {
       )
       .etag
 
+  /**
+   * Creates one model line and drives it — and therefore the sole-child parent upload — to
+   * COMPLETED (non-memoized path: CREATED -> LABELING -> COMPLETED).
+   */
+  private suspend fun completeSoleModelLine(cmmsModelLine: String = CMMS_MODEL_LINE) {
+    val created =
+      service.createRawImpressionUploadModelLine(
+        createRawImpressionUploadModelLineRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+            this.cmmsModelLine = cmmsModelLine
+          }
+        }
+      )
+    service.markRawImpressionUploadModelLineLabeling(
+      markRawImpressionUploadModelLineLabelingRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+        etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
+      }
+    )
+    service.markRawImpressionUploadModelLineCompleted(
+      markRawImpressionUploadModelLineCompletedRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+        etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
+      }
+    )
+  }
+
   @Test
   fun `createRawImpressionUploadModelLine creates successfully`() = runBlocking {
     val startTime: Instant = Instant.now()
@@ -1522,6 +1555,107 @@ abstract class RawImpressionUploadModelLineServiceTest {
 
     assertThat(getParentUploadState(DATA_PROVIDER_RESOURCE_ID, RAW_IMPRESSION_UPLOAD_RESOURCE_ID))
       .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED)
+  }
+
+  @Test
+  fun `createRawImpressionUploadModelLine reactivates a COMPLETED parent (backfill)`() =
+    runBlocking {
+      completeSoleModelLine()
+      assertThat(getParentUploadState(DATA_PROVIDER_RESOURCE_ID, RAW_IMPRESSION_UPLOAD_RESOURCE_ID))
+        .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED)
+
+      // Backfilling a new model line onto the COMPLETED upload reactivates the parent.
+      service.createRawImpressionUploadModelLine(
+        createRawImpressionUploadModelLineRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+            cmmsModelLine = CMMS_MODEL_LINE_2
+          }
+        }
+      )
+
+      assertThat(getParentUploadState(DATA_PROVIDER_RESOURCE_ID, RAW_IMPRESSION_UPLOAD_RESOURCE_ID))
+        .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE)
+    }
+
+  @Test
+  fun `batchCreateRawImpressionUploadModelLines reactivates a COMPLETED parent (backfill)`() =
+    runBlocking<Unit> {
+      completeSoleModelLine()
+      assertThat(getParentUploadState(DATA_PROVIDER_RESOURCE_ID, RAW_IMPRESSION_UPLOAD_RESOURCE_ID))
+        .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED)
+
+      service.batchCreateRawImpressionUploadModelLines(
+        batchCreateRawImpressionUploadModelLinesRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          requests += createRawImpressionUploadModelLineRequest {
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              cmmsModelLine = CMMS_MODEL_LINE_2
+            }
+          }
+        }
+      )
+
+      assertThat(getParentUploadState(DATA_PROVIDER_RESOURCE_ID, RAW_IMPRESSION_UPLOAD_RESOURCE_ID))
+        .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE)
+    }
+
+  @Test
+  fun `createRawImpressionUploadModelLine rejects backfill onto a FAILED parent`() = runBlocking {
+    val created =
+      service.createRawImpressionUploadModelLine(
+        createRawImpressionUploadModelLineRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+            cmmsModelLine = CMMS_MODEL_LINE
+          }
+        }
+      )
+    service.markRawImpressionUploadModelLineFailed(
+      markRawImpressionUploadModelLineFailedRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+        etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
+        errorMessage = "boom"
+      }
+    )
+    assertThat(getParentUploadState(DATA_PROVIDER_RESOURCE_ID, RAW_IMPRESSION_UPLOAD_RESOURCE_ID))
+      .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.createRawImpressionUploadModelLine(
+          createRawImpressionUploadModelLineRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              cmmsModelLine = CMMS_MODEL_LINE_2
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `createRawImpressionUploadModelLine leaves a CREATED parent unchanged`() = runBlocking {
+    service.createRawImpressionUploadModelLine(
+      createRawImpressionUploadModelLineRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+          cmmsModelLine = CMMS_MODEL_LINE
+        }
+      }
+    )
+
+    assertThat(getParentUploadState(DATA_PROVIDER_RESOURCE_ID, RAW_IMPRESSION_UPLOAD_RESOURCE_ID))
+      .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED)
   }
 
   @Test
