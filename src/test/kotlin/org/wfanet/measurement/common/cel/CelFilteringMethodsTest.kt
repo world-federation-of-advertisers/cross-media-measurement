@@ -27,19 +27,19 @@ import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 class CelFilteringMethodsTest {
   @Test
   fun `filterList with Message-based env returns items matching a string-equality filter`() {
-    // Regression for the buildCelEnvironment(Message) overload: it must preserve the reflectType
-    // binding that ProtoTypeRegistry.registerMessage installs, so that filterList can convert
+    // Regression for the CelPredicates.buildEnvironment(Message) overload: it must preserve the reflectType
+    // binding that ProtoTypeRegistry.registerMessage installs, so that CelPredicates.filterList can convert
     // runtime MetricCalculationSpec values to CEL native values without falling back to the
     // DynamicMessage path. If the overload regresses to a descriptor-only registration the
     // expected match below either returns the wrong set or throws on conversion.
-    val env = buildCelEnvironment(MetricCalculationSpec.getDefaultInstance())
+    val env = CelPredicates.buildEnvironment(MetricCalculationSpec.getDefaultInstance())
     val items =
       listOf(
         metricCalculationSpec { displayName = "wanted" },
         metricCalculationSpec { displayName = "ignored" },
       )
 
-    val matched = filterList(env, items, "display_name == 'wanted'")
+    val matched = CelPredicates.filterList(env, items, "display_name == 'wanted'")
 
     assertThat(matched).containsExactly(items[0])
   }
@@ -48,14 +48,14 @@ class CelFilteringMethodsTest {
   fun `filterList with Descriptor-based env returns items matching a string-equality filter`() {
     // Pin the Descriptor overload at the same call site so future changes to either branch are
     // exercised symmetrically.
-    val env = buildCelEnvironment(MetricCalculationSpec.getDescriptor())
+    val env = CelPredicates.buildEnvironment(MetricCalculationSpec.getDescriptor())
     val items =
       listOf(
         metricCalculationSpec { displayName = "wanted" },
         metricCalculationSpec { displayName = "ignored" },
       )
 
-    val matched = filterList(env, items, "display_name == 'wanted'")
+    val matched = CelPredicates.filterList(env, items, "display_name == 'wanted'")
 
     assertThat(matched).containsExactly(items[0])
   }

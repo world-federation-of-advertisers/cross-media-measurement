@@ -7495,7 +7495,7 @@ class BasicReportsServiceTest {
   // the field's protobuf type for all other cases, and requires enum names to be valid).
   // The CEL block is defense-in-depth against future regressions in those upstream
   // validators or against `toCelValue` receiving a value shape it does not round-trip
-  // safely (see `CelFilterValidation`'s KDoc for the specific classes it backstops).
+  // safely (see `CelPredicates`'s KDoc for the specific classes it backstops).
   // Constructing a service-level test that reaches the CEL block would require injecting
   // a test double for one of the upstream validators or adding a STRING / FLOAT-typed
   // `IMPRESSION_QUALIFICATION` field to the test event template; both are out of scope for
