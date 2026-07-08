@@ -125,11 +125,14 @@ kt_jvm_library(
         "RawImpressionUploadModelLineService.kt",
     ],
     deps = [
+        ":encrypted_dek_conversions",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:errors",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:errors",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:encrypted_dek_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_model_line_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_model_line_state_kt_jvm_proto",
@@ -214,11 +217,23 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "encrypted_dek_conversions",
+    srcs = [
+        "EncryptedDekConversions.kt",
+    ],
+    deps = [
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:encrypted_dek_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
     name = "rank_index_blob_service",
     srcs = [
         "RankIndexBlobService.kt",
     ],
     deps = [
+        ":encrypted_dek_conversions",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:errors",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:errors",
