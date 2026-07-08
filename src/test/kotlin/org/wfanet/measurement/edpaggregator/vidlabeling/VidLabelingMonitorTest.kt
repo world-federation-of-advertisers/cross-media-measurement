@@ -803,7 +803,7 @@ class VidLabelingMonitorTest {
     // job (WorkItemIds.forVidRankBuilder); only that name resolves, any other one 404s.
     whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
       val request = invocation.getArgument<GetWorkItemRequest>(0)
-      if (request.name == "workItems/vid-rank-builder-rj1") {
+      if (request.name == "workItems/$RANKER_WORK_ITEM") {
         workItem { queue = "queues/ranker" }
       } else {
         throw Status.NOT_FOUND.asRuntimeException()
@@ -821,7 +821,7 @@ class VidLabelingMonitorTest {
     val createCaptor = argumentCaptor<CreateWorkItemRequest>()
     verifyBlocking(workItemsService) { createWorkItem(createCaptor.capture()) }
     assertThat(createCaptor.firstValue.workItemId)
-      .isEqualTo("vid-rank-builder-rj1-monitor-recovery-1")
+      .isEqualTo("$RANKER_WORK_ITEM-monitor-recovery-1")
     assertThat(createCaptor.firstValue.workItem.queue).isEqualTo("queues/ranker")
   }
 
@@ -846,11 +846,11 @@ class VidLabelingMonitorTest {
       }
     }
     // A memoized model line reaches LABELING via the ranker fan-out, whose Phase-2 WorkItem the
-    // ranker names WorkItemIds.forVidLabeler ("vid-labeler-<jobId>"). The monitor MUST re-derive
-    // that same id; the earlier "vid-labeling-<jobId>" form 404s and recovery silently no-ops.
+    // ranker names via WorkItemIds.forVidLabeler (a bounded "vl-" + hash). The monitor MUST
+    // re-derive that same id through WorkItemIds; any other form 404s and recovery silently no-ops.
     whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
       val request = invocation.getArgument<GetWorkItemRequest>(0)
-      if (request.name == "workItems/vid-labeler-vj1") {
+      if (request.name == "workItems/$VID_LABELER_WORK_ITEM") {
         workItem { queue = "queues/labeler" }
       } else {
         throw Status.NOT_FOUND.asRuntimeException()
@@ -863,7 +863,7 @@ class VidLabelingMonitorTest {
     assertThat(result.recoveredTransitions).isEqualTo(1)
     val createCaptor = argumentCaptor<CreateWorkItemRequest>()
     verifyBlocking(workItemsService) { createWorkItem(createCaptor.capture()) }
-    assertThat(createCaptor.firstValue.workItemId).isEqualTo("vid-labeler-vj1-monitor-recovery-1")
+    assertThat(createCaptor.firstValue.workItemId).isEqualTo("$VID_LABELER_WORK_ITEM-monitor-recovery-1")
     assertThat(createCaptor.firstValue.workItem.queue).isEqualTo("queues/labeler")
   }
 
@@ -905,13 +905,13 @@ class VidLabelingMonitorTest {
     )
     whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
       val request = invocation.getArgument<GetWorkItemRequest>(0)
-      if (request.name == "workItems/vid-rank-builder-rj1") workItem { queue = "queues/ranker" }
+      if (request.name == "workItems/$RANKER_WORK_ITEM") workItem { queue = "queues/ranker" }
       else throw Status.NOT_FOUND.asRuntimeException()
     }
     // Attempt 1 was published on a prior tick and persists in the queue; attempt 2 is free.
     whenever(workItemsService.createWorkItem(any())).thenAnswer { invocation ->
       val request = invocation.getArgument<CreateWorkItemRequest>(0)
-      if (request.workItemId == "vid-rank-builder-rj1-monitor-recovery-1")
+      if (request.workItemId == "$RANKER_WORK_ITEM-monitor-recovery-1")
         throw Status.ALREADY_EXISTS.asRuntimeException()
       else workItem {}
     }
@@ -924,8 +924,8 @@ class VidLabelingMonitorTest {
     verifyBlocking(workItemsService, times(2)) { createWorkItem(createCaptor.capture()) }
     assertThat(createCaptor.allValues.map { it.workItemId })
       .containsExactly(
-        "vid-rank-builder-rj1-monitor-recovery-1",
-        "vid-rank-builder-rj1-monitor-recovery-2",
+        "$RANKER_WORK_ITEM-monitor-recovery-1",
+        "$RANKER_WORK_ITEM-monitor-recovery-2",
       )
       .inOrder()
   }
@@ -947,7 +947,7 @@ class VidLabelingMonitorTest {
     )
     whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
       val request = invocation.getArgument<GetWorkItemRequest>(0)
-      if (request.name == "workItems/vid-rank-builder-rj1") workItem { queue = "queues/ranker" }
+      if (request.name == "workItems/$RANKER_WORK_ITEM") workItem { queue = "queues/ranker" }
       else throw Status.NOT_FOUND.asRuntimeException()
     }
     // All MAX_RECOVERY_ATTEMPTS recovery WorkItems were published on prior ticks and remain queued.
@@ -981,7 +981,7 @@ class VidLabelingMonitorTest {
     )
     whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
       val request = invocation.getArgument<GetWorkItemRequest>(0)
-      if (request.name == "workItems/vid-rank-builder-rj1") workItem { queue = "queues/ranker" }
+      if (request.name == "workItems/$RANKER_WORK_ITEM") workItem { queue = "queues/ranker" }
       else throw Status.NOT_FOUND.asRuntimeException()
     }
     whenever(workItemsService.createWorkItem(any()))
@@ -1032,6 +1032,12 @@ class VidLabelingMonitorTest {
 
   companion object {
     private const val DATA_PROVIDER = "dataProviders/edp123"
+    private const val RANKER_JOB_NAME =
+      "$DATA_PROVIDER/rawImpressionUploads/active-1/rankerJobs/rj1"
+    private const val VID_LABELING_JOB_NAME =
+      "$DATA_PROVIDER/rawImpressionUploads/active-1/vidLabelingJobs/vj1"
+    private val RANKER_WORK_ITEM = WorkItemIds.forVidRankBuilder(RANKER_JOB_NAME)
+    private val VID_LABELER_WORK_ITEM = WorkItemIds.forVidLabeler(VID_LABELING_JOB_NAME)
     private const val DISPATCH_ERRORS_METRIC = "edpa.vid_labeling_monitor.dispatch_errors"
     private const val UPLOADS_QUEUED_METRIC = "edpa.vid_labeling_monitor.uploads_queued"
     private const val UPLOADS_STUCK_METRIC = "edpa.vid_labeling_monitor.uploads_stuck"
