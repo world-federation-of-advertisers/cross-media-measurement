@@ -41,7 +41,9 @@ kt_jvm_library(
     name = "vid_labeling_heal",
     srcs = [
         "DlqRedeliverer.kt",
+        "EvictUploader.kt",
         "FailedDispatchRetrier.kt",
+        "ModelLineBackfiller.kt",
         "ModelLineLookup.kt",
         "VidLabelingHeal.kt",
         "VidLabelingHealer.kt",
@@ -49,8 +51,13 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:work_item_ids",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:pool_assignment_job_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:ranker_job_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeling_job_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",

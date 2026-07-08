@@ -17,6 +17,8 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import io.grpc.ManagedChannel
+import java.time.Duration
+import java.time.Instant
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
@@ -24,9 +26,11 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Publisher
@@ -54,6 +58,8 @@ import picocli.CommandLine.Option
     [
       MarkFailedCommand::class,
       RetryFailedCommand::class,
+      BackfillModelLineCommand::class,
+      EvictUploadsCommand::class,
       RedeliverDlqCommand::class,
       CommandLine.HelpCommand::class,
     ],
@@ -319,6 +325,163 @@ class RedeliverDlqCommand : Runnable {
   companion object {
     /** Messages pulled per Pub/Sub request; the total is bounded by --max-messages. */
     private const val PULL_BATCH_SIZE = 10
+  }
+}
+
+/**
+ * Backfills a new model line onto existing (COMPLETED) uploads so it is labeled over historical
+ * data without a data-provider re-upload (Backfill Path B). Creates a `CREATED`
+ * `RawImpressionUploadModelLine` for the model line under each upload, then reactivates the parent
+ * upload so the Monitor dispatches it.
+ */
+@Command(
+  name = "backfill-model-line",
+  description = ["Adds a model line to existing COMPLETED uploads and reactivates them."],
+  mixinStandardHelpOptions = true,
+)
+class BackfillModelLineCommand : EdpaApiCommand() {
+  @Option(
+    names = ["--data-provider"],
+    description = ["DataProvider resource name (e.g. dataProviders/{data_provider})."],
+    required = true,
+  )
+  private lateinit var dataProvider: String
+
+  @Option(
+    names = ["--model-line"],
+    description = ["CMMS ModelLine resource name to backfill onto the uploads."],
+    required = true,
+  )
+  private lateinit var modelLine: String
+
+  @Option(
+    names = ["--upload-ids"],
+    description =
+      ["Comma-separated RawImpressionUpload id segments to backfill the model line onto."],
+    required = true,
+    split = ",",
+  )
+  private lateinit var uploadIds: List<String>
+
+  override fun run() {
+    val channel: ManagedChannel = buildEdpaChannel()
+    try {
+      runBlocking {
+        val backfiller =
+          ModelLineBackfiller(
+            RawImpressionUploadModelLineServiceCoroutineStub(channel),
+            RawImpressionUploadServiceCoroutineStub(channel),
+          )
+        val result = backfiller.backfill(dataProvider, modelLine, uploadIds)
+        println(
+          "Backfilled $modelLine: created ${result.createdModelLines.size} model line(s), " +
+            "reactivated ${result.reactivatedUploads.size} upload(s)."
+        )
+      }
+    } finally {
+      channel.shutdown()
+      channel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+    }
+  }
+}
+
+/**
+ * Evicts uploads that carry bad data for a model line. Marks the bad upload and every later upload
+ * for the model line FAILED and soft-deletes their cumulative SNAPSHOT rank-index blobs, so Phase-1
+ * falls back to the last good snapshot when the affected uploads are re-triggered. Confined to the
+ * retention window. Prints the cascade and only mutates when `--confirm` is passed.
+ */
+@Command(
+  name = "evict-uploads",
+  description =
+    ["Evicts a bad upload and all later uploads for a model line (rebuild-from-last-good)."],
+  mixinStandardHelpOptions = true,
+)
+class EvictUploadsCommand : EdpaApiCommand() {
+  @Option(
+    names = ["--data-provider"],
+    description = ["DataProvider resource name (e.g. dataProviders/{data_provider})."],
+    required = true,
+  )
+  private lateinit var dataProvider: String
+
+  @Option(
+    names = ["--model-line"],
+    description = ["CMMS ModelLine resource name whose uploads are being evicted."],
+    required = true,
+  )
+  private lateinit var modelLine: String
+
+  @Option(
+    names = ["--upload-ids"],
+    description =
+      ["Comma-separated bad RawImpressionUpload id segments (the earliest anchors the cascade)."],
+    required = true,
+    split = ",",
+  )
+  private lateinit var uploadIds: List<String>
+
+  @Option(
+    names = ["--retention-days"],
+    description = ["Retention window in days; uploads created before now-retention are rejected."],
+    required = true,
+  )
+  private var retentionDays: Int = 0
+
+  @Option(
+    names = ["--reason"],
+    description = ["Operator diagnosis, recorded as each evicted model line's error_message."],
+    required = true,
+  )
+  private lateinit var reason: String
+
+  @Option(
+    names = ["--confirm"],
+    description = ["Actually perform the eviction. Without it the command only prints the cascade."],
+  )
+  private var confirm: Boolean = false
+
+  override fun run() {
+    val channel: ManagedChannel = buildEdpaChannel()
+    try {
+      runBlocking {
+        val evictUploader =
+          EvictUploader(
+            RawImpressionUploadServiceCoroutineStub(channel),
+            RawImpressionUploadModelLineServiceCoroutineStub(channel),
+            RankIndexBlobServiceCoroutineStub(channel),
+          )
+        val cutoffTime: Instant = Instant.now().minus(Duration.ofDays(retentionDays.toLong()))
+        val plan = evictUploader.plan(dataProvider, modelLine, uploadIds, cutoffTime)
+
+        println(
+          "Eviction cascade for $modelLine (${plan.cascade.size} upload(s)): " +
+            plan.cascade.map { it.uploadId }
+        )
+        if (plan.extraUploadIds.isNotEmpty()) {
+          println(
+            "NOTE: uploads created after the bad one(s) will also be evicted: ${plan.extraUploadIds}"
+          )
+        }
+        if (!confirm) {
+          println(
+            "Dry run. Re-run with --confirm to mark these model lines FAILED and soft-delete their " +
+              "cumulative snapshots."
+          )
+          return@runBlocking
+        }
+
+        val result = evictUploader.evict(dataProvider, modelLine, plan, reason)
+        println(
+          "Evicted: marked ${result.failedModelLines.size} model line(s) FAILED, soft-deleted " +
+            "${result.deletedSnapshots} snapshot(s). Re-trigger the affected uploads (re-upload " +
+            "their done blobs) to rebuild from the last good snapshot."
+        )
+      }
+    } finally {
+      channel.shutdown()
+      channel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+    }
   }
 }
 
