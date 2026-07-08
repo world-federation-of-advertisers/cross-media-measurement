@@ -579,7 +579,9 @@ class BasicReportsServiceTest {
     Unit = runBlocking {
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer { cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId }
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
     )
 
     val reportingSetComponent1 =
