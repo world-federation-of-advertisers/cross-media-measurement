@@ -49,6 +49,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markRankerJobSucceededReques
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
+import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
@@ -348,7 +349,7 @@ class VidRankBuilder(
    */
   private suspend fun publishVidLabelerWorkItem(job: VidLabelingJob) {
     val params = vidLabelerParamsTemplate.copy { vidLabelingJob = job.name }
-    val workItemId = "vid-labeler-${job.name.substringAfterLast('/')}"
+    val workItemId = WorkItemIds.forVidLabeler(job.name)
     try {
       workItemsStub.createWorkItem(
         createWorkItemRequest {
