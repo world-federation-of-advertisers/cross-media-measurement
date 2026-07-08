@@ -18,7 +18,9 @@ import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ByteString
 import com.google.rpc.errorInfo
+import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -45,9 +47,11 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schema
 import org.wfanet.measurement.edpaggregator.service.Errors
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLineKey
+import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadModelLineRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
@@ -58,9 +62,13 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.internal.edpaggregator.EncryptedDek as InternalEncryptedDek
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase as InternalModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub as InternalModelLineServiceCoroutineStub
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState as InternalModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.encryptedDek as internalEncryptedDek
+import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadModelLine as internalRawImpressionUploadModelLine
 
 @RunWith(JUnit4::class)
 class RawImpressionUploadModelLineServiceTest {
@@ -1104,6 +1112,50 @@ class RawImpressionUploadModelLineServiceTest {
         }
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     }
+
+  @Test
+  fun `toPublic surfaces phase-0 last-shard-out outputs`() {
+    val internalModelLine = internalRawImpressionUploadModelLine {
+      dataProviderResourceId = DATA_PROVIDER_ID
+      rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_ID
+      rawImpressionUploadModelLineResourceId = "model-line-1"
+      cmmsModelLine = CMMS_MODEL_LINE
+      state = InternalModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING
+      poolOffsets += listOf(0L, 5L, 10L)
+      maxEventDate = date {
+        year = 2026
+        month = 6
+        day = 30
+      }
+      encryptedMergedDek = internalEncryptedDek {
+        kekUri = "projects/p/locations/l/keyRings/r/cryptoKeys/k"
+        typeUrl = "type.googleapis.com/google.crypto.tink.Keyset"
+        protobufFormat = InternalEncryptedDek.ProtobufFormat.BINARY
+        ciphertext = ByteString.copyFromUtf8("cipher")
+      }
+    }
+
+    val publicModelLine = internalModelLine.toPublic()
+
+    assertThat(publicModelLine.poolOffsetsList).containsExactly(0L, 5L, 10L).inOrder()
+    assertThat(publicModelLine.maxEventDate)
+      .isEqualTo(
+        date {
+          year = 2026
+          month = 6
+          day = 30
+        }
+      )
+    assertThat(publicModelLine.encryptedMergedDek)
+      .isEqualTo(
+        encryptedDek {
+          kekUri = "projects/p/locations/l/keyRings/r/cryptoKeys/k"
+          typeUrl = "type.googleapis.com/google.crypto.tink.Keyset"
+          protobufFormat = EncryptedDek.ProtobufFormat.BINARY
+          ciphertext = ByteString.copyFromUtf8("cipher")
+        }
+      )
+  }
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
