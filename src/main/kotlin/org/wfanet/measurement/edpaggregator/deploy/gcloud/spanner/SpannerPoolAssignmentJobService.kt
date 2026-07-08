@@ -568,14 +568,6 @@ class SpannerPoolAssignmentJobService(
             mergeState.maxEventDate,
             if (request.hasMaxEventDate()) request.maxEventDate else null,
           )
-        txn.updateRawImpressionUploadModelLineMergedOutputs(
-          request.dataProviderResourceId,
-          result.rawImpressionUploadId,
-          mergeState.rawImpressionUploadModelLineId,
-          mergedOffsets,
-          mergedMaxEventDate,
-        )
-
         // The buffered SUCCEEDED mutation is not visible to reads in this transaction, so
         // this job still counts as non-succeeded; it is the last shard iff it is the only
         // remaining non-succeeded row for the (upload, model line).
@@ -585,6 +577,17 @@ class SpannerPoolAssignmentJobService(
             result.rawImpressionUploadId,
             currentJob.cmmsModelLine,
           ) == 1L
+
+        txn.updateRawImpressionUploadModelLineMergedOutputs(
+          request.dataProviderResourceId,
+          result.rawImpressionUploadId,
+          mergeState.rawImpressionUploadModelLineId,
+          mergedOffsets,
+          mergedMaxEventDate,
+          // On last-shard-out, promote this (final) shard's DEK onto the parent as the merged DEK
+          // so a retrying SubpoolAssigner can decrypt the merged per-subpool blobs.
+          mergedDek = if (isLastShard && request.hasEncryptedDek()) request.encryptedDek else null,
+        )
 
         TransactionResult(
           updatedJob =

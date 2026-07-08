@@ -28,7 +28,6 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.common.toProtoDate
@@ -37,6 +36,7 @@ import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.gcloud.spanner.toProtoBytes
 import org.wfanet.measurement.internal.edpaggregator.EncryptedDek as InternalEncryptedDek
 import org.wfanet.measurement.internal.edpaggregator.ListPoolAssignmentJobsPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListPoolAssignmentJobsRequest
@@ -429,7 +429,11 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadModelLineMerge
 
 /**
  * Buffers an update to the parent [RawImpressionUploadModelLine] row's merged Phase-1 outputs: the
- * unioned [poolOffsets] and reduced [maxEventDate] accumulated across PoolAssignmentJob shards.
+ * unioned [poolOffsets] and reduced [maxEventDate] accumulated across PoolAssignmentJob shards, and
+ * (only on last-shard-out) the [mergedDek] promoted from the last shard's `encrypted_dek`.
+ *
+ * [mergedDek] is written only when non-null; it is the DEK a retrying SubpoolAssigner reads back to
+ * decrypt the merged per-subpool blobs (see SubpoolAssigner.recoverIfLastShardOut).
  */
 fun AsyncDatabaseClient.TransactionContext.updateRawImpressionUploadModelLineMergedOutputs(
   dataProviderResourceId: String,
@@ -437,6 +441,7 @@ fun AsyncDatabaseClient.TransactionContext.updateRawImpressionUploadModelLineMer
   rawImpressionUploadModelLineId: Long,
   poolOffsets: List<Long>,
   maxEventDate: Date?,
+  mergedDek: InternalEncryptedDek? = null,
 ) {
   bufferUpdateMutation("RawImpressionUploadModelLine") {
     set("DataProviderResourceId").to(dataProviderResourceId)
@@ -444,6 +449,9 @@ fun AsyncDatabaseClient.TransactionContext.updateRawImpressionUploadModelLineMer
     set("RawImpressionUploadModelLineId").to(rawImpressionUploadModelLineId)
     set("PoolOffsets").toInt64Array(poolOffsets)
     set("MaxEventDate").to(maxEventDate?.toCloudDate())
+    if (mergedDek != null) {
+      set("EncryptedMergedDek").toProtoBytes(mergedDek)
+    }
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
 }
@@ -532,15 +540,8 @@ private object PoolAssignmentJobEntity {
           errorMessage = struct.getString("ErrorMessage")
         }
         if (!struct.isNull("EncryptedDek")) {
-          // TODO(world-federation-of-advertisers/cross-media-measurement#4173): Replace this
-          // re-parse with typed conversions once the internal proto's encrypted_dek field is typed
-          // as the internal EncryptedDek (see RankIndexBlobService for the pattern).
-          // Column type is the internal EncryptedDek (schema #3989) but this proto's field is the
-          // v1alpha type; read as internal, then re-parse the wire-compatible bytes into the
-          // field's type.
-          val internalDek =
+          encryptedDek =
             struct.getProtoMessage("EncryptedDek", InternalEncryptedDek.getDefaultInstance())
-          encryptedDek = EncryptedDek.parseFrom(internalDek.toByteString())
         }
         etag = ETags.computeETag(updateTime.toInstant())
       },
