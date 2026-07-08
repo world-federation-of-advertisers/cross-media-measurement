@@ -261,7 +261,7 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
         .containsExactly(EXPECTED_EDP_SPEC2_REACH, EXPECTED_EDP_SPEC1_REACH)
         .inOrder()
 
-      // Uniquely-4136 assertions: cross-spec consistency. The two specs reference the same
+      // Cross-spec consistency assertions: The two specs reference the same
       // underlying components (just in different orderings), so the union metrics and
       // population size must be identical across specs. If the alias table over- or
       // under-fires, per-component data can leak between specs; these assertions detect that.
