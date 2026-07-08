@@ -36,3 +36,32 @@ java_image(
     main_class = "org.wfanet.measurement.edpaggregator.tools.SyncEventGroupActivitiesKt",
     visibility = ["//src:docker_image_deployment"],
 )
+
+kt_jvm_library(
+    name = "vid_labeling_heal",
+    srcs = [
+        "VidLabelingHeal.kt",
+        "VidLabelingHealer.kt",
+    ],
+    deps = [
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+java_binary(
+    name = "VidLabelingHeal",
+    main_class = "org.wfanet.measurement.edpaggregator.tools.VidLabelingHealKt",
+    runtime_deps = [":vid_labeling_heal"],
+)
+
+java_image(
+    name = "vid_labeling_heal_image",
+    binary = ":VidLabelingHeal",
+    main_class = "org.wfanet.measurement.edpaggregator.tools.VidLabelingHealKt",
+    visibility = ["//src:docker_image_deployment"],
+)
