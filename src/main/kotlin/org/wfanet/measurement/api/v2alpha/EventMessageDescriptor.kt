@@ -20,8 +20,21 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.Duration
 import com.google.protobuf.Timestamp
 
-/** Wrapper around Descriptor for an Event message */
-class EventMessageDescriptor(eventDescriptor: Descriptors.Descriptor) {
+/**
+ * Wrapper around Descriptor for an Event message.
+ *
+ * @property descriptor [Descriptors.Descriptor] for the Event message, validated on construction
+ *   (`buildEventTemplateFieldsByPath` enforces that every nested field carries the EventTemplate /
+ *   EventField annotations and uses a supported type). Exposed for consumers that need to register
+ *   the descriptor with another subsystem -- e.g. `buildCelEnvironment` -- without re-deriving it.
+ *
+ * TODO(#4176): Drop this wrapper class. Its functionality is better fit in
+ *   `org.wfanet.measurement.api.v2alpha.EventTemplates` utils operating on raw
+ *   `Descriptors.Descriptor` inputs. The class currently exists only because a lot of downstream
+ *   code depends on the data classes it carries. Public exposure of `descriptor` (needed here for
+ *   CEL env construction) further weakens the wrapping; migrate callers and remove the class.
+ */
+class EventMessageDescriptor(val descriptor: Descriptors.Descriptor) {
   data class SupportedReportingFeatures(
     val groupable: Boolean,
     val filterable: Boolean,
@@ -39,7 +52,7 @@ class EventMessageDescriptor(eventDescriptor: Descriptors.Descriptor) {
 
   /** Map of EventTemplate field path with respect to Event message to info for the field. */
   val eventTemplateFieldsByPath: Map<String, EventTemplateFieldInfo> =
-    buildEventTemplateFieldsByPath(eventDescriptor)
+    buildEventTemplateFieldsByPath(descriptor)
 
   companion object {
     /**
