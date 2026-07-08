@@ -60,7 +60,7 @@ object CelPredicates {
         env.compile(filter)
       } catch (_: NullPointerException) {
         // CEL throws NPE when the filter uses a non-CEL operator. Same swallowing pattern as
-        // filterList in this package; treat as a syntax error.
+        // filterList; treat as a syntax error.
         throw CelValidationException("not a valid CEL expression")
       }
     if (astAndIssues.hasIssues()) {
@@ -70,101 +70,99 @@ object CelPredicates {
       throw CelValidationException("does not evaluate to a boolean")
     }
   }
-}
 
-/**
- * Builds a CEL Env from a [Message].
- *
- * Prefer this overload over [buildCelEnvironment(Descriptors.Descriptor)] whenever a concrete
- * compiled message is available. It also binds the descriptor's `reflectType` to [message]'s
- * runtime class via `ProtoTypeRegistry.registerMessage`, so a subsequent [filterList] call can
- * convert runtime values of that class without falling back to `DynamicMessage`-shaped paths.
- */
-fun buildCelEnvironment(message: Message): Env {
-  return buildCelEnvironment(message.descriptorForType) { registry ->
-    registry.registerMessage(message)
-  }
-}
-
-/**
- * Builds a CEL Env from a [Descriptors.Descriptor].
- *
- * Use only when no compiled [Message] is available -- the BasicReport CEL path, where the event
- * message is loaded from a deployment-supplied descriptor set. Other call sites should use
- * [buildCelEnvironment(Message)] so the registry binds a real Kotlin/Java class to the descriptor
- * rather than the `DynamicMessage` default.
- */
-fun buildCelEnvironment(descriptor: Descriptors.Descriptor): Env {
-  return buildCelEnvironment(descriptor) {}
-}
-
-/**
- * Shared core for the two public overloads. Registers [descriptor]'s file plus all transitive file
- * dependencies (so types declared in imported files -- e.g. EventTemplate sub-messages -- are
- * resolvable), then lets [additionalRegistration] bind extras (the [Message] overload uses this to
- * preserve the `reflectType` mapping `registerMessage` would have set on its own).
- */
-private fun buildCelEnvironment(
-  descriptor: Descriptors.Descriptor,
-  additionalRegistration: (ProtoTypeRegistry) -> Unit,
-): Env {
-  val celTypeRegistry = ProtoTypeRegistry.newRegistry()
-  celTypeRegistry.registerDescriptor(descriptor.file)
-  for (dep in descriptor.file.allDependencies) {
-    celTypeRegistry.registerDescriptor(dep)
-  }
-  additionalRegistration(celTypeRegistry)
-
-  return Env.newEnv(
-    EnvOption.container(descriptor.fullName),
-    EnvOption.customTypeProvider(celTypeRegistry),
-    EnvOption.customTypeAdapter(celTypeRegistry),
-    EnvOption.declarations(
-      descriptor.fields.map {
-        Decls.newVar(it.name, celTypeRegistry.findFieldType(descriptor.fullName, it.name).type)
-      }
-    ),
-  )
-}
-
-/**
- * Filters a list of [Message] using a CEL [Env] and a CEL filter string.
- *
- * @throws [IllegalArgumentException] when the filter string is not valid.
- */
-fun <T : Message> filterList(env: Env, items: List<T>, filter: String): List<T> {
-  if (filter.isEmpty()) {
-    return items
+  /**
+   * Builds a CEL Env from a [Message].
+   *
+   * Prefer this overload over [buildEnvironment(Descriptors.Descriptor)] whenever a concrete
+   * compiled message is available. It also binds the descriptor's `reflectType` to [message]'s
+   * runtime class via `ProtoTypeRegistry.registerMessage`, so a subsequent [filterList] call can
+   * convert runtime values of that class without falling back to `DynamicMessage`-shaped paths.
+   */
+  fun buildEnvironment(message: Message): Env {
+    return buildEnvironment(message.descriptorForType) { registry -> registry.registerMessage(message) }
   }
 
-  val astAndIssues =
-    try {
-      env.compile(filter)
-    } catch (_: NullPointerException) {
-      // NullPointerException is thrown when an operator in the filter is not a CEL operator.
-      throw IllegalArgumentException("filter is not a valid CEL expression")
+  /**
+   * Builds a CEL Env from a [Descriptors.Descriptor].
+   *
+   * Use only when no compiled [Message] is available -- the BasicReport CEL path, where the event
+   * message is loaded from a deployment-supplied descriptor set. Other call sites should use
+   * [buildEnvironment(Message)] so the registry binds a real Kotlin/Java class to the descriptor
+   * rather than the `DynamicMessage` default.
+   */
+  fun buildEnvironment(descriptor: Descriptors.Descriptor): Env {
+    return buildEnvironment(descriptor) {}
+  }
+
+  /**
+   * Shared core for the two public overloads. Registers [descriptor]'s file plus all transitive
+   * file dependencies (so types declared in imported files -- e.g. EventTemplate sub-messages --
+   * are resolvable), then lets [additionalRegistration] bind extras (the [Message] overload uses
+   * this to preserve the `reflectType` mapping `registerMessage` would have set on its own).
+   */
+  private fun buildEnvironment(
+    descriptor: Descriptors.Descriptor,
+    additionalRegistration: (ProtoTypeRegistry) -> Unit,
+  ): Env {
+    val celTypeRegistry = ProtoTypeRegistry.newRegistry()
+    celTypeRegistry.registerDescriptor(descriptor.file)
+    for (dep in descriptor.file.allDependencies) {
+      celTypeRegistry.registerDescriptor(dep)
     }
-  if (astAndIssues.hasIssues()) {
-    throw IllegalArgumentException("filter is not a valid CEL expression: ${astAndIssues.issues}")
-  }
-  val program = env.program(astAndIssues.ast)
+    additionalRegistration(celTypeRegistry)
 
-  return items.filter { item ->
-    val variables: Map<String, Any> =
-      mutableMapOf<String, Any>().apply {
-        for (fieldDescriptor in item.descriptorForType.fields) {
-          put(fieldDescriptor.name, item.getField(fieldDescriptor))
+    return Env.newEnv(
+      EnvOption.container(descriptor.fullName),
+      EnvOption.customTypeProvider(celTypeRegistry),
+      EnvOption.customTypeAdapter(celTypeRegistry),
+      EnvOption.declarations(
+        descriptor.fields.map {
+          Decls.newVar(it.name, celTypeRegistry.findFieldType(descriptor.fullName, it.name).type)
         }
+      ),
+    )
+  }
+
+  /**
+   * Filters a list of [Message] using a CEL [Env] and a CEL filter string.
+   *
+   * @throws [IllegalArgumentException] when the filter string is not valid.
+   */
+  fun <T : Message> filterList(env: Env, items: List<T>, filter: String): List<T> {
+    if (filter.isEmpty()) {
+      return items
+    }
+
+    val astAndIssues =
+      try {
+        env.compile(filter)
+      } catch (_: NullPointerException) {
+        // NullPointerException is thrown when an operator in the filter is not a CEL operator.
+        throw IllegalArgumentException("filter is not a valid CEL expression")
       }
-    val result: Val = program.eval(variables).`val`
-    if (result is Err) {
-      throw result.toRuntimeException()
+    if (astAndIssues.hasIssues()) {
+      throw IllegalArgumentException("filter is not a valid CEL expression: ${astAndIssues.issues}")
     }
+    val program = env.program(astAndIssues.ast)
 
-    if (result.value() !is Boolean) {
-      throw IllegalArgumentException("filter does not evaluate to boolean")
+    return items.filter { item ->
+      val variables: Map<String, Any> =
+        mutableMapOf<String, Any>().apply {
+          for (fieldDescriptor in item.descriptorForType.fields) {
+            put(fieldDescriptor.name, item.getField(fieldDescriptor))
+          }
+        }
+      val result: Val = program.eval(variables).`val`
+      if (result is Err) {
+        throw result.toRuntimeException()
+      }
+
+      if (result.value() !is Boolean) {
+        throw IllegalArgumentException("filter does not evaluate to boolean")
+      }
+
+      result.booleanValue()
     }
-
-    result.booleanValue()
   }
 }

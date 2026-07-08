@@ -25,7 +25,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 
 @RunWith(JUnit4::class)
 class CelPredicatesTest {
-  private val env = buildCelEnvironment(TestEvent.getDefaultInstance())
+  private val env = CelPredicates.buildEnvironment(TestEvent.getDefaultInstance())
 
   @Test
   fun `validate is no-op on empty filter`() {

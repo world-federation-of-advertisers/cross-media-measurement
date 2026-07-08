@@ -18,9 +18,9 @@ import com.google.protobuf.Descriptors
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MediaType as EventAnnotationMediaType
 import org.wfanet.measurement.common.api.ResourceIds
+import org.wfanet.measurement.reporting.service.internal.EventTemplateFieldCelEncoding
 import org.wfanet.measurement.common.cel.CelPredicates
 import org.wfanet.measurement.common.cel.CelValidationException
-import org.wfanet.measurement.common.cel.buildCelEnvironment
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
@@ -112,7 +112,7 @@ class ImpressionQualificationFilterMapping(
     // at first request. `BasicReportTransformations.validateImpressionQualificationFilterCel`
     // is a backstop for code paths that bypass this init (test fixtures, alternative loaders,
     // direct constructor calls) and should never fire in normal operation.
-    val celEnv = buildCelEnvironment(eventMessageDescriptor)
+    val celEnv = CelPredicates.buildEnvironment(eventMessageDescriptor)
     for (configFilter in impressionQualificationFilters) {
       for (spec in configFilter.filterSpecsList) {
         val celString: String =
@@ -120,7 +120,7 @@ class ImpressionQualificationFilterMapping(
             configEventFilter.termsList.joinToString(" && ") { configTerm ->
               val fieldInfo = eventTemplateFieldsByPath.getValue(configTerm.path)
               val internalTerm = configTerm.toEventTemplateField()
-              val valueLiteral = internalTerm.value.toCelValue(fieldInfo)
+              val valueLiteral = EventTemplateFieldCelEncoding.toCelValue(internalTerm.value, fieldInfo)
               "${configTerm.path} == $valueLiteral"
             }
           }
