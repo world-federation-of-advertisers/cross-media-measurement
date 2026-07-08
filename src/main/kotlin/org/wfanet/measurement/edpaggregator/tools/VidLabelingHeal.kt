@@ -23,11 +23,16 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
@@ -46,7 +51,12 @@ import picocli.CommandLine.Option
   description = ["Operator tool to recover the VID labeling pipeline from failure states."],
   mixinStandardHelpOptions = true,
   subcommands =
-    [MarkFailedCommand::class, RedeliverDlqCommand::class, CommandLine.HelpCommand::class],
+    [
+      MarkFailedCommand::class,
+      RetryFailedCommand::class,
+      RedeliverDlqCommand::class,
+      CommandLine.HelpCommand::class,
+    ],
 )
 class VidLabelingHeal : Runnable {
   /** Prints usage when invoked without a sub-command. */
@@ -77,16 +87,20 @@ abstract class EdpaApiCommand : Runnable {
   )
   protected var edpaPublicApiCertHost: String? = null
 
-  /** Builds a mutual-TLS channel to the EDP Aggregator public API. */
-  protected fun buildEdpaChannel(): ManagedChannel {
+  /** Builds a mutual-TLS channel to [target] using the shared client certs. */
+  protected fun buildChannel(target: String, certHost: String?): ManagedChannel {
     val clientCerts =
       SigningCerts.fromPemFiles(
         certificateFile = tlsFlags.certFile,
         privateKeyFile = tlsFlags.privateKeyFile,
         trustedCertCollectionFile = tlsFlags.certCollectionFile,
       )
-    return buildMutualTlsChannel(edpaPublicApiTarget, clientCerts, edpaPublicApiCertHost)
+    return buildMutualTlsChannel(target, clientCerts, certHost)
   }
+
+  /** Builds a mutual-TLS channel to the EDP Aggregator public API. */
+  protected fun buildEdpaChannel(): ManagedChannel =
+    buildChannel(edpaPublicApiTarget, edpaPublicApiCertHost)
 
   companion object {
     /** Maximum time to wait for a gRPC channel to terminate during shutdown. */
@@ -146,6 +160,92 @@ class MarkFailedCommand : EdpaApiCommand() {
     } finally {
       channel.shutdown()
       channel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+    }
+  }
+}
+
+/**
+ * Re-triggers a `FAILED` `(upload, model line)` at a given phase after the operator has resolved
+ * the root cause: re-publishes the phase's WorkItem(s) and transitions the model line `FAILED ->
+ * phase`.
+ *
+ * Talks to both the EDP Aggregator public API (model line + job rows) and the Secure Computation
+ * control plane (WorkItems), so it takes a second target for the control plane.
+ */
+@Command(
+  name = "retry-failed",
+  description = ["Re-triggers a FAILED (upload, model line) at the given phase."],
+  mixinStandardHelpOptions = true,
+)
+class RetryFailedCommand : EdpaApiCommand() {
+  @Option(
+    names = ["--control-plane-api-target"],
+    description = ["gRPC target (host:port) of the Secure Computation control-plane API."],
+    required = true,
+  )
+  private lateinit var controlPlaneApiTarget: String
+
+  @Option(
+    names = ["--control-plane-api-cert-host"],
+    description = ["Expected hostname in the control-plane API TLS certificate, if it differs."],
+    required = false,
+  )
+  private var controlPlaneApiCertHost: String? = null
+
+  @Option(
+    names = ["--data-provider"],
+    description = ["DataProvider resource name (e.g. dataProviders/{data_provider})."],
+    required = true,
+  )
+  private lateinit var dataProvider: String
+
+  @Option(
+    names = ["--upload-id"],
+    description = ["RawImpressionUpload id segment."],
+    required = true,
+  )
+  private lateinit var uploadId: String
+
+  @Option(
+    names = ["--model-line"],
+    description = ["CMMS ModelLine resource name of the failed model line."],
+    required = true,
+  )
+  private lateinit var modelLine: String
+
+  @Option(
+    names = ["--from-phase"],
+    description = ["Phase to re-trigger: POOL_ASSIGNING, RANKING, or LABELING."],
+    required = true,
+  )
+  private lateinit var fromPhase: String
+
+  override fun run() {
+    val edpaChannel: ManagedChannel = buildEdpaChannel()
+    val controlPlaneChannel: ManagedChannel =
+      buildChannel(controlPlaneApiTarget, controlPlaneApiCertHost)
+    try {
+      runBlocking {
+        val retrier =
+          FailedDispatchRetrier(
+            RawImpressionUploadModelLineServiceCoroutineStub(edpaChannel),
+            PoolAssignmentJobServiceCoroutineStub(edpaChannel),
+            RankerJobServiceCoroutineStub(edpaChannel),
+            VidLabelingJobServiceCoroutineStub(edpaChannel),
+            WorkItemsCoroutineStub(controlPlaneChannel),
+          )
+        val phase = RawImpressionUploadModelLine.State.valueOf(fromPhase.uppercase())
+        val result = retrier.retryFailed(dataProvider, uploadId, modelLine, phase)
+        println(
+          "Re-triggered ${result.modelLineName}: republished " +
+            "${result.workItemsRepublished} WorkItem(s), state=${result.newState}."
+        )
+      }
+    } finally {
+      edpaChannel.shutdown()
+      controlPlaneChannel.shutdown()
+      edpaChannel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+      controlPlaneChannel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
     }
   }
 }
