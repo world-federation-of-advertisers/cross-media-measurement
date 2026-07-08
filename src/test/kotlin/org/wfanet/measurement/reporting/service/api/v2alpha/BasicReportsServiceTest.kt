@@ -301,6 +301,7 @@ class BasicReportsServiceTest {
         MEASUREMENT_CONSUMER_CONFIGS,
         defaultReportStartHour = null,
         baseExternalImpressionQualificationFilterIds = emptyList(),
+        enableReportingSetReportingUnitComponents = true,
       )
   }
 

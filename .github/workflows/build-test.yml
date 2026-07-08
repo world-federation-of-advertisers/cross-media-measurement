@@ -94,6 +94,7 @@ jobs:
           build --define google_cloud_project_number=12345
           build --define key_ring_location=us-central1
           build --define basic_reports_enabled=true
+          build --define reporting_set_reporting_unit_components_enabled=false
           EOF
 
       # Reduce chance of disconnection from the Build Event Service.

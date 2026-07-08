@@ -88,7 +88,7 @@ package k8s
 		}
 	}
 	_basicReportsEnabled:                        string
-	_reportingSetReportingUnitComponentsEnabled: string | *"false"
+	_reportingSetReportingUnitComponentsEnabled: string
 	_secretName:                                 string
 	_mcConfigSecretName:                         string
 	_populationDataProviderName:                 string

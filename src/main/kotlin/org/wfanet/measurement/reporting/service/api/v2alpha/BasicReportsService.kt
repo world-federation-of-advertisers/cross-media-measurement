@@ -134,7 +134,7 @@ class BasicReportsService(
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
   private val defaultReportStartHour: ZonedHour? = null,
   private val baseExternalImpressionQualificationFilterIds: Iterable<String>,
-  private val enableReportingSetReportingUnitComponents: Boolean = true,
+  private val enableReportingSetReportingUnitComponents: Boolean = false,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   data class ZonedHour(val hour: Int, val zoneId: ZoneId)
