@@ -120,6 +120,7 @@ kt_jvm_test(
         "//imports/java/io/opentelemetry/sdk:sdk_metrics",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:vid_labeling_dispatch_sequencer",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:vid_labeling_monitor",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:work_item_ids",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_lines_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_rollout_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_rollouts_service_kt_jvm_grpc_proto",
