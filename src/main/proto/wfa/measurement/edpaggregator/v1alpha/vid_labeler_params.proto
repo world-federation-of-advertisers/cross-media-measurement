@@ -67,10 +67,8 @@ message VidLabelerParams {
 
   // Message representing the configuration for a model line.
   message ModelLineConfig {
-    reserved 1;
-
     // How each LabelerInput field is sourced from the raw-impression row.
-    repeated LabelerInputFieldMapping labeler_input_field_mapping = 10;
+    repeated LabelerInputFieldMapping labeler_input_field_mapping = 1;
 
     // Mapping from event template field names to their corresponding values.
     map<string, string> event_template_field_mapping = 2;
@@ -98,22 +96,19 @@ message VidLabelerParams {
     // event_template_field_mapping targets.
     string event_template_type = 6 [(google.api.field_behavior) = OPTIONAL];
 
-    reserved 7;
-    reserved "entity_key_field_mapping";
-
     // Mapping from entity_type (the DataProvider's taxonomy label, which
     // becomes LabeledImpression.EntityKey.entity_type) to the raw-impression
     // Parquet column holding that entity's id. One string column per
     // entity_type. Every impression MUST have a non-null, non-empty value in
     // each of these columns. Read per row by the TEE; entity keys are not
     // carried in the file footer.
-    map<string, string> required_entity_key_field_mapping = 8;
+    map<string, string> required_entity_key_field_mapping = 7;
 
     // Like required_entity_key_field_mapping, but an impression MAY omit these:
     // a NULL/empty cell means the impression is not associated with that
     // entity_type. Keys MUST be disjoint from
     // required_entity_key_field_mapping.
-    map<string, string> optional_entity_key_field_mapping = 9;
+    map<string, string> optional_entity_key_field_mapping = 8;
   }
 
   // Map from model line resource name to its configuration.
