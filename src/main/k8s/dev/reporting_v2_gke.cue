@@ -152,6 +152,7 @@ reporting: #Reporting & {
 				_oauthArgs: [
 					"--oauth-protected-resource=https://" + _mcpHost,
 					"--oauth-authorization-server=" + _oauthIssuer,
+					"--oauth-scope=reporting.*",
 				]
 			}
 		}
