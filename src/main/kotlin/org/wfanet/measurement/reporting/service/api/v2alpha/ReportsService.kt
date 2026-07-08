@@ -858,7 +858,7 @@ class ReportsService(
 
   private fun filterReports(reports: List<Report>, filter: String): List<Report> {
     return try {
-      CelPredicates.filterList(ENV, reports, filter)
+      CelPredicates.CelPredicates.filterList(ENV, reports, filter)
     } catch (e: IllegalArgumentException) {
       throw Status.INVALID_ARGUMENT.withDescription(e.message).asRuntimeException()
     }

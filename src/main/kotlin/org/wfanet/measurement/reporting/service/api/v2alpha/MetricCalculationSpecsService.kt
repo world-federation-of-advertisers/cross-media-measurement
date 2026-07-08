@@ -312,7 +312,7 @@ class MetricCalculationSpecsService(
     filter: String,
   ): List<MetricCalculationSpec> {
     return try {
-      CelPredicates.filterList(ENV, metricCalculationSpecs, filter)
+      CelPredicates.CelPredicates.filterList(ENV, metricCalculationSpecs, filter)
     } catch (e: IllegalArgumentException) {
       throw Status.INVALID_ARGUMENT.withDescription(e.message).asRuntimeException()
     }

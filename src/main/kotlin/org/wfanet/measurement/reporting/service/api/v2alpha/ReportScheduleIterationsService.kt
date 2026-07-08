@@ -171,7 +171,7 @@ class ReportScheduleIterationsService(
     filter: String,
   ): List<ReportScheduleIteration> {
     return try {
-      CelPredicates.filterList(ENV, reportScheduleIterations, filter)
+      CelPredicates.CelPredicates.filterList(ENV, reportScheduleIterations, filter)
     } catch (e: IllegalArgumentException) {
       throw Status.INVALID_ARGUMENT.withDescription(e.message).asRuntimeException()
     }
