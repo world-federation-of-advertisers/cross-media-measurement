@@ -346,6 +346,7 @@ class VidLabelingSink(
       for (entityKey in impression.entityKeysList) {
         entityIdsByType.getOrPut(entityKey.entityType) { LinkedHashSet() }.add(entityKey.entityId)
       }
+      // TODO(#4175): remove once DataAvailabilitySync no longer requires event_group_reference_id.
       if (eventGroupReferenceId.isEmpty() && impression.eventGroupReferenceId.isNotEmpty()) {
         eventGroupReferenceId = impression.eventGroupReferenceId
       }
