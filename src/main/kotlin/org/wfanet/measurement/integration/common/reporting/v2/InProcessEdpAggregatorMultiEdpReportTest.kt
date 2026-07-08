@@ -202,8 +202,11 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
   //     slice and silently skips the union reporting_unit slice.
   //
   // Report window is ~4 days (Sun 2021-03-14 17:00 PT -> Thu 2021-03-18), so weekly Monday
-  // cadence collapses to exactly one weekly bucket covering the full window: per-week per-EDP
-  // non_cumulative reach == the deterministic total per-EDP reach.
+  // cadence produces TWO weekly buckets: a partial bucket from report_start to the first
+  // Monday, and a second bucket from that Monday to report_end. Two buckets exercises the
+  // per-window guard for both branches (per-primitive and union) with real multi-bucket
+  // data; a single-bucket window would not distinguish a correct fix from a fix that only
+  // handled the union-only case.
   @Test
   fun `weekly report with reporting_unit cumulative and component non_cumulative succeeds`() =
     runBlocking {
