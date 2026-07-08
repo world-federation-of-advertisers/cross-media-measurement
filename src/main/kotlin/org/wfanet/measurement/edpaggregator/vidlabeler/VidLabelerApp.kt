@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
+import org.wfanet.measurement.edpaggregator.benchmarking.MemorySampler
+
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
@@ -325,6 +327,8 @@ class VidLabelerApp(
     kmsClient: KmsClient,
     inputFiles: List<String>,
   ): Set<LocalDate> {
+    MemorySampler.start("vid_labeler")
+    MemorySampler.setStep("p2.index_load")
     val rankIndexStore =
       RankIndexStore(
         buildVidRankMapStorageClient(getStorageConfig(mp.vidRankMapStorageParams)),
@@ -341,6 +345,7 @@ class VidLabelerApp(
         MemoizedRankIndex.buildFrom(rankIndexStore, dataProvider, modelLine, resolvedBlobs.blobs)
       }
 
+    MemorySampler.setStep("p2.label")
     // The raw event-id column is the raw-impression field mapped to LabelerInput's `event_id.id`.
     val eventIdColumn = resolveEventIdColumn(config)
 

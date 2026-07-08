@@ -30,6 +30,7 @@ import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.edpaggregator.benchmarking.MemorySampler
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileBinPacker
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
@@ -164,6 +165,8 @@ class VidRankBuilder(
       return recoverIfLastJobOut()
     }
 
+    MemorySampler.start("vid_rank_builder")
+    MemorySampler.setStep("p1.rank_build")
     // Rank this job's subpools, overlapping up to [maxConcurrentSubpools] at a time (each subpool's
     // own build is already core-parallel). A 1-subpool job runs exactly one rank. Any subpool
     // failure cancels the siblings and propagates so the framework nacks and Pub/Sub retries.

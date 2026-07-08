@@ -264,7 +264,7 @@ class VidLabelingMonitorFunction : HttpFunction {
           VidLabelingFunctionHelpers.buildSubpoolAssignerParamsTemplate(config),
         queueName = vidLabelerQueueName,
         poolAssignerQueueName = poolAssignerQueueName,
-        numberOfShards = config.numberOfShards,
+        numberOfShards = 32 /* BENCH: hardcoded Phase-0 shards */,
         modelLineConfigs =
           VidLabelingFunctionHelpers.convertModelLineConfigs(config.modelLineConfigsMap),
         rawImpressionUploadFileStub = rawImpressionUploadFileStub,

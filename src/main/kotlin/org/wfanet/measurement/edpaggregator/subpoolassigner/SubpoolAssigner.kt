@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.edpaggregator.subpoolassigner
 
+import org.wfanet.measurement.edpaggregator.benchmarking.MemorySampler
+
 import com.google.type.Date
 import com.google.type.date
 import io.grpc.Status
@@ -149,11 +151,14 @@ class SubpoolAssigner(
       return recoverIfLastShardOut()
     }
 
+    MemorySampler.start("subpool_assigner")
+    MemorySampler.setStep("p0.read_label_accumulate")
     // 1. Read -> label -> accumulate.
     val sink = SubpoolAssignmentSink(mapper, labeler, accumulator, activeWindow, metrics)
     // Phase 0 has no entity keys; ignore the per-file footer metadata.
     rawImpressionSource.streamBlobs(openSink = { _, _ -> sink })
 
+    MemorySampler.setStep("p0.write_shard_maps")
     // 2. Generate this shard's DEK and stream each subpool to its own RecordIO blob, freeing the
     // subpool's in-memory map as soon as its blob is durable.
     // NOTE(world-federation-of-advertisers/cross-media-measurement#3999): the per-shard write below
@@ -202,6 +207,7 @@ class SubpoolAssigner(
         "unrouted=${sink.unrouted})"
     )
 
+    MemorySampler.setStep("p0.mark_shard")
     // 3. Mark this shard SUCCEEDED, reporting its discovered subpool offsets and latest event date
     // so the service can union the offsets and reduce the dates to a max across shards, persisting
     // both on the parent RawImpressionUploadModelLine.
@@ -219,6 +225,7 @@ class SubpoolAssigner(
         }
       )
 
+    MemorySampler.setStep("p0.last_shard_out")
     // 4. Last-shard-out: merge per-shard blobs into one blob per subpool, then fan out Phase 1.
     val lastShardOut = markResponse.hasLastShardResult()
     if (lastShardOut) {
@@ -296,6 +303,7 @@ class SubpoolAssigner(
     // MarkPoolAssignmentJobSucceeded; recover them via ListPoolAssignmentJobs for this model line.
     val shardDeks: Map<Int, EncryptedDek> = listShardDeks()
 
+    MemorySampler.setStep("p0.merge")
     // Merge the subpools CONCURRENTLY, all sharing one Semaphore so the TOTAL number of in-flight
     // shard reads across every subpool merge is bounded by MERGE_READ_CONCURRENCY, keeping merge
     // memory bounded regardless of the subpool/shard fan-out.
@@ -322,6 +330,7 @@ class SubpoolAssigner(
         .awaitAll()
     }
 
+    MemorySampler.setStep("p0.fanout_ranking")
     fanOutRanking(parent, poolOffsets, maxEventDate, mergedDek)
 
     // Clean up the temp per-shard blobs only AFTER fanOutRanking flips the parent to RANKING.

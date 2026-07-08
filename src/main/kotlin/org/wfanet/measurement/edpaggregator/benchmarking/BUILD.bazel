@@ -1,0 +1,12 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+])
+
+# BENCHMARK-ONLY (throwaway) memory + step-timing sampler. Remove before merge.
+kt_jvm_library(
+    name = "memory_sampler",
+    srcs = ["MemorySampler.kt"],
+)

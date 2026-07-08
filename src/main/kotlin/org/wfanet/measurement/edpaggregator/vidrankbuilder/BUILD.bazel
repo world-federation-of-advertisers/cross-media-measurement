@@ -102,6 +102,7 @@ kt_jvm_library(
     name = "vid_rank_builder",
     srcs = ["VidRankBuilder.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/benchmarking:memory_sampler",
         ":subpool_ranker",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:raw_impression_file_bin_packer",
