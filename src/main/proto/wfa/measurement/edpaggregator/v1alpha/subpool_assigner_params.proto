@@ -140,8 +140,6 @@ message SubpoolAssignerParams {
   // together with `shard_index` to select the impressions this VM owns.
   int32 total_shards = 13 [(google.api.field_behavior) = REQUIRED];
 
-  reserved 14;
-
   // Mapping from labeler input field names to their corresponding raw
   // impression field names. Used by the Phase-0 SubpoolAssigner to project
   // raw EDP impressions into the `wfa_virtual_people.LabelerInput` shape
@@ -151,7 +149,7 @@ message SubpoolAssignerParams {
   //
   // Also carried as pass-through for VidRankBuilder Phase-1 / VidLabeler
   // Phase-2 WorkItem construction by the last-shard-out.
-  repeated LabelerInputFieldMapping labeler_input_field_mapping = 24;
+  repeated LabelerInputFieldMapping labeler_input_field_mapping = 14;
 
   // Mapping from event template field names to their corresponding raw
   // impression field names. Mirrors the per-(EDP, model line) mapping
@@ -200,9 +198,6 @@ message SubpoolAssignerParams {
   // `event_template_descriptor_blob_uri`).
   string event_template_type = 20 [(google.api.field_behavior) = OPTIONAL];
 
-  reserved 21;
-  reserved "entity_key_field_mapping";
-
   // Entity types that every impression MUST have. Not consumed by the Phase-0
   // SubpoolAssigner; carried as pass-through so the last-shard-out stamps it on
   // the VidRankBuilder Phase-1 WorkItem, which the Phase-1 last-out stamps on
@@ -211,5 +206,5 @@ message SubpoolAssignerParams {
 
   // Entity types an impression MAY have. Pass-through, same as
   // required_entity_key_field_mapping; keys MUST be disjoint from it.
-  map<string, string> optional_entity_key_field_mapping = 23;
+  map<string, string> optional_entity_key_field_mapping = 21;
 }
