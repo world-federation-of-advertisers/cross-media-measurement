@@ -51,6 +51,16 @@ class RawImpressionFooterTest {
   }
 
   @Test
+  fun `reads event_date even when event_group_reference_id is absent`() = runBlocking {
+    // The date-reading path must not depend on reference-id presence (it only needs the date).
+    val client = client()
+    client.writeBlob("file.parquet", emptyFlow(), mapOf("event_date" to "2026-06-01"))
+
+    assertThat(readEventDateFromFooter(client, "file.parquet"))
+      .isEqualTo(LocalDate.parse("2026-06-01"))
+  }
+
+  @Test
   fun `throws when the footer has no event_date`() {
     runBlocking {
       val client = client()
