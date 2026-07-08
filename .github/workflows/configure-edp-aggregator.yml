@@ -115,6 +115,7 @@ jobs:
         bazelisk build
         //src/main/k8s/dev:edp_aggregator.tar
         //src/main/k8s/testing/secretfiles:edp_aggregator_tls_files.tar
+        //src/main/k8s/testing/secretfiles:edp7_tls_files.tar
         //src/main/k8s/testing/secretfiles:edp_aggregator_trusted_certs.pem
 
     - name: Make Kustomization dir
@@ -130,10 +131,31 @@ jobs:
         tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/edp_aggregator_tls_files.tar"
         -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_tls"
 
+    - name: Extract edp7 tls files archive
+      run: >
+        tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/edp7_tls_files.tar"
+        -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp7_tls"
+
     - name: Copy trusted certs
       run: >
         cp "$BAZEL_BIN/src/main/k8s/testing/secretfiles/edp_aggregator_trusted_certs.pem"
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_config/trusted_certs.pem"
+
+    - name: Copy kingdom root cert
+      run: >
+        cp src/main/k8s/testing/secretfiles/kingdom_root.pem
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_config/kingdom_root.pem"
+
+    - name: Write sync-event-group-activities config (edp7)
+      env:
+        EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT: ${{ vars.EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT }}
+      run: |
+        if [ -z "$EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT" ]; then
+          echo "vars.EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT is empty for environment ${{ inputs.environment }}" >&2
+          exit 1
+        fi
+        printf '%s' "$EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT" > \
+          "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_config/event-group-activity-sync-config-edp7.textproto"
 
     - name: Export KUSTOMIZE_PATH
       run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator" >> $GITHUB_ENV
