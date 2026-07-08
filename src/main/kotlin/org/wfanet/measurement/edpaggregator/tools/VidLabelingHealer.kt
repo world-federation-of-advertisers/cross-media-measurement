@@ -17,10 +17,8 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import java.util.logging.Logger
-import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineFailedRequest
 
 /**
@@ -63,7 +61,7 @@ class VidLabelingHealer(
   ): RawImpressionUploadModelLine {
     val uploadName = "$dataProvider/rawImpressionUploads/$uploadId"
     val modelLine =
-      findModelLine(uploadName, cmmsModelLine)
+      modelLinesStub.findModelLine(uploadName, cmmsModelLine)
         ?: throw IllegalArgumentException(
           "No RawImpressionUploadModelLine for $cmmsModelLine under $uploadName"
         )
@@ -80,41 +78,6 @@ class VidLabelingHealer(
         etag = modelLine.etag
       }
     )
-  }
-
-  /**
-   * Returns the single [RawImpressionUploadModelLine] under [uploadName] whose `cmms_model_line`
-   * equals [cmmsModelLine], or `null` if none exists.
-   */
-  private suspend fun findModelLine(
-    uploadName: String,
-    cmmsModelLine: String,
-  ): RawImpressionUploadModelLine? {
-    var pageToken = ""
-    var found: RawImpressionUploadModelLine? = null
-    do {
-      val response =
-        modelLinesStub.listRawImpressionUploadModelLines(
-          listRawImpressionUploadModelLinesRequest {
-            parent = uploadName
-            filter =
-              ListRawImpressionUploadModelLinesRequestKt.filter {
-                this.cmmsModelLine = cmmsModelLine
-              }
-            this.pageToken = pageToken
-          }
-        )
-      for (line in response.rawImpressionUploadModelLinesList) {
-        // The service filters by cmms_model_line, but guard against a server that ignores it.
-        if (line.cmmsModelLine != cmmsModelLine) continue
-        require(found == null) {
-          "Duplicate RawImpressionUploadModelLine for $cmmsModelLine under $uploadName"
-        }
-        found = line
-      }
-      pageToken = response.nextPageToken
-    } while (pageToken.isNotEmpty())
-    return found
   }
 
   companion object {
