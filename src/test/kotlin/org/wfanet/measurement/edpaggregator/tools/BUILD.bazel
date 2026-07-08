@@ -96,6 +96,8 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:vid_labeling_heal",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:pool_assignment_job_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:pool_assignment_job_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:ranker_job_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:ranker_job_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeling_job_kt_jvm_proto",
