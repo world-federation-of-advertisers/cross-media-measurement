@@ -32,7 +32,7 @@ import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.service.internal.Errors
-import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
+import org.wfanet.measurement.internal.edpaggregator.EncryptedDek
 import org.wfanet.measurement.internal.edpaggregator.ListPoolAssignmentJobsRequestKt
 import org.wfanet.measurement.internal.edpaggregator.ListPoolAssignmentJobsResponse
 import org.wfanet.measurement.internal.edpaggregator.MarkPoolAssignmentJobSucceededResponse
@@ -41,6 +41,7 @@ import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrp
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentState
 import org.wfanet.measurement.internal.edpaggregator.batchCreatePoolAssignmentJobsRequest
 import org.wfanet.measurement.internal.edpaggregator.createPoolAssignmentJobRequest
+import org.wfanet.measurement.internal.edpaggregator.encryptedDek
 import org.wfanet.measurement.internal.edpaggregator.getPoolAssignmentJobRequest
 import org.wfanet.measurement.internal.edpaggregator.listPoolAssignmentJobsRequest
 import org.wfanet.measurement.internal.edpaggregator.markPoolAssignmentJobFailedRequest
@@ -74,6 +75,16 @@ abstract class PoolAssignmentJobServiceTest {
     rawImpressionUploadResourceId: String,
     cmmsModelLine: String,
   )
+
+  /**
+   * Reads the parent [RawImpressionUploadModelLine]'s `encrypted_merged_dek`, or `null` if unset.
+   * Used to verify last-shard-out promotes the final shard's DEK onto the parent.
+   */
+  protected abstract suspend fun getRawImpressionUploadModelLineMergedDek(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    cmmsModelLine: String,
+  ): EncryptedDek?
 
   @Before
   fun initService() {
@@ -896,6 +907,73 @@ abstract class PoolAssignmentJobServiceTest {
   }
 
   @Test
+  fun `markPoolAssignmentJobSucceeded promotes last shard encrypted_dek to parent merged dek`() =
+    runBlocking {
+      val shard0: PoolAssignmentJob =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            poolAssignmentJob = poolAssignmentJob {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
+          }
+        )
+      val shard1: PoolAssignmentJob =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            poolAssignmentJob = poolAssignmentJob {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 1
+            }
+          }
+        )
+
+      // Non-last shard: the parent's merged DEK stays unset even though this shard has a DEK.
+      service.markPoolAssignmentJobSucceeded(
+        markPoolAssignmentJobSucceededRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          poolAssignmentJobResourceId = shard0.poolAssignmentJobResourceId
+          etag = shard0.etag
+          encryptedDek = ENCRYPTED_DEK
+        }
+      )
+      assertThat(
+          getRawImpressionUploadModelLineMergedDek(
+            DATA_PROVIDER_RESOURCE_ID,
+            RAW_IMPRESSION_UPLOAD_RESOURCE_ID,
+            CMMS_MODEL_LINE,
+          )
+        )
+        .isNull()
+
+      // Last shard out: this final shard's encrypted_dek is promoted onto the parent model line.
+      service.markPoolAssignmentJobSucceeded(
+        markPoolAssignmentJobSucceededRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          poolAssignmentJobResourceId = shard1.poolAssignmentJobResourceId
+          etag = shard1.etag
+          encryptedDek = MERGED_ENCRYPTED_DEK
+          poolOffsets += POOL_OFFSETS
+          maxEventDate = MAX_EVENT_DATE
+        }
+      )
+      assertThat(
+          getRawImpressionUploadModelLineMergedDek(
+            DATA_PROVIDER_RESOURCE_ID,
+            RAW_IMPRESSION_UPLOAD_RESOURCE_ID,
+            CMMS_MODEL_LINE,
+          )
+        )
+        .isEqualTo(MERGED_ENCRYPTED_DEK)
+    }
+
+  @Test
   fun `markPoolAssignmentJobSucceeded returns last_shard_result only on the last shard`() =
     runBlocking {
       val shard0: PoolAssignmentJob =
@@ -1415,6 +1493,9 @@ abstract class PoolAssignmentJobServiceTest {
     }
     private val ENCRYPTED_DEK = encryptedDek {
       kekUri = "gcp-kms://projects/test/locations/us/keyRings/r/cryptoKeys/k"
+    }
+    private val MERGED_ENCRYPTED_DEK = encryptedDek {
+      kekUri = "gcp-kms://projects/test/locations/us/keyRings/r/cryptoKeys/merged"
     }
   }
 }

@@ -24,9 +24,11 @@ import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.edpaggregator.service.internal.testing.PoolAssignmentJobServiceTest
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.internal.edpaggregator.EncryptedDek
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
@@ -124,6 +126,41 @@ class SpannerPoolAssignmentJobServiceTest : PoolAssignmentJobServiceTest() {
         .to(Value.COMMIT_TIMESTAMP)
         .build()
     databaseClient.write(listOf(mutation))
+  }
+
+  override suspend fun getRawImpressionUploadModelLineMergedDek(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    cmmsModelLine: String,
+  ): EncryptedDek? {
+    return spannerDatabase.databaseClient.singleUse().use { txn ->
+      val row =
+        txn
+          .executeQuery(
+            statement(
+              """
+              SELECT ModelLine.EncryptedMergedDek AS EncryptedMergedDek
+              FROM RawImpressionUploadModelLine AS ModelLine
+              JOIN RawImpressionUpload AS Upload
+                USING (DataProviderResourceId, RawImpressionUploadId)
+              WHERE ModelLine.DataProviderResourceId = @dataProviderResourceId
+                AND Upload.RawImpressionUploadResourceId = @rawImpressionUploadResourceId
+                AND ModelLine.CmmsModelLine = @cmmsModelLine
+              """
+                .trimIndent()
+            ) {
+              bind("dataProviderResourceId").to(dataProviderResourceId)
+              bind("rawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
+              bind("cmmsModelLine").to(cmmsModelLine)
+            }
+          )
+          .single()
+      if (row.isNull("EncryptedMergedDek")) {
+        null
+      } else {
+        row.getProtoMessage("EncryptedMergedDek", EncryptedDek.getDefaultInstance())
+      }
+    }
   }
 
   companion object {

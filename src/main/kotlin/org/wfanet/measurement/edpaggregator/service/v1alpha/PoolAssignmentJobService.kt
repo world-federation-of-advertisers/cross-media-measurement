@@ -354,7 +354,7 @@ class PoolAssignmentJobService(
             poolAssignmentJobResourceId = jobKey.poolAssignmentJobId
             etag = request.etag
             requestId = request.requestId
-            encryptedDek = request.encryptedDek
+            encryptedDek = request.encryptedDek.toInternal()
             poolOffsets += request.poolOffsetsList
             if (request.hasMaxEventDate()) {
               maxEventDate = request.maxEventDate
@@ -453,6 +453,9 @@ private fun handleInternalError(e: StatusException): StatusRuntimeException {
     InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
     InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
     InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+    InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+    InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+    InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
     null -> Status.INTERNAL.withCause(e).asRuntimeException()
     InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
     InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND ->
@@ -485,7 +488,7 @@ internal fun InternalPoolAssignmentJob.toPublic(): PoolAssignmentJob {
       errorMessage = source.errorMessage
     }
     if (source.hasEncryptedDek()) {
-      encryptedDek = source.encryptedDek
+      encryptedDek = source.encryptedDek.toPublic()
     }
     if (source.etag.isNotEmpty()) {
       etag = source.etag
