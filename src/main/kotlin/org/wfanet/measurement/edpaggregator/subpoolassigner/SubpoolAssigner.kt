@@ -55,6 +55,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markPoolAssignmentJobSucceed
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineRankingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
+import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
@@ -376,7 +377,7 @@ class SubpoolAssigner(
         offsets.forEach { subpoolMapBlobUris.put(it, mergedSubpoolKey(it)) }
         offsets.forEach { subpoolRankedSizes.put(it, labeler.rankedSize(it)) }
       }
-    val workItemId = "vid-rank-builder-${rankerJob.name.substringAfterLast('/')}"
+    val workItemId = WorkItemIds.forVidRankBuilder(rankerJob.name)
     try {
       workItemsStub.createWorkItem(
         createWorkItemRequest {
