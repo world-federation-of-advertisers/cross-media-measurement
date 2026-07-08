@@ -197,6 +197,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       "1241",
       1,
       eventGroupFilter = { it.eventGroupReferenceId == CREATIVE_ID_EVENT_GROUP_REF_ID },
+      reportId = ENTITY_KEY_REPORT_ID,
     )
   }
 
@@ -222,6 +223,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
         "1242",
         1,
         eventGroupFilter = { it.eventGroupReferenceId in MULTI_CREATIVE_REF_IDS },
+        reportId = ENTITY_KEY_REPORT_ID,
       )
     }
 
@@ -247,6 +249,12 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
     val MULTI_CREATIVE_B_REF_ID = "creative-id-$MULTI_CREATIVE_B_ENTITY_ID"
     val MULTI_CREATIVE_REF_IDS = setOf(MULTI_CREATIVE_A_REF_ID, MULTI_CREATIVE_B_REF_ID)
     const val EDPA_META_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-2"
+
+    // Entity-key measurements must not share a report with reference-id measurements: the
+    // requisition fetcher groups requisitions by report and the results fulfiller rejects a group
+    // that mixes reference-id and entity-key event groups. Route entity-key measurements to their
+    // own report so each report's group is single-kind.
+    const val ENTITY_KEY_REPORT_ID = "some-entity-key-report-id"
 
     val OUTPUT_DP_PARAMS = differentialPrivacyParams {
       epsilon = 0.1
