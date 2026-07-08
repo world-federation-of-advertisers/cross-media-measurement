@@ -181,7 +181,7 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
     assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
   }
 
-  // Regression for #4132. Under the shape:
+  // Under the shape:
   //   metric_frequency: { weekly: MONDAY }
   //   reporting_unit: cumulative only (NO non_cumulative)
   //   component:      non_cumulative (per-EDP weekly)
@@ -276,7 +276,7 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
       //     unset (0). The entry with the max `metricEndTime` covers the whole report.
       //   * Per-EDP `component.non_cumulative` slices: `nonCumulativeMetricStartTime` is
       //     set and `componentsList` is populated.
-      // Pre-fix, one of these silently disappeared (per PR body: `Map.getValue` on the
+      // Pre-fix, one of these silently disappeared (`Map.getValue` on the
       // missing per-window RS ID threw NoSuchElement, mapped either to gRPC INTERNAL on the
       // GetBasicReport path or to a silent empty `resultGroupsList` on the ListBasicReports
       // path). Post-fix, both must render.
