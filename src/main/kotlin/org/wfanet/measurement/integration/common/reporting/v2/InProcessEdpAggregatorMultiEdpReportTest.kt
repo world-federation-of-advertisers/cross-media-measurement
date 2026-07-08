@@ -392,7 +392,7 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
         .that(cumulativeReachesByEndTime.zipWithNext { a, b -> b >= a }.all { it })
         .isTrue()
 
-      // Uniquely-4141 assertion: this request has NO component.* spec, so no result entry
+      // Union-only-request assertion: this request has NO component.* spec, so no result entry
       // should carry per-EDP components. Under the pre-fix bug, per-EDP subset enumeration
       // over-triggered and populated componentsList even when the caller did not request it.
       weeklyResults.forEach { r ->
