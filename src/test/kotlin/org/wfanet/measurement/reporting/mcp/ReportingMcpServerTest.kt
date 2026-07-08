@@ -643,7 +643,10 @@ class ReportingMcpServerTest {
               .build(),
             HttpResponse.BodyHandlers.ofString(),
           )
-      assertThat(response.statusCode()).isNotEqualTo(401)
+      // Unchanged behavior: the request is not challenged (not 401) and flows through to the
+      // normal clean tool error rather than regressing to some other status/body.
+      assertThat(response.statusCode()).isEqualTo(200)
+      assertThat(response.body()).contains("Missing bearer token")
     } finally {
       server.stop()
     }
