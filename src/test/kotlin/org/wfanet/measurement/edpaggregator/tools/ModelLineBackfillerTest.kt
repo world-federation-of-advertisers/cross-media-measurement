@@ -75,7 +75,7 @@ class ModelLineBackfillerTest {
       whenever(uploadService.markRawImpressionUploadActive(any()))
         .thenReturn(rawImpressionUpload { name = UPLOAD_NAME })
 
-      backfiller.backfill(DATA_PROVIDER, MODEL_LINE, listOf(UPLOAD_ID))
+      backfiller.backfill(MODEL_LINE, listOf(UPLOAD_NAME))
     }
 
     assertThat(result.createdModelLines).hasSize(1)
@@ -105,7 +105,7 @@ class ModelLineBackfillerTest {
       whenever(uploadService.markRawImpressionUploadActive(any()))
         .thenReturn(rawImpressionUpload { name = UPLOAD_NAME })
 
-      backfiller.backfill(DATA_PROVIDER, MODEL_LINE, listOf(UPLOAD_ID))
+      backfiller.backfill(MODEL_LINE, listOf(UPLOAD_NAME))
     }
 
     assertThat(result.createdModelLines).isEmpty()
