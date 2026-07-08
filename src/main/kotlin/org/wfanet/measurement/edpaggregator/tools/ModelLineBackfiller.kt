@@ -19,9 +19,7 @@ package org.wfanet.measurement.edpaggregator.tools
 import java.util.UUID
 import java.util.logging.Logger
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadModelLineRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadActiveRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 
 /**
@@ -29,30 +27,27 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
  * over historical data, without asking the data provider to re-upload — Backfill Path B.
  *
  * For each upload it creates a `RawImpressionUploadModelLine` in `CREATED` state for the model line
- * (skipping uploads that already carry it) and then reactivates the parent upload (`COMPLETED ->
- * ACTIVE`) so the `VidLabelingMonitorFunction` dispatches it. The create precedes the reactivation
- * so the new work exists before the upload becomes ACTIVE.
+ * (skipping uploads that already carry it). Creating the model line atomically reactivates a
+ * COMPLETED parent upload (`COMPLETED -> ACTIVE`) in the same transaction, so the
+ * `VidLabelingMonitorFunction` dispatches the new work. Adding a model line to a FAILED upload is
+ * rejected server-side (backfilling a failed upload is unsupported).
  *
  * @param modelLinesStub stub for `RawImpressionUploadModelLineService`.
- * @param uploadsStub stub for `RawImpressionUploadService` (used to reactivate the parent).
  */
 class ModelLineBackfiller(
-  private val modelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
-  private val uploadsStub: RawImpressionUploadServiceCoroutineStub,
+  private val modelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub
 ) {
   /** Outcome of a [backfill] run. */
   data class BackfillResult(
     /** Resource names of the model lines created this run (excludes ones that already existed). */
-    val createdModelLines: List<String>,
-    /** Resource names of the uploads reactivated this run. */
-    val reactivatedUploads: List<String>,
+    val createdModelLines: List<String>
   )
 
   /**
-   * Backfills [cmmsModelLine] onto each of [uploadIds] under [dataProvider].
+   * Backfills [cmmsModelLine] onto each of [rawImpressionUploads].
    *
-   * Idempotent: an upload that already carries the model line is not re-created, and reactivating
-   * an already-ACTIVE upload is a no-op.
+   * Idempotent: an upload that already carries the model line is not re-created. Creating the model
+   * line reactivates a COMPLETED parent; the server rejects the create if the parent is FAILED.
    *
    * @throws IllegalArgumentException if [rawImpressionUploads] is empty.
    */
@@ -60,36 +55,30 @@ class ModelLineBackfiller(
     require(rawImpressionUploads.isNotEmpty()) { "at least one upload is required" }
 
     val created = mutableListOf<String>()
-    val reactivated = mutableListOf<String>()
     for (uploadName in rawImpressionUploads) {
       val existing = modelLinesStub.findModelLine(uploadName, cmmsModelLine)
       if (existing != null) {
         logger.info(
           "$cmmsModelLine already present under $uploadName (${existing.name}); skipping."
         )
-      } else {
-        val modelLine =
-          modelLinesStub.createRawImpressionUploadModelLine(
-            createRawImpressionUploadModelLineRequest {
-              parent = uploadName
-              rawImpressionUploadModelLine = rawImpressionUploadModelLine {
-                this.cmmsModelLine = cmmsModelLine
-              }
-              requestId = backfillRequestId(uploadName, cmmsModelLine)
-            }
-          )
-        created.add(modelLine.name)
-        logger.info("Created ${modelLine.name}.")
+        continue
       }
-
-      // Reactivate the parent so the Monitor dispatches the new (CREATED) model line.
-      uploadsStub.markRawImpressionUploadActive(
-        markRawImpressionUploadActiveRequest { name = uploadName }
-      )
-      reactivated.add(uploadName)
-      logger.info("Reactivated $uploadName.")
+      // Creating the model line atomically reactivates a COMPLETED parent (and rejects a FAILED
+      // one).
+      val modelLine =
+        modelLinesStub.createRawImpressionUploadModelLine(
+          createRawImpressionUploadModelLineRequest {
+            parent = uploadName
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              this.cmmsModelLine = cmmsModelLine
+            }
+            requestId = backfillRequestId(uploadName, cmmsModelLine)
+          }
+        )
+      created.add(modelLine.name)
+      logger.info("Created ${modelLine.name}.")
     }
-    return BackfillResult(created, reactivated)
+    return BackfillResult(created)
   }
 
   companion object {
