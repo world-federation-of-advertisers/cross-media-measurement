@@ -265,6 +265,7 @@ class VidRankBuilder(
       return
     }
     val published = fanOutLabeling()
+    MemorySampler.setStep("p1.fanout_done")
     markParentLabeling(parent)
     if (published == 0) {
       // No `VidLabelingJob` exists for this (upload, model line) — an empty upload with no

@@ -332,6 +332,7 @@ class SubpoolAssigner(
 
     MemorySampler.setStep("p0.fanout_ranking")
     fanOutRanking(parent, poolOffsets, maxEventDate, mergedDek)
+    MemorySampler.setStep("p0.fanout_done")
 
     // Clean up the temp per-shard blobs only AFTER fanOutRanking flips the parent to RANKING.
     // recovery re-runs the last-shard-out only while the parent is still POOL_ASSIGNING (pre-flip),
