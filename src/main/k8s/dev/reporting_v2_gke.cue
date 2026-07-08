@@ -96,7 +96,7 @@ objectSets: [
 	reporting.services,
 	reporting.cronJobs,
 	reporting.networkPolicies,
-	if _mcpHost != "" {[_reportingMcpManagedCertificate, _reportingMcpIngress]},
+	if _mcpHost != "" && _oauthIssuer != "" {[_reportingMcpManagedCertificate, _reportingMcpIngress]},
 ]
 
 reporting: #Reporting & {
@@ -166,7 +166,7 @@ reporting: #Reporting & {
 		"reporting-v2alpha-public-api-server": _ipAddressName: _publicApiAddressName
 		"reporting-grpc-gateway": _ipAddressName:              _publicApiAddressName
 		"access-public-api-server": _ipAddressName:            _accessPublicApiAddressName
-		if _mcpHost != "" {
+		if _mcpHost != "" && _oauthIssuer != "" {
 			"reporting-mcp-server": metadata: annotations: "cloud.google.com/neg": "{\"ingress\": true}"
 		}
 	}
