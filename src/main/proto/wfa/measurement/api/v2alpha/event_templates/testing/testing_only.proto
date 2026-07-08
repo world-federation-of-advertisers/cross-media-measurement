@@ -73,9 +73,10 @@ message TestingOnly {
     version_added: 1
   }];
 
-  // Test-only FLOAT IMPRESSION_QUALIFICATION field. Do not mimic. See
-  // top-of-file guidance -- prefer enums or bool buckets over continuous
-  // floats for IMPRESSION_QUALIFICATION fields in real EDP schemas.
+  // Test-only FLOAT IMPRESSION_QUALIFICATION field. Exercises the FLOAT
+  // CEL emission code path (numeric literal, NaN/Infinity rejection).
+  // See top-of-file guidance: floats ARE the right shape for continuous
+  // measurements in real EDP schemas.
   float testing_float = 2 [(.wfa.measurement.api.v2alpha.template_field) = {
     display_name: "Testing Float (test-only, DO NOT MIMIC)"
     reporting_features: IMPRESSION_QUALIFICATION

@@ -474,10 +474,10 @@ private object V2AlphaPublicApiServer {
       description =
         [
           "Whether generated CEL filters for BasicReports should include a " +
-            " guard when a filter term addresses a field " +
-            "nested inside a  member of an event template.",
+            "`<template>.<member> != null && ...` guard when a filter term addresses a field " +
+            "nested inside a `oneof` member of an event template.",
           "Off by default because at least one EDP implementation currently fails to evaluate " +
-            "CEL filters containing  clauses. Without the guard, unset oneof members " +
+            "CEL filters containing `!= null` clauses. Without the guard, unset oneof members " +
             "return proto defaults, which can silently match the wrong bucket in certain IQF " +
             "shapes; enable this flag once the target EDPs support null-guarded CEL filters.",
         ],
