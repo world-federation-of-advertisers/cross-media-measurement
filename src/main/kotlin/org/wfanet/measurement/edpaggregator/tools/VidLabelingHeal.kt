@@ -27,6 +27,7 @@ import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
@@ -214,14 +215,14 @@ class RetryFailedCommand : EdpaApiCommand() {
           FailedDispatchRetrier(
             RawImpressionUploadModelLineServiceCoroutineStub(edpaChannel),
             PoolAssignmentJobServiceCoroutineStub(edpaChannel),
+            RankerJobServiceCoroutineStub(edpaChannel),
             VidLabelingJobServiceCoroutineStub(edpaChannel),
             WorkItemsCoroutineStub(controlPlaneChannel),
           )
         val result = retrier.retryFailed(rawImpressionUpload, modelLine)
-        val startPhase = if (result.memoized) "Phase 0 (POOL_ASSIGNING)" else "Phase 2 (LABELING)"
         println(
-          "Re-triggered ${result.modelLineName} from $startPhase: republished " +
-            "${result.workItemsRepublished} WorkItem(s), state=${result.newState}."
+          "Re-triggered ${result.modelLineName} at ${result.newState}: republished " +
+            "${result.workItemsRepublished} WorkItem(s)."
         )
       }
     } finally {
