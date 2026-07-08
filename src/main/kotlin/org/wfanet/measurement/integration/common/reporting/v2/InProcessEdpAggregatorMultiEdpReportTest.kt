@@ -15,6 +15,7 @@
 package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -259,6 +260,30 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
       assertThat(listOf(originalStacked[0], reversedStacked[0]).sorted())
         .containsExactly(EXPECTED_EDP_SPEC2_REACH, EXPECTED_EDP_SPEC1_REACH)
         .inOrder()
+
+      // Uniquely-4136 assertions: cross-spec consistency. The two specs reference the same
+      // underlying components (just in different orderings), so the union metrics and
+      // population size must be identical across specs. If the alias table over- or
+      // under-fires, per-component data can leak between specs; these assertions detect that.
+      val originalUnionCumulative = originalResult.metricSet.reportingUnit.cumulative
+      val reversedUnionCumulative = reversedResult.metricSet.reportingUnit.cumulative
+      assertWithMessage("cross-spec union cumulative reach equal")
+        .that(originalUnionCumulative.reach)
+        .isEqualTo(reversedUnionCumulative.reach)
+      assertWithMessage("cross-spec union cumulative impressions equal")
+        .that(originalUnionCumulative.impressions)
+        .isEqualTo(reversedUnionCumulative.impressions)
+      assertWithMessage("cross-spec population size equal")
+        .that(originalResult.metricSet.populationSize)
+        .isEqualTo(reversedResult.metricSet.populationSize)
+      // Each spec must expose both DPs in its componentsList (component-scoped result must not
+      // silently drop a DP under the reordering).
+      assertWithMessage("original spec componentsList covers both DPs")
+        .that(originalResult.metricSet.componentsList.map { it.key }.toSet())
+        .containsExactlyElementsIn(distinctDps)
+      assertWithMessage("reversed spec componentsList covers both DPs")
+        .that(reversedResult.metricSet.componentsList.map { it.key }.toSet())
+        .containsExactlyElementsIn(distinctDps)
 
       assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
     }
