@@ -25,21 +25,20 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
-import org.mockito.kotlin.argThat
-import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
-import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
+import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
@@ -51,8 +50,6 @@ class FailedDispatchRetrierTest {
   private val poolAssignmentJobService:
     PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase =
     mockService()
-  private val rankerJobService: RankerJobServiceGrpcKt.RankerJobServiceCoroutineImplBase =
-    mockService()
   private val vidLabelingJobService:
     VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase =
     mockService()
@@ -62,7 +59,6 @@ class FailedDispatchRetrierTest {
   val grpcTestServerRule = GrpcTestServerRule {
     addService(modelLineService)
     addService(poolAssignmentJobService)
-    addService(rankerJobService)
     addService(vidLabelingJobService)
     addService(workItemsService)
   }
@@ -74,7 +70,6 @@ class FailedDispatchRetrierTest {
         channel
       ),
       PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(channel),
-      RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(channel),
       VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(channel),
       WorkItemsGrpcKt.WorkItemsCoroutineStub(channel),
     )
@@ -88,7 +83,7 @@ class FailedDispatchRetrierTest {
   }
 
   @Test
-  fun `retryFailed republishes ranking work items and transitions to RANKING`() {
+  fun `retryFailed restarts a memoized model line from Phase 0`() {
     val result = runBlocking {
       whenever(modelLineService.listRawImpressionUploadModelLines(any()))
         .thenReturn(
@@ -96,21 +91,53 @@ class FailedDispatchRetrierTest {
             rawImpressionUploadModelLines += failedModelLine()
           }
         )
-      whenever(rankerJobService.listRankerJobs(any()))
-        .thenReturn(listRankerJobsResponse { rankerJobs += rankerJob { name = RANKER_JOB_NAME } })
-      whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = RANKER_QUEUE })
+      whenever(poolAssignmentJobService.listPoolAssignmentJobs(any()))
+        .thenReturn(
+          listPoolAssignmentJobsResponse {
+            poolAssignmentJobs += poolAssignmentJob { shardIndex = 0 }
+          }
+        )
+      whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = POOL_QUEUE })
       whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
-      whenever(modelLineService.markRawImpressionUploadModelLineRanking(any()))
-        .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.RANKING })
+      whenever(modelLineService.markRawImpressionUploadModelLinePoolAssigning(any()))
+        .thenReturn(
+          failedModelLine().copy { state = RawImpressionUploadModelLine.State.POOL_ASSIGNING }
+        )
 
-      retrier.retryFailed(UPLOAD_NAME, MODEL_LINE, RawImpressionUploadModelLine.State.RANKING)
+      retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
     }
 
+    assertThat(result.memoized).isTrue()
+    assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
     assertThat(result.workItemsRepublished).isEqualTo(1)
-    assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.RANKING)
-    verifyBlocking(workItemsService) {
-      createWorkItem(argThat { workItemId.startsWith("rt-") && workItem.queue == RANKER_QUEUE })
+  }
+
+  @Test
+  fun `retryFailed restarts a non-memoized model line from Phase 2`() {
+    val result = runBlocking {
+      whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines += failedModelLine()
+          }
+        )
+      whenever(poolAssignmentJobService.listPoolAssignmentJobs(any()))
+        .thenReturn(listPoolAssignmentJobsResponse {})
+      whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+        .thenReturn(
+          listVidLabelingJobsResponse { vidLabelingJobs += vidLabelingJob { name = VID_JOB_NAME } }
+        )
+      whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = VID_QUEUE })
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      whenever(modelLineService.markRawImpressionUploadModelLineLabeling(any()))
+        .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING })
+
+      retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
     }
+
+    assertThat(result.memoized).isFalse()
+    assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.LABELING)
+    assertThat(result.workItemsRepublished).isEqualTo(1)
   }
 
   @Test
@@ -125,7 +152,7 @@ class FailedDispatchRetrierTest {
                   failedModelLine().copy { state = RawImpressionUploadModelLine.State.RANKING }
               }
             )
-          retrier.retryFailed(UPLOAD_NAME, MODEL_LINE, RawImpressionUploadModelLine.State.RANKING)
+          retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
         }
       }
     assertThat(error).hasMessageThat().contains("expected FAILED")
@@ -142,14 +169,16 @@ class FailedDispatchRetrierTest {
                 rawImpressionUploadModelLines += failedModelLine()
               }
             )
-          whenever(rankerJobService.listRankerJobs(any()))
+          whenever(poolAssignmentJobService.listPoolAssignmentJobs(any()))
             .thenReturn(
-              listRankerJobsResponse { rankerJobs += rankerJob { name = RANKER_JOB_NAME } }
+              listPoolAssignmentJobsResponse {
+                poolAssignmentJobs += poolAssignmentJob { shardIndex = 0 }
+              }
             )
           whenever(workItemsService.getWorkItem(any())).thenAnswer {
             throw Status.NOT_FOUND.asRuntimeException()
           }
-          retrier.retryFailed(UPLOAD_NAME, MODEL_LINE, RawImpressionUploadModelLine.State.RANKING)
+          retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
         }
       }
     assertThat(error).hasMessageThat().contains("cannot be re-published")
@@ -161,9 +190,9 @@ class FailedDispatchRetrierTest {
     private const val UPLOAD_NAME = "$DATA_PROVIDER/rawImpressionUploads/$UPLOAD_ID"
     private const val MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
     private const val MODEL_LINE_NAME = "$UPLOAD_NAME/rawImpressionUploadModelLines/rml1"
-    private const val RANKER_JOB_NAME =
-      "$DATA_PROVIDER/rawImpressionUploads/$UPLOAD_ID/rankerJobs/rj1"
+    private const val VID_JOB_NAME = "$UPLOAD_NAME/vidLabelingJobs/vlj1"
     private const val ETAG = "etag-1"
-    private const val RANKER_QUEUE = "vid-rank-builder-queue"
+    private const val POOL_QUEUE = "subpool-assigner-queue"
+    private const val VID_QUEUE = "vid-labeler-queue"
   }
 }

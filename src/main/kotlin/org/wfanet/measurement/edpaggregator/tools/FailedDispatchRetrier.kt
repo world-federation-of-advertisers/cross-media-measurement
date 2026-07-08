@@ -21,19 +21,15 @@ import io.grpc.StatusException
 import java.util.UUID
 import java.util.logging.Logger
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequestKt
-import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLinePoolAssigningRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineRankingRequest
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
@@ -41,26 +37,25 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
 /**
- * Re-triggers a `FAILED` `(upload, model line)` at a given phase after the operator has resolved
- * the root cause of a dead-lettered dispatch.
+ * Re-triggers a `FAILED` `(upload, model line)` after the operator has resolved the root cause of a
+ * dead-lettered dispatch.
  *
- * The per-phase job rows do not persist the WorkItem parameters, but the `WorkItem` resource does
- * (its `work_item_params` are immutable and readable via `GetWorkItem`). So retry re-publishes the
- * original WorkItem's params under a *fresh, deterministic* id (a same-key re-publish would collide
- * on the producers' deterministic ids and never re-enqueue), then transitions the model line
- * `FAILED -> <phase>`. The TEE reprocesses only non-`SUCCEEDED` jobs, so partial re-runs are cheap
- * and safe.
+ * It restarts from the beginning of the model line's path — Phase 0 for a memoized model line
+ * (detected by the presence of `PoolAssignmentJob`s), Phase 2 for a non-memoized one — rather than
+ * asking the operator which phase failed. It re-publishes that phase's original WorkItem(s) under a
+ * fresh, deterministic id (a same-key re-publish would collide on the producers' deterministic ids
+ * and never re-enqueue), then transitions the model line out of `FAILED`. The TEE apps' idempotency
+ * gates (SUCCEEDED jobs, existing SNAPSHOT) skip already-completed work, so the run resumes at the
+ * actual failure point.
  *
  * @param modelLinesStub stub for `RawImpressionUploadModelLineService`.
- * @param poolAssignmentJobsStub stub for `PoolAssignmentJobService` (Phase 0).
- * @param rankerJobsStub stub for `RankerJobService` (Phase 1).
+ * @param poolAssignmentJobsStub stub for `PoolAssignmentJobService` (Phase 0 / path detection).
  * @param vidLabelingJobsStub stub for `VidLabelingJobService` (Phase 2).
  * @param workItemsStub stub for the Secure Computation control-plane `WorkItems` service.
  */
 class FailedDispatchRetrier(
   private val modelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
   private val poolAssignmentJobsStub: PoolAssignmentJobServiceCoroutineStub,
-  private val rankerJobsStub: RankerJobServiceCoroutineStub,
   private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
   private val workItemsStub: WorkItemsCoroutineStub,
 ) {
@@ -69,39 +64,50 @@ class FailedDispatchRetrier(
     val modelLineName: String,
     val workItemsRepublished: Int,
     val newState: RawImpressionUploadModelLine.State,
+    /** True if the model line runs the memoized path (restarted from Phase 0). */
+    val memoized: Boolean,
   )
 
   /**
-   * Re-publishes the [phase] WorkItem(s) for the `FAILED` `(upload, model line)` and transitions it
-   * `FAILED -> [phase]`.
+   * Restarts the `FAILED` `(rawImpressionUpload, cmmsModelLine)` from the beginning of its path and
+   * transitions it out of `FAILED`.
    *
-   * @param phase one of `POOL_ASSIGNING`, `RANKING`, `LABELING`.
-   * @throws IllegalArgumentException if the model line is missing, is not `FAILED`, [phase] is not
-   *   a processing state, or no jobs exist for [phase].
+   * @throws IllegalArgumentException if the model line is missing or not `FAILED`, or no jobs exist
+   *   to re-publish.
    * @throws IllegalStateException if a job's original WorkItem no longer exists (its dispatch never
    *   enqueued), so it cannot be re-published standalone.
    */
-  suspend fun retryFailed(
-    rawImpressionUpload: String,
-    cmmsModelLine: String,
-    phase: RawImpressionUploadModelLine.State,
-  ): RetryResult {
-    require(phase in PROCESSING_STATES) {
-      "phase must be POOL_ASSIGNING, RANKING, or LABELING, was $phase"
-    }
-    val uploadName = rawImpressionUpload
+  suspend fun retryFailed(rawImpressionUpload: String, cmmsModelLine: String): RetryResult {
     val modelLine =
-      modelLinesStub.findModelLine(uploadName, cmmsModelLine)
+      modelLinesStub.findModelLine(rawImpressionUpload, cmmsModelLine)
         ?: throw IllegalArgumentException(
-          "No RawImpressionUploadModelLine for $cmmsModelLine under $uploadName"
+          "No RawImpressionUploadModelLine for $cmmsModelLine under $rawImpressionUpload"
         )
     require(modelLine.state == RawImpressionUploadModelLine.State.FAILED) {
       "${modelLine.name} is ${modelLine.state}, expected FAILED"
     }
 
-    val oldWorkItemIds = collectWorkItemIds(uploadName, cmmsModelLine, phase)
+    // Memoized model lines run Phase 0 (they have PoolAssignmentJobs); non-memoized go straight to
+    // Phase 2. Restart from the path's first phase; idempotency gates carry it forward.
+    val shardIndices = listPoolAssignmentJobShards(rawImpressionUpload, cmmsModelLine)
+    val memoized = shardIndices.isNotEmpty()
+
+    val oldWorkItemIds: List<String>
+    val targetState: RawImpressionUploadModelLine.State
+    if (memoized) {
+      oldWorkItemIds =
+        shardIndices.map { WorkItemIds.forSubpoolAssigner(rawImpressionUpload, cmmsModelLine, it) }
+      targetState = RawImpressionUploadModelLine.State.POOL_ASSIGNING
+    } else {
+      oldWorkItemIds =
+        listVidLabelingJobNames(rawImpressionUpload, cmmsModelLine).map {
+          WorkItemIds.forVidLabeler(it)
+        }
+      targetState = RawImpressionUploadModelLine.State.LABELING
+    }
     require(oldWorkItemIds.isNotEmpty()) {
-      "No $phase jobs found for $cmmsModelLine under $uploadName; nothing to retry"
+      "No ${if (memoized) "Phase-0" else "Phase-2"} jobs found for $cmmsModelLine under " +
+        "$rawImpressionUpload; nothing to retry"
     }
 
     // Re-publish before transitioning, so the work exists before the line is claimed.
@@ -110,27 +116,9 @@ class FailedDispatchRetrier(
       if (republishWorkItem(oldId)) republished++
     }
 
-    val updated = transition(modelLine, phase)
-    return RetryResult(updated.name, republished, updated.state)
+    val updated = transition(modelLine, targetState)
+    return RetryResult(updated.name, republished, updated.state, memoized)
   }
-
-  /** Resolves the original WorkItem ids for the [phase]'s jobs of `(uploadName, cmmsModelLine)`. */
-  private suspend fun collectWorkItemIds(
-    uploadName: String,
-    cmmsModelLine: String,
-    phase: RawImpressionUploadModelLine.State,
-  ): List<String> =
-    when (phase) {
-      RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
-        listPoolAssignmentJobShards(uploadName, cmmsModelLine).map {
-          WorkItemIds.forSubpoolAssigner(uploadName, cmmsModelLine, it)
-        }
-      RawImpressionUploadModelLine.State.RANKING ->
-        listRankerJobNames(uploadName, cmmsModelLine).map { WorkItemIds.forVidRankBuilder(it) }
-      RawImpressionUploadModelLine.State.LABELING ->
-        listVidLabelingJobNames(uploadName, cmmsModelLine).map { WorkItemIds.forVidLabeler(it) }
-      else -> error("unreachable: phase already validated")
-    }
 
   private suspend fun listPoolAssignmentJobShards(
     uploadName: String,
@@ -151,24 +139,6 @@ class FailedDispatchRetrier(
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
     return shards
-  }
-
-  private suspend fun listRankerJobNames(uploadName: String, cmmsModelLine: String): List<String> {
-    val names = mutableListOf<String>()
-    var pageToken = ""
-    do {
-      val response =
-        rankerJobsStub.listRankerJobs(
-          listRankerJobsRequest {
-            parent = uploadName
-            filter = ListRankerJobsRequestKt.filter { this.cmmsModelLine = cmmsModelLine }
-            this.pageToken = pageToken
-          }
-        )
-      response.rankerJobsList.forEach { names.add(it.name) }
-      pageToken = response.nextPageToken
-    } while (pageToken.isNotEmpty())
-    return names
   }
 
   private suspend fun listVidLabelingJobNames(
@@ -204,7 +174,7 @@ class FailedDispatchRetrier(
         if (e.status.code == Status.Code.NOT_FOUND) {
           throw IllegalStateException(
             "WorkItem workItems/$oldWorkItemId not found; its dispatch never enqueued, so it " +
-              "cannot be re-published standalone. Retry from an earlier phase."
+              "cannot be re-published standalone."
           )
         }
         throw e
@@ -235,19 +205,12 @@ class FailedDispatchRetrier(
 
   private suspend fun transition(
     modelLine: RawImpressionUploadModelLine,
-    phase: RawImpressionUploadModelLine.State,
+    targetState: RawImpressionUploadModelLine.State,
   ): RawImpressionUploadModelLine =
-    when (phase) {
+    when (targetState) {
       RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
         modelLinesStub.markRawImpressionUploadModelLinePoolAssigning(
           markRawImpressionUploadModelLinePoolAssigningRequest {
-            name = modelLine.name
-            etag = modelLine.etag
-          }
-        )
-      RawImpressionUploadModelLine.State.RANKING ->
-        modelLinesStub.markRawImpressionUploadModelLineRanking(
-          markRawImpressionUploadModelLineRankingRequest {
             name = modelLine.name
             etag = modelLine.etag
           }
@@ -259,17 +222,10 @@ class FailedDispatchRetrier(
             etag = modelLine.etag
           }
         )
-      else -> error("unreachable: phase already validated")
+      else -> error("unreachable: targetState is a path-start state")
     }
 
   companion object {
     private val logger: Logger = Logger.getLogger(FailedDispatchRetrier::class.java.name)
-
-    private val PROCESSING_STATES =
-      setOf(
-        RawImpressionUploadModelLine.State.POOL_ASSIGNING,
-        RawImpressionUploadModelLine.State.RANKING,
-        RawImpressionUploadModelLine.State.LABELING,
-      )
   }
 }
