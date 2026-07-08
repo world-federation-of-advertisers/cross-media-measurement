@@ -61,6 +61,7 @@ kt_jvm_library(
     name = "subpool_assigner",
     srcs = ["SubpoolAssigner.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/benchmarking:memory_sampler",
         ":pool_emit_labeler",
         ":subpool_assignment_sink",
         ":subpool_fingerprints_accumulator",

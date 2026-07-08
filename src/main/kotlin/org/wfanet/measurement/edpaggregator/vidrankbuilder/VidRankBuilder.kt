@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.edpaggregator.benchmarking.MemorySampler
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileBinPacker
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
@@ -155,6 +156,8 @@ class VidRankBuilder(
       return recoverIfLastJobOut()
     }
 
+    MemorySampler.start("vid_rank_builder")
+    MemorySampler.setStep("p1.rank_build")
     // Rank this job's subpools sequentially; each subpool's own rank build is already parallelized
     // across cores by [SubpoolRanker]. A failure propagates so the framework nacks and Pub/Sub
     // retries.
