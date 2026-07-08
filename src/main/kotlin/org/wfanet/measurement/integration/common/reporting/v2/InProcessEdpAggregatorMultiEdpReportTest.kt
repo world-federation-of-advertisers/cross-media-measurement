@@ -27,11 +27,14 @@ import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
+import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
+import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.basicReport
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.metricFrequencySpec
+import org.wfanet.measurement.reporting.v2alpha.reportingUnit
 import org.wfanet.measurement.reporting.v2alpha.resultGroupMetricSpec
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
@@ -98,6 +101,113 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
         .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
 
     assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+
+    assertStructuralResults(completedBasicReport)
+    assertNoNoiseResults(
+      completedBasicReport,
+      expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
+      expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
+      expectedKPlusReach = EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH,
+      expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
+      expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
+    )
+    assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
+  }
+
+  @Test
+  fun `no noise basic report with ReportingSet components has the expected result`() = runBlocking {
+    // getMultiEdpEventGroups returns exactly one EventGroup per EDP (edp1, edp2).
+    val eventGroups = getMultiEdpEventGroups()
+    check(eventGroups.size == 2) { "Expected exactly 2 EDP event groups, got ${eventGroups.size}" }
+
+    // One primitive ReportingSet component per EDP. Each spans a single EDP's EventGroup, so the
+    // components have disjoint EventGroups and therefore distinct DataProvider sets -- what
+    // validation requires. Together they span the same universe as the DataProvider-component
+    // `no noise` test, so the expected results are identical.
+    val reportingSetComponents: List<ReportingSet> =
+      eventGroups.mapIndexed { index, eventGroup ->
+        createPrimitiveReportingSet(
+          reportingSetId = "reportingset$index",
+          displayName = "ReportingSet component $index",
+          cmmsEventGroups = listOf(eventGroup.cmmsEventGroup),
+        )
+      }
+
+    // Reuse the scaffolding from the DataProvider-component request (model line, reporting
+    // interval, metric spec), but omit campaign_group (campaignGroupId = null) so the server
+    // synthesizes it, and set the ReportingUnit components to ReportingSets instead of
+    // DataProviders.
+    val createBasicReportRequest =
+      buildCreateBasicReportRequest(
+          eventGroups,
+          campaignGroupId = null,
+          basicReportId = "reportingset-component-basicreport",
+          includeIqfFilter = false,
+        )
+        .copy {
+          basicReport =
+            basicReport.copy {
+              val reportingSetComponentSpec =
+                resultGroupSpecs.single().copy {
+                  reportingUnit = reportingUnit {
+                    components += reportingSetComponents.map { it.name }
+                  }
+                }
+              resultGroupSpecs.clear()
+              resultGroupSpecs += reportingSetComponentSpec
+            }
+        }
+
+    val createdBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(createBasicReportRequest)
+
+    // The caller omitted campaign_group, so the server synthesized one, surfaced only via
+    // effective_campaign_group.
+    assertThat(createdBasicReport.campaignGroup).isEmpty()
+    assertThat(createdBasicReport.effectiveCampaignGroup).isNotEmpty()
+
+    // Verify the ReportingSet-component request round-trips via getBasicReport in the RUNNING state
+    // before it is processed, so a field dropped on persist is caught here.
+    val retrievedRunningBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+    assertRunningBasicReport(
+      createBasicReportRequest,
+      createdBasicReport,
+      retrievedRunningBasicReport,
+      expectedEffectiveCampaignGroup = createdBasicReport.effectiveCampaignGroup,
+    )
+
+    executeBasicReportsReportsJob(createdBasicReport.name)
+    executeReportProcessorJob()
+
+    val completedBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+    assertThat(completedBasicReport.campaignGroup).isEmpty()
+    assertThat(completedBasicReport.effectiveCampaignGroup).isNotEmpty()
+
+    // The results are keyed by the ReportingSet component resource names. This is what
+    // distinguishes ReportingSet components from DataProvider components -- a regression that
+    // resolved the ReportingSets back to their underlying DataProviders would key by DataProvider
+    // name and still pass the numeric assertions below.
+    val componentKeys =
+      completedBasicReport.resultGroupsList
+        .single()
+        .resultsList
+        .single {
+          it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
+        }
+        .metricSet
+        .componentsList
+        .map { it.key }
+    assertThat(componentKeys).containsExactlyElementsIn(reportingSetComponents.map { it.name })
 
     assertStructuralResults(completedBasicReport)
     assertNoNoiseResults(
