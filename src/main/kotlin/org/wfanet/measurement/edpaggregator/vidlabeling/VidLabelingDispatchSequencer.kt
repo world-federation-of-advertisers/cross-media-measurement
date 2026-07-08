@@ -575,7 +575,7 @@ class VidLabelingDispatchSequencer(
         vidLabelingJob = vidLabelingJobName
       }
 
-    val workItemId = RequestIds.forVidLabelingWorkItem(vidLabelingJobName)
+    val workItemId = WorkItemIds.forVidLabeler(vidLabelingJobName)
     val request = createWorkItemRequest {
       this.workItemId = workItemId
       workItem = workItem {
@@ -717,7 +717,7 @@ class VidLabelingDispatchSequencer(
       }
 
     val workItemId =
-      RequestIds.forSubpoolAssignerWorkItem(uploadName, modelLineName, shardIndex)
+      WorkItemIds.forSubpoolAssigner(uploadName, modelLineName, shardIndex)
     val request = createWorkItemRequest {
       this.workItemId = workItemId
       workItem = workItem {
