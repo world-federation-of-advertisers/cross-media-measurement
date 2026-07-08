@@ -94,11 +94,11 @@ class ReportingMcpServerDaemon : Runnable {
     embeddedServer(CIO, host = mcpServerFlags.host, port = mcpServerFlags.port) {
         installReportingMcp(
           apiClient,
-          mcpServerFlags.allowedHosts,
-          mcpServerFlags.oauthProtectedResource,
-          mcpServerFlags.oauthAuthorizationServers,
-          mcpServerFlags.oauthScopesSupported,
-          mcpServerFlags.oauthResourceDocumentation,
+          allowedHosts = mcpServerFlags.allowedHosts,
+          oauthProtectedResource = mcpServerFlags.oauthProtectedResource,
+          oauthAuthorizationServers = mcpServerFlags.oauthAuthorizationServers,
+          oauthScopesSupported = mcpServerFlags.oauthScopesSupported,
+          oauthResourceDocumentation = mcpServerFlags.oauthResourceDocumentation,
         )
       }
       .start(wait = true)

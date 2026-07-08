@@ -468,7 +468,7 @@ class ReportingMcpServerTest {
   }
 
   /**
-   * The optional metadata fields [scopes_supported] and [resource_documentation] are omitted when
+   * The optional metadata fields `scopes_supported` and `resource_documentation` are omitted when
    * not configured, leaving the required fields in place.
    */
   @Test
