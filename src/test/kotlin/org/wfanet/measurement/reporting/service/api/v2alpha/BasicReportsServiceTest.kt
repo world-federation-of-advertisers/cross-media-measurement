@@ -575,6 +575,55 @@ class BasicReportsServiceTest {
     }
 
   @Test
+  fun `createBasicReport throws INVALID_ARGUMENT for ReportingSet reporting units when disabled`():
+    Unit = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId }
+    )
+
+    val reportingSetComponent1 =
+      createPrimitiveReportingSet(measurementConsumerKey, "reportingset1", "dp1", "eg1")
+    val reportingSetComponent2 =
+      createPrimitiveReportingSet(measurementConsumerKey, "reportingset2", "dp2", "eg2")
+    val request =
+      reportingSetComponentBasicReportRequest(
+        measurementConsumerKey,
+        "a1234",
+        listOf(reportingSetComponent1, reportingSetComponent2),
+      )
+
+    // A service with the ReportingSet ReportingUnit component feature disabled rejects the empty
+    // campaign_group (equivalent to the pre-feature "campaign_group required" behavior).
+    val serviceWithFeatureDisabled =
+      BasicReportsService(
+        internalBasicReportsService,
+        internalImpressionQualificationFiltersService,
+        internalReportingSetsService,
+        internalMetricCalculationSpecsService,
+        reportsService,
+        modelLinesService,
+        TEST_EVENT_DESCRIPTOR,
+        METRIC_SPEC_CONFIG,
+        SecureRandom().asKotlinRandom(),
+        authorization,
+        MEASUREMENT_CONSUMER_CONFIGS,
+        defaultReportStartHour = null,
+        baseExternalImpressionQualificationFilterIds = emptyList(),
+        enableReportingSetReportingUnitComponents = false,
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          serviceWithFeatureDisabled.createBasicReport(request)
+        }
+      }
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
   fun `createBasicReport reuses the synthesized campaign group for identical components`(): Unit =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)

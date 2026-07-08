@@ -112,6 +112,7 @@ bazel build //src/main/k8s/dev:reporting_v2.tar \
   --define kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
   --define 'event_message_type_url=type.googleapis.com/halo_cmm.origin.uk.eventtemplate.v1.EventMessage' \
   --define basic_reports_enabled=true \
+  --define reporting_set_reporting_unit_components_enabled=false \
   --define spanner_instance=instance \
   --define pdp_name=dataProviders/KnvDaDC7QKA
 ```
@@ -119,6 +120,11 @@ bazel build //src/main/k8s/dev:reporting_v2.tar \
 Note: The value of the `spanner_instance` variable is only used when
 `basic_reports_enabled` is `true`. When `basic_reports` is `false`, you can use
 a dummy value for `spanner_instance`.
+
+Note: `reporting_set_reporting_unit_components_enabled` gates whether `BasicReport`
+`ReportingUnit`s may reference `ReportingSet`s (with a server-synthesized
+`campaign_group`) rather than only `DataProvider`s. It defaults to `false` and
+should remain `false` until the feature is fully released.
 
 Extract the generated archive to some directory.
 
