@@ -237,7 +237,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
           modelLineConfigs = modelLineConfigs,
           rawImpressionUploadFileStub = rawImpressionUploadFilesStub,
           vidLabelingJobStub = vidLabelingJobStub,
-          maxFileBatchSizeBytes = 1_073_741_824L /* BENCH TODO(WS3.5): set = total_raw_size / 32 */,
+          maxFileBatchSizeBytes = 2_087_795_490L /* BENCH WS3.5: 66809455691 total_raw / 32 = ~32 Phase-2 batches */,
         )
 
       val dispatcher =

@@ -83,3 +83,33 @@ java_binary(
     main_class = "org.wfanet.measurement.loadtest.edpaggregator.tools.VerifySyntheticDataKt",
     runtime_deps = [":verify_synthetic_data"],
 )
+
+# BENCHMARK-ONLY (throwaway) parallel raw-impression generator. Remove before merge.
+kt_jvm_library(
+    name = "generate_benchmark_raw_impressions",
+    srcs = ["GenerateBenchmarkRawImpressions.kt"],
+    visibility = ["//visibility:private"],
+    deps = [
+        "//imports/java/com/google/crypto/tink/integration/gcpkms",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeled_event",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_data_generation",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/testing:raw_impressions_writer",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage",
+        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/apache/hadoop:hadoop_client_api",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/proto/wfa/measurement/storage:parquet_row_kt_jvm_proto",
+    ],
+)
+
+java_binary(
+    name = "GenerateBenchmarkRawImpressions",
+    main_class = "org.wfanet.measurement.loadtest.edpaggregator.tools.GenerateBenchmarkRawImpressionsKt",
+    runtime_deps = [":generate_benchmark_raw_impressions"],
+)
