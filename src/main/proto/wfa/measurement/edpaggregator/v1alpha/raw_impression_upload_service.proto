@@ -39,6 +39,15 @@ service RawImpressionUploadService {
   // Lists RawImpressionUpload resources for a data provider.
   rpc ListRawImpressionUploads(ListRawImpressionUploadsRequest)
       returns (ListRawImpressionUploadsResponse) {}
+
+  // Reactivates a COMPLETED RawImpressionUpload back to ACTIVE.
+  //
+  // Used by operator backfill flows that add a new model line to an already
+  // COMPLETED upload so the Monitor will dispatch it. Idempotent when the
+  // upload is already ACTIVE. Throws `FAILED_PRECONDITION` if the upload is in
+  // any other state.
+  rpc MarkRawImpressionUploadActive(MarkRawImpressionUploadActiveRequest)
+      returns (RawImpressionUpload) {}
 }
 
 // Request message for the `CreateRawImpressionUpload` method.
@@ -76,6 +85,19 @@ message CreateRawImpressionUploadRequest {
 // Request message for the `GetRawImpressionUpload` method.
 message GetRawImpressionUploadRequest {
   // The resource name of the RawImpressionUpload to retrieve.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+}
+
+// Request message for the `MarkRawImpressionUploadActive` method.
+message MarkRawImpressionUploadActiveRequest {
+  // The resource name of the RawImpressionUpload to reactivate.
   // Format:
   // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
   string name = 1 [

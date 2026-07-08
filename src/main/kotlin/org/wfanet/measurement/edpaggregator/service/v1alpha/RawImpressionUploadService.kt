@@ -32,6 +32,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadReq
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadActiveRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
@@ -45,6 +46,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadRequest as internalCreateUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadRequest as internalGetUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadsRequest as internalListUploadsRequest
+import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadActiveRequest as internalMarkActiveRequest
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload as internalRawImpressionUpload
 
 class RawImpressionUploadService(
@@ -203,6 +205,41 @@ class RawImpressionUploadService(
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return internalResponse.toPublic()
+  }
+
+  override suspend fun markRawImpressionUploadActive(
+    request: MarkRawImpressionUploadActiveRequest
+  ): RawImpressionUpload {
+    if (request.name.isEmpty()) {
+      throw RequiredFieldNotSetException("name")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val uploadKey =
+      RawImpressionUploadKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("name")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    val internalResponse: InternalRawImpressionUpload =
+      try {
+        internalUploadStub.markRawImpressionUploadActive(
+          internalMarkActiveRequest {
+            dataProviderResourceId = uploadKey.dataProviderId
+            rawImpressionUploadResourceId = uploadKey.rawImpressionUploadId
+          }
+        )
+      } catch (e: StatusException) {
+        // Map NOT_FOUND to a resource-named error; propagate FAILED_PRECONDITION (invalid state)
+        // and any other status unchanged.
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND ->
+            RawImpressionUploadNotFoundException(request.name, e)
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          else -> e
         }
       }
 

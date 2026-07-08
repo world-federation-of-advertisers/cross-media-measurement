@@ -51,6 +51,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadReq
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadActiveRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
@@ -292,6 +293,26 @@ class RawImpressionUploadServiceTest {
         }
       )
   }
+
+  @Test
+  fun `markRawImpressionUploadActive throws INVALID_ARGUMENT for empty name`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.markRawImpressionUploadActive(markRawImpressionUploadActiveRequest {})
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `markRawImpressionUploadActive throws NOT_FOUND for nonexistent upload`(): Unit =
+    runBlocking {
+      val request = markRawImpressionUploadActiveRequest {
+        name = "dataProviders/dp1/rawImpressionUploads/nonexistent"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.markRawImpressionUploadActive(request) }
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    }
 
   @Test
   fun `listRawImpressionUploads returns uploads`(): Unit = runBlocking {

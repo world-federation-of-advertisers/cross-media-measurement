@@ -31,6 +31,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpre
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUpload
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploads
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadState
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
@@ -41,6 +42,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsPag
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsResponse
+import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadActiveRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUpload
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
@@ -148,6 +150,64 @@ class SpannerRawImpressionUploadService(
     } catch (e: RawImpressionUploadNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
+  }
+
+  override suspend fun markRawImpressionUploadActive(
+    request: MarkRawImpressionUploadActiveRequest
+  ): RawImpressionUpload {
+    if (request.dataProviderResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("data_provider_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.rawImpressionUploadResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("raw_impression_upload_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val transactionRunner: AsyncDatabaseClient.TransactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=markRawImpressionUploadActive"))
+
+    var stateChanged = false
+    val upload: RawImpressionUpload =
+      try {
+        transactionRunner.run { txn ->
+          val existing: RawImpressionUploadResult =
+            txn.getRawImpressionUploadByResourceId(
+              request.dataProviderResourceId,
+              request.rawImpressionUploadResourceId,
+            )
+          val current: RawImpressionUpload = existing.rawImpressionUpload
+          if (current.state == RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED) {
+            txn.updateRawImpressionUploadState(
+              request.dataProviderResourceId,
+              existing.rawImpressionUploadId,
+              RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
+            )
+            stateChanged = true
+            current.copy { state = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE }
+          } else {
+            current
+          }
+        }
+      } catch (e: RawImpressionUploadNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      }
+
+    if (stateChanged) {
+      val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
+      return upload.copy { updateTime = commitTimestamp }
+    }
+
+    // No write happened: either it was already ACTIVE (idempotent no-op), or it is in a state that
+    // cannot be reactivated.
+    if (upload.state == RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE) {
+      return upload
+    }
+    throw Status.FAILED_PRECONDITION.withDescription(
+        "RawImpressionUpload ${request.rawImpressionUploadResourceId} is in state ${upload.state}; " +
+          "only a COMPLETED (or already ACTIVE) upload can be reactivated"
+      )
+      .asRuntimeException()
   }
 
   override suspend fun listRawImpressionUploads(

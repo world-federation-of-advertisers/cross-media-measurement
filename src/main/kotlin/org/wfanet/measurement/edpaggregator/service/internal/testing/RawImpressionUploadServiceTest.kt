@@ -41,6 +41,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadsRequest
+import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadActiveRequest
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload
 
 @RunWith(JUnit4::class)
@@ -545,6 +546,55 @@ abstract class RawImpressionUploadServiceTest {
         )
       assertThat(windowResponse.rawImpressionUploadsList).hasSize(2)
     }
+
+  @Test
+  fun `markRawImpressionUploadActive throws FAILED_PRECONDITION for a non-terminal upload`(): Unit =
+    runBlocking {
+      val upload = createUpload()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadActive(
+            markRawImpressionUploadActiveRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = upload.rawImpressionUploadResourceId
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
+  fun `markRawImpressionUploadActive throws NOT_FOUND when the upload does not exist`(): Unit =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadActive(
+            markRawImpressionUploadActiveRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = "rawImpressionUpload-does-not-exist"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    }
+
+  @Test
+  fun `markRawImpressionUploadActive throws INVALID_ARGUMENT if data_provider_resource_id not set`():
+    Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.markRawImpressionUploadActive(
+          markRawImpressionUploadActiveRequest {
+            rawImpressionUploadResourceId = "rawImpressionUpload-1"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
 
   private suspend fun createUpload(): RawImpressionUpload =
     service.createRawImpressionUpload(

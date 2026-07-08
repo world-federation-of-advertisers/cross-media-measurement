@@ -38,6 +38,13 @@ service RawImpressionUploadService {
   // Lists RawImpressionUpload entries for a data provider.
   rpc ListRawImpressionUploads(ListRawImpressionUploadsRequest)
       returns (ListRawImpressionUploadsResponse);
+
+  // Reactivates a COMPLETED RawImpressionUpload back to ACTIVE.
+  //
+  // Used by operator backfill flows that add a new model line to an already
+  // COMPLETED upload. Idempotent when the upload is already ACTIVE.
+  rpc MarkRawImpressionUploadActive(MarkRawImpressionUploadActiveRequest)
+      returns (RawImpressionUpload);
 }
 
 // Request message for CreateRawImpressionUpload.
@@ -54,6 +61,15 @@ message CreateRawImpressionUploadRequest {
 
 // Request message for GetRawImpressionUpload.
 message GetRawImpressionUploadRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // The unique identifier of the upload.
+  string raw_impression_upload_resource_id = 2;
+}
+
+// Request message for MarkRawImpressionUploadActive.
+message MarkRawImpressionUploadActiveRequest {
   // Resource ID of the DataProvider.
   string data_provider_resource_id = 1;
 
