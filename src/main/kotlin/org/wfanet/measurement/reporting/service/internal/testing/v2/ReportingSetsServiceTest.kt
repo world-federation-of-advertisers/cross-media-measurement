@@ -1428,6 +1428,101 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     }
 
   @Test
+  fun `ReportingSet reads resolve Campaign Group with multiple members`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    // A self-referencing Campaign Group spanning two EventGroups.
+    val campaignGroup: ReportingSet =
+      service.createReportingSet(
+        createReportingSetRequest {
+          externalReportingSetId = "my-campaign-group"
+          reportingSet = reportingSet {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalCampaignGroupId = this@createReportingSetRequest.externalReportingSetId
+            displayName = "campaign group"
+            primitive =
+              ReportingSetKt.primitive {
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = "1235"
+                    cmmsEventGroupId = "1236"
+                  }
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = "1236"
+                    cmmsEventGroupId = "1237"
+                  }
+              }
+          }
+        }
+      )
+    val campaignGroupId = campaignGroup.externalReportingSetId
+
+    // Two members belonging to the Campaign Group, so more than one ReportingSet points at it via
+    // CampaignGroupId. With the self-join bug, reading the Campaign Group back resolves
+    // external_campaign_group_id to an arbitrary member instead of to itself.
+    val memberIds = listOf("member-1", "member-2")
+    for ((index, memberId) in memberIds.withIndex()) {
+      service.createReportingSet(
+        createReportingSetRequest {
+          externalReportingSetId = memberId
+          reportingSet = reportingSet {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalCampaignGroupId = campaignGroupId
+            displayName = memberId
+            primitive =
+              ReportingSetKt.primitive {
+                eventGroupKeys += campaignGroup.primitive.eventGroupKeysList[index]
+              }
+          }
+        }
+      )
+    }
+
+    // Both read paths resolve external_campaign_group_id through the same shared join
+    // (baseSqlJoins), so assert on batchGetReportingSets and the streaming/list path.
+    fun assertResolvesToCampaignGroup(readByExternalId: Map<String, ReportingSet>) {
+      // The Campaign Group must resolve to itself, not to one of its members.
+      assertThat(readByExternalId.getValue(campaignGroupId).externalCampaignGroupId)
+        .isEqualTo(campaignGroupId)
+      // Every member must resolve to the Campaign Group.
+      for (memberId in memberIds) {
+        assertThat(readByExternalId.getValue(memberId).externalCampaignGroupId)
+          .isEqualTo(campaignGroupId)
+      }
+    }
+
+    assertResolvesToCampaignGroup(
+      service
+        .batchGetReportingSets(
+          batchGetReportingSetsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalReportingSetIds += campaignGroupId
+            externalReportingSetIds += memberIds
+          }
+        )
+        .reportingSetsList
+        .associateBy { it.externalReportingSetId }
+    )
+
+    assertResolvesToCampaignGroup(
+      service
+        .streamReportingSets(
+          streamReportingSetsRequest {
+            filter =
+              StreamReportingSetsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              }
+          }
+        )
+        .toList()
+        .associateBy { it.externalReportingSetId }
+    )
+  }
+
+  @Test
   fun `batchGetReportingSets succeeds when ReportingSet is primitive`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
