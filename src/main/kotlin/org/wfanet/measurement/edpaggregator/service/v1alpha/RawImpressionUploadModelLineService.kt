@@ -570,6 +570,14 @@ fun InternalRawImpressionUploadModelLine.toPublic(): RawImpressionUploadModelLin
     if (source.errorMessage.isNotEmpty()) {
       errorMessage = source.errorMessage
     }
+    // Phase-0 last-shard-out outputs (OUTPUT_ONLY), consumed by a retrying SubpoolAssigner.
+    poolOffsets += source.poolOffsetsList
+    if (source.hasMaxEventDate()) {
+      maxEventDate = source.maxEventDate
+    }
+    if (source.hasEncryptedMergedDek()) {
+      encryptedMergedDek = source.encryptedMergedDek.toPublic()
+    }
   }
 }
 

@@ -28,10 +28,12 @@ import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.internal.edpaggregator.EncryptedDek
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLine
@@ -443,6 +445,9 @@ private object RawImpressionUploadModelLineEntity {
       RawImpressionUploadModelLine.ErrorMessage,
       RawImpressionUploadModelLine.CreateTime,
       RawImpressionUploadModelLine.UpdateTime,
+      RawImpressionUploadModelLine.PoolOffsets,
+      RawImpressionUploadModelLine.MaxEventDate,
+      RawImpressionUploadModelLine.EncryptedMergedDek,
     FROM
       RawImpressionUploadModelLine
     """
@@ -462,6 +467,19 @@ private object RawImpressionUploadModelLineEntity {
         etag = ETags.computeETag(updateTime.toInstant())
         if (!struct.isNull("ErrorMessage")) {
           errorMessage = struct.getString("ErrorMessage")
+        }
+        // Phase-0 last-shard-out outputs on the parent row, read back by a retrying
+        // SubpoolAssigner (see SubpoolAssigner.recoverIfLastShardOut). All three are
+        // populated together on last-shard-out; null until then.
+        if (!struct.isNull("PoolOffsets")) {
+          poolOffsets += struct.getLongList("PoolOffsets")
+        }
+        if (!struct.isNull("MaxEventDate")) {
+          maxEventDate = struct.getDate("MaxEventDate").toProtoDate()
+        }
+        if (!struct.isNull("EncryptedMergedDek")) {
+          encryptedMergedDek =
+            struct.getProtoMessage("EncryptedMergedDek", EncryptedDek.getDefaultInstance())
         }
       },
       struct.getLong("RawImpressionUploadId"),

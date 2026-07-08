@@ -18,7 +18,7 @@ package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
 import "google/type/date.proto";
-import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
+import "wfa/measurement/internal/edpaggregator/encrypted_dek.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
@@ -67,6 +67,5 @@ message RawImpressionUploadModelLine {
   // DEK that encrypts the merged per-subpool SubpoolFingerprints blobs; the
   // last shard's encrypted_dek, promoted on last-shard-out so a retrying
   // SubpoolAssigner reuses it.
-  wfa.measurement.securecomputation.impressions.EncryptedDek
-      encrypted_merged_dek = 12;
+  EncryptedDek encrypted_merged_dek = 12;
 }
