@@ -133,14 +133,16 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
   eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
   env: Env,
 ): Map<ReportingSet, List<MetricCalculationSpec.Details>> {
+  // An empty CEL expression represents a match-all ImpressionQualificationFilter (e.g. AMI,
+  // which has no impression-level predicate). It must be retained so a match-all
+  // MetricCalculationSpec is still created for it. Dropping empty expressions here caused such an
+  // IQF to be silently omitted whenever it was combined with another non-empty IQF (issue #4109).
   val impressionQualificationFilterSpecsFilters: List<String> =
-    impressionQualificationFilterSpecs
-      .map { sourced ->
-        val expr = buildCelExpression(sourced.specs, eventTemplateFieldsByPath)
-        validateImpressionQualificationFilterCel(env, expr, sourced.source)
-        expr
-      }
-      .filter { it.isNotEmpty() }
+    impressionQualificationFilterSpecs.map { sourced ->
+      val expr = buildCelExpression(sourced.specs, eventTemplateFieldsByPath)
+      validateImpressionQualificationFilterCel(env, expr, sourced.source)
+      expr
+    }
 
   // This intermediate map is for reducing the number of MetricCalculationSpecs created for a given
   // ReportingSet. Without this map, MetricCalculationSpecs with everything identical except for
@@ -458,7 +460,14 @@ fun buildCelExpressions(
     if (impressionQualificationFilterSpecExpressions.isNotEmpty()) {
       if (dimensionSpecExpression.isNotEmpty()) {
         for (impressionQualificationSpecsFilter in impressionQualificationFilterSpecExpressions) {
-          add("($impressionQualificationSpecsFilter) && ($dimensionSpecExpression)")
+          if (impressionQualificationSpecsFilter.isEmpty()) {
+            // A match-all ImpressionQualificationFilter (empty expression, e.g. AMI) combined
+            // with a DimensionSpec filter is just the DimensionSpec filter. Emitting it directly
+            // avoids a malformed "() && (...)" expression (issue #4109).
+            add(dimensionSpecExpression)
+          } else {
+            add("($impressionQualificationSpecsFilter) && ($dimensionSpecExpression)")
+          }
         }
       } else {
         for (impressionQualificationSpecsFilter in impressionQualificationFilterSpecExpressions) {
