@@ -471,7 +471,7 @@ class ReportSchedulesService(
       filter: String,
     ): List<ReportSchedule> {
       return try {
-        CelPredicates.CelPredicates.filterList(ENV, reportSchedules, filter)
+        CelPredicates.filterList(ENV, reportSchedules, filter)
       } catch (e: IllegalArgumentException) {
         throw Status.INVALID_ARGUMENT.withDescription(e.message).asRuntimeException()
       }

@@ -26,9 +26,9 @@ import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 @RunWith(JUnit4::class)
 class CelFilteringMethodsTest {
   @Test
-  fun `CelPredicates.filterList with Message-based env returns items matching a string-equality filter`() {
+  fun `filterList with Message-based env returns items matching a string-equality filter`() {
     // Regression for the CelPredicates.buildEnvironment(Message) overload: it must preserve the reflectType
-    // binding that ProtoTypeRegistry.registerMessage installs, so that CelPredicates.CelPredicates.filterList can convert
+    // binding that ProtoTypeRegistry.registerMessage installs, so that CelPredicates.filterList can convert
     // runtime MetricCalculationSpec values to CEL native values without falling back to the
     // DynamicMessage path. If the overload regresses to a descriptor-only registration the
     // expected match below either returns the wrong set or throws on conversion.
@@ -39,13 +39,13 @@ class CelFilteringMethodsTest {
         metricCalculationSpec { displayName = "ignored" },
       )
 
-    val matched = CelPredicates.CelPredicates.filterList(env, items, "display_name == 'wanted'")
+    val matched = CelPredicates.filterList(env, items, "display_name == 'wanted'")
 
     assertThat(matched).containsExactly(items[0])
   }
 
   @Test
-  fun `CelPredicates.filterList with Descriptor-based env returns items matching a string-equality filter`() {
+  fun `filterList with Descriptor-based env returns items matching a string-equality filter`() {
     // Pin the Descriptor overload at the same call site so future changes to either branch are
     // exercised symmetrically.
     val env = CelPredicates.buildEnvironment(MetricCalculationSpec.getDescriptor())
@@ -55,7 +55,7 @@ class CelFilteringMethodsTest {
         metricCalculationSpec { displayName = "ignored" },
       )
 
-    val matched = CelPredicates.CelPredicates.filterList(env, items, "display_name == 'wanted'")
+    val matched = CelPredicates.filterList(env, items, "display_name == 'wanted'")
 
     assertThat(matched).containsExactly(items[0])
   }
