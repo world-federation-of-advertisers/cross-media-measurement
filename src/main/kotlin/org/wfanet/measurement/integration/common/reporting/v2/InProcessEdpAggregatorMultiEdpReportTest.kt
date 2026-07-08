@@ -15,6 +15,7 @@
 package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import com.google.type.DayOfWeek
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -26,6 +27,7 @@ import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
+import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.basicReport
 import org.wfanet.measurement.reporting.v2alpha.copy
@@ -326,7 +328,88 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
 
       assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
       assertThat(completedBasicReport.resultGroupsList).hasSize(1)
-      assertThat(completedBasicReport.resultGroupsList.single().resultsList).isNotEmpty()
+
+      // Under weekly cadence + reporting_unit.cumulative + reporting_unit.nonCumulative
+      // (no per-EDP component), each weekly bucket produces one entry carrying BOTH the
+      // union cumulative (through the bucket's metric_end_time) AND the union non_cumulative
+      // (for that bucket alone). Report window is ~4 days -> two weekly buckets on Monday
+      // cadence.
+      //
+      // Whole-report cumulative reach / impressions == deterministic cross-publisher totals
+      // ( /  pinned in
+      //  by the synthetic-data setup; reused by other
+      // no-noise assertions in this file).
+      val resultGroup = completedBasicReport.resultGroupsList.single()
+      val weeklyResults =
+        resultGroup.resultsList.filter {
+          it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.WEEKLY
+        }
+      assertWithMessage("weekly results").that(weeklyResults).isNotEmpty()
+
+      val wholeReportEntry = weeklyResults.maxBy { it.metadata.metricEndTime.seconds }
+      val wholeReportCumulative = wholeReportEntry.metricSet.reportingUnit.cumulative
+      assertWithMessage("union cumulative reach at end of report")
+        .that(wholeReportCumulative.reach)
+        .isEqualTo(EXPECTED_CROSS_PUBLISHER_REACH)
+      // Cumulative impressions is not asserted here because the API rejects
+      // reporting_unit.cumulative.impressions when metric_frequency is weekly (returns
+      // UNIMPLEMENTED). The whole-report impressions total is instead validated below via
+      // the sum-of-weekly-non_cumulative-impressions == EXPECTED_CROSS_PUBLISHER_IMPRESSIONS
+      // adds-up invariant.
+
+      // "Adds up" invariant: sum of per-week union non_cumulative impressions across all
+      // weekly buckets equals the whole-report impressions total. Impressions add cleanly
+      // across time; reach does not (a VID reached in two weeks counts twice in the sum but
+      // once in the union total).
+      val nonCumulativeImpressionsSum =
+        weeklyResults.sumOf { it.metricSet.reportingUnit.nonCumulative.impressions }
+      assertWithMessage("sum of weekly non_cumulative union impressions")
+        .that(nonCumulativeImpressionsSum)
+        .isEqualTo(EXPECTED_CROSS_PUBLISHER_IMPRESSIONS)
+
+      // Correctness invariants that hold regardless of the weekly slicing:
+      // Cumulative impressions is not asserted here because the API rejects
+      // reporting_unit.cumulative.impressions when metric_frequency is weekly (UNIMPLEMENTED),
+      // so cumulative impressions stays at proto default (0) even though cumulative reach is
+      // populated.
+      weeklyResults.forEach { r ->
+        val cum = r.metricSet.reportingUnit.cumulative
+        val nc = r.metricSet.reportingUnit.nonCumulative
+        assertWithMessage("non_cumulative impressions >= reach")
+          .that(nc.impressions)
+          .isAtLeast(nc.reach)
+        assertWithMessage("cumulative reach >= non_cumulative reach in same bucket")
+          .that(cum.reach)
+          .isAtLeast(nc.reach)
+      }
+      // Union cumulative reach is monotonically non-decreasing across increasing
+      // s.
+      val cumulativeReachesByEndTime =
+        weeklyResults
+          .sortedBy { it.metadata.metricEndTime.seconds }
+          .map { it.metricSet.reportingUnit.cumulative.reach }
+      assertWithMessage("union cumulative reach monotonically non-decreasing")
+        .that(cumulativeReachesByEndTime.zipWithNext { a, b -> b >= a }.all { it })
+        .isTrue()
+
+      // Uniquely-4141 assertion: this request has NO component.* spec, so no result entry
+      // should carry per-EDP components. Under the pre-fix bug, per-EDP subset enumeration
+      // over-triggered and populated componentsList even when the caller did not request it.
+      weeklyResults.forEach { r ->
+        assertWithMessage("componentsList empty for union-only request")
+          .that(r.metricSet.componentsList)
+          .isEmpty()
+      }
+
+      // Sum-of-weekly-non_cumulative-reach >= whole-report union reach. VIDs that cross a
+      // week boundary are counted in both weeks (>= relation); a purely non-overlapping VID
+      // distribution would give equality.
+      val nonCumulativeReachSum =
+        weeklyResults.sumOf { it.metricSet.reportingUnit.nonCumulative.reach }
+      assertWithMessage("sum of weekly non_cumulative reach >= whole-report reach")
+        .that(nonCumulativeReachSum)
+        .isAtLeast(EXPECTED_CROSS_PUBLISHER_REACH)
+
       assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
     }
 }
