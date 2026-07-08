@@ -26,8 +26,7 @@ import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
-import org.wfanet.measurement.common.cel.buildCelEnvironment
-import org.wfanet.measurement.common.cel.filterList
+import org.wfanet.measurement.common.cel.CelPredicates
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.internal.reporting.v2.ListReportScheduleIterationsRequest as InternalListReportScheduleIterationsRequest
@@ -172,7 +171,7 @@ class ReportScheduleIterationsService(
     filter: String,
   ): List<ReportScheduleIteration> {
     return try {
-      filterList(ENV, reportScheduleIterations, filter)
+      CelPredicates.filterList(ENV, reportScheduleIterations, filter)
     } catch (e: IllegalArgumentException) {
       throw Status.INVALID_ARGUMENT.withDescription(e.message).asRuntimeException()
     }
@@ -180,7 +179,7 @@ class ReportScheduleIterationsService(
 
   companion object {
     const val GET_REPORT_SCHEDULE_PERMISSION = "reporting.reportSchedules.get"
-    private val ENV: Env = buildCelEnvironment(ReportScheduleIteration.getDefaultInstance())
+    private val ENV: Env = CelPredicates.buildEnvironment(ReportScheduleIteration.getDefaultInstance())
   }
 }
 

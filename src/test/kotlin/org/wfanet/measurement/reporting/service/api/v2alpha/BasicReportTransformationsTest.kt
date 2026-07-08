@@ -30,7 +30,6 @@ import org.projectnessie.cel.checker.Decls
 import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.wfanet.measurement.common.cel.CelPredicates
 import org.wfanet.measurement.common.cel.CelValidationException
-import org.wfanet.measurement.common.cel.buildCelEnvironment
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
@@ -3418,7 +3417,7 @@ class BasicReportTransformationsTest {
       }
 
     private val TEST_EVENT_DESCRIPTOR = EventMessageDescriptor(TestEvent.getDescriptor())
-    private val TEST_CEL_ENV = buildCelEnvironment(TestEvent.getDescriptor())
+    private val TEST_CEL_ENV = CelPredicates.buildEnvironment(TestEvent.getDescriptor())
   }
 
   // ---- toCelValue quoting / rejection tests (issue #4148) ----

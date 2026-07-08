@@ -48,7 +48,7 @@ import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
-import org.wfanet.measurement.common.cel.buildCelEnvironment
+import org.wfanet.measurement.common.cel.CelPredicates
 import org.wfanet.measurement.common.toTimestamp
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
@@ -139,7 +139,7 @@ class BasicReportsService(
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   data class ZonedHour(val hour: Int, val zoneId: ZoneId)
 
-  private val filterEnv: Env = buildCelEnvironment(eventMessageDescriptor.descriptor)
+  private val filterEnv: Env = CelPredicates.buildEnvironment(eventMessageDescriptor.descriptor)
 
   private sealed class ReportingSetMapKey {
     data class Composite(val composite: ReportingSet.Composite) : ReportingSetMapKey()
