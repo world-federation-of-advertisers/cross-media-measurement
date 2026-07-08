@@ -54,20 +54,14 @@ class ModelLineBackfiller(
    * Idempotent: an upload that already carries the model line is not re-created, and reactivating
    * an already-ACTIVE upload is a no-op.
    *
-   * @throws IllegalArgumentException if [uploadIds] is empty.
+   * @throws IllegalArgumentException if [rawImpressionUploads] is empty.
    */
-  suspend fun backfill(
-    dataProvider: String,
-    cmmsModelLine: String,
-    uploadIds: List<String>,
-  ): BackfillResult {
-    require(uploadIds.isNotEmpty()) { "at least one upload id is required" }
+  suspend fun backfill(cmmsModelLine: String, rawImpressionUploads: List<String>): BackfillResult {
+    require(rawImpressionUploads.isNotEmpty()) { "at least one upload is required" }
 
     val created = mutableListOf<String>()
     val reactivated = mutableListOf<String>()
-    for (uploadId in uploadIds) {
-      val uploadName = "$dataProvider/rawImpressionUploads/$uploadId"
-
+    for (uploadName in rawImpressionUploads) {
       val existing = modelLinesStub.findModelLine(uploadName, cmmsModelLine)
       if (existing != null) {
         logger.info(
