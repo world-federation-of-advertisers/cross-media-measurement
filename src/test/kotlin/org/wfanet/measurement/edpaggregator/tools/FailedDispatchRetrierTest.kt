@@ -103,12 +103,7 @@ class FailedDispatchRetrierTest {
       whenever(modelLineService.markRawImpressionUploadModelLineRanking(any()))
         .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.RANKING })
 
-      retrier.retryFailed(
-        DATA_PROVIDER,
-        UPLOAD_ID,
-        MODEL_LINE,
-        RawImpressionUploadModelLine.State.RANKING,
-      )
+      retrier.retryFailed(UPLOAD_NAME, MODEL_LINE, RawImpressionUploadModelLine.State.RANKING)
     }
 
     assertThat(result.workItemsRepublished).isEqualTo(1)
@@ -130,12 +125,7 @@ class FailedDispatchRetrierTest {
                   failedModelLine().copy { state = RawImpressionUploadModelLine.State.RANKING }
               }
             )
-          retrier.retryFailed(
-            DATA_PROVIDER,
-            UPLOAD_ID,
-            MODEL_LINE,
-            RawImpressionUploadModelLine.State.RANKING,
-          )
+          retrier.retryFailed(UPLOAD_NAME, MODEL_LINE, RawImpressionUploadModelLine.State.RANKING)
         }
       }
     assertThat(error).hasMessageThat().contains("expected FAILED")
@@ -159,12 +149,7 @@ class FailedDispatchRetrierTest {
           whenever(workItemsService.getWorkItem(any())).thenAnswer {
             throw Status.NOT_FOUND.asRuntimeException()
           }
-          retrier.retryFailed(
-            DATA_PROVIDER,
-            UPLOAD_ID,
-            MODEL_LINE,
-            RawImpressionUploadModelLine.State.RANKING,
-          )
+          retrier.retryFailed(UPLOAD_NAME, MODEL_LINE, RawImpressionUploadModelLine.State.RANKING)
         }
       }
     assertThat(error).hasMessageThat().contains("cannot be re-published")
@@ -173,9 +158,9 @@ class FailedDispatchRetrierTest {
   companion object {
     private const val DATA_PROVIDER = "dataProviders/dp1"
     private const val UPLOAD_ID = "upload1"
+    private const val UPLOAD_NAME = "$DATA_PROVIDER/rawImpressionUploads/$UPLOAD_ID"
     private const val MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
-    private const val MODEL_LINE_NAME =
-      "$DATA_PROVIDER/rawImpressionUploads/$UPLOAD_ID/rawImpressionUploadModelLines/rml1"
+    private const val MODEL_LINE_NAME = "$UPLOAD_NAME/rawImpressionUploadModelLines/rml1"
     private const val RANKER_JOB_NAME =
       "$DATA_PROVIDER/rawImpressionUploads/$UPLOAD_ID/rankerJobs/rj1"
     private const val ETAG = "etag-1"

@@ -55,3 +55,23 @@ internal suspend fun RawImpressionUploadModelLineServiceCoroutineStub.findModelL
   } while (pageToken.isNotEmpty())
   return found
 }
+
+/** Returns all [RawImpressionUploadModelLine]s under [uploadName]. */
+internal suspend fun RawImpressionUploadModelLineServiceCoroutineStub.listModelLines(
+  uploadName: String
+): List<RawImpressionUploadModelLine> {
+  val modelLines = mutableListOf<RawImpressionUploadModelLine>()
+  var pageToken = ""
+  do {
+    val response =
+      listRawImpressionUploadModelLines(
+        listRawImpressionUploadModelLinesRequest {
+          parent = uploadName
+          this.pageToken = pageToken
+        }
+      )
+    modelLines.addAll(response.rawImpressionUploadModelLinesList)
+    pageToken = response.nextPageToken
+  } while (pageToken.isNotEmpty())
+  return modelLines
+}
