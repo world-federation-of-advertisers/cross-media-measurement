@@ -467,4 +467,114 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
 
       assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
     }
+
+  @Test
+  fun `basic report with two result_group_specs different component orderings both succeed`() =
+    runBlocking {
+      val eventGroups = getMultiEdpEventGroups()
+      check(eventGroups.size > 1)
+      val distinctDps = eventGroups.map { it.cmmsDataProvider }.distinct()
+      check(distinctDps.size == 2) {
+        "Test requires exactly 2 distinct DPs, got ${distinctDps.size}"
+      }
+
+      // Build the standard single-spec request, then splice in a second result_group_spec
+      // that references the same DPs in reversed order. Both request stackedIncrementalReach
+      // -> different first-component anchors in one BasicReport.
+      val baseRequest =
+        buildCreateBasicReportRequest(
+          eventGroups,
+          "multi-edp-two-anchor-campaign",
+          "multi-edp-two-anchor-basicreport",
+          includeIqfFilter = false,
+        )
+      val originalSpec = baseRequest.basicReport.resultGroupSpecsList.single()
+      val reversedSpec =
+        originalSpec.copy {
+          title = "reversed"
+          reportingUnit =
+            reportingUnit.copy {
+              components.clear()
+              components += distinctDps.reversed()
+            }
+        }
+      val originalSpecTitled = originalSpec.copy { title = "original" }
+      val createBasicReportRequest =
+        baseRequest.copy {
+          basicReport =
+            basicReport.copy {
+              resultGroupSpecs.clear()
+              resultGroupSpecs += originalSpecTitled
+              resultGroupSpecs += reversedSpec
+            }
+        }
+
+      val createdBasicReport =
+        reportingBasicReportsClient
+          .withCallCredentials(credentials)
+          .createBasicReport(createBasicReportRequest)
+
+      executeBasicReportsReportsJob(createdBasicReport.name)
+      executeReportProcessorJob()
+
+      val completedBasicReport =
+        reportingBasicReportsClient
+          .withCallCredentials(credentials)
+          .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+      assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+      assertThat(completedBasicReport.resultGroupsList).hasSize(2)
+
+      val resultGroupsByTitle =
+        completedBasicReport.resultGroupsList.associate { it.title to it.resultsList.single() }
+      val originalResult = resultGroupsByTitle.getValue("original")
+      val reversedResult = resultGroupsByTitle.getValue("reversed")
+
+      val originalStacked = originalResult.metricSet.reportingUnit.stackedIncrementalReachList
+      val reversedStacked = reversedResult.metricSet.reportingUnit.stackedIncrementalReachList
+
+      // Both curves have one point per component.
+      assertThat(originalStacked).hasSize(2)
+      assertThat(reversedStacked).hasSize(2)
+
+      // Each curve sums to the full union reach (regardless of anchor order).
+      assertThat(originalStacked.sum()).isEqualTo(EXPECTED_CROSS_PUBLISHER_REACH)
+      assertThat(reversedStacked.sum()).isEqualTo(EXPECTED_CROSS_PUBLISHER_REACH)
+
+      // The two curves are anchored on different first-components -> different first values.
+      assertThat(originalStacked[0]).isNotEqualTo(reversedStacked[0])
+
+      // Anchor values are the two individual per-EDP reach values (order-independent check).
+      // Confirms each curve's leading point is the reach of *its own* first component,
+      // not a bleed-over from the sibling spec's ordering.
+      assertThat(listOf(originalStacked[0], reversedStacked[0]).sorted())
+        .containsExactly(EXPECTED_EDP_SPEC2_REACH, EXPECTED_EDP_SPEC1_REACH)
+        .inOrder()
+
+      // Cross-spec consistency assertions: The two specs reference the same
+      // underlying components (just in different orderings), so the union metrics and
+      // population size must be identical across specs. If the alias table over- or
+      // under-fires, per-component data can leak between specs; these assertions detect that.
+      val originalUnionCumulative = originalResult.metricSet.reportingUnit.cumulative
+      val reversedUnionCumulative = reversedResult.metricSet.reportingUnit.cumulative
+      assertWithMessage("cross-spec union cumulative reach equal")
+        .that(originalUnionCumulative.reach)
+        .isEqualTo(reversedUnionCumulative.reach)
+      assertWithMessage("cross-spec union cumulative impressions equal")
+        .that(originalUnionCumulative.impressions)
+        .isEqualTo(reversedUnionCumulative.impressions)
+      assertWithMessage("cross-spec population size equal")
+        .that(originalResult.metricSet.populationSize)
+        .isEqualTo(reversedResult.metricSet.populationSize)
+      // Each spec must expose both DPs in its componentsList (component-scoped result must not
+      // silently drop a DP under the reordering).
+      assertWithMessage("original spec componentsList covers both DPs")
+        .that(originalResult.metricSet.componentsList.map { it.key }.toSet())
+        .containsExactlyElementsIn(distinctDps)
+      assertWithMessage("reversed spec componentsList covers both DPs")
+        .that(reversedResult.metricSet.componentsList.map { it.key }.toSet())
+        .containsExactlyElementsIn(distinctDps)
+
+      assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
+    }
 }
