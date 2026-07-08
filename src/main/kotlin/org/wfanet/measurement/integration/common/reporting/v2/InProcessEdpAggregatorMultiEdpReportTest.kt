@@ -15,14 +15,8 @@
 package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.common.truth.Truth.assertThat
-import org.wfanet.measurement.reporting.v2alpha.resultGroupMetricSpec
-import org.wfanet.measurement.reporting.v2alpha.metricFrequencySpec
-import org.wfanet.measurement.reporting.v2alpha.copy
-import org.wfanet.measurement.reporting.v2alpha.basicReport
-import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
-import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
-import com.google.type.DayOfWeek
 import com.google.common.truth.Truth.assertWithMessage
+import com.google.type.DayOfWeek
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -33,7 +27,12 @@ import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
+import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
+import org.wfanet.measurement.reporting.v2alpha.basicReport
+import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
+import org.wfanet.measurement.reporting.v2alpha.metricFrequencySpec
+import org.wfanet.measurement.reporting.v2alpha.resultGroupMetricSpec
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 /**
@@ -181,6 +180,7 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
     assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
     assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
   }
+
   // Regression for #4132. Under the shape:
   //   metric_frequency: { weekly: MONDAY }
   //   reporting_unit: cumulative only (NO non_cumulative)
@@ -284,9 +284,7 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
         resultGroup.resultsList.filter { it.metadata.nonCumulativeMetricStartTime.seconds == 0L }
       val perEdpNonCumulativeResults =
         resultGroup.resultsList.filter { it.metadata.nonCumulativeMetricStartTime.seconds > 0L }
-      assertWithMessage("union cumulative slice present")
-        .that(unionCumulativeResults)
-        .isNotEmpty()
+      assertWithMessage("union cumulative slice present").that(unionCumulativeResults).isNotEmpty()
       assertWithMessage("per-EDP non_cumulative slice present")
         .that(perEdpNonCumulativeResults)
         .isNotEmpty()
@@ -304,7 +302,9 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
       // in the reporting unit. Pre-fix, the components map was populated but the entry itself
       // was dropped in one of the two code paths above.
       val allComponentKeys =
-        perEdpNonCumulativeResults.flatMap { it.metricSet.componentsList.map { c -> c.key } }.toSet()
+        perEdpNonCumulativeResults
+          .flatMap { it.metricSet.componentsList.map { c -> c.key } }
+          .toSet()
       assertWithMessage("per-EDP non_cumulative components cover both DPs")
         .that(allComponentKeys.size)
         .isEqualTo(2)
@@ -331,6 +331,19 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
           }
         }
       }
+
+      // "Adds up" invariant: sum of per-EDP per-week non_cumulative impressions across all
+      // weekly buckets equals the whole-report cross-publisher impressions total. Reach cannot
+      // be summed this way (a VID reached in two weeks is counted twice in the non_cumulative
+      // sum but once in the union total); impressions add cleanly because each impression is
+      // counted once at its actual time.
+      val perEdpImpressionsSum: Long =
+        perEdpNonCumulativeResults.sumOf { r ->
+          r.metricSet.componentsList.sumOf { c -> c.value.nonCumulative.impressions }
+        }
+      assertWithMessage("sum of per-EDP per-week non_cumulative impressions")
+        .that(perEdpImpressionsSum)
+        .isEqualTo(EXPECTED_CROSS_PUBLISHER_IMPRESSIONS)
 
       // Union cumulative reach is monotonically non-decreasing across
       // increasing `metricEndTime`s.
