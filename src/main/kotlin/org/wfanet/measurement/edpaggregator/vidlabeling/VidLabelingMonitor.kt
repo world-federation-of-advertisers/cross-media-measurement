@@ -82,6 +82,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @param dataProviderName resource name of the `DataProvider` this monitor scans.
  * @param stalenessThreshold non-terminal uploads older than this are flagged as stuck.
  * @param clock clock used for staleness evaluation.
+ * @param metrics OpenTelemetry instruments recorder.
  */
 class VidLabelingMonitor(
   private val rawImpressionUploadStub:
@@ -99,6 +100,7 @@ class VidLabelingMonitor(
   private val vidLabelingJobStub: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub,
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   private val clock: Clock = Clock.systemUTC(),
+  private val metrics: VidLabelingMonitorMetrics = VidLabelingMonitorMetrics(),
 ) {
 
   /** Outcome of a dispatch-only monitor run (the fast cadence) for a DataProvider. */
@@ -165,17 +167,17 @@ class VidLabelingMonitor(
         // The sequencer wraps RPC failures (list calls, model-repo unavailable, non-ALREADY_EXISTS
         // creates) as plain exceptions. Surface them as a metric so operators can tell "dispatch
         // broken" apart from "no work to do".
-        VidLabelingMonitorMetrics.dispatchErrorsGauge.set(1, dataProviderAttributes())
+        metrics.dispatchErrorsGauge.set(1, dataProviderAttributes())
         logger.log(Level.SEVERE, "Dispatch failed for $dataProviderName", e)
         return DispatchOnlyResult(dispatchedUpload = null, queuedUploads = 0, dispatchError = true)
       }
-    VidLabelingMonitorMetrics.dispatchErrorsGauge.set(0, dataProviderAttributes())
+    metrics.dispatchErrorsGauge.set(0, dataProviderAttributes())
 
     if (dispatch.dispatchedUpload != null) {
-      VidLabelingMonitorMetrics.uploadsDispatchedCounter.add(1, dataProviderAttributes())
+      metrics.uploadsDispatchedCounter.add(1, dataProviderAttributes())
       logger.info("Dispatched ${dispatch.dispatchedUpload}")
     }
-    VidLabelingMonitorMetrics.uploadsQueuedGauge.set(
+    metrics.uploadsQueuedGauge.set(
       dispatch.queuedUploads.toLong(),
       dataProviderAttributes(),
     )
@@ -238,7 +240,7 @@ class VidLabelingMonitor(
     // uploadsStuckGauge is the alerting signal (alert on > 0 over a duration window, which dedupes
     // naturally). Set unconditionally (including 0) so a recovered DataProvider reads back to 0. No
     // per-tick SEVERE log, which would re-page on every Cloud Scheduler tick until manual recovery.
-    VidLabelingMonitorMetrics.uploadsStuckGauge.set(
+    metrics.uploadsStuckGauge.set(
       stuckUploads.size.toLong(),
       dataProviderAttributes(),
     )
@@ -263,7 +265,7 @@ class VidLabelingMonitor(
     // alerting signal (alert on > 0 over a duration window, which dedupes naturally); no per-tick
     // SEVERE log, which would re-page on every Cloud Scheduler tick until manual recovery. Set
     // unconditionally (including 0) so a recovered DataProvider reads back to 0.
-    VidLabelingMonitorMetrics.failedUploadsGauge.set(
+    metrics.failedUploadsGauge.set(
       failedLinesByUpload.size.toLong(),
       dataProviderAttributes(),
     )
@@ -388,11 +390,11 @@ class VidLabelingMonitor(
       val storage = checkRawImpressionStorageQuality(snapshot)
       val missingLabeled = checkLabelingCompleteness(snapshot)
       val attrs = dataProviderAttributes()
-      VidLabelingMonitorMetrics.missingLabeledOutputsGauge.set(missingLabeled, attrs)
-      VidLabelingMonitorMetrics.missingDoneBlobsGauge.set(storage.missingDoneBlobs, attrs)
-      VidLabelingMonitorMetrics.zeroImpressionDatesGauge.set(storage.zeroImpressionDates, attrs)
-      VidLabelingMonitorMetrics.lateArrivingFilesGauge.set(storage.lateArrivingFiles, attrs)
-      VidLabelingMonitorMetrics.missingRawFilesGauge.set(storage.missingRawFiles, attrs)
+      metrics.missingLabeledOutputsGauge.set(missingLabeled, attrs)
+      metrics.missingDoneBlobsGauge.set(storage.missingDoneBlobs, attrs)
+      metrics.zeroImpressionDatesGauge.set(storage.zeroImpressionDates, attrs)
+      metrics.lateArrivingFilesGauge.set(storage.lateArrivingFiles, attrs)
+      metrics.missingRawFilesGauge.set(storage.missingRawFiles, attrs)
       DataQualityResult(
         missingLabeledOutputs = missingLabeled,
         lateArrivingFiles = storage.lateArrivingFiles,
@@ -566,7 +568,7 @@ class VidLabelingMonitor(
         when (outcome) {
           RecoveryOutcome.RECOVERED -> {
             recovered++
-            VidLabelingMonitorMetrics.phaseTransitionsRecoveredCounter.add(
+            metrics.phaseTransitionsRecoveredCounter.add(
               1,
               dataProviderAttributes(),
             )
@@ -584,7 +586,7 @@ class VidLabelingMonitor(
       }
     }
     // Set each run (including 0) so the page signal self-clears once the transition advances.
-    VidLabelingMonitorMetrics.recoveryExhaustedGauge.set(
+    metrics.recoveryExhaustedGauge.set(
       exhausted.toLong(),
       dataProviderAttributes(),
     )
@@ -705,7 +707,7 @@ class VidLabelingMonitor(
         workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
       } catch (e: StatusException) {
         logger.warning("Cannot recover: WorkItem $workItemId unavailable (${e.status.code})")
-        VidLabelingMonitorMetrics.recoveryStepFailuresCounter.add(
+        metrics.recoveryStepFailuresCounter.add(
           1,
           recoveryStepAttributes("get_original"),
         )
@@ -733,7 +735,7 @@ class VidLabelingMonitor(
           continue
         }
         logger.warning("Recovery publish failed for $recoveryId (${e.status.code})")
-        VidLabelingMonitorMetrics.recoveryStepFailuresCounter.add(
+        metrics.recoveryStepFailuresCounter.add(
           1,
           recoveryStepAttributes("publish"),
         )
