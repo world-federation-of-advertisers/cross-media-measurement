@@ -2927,9 +2927,12 @@ class BasicReportTransformationsTest {
       .containsExactly(
         MetricCalculationSpecKt.details {
           filter = "person.age_group == 1 && person.gender == 1"
-          metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
           metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
-        }
+        },
+        MetricCalculationSpecKt.details {
+          filter = "(testing_only != null) && (person.age_group == 1 && person.gender == 1)"
+          metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+        },
       )
   }
 
@@ -3001,7 +3004,8 @@ class BasicReportTransformationsTest {
           metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
         },
         MetricCalculationSpecKt.details {
-          filter = "(video_ad != null) && (person.age_group == 1 && person.gender == 1)"
+          filter =
+            "((testing_only != null) || (video_ad != null)) && (person.age_group == 1 && person.gender == 1)"
           metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
         },
       )
@@ -3077,7 +3081,7 @@ class BasicReportTransformationsTest {
         },
         MetricCalculationSpecKt.details {
           filter =
-            "((banner_ad != null) || (video_ad != null)) && (person.age_group == 1 && person.gender == 1)"
+            "((banner_ad != null) || (testing_only != null) || (video_ad != null)) && (person.age_group == 1 && person.gender == 1)"
           metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
         },
       )
