@@ -17,6 +17,9 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
+import io.grpc.Status
+import io.grpc.StatusException
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -30,9 +33,7 @@ import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 
 @RunWith(JUnit4::class)
@@ -40,28 +41,19 @@ class ModelLineBackfillerTest {
   private val modelLineService:
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase =
     mockService()
-  private val uploadService:
-    RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase =
-    mockService()
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule {
-    addService(modelLineService)
-    addService(uploadService)
-  }
+  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(modelLineService) }
 
   private val backfiller: ModelLineBackfiller by lazy {
-    val channel = grpcTestServerRule.channel
     ModelLineBackfiller(
       RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
-        channel
-      ),
-      RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(channel),
+        grpcTestServerRule.channel
+      )
     )
   }
 
   @Test
-  fun `backfill creates the model line and reactivates the upload`() {
+  fun `backfill creates the model line`() {
     val result = runBlocking {
       whenever(modelLineService.listRawImpressionUploadModelLines(any()))
         .thenReturn(listRawImpressionUploadModelLinesResponse {})
@@ -72,14 +64,12 @@ class ModelLineBackfillerTest {
             cmmsModelLine = MODEL_LINE
           }
         )
-      whenever(uploadService.markRawImpressionUploadActive(any()))
-        .thenReturn(rawImpressionUpload { name = UPLOAD_NAME })
 
       backfiller.backfill(MODEL_LINE, listOf(UPLOAD_NAME))
     }
 
-    assertThat(result.createdModelLines).hasSize(1)
-    assertThat(result.reactivatedUploads).containsExactly(UPLOAD_NAME)
+    assertThat(result.createdModelLines)
+      .containsExactly("$UPLOAD_NAME/rawImpressionUploadModelLines/rml1")
     verifyBlocking(modelLineService) {
       createRawImpressionUploadModelLine(
         argThat {
@@ -87,7 +77,6 @@ class ModelLineBackfillerTest {
         }
       )
     }
-    verifyBlocking(uploadService) { markRawImpressionUploadActive(argThat { name == UPLOAD_NAME }) }
   }
 
   @Test
@@ -102,15 +91,27 @@ class ModelLineBackfillerTest {
             }
           }
         )
-      whenever(uploadService.markRawImpressionUploadActive(any()))
-        .thenReturn(rawImpressionUpload { name = UPLOAD_NAME })
 
       backfiller.backfill(MODEL_LINE, listOf(UPLOAD_NAME))
     }
 
     assertThat(result.createdModelLines).isEmpty()
-    assertThat(result.reactivatedUploads).containsExactly(UPLOAD_NAME)
     verifyBlocking(modelLineService, never()) { createRawImpressionUploadModelLine(any()) }
+  }
+
+  @Test
+  fun `backfill propagates the server rejection for a FAILED upload`() {
+    assertFailsWith<StatusException> {
+      runBlocking {
+        whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+          .thenReturn(listRawImpressionUploadModelLinesResponse {})
+        whenever(modelLineService.createRawImpressionUploadModelLine(any())).thenAnswer {
+          throw Status.FAILED_PRECONDITION.asRuntimeException()
+        }
+
+        backfiller.backfill(MODEL_LINE, listOf(UPLOAD_NAME))
+      }
+    }
   }
 
   companion object {

@@ -342,14 +342,11 @@ class BackfillModelLineCommand : EdpaApiCommand() {
     try {
       runBlocking {
         val backfiller =
-          ModelLineBackfiller(
-            RawImpressionUploadModelLineServiceCoroutineStub(channel),
-            RawImpressionUploadServiceCoroutineStub(channel),
-          )
+          ModelLineBackfiller(RawImpressionUploadModelLineServiceCoroutineStub(channel))
         val result = backfiller.backfill(modelLine, rawImpressionUploads)
         println(
-          "Backfilled $modelLine: created ${result.createdModelLines.size} model line(s), " +
-            "reactivated ${result.reactivatedUploads.size} upload(s)."
+          "Backfilled $modelLine: created ${result.createdModelLines.size} model line(s) " +
+            "(creating a model line reactivates its COMPLETED parent upload)."
         )
       }
     } finally {
