@@ -27,8 +27,6 @@ import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
@@ -160,16 +158,20 @@ class MarkFailedCommand : EdpaApiCommand() {
 }
 
 /**
- * Re-triggers a `FAILED` `(upload, model line)` at a given phase after the operator has resolved
- * the root cause: re-publishes the phase's WorkItem(s) and transitions the model line `FAILED ->
- * phase`.
+ * Re-triggers a `FAILED` `(upload, model line)` after the operator has resolved the root cause.
+ *
+ * Restarts from the beginning of the model line's path — Phase 0 (`POOL_ASSIGNING`) for a memoized
+ * model line, Phase 2 (`LABELING`) for a non-memoized one (detected from whether Phase-0 jobs
+ * exist) — by re-publishing that phase's WorkItem(s) and transitioning the model line out of
+ * `FAILED`. The pipeline's idempotency gates skip already-succeeded work, so it resumes at the
+ * actual failure point.
  *
  * Talks to both the EDP Aggregator public API (model line + job rows) and the Secure Computation
  * control plane (WorkItems), so it takes a second target for the control plane.
  */
 @Command(
   name = "retry-failed",
-  description = ["Re-triggers a FAILED (upload, model line) at the given phase."],
+  description = ["Re-triggers a FAILED (upload, model line) from the start of its path."],
   mixinStandardHelpOptions = true,
 )
 class RetryFailedCommand : EdpaApiCommand() {
@@ -202,13 +204,6 @@ class RetryFailedCommand : EdpaApiCommand() {
   )
   private lateinit var modelLine: String
 
-  @Option(
-    names = ["--from-phase"],
-    description = ["Phase to re-trigger: POOL_ASSIGNING, RANKING, or LABELING."],
-    required = true,
-  )
-  private lateinit var fromPhase: String
-
   override fun run() {
     val edpaChannel: ManagedChannel = buildEdpaChannel()
     val controlPlaneChannel: ManagedChannel =
@@ -219,14 +214,13 @@ class RetryFailedCommand : EdpaApiCommand() {
           FailedDispatchRetrier(
             RawImpressionUploadModelLineServiceCoroutineStub(edpaChannel),
             PoolAssignmentJobServiceCoroutineStub(edpaChannel),
-            RankerJobServiceCoroutineStub(edpaChannel),
             VidLabelingJobServiceCoroutineStub(edpaChannel),
             WorkItemsCoroutineStub(controlPlaneChannel),
           )
-        val phase = RawImpressionUploadModelLine.State.valueOf(fromPhase.uppercase())
-        val result = retrier.retryFailed(rawImpressionUpload, modelLine, phase)
+        val result = retrier.retryFailed(rawImpressionUpload, modelLine)
+        val startPhase = if (result.memoized) "Phase 0 (POOL_ASSIGNING)" else "Phase 2 (LABELING)"
         println(
-          "Re-triggered ${result.modelLineName}: republished " +
+          "Re-triggered ${result.modelLineName} from $startPhase: republished " +
             "${result.workItemsRepublished} WorkItem(s), state=${result.newState}."
         )
       }
