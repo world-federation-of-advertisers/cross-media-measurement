@@ -52,7 +52,7 @@ locals {
     machine_type                  = "c4d-standard-2"
     docker_image                  = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill:${var.image_tag}"
     signed_image_repo             = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill"
-    mig_distribution_policy_zones = ["us-central1-a"]
+    mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
     disk_image_family             = "confidential-space"
 
     aggregator_tls_cert        = local.aggregator_tls_cert
