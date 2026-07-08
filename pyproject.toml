@@ -13,11 +13,11 @@ dependencies = [
     # For google.rpc.error_details / google.rpc.status
     "googleapis-common-protos",
     # Must be compatible with the version of the grpc Bazel module.
-    "grpcio==1.74.0",
+    "grpcio==1.82.1",
     # ErrorInfo extraction from grpc.RpcError trailers; must match grpcio.
-    "grpcio-status==1.74.0",
+    "grpcio-status==1.82.1",
     # Must be compatible with the version of the protobuf Bazel module.
-    "protobuf==6.33.1",
+    "protobuf==7.35.1",
     "numpy",
     "qpsolvers[highs,osqp]",
 ]
