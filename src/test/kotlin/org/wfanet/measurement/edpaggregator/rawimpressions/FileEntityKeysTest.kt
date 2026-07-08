@@ -63,4 +63,33 @@ class FileEntityKeysTest {
       }
     assertThat(exception).hasMessageThat().contains("event_group_reference_id")
   }
+
+  @Test
+  fun `parseEventDate parses the event date`() {
+    assertThat(FileEntityKeys.parseEventDate(mapOf("event_date" to "2026-06-30")))
+      .isEqualTo(LocalDate.of(2026, 6, 30))
+  }
+
+  @Test
+  fun `parseEventDate does not require event_group_reference_id`() {
+    // The date-only path must not couple to reference-id presence.
+    assertThat(FileEntityKeys.parseEventDate(mapOf("event_date" to "2026-06-30")))
+      .isEqualTo(LocalDate.of(2026, 6, 30))
+  }
+
+  @Test
+  fun `parseEventDate throws when event_date is missing`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> { FileEntityKeys.parseEventDate(emptyMap()) }
+    assertThat(exception).hasMessageThat().contains("event_date")
+  }
+
+  @Test
+  fun `parseEventDate throws when event_date is not an ISO date`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        FileEntityKeys.parseEventDate(mapOf("event_date" to "30-06-2026"))
+      }
+    assertThat(exception).hasMessageThat().contains("event_date")
+  }
 }
