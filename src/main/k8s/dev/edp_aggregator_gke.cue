@@ -20,6 +20,11 @@ _systemApiAddressName: "edp-aggregator-system"
 // Name of K8s service account for the internal API server.
 #InternalEdpAggregatorServerServiceAccount: "internal-edp-aggregator-server"
 
+// Name of K8s service account for the sync-event-group-activities CronJob.
+// Bound via Workload Identity to the edpa-event-group-sync GCP SA (which has
+// storage.objectAdmin on the spot-data bucket).
+#SyncEventGroupActivitiesServiceAccount: "sync-event-group-activities"
+
 #SystemServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "25m"
@@ -37,6 +42,7 @@ objectSets: [
 	edpAggregator.deployments,
 	edpAggregator.services,
 	edpAggregator.networkPolicies,
+	edpAggregator.cronJobs,
 ]
 
 edpAggregator: #EdpAggregator & {
@@ -49,6 +55,9 @@ edpAggregator: #EdpAggregator & {
 	serviceAccounts: {
 		"\(#InternalEdpAggregatorServerServiceAccount)": #WorkloadIdentityServiceAccount & {
 			_iamServiceAccountName: "edp-aggregator-internal"
+		}
+		"\(#SyncEventGroupActivitiesServiceAccount)": #WorkloadIdentityServiceAccount & {
+			_iamServiceAccountName: "edpa-event-group-sync"
 		}
 	}
 
@@ -66,5 +75,27 @@ edpAggregator: #EdpAggregator & {
 	}
 	services: {
 		"edp-aggregator-system-api-server": _ipAddressName: _systemApiAddressName
+	}
+
+	_syncEventGroupActivitiesServiceAccountName: #SyncEventGroupActivitiesServiceAccount
+
+	// Per-EDP arg lists for sync-event-group-activities. Each EDP has an entry
+	// here; the textproto config for that EDP is staged into the edp-aggregator
+	// ConfigMap by the deploy workflow and mounted at /etc/halo-cmms/edp-aggregator/config/.
+	// Schedule defaults to daily at 06:00 UTC (see edp_aggregator.cue
+	// _syncEventGroupActivitiesCronSchedule).
+	_syncEventGroupActivitiesArgs: "edp7": {
+		tlsSecret: "edp7-tls"
+		args: [
+			"--config-file=/etc/halo-cmms/edp-aggregator/config/event-group-activity-sync-config-edp7.textproto",
+			"--tls-cert-file=/etc/halo-cmms/edp-aggregator/edp7-tls/tls.crt",
+			"--tls-key-file=/etc/halo-cmms/edp-aggregator/edp7-tls/tls.key",
+			"--cert-collection-file=/etc/halo-cmms/edp-aggregator/config/kingdom_root.pem",
+			"--list-page-size=1000",
+			"--throttler-minimum-interval=100ms",
+			// Start in preview; switch to "--mode=append" (creates only) or
+			// "--mode=sync" (creates + deletes) after validating a run.
+			"--mode=preview",
+		]
 	}
 }

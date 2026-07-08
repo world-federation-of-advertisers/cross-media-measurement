@@ -1,5 +1,6 @@
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("//src/main/docker:macros.bzl", "java_image")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
@@ -26,6 +27,12 @@ kt_jvm_library(
 java_binary(
     name = "SyncEventGroupActivities",
     main_class = "org.wfanet.measurement.edpaggregator.tools.SyncEventGroupActivitiesKt",
-    tags = ["manual"],
     runtime_deps = [":sync_event_group_activities"],
+)
+
+java_image(
+    name = "sync_event_group_activities_image",
+    binary = ":SyncEventGroupActivities",
+    main_class = "org.wfanet.measurement.edpaggregator.tools.SyncEventGroupActivitiesKt",
+    visibility = ["//src:docker_image_deployment"],
 )
