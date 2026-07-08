@@ -130,8 +130,12 @@ class RawImpressionUploadService(
           InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS ->
+            Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
         }
       }
 
@@ -194,7 +198,10 @@ class RawImpressionUploadService(
           InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -304,7 +311,10 @@ class RawImpressionUploadService(
           InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
