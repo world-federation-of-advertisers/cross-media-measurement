@@ -6,6 +6,51 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
+    name = "vid_assigner",
+    srcs = ["VidAssigner.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/riegeli",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_kt_jvm_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_kt_jvm_proto",
+        "@wfa_virtual_people_core_serving//src/main/kotlin/org/wfanet/virtualpeople/core/labeler",
+    ],
+)
+
+kt_jvm_library(
+    name = "vid_labeling",
+    srcs = [
+        "ImpressionConverter.kt",
+        "VidLabeler.kt",
+        "VidLabelerMetrics.kt",
+        "VidLabelingSink.kt",
+    ],
+    deps = [
+        ":vid_assigner",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:event_id_digest",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:raw_impression_source",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/utils:active_window",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeler_params_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
     name = "vid_labeler_app",
     srcs = ["VidLabelerApp.kt"],
     deps = [
