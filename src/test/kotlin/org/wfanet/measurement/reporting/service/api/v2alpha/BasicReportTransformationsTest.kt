@@ -25,14 +25,13 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.common.cel.CelFilterValidator
+import org.wfanet.measurement.common.cel.CelPredicates
 import org.wfanet.measurement.common.cel.CelValidationException
 import org.wfanet.measurement.common.cel.buildCelEnvironment
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
-import org.wfanet.measurement.reporting.service.api.ImpressionQualificationFilterInvalidCelException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpecKt
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
@@ -3168,10 +3167,10 @@ class BasicReportTransformationsTest {
   }
 
   @Test
-  fun `Base IQF with bad CEL throws ImpressionQualificationFilterInvalidCelException naming the IQF id`() {
+  fun `Base IQF with bad CEL throws IllegalStateException naming the IQF id`() {
     for (case in BAD_CEL_CASES) {
       val exception =
-        assertFailsWith<ImpressionQualificationFilterInvalidCelException>(
+        assertFailsWith<IllegalStateException>(
           "case: ${case.label} filter='${case.filter}'"
         ) {
           validateImpressionQualificationFilterCel(
@@ -3186,10 +3185,10 @@ class BasicReportTransformationsTest {
   }
 
   @Test
-  fun `Named IQF with bad CEL throws ImpressionQualificationFilterInvalidCelException naming the IQF resource and request index`() {
+  fun `Named IQF with bad CEL throws IllegalStateException naming the IQF resource and request index`() {
     for (case in BAD_CEL_CASES) {
       val exception =
-        assertFailsWith<ImpressionQualificationFilterInvalidCelException>(
+        assertFailsWith<IllegalStateException>(
           "case: ${case.label} filter='${case.filter}'"
         ) {
           validateImpressionQualificationFilterCel(
@@ -3420,7 +3419,7 @@ class BasicReportTransformationsTest {
           eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
         )
       // Should not throw for any valid enum name.
-      CelFilterValidator.validateBoolean(TEST_CEL_ENV, filter)
+      CelPredicates.validate(TEST_CEL_ENV, filter)
     }
   }
 
@@ -3443,7 +3442,7 @@ class BasicReportTransformationsTest {
             ),
           eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
         )
-      CelFilterValidator.validateBoolean(TEST_CEL_ENV, filter)
+      CelPredicates.validate(TEST_CEL_ENV, filter)
     }
   }
 
@@ -3472,7 +3471,7 @@ class BasicReportTransformationsTest {
     // has different bool semantics but would still validate), the shape here
     // will surface it.
     assertThat(filter).contains(" && ")
-    CelFilterValidator.validateBoolean(TEST_CEL_ENV, filter)
+    CelPredicates.validate(TEST_CEL_ENV, filter)
   }
 
   @Test
@@ -3504,7 +3503,7 @@ class BasicReportTransformationsTest {
       )
     // Locks in the || join shape across mediaTypes.
     assertThat(filter).contains(" || ")
-    CelFilterValidator.validateBoolean(TEST_CEL_ENV, filter)
+    CelPredicates.validate(TEST_CEL_ENV, filter)
   }
 
   // ---- Backstop tests: shapes that would result from a future regression or a
@@ -3520,7 +3519,7 @@ class BasicReportTransformationsTest {
     // hand-craft the CEL string to prove the backstop.
     val exception =
       assertFailsWith<CelValidationException> {
-        CelFilterValidator.validateBoolean(TEST_CEL_ENV, "video_ad.viewed_fraction == NaN")
+        CelPredicates.validate(TEST_CEL_ENV, "video_ad.viewed_fraction == NaN")
       }
     assertThat(exception.message).contains("not a valid CEL expression")
     assertThat(exception.message).contains("NaN")
@@ -3530,7 +3529,7 @@ class BasicReportTransformationsTest {
   fun `backstop - rejects field == Infinity which would result from a Float Infinity on a FLOAT IQF field`() {
     val exception =
       assertFailsWith<CelValidationException> {
-        CelFilterValidator.validateBoolean(TEST_CEL_ENV, "video_ad.viewed_fraction == Infinity")
+        CelPredicates.validate(TEST_CEL_ENV, "video_ad.viewed_fraction == Infinity")
       }
     assertThat(exception.message).contains("not a valid CEL expression")
     assertThat(exception.message).contains("Infinity")
@@ -3545,7 +3544,7 @@ class BasicReportTransformationsTest {
     // field exists today; hand-craft the CEL to prove the backstop.
     val exception =
       assertFailsWith<CelValidationException> {
-        CelFilterValidator.validateBoolean(TEST_CEL_ENV, "banner_ad.viewable == abc")
+        CelPredicates.validate(TEST_CEL_ENV, "banner_ad.viewable == abc")
       }
     assertThat(exception.message).contains("not a valid CEL expression")
     assertThat(exception.message).contains("abc")

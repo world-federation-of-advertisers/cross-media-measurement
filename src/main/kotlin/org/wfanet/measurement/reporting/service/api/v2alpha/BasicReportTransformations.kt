@@ -22,17 +22,16 @@ import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
-import org.wfanet.measurement.common.cel.CelFilterValidator
+import org.wfanet.measurement.common.cel.CelPredicates
 import org.wfanet.measurement.common.cel.CelValidationException
-import org.wfanet.measurement.common.cel.toCelValue
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField as InternalEventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
-import org.wfanet.measurement.reporting.service.api.ImpressionQualificationFilterInvalidCelException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
+import org.wfanet.measurement.reporting.service.internal.toCelValue
 import org.wfanet.measurement.reporting.service.internal.Normalization
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.EventFilter
@@ -58,8 +57,8 @@ import org.wfanet.measurement.reporting.v2alpha.reportingSet
  * - [Custom] failures are user input; the validator surfaces them as `INVALID_ARGUMENT` with the
  *   field path pointing at the offending entry in the request.
  * - [Base] and [Named] failures are server-controlled (a configured or registry-resolved IQF
- *   generated invalid CEL); they surface as `ImpressionQualificationFilterInvalidCelException` and
- *   are routed to `Status.INTERNAL` by the calling service.
+ *   generated invalid CEL); they surface as an [IllegalStateException] indicating a broken
+ *   server invariant.
  */
 sealed interface ImpressionQualificationFilterSpecsSource {
   /** [ImpressionQualificationFilterSpec]s from a base (server-configured) IQF. */
@@ -122,11 +121,9 @@ private data class MetricCalculationSpecInfo(
  *   CEL string fails to compile or does not evaluate to a boolean AND the source is user input
  *   ([ImpressionQualificationFilterSpecsSource.Custom] or a [ResultGroupSpec]'s dimension_spec).
  * @throws
- *   org.wfanet.measurement.reporting.service.api.ImpressionQualificationFilterInvalidCelException
- *   when a generated CEL string fails to compile or does not evaluate to a boolean AND the source
- *   is server-controlled ([ImpressionQualificationFilterSpecsSource.Base] or
- *   [ImpressionQualificationFilterSpecsSource.Named]). The caller should map this to
- *   `Status.INTERNAL`.
+ *   [IllegalStateException] when a generated CEL string fails to compile or does not evaluate to
+ *   a boolean AND the source is server-controlled ([ImpressionQualificationFilterSpecsSource.Base]
+ *   or [ImpressionQualificationFilterSpecsSource.Named]) -- indicates a broken server invariant.
  */
 fun buildReportingSetMetricCalculationSpecDetailsMap(
   campaignGroupName: String,
@@ -167,7 +164,7 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
         val dimensionSpecFilter: String =
           buildCelExpression(resultGroupSpec.dimensionSpec.filtersList, eventTemplateFieldsByPath)
         try {
-          CelFilterValidator.validateBoolean(env, dimensionSpecFilter)
+          CelPredicates.validate(env, dimensionSpecFilter)
         } catch (e: CelValidationException) {
           throw InvalidFieldValueException(dimensionSpecFieldPath) { "$it is ${e.message}" }
         }
@@ -189,7 +186,7 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
         // Status.INTERNAL by the catch-all handler in BasicReportsService.
         for ((filterIndex, combinedFilter) in metricCalculationSpecFilters.withIndex()) {
           try {
-            CelFilterValidator.validateBoolean(env, combinedFilter)
+            CelPredicates.validate(env, combinedFilter)
           } catch (e: CelValidationException) {
             error(
               "Combined CEL filter at spec index $specIndex, filter index " +
@@ -316,10 +313,12 @@ private fun MediaType.toCmmsMediaType(): CmmsMediaType {
  * Compile-checks the CEL generated for an IQF and routes failures based on [source]:
  * - [ImpressionQualificationFilterSpecsSource.Custom] -> [InvalidFieldValueException] anchored at
  *   the offending request entry. Surfaced to the user as `INVALID_ARGUMENT`.
- * - [ImpressionQualificationFilterSpecsSource.Base] / [Named] ->
- *   [ImpressionQualificationFilterInvalidCelException]. The CEL was generated from server-
- *   controlled inputs; a failure indicates misconfiguration. The caller should map this to
- *   `Status.INTERNAL`.
+ * - [ImpressionQualificationFilterSpecsSource.Base] / [Named] -> [IllegalStateException]. The CEL
+ *   was generated from server-controlled inputs; a failure here indicates a broken server
+ *   invariant (server startup should have refused to boot -- see
+ *   [org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping]). This
+ *   backstop exists so a code path that bypasses startup validation still fails loudly rather than
+ *   silently emitting malformed CEL to downstream persistence.
  *
  * Public so tests can drive the routing logic directly without having to construct an IQF spec list
  * that would trigger a CEL compile failure via the spec-to-CEL builder. Not a stable API -- lives
@@ -332,7 +331,7 @@ fun validateImpressionQualificationFilterCel(
   source: ImpressionQualificationFilterSpecsSource,
 ) {
   try {
-    CelFilterValidator.validateBoolean(env, filter)
+    CelPredicates.validate(env, filter)
   } catch (e: CelValidationException) {
     val issue: String = e.message ?: "validation failed"
     when (source) {
@@ -343,18 +342,15 @@ fun validateImpressionQualificationFilterCel(
           "$it is $issue"
         }
       is ImpressionQualificationFilterSpecsSource.Base ->
-        throw ImpressionQualificationFilterInvalidCelException(
-          impressionQualificationFilter =
-            "(base) ${source.externalImpressionQualificationFilterId}",
-          celIssue = issue,
+        error(
+          "ImpressionQualificationFilter (base) ${source.externalImpressionQualificationFilterId} " +
+            "generated invalid CEL: $issue"
         )
       is ImpressionQualificationFilterSpecsSource.Named ->
-        throw ImpressionQualificationFilterInvalidCelException(
-          impressionQualificationFilter =
-            "${source.impressionQualificationFilterName} " +
-              "(basic_report.impression_qualification_filters[${source.requestIndex}]" +
-              ".impression_qualification_filter)",
-          celIssue = issue,
+        error(
+          "ImpressionQualificationFilter ${source.impressionQualificationFilterName} " +
+            "(basic_report.impression_qualification_filters[${source.requestIndex}]" +
+            ".impression_qualification_filter) generated invalid CEL: $issue"
         )
     }
   }

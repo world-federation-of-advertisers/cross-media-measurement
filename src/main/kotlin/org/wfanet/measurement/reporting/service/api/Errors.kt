@@ -43,7 +43,6 @@ object Errors {
     INVALID_METRIC_STATE_TRANSITION,
     ARGUMENT_CHANGED_IN_REQUEST_FOR_NEXT_PAGE,
     IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
-    IMPRESSION_QUALIFICATION_FILTER_INVALID_CEL,
     MODEL_LINE_NOT_FOUND,
     MODEL_LINE_NOT_ACTIVE,
     DATA_PROVIDER_NOT_FOUND_FOR_CAMPAIGN_GROUP,
@@ -314,31 +313,5 @@ class EventTemplateFieldInvalidException(
     Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID,
     buildMessage(eventTemplateFieldPath),
     mapOf(Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH to eventTemplateFieldPath),
-    cause,
-  )
-
-/**
- * A CEL filter string generated for an
- * [org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilter] from a server-controlled
- * source (a base IQF from `--base-impression-qualification-filters`, or a registry-resolved named
- * IQF) failed to compile or returned a non-boolean.
- *
- * This should not fire in normal operation:
- * [org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping]
- * validates every base / named IQF's generated CEL at server startup and refuses to boot on
- * failure. This exception remains as a backstop for code paths that bypass startup validation (test
- * fixtures, alternative loaders, direct constructor calls) so a server bug does not silently emit
- * malformed CEL to downstream persistence. Its wire status (`Status.INTERNAL`) reflects that: it
- * means a server invariant is broken, not a caller error.
- */
-class ImpressionQualificationFilterInvalidCelException(
-  impressionQualificationFilter: String,
-  celIssue: String,
-  cause: Throwable? = null,
-) :
-  ServiceException(
-    Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_INVALID_CEL,
-    "ImpressionQualificationFilter $impressionQualificationFilter generated invalid CEL: $celIssue",
-    mapOf(Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER to impressionQualificationFilter),
     cause,
   )

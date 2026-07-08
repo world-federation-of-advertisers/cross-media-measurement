@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.common.cel
+package org.wfanet.measurement.reporting.service.internal
 
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField as InternalEventTemplateField
@@ -25,8 +25,8 @@ import org.wfanet.measurement.internal.reporting.v2.EventTemplateField as Intern
  *
  * Shared between the request-time CEL builder ([org.wfanet.measurement.reporting.service.api.v2alpha
  * .BasicReportTransformations.buildCelExpression]) and the server-startup validator
- * ([org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping]) so
- * both sites agree on how each `selectorCase` renders into CEL.
+ * ([ImpressionQualificationFilterMapping]) so both sites agree on how each `selectorCase` renders
+ * into CEL.
  */
 fun InternalEventTemplateField.FieldValue.toCelValue(
   fieldInfo: EventMessageDescriptor.EventTemplateFieldInfo

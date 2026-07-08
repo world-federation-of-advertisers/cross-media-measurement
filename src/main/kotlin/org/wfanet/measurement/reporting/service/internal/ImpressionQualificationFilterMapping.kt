@@ -18,10 +18,9 @@ import com.google.protobuf.Descriptors
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MediaType as EventAnnotationMediaType
 import org.wfanet.measurement.common.api.ResourceIds
-import org.wfanet.measurement.common.cel.CelFilterValidator
+import org.wfanet.measurement.common.cel.CelPredicates
 import org.wfanet.measurement.common.cel.CelValidationException
 import org.wfanet.measurement.common.cel.buildCelEnvironment
-import org.wfanet.measurement.common.cel.toCelValue
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
@@ -109,10 +108,10 @@ class ImpressionQualificationFilterMapping(
 
     // Server-startup fail-fast: every base/named IQF's generated CEL must compile
     // against the deployment event template. A misconfigured mapping refuses to
-    // boot rather than surfacing as INTERNAL from `BasicReportsService.createBasicReport`
-    // at first request. See ImpressionQualificationFilterInvalidCelException KDoc:
-    // that exception becomes a backstop for code paths that bypass this init
-    // (test fixtures, alternative loaders); it should never fire in normal operation.
+    // boot rather than surfacing as UNKNOWN from `BasicReportsService.createBasicReport`
+    // at first request. `BasicReportTransformations.validateImpressionQualificationFilterCel`
+    // is a backstop for code paths that bypass this init (test fixtures, alternative loaders,
+    // direct constructor calls) and should never fire in normal operation.
     val celEnv = buildCelEnvironment(eventMessageDescriptor)
     for (configFilter in impressionQualificationFilters) {
       for (spec in configFilter.filterSpecsList) {
@@ -126,7 +125,7 @@ class ImpressionQualificationFilterMapping(
             }
           }
         try {
-          CelFilterValidator.validateBoolean(celEnv, celString)
+          CelPredicates.validate(celEnv, celString)
         } catch (e: CelValidationException) {
           throw IllegalArgumentException(
             "Impression qualification filter " +

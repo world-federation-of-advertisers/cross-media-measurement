@@ -3,28 +3,11 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 package(default_visibility = ["//visibility:public"])
 
 kt_jvm_library(
-    name = "cel_filtering_methods",
-    srcs = ["CelFilteringMethods.kt"],
+    name = "cel_predicates",
+    srcs = ["CelPredicates.kt"],
     deps = [
         "//imports/java/org/projectnessie/cel",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-    ],
-)
-
-kt_jvm_library(
-    name = "cel_filter_validator",
-    srcs = ["CelFilterValidator.kt"],
-    deps = [
-        "//imports/java/org/projectnessie/cel",
-    ],
-)
-
-kt_jvm_library(
-    name = "cel_value_encoding",
-    srcs = ["CelValueEncoding.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_message_descriptor",
-        "//src/main/proto/wfa/measurement/internal/reporting/v2:event_template_field_kt_jvm_proto",
     ],
 )

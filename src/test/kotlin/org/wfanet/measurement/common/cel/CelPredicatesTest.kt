@@ -24,53 +24,53 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 
 @RunWith(JUnit4::class)
-class CelFilterValidatorTest {
+class CelPredicatesTest {
   private val env = buildCelEnvironment(TestEvent.getDefaultInstance())
 
   @Test
-  fun `validateBoolean is no-op on empty filter`() {
-    CelFilterValidator.validateBoolean(env, "")
+  fun `validate is no-op on empty filter`() {
+    CelPredicates.validate(env, "")
   }
 
   @Test
-  fun `validateBoolean accepts a valid boolean filter`() {
-    CelFilterValidator.validateBoolean(env, "person.age_group == 1")
+  fun `validate accepts a valid boolean filter`() {
+    CelPredicates.validate(env, "person.age_group == 1")
   }
 
   @Test
-  fun `validateBoolean rejects a syntax error with 'not a valid CEL expression'`() {
+  fun `validate rejects a syntax error with 'not a valid CEL expression'`() {
     val e =
       assertFailsWith<CelValidationException> {
-        CelFilterValidator.validateBoolean(env, "person.age_group ==")
+        CelPredicates.validate(env, "person.age_group ==")
       }
     assertThat(e.message).contains("not a valid CEL expression")
   }
 
   @Test
-  fun `validateBoolean rejects an unknown identifier`() {
+  fun `validate rejects an unknown identifier`() {
     val e =
       assertFailsWith<CelValidationException> {
-        CelFilterValidator.validateBoolean(env, "person.nonexistent == 1")
+        CelPredicates.validate(env, "person.nonexistent == 1")
       }
     assertThat(e.message).contains("not a valid CEL expression")
   }
 
   @Test
-  fun `validateBoolean rejects a non-boolean result type`() {
+  fun `validate rejects a non-boolean result type`() {
     val e =
       assertFailsWith<CelValidationException> {
-        CelFilterValidator.validateBoolean(env, "person.age_group")
+        CelPredicates.validate(env, "person.age_group")
       }
     assertThat(e.message).contains("does not evaluate to a boolean")
   }
 
   @Test
-  fun `validateBoolean rejects a filter using a non-CEL operator`() {
+  fun `validate rejects a filter using a non-CEL operator`() {
     // Non-CEL operators cause the CEL library to throw NPE internally; the validator swallows
     // that and reports it as a syntax error.
     val e =
       assertFailsWith<CelValidationException> {
-        CelFilterValidator.validateBoolean(env, "person.age_group === 1")
+        CelPredicates.validate(env, "person.age_group === 1")
       }
     assertThat(e.message).contains("not a valid CEL expression")
   }
