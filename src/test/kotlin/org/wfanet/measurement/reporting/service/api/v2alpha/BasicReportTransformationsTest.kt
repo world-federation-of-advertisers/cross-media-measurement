@@ -28,6 +28,9 @@ import org.projectnessie.cel.Env
 import org.projectnessie.cel.EnvOption
 import org.projectnessie.cel.checker.Decls
 import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
+import org.wfanet.measurement.common.cel.CelPredicates
+import org.wfanet.measurement.common.cel.CelValidationException
+import org.wfanet.measurement.common.cel.buildCelEnvironment
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
@@ -107,10 +110,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(2)
@@ -237,10 +241,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(2)
@@ -355,10 +360,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
@@ -565,10 +571,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
@@ -691,10 +698,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(2)
@@ -775,10 +783,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
@@ -928,10 +937,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -989,10 +999,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(5)
@@ -1261,10 +1272,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(5)
@@ -1480,10 +1492,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -1545,10 +1558,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -1614,10 +1628,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
@@ -1771,10 +1786,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap.keys)
@@ -1818,10 +1834,11 @@ class BasicReportTransformationsTest {
     assertFailsWith<IllegalArgumentException> {
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
     }
   }
@@ -1875,20 +1892,22 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     val resultGroupSpecsWithDuplicates = resultGroupSpecs + resultGroupSpecs
     val secondReportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecsWithDuplicates,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap)
@@ -1932,10 +1951,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -1988,12 +2008,18 @@ class BasicReportTransformationsTest {
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
         // A match-all IQF (empty filter specs) plus the standard non-empty IQF.
-        impressionQualificationFilterSpecsLists =
-          listOf(emptyList<ImpressionQualificationFilterSpec>()) +
-            IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs =
+          (          listOf(emptyList<ImpressionQualificationFilterSpec>()) +
+            IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS).map {
+            SourcedImpressionQualificationFilterSpecs(
+              it,
+              ImpressionQualificationFilterSpecsSource.Base("test"),
+            )
+          },
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     val nonEmptyIqfFilter =
@@ -2044,12 +2070,18 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists =
-          listOf(emptyList<ImpressionQualificationFilterSpec>()) +
-            IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs =
+          (          listOf(emptyList<ImpressionQualificationFilterSpec>()) +
+            IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS).map {
+            SourcedImpressionQualificationFilterSpecs(
+              it,
+              ImpressionQualificationFilterSpecsSource.Base("test"),
+            )
+          },
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     val dimensionFilter = "person.age_group == 1 && person.gender == 1"
@@ -2105,11 +2137,17 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists =
-          listOf(emptyList<ImpressionQualificationFilterSpec>()),
+        impressionQualificationFilterSpecs =
+          (          listOf(emptyList<ImpressionQualificationFilterSpec>())).map {
+            SourcedImpressionQualificationFilterSpecs(
+              it,
+              ImpressionQualificationFilterSpecsSource.Base("test"),
+            )
+          },
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     val dimensionFilter = "person.age_group == 1 && person.gender == 1"
@@ -2158,10 +2196,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2224,10 +2263,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2292,10 +2332,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2360,10 +2401,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2427,10 +2469,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2493,10 +2536,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2554,10 +2598,17 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = emptyList(),
+        impressionQualificationFilterSpecs =
+          emptyList<List<ImpressionQualificationFilterSpec>>().map {
+            SourcedImpressionQualificationFilterSpecs(
+              it,
+              ImpressionQualificationFilterSpecsSource.Base("test"),
+            )
+          },
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2617,10 +2668,17 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = emptyList(),
+        impressionQualificationFilterSpecs =
+          emptyList<List<ImpressionQualificationFilterSpec>>().map {
+            SourcedImpressionQualificationFilterSpecs(
+              it,
+              ImpressionQualificationFilterSpecsSource.Base("test"),
+            )
+          },
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2686,10 +2744,17 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = emptyList(),
+        impressionQualificationFilterSpecs =
+          emptyList<List<ImpressionQualificationFilterSpec>>().map {
+            SourcedImpressionQualificationFilterSpecs(
+              it,
+              ImpressionQualificationFilterSpecsSource.Base("test"),
+            )
+          },
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2773,10 +2838,17 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecList,
+        impressionQualificationFilterSpecs =
+          impressionQualificationFilterSpecList.map {
+            SourcedImpressionQualificationFilterSpecs(
+              it,
+              ImpressionQualificationFilterSpecsSource.Base("test"),
+            )
+          },
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2869,10 +2941,17 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecList,
+        impressionQualificationFilterSpecs =
+          impressionQualificationFilterSpecList.map {
+            SourcedImpressionQualificationFilterSpecs(
+              it,
+              ImpressionQualificationFilterSpecsSource.Base("test"),
+            )
+          },
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2920,10 +2999,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2970,10 +3050,17 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = emptyList(),
+        impressionQualificationFilterSpecs =
+          emptyList<List<ImpressionQualificationFilterSpec>>().map {
+            SourcedImpressionQualificationFilterSpecs(
+              it,
+              ImpressionQualificationFilterSpecsSource.Base("test"),
+            )
+          },
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -3032,10 +3119,17 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecList,
+        impressionQualificationFilterSpecs =
+          impressionQualificationFilterSpecList.map {
+            SourcedImpressionQualificationFilterSpecs(
+              it,
+              ImpressionQualificationFilterSpecsSource.Base("test"),
+            )
+          },
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap.keys)
@@ -3099,10 +3193,17 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecList,
+        impressionQualificationFilterSpecs =
+          impressionQualificationFilterSpecList.map {
+            SourcedImpressionQualificationFilterSpecs(
+              it,
+              ImpressionQualificationFilterSpecsSource.Base("test"),
+            )
+          },
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap.keys)
@@ -3168,10 +3269,17 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecList,
+        impressionQualificationFilterSpecs =
+          impressionQualificationFilterSpecList.map {
+            SourcedImpressionQualificationFilterSpecs(
+              it,
+              ImpressionQualificationFilterSpecsSource.Base("test"),
+            )
+          },
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap.keys)
@@ -3231,10 +3339,17 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecList,
+        impressionQualificationFilterSpecs =
+          impressionQualificationFilterSpecList.map {
+            SourcedImpressionQualificationFilterSpecs(
+              it,
+              ImpressionQualificationFilterSpecsSource.Base("test"),
+            )
+          },
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap.keys)
@@ -3293,7 +3408,17 @@ class BasicReportTransformationsTest {
       )
     }
 
+    private val SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS:
+      List<SourcedImpressionQualificationFilterSpecs> =
+      IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS.map {
+        SourcedImpressionQualificationFilterSpecs(
+          it,
+          ImpressionQualificationFilterSpecsSource.Base("test"),
+        )
+      }
+
     private val TEST_EVENT_DESCRIPTOR = EventMessageDescriptor(TestEvent.getDescriptor())
+    private val TEST_CEL_ENV = buildCelEnvironment(TestEvent.getDescriptor())
   }
 
   // ---- toCelValue quoting / rejection tests (issue #4148) ----
@@ -3804,10 +3929,17 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = emptyList(),
+        impressionQualificationFilterSpecs =
+          emptyList<List<ImpressionQualificationFilterSpec>>().map {
+            SourcedImpressionQualificationFilterSpecs(
+              it,
+              ImpressionQualificationFilterSpecsSource.Base("test"),
+            )
+          },
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
         emitCelNullGuardsForNestedMembers = true,
       )
 

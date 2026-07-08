@@ -427,6 +427,8 @@ kt_jvm_test(
     deps = [
         "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_message_descriptor",
+        "//src/main/kotlin/org/wfanet/measurement/common/cel:cel_predicates",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:errors",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:basic_report_transformations",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:testing_only_kt_jvm_proto",
