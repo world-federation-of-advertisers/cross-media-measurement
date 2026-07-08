@@ -17,7 +17,6 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
-import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -32,98 +31,83 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 
 @RunWith(JUnit4::class)
-class VidLabelingHealerTest {
+class DispatchFailerTest {
   private val modelLineService:
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase =
     mockService()
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(modelLineService) }
 
-  private val healer: VidLabelingHealer by lazy {
-    VidLabelingHealer(
+  private val failer: DispatchFailer by lazy {
+    DispatchFailer(
       RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
         grpcTestServerRule.channel
       )
     )
   }
 
-  @Test
-  fun `markFailed marks the matching model line FAILED with the reason and etag`() {
-    val existing = rawImpressionUploadModelLine {
-      name = MODEL_LINE_NAME
-      cmmsModelLine = MODEL_LINE
-      state = RawImpressionUploadModelLine.State.RANKING
-      etag = ETAG
+  private fun modelLine(id: String, lineState: RawImpressionUploadModelLine.State) =
+    rawImpressionUploadModelLine {
+      name = "$UPLOAD_NAME/rawImpressionUploadModelLines/$id"
+      state = lineState
+      etag = "etag-$id"
     }
-    val failed =
-      existing.copy {
-        state = RawImpressionUploadModelLine.State.FAILED
-        errorMessage = REASON
-      }
 
-    val result = runBlocking {
+  @Test
+  fun `failUpload fails only the non-terminal model lines`() {
+    val failed = runBlocking {
       whenever(modelLineService.listRawImpressionUploadModelLines(any()))
         .thenReturn(
-          listRawImpressionUploadModelLinesResponse { rawImpressionUploadModelLines += existing }
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines +=
+              modelLine("rml1", RawImpressionUploadModelLine.State.RANKING)
+            rawImpressionUploadModelLines +=
+              modelLine("rml2", RawImpressionUploadModelLine.State.COMPLETED)
+            rawImpressionUploadModelLines +=
+              modelLine("rml3", RawImpressionUploadModelLine.State.FAILED)
+          }
         )
-      whenever(modelLineService.markRawImpressionUploadModelLineFailed(any())).thenReturn(failed)
-      healer.markFailed(DATA_PROVIDER, UPLOAD_ID, MODEL_LINE, REASON)
+      whenever(modelLineService.markRawImpressionUploadModelLineFailed(any())).thenAnswer {
+        rawImpressionUploadModelLine { state = RawImpressionUploadModelLine.State.FAILED }
+      }
+      failer.failUpload(UPLOAD_NAME, REASON)
     }
 
-    assertThat(result.state).isEqualTo(RawImpressionUploadModelLine.State.FAILED)
+    assertThat(failed).containsExactly("$UPLOAD_NAME/rawImpressionUploadModelLines/rml1")
     verifyBlocking(modelLineService) {
       markRawImpressionUploadModelLineFailed(
-        argThat { name == MODEL_LINE_NAME && etag == ETAG && errorMessage == REASON }
+        argThat {
+          name == "$UPLOAD_NAME/rawImpressionUploadModelLines/rml1" && errorMessage == REASON
+        }
       )
     }
   }
 
   @Test
-  fun `markFailed is a no-op when the model line is already FAILED`() {
-    val existing = rawImpressionUploadModelLine {
-      name = MODEL_LINE_NAME
-      cmmsModelLine = MODEL_LINE
-      state = RawImpressionUploadModelLine.State.FAILED
-      etag = ETAG
-    }
-
-    val result = runBlocking {
+  fun `failUpload marks nothing when all model lines are terminal`() {
+    val failed = runBlocking {
       whenever(modelLineService.listRawImpressionUploadModelLines(any()))
         .thenReturn(
-          listRawImpressionUploadModelLinesResponse { rawImpressionUploadModelLines += existing }
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines +=
+              modelLine("rml1", RawImpressionUploadModelLine.State.COMPLETED)
+            rawImpressionUploadModelLines +=
+              modelLine("rml2", RawImpressionUploadModelLine.State.FAILED)
+          }
         )
-      healer.markFailed(DATA_PROVIDER, UPLOAD_ID, MODEL_LINE, REASON)
+      failer.failUpload(UPLOAD_NAME, REASON)
     }
 
-    assertThat(result.state).isEqualTo(RawImpressionUploadModelLine.State.FAILED)
+    assertThat(failed).isEmpty()
     verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineFailed(any()) }
   }
 
-  @Test
-  fun `markFailed throws when no matching model line exists`() {
-    val error =
-      assertFailsWith<IllegalArgumentException> {
-        runBlocking {
-          whenever(modelLineService.listRawImpressionUploadModelLines(any()))
-            .thenReturn(listRawImpressionUploadModelLinesResponse {})
-          healer.markFailed(DATA_PROVIDER, UPLOAD_ID, MODEL_LINE, REASON)
-        }
-      }
-    assertThat(error).hasMessageThat().contains(MODEL_LINE)
-  }
-
   companion object {
-    private const val DATA_PROVIDER = "dataProviders/dp1"
-    private const val UPLOAD_ID = "upload1"
-    private const val MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
-    private const val MODEL_LINE_NAME =
-      "$DATA_PROVIDER/rawImpressionUploads/$UPLOAD_ID/rawImpressionUploadModelLines/rml1"
-    private const val ETAG = "etag-1"
+    private const val UPLOAD_NAME = "dataProviders/dp1/rawImpressionUploads/up1"
     private const val REASON = "hung ranker; forcing failure"
   }
 }

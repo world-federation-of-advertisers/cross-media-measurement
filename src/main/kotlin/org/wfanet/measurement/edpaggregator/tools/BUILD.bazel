@@ -40,13 +40,13 @@ java_image(
 kt_jvm_library(
     name = "vid_labeling_heal",
     srcs = [
+        "DispatchFailer.kt",
         "DlqRedeliverer.kt",
         "EvictUploader.kt",
         "FailedDispatchRetrier.kt",
         "ModelLineBackfiller.kt",
         "ModelLineLookup.kt",
         "VidLabelingHeal.kt",
-        "VidLabelingHealer.kt",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:work_item_ids",

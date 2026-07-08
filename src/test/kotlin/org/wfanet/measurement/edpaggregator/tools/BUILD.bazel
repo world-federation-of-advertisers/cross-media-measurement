@@ -71,9 +71,9 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "VidLabelingHealerTest",
-    srcs = ["VidLabelingHealerTest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.tools.VidLabelingHealerTest",
+    name = "DispatchFailerTest",
+    srcs = ["DispatchFailerTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.tools.DispatchFailerTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:vid_labeling_heal",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_kt_jvm_proto",

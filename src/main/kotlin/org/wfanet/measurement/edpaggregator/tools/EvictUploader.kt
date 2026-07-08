@@ -56,7 +56,7 @@ class EvictUploader(
 ) {
   /** A single `(upload, model line)` in the eviction cascade. */
   data class CascadeEntry(
-    val uploadId: String,
+    val uploadName: String,
     val modelLineName: String,
     val etag: String,
     val alreadyFailed: Boolean,
@@ -65,8 +65,8 @@ class EvictUploader(
   /** The forward cascade to evict, ordered by upload create time. */
   data class EvictionPlan(
     val cascade: List<CascadeEntry>,
-    /** Uploads pulled into the cascade beyond the requested bad ids (they came after them). */
-    val extraUploadIds: List<String>,
+    /** Uploads pulled into the cascade beyond the requested bad ones (they came after them). */
+    val extraUploads: List<String>,
   )
 
   /** Outcome of an [evict] run. */
@@ -74,30 +74,35 @@ class EvictUploader(
 
   /**
    * Builds the forward eviction cascade for [cmmsModelLine] starting at the earliest of
-   * [badUploadIds]. Validates that every requested bad upload exists and was created on or after
+   * [badUploads]. Validates that every requested bad upload exists and was created on or after
    * [cutoffTime] (within the retention window). Does not mutate anything.
    *
-   * @throws IllegalArgumentException if [badUploadIds] is empty, names an unknown upload, or names
-   *   an upload older than [cutoffTime].
+   * @param badUploads `RawImpressionUpload` resource names of the bad uploads (all under the same
+   *   DataProvider).
+   * @throws IllegalArgumentException if [badUploads] is empty, spans multiple DataProviders, names
+   *   an unknown upload, or names an upload older than [cutoffTime].
    */
   suspend fun plan(
-    dataProvider: String,
     cmmsModelLine: String,
-    badUploadIds: List<String>,
+    badUploads: List<String>,
     cutoffTime: Instant,
   ): EvictionPlan {
-    require(badUploadIds.isNotEmpty()) { "at least one bad upload id is required" }
-
-    val createTimeByUploadId: Map<String, Instant> = listUploadCreateTimes(dataProvider)
-
-    val unknown = badUploadIds.filter { it !in createTimeByUploadId }
-    require(unknown.isEmpty()) { "unknown upload id(s) for $dataProvider: $unknown" }
-    val outOfWindow = badUploadIds.filter { createTimeByUploadId.getValue(it).isBefore(cutoffTime) }
-    require(outOfWindow.isEmpty()) {
-      "upload id(s) older than the retention window (create_time before $cutoffTime): $outOfWindow"
+    require(badUploads.isNotEmpty()) { "at least one bad upload is required" }
+    val dataProvider = dataProviderOf(badUploads.first())
+    require(badUploads.all { dataProviderOf(it) == dataProvider }) {
+      "all bad uploads must be under the same DataProvider"
     }
 
-    val earliestBadTime: Instant = badUploadIds.minOf { createTimeByUploadId.getValue(it) }
+    val createTimeByUpload: Map<String, Instant> = listUploadCreateTimes(dataProvider)
+
+    val unknown = badUploads.filter { it !in createTimeByUpload }
+    require(unknown.isEmpty()) { "unknown upload(s) for $dataProvider: $unknown" }
+    val outOfWindow = badUploads.filter { createTimeByUpload.getValue(it).isBefore(cutoffTime) }
+    require(outOfWindow.isEmpty()) {
+      "upload(s) older than the retention window (create_time before $cutoffTime): $outOfWindow"
+    }
+
+    val earliestBadTime: Instant = badUploads.minOf { createTimeByUpload.getValue(it) }
 
     val entries = mutableListOf<Pair<Instant, CascadeEntry>>()
     var pageToken = ""
@@ -115,13 +120,13 @@ class EvictUploader(
         )
       for (row in response.rawImpressionUploadModelLinesList) {
         if (row.cmmsModelLine != cmmsModelLine) continue
-        val uploadId = uploadIdOf(row.name)
-        val uploadTime = createTimeByUploadId[uploadId] ?: continue
+        val uploadName = uploadNameOf(row.name)
+        val uploadTime = createTimeByUpload[uploadName] ?: continue
         if (uploadTime.isBefore(earliestBadTime)) continue
         entries.add(
           uploadTime to
             CascadeEntry(
-              uploadId = uploadId,
+              uploadName = uploadName,
               modelLineName = row.name,
               etag = row.etag,
               alreadyFailed = row.state == RawImpressionUploadModelLine.State.FAILED,
@@ -132,9 +137,9 @@ class EvictUploader(
     } while (pageToken.isNotEmpty())
 
     val cascade = entries.sortedBy { it.first }.map { it.second }
-    val requested = badUploadIds.toSet()
-    val extraUploadIds = cascade.map { it.uploadId }.filter { it !in requested }.distinct()
-    return EvictionPlan(cascade, extraUploadIds)
+    val requested = badUploads.toSet()
+    val extraUploads = cascade.map { it.uploadName }.filter { it !in requested }.distinct()
+    return EvictionPlan(cascade, extraUploads)
   }
 
   /**
@@ -142,12 +147,7 @@ class EvictUploader(
    * soft-deletes its cumulative `SNAPSHOT` rank-index blobs. Model lines already `FAILED` are left
    * as-is; snapshot soft-deletes are still applied (idempotent).
    */
-  suspend fun evict(
-    dataProvider: String,
-    cmmsModelLine: String,
-    plan: EvictionPlan,
-    reason: String,
-  ): EvictionResult {
+  suspend fun evict(cmmsModelLine: String, plan: EvictionPlan, reason: String): EvictionResult {
     val failed = mutableListOf<String>()
     var deleted = 0
     for (entry in plan.cascade) {
@@ -162,7 +162,7 @@ class EvictUploader(
         failed.add(entry.modelLineName)
         logger.info("Marked ${entry.modelLineName} FAILED.")
       }
-      deleted += softDeleteSnapshots(dataProvider, entry.uploadId, cmmsModelLine)
+      deleted += softDeleteSnapshots(entry.uploadName, cmmsModelLine)
     }
     return EvictionResult(failed, deleted)
   }
@@ -179,25 +179,21 @@ class EvictUploader(
           }
         )
       for (upload in response.rawImpressionUploadsList) {
-        createTimes[uploadIdOf(upload.name)] = upload.createTime.toInstant()
+        createTimes[upload.name] = upload.createTime.toInstant()
       }
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
     return createTimes
   }
 
-  private suspend fun softDeleteSnapshots(
-    dataProvider: String,
-    uploadId: String,
-    cmmsModelLine: String,
-  ): Int {
+  private suspend fun softDeleteSnapshots(uploadName: String, cmmsModelLine: String): Int {
     var count = 0
     var pageToken = ""
     do {
       val response =
         rankIndexBlobsStub.listRankIndexBlobs(
           listRankIndexBlobsRequest {
-            parent = "$dataProvider/rawImpressionUploads/$uploadId"
+            parent = uploadName
             filter =
               ListRankIndexBlobsRequestKt.filter {
                 blobType = RankIndexBlob.BlobType.SNAPSHOT
@@ -218,8 +214,12 @@ class EvictUploader(
   companion object {
     private val logger: Logger = Logger.getLogger(EvictUploader::class.java.name)
 
-    /** Extracts the `rawImpressionUploads/{id}` segment from an upload or child resource name. */
-    private fun uploadIdOf(resourceName: String): String =
-      resourceName.substringAfter("/rawImpressionUploads/").substringBefore("/")
+    /** The `dataProviders/{data_provider}` prefix of an upload resource name. */
+    private fun dataProviderOf(uploadName: String): String =
+      uploadName.substringBefore("/rawImpressionUploads/")
+
+    /** The parent `RawImpressionUpload` resource name of a model-line resource name. */
+    private fun uploadNameOf(modelLineName: String): String =
+      modelLineName.substringBefore("/rawImpressionUploadModelLines/")
   }
 }

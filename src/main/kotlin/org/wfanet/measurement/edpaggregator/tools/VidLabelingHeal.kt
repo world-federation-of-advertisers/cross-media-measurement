@@ -115,42 +115,31 @@ abstract class EdpaApiCommand : Runnable {
 }
 
 /**
- * Force-marks a stuck or hanging `(upload, model line)` `FAILED`, unblocking subsequent uploads.
+ * Force-fails a stuck or hanging `RawImpressionUpload`, unblocking subsequent uploads.
  *
  * Use for a hung TEE processor or an upload stale beyond its SLA — cases the Monitor only alerts
- * on. The reason is recorded as the model line's `error_message`.
+ * on. Marks every non-terminal child model line `FAILED` (leaving COMPLETED / already-FAILED ones
+ * untouched); the parent upload transitions to FAILED via the child cascade. The reason is recorded
+ * as each failed model line's `error_message`.
  */
 @Command(
   name = "mark-failed",
   description =
-    ["Force-marks a stuck/hanging (upload, model line) FAILED, unblocking queued uploads."],
+    ["Force-fails a stuck/hanging upload's in-progress model lines, unblocking queued uploads."],
   mixinStandardHelpOptions = true,
 )
 class MarkFailedCommand : EdpaApiCommand() {
   @Option(
-    names = ["--data-provider"],
-    description = ["DataProvider resource name (e.g. dataProviders/{data_provider})."],
+    names = ["--raw-impression-upload"],
+    description =
+      ["RawImpressionUpload resource name (dataProviders/{dp}/rawImpressionUploads/{upload})."],
     required = true,
   )
-  private lateinit var dataProvider: String
-
-  @Option(
-    names = ["--upload-id"],
-    description = ["RawImpressionUpload id segment."],
-    required = true,
-  )
-  private lateinit var uploadId: String
-
-  @Option(
-    names = ["--model-line"],
-    description = ["CMMS ModelLine resource name of the model line to fail."],
-    required = true,
-  )
-  private lateinit var modelLine: String
+  private lateinit var rawImpressionUpload: String
 
   @Option(
     names = ["--reason"],
-    description = ["Operator diagnosis, recorded as the model line's error_message."],
+    description = ["Operator diagnosis, recorded as each failed model line's error_message."],
     required = true,
   )
   private lateinit var reason: String
@@ -159,9 +148,9 @@ class MarkFailedCommand : EdpaApiCommand() {
     val channel: ManagedChannel = buildEdpaChannel()
     try {
       runBlocking {
-        val healer = VidLabelingHealer(RawImpressionUploadModelLineServiceCoroutineStub(channel))
-        val updated = healer.markFailed(dataProvider, uploadId, modelLine, reason)
-        println("Marked ${updated.name} FAILED (state=${updated.state}).")
+        val failer = DispatchFailer(RawImpressionUploadModelLineServiceCoroutineStub(channel))
+        val failed = failer.failUpload(rawImpressionUpload, reason)
+        println("Marked ${failed.size} model line(s) FAILED under $rawImpressionUpload.")
       }
     } finally {
       channel.shutdown()
@@ -199,18 +188,12 @@ class RetryFailedCommand : EdpaApiCommand() {
   private var controlPlaneApiCertHost: String? = null
 
   @Option(
-    names = ["--data-provider"],
-    description = ["DataProvider resource name (e.g. dataProviders/{data_provider})."],
+    names = ["--raw-impression-upload"],
+    description =
+      ["RawImpressionUpload resource name (dataProviders/{dp}/rawImpressionUploads/{upload})."],
     required = true,
   )
-  private lateinit var dataProvider: String
-
-  @Option(
-    names = ["--upload-id"],
-    description = ["RawImpressionUpload id segment."],
-    required = true,
-  )
-  private lateinit var uploadId: String
+  private lateinit var rawImpressionUpload: String
 
   @Option(
     names = ["--model-line"],
@@ -241,7 +224,7 @@ class RetryFailedCommand : EdpaApiCommand() {
             WorkItemsCoroutineStub(controlPlaneChannel),
           )
         val phase = RawImpressionUploadModelLine.State.valueOf(fromPhase.uppercase())
-        val result = retrier.retryFailed(dataProvider, uploadId, modelLine, phase)
+        val result = retrier.retryFailed(rawImpressionUpload, modelLine, phase)
         println(
           "Re-triggered ${result.modelLineName}: republished " +
             "${result.workItemsRepublished} WorkItem(s), state=${result.newState}."
@@ -341,13 +324,6 @@ class RedeliverDlqCommand : Runnable {
 )
 class BackfillModelLineCommand : EdpaApiCommand() {
   @Option(
-    names = ["--data-provider"],
-    description = ["DataProvider resource name (e.g. dataProviders/{data_provider})."],
-    required = true,
-  )
-  private lateinit var dataProvider: String
-
-  @Option(
     names = ["--model-line"],
     description = ["CMMS ModelLine resource name to backfill onto the uploads."],
     required = true,
@@ -355,13 +331,16 @@ class BackfillModelLineCommand : EdpaApiCommand() {
   private lateinit var modelLine: String
 
   @Option(
-    names = ["--upload-ids"],
+    names = ["--raw-impression-uploads"],
     description =
-      ["Comma-separated RawImpressionUpload id segments to backfill the model line onto."],
+      [
+        "Comma-separated RawImpressionUpload resource names " +
+          "(dataProviders/{dp}/rawImpressionUploads/{upload}) to backfill the model line onto."
+      ],
     required = true,
     split = ",",
   )
-  private lateinit var uploadIds: List<String>
+  private lateinit var rawImpressionUploads: List<String>
 
   override fun run() {
     val channel: ManagedChannel = buildEdpaChannel()
@@ -372,7 +351,7 @@ class BackfillModelLineCommand : EdpaApiCommand() {
             RawImpressionUploadModelLineServiceCoroutineStub(channel),
             RawImpressionUploadServiceCoroutineStub(channel),
           )
-        val result = backfiller.backfill(dataProvider, modelLine, uploadIds)
+        val result = backfiller.backfill(modelLine, rawImpressionUploads)
         println(
           "Backfilled $modelLine: created ${result.createdModelLines.size} model line(s), " +
             "reactivated ${result.reactivatedUploads.size} upload(s)."
@@ -399,13 +378,6 @@ class BackfillModelLineCommand : EdpaApiCommand() {
 )
 class EvictUploadsCommand : EdpaApiCommand() {
   @Option(
-    names = ["--data-provider"],
-    description = ["DataProvider resource name (e.g. dataProviders/{data_provider})."],
-    required = true,
-  )
-  private lateinit var dataProvider: String
-
-  @Option(
     names = ["--model-line"],
     description = ["CMMS ModelLine resource name whose uploads are being evicted."],
     required = true,
@@ -413,13 +385,16 @@ class EvictUploadsCommand : EdpaApiCommand() {
   private lateinit var modelLine: String
 
   @Option(
-    names = ["--upload-ids"],
+    names = ["--bad-uploads"],
     description =
-      ["Comma-separated bad RawImpressionUpload id segments (the earliest anchors the cascade)."],
+      [
+        "Comma-separated bad RawImpressionUpload resource names " +
+          "(dataProviders/{dp}/rawImpressionUploads/{upload}); the earliest anchors the cascade."
+      ],
     required = true,
     split = ",",
   )
-  private lateinit var uploadIds: List<String>
+  private lateinit var badUploads: List<String>
 
   @Option(
     names = ["--retention-days"],
@@ -452,15 +427,15 @@ class EvictUploadsCommand : EdpaApiCommand() {
             RankIndexBlobServiceCoroutineStub(channel),
           )
         val cutoffTime: Instant = Instant.now().minus(Duration.ofDays(retentionDays.toLong()))
-        val plan = evictUploader.plan(dataProvider, modelLine, uploadIds, cutoffTime)
+        val plan = evictUploader.plan(modelLine, badUploads, cutoffTime)
 
         println(
           "Eviction cascade for $modelLine (${plan.cascade.size} upload(s)): " +
-            plan.cascade.map { it.uploadId }
+            plan.cascade.map { it.uploadName }
         )
-        if (plan.extraUploadIds.isNotEmpty()) {
+        if (plan.extraUploads.isNotEmpty()) {
           println(
-            "NOTE: uploads created after the bad one(s) will also be evicted: ${plan.extraUploadIds}"
+            "NOTE: uploads created after the bad one(s) will also be evicted: ${plan.extraUploads}"
           )
         }
         if (!confirm) {
@@ -471,7 +446,7 @@ class EvictUploadsCommand : EdpaApiCommand() {
           return@runBlocking
         }
 
-        val result = evictUploader.evict(dataProvider, modelLine, plan, reason)
+        val result = evictUploader.evict(modelLine, plan, reason)
         println(
           "Evicted: marked ${result.failedModelLines.size} model line(s) FAILED, soft-deleted " +
             "${result.deletedSnapshots} snapshot(s). Re-trigger the affected uploads (re-upload " +
