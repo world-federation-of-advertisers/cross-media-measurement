@@ -293,9 +293,7 @@ fun buildCelExpression(
                 impressionQualificationFilterSpec.filtersList.map { it.toInternal() }
               )) {
               val term: InternalEventTemplateField = eventFilter.termsList.single()
-              val termValue =
-                term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path),
-                )
+              val termValue = term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path))
               add(buildCelTerm(term.path, termValue, emitCelNullGuardsForNestedMembers))
             }
           }
@@ -459,9 +457,7 @@ fun buildCelExpression(
         term.value.selectorCase !=
           InternalEventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
       )
-      val termValue =
-        term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path),
-        )
+      val termValue = term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path))
       buildCelTerm(term.path, termValue, emitCelNullGuardsForNestedMembers)
     }
   }
