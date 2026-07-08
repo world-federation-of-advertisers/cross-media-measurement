@@ -110,8 +110,6 @@ message VidRankBuilderParams {
   // Pass-through for the Phase-2 VidLabeler WorkItem.
   string model_blob_path = 9 [(google.api.field_behavior) = REQUIRED];
 
-  reserved 10;
-
   // Cloud Storage for the compiled VID model blob named by `model_blob_path`.
   // The compiled model lives in its own Cloud Storage project, separate from
   // the impression and map storage above. Pass-through for the Phase-2
@@ -127,7 +125,7 @@ message VidRankBuilderParams {
   //
   // Not consumed by the Phase-1 ranker. Pass-through for the Phase-2
   // VidLabeler WorkItem.
-  repeated LabelerInputFieldMapping labeler_input_field_mapping = 26;
+  repeated LabelerInputFieldMapping labeler_input_field_mapping = 10;
 
   // Mapping from event template field names to their corresponding raw
   // impression field names. Mirrors the per-(EDP, model line) mapping
@@ -229,9 +227,6 @@ message VidRankBuilderParams {
   // `event_template_descriptor_blob_uri`).
   string event_template_type = 22 [(google.api.field_behavior) = OPTIONAL];
 
-  reserved 23;
-  reserved "entity_key_field_mapping";
-
   // Entity types that every impression MUST have. Not consumed by the Phase-1
   // ranker; forwarded verbatim by the SubpoolAssigner Phase-0 last-shard-out
   // from SubpoolAssignerParams.required_entity_key_field_mapping so the
@@ -240,5 +235,5 @@ message VidRankBuilderParams {
 
   // Entity types an impression MAY have. Pass-through, same as
   // required_entity_key_field_mapping; keys MUST be disjoint from it.
-  map<string, string> optional_entity_key_field_mapping = 25;
+  map<string, string> optional_entity_key_field_mapping = 23;
 }
