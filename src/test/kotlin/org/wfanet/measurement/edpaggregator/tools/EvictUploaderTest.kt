@@ -123,15 +123,17 @@ class EvictUploaderTest {
         )
       whenever(rankIndexBlobService.deleteRankIndexBlob(any())).thenAnswer { rankIndexBlob {} }
 
-      val plan = evictUploader.plan(DATA_PROVIDER, MODEL_LINE, listOf("up2"), cutoffTime = T0)
-      val result = evictUploader.evict(DATA_PROVIDER, MODEL_LINE, plan, REASON)
+      val plan = evictUploader.plan(MODEL_LINE, listOf(uploadName("up2")), cutoffTime = T0)
+      val result = evictUploader.evict(MODEL_LINE, plan, REASON)
       plan to result
     }
 
     val (plan, result) = planAndResult
     // Cascade starts at the earliest bad upload (up2) and includes everything after it (up3).
-    assertThat(plan.cascade.map { it.uploadId }).containsExactly("up2", "up3").inOrder()
-    assertThat(plan.extraUploadIds).containsExactly("up3")
+    assertThat(plan.cascade.map { it.uploadName })
+      .containsExactly(uploadName("up2"), uploadName("up3"))
+      .inOrder()
+    assertThat(plan.extraUploads).containsExactly(uploadName("up3"))
     // Both cascade model lines are failed and each has its SNAPSHOT soft-deleted.
     assertThat(result.failedModelLines).containsExactly(modelLineName("up2"), modelLineName("up3"))
     assertThat(result.deletedSnapshots).isEqualTo(2)
@@ -152,7 +154,7 @@ class EvictUploaderTest {
               }
             )
           // Cutoff is after up1's create time, so up1 is out of the retention window.
-          evictUploader.plan(DATA_PROVIDER, MODEL_LINE, listOf("up1"), cutoffTime = T2)
+          evictUploader.plan(MODEL_LINE, listOf(uploadName("up1")), cutoffTime = T2)
         }
       }
     assertThat(error).hasMessageThat().contains("retention window")

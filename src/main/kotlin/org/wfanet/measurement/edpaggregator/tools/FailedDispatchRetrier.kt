@@ -82,15 +82,14 @@ class FailedDispatchRetrier(
    *   enqueued), so it cannot be re-published standalone.
    */
   suspend fun retryFailed(
-    dataProvider: String,
-    uploadId: String,
+    rawImpressionUpload: String,
     cmmsModelLine: String,
     phase: RawImpressionUploadModelLine.State,
   ): RetryResult {
     require(phase in PROCESSING_STATES) {
       "phase must be POOL_ASSIGNING, RANKING, or LABELING, was $phase"
     }
-    val uploadName = "$dataProvider/rawImpressionUploads/$uploadId"
+    val uploadName = rawImpressionUpload
     val modelLine =
       modelLinesStub.findModelLine(uploadName, cmmsModelLine)
         ?: throw IllegalArgumentException(
