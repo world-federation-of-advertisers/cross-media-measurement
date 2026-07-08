@@ -27,6 +27,12 @@ bazel_dep(
     version = "0.14.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
+# DO_NOT_SUBMIT: use release version
+git_override(
+    module_name = "rules_kotlin_jvm",
+    commit = "df267d621f75989e481e56d773dbb313c9e6d627",
+    remote = "https://github.com/world-federation-of-advertisers/rules_kotlin_jvm.git",
+)
 bazel_dep(
     name = "rules_swig",
     version = "0.1.0",
@@ -41,6 +47,12 @@ bazel_dep(
     name = "common-jvm",
     version = "0.147.0",
     repo_name = "wfa_common_jvm",
+)
+# DO_NOT_SUBMIT: use release version
+git_override(
+    module_name = "common-jvm",
+    commit = "2fe978a7d8188093300a5c7bddc376e7c3c2e4ed",
+    remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
 bazel_dep(
     name = "common-cpp",
@@ -69,7 +81,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "googleapis",
-    version = "0.0.0-20251127-8cd3749f",
+    version = "0.0.0-20260623-b6f9ff05",
     repo_name = "com_google_googleapis",
 )
 bazel_dep(
@@ -79,7 +91,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "virtual-people-common",
-    version = "0.5.0",
+    version = "0.7.0",
     repo_name = "wfa_virtual_people_common",
 )
 bazel_dep(
@@ -108,11 +120,11 @@ bazel_dep(
 
 bazel_dep(
     name = "platforms",
-    version = "1.0.0",
+    version = "1.1.0",
 )
 bazel_dep(
     name = "bazel_skylib",
-    version = "1.8.2",
+    version = "1.9.0",
 )
 bazel_dep(
     name = "rules_proto",
@@ -120,11 +132,11 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_cc",
-    version = "0.2.14",
+    version = "0.2.15",
 )
 bazel_dep(
     name = "rules_pkg",
-    version = "1.0.1",
+    version = "1.2.0",
 )
 bazel_dep(
     name = "rules_go",
@@ -133,15 +145,20 @@ bazel_dep(
 )
 bazel_dep(
     name = "gazelle",
-    version = "0.47.0",
+    version = "0.51.3",
     repo_name = "bazel_gazelle",
 )
 bazel_dep(
     name = "rules_java",
-    version = "8.15.2",
+    version = "9.6.1",
 )
 bazel_dep(
     name = "rules_jvm_external",
+    version = "6.8",
+)
+# TODO(bazel-contrib/rules_jvm_external#1603): Remove when fixed
+single_version_override(
+    module_name = "rules_jvm_external",
     version = "6.8",
 )
 bazel_dep(
@@ -150,18 +167,22 @@ bazel_dep(
 )
 bazel_dep(
     name = "grpc",
-    version = "1.74.1",
+    version = "1.82.0",
 )
-
+# TODO(grpc/grpc#41995): Remove when fixed
+single_version_override(
+    module_name = "envoy_api",
+    version = "0.0.0-20260130-84e8436",
+)
 # Must be compatible with the protobuf version declared in requirements.txt
 bazel_dep(
     name = "protobuf",
-    version = "33.1",
+    version = "35.1",
     repo_name = "com_google_protobuf",
 )
 bazel_dep(
     name = "abseil-cpp",
-    version = "20250814.0",
+    version = "20250814.1",
     repo_name = "com_google_absl",
 )
 bazel_dep(
@@ -193,7 +214,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_oci",
-    version = "2.2.1",
+    version = "2.3.0",
 )
 single_version_override(
     module_name = "rules_oci",
@@ -202,10 +223,9 @@ single_version_override(
         "//build/cosign/patches:sign_dot_bzl.patch",
     ],
 )
-
 bazel_dep(
     name = "rules_multirun",
-    version = "0.12.0",
+    version = "0.14.0",
 )
 
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
@@ -324,13 +344,13 @@ maven.install(
     fetch_sources = True,  # For IDE integration.
     known_contributing_modules = [
         "any-sketch-java",
-        "bazel_worker_java",
         "common-jvm",
         "consent-signaling-client",
         "cross-media-measurement-system",
         "protobuf",
         "rules_kotlin_jvm",
         "virtual-people-common",
+        "virtual-people-core-serving",
     ],
     lock_file = "//:maven_install.json",
     repositories = [
