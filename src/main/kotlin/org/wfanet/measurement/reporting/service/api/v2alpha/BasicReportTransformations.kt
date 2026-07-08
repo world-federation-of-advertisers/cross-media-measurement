@@ -31,8 +31,8 @@ import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
-import org.wfanet.measurement.reporting.service.internal.EventTemplateFieldCelEncoding
 import org.wfanet.measurement.reporting.service.internal.Normalization
+import org.wfanet.measurement.reporting.service.internal.toCelValue
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.EventFilter
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateField
@@ -279,7 +279,7 @@ fun buildCelExpression(
                 impressionQualificationFilterSpec.filtersList.map { it.toInternal() }
               )) {
               val term: InternalEventTemplateField = eventFilter.termsList.single()
-              val termValue = EventTemplateFieldCelEncoding.toCelValue(term.value, eventTemplateFieldsByPath.getValue(term.path))
+              val termValue = term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path))
               add("${term.path} == $termValue")
             }
           }
@@ -439,7 +439,7 @@ fun buildCelExpression(
         term.value.selectorCase !=
           InternalEventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
       )
-      val termValue = EventTemplateFieldCelEncoding.toCelValue(term.value, eventTemplateFieldsByPath.getValue(term.path))
+      val termValue = term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path))
       "${term.path} == $termValue"
     }
   }

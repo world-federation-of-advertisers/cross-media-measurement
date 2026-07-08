@@ -18,7 +18,6 @@ import com.google.protobuf.Descriptors
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MediaType as EventAnnotationMediaType
 import org.wfanet.measurement.common.api.ResourceIds
-import org.wfanet.measurement.reporting.service.internal.EventTemplateFieldCelEncoding
 import org.wfanet.measurement.common.cel.CelPredicates
 import org.wfanet.measurement.common.cel.CelValidationException
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
@@ -120,7 +119,7 @@ class ImpressionQualificationFilterMapping(
             configEventFilter.termsList.joinToString(" && ") { configTerm ->
               val fieldInfo = eventTemplateFieldsByPath.getValue(configTerm.path)
               val internalTerm = configTerm.toEventTemplateField()
-              val valueLiteral = EventTemplateFieldCelEncoding.toCelValue(internalTerm.value, fieldInfo)
+              val valueLiteral = internalTerm.value.toCelValue(fieldInfo)
               "${configTerm.path} == $valueLiteral"
             }
           }

@@ -21,27 +21,25 @@ import org.wfanet.measurement.common.cel.CelValueEncoding
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField as InternalEventTemplateField
 
 /**
- * Encodes reporting-internal `EventTemplateField.FieldValue`s as CEL value literals.
+ * Encodes an [InternalEventTemplateField.FieldValue] as a CEL value literal against the given
+ * [fieldInfo].
  *
  * Shared between the request-time CEL builder ([org.wfanet.measurement.reporting.service.api.v2alpha
  * .BasicReportTransformations.buildCelExpression]) and the server-startup validator
  * ([ImpressionQualificationFilterMapping]) so both sites agree on how each `selectorCase` renders
  * into CEL.
  */
-object EventTemplateFieldCelEncoding {
-  fun toCelValue(
-    value: InternalEventTemplateField.FieldValue,
-    fieldInfo: EventMessageDescriptor.EventTemplateFieldInfo,
-  ): String {
-    return when (value.selectorCase) {
-      InternalEventTemplateField.FieldValue.SelectorCase.STRING_VALUE ->
-        CelValueEncoding.toCelStringLiteral(value.stringValue)
-      InternalEventTemplateField.FieldValue.SelectorCase.ENUM_VALUE ->
-        checkNotNull(fieldInfo.enumType?.findValueByName(value.enumValue)).number.toString()
-      InternalEventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> value.boolValue.toString()
-      InternalEventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE ->
-        CelValueEncoding.toCelNumericLiteral(value.floatValue)
-      InternalEventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> error("No field value")
-    }
+fun InternalEventTemplateField.FieldValue.toCelValue(
+  fieldInfo: EventMessageDescriptor.EventTemplateFieldInfo
+): String {
+  return when (selectorCase) {
+    InternalEventTemplateField.FieldValue.SelectorCase.STRING_VALUE ->
+      CelValueEncoding.toCelStringLiteral(stringValue)
+    InternalEventTemplateField.FieldValue.SelectorCase.ENUM_VALUE ->
+      checkNotNull(fieldInfo.enumType?.findValueByName(enumValue)).number.toString()
+    InternalEventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> boolValue.toString()
+    InternalEventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE ->
+      CelValueEncoding.toCelNumericLiteral(floatValue)
+    InternalEventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> error("No field value")
   }
 }
