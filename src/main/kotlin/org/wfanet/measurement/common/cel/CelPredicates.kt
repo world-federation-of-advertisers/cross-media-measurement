@@ -48,8 +48,8 @@ object CelPredicates {
    *   that expect a bool predicate (e.g. RequisitionSpec filters, which cause an EDP to reject the
    *   requisition when the filter does not evaluate to a boolean) must reject up-front.
    *
-   * @throws CelValidationException when [filter] fails to compile, references unknown fields,
-   *   or does not return a boolean. The exception message describes the specific failure.
+   * @throws CelValidationException when [filter] fails to compile, references unknown fields, or
+   *   does not return a boolean. The exception message describes the specific failure.
    */
   fun validate(env: Env, filter: String) {
     if (filter.isEmpty()) {
@@ -80,7 +80,9 @@ object CelPredicates {
    * convert runtime values of that class without falling back to `DynamicMessage`-shaped paths.
    */
   fun buildEnvironment(message: Message): Env {
-    return buildEnvironment(message.descriptorForType) { registry -> registry.registerMessage(message) }
+    return buildEnvironment(message.descriptorForType) { registry ->
+      registry.registerMessage(message)
+    }
   }
 
   /**
