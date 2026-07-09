@@ -108,6 +108,8 @@ message VidRankBuilderParams {
   // Pass-through for the Phase-2 VidLabeler WorkItem.
   string model_blob_path = 9 [(google.api.field_behavior) = REQUIRED];
 
+  reserved 10;
+
   // Mapping from labeler input field names to their corresponding raw
   // impression field names. Used by Phase-2 to project raw EDP impressions
   // into the `wfa_virtual_people.LabelerInput` shape before invoking the
@@ -116,7 +118,6 @@ message VidRankBuilderParams {
   //
   // Not consumed by the Phase-1 ranker. Pass-through for the Phase-2
   // VidLabeler WorkItem.
-  reserved 10;
   repeated LabelerInputFieldMapping labeler_input_field_mapping = 26;
 
   // Mapping from event template field names to their corresponding raw

@@ -20,6 +20,7 @@ import "google/api/field_behavior.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
+option java_outer_classname = "LabelerInputFieldMappingProto";
 
 // One mapping from a `LabelerInput` field to its source in the raw-impression
 // Parquet row. Replaces the flat `field_path -> column` map so a source can be
@@ -51,12 +52,14 @@ message LabelerInputFieldMapping {
 
 // 1:1 raw column -> `LabelerInput` leaf (the pre-reshape behavior).
 message ScalarColumn {
+  // Raw-impression column whose value sets the leaf.
   string column = 1 [(google.api.field_behavior) = REQUIRED];
 }
 
 // Reads [column] as a string and maps it to a target enum value name via
 // [lookup_table] (e.g. gender "M" -> "MALE").
 message EnumLookup {
+  // Column read as a string and translated via [lookup_table].
   string column = 1 [(google.api.field_behavior) = REQUIRED];
 
   // Raw column value -> target enum value name.
@@ -87,7 +90,9 @@ message AgeRange {
 
 // A pair of integer columns for [AgeRange].
 message MinMaxColumns {
+  // Column holding the minimum age.
   string min_age_column = 1 [(google.api.field_behavior) = REQUIRED];
+  // Column holding the maximum age.
   string max_age_column = 2 [(google.api.field_behavior) = REQUIRED];
 }
 
@@ -96,6 +101,7 @@ message MinMaxColumns {
 // error (the operator must enumerate every bucket the EDP ships), mirroring
 // [EnumLookup] without a default.
 message BucketLookup {
+  // Column holding the bucket label looked up in [bucket_table].
   string column = 1 [(google.api.field_behavior) = REQUIRED];
 
   // Bucket label (as it appears in the column) -> the age range it denotes.
@@ -107,7 +113,9 @@ message BucketLookup {
 // target's convention for open-ended upper buckets (wfa_virtual_people uses
 // max_age = 1000 for "and above"), e.g. "65+" -> {min_age: 65, max_age: 1000}.
 message AgeBucket {
+  // Inclusive lower bound of the age range.
   int32 min_age = 1 [(google.api.field_behavior) = REQUIRED];
+  // Inclusive upper bound of the age range.
   int32 max_age = 2 [(google.api.field_behavior) = REQUIRED];
 }
 
@@ -115,5 +123,6 @@ message AgeBucket {
 // leaves it unset if every column is null. All columns must map to the leaf's
 // type.
 message CompositeIdentity {
+  // Candidate columns tried in order; first non-null wins.
   repeated string columns = 1 [(google.api.field_behavior) = REQUIRED];
 }

@@ -716,8 +716,7 @@ class VidLabelingDispatchSequencer(
         this.poolAssignmentJob = poolAssignmentJob
       }
 
-    val workItemId =
-      WorkItemIds.forSubpoolAssigner(uploadName, modelLineName, shardIndex)
+    val workItemId = WorkItemIds.forSubpoolAssigner(uploadName, modelLineName, shardIndex)
     val request = createWorkItemRequest {
       this.workItemId = workItemId
       workItem = workItem {

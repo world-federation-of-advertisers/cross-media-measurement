@@ -35,8 +35,8 @@ import java.util.UUID
  */
 object WorkItemIds {
   /**
-   * `WorkItem` ID for a Phase-0 `SubpoolAssigner` shard, keyed by [uploadName], [modelLineName], and
-   * [shardIndex] (one WorkItem per (upload, model line, shard)).
+   * `WorkItem` ID for a Phase-0 `SubpoolAssigner` shard, keyed by [uploadName], [modelLineName],
+   * and [shardIndex] (one WorkItem per (upload, model line, shard)).
    */
   fun forSubpoolAssigner(uploadName: String, modelLineName: String, shardIndex: Int): String =
     "sa-" + fromKey("subpoolAssignerWorkItem:$uploadName:$modelLineName:$shardIndex")
