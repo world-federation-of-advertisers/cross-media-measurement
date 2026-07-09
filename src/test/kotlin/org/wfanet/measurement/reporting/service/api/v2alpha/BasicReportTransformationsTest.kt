@@ -20,15 +20,24 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.DayOfWeek
 import kotlin.test.assertFailsWith
+import kotlin.test.fail
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.projectnessie.cel.Env
+import org.projectnessie.cel.EnvOption
+import org.projectnessie.cel.checker.Decls
+import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestingOnly
+import org.wfanet.measurement.common.cel.CelPredicates
+import org.wfanet.measurement.common.cel.CelValidationException
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
+import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpecKt
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilterSpec
@@ -48,9 +57,6 @@ import org.wfanet.measurement.reporting.v2alpha.resultGroupSpec
 
 @RunWith(JUnit4::class)
 class BasicReportTransformationsTest {
-  private fun MetricCalculationSpec.Details.hasReachMetric(): Boolean =
-    metricSpecsList.any { it.hasReach() }
-
   @Test
   fun `weekly resultGroupSpec with reportingUnitMetricSetSpec transforms into correct map`() {
     val dataProviderPrimitiveReportingSetMap = buildMap {
@@ -100,10 +106,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(2)
@@ -230,10 +237,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(2)
@@ -348,10 +356,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
@@ -558,10 +567,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
@@ -684,10 +694,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(2)
@@ -768,10 +779,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
@@ -921,10 +933,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -982,10 +995,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(5)
@@ -1254,10 +1268,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(5)
@@ -1473,10 +1488,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -1538,10 +1554,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -1607,10 +1624,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
@@ -1764,10 +1782,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap.keys)
@@ -1811,10 +1830,11 @@ class BasicReportTransformationsTest {
     assertFailsWith<IllegalArgumentException> {
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
     }
   }
@@ -1868,20 +1888,22 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     val resultGroupSpecsWithDuplicates = resultGroupSpecs + resultGroupSpecs
     val secondReportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecsWithDuplicates,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap)
@@ -1925,10 +1947,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -1952,166 +1975,6 @@ class BasicReportTransformationsTest {
           )
         },
       )
-  }
-
-  @Test
-  fun `match-all IQF combined with non-empty IQF still produces a spec without dimension filter`() {
-    // Regression test for issue #4109: a match-all ImpressionQualificationFilter (empty filter
-    // specs, e.g. AMI) was silently dropped when combined with a non-empty IQF, so no
-    // MetricCalculationSpec was created for it and its results were never computed.
-    val dataProviderPrimitiveReportingSetMap = buildMap {
-      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
-    }
-    val resultGroupSpecs =
-      listOf(
-        resultGroupSpec {
-          reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
-          metricFrequency = metricFrequencySpec { total = true }
-          dimensionSpec = dimensionSpec {}
-          resultGroupMetricSpec = resultGroupMetricSpec {
-            reportingUnit =
-              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
-                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
-              }
-          }
-        }
-      )
-
-    val reportingSetMetricCalculationSpecDetailsMap =
-      buildReportingSetMetricCalculationSpecDetailsMap(
-        campaignGroupName = CAMPAIGN_GROUP_NAME,
-        // A match-all IQF (empty filter specs) plus the standard non-empty IQF.
-        impressionQualificationFilterSpecsLists =
-          listOf(emptyList<ImpressionQualificationFilterSpec>()) +
-            IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
-        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
-        resultGroupSpecs = resultGroupSpecs,
-        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
-      )
-
-    val nonEmptyIqfFilter =
-      "(banner_ad != null && banner_ad.viewable == true) || (video_ad != null && video_ad.viewed_fraction == 1.0)"
-    val allDetails = reportingSetMetricCalculationSpecDetailsMap.values.flatten()
-
-    // The match-all IQF must still produce a reach metric under the empty (match-all) filter.
-    assertThat(allDetails.any { it.filter.isEmpty() && it.hasReachMetric() }).isTrue()
-    // The non-empty IQF reach metric is present and not combined with any dimension filter.
-    assertThat(allDetails.any { it.filter == nonEmptyIqfFilter && it.hasReachMetric() }).isTrue()
-  }
-
-  @Test
-  fun `match-all IQF combined with dimension filter yields dimension filter alone`() {
-    // Regression test for issue #4109: with a DimensionSpec filter present, a match-all IQF must
-    // resolve to the DimensionSpec filter alone, not a malformed "() && (...)" expression.
-    val dataProviderPrimitiveReportingSetMap = buildMap {
-      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
-    }
-    val resultGroupSpecs =
-      listOf(
-        resultGroupSpec {
-          reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
-          metricFrequency = metricFrequencySpec { total = true }
-          dimensionSpec = dimensionSpec {
-            filters += eventFilter {
-              terms += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
-            }
-            filters += eventFilter {
-              terms += eventTemplateField {
-                path = "person.gender"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
-              }
-            }
-          }
-          resultGroupMetricSpec = resultGroupMetricSpec {
-            reportingUnit =
-              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
-                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
-              }
-          }
-        }
-      )
-
-    val reportingSetMetricCalculationSpecDetailsMap =
-      buildReportingSetMetricCalculationSpecDetailsMap(
-        campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists =
-          listOf(emptyList<ImpressionQualificationFilterSpec>()) +
-            IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
-        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
-        resultGroupSpecs = resultGroupSpecs,
-        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
-      )
-
-    val dimensionFilter = "person.age_group == 1 && person.gender == 1"
-    val combinedFilter =
-      "((banner_ad != null && banner_ad.viewable == true) || (video_ad != null && video_ad.viewed_fraction == 1.0)) && (person.age_group == 1 && person.gender == 1)"
-    val allDetails = reportingSetMetricCalculationSpecDetailsMap.values.flatten()
-
-    // The match-all IQF reach metric uses the DimensionSpec filter alone (not "() && (...)").
-    assertThat(allDetails.any { it.filter == dimensionFilter && it.hasReachMetric() }).isTrue()
-    // No malformed expression is produced.
-    assertThat(allDetails.none { it.filter.contains("()") }).isTrue()
-    // The non-empty IQF reach metric is still correctly combined with the dimension filter.
-    assertThat(allDetails.any { it.filter == combinedFilter && it.hasReachMetric() }).isTrue()
-  }
-
-  @Test
-  fun `single match-all IQF with dimension filter resolves to the dimension filter`() {
-    // Regression test for issue #4109: a single match-all IQF combined with a DimensionSpec filter
-    // must continue to resolve to the DimensionSpec filter alone. After the fix this flows through
-    // the empty-ImpressionQualificationFilter branch of buildCelExpressions rather than the
-    // pre-fix empty-list path, so pin the single-match-all contract explicitly.
-    val dataProviderPrimitiveReportingSetMap = buildMap {
-      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
-    }
-    val resultGroupSpecs =
-      listOf(
-        resultGroupSpec {
-          reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
-          metricFrequency = metricFrequencySpec { total = true }
-          dimensionSpec = dimensionSpec {
-            filters += eventFilter {
-              terms += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
-            }
-            filters += eventFilter {
-              terms += eventTemplateField {
-                path = "person.gender"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
-              }
-            }
-          }
-          resultGroupMetricSpec = resultGroupMetricSpec {
-            reportingUnit =
-              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
-                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
-              }
-          }
-        }
-      )
-
-    val reportingSetMetricCalculationSpecDetailsMap =
-      buildReportingSetMetricCalculationSpecDetailsMap(
-        campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists =
-          listOf(emptyList<ImpressionQualificationFilterSpec>()),
-        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
-        resultGroupSpecs = resultGroupSpecs,
-        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
-      )
-
-    val dimensionFilter = "person.age_group == 1 && person.gender == 1"
-    val allDetails = reportingSetMetricCalculationSpecDetailsMap.values.flatten()
-
-    // The reach metric uses the DimensionSpec filter alone (not "() && (...)").
-    assertThat(allDetails.any { it.filter == dimensionFilter && it.hasReachMetric() }).isTrue()
-    // No malformed expression is produced.
-    assertThat(allDetails.none { it.filter.contains("()") }).isTrue()
   }
 
   @Test
@@ -2151,10 +2014,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2217,10 +2081,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2285,10 +2150,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2353,10 +2219,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2420,10 +2287,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2486,10 +2354,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2547,10 +2416,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = emptyList(),
+        impressionQualificationFilterSpecs = emptyList(),
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2610,10 +2480,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = emptyList(),
+        impressionQualificationFilterSpecs = emptyList(),
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2679,10 +2550,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = emptyList(),
+        impressionQualificationFilterSpecs = emptyList(),
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2766,10 +2638,17 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecList,
+        impressionQualificationFilterSpecs =
+          impressionQualificationFilterSpecList.map {
+            SourcedImpressionQualificationFilterSpecs(
+              it,
+              ImpressionQualificationFilterSpecsSource.Base("test"),
+            )
+          },
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2862,10 +2741,17 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecList,
+        impressionQualificationFilterSpecs =
+          impressionQualificationFilterSpecList.map {
+            SourcedImpressionQualificationFilterSpecs(
+              it,
+              ImpressionQualificationFilterSpecsSource.Base("test"),
+            )
+          },
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2913,10 +2799,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        impressionQualificationFilterSpecs = SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2963,10 +2850,11 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = emptyList(),
+        impressionQualificationFilterSpecs = emptyList(),
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -3025,10 +2913,17 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecList,
+        impressionQualificationFilterSpecs =
+          impressionQualificationFilterSpecList.map {
+            SourcedImpressionQualificationFilterSpecs(
+              it,
+              ImpressionQualificationFilterSpecsSource.Base("test"),
+            )
+          },
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap.keys)
@@ -3037,9 +2932,12 @@ class BasicReportTransformationsTest {
       .containsExactly(
         MetricCalculationSpecKt.details {
           filter = "person.age_group == 1 && person.gender == 1"
-          metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
           metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
-        }
+        },
+        MetricCalculationSpecKt.details {
+          filter = "(testing_only != null) && (person.age_group == 1 && person.gender == 1)"
+          metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+        },
       )
   }
 
@@ -3089,10 +2987,17 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecList,
+        impressionQualificationFilterSpecs =
+          impressionQualificationFilterSpecList.map {
+            SourcedImpressionQualificationFilterSpecs(
+              it,
+              ImpressionQualificationFilterSpecsSource.Base("test"),
+            )
+          },
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap.keys)
@@ -3104,7 +3009,8 @@ class BasicReportTransformationsTest {
           metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
         },
         MetricCalculationSpecKt.details {
-          filter = "(video_ad != null) && (person.age_group == 1 && person.gender == 1)"
+          filter =
+            "((testing_only != null) || (video_ad != null)) && (person.age_group == 1 && person.gender == 1)"
           metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
         },
       )
@@ -3157,10 +3063,17 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecList,
+        impressionQualificationFilterSpecs =
+          impressionQualificationFilterSpecList.map {
+            SourcedImpressionQualificationFilterSpecs(
+              it,
+              ImpressionQualificationFilterSpecsSource.Base("test"),
+            )
+          },
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap.keys)
@@ -3173,7 +3086,7 @@ class BasicReportTransformationsTest {
         },
         MetricCalculationSpecKt.details {
           filter =
-            "((banner_ad != null) || (video_ad != null)) && (person.age_group == 1 && person.gender == 1)"
+            "((banner_ad != null) || (testing_only != null) || (video_ad != null)) && (person.age_group == 1 && person.gender == 1)"
           metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
         },
       )
@@ -3220,10 +3133,17 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecList,
+        impressionQualificationFilterSpecs =
+          impressionQualificationFilterSpecList.map {
+            SourcedImpressionQualificationFilterSpecs(
+              it,
+              ImpressionQualificationFilterSpecsSource.Base("test"),
+            )
+          },
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        env = TEST_CEL_ENV,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap.keys)
@@ -3238,7 +3158,177 @@ class BasicReportTransformationsTest {
       )
   }
 
+  @Test
+  fun `Custom IQF with bad CEL throws InvalidFieldValueException pointing at request index`() {
+    for (case in BAD_CEL_CASES) {
+      val exception =
+        assertFailsWith<InvalidFieldValueException>("case: ${case.label} filter='${case.filter}'") {
+          validateImpressionQualificationFilterCel(
+            env = TEST_CEL_ENV,
+            filter = case.filter,
+            source = ImpressionQualificationFilterSpecsSource.Custom(requestIndex = 2),
+          )
+        }
+      assertThat(exception.message)
+        .contains("basic_report.impression_qualification_filters[2].custom")
+      assertThat(exception.message).contains(case.fieldSuffix)
+    }
+  }
+
+  @Test
+  fun `Base IQF with bad CEL throws IllegalStateException naming the IQF id`() {
+    for (case in BAD_CEL_CASES) {
+      val exception =
+        assertFailsWith<IllegalStateException>("case: ${case.label} filter='${case.filter}'") {
+          validateImpressionQualificationFilterCel(
+            env = TEST_CEL_ENV,
+            filter = case.filter,
+            source = ImpressionQualificationFilterSpecsSource.Base("misconfigured-iqf"),
+          )
+        }
+      assertThat(exception.message).contains("misconfigured-iqf")
+      assertThat(exception.message).contains(case.diagnostic)
+    }
+  }
+
+  @Test
+  fun `Named IQF with bad CEL throws IllegalStateException naming the IQF resource and request index`() {
+    for (case in BAD_CEL_CASES) {
+      val exception =
+        assertFailsWith<IllegalStateException>("case: ${case.label} filter='${case.filter}'") {
+          validateImpressionQualificationFilterCel(
+            env = TEST_CEL_ENV,
+            filter = case.filter,
+            source =
+              ImpressionQualificationFilterSpecsSource.Named(
+                requestIndex = 1,
+                impressionQualificationFilterName = "impressionQualificationFilters/iqf-1",
+              ),
+          )
+        }
+      assertThat(exception.message).contains("impressionQualificationFilters/iqf-1")
+      assertThat(exception.message)
+        .contains(
+          "basic_report.impression_qualification_filters[1].impression_qualification_filter"
+        )
+      assertThat(exception.message).contains(case.diagnostic)
+    }
+  }
+
+  @Test
+  fun `validateImpressionQualificationFilterCel accepts an empty filter for any source`() {
+    // Smoke test: empty filter is the dedup-collapsed case and must not throw regardless of
+    // provenance.
+    validateImpressionQualificationFilterCel(
+      env = TEST_CEL_ENV,
+      filter = "",
+      source = ImpressionQualificationFilterSpecsSource.Custom(requestIndex = 0),
+    )
+    validateImpressionQualificationFilterCel(
+      env = TEST_CEL_ENV,
+      filter = "",
+      source = ImpressionQualificationFilterSpecsSource.Base("anything"),
+    )
+    validateImpressionQualificationFilterCel(
+      env = TEST_CEL_ENV,
+      filter = "",
+      source =
+        ImpressionQualificationFilterSpecsSource.Named(
+          requestIndex = 0,
+          impressionQualificationFilterName = "impressionQualificationFilters/x",
+        ),
+    )
+  }
+
+  @Test
+  fun `validateImpressionQualificationFilterCel accepts a well-formed boolean for any source`() {
+    val valid = "banner_ad.viewable == true"
+    validateImpressionQualificationFilterCel(
+      env = TEST_CEL_ENV,
+      filter = valid,
+      source = ImpressionQualificationFilterSpecsSource.Custom(requestIndex = 0),
+    )
+    validateImpressionQualificationFilterCel(
+      env = TEST_CEL_ENV,
+      filter = valid,
+      source = ImpressionQualificationFilterSpecsSource.Base("anything"),
+    )
+    validateImpressionQualificationFilterCel(
+      env = TEST_CEL_ENV,
+      filter = valid,
+      source =
+        ImpressionQualificationFilterSpecsSource.Named(
+          requestIndex = 0,
+          impressionQualificationFilterName = "impressionQualificationFilters/x",
+        ),
+    )
+  }
+
   companion object {
+    /**
+     * One-liner CEL filter strings that must be rejected by
+     * [validateImpressionQualificationFilterCel], each carrying the substring expected in the
+     * resulting exception message so we know we have not silently regressed the phrasing.
+     */
+    private data class BadCelCase(
+      val label: String,
+      val filter: String,
+      val diagnostic: String,
+      val fieldSuffix: String,
+    )
+
+    private val BAD_CEL_CASES =
+      listOf(
+        BadCelCase(
+          label = "trailing operator (parse error)",
+          filter = "banner_ad.viewable ==",
+          diagnostic = "not a valid CEL expression",
+          fieldSuffix = "is not a valid CEL expression",
+        ),
+        BadCelCase(
+          label = "unknown top-level identifier",
+          filter = "nonexistent_field == true",
+          diagnostic = "not a valid CEL expression",
+          fieldSuffix = "is not a valid CEL expression",
+        ),
+        BadCelCase(
+          label = "unknown nested field",
+          filter = "banner_ad.bogus_field == true",
+          diagnostic = "not a valid CEL expression",
+          fieldSuffix = "is not a valid CEL expression",
+        ),
+        BadCelCase(
+          label = "type-mismatched operand (bool + int)",
+          filter = "banner_ad.viewable + 1 == 2",
+          diagnostic = "not a valid CEL expression",
+          fieldSuffix = "is not a valid CEL expression",
+        ),
+        BadCelCase(
+          label = "non-boolean result (float field on its own)",
+          filter = "video_ad.viewed_fraction",
+          diagnostic = "does not evaluate to a boolean",
+          fieldSuffix = "does not evaluate to a boolean",
+        ),
+        BadCelCase(
+          label = "non-boolean result (string literal)",
+          filter = "'just a string'",
+          diagnostic = "does not evaluate to a boolean",
+          fieldSuffix = "does not evaluate to a boolean",
+        ),
+        BadCelCase(
+          label = "non-boolean result (int literal)",
+          filter = "42",
+          diagnostic = "does not evaluate to a boolean",
+          fieldSuffix = "does not evaluate to a boolean",
+        ),
+        BadCelCase(
+          label = "non-boolean result (message field access)",
+          filter = "banner_ad",
+          diagnostic = "does not evaluate to a boolean",
+          fieldSuffix = "does not evaluate to a boolean",
+        ),
+      )
+
     private const val MEASUREMENT_CONSUMER_ID = "AAAAAAAAAHs"
     private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/$MEASUREMENT_CONSUMER_ID"
     private const val CAMPAIGN_GROUP_NAME =
@@ -3257,31 +3347,494 @@ class BasicReportTransformationsTest {
     private val PRIMITIVE_REPORTING_SET_2 = reportingSet { name = PRIMITIVE_REPORTING_SET_NAME_2 }
     private val PRIMITIVE_REPORTING_SET_3 = reportingSet { name = PRIMITIVE_REPORTING_SET_NAME_3 }
 
-    private val IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS = buildList {
-      add(
-        listOf(
-          impressionQualificationFilterSpec {
-            mediaType = MediaType.VIDEO
-            filters += eventFilter {
-              terms += eventTemplateField {
-                path = "video_ad.viewed_fraction"
-                value = EventTemplateFieldKt.fieldValue { floatValue = 1.0f }
-              }
-            }
-          },
-          impressionQualificationFilterSpec {
-            mediaType = MediaType.DISPLAY
-            filters += eventFilter {
-              terms += eventTemplateField {
-                path = "banner_ad.viewable"
-                value = EventTemplateFieldKt.fieldValue { boolValue = true }
-              }
-            }
-          },
+    private val SOURCED_IMPRESSION_QUALIFICATION_FILTER_SPECS:
+      List<SourcedImpressionQualificationFilterSpecs> =
+      listOf(
+        SourcedImpressionQualificationFilterSpecs(
+          specs =
+            listOf(
+              impressionQualificationFilterSpec {
+                mediaType = MediaType.VIDEO
+                filters += eventFilter {
+                  terms += eventTemplateField {
+                    path = "video_ad.viewed_fraction"
+                    value = EventTemplateFieldKt.fieldValue { floatValue = 1.0f }
+                  }
+                }
+              },
+              impressionQualificationFilterSpec {
+                mediaType = MediaType.DISPLAY
+                filters += eventFilter {
+                  terms += eventTemplateField {
+                    path = "banner_ad.viewable"
+                    value = EventTemplateFieldKt.fieldValue { boolValue = true }
+                  }
+                }
+              },
+            ),
+          source = ImpressionQualificationFilterSpecsSource.Base("test"),
         )
       )
-    }
 
     private val TEST_EVENT_DESCRIPTOR = EventMessageDescriptor(TestEvent.getDescriptor())
+    private val TEST_CEL_ENV = CelPredicates.buildEnvironment(TestEvent.getDescriptor())
+  }
+
+  //
+  // These probes bypass CreateBasicReportRequestValidation entirely to see what
+  // toCelValue emits for extreme user values. If the CEL block would need to
+  // catch these when upstream validation is loosened / a new selectorCase is
+  // added, that's evidence the block is defense-in-depth against real bugs.
+
+  // ============================================================================
+  // REACHABILITY-BOUNDARY TESTS
+  //
+  // What these prove:
+  //   - Every filter shape a caller can construct today (given the upstream
+  //     validators) produces well-formed CEL. The CEL block is a NO-OP for
+  //     currently-reachable user input.
+  //   - IF a future change opens up a new selectorCase, weakens
+  //     validateEventTemplateFieldValue, or adds a STRING/FLOAT-typed
+  //     IMPRESSION_QUALIFICATION field, the CEL block would catch the
+  //     resulting malformed CEL. These tests hand-craft the CEL that would
+  //     result and confirm the validator rejects it.
+  //
+  // Bottom line: the CEL block is defense-in-depth against future
+  // regressions in upstream validators and against toCelValue's raw
+  // STRING_VALUE / FLOAT_VALUE emissions (which would produce bad CEL if
+  // ever reached).
+  // ============================================================================
+
+  @Test
+  fun `every user-reachable enum value produces well-formed CEL`() {
+    // All valid enum names for person.gender. Each generates `person.gender == <ordinal>`
+    // which CEL parses as bool.
+    for (enumName in listOf("GENDER_UNSPECIFIED", "MALE", "FEMALE")) {
+      val filter =
+        buildCelExpression(
+          dimensionSpecFilters =
+            listOf(
+              eventFilter {
+                terms += eventTemplateField {
+                  path = "person.gender"
+                  value = EventTemplateFieldKt.fieldValue { enumValue = enumName }
+                }
+              }
+            ),
+          eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        )
+      // Should not throw for any valid enum name.
+      CelPredicates.validate(TEST_CEL_ENV, filter)
+    }
+  }
+
+  @Test
+  fun `every user-reachable bool IQF produces well-formed CEL`() {
+    for (v in listOf(true, false)) {
+      val filter =
+        buildCelExpression(
+          impressionQualificationFilterSpecs =
+            listOf(
+              impressionQualificationFilterSpec {
+                mediaType = MediaType.DISPLAY
+                filters += eventFilter {
+                  terms += eventTemplateField {
+                    path = "banner_ad.viewable"
+                    value = EventTemplateFieldKt.fieldValue { boolValue = v }
+                  }
+                }
+              }
+            ),
+          eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        )
+      CelPredicates.validate(TEST_CEL_ENV, filter)
+    }
+  }
+
+  @Test
+  fun `dimension_spec with multiple filters joins with && and validates`() {
+    val filter =
+      buildCelExpression(
+        dimensionSpecFilters =
+          listOf(
+            eventFilter {
+              terms += eventTemplateField {
+                path = "person.gender"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+              }
+            },
+            eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              }
+            },
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    // Locks in the && join shape. If a future refactor changes to || (which
+    // has different bool semantics but would still validate), the shape here
+    // will surface it.
+    assertThat(filter).contains(" && ")
+    CelPredicates.validate(TEST_CEL_ENV, filter)
+  }
+
+  @Test
+  fun `custom IQF with two mediaTypes joins with disjunction and validates`() {
+    val filter =
+      buildCelExpression(
+        impressionQualificationFilterSpecs =
+          listOf(
+            impressionQualificationFilterSpec {
+              mediaType = MediaType.DISPLAY
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "banner_ad.viewable"
+                  value = EventTemplateFieldKt.fieldValue { boolValue = false }
+                }
+              }
+            },
+            impressionQualificationFilterSpec {
+              mediaType = MediaType.VIDEO
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "video_ad.viewed_fraction"
+                  value = EventTemplateFieldKt.fieldValue { floatValue = 0.5f }
+                }
+              }
+            },
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    // Locks in the || join shape across mediaTypes.
+    assertThat(filter).contains(" || ")
+    CelPredicates.validate(TEST_CEL_ENV, filter)
+  }
+
+  // ---- Backstop tests: shapes that would result from a future regression or a
+  // STRING/FLOAT-typed IMPRESSION_QUALIFICATION field being added. CEL block
+  // catches each.
+
+  @Test
+  fun `backstop - rejects field == NaN which would result from a Float NaN on a FLOAT IQF field`() {
+    // If validateEventTemplateFieldValue is ever weakened to accept FLOAT_VALUE from
+    // users, and a caller sends floatValue = Float.NaN on a FLOAT IQF field,
+    // toCelValue would emit "NaN" (unquoted) and CEL would see this exact string.
+    // No FLOAT IMPRESSION_QUALIFICATION field exists in the test event, so we
+    // hand-craft the CEL string to prove the backstop.
+    val exception =
+      assertFailsWith<CelValidationException> {
+        CelPredicates.validate(TEST_CEL_ENV, "video_ad.viewed_fraction == NaN")
+      }
+    assertThat(exception.message).contains("not a valid CEL expression")
+    assertThat(exception.message).contains("NaN")
+  }
+
+  @Test
+  fun `backstop - rejects field == Infinity which would result from a Float Infinity on a FLOAT IQF field`() {
+    val exception =
+      assertFailsWith<CelValidationException> {
+        CelPredicates.validate(TEST_CEL_ENV, "video_ad.viewed_fraction == Infinity")
+      }
+    assertThat(exception.message).contains("not a valid CEL expression")
+    assertThat(exception.message).contains("Infinity")
+  }
+
+  @Test
+  fun `backstop - rejects field == unquoted_string which would result from raw stringValue on a STRING IQF field`() {
+    // toCelValue's STRING_VALUE branch is `stringValue` (unquoted). If a STRING
+    // IMPRESSION_QUALIFICATION field is ever added and a user (or base IQF)
+    // supplies stringValue = "abc" on it, the generated CEL is
+    // `<path> == abc` which CEL parses as identifier comparison. No STRING IQF
+    // field exists today; hand-craft the CEL to prove the backstop.
+    val exception =
+      assertFailsWith<CelValidationException> {
+        CelPredicates.validate(TEST_CEL_ENV, "banner_ad.viewable == abc")
+      }
+    assertThat(exception.message).contains("not a valid CEL expression")
+    assertThat(exception.message).contains("abc")
+  }
+
+  // STRING_VALUE branch: assert the transformer emits a properly-quoted CEL string
+  // literal for a base IQF whose stringValue lands on a STRING IMPRESSION_QUALIFICATION
+  // field. Uses TestingOnly.testing_string (see event_templates/testing/testing_only.proto).
+
+  @Test
+  fun `toCelValue emits properly quoted STRING literal end to end`() {
+    val filter =
+      buildCelExpression(
+        impressionQualificationFilterSpecs =
+          listOf(
+            impressionQualificationFilterSpec {
+              mediaType = MediaType.OTHER
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "testing_only.testing_string"
+                  value = EventTemplateFieldKt.fieldValue { stringValue = "abc" }
+                }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter).contains("testing_only.testing_string == \"abc\"")
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `toCelValue escapes embedded quote and backslash in STRING literal`() {
+    val filter =
+      buildCelExpression(
+        impressionQualificationFilterSpecs =
+          listOf(
+            impressionQualificationFilterSpec {
+              mediaType = MediaType.OTHER
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "testing_only.testing_string"
+                  value = EventTemplateFieldKt.fieldValue { stringValue = "he said \"hi\\bye\"" }
+                }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter).contains("testing_only.testing_string == \"he said \\\"hi\\\\bye\\\"\"")
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `toCelValue escapes control characters in STRING literal`() {
+    val filter =
+      buildCelExpression(
+        impressionQualificationFilterSpecs =
+          listOf(
+            impressionQualificationFilterSpec {
+              mediaType = MediaType.OTHER
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "testing_only.testing_string"
+                  value =
+                    EventTemplateFieldKt.fieldValue {
+                      stringValue = "line1\nline2\ttab\rreturnbell"
+                    }
+                }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter)
+      .contains("testing_only.testing_string == \"line1\\nline2\\ttab\\rreturn\\u0001bell\"")
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `toCelValue passes through printable non-ASCII in STRING literal`() {
+    val filter =
+      buildCelExpression(
+        impressionQualificationFilterSpecs =
+          listOf(
+            impressionQualificationFilterSpec {
+              mediaType = MediaType.OTHER
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "testing_only.testing_string"
+                  value = EventTemplateFieldKt.fieldValue { stringValue = "café" }
+                }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter).contains("testing_only.testing_string == \"café\"")
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `toCelValue handles empty STRING as empty quoted literal`() {
+    val filter =
+      buildCelExpression(
+        impressionQualificationFilterSpecs =
+          listOf(
+            impressionQualificationFilterSpec {
+              mediaType = MediaType.OTHER
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "testing_only.testing_string"
+                  value = EventTemplateFieldKt.fieldValue { stringValue = "" }
+                }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter).contains("testing_only.testing_string == \"\"")
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `toCelValue emits properly quoted STRING literal via DimensionSpec filter end to end`() {
+    // Coverage that the STRING_VALUE fix works via the DimensionSpec (dimension_spec.filters)
+    // path as well as the IQF path. Same underlying toCelValue branch; different upstream caller
+    // in BasicReportTransformations.buildCelExpression. Uses testing_only.testing_string_filterable
+    // which is FILTERABLE + POPULATION_ATTRIBUTE (rather than IMPRESSION_QUALIFICATION like
+    // testing_string) so it flows through the dimension-spec CEL builder.
+    val filter =
+      buildCelExpression(
+        dimensionSpecFilters =
+          listOf(
+            eventFilter {
+              terms += eventTemplateField {
+                path = "testing_only.testing_string_filterable"
+                value = EventTemplateFieldKt.fieldValue { stringValue = "abc" }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter).contains("testing_only.testing_string_filterable == \"abc\"")
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `toCelValue escapes quotes in STRING literal via DimensionSpec filter`() {
+    val filter =
+      buildCelExpression(
+        dimensionSpecFilters =
+          listOf(
+            eventFilter {
+              terms += eventTemplateField {
+                path = "testing_only.testing_string_filterable"
+                value = EventTemplateFieldKt.fieldValue { stringValue = "he said \"hi\"" }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter).contains("testing_only.testing_string_filterable == \"he said \\\"hi\\\"\"")
+    assertCompilesCleanly(filter)
+  }
+
+  // FLOAT_VALUE branch: finite values pass through; NaN / infinities throw.
+
+  @Test
+  fun `toCelValue emits finite FLOAT literal end to end`() {
+    val filter =
+      buildCelExpression(
+        impressionQualificationFilterSpecs =
+          listOf(
+            impressionQualificationFilterSpec {
+              mediaType = MediaType.OTHER
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "testing_only.testing_float"
+                  value = EventTemplateFieldKt.fieldValue { floatValue = 0.5f }
+                }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter).contains("testing_only.testing_float == 0.5")
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `toCelValue rejects NaN FLOAT with IllegalArgumentException`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        buildCelExpression(
+          impressionQualificationFilterSpecs =
+            listOf(
+              impressionQualificationFilterSpec {
+                mediaType = MediaType.OTHER
+                filters += eventFilter {
+                  terms += eventTemplateField {
+                    path = "testing_only.testing_float"
+                    value = EventTemplateFieldKt.fieldValue { floatValue = Float.NaN }
+                  }
+                }
+              }
+            ),
+          eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        )
+      }
+    assertThat(exception.message).contains("non-finite float")
+  }
+
+  @Test
+  fun `toCelValue rejects positive Infinity FLOAT with IllegalArgumentException`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        buildCelExpression(
+          impressionQualificationFilterSpecs =
+            listOf(
+              impressionQualificationFilterSpec {
+                mediaType = MediaType.OTHER
+                filters += eventFilter {
+                  terms += eventTemplateField {
+                    path = "testing_only.testing_float"
+                    value = EventTemplateFieldKt.fieldValue { floatValue = Float.POSITIVE_INFINITY }
+                  }
+                }
+              }
+            ),
+          eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        )
+      }
+    assertThat(exception.message).contains("non-finite float")
+  }
+
+  @Test
+  fun `toCelValue rejects negative Infinity FLOAT with IllegalArgumentException`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        buildCelExpression(
+          impressionQualificationFilterSpecs =
+            listOf(
+              impressionQualificationFilterSpec {
+                mediaType = MediaType.OTHER
+                filters += eventFilter {
+                  terms += eventTemplateField {
+                    path = "testing_only.testing_float"
+                    value = EventTemplateFieldKt.fieldValue { floatValue = Float.NEGATIVE_INFINITY }
+                  }
+                }
+              }
+            ),
+          eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        )
+      }
+    assertThat(exception.message).contains("non-finite float")
+  }
+
+  /**
+   * Asserts that [filter] compiles cleanly against a CEL environment built from `TestEvent`. Fails
+   * the enclosing test with the CEL diagnostic if compilation fails.
+   */
+  private fun assertCompilesCleanly(filter: String) {
+    // buildCelEnvironment(Message) registers only the top-level Message and its directly-nested
+    // types. TestingOnly lives in a separate proto file (testing_only.proto) so we register it
+    // explicitly here so CEL can resolve `testing_only.*` field references. See #4148.
+    val celTypeRegistry = ProtoTypeRegistry.newRegistry()
+    celTypeRegistry.registerMessage(TestEvent.getDefaultInstance())
+    celTypeRegistry.registerMessage(TestingOnly.getDefaultInstance())
+    val descriptor = TestEvent.getDescriptor()
+    val env =
+      Env.newEnv(
+        EnvOption.container(descriptor.fullName),
+        EnvOption.customTypeProvider(celTypeRegistry),
+        EnvOption.customTypeAdapter(celTypeRegistry),
+        EnvOption.declarations(
+          descriptor.fields.map {
+            Decls.newVar(it.name, celTypeRegistry.findFieldType(descriptor.fullName, it.name).type)
+          }
+        ),
+      )
+    val astAndIssues = env.compile(filter)
+    if (astAndIssues.hasIssues()) {
+      fail("CEL failed to compile: $filter\nIssues: ${astAndIssues.issues}")
+    }
   }
 }

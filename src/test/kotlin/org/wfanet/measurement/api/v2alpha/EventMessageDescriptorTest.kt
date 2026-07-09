@@ -39,7 +39,7 @@ class EventMessageDescriptorTest {
     val eventMessageDescriptor =
       EventMessageDescriptor(typeRegistry.find(TestEvent.getDescriptor().fullName))
 
-    assertThat(eventMessageDescriptor.eventTemplateFieldsByPath).hasSize(6)
+    assertThat(eventMessageDescriptor.eventTemplateFieldsByPath).hasSize(9)
     assertThat(eventMessageDescriptor.eventTemplateFieldsByPath)
       .containsExactly(
         "person.gender",
@@ -118,6 +118,45 @@ class EventMessageDescriptorTest {
               impressionQualification = true,
             ),
           type = Descriptors.FieldDescriptor.Type.BOOL,
+          enumType = null,
+        ),
+        "testing_only.testing_string",
+        EventMessageDescriptor.EventTemplateFieldInfo(
+          mediaType = MediaType.OTHER,
+          isPopulationAttribute = false,
+          supportedReportingFeatures =
+            EventMessageDescriptor.SupportedReportingFeatures(
+              groupable = false,
+              filterable = false,
+              impressionQualification = true,
+            ),
+          type = Descriptors.FieldDescriptor.Type.STRING,
+          enumType = null,
+        ),
+        "testing_only.testing_float",
+        EventMessageDescriptor.EventTemplateFieldInfo(
+          mediaType = MediaType.OTHER,
+          isPopulationAttribute = false,
+          supportedReportingFeatures =
+            EventMessageDescriptor.SupportedReportingFeatures(
+              groupable = false,
+              filterable = false,
+              impressionQualification = true,
+            ),
+          type = Descriptors.FieldDescriptor.Type.FLOAT,
+          enumType = null,
+        ),
+        "testing_only.testing_string_filterable",
+        EventMessageDescriptor.EventTemplateFieldInfo(
+          mediaType = MediaType.OTHER,
+          isPopulationAttribute = false,
+          supportedReportingFeatures =
+            EventMessageDescriptor.SupportedReportingFeatures(
+              groupable = false,
+              filterable = true,
+              impressionQualification = false,
+            ),
+          type = Descriptors.FieldDescriptor.Type.STRING,
           enumType = null,
         ),
       )
