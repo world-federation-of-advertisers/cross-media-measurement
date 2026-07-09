@@ -262,7 +262,7 @@ class VidLabelingSink(
    * [send] is called by the concurrent [processBatch] invocations; a dedicated coroutine
    * ([deferred]) drains the bounded [channel] straight into [MesosRecordIoStorageClient.writeBlob],
    * so the records are never all held in memory at once. The per-blob aggregates needed for the
-   * metadata sidecar ([earliest], [latest], [entityIdsByType], [eventGroupReferenceId]) are
+   * metadata sidecar ([earliest], [latest], [entityIdsByType]) are
    * accumulated by that single draining coroutine as each record passes through, so no
    * synchronization is needed and [commit] reads them safely after awaiting [deferred].
    */
@@ -272,11 +272,6 @@ class VidLabelingSink(
     private var earliest: Timestamp? = null
     private var latest: Timestamp? = null
     private val entityIdsByType = LinkedHashMap<String, LinkedHashSet<String>>()
-    // The event group reference id for this file's impressions (one per input file). Captured while
-    // streaming and written to the sidecar so DataAvailabilitySync can register this blob's
-    // ImpressionMetadata (create requires it) and the results fulfiller can locate it for
-    // reference-id event groups. Mirrors the out-of-band impressions' sidecar.
-    private var eventGroupReferenceId: String = ""
 
     private val blobKey = outputBlobKey(key)
     private val outputBlobUri = "${outputStorageParams.impressionsBlobPrefix}/$blobKey"
@@ -353,10 +348,6 @@ class VidLabelingSink(
       for (entityKey in impression.entityKeysList) {
         entityIdsByType.getOrPut(entityKey.entityType) { LinkedHashSet() }.add(entityKey.entityId)
       }
-      // TODO(#4175): remove once DataAvailabilitySync no longer requires event_group_reference_id.
-      if (eventGroupReferenceId.isEmpty() && impression.eventGroupReferenceId.isNotEmpty()) {
-        eventGroupReferenceId = impression.eventGroupReferenceId
-      }
     }
 
     /** Writes the `.metadata.binpb` sidecar from the aggregates collected while streaming. */
@@ -365,7 +356,6 @@ class VidLabelingSink(
         blobUri = outputBlobUri
         encryptedDek = outputEncryptedDek
         modelLine = key.modelLine
-        eventGroupReferenceId = this@GroupWriter.eventGroupReferenceId
         interval = interval {
           startTime = checkNotNull(earliest) { "No impressions written for ${key.modelLine}" }
           endTime = checkNotNull(latest) { "No impressions written for ${key.modelLine}" }
