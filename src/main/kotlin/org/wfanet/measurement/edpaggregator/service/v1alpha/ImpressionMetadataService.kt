@@ -935,12 +935,6 @@ class ImpressionMetadataService(
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.blob_type_url")
     }
 
-    if (request.impressionMetadata.eventGroupReferenceId.isEmpty()) {
-      throw RequiredFieldNotSetException(
-        "${fieldPathPrefix}impression_metadata.event_group_reference_id"
-      )
-    }
-
     if (request.impressionMetadata.modelLine.isEmpty()) {
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.model_line")
     }

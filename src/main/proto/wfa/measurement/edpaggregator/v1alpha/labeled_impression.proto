@@ -67,8 +67,11 @@ message LabeledImpression {
   // see test_event.proto
   google.protobuf.Any event = 3 [(google.api.field_behavior) = REQUIRED];
 
-  // The impression event group reference id to which the Event is associated
-  string event_group_reference_id = 4 [(google.api.field_behavior) = REQUIRED];
+  // The impression event group reference id to which the Event is associated.
+  //
+  // Optional: superseded by entity keys as the query key (TODO(#4175) removes it
+  // end-to-end once no egid-only records remain).
+  string event_group_reference_id = 4 [(google.api.field_behavior) = OPTIONAL];
 
   // Entities in the `DataProvider`'s system that this impression is associated
   // with.
