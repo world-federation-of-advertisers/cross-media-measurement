@@ -534,19 +534,7 @@ class EventGroupSync(
         item.startTime.elapsedNow().inWholeMilliseconds / 1000.0,
         metricAttributes(),
       )
-      emit(
-        mappedEventGroup {
-          eventGroupReferenceId = item.eventGroupReferenceId
-          eventGroupResource = syncedEventGroup.name
-          if (item.entityType.isNotBlank() && item.entityId.isNotBlank()) {
-            entityKey =
-              EventGroupKt.entityKey {
-                entityType = item.entityType
-                entityId = item.entityId
-              }
-          }
-        }
-      )
+      emit(buildMappedEventGroup(item, syncedEventGroup.name))
     }
     pendingCreates.clear()
   }
@@ -570,19 +558,7 @@ class EventGroupSync(
           item.startTime.elapsedNow().inWholeMilliseconds / 1000.0,
           metricAttributes(),
         )
-        emit(
-          mappedEventGroup {
-            eventGroupReferenceId = item.eventGroupReferenceId
-            eventGroupResource = syncedEventGroup.name
-            if (item.entityType.isNotBlank() && item.entityId.isNotBlank()) {
-              entityKey =
-                EventGroupKt.entityKey {
-                  entityType = item.entityType
-                  entityId = item.entityId
-                }
-            }
-          }
-        )
+        emit(buildMappedEventGroup(item, syncedEventGroup.name))
       } catch (e: Exception) {
         if (e is CancellationException) throw e
         recordItemFailure(e, item)
@@ -655,19 +631,7 @@ class EventGroupSync(
         item.startTime.elapsedNow().inWholeMilliseconds / 1000.0,
         metricAttributes(),
       )
-      emit(
-        mappedEventGroup {
-          eventGroupReferenceId = item.eventGroupReferenceId
-          eventGroupResource = syncedEventGroup.name
-          if (item.entityType.isNotBlank() && item.entityId.isNotBlank()) {
-            entityKey =
-              EventGroupKt.entityKey {
-                entityType = item.entityType
-                entityId = item.entityId
-              }
-          }
-        }
-      )
+      emit(buildMappedEventGroup(item, syncedEventGroup.name))
     }
     pendingUpdates.clear()
   }
@@ -691,19 +655,7 @@ class EventGroupSync(
           item.startTime.elapsedNow().inWholeMilliseconds / 1000.0,
           metricAttributes(),
         )
-        emit(
-          mappedEventGroup {
-            eventGroupReferenceId = item.eventGroupReferenceId
-            eventGroupResource = syncedEventGroup.name
-            if (item.entityType.isNotBlank() && item.entityId.isNotBlank()) {
-              entityKey =
-                EventGroupKt.entityKey {
-                  entityType = item.entityType
-                  entityId = item.entityId
-                }
-            }
-          }
-        )
+        emit(buildMappedEventGroup(item, syncedEventGroup.name))
       } catch (e: Exception) {
         if (e is CancellationException) throw e
         recordItemFailure(e, item)
@@ -727,7 +679,11 @@ class EventGroupSync(
         .build(),
     )
     logger.log(Level.SEVERE, e) {
-      "Unable to sync Event Group ${item.eventGroupReferenceId}: error_type=$errorType"
+      "Unable to sync Event Group ${item.eventGroupReferenceId}" +
+        (if (item.entityType.isNotBlank() && item.entityId.isNotBlank())
+          " (entityType=${item.entityType}, entityId=${item.entityId})"
+        else "") +
+        ": error_type=$errorType"
     }
   }
 
@@ -1021,6 +977,25 @@ class EventGroupSync(
       entityId = source.entityId
     }
   }
+
+  /**
+   * Builds the [MappedEventGroup] emitted for a successfully-synced item. Populates whichever
+   * identifiers were carried by the source `EventGroup`; the `MappedEventGroup` contract requires
+   * at least one of `event_group_reference_id` / `entity_key` to be set, which [validateEventGroup]
+   * guarantees upstream.
+   */
+  private fun buildMappedEventGroup(item: PendingWrite<*>, resourceName: String): MappedEventGroup =
+    mappedEventGroup {
+      eventGroupReferenceId = item.eventGroupReferenceId
+      eventGroupResource = resourceName
+      if (item.entityType.isNotBlank() && item.entityId.isNotBlank()) {
+        entityKey =
+          EventGroupKt.entityKey {
+            entityType = item.entityType
+            entityId = item.entityId
+          }
+      }
+    }
 
   companion object {
     /** Maximum number of sub-requests per BatchCreate/BatchUpdate EventGroups RPC. */
