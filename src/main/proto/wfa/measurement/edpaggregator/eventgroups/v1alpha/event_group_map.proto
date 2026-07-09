@@ -18,19 +18,36 @@ package wfa.measurement.edpaggregator.eventgroups.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "wfa/measurement/edpaggregator/eventgroups/v1alpha/event_group.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.eventgroups.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "EventGroupMapProto";
 
 // Allows data providers to learn the EventGroup resource names for their
-// campaigns
+// campaigns.
+//
+// Emitted by `EventGroupSync` once per successfully-synced `EventGroup`; carries
+// whichever identifier the source `EventGroup` was keyed by so callers can join
+// the mapping back to their input. At least one of `event_group_reference_id`
+// or `entity_key` is always populated.
 message MappedEventGroup {
-  // A map from event_group_reference_id to the EventGroup resource name.
-  string event_group_reference_id = 1 [(google.api.field_behavior) = REQUIRED];
+  // A map from `event_group_reference_id` to the EventGroup resource name.
+  //
+  // Optional: superseded by [entity_key] as the query key. To be deprecated in
+  // a future release; see
+  // https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/4175.
+  // At least one of `event_group_reference_id` or `entity_key` must be set.
+  string event_group_reference_id = 1 [(google.api.field_behavior) = OPTIONAL];
   // The name of the [EventGroup] in an external system.
   string event_group_resource = 2 [
     (google.api.resource_reference).type = "halo.wfanet.org/EventGroup",
     (google.api.field_behavior) = REQUIRED
   ];
+  // Entity key from the source `EventGroup`, echoed so callers can join the
+  // mapping back to their input when the source was keyed by entity key rather
+  // than `event_group_reference_id`.
+  //
+  // At least one of `event_group_reference_id` or `entity_key` must be set.
+  EventGroup.EntityKey entity_key = 3 [(google.api.field_behavior) = OPTIONAL];
 }

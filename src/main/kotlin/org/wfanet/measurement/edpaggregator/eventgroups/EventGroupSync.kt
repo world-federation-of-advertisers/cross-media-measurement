@@ -65,6 +65,7 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
@@ -376,6 +377,9 @@ class EventGroupSync(
               mappedEventGroup {
                 eventGroupReferenceId = existingEventGroup.eventGroupReferenceId
                 eventGroupResource = existingEventGroup.name
+                if (existingEventGroup.hasEntityKey()) {
+                  entityKey = existingEventGroup.entityKey.toEdpaEntityKey()
+                }
               }
             )
             WriteAction.None
@@ -498,6 +502,13 @@ class EventGroupSync(
         mappedEventGroup {
           eventGroupReferenceId = item.eventGroupReferenceId
           eventGroupResource = syncedEventGroup.name
+          if (item.entityType.isNotBlank() && item.entityId.isNotBlank()) {
+            entityKey =
+              EventGroupKt.entityKey {
+                entityType = item.entityType
+                entityId = item.entityId
+              }
+          }
         }
       )
     }
@@ -527,6 +538,13 @@ class EventGroupSync(
           mappedEventGroup {
             eventGroupReferenceId = item.eventGroupReferenceId
             eventGroupResource = syncedEventGroup.name
+            if (item.entityType.isNotBlank() && item.entityId.isNotBlank()) {
+              entityKey =
+                EventGroupKt.entityKey {
+                  entityType = item.entityType
+                  entityId = item.entityId
+                }
+            }
           }
         )
       } catch (e: Exception) {
@@ -605,6 +623,13 @@ class EventGroupSync(
         mappedEventGroup {
           eventGroupReferenceId = item.eventGroupReferenceId
           eventGroupResource = syncedEventGroup.name
+          if (item.entityType.isNotBlank() && item.entityId.isNotBlank()) {
+            entityKey =
+              EventGroupKt.entityKey {
+                entityType = item.entityType
+                entityId = item.entityId
+              }
+          }
         }
       )
     }
@@ -634,6 +659,13 @@ class EventGroupSync(
           mappedEventGroup {
             eventGroupReferenceId = item.eventGroupReferenceId
             eventGroupResource = syncedEventGroup.name
+            if (item.entityType.isNotBlank() && item.entityId.isNotBlank()) {
+              entityKey =
+                EventGroupKt.entityKey {
+                  entityType = item.entityType
+                  entityId = item.entityId
+                }
+            }
           }
         )
       } catch (e: Exception) {
@@ -704,7 +736,15 @@ class EventGroupSync(
   private fun buildCreateRequest(eventGroup: EventGroup): CreateEventGroupRequest {
     return createEventGroupRequest {
       parent = edpName
-      requestId = "${eventGroup.eventGroupReferenceId}-${eventGroup.measurementConsumer}"
+      // Prefer event_group_reference_id for the request_id since it is the caller-provided key
+      // most existing operator flows use; fall back to entity_key when the caller did not set an
+      // egid (the compound guard in validateEventGroup ensures at least one is present).
+      requestId =
+        if (eventGroup.eventGroupReferenceId.isNotBlank()) {
+          "${eventGroup.eventGroupReferenceId}-${eventGroup.measurementConsumer}"
+        } else {
+          "${eventGroup.entityKey.entityType}-${eventGroup.entityKey.entityId}-${eventGroup.measurementConsumer}"
+        }
       this.eventGroup = cmmsEventGroup {
         measurementConsumer = eventGroup.measurementConsumer
         eventGroupReferenceId = eventGroup.eventGroupReferenceId
@@ -933,6 +973,14 @@ class EventGroupSync(
   private fun EventGroup.EntityKey.toCmmsEntityKey(): CmmsEventGroup.EntityKey {
     val source = this
     return CmmsEventGroupKt.entityKey {
+      entityType = source.entityType
+      entityId = source.entityId
+    }
+  }
+
+  private fun CmmsEventGroup.EntityKey.toEdpaEntityKey(): EventGroup.EntityKey {
+    val source = this
+    return EventGroupKt.entityKey {
       entityType = source.entityType
       entityId = source.entityId
     }
