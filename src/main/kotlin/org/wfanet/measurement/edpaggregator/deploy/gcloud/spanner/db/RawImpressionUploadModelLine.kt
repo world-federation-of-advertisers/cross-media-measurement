@@ -139,7 +139,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findInProgressModelLinesForModelLine
     WHERE RawImpressionUploadModelLine.DataProviderResourceId = @dataProviderResourceId
       AND RawImpressionUploadModelLine.CmmsModelLine = @cmmsModelLine
       AND RawImpressionUploadModelLine.RawImpressionUploadId != @excludeRawImpressionUploadId
-      AND CAST(RawImpressionUploadModelLine.State AS INT64) IN UNNEST(@inProgressStates)
+      AND RawImpressionUploadModelLine.State IN UNNEST(@inProgressStates)
     LIMIT @limit
     """
       .trimIndent()
@@ -152,12 +152,13 @@ suspend fun AsyncDatabaseClient.ReadContext.findInProgressModelLinesForModelLine
           bind("excludeRawImpressionUploadId").to(excludeRawImpressionUploadId)
           bind("limit").to(limit.toLong())
           bind("inProgressStates")
-            .toInt64Array(
+            .toProtoEnumArray(
               listOf(
-                State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING.number.toLong(),
-                State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING.number.toLong(),
-                State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING.number.toLong(),
-              )
+                State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
+                State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
+                State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
+              ),
+              State.getDescriptor(),
             )
         }
       )
@@ -319,7 +320,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploadModelLines(
 
     if (filter != null) {
       if (filter.stateInList.isNotEmpty()) {
-        conjuncts.add("CAST(RawImpressionUploadModelLine.State AS INT64) IN UNNEST(@state_in)")
+        conjuncts.add("RawImpressionUploadModelLine.State IN UNNEST(@state_in)")
       }
       if (filter.hasCreateTimeIn()) {
         if (filter.createTimeIn.hasStartTime()) {
@@ -359,7 +360,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploadModelLines(
 
       if (filter != null) {
         if (filter.stateInList.isNotEmpty()) {
-          bind("state_in").toInt64Array(filter.stateInList.map { it.number.toLong() })
+          bind("state_in").toProtoEnumArray(filter.stateInList, State.getDescriptor())
         }
         if (filter.hasCreateTimeIn()) {
           if (filter.createTimeIn.hasStartTime()) {

@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
-import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.single
 import org.junit.ClassRule
@@ -23,6 +22,7 @@ import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.edpaggregator.service.internal.testing.RawImpressionUploadModelLineServiceTest
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
@@ -49,27 +49,16 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
   ) {
     val uploadId = nextUploadId++
     val mutation =
-      Mutation.newInsertBuilder("RawImpressionUpload")
-        .set("DataProviderResourceId")
-        .to(dataProviderResourceId)
-        .set("RawImpressionUploadId")
-        .to(uploadId)
-        .set("RawImpressionUploadResourceId")
-        .to(rawImpressionUploadResourceId)
-        .set("DoneBlobUri")
-        .to("gs://bucket/done-$uploadId")
-        .set("State")
-        .to(
-          Value.protoEnum(
-            org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
-              .RAW_IMPRESSION_UPLOAD_STATE_CREATED
-          )
-        )
-        .set("CreateTime")
-        .to(Value.COMMIT_TIMESTAMP)
-        .set("UpdateTime")
-        .to(Value.COMMIT_TIMESTAMP)
-        .build()
+      insertMutation("RawImpressionUpload") {
+        set("DataProviderResourceId").to(dataProviderResourceId)
+        set("RawImpressionUploadId").to(uploadId)
+        set("RawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
+        set("DoneBlobUri").to("gs://bucket/done-$uploadId")
+        set("State")
+          .to(Value.protoEnum(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED))
+        set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+        set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+      }
     spannerDatabase.databaseClient.write(listOf(mutation))
   }
 
