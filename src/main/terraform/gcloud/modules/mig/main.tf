@@ -119,9 +119,9 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   disk {
     boot                   = true
     source_image           = data.google_compute_image.confidential_space.self_link
-    disk_type              = "hyperdisk-balanced"
-    provisioned_iops       = 5000
-    provisioned_throughput = 1250
+    disk_type              = var.disk_type
+    provisioned_iops       = var.disk_provisioned_iops
+    provisioned_throughput = var.disk_provisioned_throughput
   }
 
   shielded_instance_config {
@@ -154,11 +154,29 @@ resource "google_compute_region_instance_group_manager" "mig" {
   # insert time, instead of trying to keep VM counts even across zones. Matches
   # the availability-first intent of widening distribution_policy_zones.
   distribution_policy_target_shape = "ANY"
+  dynamic "instance_flexibility_policy" {
+    for_each = length(var.alternative_machine_types) > 0 ? [1] : []
+    content {
+      instance_selections {
+        name          = "primary"
+        machine_types = [var.machine_type]
+        rank          = 1
+      }
+      dynamic "instance_selections" {
+        for_each = { for i, mt in var.alternative_machine_types : "alt-${i}" => { machine_type = mt, rank = i + 2 } }
+        content {
+          name          = instance_selections.key
+          machine_types = [instance_selections.value.machine_type]
+          rank          = instance_selections.value.rank
+        }
+      }
+    }
+  }
   lifecycle {
     create_before_destroy = true
   }
   update_policy {
-    type                  = "PROACTIVE"
+    type                  = length(var.alternative_machine_types) > 0 ? "OPPORTUNISTIC" : "PROACTIVE"
     minimal_action        = "REPLACE"
     # PROACTIVE rolling updates on a regional MIG require max_surge >= zone count so the
     # replacement pool can honor distribution_policy_zones during the roll. Trade-off vs
@@ -166,6 +184,7 @@ resource "google_compute_region_instance_group_manager" "mig" {
     # of one (extra surge cost and a transient per-zone capacity claim during the roll).
     max_surge_fixed       = length(var.mig_distribution_policy_zones)
     max_unavailable_fixed = 0
+    instance_redistribution_type = length(var.alternative_machine_types) > 0 ? "NONE" : null
   }
 }
 

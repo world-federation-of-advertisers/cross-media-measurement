@@ -195,6 +195,7 @@ module "trustee_mill" {
   min_replicas                  = var.trustee_config.replicas
   max_replicas                  = var.trustee_config.replicas
   machine_type                  = var.trustee_config.machine_type
+  alternative_machine_types      = var.trustee_config.alternative_machine_types
   docker_image                  = var.trustee_config.docker_image
   tee_signed_image_repo         = var.trustee_config.signed_image_repo
   mig_distribution_policy_zones = var.trustee_config.mig_distribution_policy_zones

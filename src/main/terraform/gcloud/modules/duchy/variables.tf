@@ -90,6 +90,7 @@ variable "trustee_config" {
     mig_service_account_name      = string
     replicas                      = number
     machine_type                  = string
+    alternative_machine_types      = optional(list(string), [])
     docker_image                  = string
     signed_image_repo             = string
     mig_distribution_policy_zones = list(string)

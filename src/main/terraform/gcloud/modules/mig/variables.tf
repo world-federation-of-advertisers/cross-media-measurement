@@ -74,6 +74,13 @@ variable "min_replicas" {
   nullable    = false
 }
 
+variable "alternative_machine_types" {
+  description = "Alternative machine types for instance flexibility policy, in order of preference."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
 variable "machine_type" {
   description = "The machine type to create."
   type        = string
@@ -130,4 +137,26 @@ variable "extra_metadata" {
   description = "Extra metadata for the instance template."
   type        = map(string)
   default     = {}
+}
+
+# Production deployments using only c4d machine types should use
+# hyperdisk-balanced with provisioned_iops = 5000 and
+# provisioned_throughput = 1250 for better IOPS.
+variable "disk_type" {
+  description = "Boot disk type. Use pd-ssd for n2d, hyperdisk-balanced for c4d."
+  type        = string
+  default     = "pd-ssd"
+  nullable    = false
+}
+
+variable "disk_provisioned_iops" {
+  description = "Provisioned IOPS for hyperdisk-balanced. Ignored for pd-ssd."
+  type        = number
+  default     = null
+}
+
+variable "disk_provisioned_throughput" {
+  description = "Provisioned throughput (MB/s) for hyperdisk-balanced. Ignored for pd-ssd."
+  type        = number
+  default     = null
 }

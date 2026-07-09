@@ -395,6 +395,7 @@ module "result_fulfiller_tee_app" {
   min_replicas                  = var.requisition_fulfiller_config.worker.min_replicas
   max_replicas                  = var.requisition_fulfiller_config.worker.max_replicas
   machine_type                  = var.requisition_fulfiller_config.worker.machine_type
+  alternative_machine_types      = var.requisition_fulfiller_config.worker.alternative_machine_types
   java_tool_options             = var.requisition_fulfiller_config.worker.java_tool_options
   docker_image                  = var.requisition_fulfiller_config.worker.docker_image
   mig_distribution_policy_zones = var.requisition_fulfiller_config.worker.mig_distribution_policy_zones
