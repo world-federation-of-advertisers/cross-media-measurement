@@ -49,7 +49,9 @@ kt_jvm_test(
     srcs = ["LabelerInputMapperTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapperTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:column_schema_validation",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:labeler_input_mapper",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeler_input_field_mapping_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/org/junit",
