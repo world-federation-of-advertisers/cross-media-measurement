@@ -375,9 +375,9 @@ locals {
         single_instance_assignment    = 1
         min_replicas                  = 0
         max_replicas                  = 16
-        machine_type                  = "n2d-standard-16"
+        machine_type                  = "n2d-standard-32"
         disk_type                     = "pd-balanced"
-        java_tool_options             = "-Xmx48G -Djdk.util.jar.enableMultiRelease=false"
+        java_tool_options             = "-Xmx96G -Djdk.util.jar.enableMultiRelease=false"
         docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/subpool_assigner:${var.image_tag}"
         tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/subpool_assigner"
         mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
