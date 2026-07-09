@@ -59,9 +59,28 @@ fun Server.registerBasicReportTools(
               put("type", "object")
               put(
                 "description",
-                "BasicReport message in JSON. Key fields: campaign_group (resource name), " +
-                  "reporting_interval (report_start, report_end), " +
-                  "impression_qualification_filters, result_group_specs.",
+                "BasicReport as proto JSON (snake_case fields). Structure:\n" +
+                  "- campaign_group (optional): resource name of a ReportingSet that is a " +
+                  "campaign group. When set, every result_group_specs[].reporting_unit.components " +
+                  "entry must be a DataProvider resource name, not a ReportingSet.\n" +
+                  "- reporting_interval (required): report_start_date {year, month, day} for a " +
+                  "date-only start (or report_start, a DateTime) plus report_end {year, month, " +
+                  "day}. Start is inclusive, end is exclusive.\n" +
+                  "- impression_qualification_filters (optional): list of " +
+                  "ImpressionQualificationFilter resource names (e.g. " +
+                  "impressionQualificationFilters/ami); when omitted, the server applies default " +
+                  "filters (AMI and MRC).\n" +
+                  "- result_group_specs (required, non-empty): each has title, reporting_unit " +
+                  "{components: DataProvider or ReportingSet resource names, not mixed}, " +
+                  "metric_frequency ({total: true} or {weekly: a day of week such as MONDAY}), " +
+                  "dimension_spec ({} for none), and result_group_metric_spec.\n" +
+                  "- result_group_metric_spec: set population_size (bool) and request metrics " +
+                  "under reporting_unit (the whole unit) and/or component (per component), each " +
+                  "holding cumulative or non_cumulative: {reach, impressions, average_frequency, " +
+                  "k_plus_reach (int), percent_reach, grps}. Use non_cumulative with " +
+                  "metric_frequency weekly and cumulative with metric_frequency total " +
+                  "(non_cumulative is invalid with total). Metrics live here, not at the top " +
+                  "level.",
               )
             }
           },
