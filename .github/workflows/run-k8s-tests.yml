@@ -83,6 +83,7 @@ jobs:
         build --define reporting_token_audience=$REPORTING_TOKEN_AUDIENCE
         build --define access_public_api_target=$ACCESS_PUBLIC_API_TARGET
         build --define basic_reports_enabled=true
+        build --define reporting_set_reporting_unit_components_enabled=true
         build --define "edp1_name=$EDP1_NAME"
         build --define "edp2_name=$EDP2_NAME"
         build --define "edp3_name=$EDP3_NAME"
