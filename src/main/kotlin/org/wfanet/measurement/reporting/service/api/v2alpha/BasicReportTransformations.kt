@@ -467,10 +467,10 @@ fun buildCelExpression(
  * Emits `<path> == <valueLiteral>`, or, for a 3-segment nested-oneof-member path with
  * [emitNullGuardForNestedMembers] enabled, prepends `<template>.<member> != null && ...`.
  *
- * Nested-oneof-member paths without a null guard return proto defaults for the unset members,
- * which can silently match the wrong bucket in certain IQF shapes. The guard is opt-in because at
- * least one EDP implementation currently fails to evaluate CEL filters containing `!= null`
- * clauses (see `--emit-cel-null-guards-for-nested-members`).
+ * Nested-oneof-member paths without a null guard return proto defaults for the unset members, which
+ * can silently match the wrong bucket in certain IQF shapes. The guard is opt-in because at least
+ * one EDP implementation currently fails to evaluate CEL filters containing `!= null` clauses (see
+ * `--emit-cel-null-guards-for-nested-members`).
  *
  * The IQF-side [buildCelExpression] adds a separate `<template> != null` clause covering the
  * template-inclusion semantics; the DimensionSpec-side path emits no template-level guard, only the
