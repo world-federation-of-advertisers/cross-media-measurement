@@ -439,6 +439,10 @@ class SpannerPoolAssignmentJobService(
       throw RequiredFieldNotSetException("etag")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (!request.hasEncryptedDek()) {
+      throw RequiredFieldNotSetException("encrypted_dek")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=markPoolAssignmentJobSucceeded"))
@@ -542,9 +546,7 @@ class SpannerPoolAssignmentJobService(
             set("MarkSucceededRequestId").to(request.requestId)
           }
           // Persist the per-shard DEK that encrypts this shard's SubpoolFingerprints blobs.
-          if (request.hasEncryptedDek()) {
-            set("EncryptedDek").toProtoBytes(request.encryptedDek)
-          }
+          set("EncryptedDek").toProtoBytes(request.encryptedDek)
           // Clear any stale failure detail on the FAILED -> SUCCEEDED transition.
           set("ErrorMessage").to(null as String?)
         }
@@ -586,16 +588,14 @@ class SpannerPoolAssignmentJobService(
           mergedMaxEventDate,
           // On last-shard-out, promote this (final) shard's DEK onto the parent as the merged DEK
           // so a retrying SubpoolAssigner can decrypt the merged per-subpool blobs.
-          mergedDek = if (isLastShard && request.hasEncryptedDek()) request.encryptedDek else null,
+          mergedDek = if (isLastShard) request.encryptedDek else null,
         )
 
         TransactionResult(
           updatedJob =
             currentJob.copy {
               state = State.POOL_ASSIGNMENT_STATE_SUCCEEDED
-              if (request.hasEncryptedDek()) {
-                encryptedDek = request.encryptedDek
-              }
+              encryptedDek = request.encryptedDek
               clearErrorMessage()
               clearUpdateTime()
             },
@@ -764,11 +764,12 @@ private fun maxProtoDate(a: Date?, b: Date?): Date? =
   when {
     a == null -> b
     b == null -> a
-    else -> if (compareProtoDate(a, b) >= 0) a else b
+    else -> if (a >= b) a else b
   }
 
-private fun compareProtoDate(a: Date, b: Date): Int {
-  if (a.year != b.year) return a.year - b.year
-  if (a.month != b.month) return a.month - b.month
-  return a.day - b.day
+/** Compares [Date]s by (year, month, day). */
+private operator fun Date.compareTo(other: Date): Int {
+  if (year != other.year) return year - other.year
+  if (month != other.month) return month - other.month
+  return day - other.day
 }
