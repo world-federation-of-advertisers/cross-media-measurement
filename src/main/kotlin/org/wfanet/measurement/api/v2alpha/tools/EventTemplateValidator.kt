@@ -103,41 +103,75 @@ class EventTemplateValidator : Runnable {
     for (field: Descriptors.FieldDescriptor in template.fields) {
       val fieldRef = "${template.name}.${field.name}"
 
+      // Oneof member whose message carries template_field-annotated children: descend and validate
+      // those nested fields under the `<template>.<member>.<field>` reference. Mirrors the member-
+      // handling in `EventMessageDescriptor.isOneofMember` so this CLI validator accepts the same
+      // event-template shapes the descriptor traversal does.
+      if (isOneofMember(field)) {
+        for (nestedField in field.messageType.fields) {
+          if (!nestedField.options.hasExtension(EventAnnotationsProto.templateField)) continue
+          validateNestedField(nestedField, "$fieldRef.${nestedField.name}")
+        }
+        continue
+      }
+
       if (!field.options.hasExtension(EventAnnotationsProto.templateField)) {
         throw ValidationException("$fieldRef does not have a template_field annotation")
       }
 
-      if (field.isRepeated) {
-        throw ValidationException("$fieldRef is repeated")
-      }
+      validateNestedField(field, fieldRef)
+    }
+  }
 
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
-      when (field.type) {
-        Descriptors.FieldDescriptor.Type.STRING,
-        Descriptors.FieldDescriptor.Type.BOOL,
-        Descriptors.FieldDescriptor.Type.ENUM,
-        Descriptors.FieldDescriptor.Type.DOUBLE,
-        Descriptors.FieldDescriptor.Type.FLOAT,
-        Descriptors.FieldDescriptor.Type.INT32,
-        Descriptors.FieldDescriptor.Type.INT64 -> {}
-        Descriptors.FieldDescriptor.Type.MESSAGE ->
-          when (val messageName = field.messageType.fullName) {
-            Duration.getDescriptor().fullName,
-            Timestamp.getDescriptor().fullName -> {}
-            else -> throw ValidationException("$fieldRef has unsupported type $messageName")
-          }
-        Descriptors.FieldDescriptor.Type.UINT64,
-        Descriptors.FieldDescriptor.Type.FIXED64,
-        Descriptors.FieldDescriptor.Type.FIXED32,
-        Descriptors.FieldDescriptor.Type.GROUP,
-        Descriptors.FieldDescriptor.Type.BYTES,
-        Descriptors.FieldDescriptor.Type.UINT32,
-        Descriptors.FieldDescriptor.Type.SFIXED32,
-        Descriptors.FieldDescriptor.Type.SFIXED64,
-        Descriptors.FieldDescriptor.Type.SINT32,
-        Descriptors.FieldDescriptor.Type.SINT64 ->
-          throw ValidationException("$fieldRef has unsupported type ${field.type.name.lowercase()}")
-      }
+  /** Validates the type constraints on a single template field (member-nested or top-level). */
+  private fun validateNestedField(field: Descriptors.FieldDescriptor, fieldRef: String) {
+    if (field.isRepeated) {
+      throw ValidationException("$fieldRef is repeated")
+    }
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+    when (field.type) {
+      Descriptors.FieldDescriptor.Type.STRING,
+      Descriptors.FieldDescriptor.Type.BOOL,
+      Descriptors.FieldDescriptor.Type.ENUM,
+      Descriptors.FieldDescriptor.Type.DOUBLE,
+      Descriptors.FieldDescriptor.Type.FLOAT,
+      Descriptors.FieldDescriptor.Type.INT32,
+      Descriptors.FieldDescriptor.Type.INT64 -> {}
+      Descriptors.FieldDescriptor.Type.MESSAGE ->
+        when (val messageName = field.messageType.fullName) {
+          Duration.getDescriptor().fullName,
+          Timestamp.getDescriptor().fullName -> {}
+          else -> throw ValidationException("$fieldRef has unsupported type $messageName")
+        }
+      Descriptors.FieldDescriptor.Type.UINT64,
+      Descriptors.FieldDescriptor.Type.FIXED64,
+      Descriptors.FieldDescriptor.Type.FIXED32,
+      Descriptors.FieldDescriptor.Type.GROUP,
+      Descriptors.FieldDescriptor.Type.BYTES,
+      Descriptors.FieldDescriptor.Type.UINT32,
+      Descriptors.FieldDescriptor.Type.SFIXED32,
+      Descriptors.FieldDescriptor.Type.SFIXED64,
+      Descriptors.FieldDescriptor.Type.SINT32,
+      Descriptors.FieldDescriptor.Type.SINT64 ->
+        throw ValidationException("$fieldRef has unsupported type ${field.type.name.lowercase()}")
+    }
+  }
+
+  /**
+   * Returns `true` when [field] is a MESSAGE-typed field inside a `oneof` (including `proto3
+   * optional`, which is a synthetic oneof-of-one) whose message type contains at least one nested
+   * field carrying the `template_field` annotation. See `EventMessageDescriptor.isOneofMember` for
+   * the runtime-side counterpart -- this CLI validator accepts the same shapes.
+   */
+  private fun isOneofMember(field: Descriptors.FieldDescriptor): Boolean {
+    if (field.type != Descriptors.FieldDescriptor.Type.MESSAGE) return false
+    if (field.containingOneof == null) return false
+    val fullName = field.messageType.fullName
+    if (fullName == Duration.getDescriptor().fullName) return false
+    if (fullName == Timestamp.getDescriptor().fullName) return false
+    return field.messageType.fields.any {
+      it.options.hasExtension(EventAnnotationsProto.templateField)
     }
   }
 

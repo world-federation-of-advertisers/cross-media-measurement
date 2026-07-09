@@ -137,6 +137,7 @@ class BasicReportsService(
   private val defaultReportStartHour: ZonedHour? = null,
   private val baseExternalImpressionQualificationFilterIds: Iterable<String>,
   private val enableReportingSetReportingUnitComponents: Boolean = false,
+  private val emitCelNullGuardsForNestedMembers: Boolean = false,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   data class ZonedHour(val hour: Int, val zoneId: ZoneId)
@@ -480,6 +481,7 @@ class BasicReportsService(
           resultGroupSpecs = request.basicReport.resultGroupSpecsList,
           eventTemplateFieldsByPath = eventTemplateFieldsByPath,
           env = filterEnv,
+          emitCelNullGuardsForNestedMembers = emitCelNullGuardsForNestedMembers,
         )
       } catch (e: InvalidFieldValueException) {
         throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
