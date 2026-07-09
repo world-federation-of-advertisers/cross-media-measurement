@@ -112,12 +112,9 @@ class VidLabelingDispatcher(
       val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
       val folderPrefix: String = doneBlobUri.key.substringBeforeLast("/")
 
-      val blobKeys: List<String> =
-        storageClient
-          .listBlobs(folderPrefix)
-          .filter { !isDoneMarker(it.blobKey) }
-          .map { it.blobKey }
-          .toList()
+      val blobs: List<StorageClient.Blob> =
+        storageClient.listBlobs(folderPrefix).filter { !isDoneMarker(it.blobKey) }.toList()
+      val blobKeys: List<String> = blobs.map { it.blobKey }
 
       if (blobKeys.isEmpty()) {
         logger.info("No raw impression files found in $folderPrefix")
@@ -132,7 +129,7 @@ class VidLabelingDispatcher(
 
       val rawImpressionUpload = createRawImpressionUpload(doneBlobPath, doneBlobGeneration)
 
-      createRawImpressionUploadFiles(rawImpressionUpload.name, blobKeys, doneBlobUri)
+      createRawImpressionUploadFiles(rawImpressionUpload.name, blobs, doneBlobUri)
 
       val resolvedModelLineNames = resolveModelLines()
 
@@ -310,6 +307,12 @@ class VidLabelingDispatcher(
       rawImpressionUploadStub.createRawImpressionUpload(request)
     } catch (e: StatusException) {
       if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
+      // TODO(world-federation-of-advertisers/cross-media-measurement#4118): once #4118 adds
+      // InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS, branch on `e.errorInfo?.reason`
+      // before the lookup below. A same-request_id-but-different-done_blob_uri collision (a
+      // deterministic-UUID collision in RequestIds.forRawImpressionUpload) also surfaces as
+      // ALREADY_EXISTS, yet findUploadByDoneBlobUri returns null for it — log that collision
+      // explicitly (logger.severe) and rethrow instead of the opaque IllegalStateException below.
       findUploadByDoneBlobUri(doneBlobPath)
         ?: throw IllegalStateException(
           "createRawImpressionUpload returned ALREADY_EXISTS but no RawImpressionUpload matches " +
@@ -350,25 +353,27 @@ class VidLabelingDispatcher(
    * Creates a `RawImpressionUploadFile` for each raw impression blob in the upload.
    *
    * @param uploadName resource name of the parent `RawImpressionUpload`.
-   * @param blobKeys storage keys of the raw impression files in the upload.
+   * @param blobs raw-impression file blobs (key + size) in the upload.
    * @param doneBlobUri parsed URI of the "done" blob, used to reconstruct full blob URIs.
    */
   private suspend fun createRawImpressionUploadFiles(
     uploadName: String,
-    blobKeys: List<String>,
+    blobs: List<StorageClient.Blob>,
     doneBlobUri: BlobUri,
   ) {
-    for (chunk in blobKeys.chunked(RAW_IMPRESSION_UPLOAD_FILE_BATCH_SIZE)) {
+    for (chunk in blobs.chunked(RAW_IMPRESSION_UPLOAD_FILE_BATCH_SIZE)) {
       val request = batchCreateRawImpressionUploadFilesRequest {
         parent = uploadName
-        for (blobKey in chunk) {
-          val fileBlobUri = BlobUris.buildUri(doneBlobUri, blobKey)
+        for (blob in chunk) {
+          val fileBlobUri = BlobUris.buildUri(doneBlobUri, blob.blobKey)
           requests += createRawImpressionUploadFileRequest {
             parent = uploadName
-            // TODO(world-federation-of-advertisers/cross-media-measurement#4009): Capture each
-            // blob's size_bytes from storage metadata and set it here once #4009 makes
-            // RawImpressionUploadFile.size_bytes REQUIRED on the public proto.
-            rawImpressionUploadFile = rawImpressionUploadFile { blobUri = fileBlobUri }
+            // size_bytes (REQUIRED) is the GCS object size from the directory listing; the
+            // Phase-1 last-out bin-packer batches files by it.
+            rawImpressionUploadFile = rawImpressionUploadFile {
+              blobUri = fileBlobUri
+              sizeBytes = blob.size
+            }
             requestId = RequestIds.forRawImpressionUploadFile(uploadName, fileBlobUri)
           }
         }

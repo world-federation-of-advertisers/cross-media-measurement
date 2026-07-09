@@ -323,6 +323,7 @@ class InProcessReportingServer(
                 measurementConsumerConfigs,
                 defaultReportStartHour = null,
                 baseExternalImpressionQualificationFilterIds = emptyList(),
+                enableReportingSetReportingUnitComponents = true,
               )
               .withTrustedPrincipalAuthentication(),
             ImpressionQualificationFiltersService(
