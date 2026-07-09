@@ -37,14 +37,11 @@ fun interface ImpressionConverter {
   /**
    * Converts [event]'s row for the model line described by [config].
    *
-   * @param fileEntityKeys the entity keys (and event group reference id) of the raw-impression file
-   *   this row came from, read from the file's plaintext Parquet footer ("Option Y").
    * @return the [ConvertedImpression], or `null` to skip this row for this model line.
    */
   fun convert(
     event: ParquetDigestedEvent,
     config: VidLabelerParams.ModelLineConfig,
-    fileEntityKeys: FileEntityKeys,
   ): ConvertedImpression?
 }
 
@@ -55,7 +52,6 @@ fun interface ImpressionConverter {
  * @property eventTime impression event time — used for active-window filtering and as the output
  *   `event_time`. A typed `Timestamp` so the converter contract carries the unit instead of a bare
  *   epoch-micros `Long`.
- * @property eventGroupReferenceId event group the impression belongs to.
  * @property event the Event payload to embed in the labeled output.
  * @property entityKeys entity keys associated with this impression, propagated from the
  *   `EventGroup` metadata to the labeled output and `BlobDetails`.
@@ -63,7 +59,6 @@ fun interface ImpressionConverter {
 data class ConvertedImpression(
   val labelerInput: LabelerInput,
   val eventTime: com.google.protobuf.Timestamp,
-  val eventGroupReferenceId: String,
   val event: com.google.protobuf.Any,
   val entityKeys: List<org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression.EntityKey>,
 ) {
