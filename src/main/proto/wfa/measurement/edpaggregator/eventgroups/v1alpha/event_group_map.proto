@@ -19,6 +19,7 @@ package wfa.measurement.edpaggregator.eventgroups.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "wfa/measurement/edpaggregator/eventgroups/v1alpha/event_group.proto";
+import "wfa/measurement/type/future_disposition.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.eventgroups.v1alpha";
 option java_multiple_files = true;
@@ -49,5 +50,5 @@ message MappedEventGroup {
   // than `event_group_reference_id`.
   //
   // At least one of `event_group_reference_id` or `entity_key` must be set.
-  EventGroup.EntityKey entity_key = 3 [(google.api.field_behavior) = OPTIONAL];
+  EventGroup.EntityKey entity_key = 3 [(type.future_disposition) = REQUIRED];
 }
