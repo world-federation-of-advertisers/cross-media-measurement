@@ -151,12 +151,17 @@ class SubpoolAssigner(
 
     // 2. Generate this shard's DEK and stream each subpool to its own RecordIO blob, freeing the
     // subpool's in-memory map as soon as its blob is durable.
-    // TODO(world-federation-of-advertisers/cross-media-measurement#3999): once
-    //   SubpoolFingerprintsStore.writeBlob enforces the write-if-absent precondition (depends on
-    //   world-federation-of-advertisers/common-jvm#389), handle the lost-race 412 here — Get the
-    //   job, assert SUCCEEDED, and return a `lostToRace` Result (ack the message) without marking
-    //   SUCCEEDED or running the merge. Until then the write is unconditional and a concurrent
-    //   duplicate WorkItem could clobber this shard's ciphertext.
+    // NOTE(world-federation-of-advertisers/cross-media-measurement#3999): the per-shard write below
+    //   is intentionally unconditional (not write-if-absent) — see
+    // SubpoolFingerprintsStore.writeBlob.
+    //   For these envelope-encrypted blobs (per-attempt random DEK + IV) a write-if-absent
+    // precondition
+    //   would turn a crash between the write and MarkPoolAssignmentJobSucceeded — today
+    // auto-recovered
+    //   by re-writing — into a permanent FAILED, since the orphan ciphertext fails every retry's
+    // 412
+    //   and the job never reaches SUCCEEDED. A correct fix (recover the winner's DEK on retry:
+    //   row-first DEK, or key-on-row) is an API change; kept unconditional for now.
     val dek: EncryptedDek = store.generateDek(kekUri)
     val subpoolIds = accumulator.subpoolIds().toList()
     for (subpoolId in subpoolIds) {
@@ -278,9 +283,11 @@ class SubpoolAssigner(
             requireNotNull(shardDeks[shard]) { "Missing DEK for shard $shard; cannot merge" },
           )
         }
-      // TODO(world-federation-of-advertisers/cross-media-measurement#3999): once mergeSubpool
-      //   enforces ifGenerationMatch=0, treat a 412 here as "already merged" and continue (this
-      //   recovery path re-runs the merge idempotently), rather than as a lost race.
+      // NOTE(world-federation-of-advertisers/cross-media-measurement#3999): mergeSubpool
+      //   writes unconditionally (see SubpoolFingerprintsStore.mergeSubpool). This recovery
+      //   path re-runs the merge idempotently by re-writing the merged blob, which a
+      //   write-if-absent precondition would break, so the merge is deliberately left
+      //   unconditional.
       store.mergeSubpool(inputs, mergedSubpoolKey(poolOffset), mergedDek)
     }
 

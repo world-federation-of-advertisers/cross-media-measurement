@@ -14,12 +14,13 @@
 
 package k8s
 
-_pdpName:                      string @tag("pdp_name")
-_reportingBasicReportsEnabled: string @tag("basic_reports_enabled")
-_reportingSecretName:          string @tag("secret_name")
-_reportingMcConfigSecretName:  string @tag("mc_config_secret_name")
-_publicApiAddressName:         string @tag("public_api_address_name")
-_accessPublicApiAddressName:   "access-public"
+_pdpName:                                             string @tag("pdp_name")
+_reportingBasicReportsEnabled:                        string @tag("basic_reports_enabled")
+_reportingReportingSetReportingUnitComponentsEnabled: string @tag("reporting_set_reporting_unit_components_enabled")
+_reportingSecretName:                                 string @tag("secret_name")
+_reportingMcConfigSecretName:                         string @tag("mc_config_secret_name")
+_publicApiAddressName:                                string @tag("public_api_address_name")
+_accessPublicApiAddressName:                          "access-public"
 
 #KingdomApiTarget: #GrpcTarget & {
 	target: string @tag("kingdom_public_api_target")
@@ -62,10 +63,11 @@ objectSets: [
 ]
 
 reporting: #Reporting & {
-	_populationDataProviderName: _pdpName
-	_basicReportsEnabled:        _reportingBasicReportsEnabled
-	_secretName:                 _reportingSecretName
-	_mcConfigSecretName:         _reportingMcConfigSecretName
+	_populationDataProviderName:                 _pdpName
+	_basicReportsEnabled:                        _reportingBasicReportsEnabled
+	_reportingSetReportingUnitComponentsEnabled: _reportingReportingSetReportingUnitComponentsEnabled
+	_secretName:                                 _reportingSecretName
+	_mcConfigSecretName:                         _reportingMcConfigSecretName
 	_imageSuffixes: {
 		"update-reporting-postgres-schema":   "reporting/v2/gcloud-postgres-update-schema"
 		"postgres-internal-reporting-server": "reporting/v2/gcloud-internal-server"

@@ -21,20 +21,24 @@ import io.grpc.Channel
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchServiceGrpcKt.RawImpressionMetadataBatchServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt as InternalImpressionMetadataServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrpcKt as InternalPoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlobServiceGrpcKt as InternalRankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankerJobServiceGrpcKt as InternalRankerJobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchFileServiceGrpcKt as InternalRawImpressionMetadataBatchFileServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchServiceGrpcKt as InternalRawImpressionMetadataBatchServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFileServiceGrpcKt as InternalRawImpressionUploadFileServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt as InternalRawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt as InternalRawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt as InternalRequisitionMetadataServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingJobServiceGrpcKt as InternalVidLabelingJobServiceGrpcKt
@@ -46,9 +50,11 @@ data class Services(
   val rawImpressionMetadataBatchFile: RawImpressionMetadataBatchFileServiceCoroutineImplBase,
   val rawImpressionUpload: RawImpressionUploadServiceCoroutineImplBase,
   val rawImpressionUploadFile: RawImpressionUploadFileServiceCoroutineImplBase,
+  val rawImpressionUploadModelLine: RawImpressionUploadModelLineServiceCoroutineImplBase,
   val vidLabelingJob: VidLabelingJobServiceCoroutineImplBase,
   val rankerJob: RankerJobServiceCoroutineImplBase,
   val rankIndexBlob: RankIndexBlobServiceCoroutineImplBase,
+  val poolAssignmentJob: PoolAssignmentJobServiceCoroutineImplBase,
 ) {
   fun toList(): List<BindableService> =
     listOf(
@@ -58,9 +64,11 @@ data class Services(
       rawImpressionMetadataBatchFile,
       rawImpressionUpload,
       rawImpressionUploadFile,
+      rawImpressionUploadModelLine,
       vidLabelingJob,
       rankerJob,
       rankIndexBlob,
+      poolAssignmentJob,
     )
 
   companion object {
@@ -90,12 +98,19 @@ data class Services(
         InternalRawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
           internalApiChannel
         )
+      val internalModelLineStub =
+        InternalRawImpressionUploadModelLineServiceGrpcKt
+          .RawImpressionUploadModelLineServiceCoroutineStub(internalApiChannel)
       val internalVidLabelingJobStub =
         InternalVidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(internalApiChannel)
       val internalRankerJobStub =
         InternalRankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(internalApiChannel)
       val internalRankIndexBlobStub =
         InternalRankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(internalApiChannel)
+      val internalPoolAssignmentJobStub =
+        InternalPoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
+          internalApiChannel
+        )
 
       return Services(
         RequisitionMetadataService(internalRequisitionMetadataStub, coroutineContext),
@@ -104,9 +119,11 @@ data class Services(
         RawImpressionMetadataBatchFileService(internalFileStub, coroutineContext),
         RawImpressionUploadService(internalUploadStub, coroutineContext),
         RawImpressionUploadFileService(internalUploadFileStub, coroutineContext),
+        RawImpressionUploadModelLineService(internalModelLineStub, coroutineContext),
         VidLabelingJobService(internalVidLabelingJobStub, coroutineContext),
         RankerJobService(internalRankerJobStub, coroutineContext),
         RankIndexBlobService(internalRankIndexBlobStub, coroutineContext),
+        PoolAssignmentJobService(internalPoolAssignmentJobStub, coroutineContext),
       )
     }
   }

@@ -134,6 +134,7 @@ class BasicReportsService(
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
   private val defaultReportStartHour: ZonedHour? = null,
   private val baseExternalImpressionQualificationFilterIds: Iterable<String>,
+  private val enableReportingSetReportingUnitComponents: Boolean = false,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   data class ZonedHour(val hour: Int, val zoneId: ZoneId)
@@ -202,6 +203,14 @@ class BasicReportsService(
     // corresponding component-type rules; synthesis runs after validation.
     val suppliedCampaignGroup: ReportingSet? =
       if (request.basicReport.campaignGroup.isEmpty()) {
+        // ReportingSet ReportingUnit components (the only case where campaign_group may be omitted)
+        // are gated behind a deployment flag. When disabled, campaign_group is required as before.
+        if (!enableReportingSetReportingUnitComponents) {
+          throw RequiredFieldNotSetException("basic_report.campaign_group") { fieldPath ->
+              "$fieldPath must be specified when ReportingSet ReportingUnits are not enabled"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
         null
       } else {
         val campaignGroupKey =

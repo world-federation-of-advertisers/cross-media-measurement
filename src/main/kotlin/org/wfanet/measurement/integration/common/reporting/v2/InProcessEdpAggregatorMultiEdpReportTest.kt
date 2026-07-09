@@ -15,6 +15,8 @@
 package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
+import com.google.type.DayOfWeek
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -25,7 +27,15 @@ import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
+import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
+import org.wfanet.measurement.reporting.v2alpha.ReportingSet
+import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
+import org.wfanet.measurement.reporting.v2alpha.basicReport
+import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
+import org.wfanet.measurement.reporting.v2alpha.metricFrequencySpec
+import org.wfanet.measurement.reporting.v2alpha.reportingUnit
+import org.wfanet.measurement.reporting.v2alpha.resultGroupMetricSpec
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 /**
@@ -91,6 +101,113 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
         .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
 
     assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+
+    assertStructuralResults(completedBasicReport)
+    assertNoNoiseResults(
+      completedBasicReport,
+      expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
+      expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
+      expectedKPlusReach = EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH,
+      expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
+      expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
+    )
+    assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
+  }
+
+  @Test
+  fun `no noise basic report with ReportingSet components has the expected result`() = runBlocking {
+    // getMultiEdpEventGroups returns exactly one EventGroup per EDP (edp1, edp2).
+    val eventGroups = getMultiEdpEventGroups()
+    check(eventGroups.size == 2) { "Expected exactly 2 EDP event groups, got ${eventGroups.size}" }
+
+    // One primitive ReportingSet component per EDP. Each spans a single EDP's EventGroup, so the
+    // components have disjoint EventGroups and therefore distinct DataProvider sets -- what
+    // validation requires. Together they span the same universe as the DataProvider-component
+    // `no noise` test, so the expected results are identical.
+    val reportingSetComponents: List<ReportingSet> =
+      eventGroups.mapIndexed { index, eventGroup ->
+        createPrimitiveReportingSet(
+          reportingSetId = "reportingset$index",
+          displayName = "ReportingSet component $index",
+          cmmsEventGroups = listOf(eventGroup.cmmsEventGroup),
+        )
+      }
+
+    // Reuse the scaffolding from the DataProvider-component request (model line, reporting
+    // interval, metric spec), but omit campaign_group (campaignGroupId = null) so the server
+    // synthesizes it, and set the ReportingUnit components to ReportingSets instead of
+    // DataProviders.
+    val createBasicReportRequest =
+      buildCreateBasicReportRequest(
+          eventGroups,
+          campaignGroupId = null,
+          basicReportId = "reportingset-component-basicreport",
+          includeIqfFilter = false,
+        )
+        .copy {
+          basicReport =
+            basicReport.copy {
+              val reportingSetComponentSpec =
+                resultGroupSpecs.single().copy {
+                  reportingUnit = reportingUnit {
+                    components += reportingSetComponents.map { it.name }
+                  }
+                }
+              resultGroupSpecs.clear()
+              resultGroupSpecs += reportingSetComponentSpec
+            }
+        }
+
+    val createdBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(createBasicReportRequest)
+
+    // The caller omitted campaign_group, so the server synthesized one, surfaced only via
+    // effective_campaign_group.
+    assertThat(createdBasicReport.campaignGroup).isEmpty()
+    assertThat(createdBasicReport.effectiveCampaignGroup).isNotEmpty()
+
+    // Verify the ReportingSet-component request round-trips via getBasicReport in the RUNNING state
+    // before it is processed, so a field dropped on persist is caught here.
+    val retrievedRunningBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+    assertRunningBasicReport(
+      createBasicReportRequest,
+      createdBasicReport,
+      retrievedRunningBasicReport,
+      expectedEffectiveCampaignGroup = createdBasicReport.effectiveCampaignGroup,
+    )
+
+    executeBasicReportsReportsJob(createdBasicReport.name)
+    executeReportProcessorJob()
+
+    val completedBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+    assertThat(completedBasicReport.campaignGroup).isEmpty()
+    assertThat(completedBasicReport.effectiveCampaignGroup).isNotEmpty()
+
+    // The results are keyed by the ReportingSet component resource names. This is what
+    // distinguishes ReportingSet components from DataProvider components -- a regression that
+    // resolved the ReportingSets back to their underlying DataProviders would key by DataProvider
+    // name and still pass the numeric assertions below.
+    val componentKeys =
+      completedBasicReport.resultGroupsList
+        .single()
+        .resultsList
+        .single {
+          it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
+        }
+        .metricSet
+        .componentsList
+        .map { it.key }
+    assertThat(componentKeys).containsExactlyElementsIn(reportingSetComponents.map { it.name })
 
     assertStructuralResults(completedBasicReport)
     assertNoNoiseResults(
@@ -173,4 +290,291 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
     assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
     assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
   }
+
+  // Under the shape:
+  //   metric_frequency: { weekly: MONDAY }
+  //   reporting_unit: cumulative only (NO non_cumulative)
+  //   component:      non_cumulative (per-EDP weekly)
+  // the write side stored per-primitive weekly non_cumulative RSRs in one window bucket and
+  // the union whole-report cumulative RSR in a separate bucket, each carrying only its own
+  // external ReportingSet IDs. `BasicReportProcessedResultsTransformation.buildResults`
+  // unconditionally called both `buildReportingUnitMetricSet` and `buildComponentMetricSet`
+  // on every window, so `Map.getValue` on the missing key threw NoSuchElementException:
+  //   - via `GetBasicReport`: surfaced as gRPC INTERNAL with no error text.
+  //   - via `ListBasicReports` result assembly: swallowed by outer machinery, report
+  //     landed in `state=SUCCEEDED` with `resultGroups=[]` (silent data loss).
+  //
+  // Post-fix: per-window `containsKey` guards in `buildResults` skip the metric slice
+  // whose ReportingSet is not in the current window's bucket. Under the reproducer shape:
+  //   - The cumulative bucket renders the union `reporting_unit.cumulative` slice and
+  //     silently skips the per-EDP component slice (whose RSs live elsewhere).
+  //   - The per-primitive weekly bucket renders the per-EDP `component.non_cumulative`
+  //     slice and silently skips the union reporting_unit slice.
+  //
+  // Report window is ~4 days (Sun 2021-03-14 17:00 PT -> Thu 2021-03-18), so weekly Monday
+  // cadence produces TWO weekly buckets: a partial bucket from report_start to the first
+  // Monday, and a second bucket from that Monday to report_end. Two buckets exercises the
+  // per-window guard for both branches (per-primitive and union) with real multi-bucket
+  // data; a single-bucket window would not distinguish a correct fix from a fix that only
+  // handled the union-only case.
+  @Test
+  fun `weekly report with reporting_unit cumulative and component non_cumulative succeeds`() =
+    runBlocking {
+      val eventGroups = getMultiEdpEventGroups()
+      check(eventGroups.size > 1)
+
+      val baseRequest =
+        buildCreateBasicReportRequest(
+          eventGroups,
+          "weekly-cumulative-plus-component-campaign",
+          "weekly-cumulative-plus-component-basicreport",
+          includeIqfFilter = false,
+        )
+      val requestSpec =
+        baseRequest.basicReport.resultGroupSpecsList.single().copy {
+          title = "weekly-cumulative-plus-component"
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              }
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                nonCumulative =
+                  ResultGroupMetricSpecKt.basicMetricSetSpec {
+                    reach = true
+                    impressions = true
+                    averageFrequency = true
+                  }
+              }
+          }
+        }
+      val createBasicReportRequest =
+        baseRequest.copy {
+          basicReport =
+            basicReport.copy {
+              resultGroupSpecs.clear()
+              resultGroupSpecs += requestSpec
+            }
+        }
+
+      val createdBasicReport =
+        reportingBasicReportsClient
+          .withCallCredentials(credentials)
+          .createBasicReport(createBasicReportRequest)
+
+      executeBasicReportsReportsJob(createdBasicReport.name)
+      executeReportProcessorJob()
+
+      val completedBasicReport =
+        reportingBasicReportsClient
+          .withCallCredentials(credentials)
+          .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+      // Pre-fix regression witnesses (all failed pre-fix):
+      //   - state=SUCCEEDED (pre-fix: some code paths returned INTERNAL)
+      //   - resultGroups not empty (pre-fix: empty on the ListBasicReports path)
+      assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+      assertThat(completedBasicReport.resultGroupsList).hasSize(1)
+      val resultGroup = completedBasicReport.resultGroupsList.single()
+      assertWithMessage("resultsList not empty").that(resultGroup.resultsList).isNotEmpty()
+
+      // The response shape under weekly cadence + reporting_unit.cumulative +
+      // component.non_cumulative carries multiple result entries:
+      //   * Union `reporting_unit.cumulative` slices: `nonCumulativeMetricStartTime` is
+      //     unset (0). The entry with the max `metricEndTime` covers the whole report.
+      //   * Per-EDP `component.non_cumulative` slices: `nonCumulativeMetricStartTime` is
+      //     set and `componentsList` is populated.
+      // Pre-fix, one of these silently disappeared (`Map.getValue` on the
+      // missing per-window RS ID threw NoSuchElement, mapped either to gRPC INTERNAL on the
+      // GetBasicReport path or to a silent empty `resultGroupsList` on the ListBasicReports
+      // path). Post-fix, both must render.
+      val unionCumulativeResults =
+        resultGroup.resultsList.filter { it.metadata.nonCumulativeMetricStartTime.seconds == 0L }
+      val perEdpNonCumulativeResults =
+        resultGroup.resultsList.filter { it.metadata.nonCumulativeMetricStartTime.seconds > 0L }
+      assertWithMessage("union cumulative slice present").that(unionCumulativeResults).isNotEmpty()
+      assertWithMessage("per-EDP non_cumulative slice present")
+        .that(perEdpNonCumulativeResults)
+        .isNotEmpty()
+
+      // Union cumulative reach at report end == deterministic cross-publisher reach
+      // (`EXPECTED_CROSS_PUBLISHER_REACH` is pinned in `InProcessEdpAggregatorLifeOfAReportTest`
+      // by the synthetic-data setup; reused by other no-noise assertions in this file).
+      val wholeReportUnionCumulative =
+        unionCumulativeResults.maxBy { it.metadata.metricEndTime.seconds }
+      assertWithMessage("union cumulative reach at end of report")
+        .that(wholeReportUnionCumulative.metricSet.reportingUnit.cumulative.reach)
+        .isEqualTo(EXPECTED_CROSS_PUBLISHER_REACH)
+
+      // Every per-EDP non_cumulative entry must carry a components list keyed by the two DPs
+      // in the reporting unit. Pre-fix, the components map was populated but the entry itself
+      // was dropped in one of the two code paths above.
+      val allComponentKeys =
+        perEdpNonCumulativeResults
+          .flatMap { it.metricSet.componentsList.map { c -> c.key } }
+          .toSet()
+      assertWithMessage("per-EDP non_cumulative components cover both DPs")
+        .that(allComponentKeys.size)
+        .isEqualTo(2)
+
+      // Correctness invariants that hold regardless of the weekly slicing:
+      resultGroup.resultsList.forEach { r ->
+        val cum = r.metricSet.reportingUnit.cumulative
+        assertWithMessage("reporting_unit.cumulative.reach >= 0").that(cum.reach).isAtLeast(0L)
+        r.metricSet.componentsList.forEach { component ->
+          val nc = component.value.nonCumulative
+          assertWithMessage("component ${component.key} non_cumulative reach >= 0")
+            .that(nc.reach)
+            .isAtLeast(0L)
+          assertWithMessage("component ${component.key} non_cumulative impressions >= reach")
+            .that(nc.impressions)
+            .isAtLeast(nc.reach)
+          if (nc.reach > 0) {
+            // average_frequency == impressions / reach (within float tolerance).
+            val expectedAvgFreq = nc.impressions.toFloat() / nc.reach.toFloat()
+            assertWithMessage("component ${component.key} average_frequency")
+              .that(nc.averageFrequency)
+              .isWithin(1e-4f)
+              .of(expectedAvgFreq)
+          }
+        }
+      }
+
+      // "Adds up" invariant: sum of per-EDP per-week non_cumulative impressions across all
+      // weekly buckets equals the whole-report cross-publisher impressions total. Reach cannot
+      // be summed this way (a VID reached in two weeks is counted twice in the non_cumulative
+      // sum but once in the union total); impressions add cleanly because each impression is
+      // counted once at its actual time.
+      val perEdpImpressionsSum: Long =
+        perEdpNonCumulativeResults.sumOf { r ->
+          r.metricSet.componentsList.sumOf { c -> c.value.nonCumulative.impressions }
+        }
+      assertWithMessage("sum of per-EDP per-week non_cumulative impressions")
+        .that(perEdpImpressionsSum)
+        .isEqualTo(EXPECTED_CROSS_PUBLISHER_IMPRESSIONS)
+
+      // Union cumulative reach is monotonically non-decreasing across
+      // increasing `metricEndTime`s.
+      val cumulativeReachesByEndTime =
+        unionCumulativeResults
+          .sortedBy { it.metadata.metricEndTime.seconds }
+          .map { it.metricSet.reportingUnit.cumulative.reach }
+      assertWithMessage("union cumulative reach monotonically non-decreasing")
+        .that(cumulativeReachesByEndTime.zipWithNext { a, b -> b >= a }.all { it })
+        .isTrue()
+
+      assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
+    }
+
+  @Test
+  fun `basic report with two result_group_specs different component orderings both succeed`() =
+    runBlocking {
+      val eventGroups = getMultiEdpEventGroups()
+      check(eventGroups.size > 1)
+      val distinctDps = eventGroups.map { it.cmmsDataProvider }.distinct()
+      check(distinctDps.size == 2) {
+        "Test requires exactly 2 distinct DPs, got ${distinctDps.size}"
+      }
+
+      // Build the standard single-spec request, then splice in a second result_group_spec
+      // that references the same DPs in reversed order. Both request stackedIncrementalReach
+      // -> different first-component anchors in one BasicReport.
+      val baseRequest =
+        buildCreateBasicReportRequest(
+          eventGroups,
+          "multi-edp-two-anchor-campaign",
+          "multi-edp-two-anchor-basicreport",
+          includeIqfFilter = false,
+        )
+      val originalSpec = baseRequest.basicReport.resultGroupSpecsList.single()
+      val reversedSpec =
+        originalSpec.copy {
+          title = "reversed"
+          reportingUnit =
+            reportingUnit.copy {
+              components.clear()
+              components += distinctDps.reversed()
+            }
+        }
+      val originalSpecTitled = originalSpec.copy { title = "original" }
+      val createBasicReportRequest =
+        baseRequest.copy {
+          basicReport =
+            basicReport.copy {
+              resultGroupSpecs.clear()
+              resultGroupSpecs += originalSpecTitled
+              resultGroupSpecs += reversedSpec
+            }
+        }
+
+      val createdBasicReport =
+        reportingBasicReportsClient
+          .withCallCredentials(credentials)
+          .createBasicReport(createBasicReportRequest)
+
+      executeBasicReportsReportsJob(createdBasicReport.name)
+      executeReportProcessorJob()
+
+      val completedBasicReport =
+        reportingBasicReportsClient
+          .withCallCredentials(credentials)
+          .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+      assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+      assertThat(completedBasicReport.resultGroupsList).hasSize(2)
+
+      val resultGroupsByTitle =
+        completedBasicReport.resultGroupsList.associate { it.title to it.resultsList.single() }
+      val originalResult = resultGroupsByTitle.getValue("original")
+      val reversedResult = resultGroupsByTitle.getValue("reversed")
+
+      val originalStacked = originalResult.metricSet.reportingUnit.stackedIncrementalReachList
+      val reversedStacked = reversedResult.metricSet.reportingUnit.stackedIncrementalReachList
+
+      // Both curves have one point per component.
+      assertThat(originalStacked).hasSize(2)
+      assertThat(reversedStacked).hasSize(2)
+
+      // Each curve sums to the full union reach (regardless of anchor order).
+      assertThat(originalStacked.sum()).isEqualTo(EXPECTED_CROSS_PUBLISHER_REACH)
+      assertThat(reversedStacked.sum()).isEqualTo(EXPECTED_CROSS_PUBLISHER_REACH)
+
+      // The two curves are anchored on different first-components -> different first values.
+      assertThat(originalStacked[0]).isNotEqualTo(reversedStacked[0])
+
+      // Anchor values are the two individual per-EDP reach values (order-independent check).
+      // Confirms each curve's leading point is the reach of *its own* first component,
+      // not a bleed-over from the sibling spec's ordering.
+      assertThat(listOf(originalStacked[0], reversedStacked[0]).sorted())
+        .containsExactly(EXPECTED_EDP_SPEC2_REACH, EXPECTED_EDP_SPEC1_REACH)
+        .inOrder()
+
+      // Cross-spec consistency assertions: The two specs reference the same
+      // underlying components (just in different orderings), so the union metrics and
+      // population size must be identical across specs. If the alias table over- or
+      // under-fires, per-component data can leak between specs; these assertions detect that.
+      val originalUnionCumulative = originalResult.metricSet.reportingUnit.cumulative
+      val reversedUnionCumulative = reversedResult.metricSet.reportingUnit.cumulative
+      assertWithMessage("cross-spec union cumulative reach equal")
+        .that(originalUnionCumulative.reach)
+        .isEqualTo(reversedUnionCumulative.reach)
+      assertWithMessage("cross-spec union cumulative impressions equal")
+        .that(originalUnionCumulative.impressions)
+        .isEqualTo(reversedUnionCumulative.impressions)
+      assertWithMessage("cross-spec population size equal")
+        .that(originalResult.metricSet.populationSize)
+        .isEqualTo(reversedResult.metricSet.populationSize)
+      // Each spec must expose both DPs in its componentsList (component-scoped result must not
+      // silently drop a DP under the reordering).
+      assertWithMessage("original spec componentsList covers both DPs")
+        .that(originalResult.metricSet.componentsList.map { it.key }.toSet())
+        .containsExactlyElementsIn(distinctDps)
+      assertWithMessage("reversed spec componentsList covers both DPs")
+        .that(reversedResult.metricSet.componentsList.map { it.key }.toSet())
+        .containsExactlyElementsIn(distinctDps)
+
+      assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
+    }
 }
