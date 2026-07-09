@@ -98,6 +98,40 @@ data class EntityKeyId(
   val measurementConsumer: String,
 )
 
+/**
+ * Pairing key used to match a `BatchCreateEventGroups` response row back to its request. Prefers
+ * `entity_key` when populated (the #4175 canonical identifier); otherwise falls back to
+ * `event_group_reference_id`. `validateEventGroup` guarantees at least one is set on the source
+ * `EventGroup`, so [of] always returns a well-formed key.
+ *
+ * Using a sealed class rather than a compound `(refId, entityType, entityId, mc)` tuple keeps the
+ * join robust if the kingdom ever stops echoing the "other" identifier: each side reads only the
+ * identifier the row is actually keyed under.
+ */
+private sealed class CreatePairingKey {
+  data class ByEntityKey(
+    val entityType: String,
+    val entityId: String,
+    val measurementConsumer: String,
+  ) : CreatePairingKey()
+
+  data class ByReferenceId(val referenceId: String, val measurementConsumer: String) :
+    CreatePairingKey()
+
+  companion object {
+    fun of(eventGroup: CmmsEventGroup): CreatePairingKey =
+      if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
+        ByEntityKey(
+          eventGroup.entityKey.entityType,
+          eventGroup.entityKey.entityId,
+          eventGroup.measurementConsumer,
+        )
+      } else {
+        ByReferenceId(eventGroup.eventGroupReferenceId, eventGroup.measurementConsumer)
+      }
+  }
+}
+
 /** A buffered batch write request tagged with identifying info for response zipping and metrics. */
 private data class PendingWrite<T>(
   val eventGroupReferenceId: String,
@@ -467,23 +501,19 @@ class EventGroupSync(
         pendingCreates.clear()
         return
       }
-    // Pair responses to requests by (referenceId, measurementConsumer) rather than list position,
-    // since the batch response order is not guaranteed. The per-batch dedup guard keeps this key
-    // unique within the batch.
-    val pendingByKey =
-      pendingCreates.associateBy {
-        EventGroupKey(
-          it.request.eventGroup.eventGroupReferenceId,
-          it.request.eventGroup.measurementConsumer,
-        )
-      }
+    // Pair responses to requests by whichever identifier the source `EventGroup` was keyed by
+    // (entity_key preferred, event_group_reference_id fallback), rather than list position, since
+    // the batch response order is not guaranteed. Keying only on `event_group_reference_id` is
+    // unsafe once #4175 lands and `EventGroup.event_group_reference_id` is optional: N
+    // entity-key-only items in one batch would collapse to a single `("", mc)` entry and every
+    // response row would resolve to the last request. See #4195 review discussion.
+    val pendingByKey = pendingCreates.associateBy { CreatePairingKey.of(it.request.eventGroup) }
+    check(pendingByKey.size == pendingCreates.size) {
+      "BatchCreateEventGroups pairing keys are not unique within a batch of ${pendingCreates.size};" +
+        " EventGroupSync's per-batch dedup guard should have prevented this."
+    }
     response.eventGroupsList.forEach { syncedEventGroup ->
-      val item =
-        pendingByKey[
-          EventGroupKey(
-            syncedEventGroup.eventGroupReferenceId,
-            syncedEventGroup.measurementConsumer,
-          )]
+      val item = pendingByKey[CreatePairingKey.of(syncedEventGroup)]
       if (item == null) {
         // A well-behaved kingdom only returns EventGroups we requested; skip an unmatched response
         // entry rather than aborting the whole sync run.

@@ -3549,6 +3549,176 @@ class EventGroupSyncTest {
     }
   }
 
+  @Test
+  fun `sync pairs entity-key-only creates correctly when batch response is out of order`() {
+    // Two entity-key-only creates for the same MC. Prior pairing keyed on
+    // (event_group_reference_id, measurement_consumer), which collapses to ("", mc) here — the
+    // regression #4195 addresses. With shuffled response order, each MappedEventGroup must still
+    // map to its own EventGroup resource.
+    wheneverBlocking { eventGroupsServiceMock.batchCreateEventGroups(any()) }
+      .thenAnswer { invocation ->
+        val requests = invocation.getArgument<BatchCreateEventGroupsRequest>(0).requestsList
+        batchCreateEventGroupsResponse {
+          eventGroups +=
+            requests.reversed().mapIndexed { index, req ->
+              cmmsEventGroup {
+                name = "dataProviders/edp/eventGroups/synced-$index"
+                measurementConsumer = req.eventGroup.measurementConsumer
+                eventGroupReferenceId = req.eventGroup.eventGroupReferenceId
+                entityKey = req.eventGroup.entityKey
+                eventGroupMetadata = req.eventGroup.eventGroupMetadata
+                dataAvailabilityInterval = req.eventGroup.dataAvailabilityInterval
+                mediaTypes += req.eventGroup.mediaTypesList
+              }
+            }
+        }
+      }
+
+    val sourceA = eventGroup {
+      eventGroupReferenceId = ""
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand"
+            campaign = "campaign"
+          }
+        }
+      }
+      entityKey = entityKey {
+        entityType = "creative"
+        entityId = "cr-A"
+      }
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.VIDEO)
+    }
+    val sourceB = eventGroup {
+      eventGroupReferenceId = ""
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand"
+            campaign = "campaign"
+          }
+        }
+      }
+      entityKey = entityKey {
+        entityType = "creative"
+        entityId = "cr-B"
+      }
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.VIDEO)
+    }
+
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        listOf(sourceA, sourceB).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+        entityKeyTypes = emptyList(),
+      )
+    val mappings = runBlocking { eventGroupSync.sync().toList() }
+
+    // Each MappedEventGroup must carry its own entity_key alongside the matching resource name —
+    // the collision bug produced the same resource name for every row.
+    val byEntityId = mappings.associateBy { it.entityKey.entityId }
+    assertThat(byEntityId.keys).containsExactly("cr-A", "cr-B")
+    assertThat(byEntityId.getValue("cr-A").eventGroupResource)
+      .isNotEqualTo(byEntityId.getValue("cr-B").eventGroupResource)
+  }
+
+  @Test
+  fun `sync pairs mixed refId-only and entity-key-only creates correctly in one batch`() {
+    // Same batch mixes a legacy (refId-only) create with an entity-key-only create. Pairing must
+    // pick the right identifier per row on both request and response sides.
+    wheneverBlocking { eventGroupsServiceMock.batchCreateEventGroups(any()) }
+      .thenAnswer { invocation ->
+        val requests = invocation.getArgument<BatchCreateEventGroupsRequest>(0).requestsList
+        batchCreateEventGroupsResponse {
+          eventGroups +=
+            requests.reversed().mapIndexed { index, req ->
+              cmmsEventGroup {
+                name = "dataProviders/edp/eventGroups/synced-mixed-$index"
+                measurementConsumer = req.eventGroup.measurementConsumer
+                eventGroupReferenceId = req.eventGroup.eventGroupReferenceId
+                entityKey = req.eventGroup.entityKey
+                eventGroupMetadata = req.eventGroup.eventGroupMetadata
+                dataAvailabilityInterval = req.eventGroup.dataAvailabilityInterval
+                mediaTypes += req.eventGroup.mediaTypesList
+              }
+            }
+        }
+      }
+
+    val refIdOnly = eventGroup {
+      eventGroupReferenceId = "legacy-ref-1"
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand"
+            campaign = "campaign"
+          }
+        }
+      }
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.OTHER)
+    }
+    val entityKeyOnly = eventGroup {
+      eventGroupReferenceId = ""
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand"
+            campaign = "campaign"
+          }
+        }
+      }
+      entityKey = entityKey {
+        entityType = "creative"
+        entityId = "cr-mixed"
+      }
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.VIDEO)
+    }
+
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        listOf(refIdOnly, entityKeyOnly).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+        entityKeyTypes = emptyList(),
+      )
+    val mappings = runBlocking { eventGroupSync.sync().toList() }
+
+    assertThat(mappings).hasSize(2)
+    val legacy = mappings.single { it.eventGroupReferenceId == "legacy-ref-1" }
+    val entityKeyed = mappings.single { it.entityKey.entityId == "cr-mixed" }
+    assertThat(legacy.eventGroupResource).isNotEqualTo(entityKeyed.eventGroupResource)
+    assertThat(legacy.entityKey.entityId).isEmpty()
+    assertThat(entityKeyed.eventGroupReferenceId).isEmpty()
+  }
+
   companion object {
     private val CAMPAIGNS =
       listOf(
