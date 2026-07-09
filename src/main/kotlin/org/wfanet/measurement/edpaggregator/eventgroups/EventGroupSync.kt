@@ -121,12 +121,18 @@ private sealed class CreatePairingKey {
   companion object {
     fun of(eventGroup: CmmsEventGroup): CreatePairingKey =
       if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
+        require(eventGroup.entityKey.entityType.isNotBlank()) {
+          "EventGroup.entity_key.entity_type must be non-blank when entity_id is set"
+        }
         ByEntityKey(
           eventGroup.entityKey.entityType,
           eventGroup.entityKey.entityId,
           eventGroup.measurementConsumer,
         )
       } else {
+        require(eventGroup.eventGroupReferenceId.isNotBlank()) {
+          "EventGroup must have a non-blank event_group_reference_id when entity_key is unset"
+        }
         ByReferenceId(eventGroup.eventGroupReferenceId, eventGroup.measurementConsumer)
       }
   }
