@@ -67,7 +67,7 @@ abstract class EncryptedRecordIoStore(
     )
 
   companion object {
-    const val TINK_KEY_TEMPLATE = "AES128_GCM"
+    const val TINK_KEY_TEMPLATE = "AES256_GCM_HKDF_1MB"   // a StreamingAeadKey
     private const val TYPE_URL_TINK_KEYSET = "type.googleapis.com/google.crypto.tink.Keyset"
   }
 }
