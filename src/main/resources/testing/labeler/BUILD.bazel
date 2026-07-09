@@ -12,5 +12,8 @@ filegroup(
     name = "single_id_model_riegeli",
     testonly = True,
     srcs = ["single_id_model_riegeli_list"],
-    visibility = ["//src/test/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:__pkg__"],
+    visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/subpoolassigner:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:__pkg__",
+    ],
 )
