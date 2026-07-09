@@ -517,6 +517,7 @@ abstract class PoolAssignmentJobServiceTest {
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
         etag = created.etag
+        encryptedDek = ENCRYPTED_DEK
       }
     )
 
@@ -635,6 +636,7 @@ abstract class PoolAssignmentJobServiceTest {
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
           etag = created.etag
+          encryptedDek = ENCRYPTED_DEK
         }
       )
 
@@ -664,6 +666,7 @@ abstract class PoolAssignmentJobServiceTest {
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
           etag = created.etag
+          encryptedDek = ENCRYPTED_DEK
           this.requestId = requestId
         }
       )
@@ -675,6 +678,7 @@ abstract class PoolAssignmentJobServiceTest {
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
           etag = created.etag
+          encryptedDek = ENCRYPTED_DEK
           this.requestId = requestId
         }
       )
@@ -704,6 +708,7 @@ abstract class PoolAssignmentJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
             etag = "wrong-etag"
+            encryptedDek = ENCRYPTED_DEK
           }
         )
       }
@@ -733,6 +738,7 @@ abstract class PoolAssignmentJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
             etag = created.etag
+            encryptedDek = ENCRYPTED_DEK
           }
         )
 
@@ -744,6 +750,7 @@ abstract class PoolAssignmentJobServiceTest {
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
               etag = response.poolAssignmentJob.etag
+              encryptedDek = ENCRYPTED_DEK
             }
           )
         }
@@ -832,6 +839,7 @@ abstract class PoolAssignmentJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
             etag = created.etag
+            encryptedDek = ENCRYPTED_DEK
           }
         )
 
@@ -861,12 +869,51 @@ abstract class PoolAssignmentJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = "nonexistent-job"
             etag = "some-etag"
+            encryptedDek = ENCRYPTED_DEK
           }
         )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded throws INVALID_ARGUMENT if encrypted_dek not set`() =
+    runBlocking {
+      val created: PoolAssignmentJob =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            poolAssignmentJob = poolAssignmentJob {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
+          }
+        )
+
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.markPoolAssignmentJobSucceeded(
+            markPoolAssignmentJobSucceededRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
+              etag = created.etag
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "encrypted_dek"
+          }
+        )
+    }
 
   @Test
   fun `markPoolAssignmentJobSucceeded persists encrypted_dek`() = runBlocking {
@@ -1006,6 +1053,7 @@ abstract class PoolAssignmentJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = shard0.poolAssignmentJobResourceId
             etag = shard0.etag
+            encryptedDek = ENCRYPTED_DEK
           }
         )
       assertThat(firstResponse.hasLastShardResult()).isFalse()
@@ -1017,6 +1065,7 @@ abstract class PoolAssignmentJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = shard1.poolAssignmentJobResourceId
             etag = shard1.etag
+            encryptedDek = ENCRYPTED_DEK
             poolOffsets += POOL_OFFSETS
             maxEventDate = MAX_EVENT_DATE
           }
@@ -1048,6 +1097,7 @@ abstract class PoolAssignmentJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = shard.poolAssignmentJobResourceId
             etag = shard.etag
+            encryptedDek = ENCRYPTED_DEK
           }
         )
 
@@ -1076,6 +1126,7 @@ abstract class PoolAssignmentJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = shard.poolAssignmentJobResourceId
             etag = shard.etag
+            encryptedDek = ENCRYPTED_DEK
             poolOffsets += POOL_OFFSETS
             maxEventDate = MAX_EVENT_DATE
           }
@@ -1111,6 +1162,7 @@ abstract class PoolAssignmentJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = shard.poolAssignmentJobResourceId
             etag = shard.etag
+            encryptedDek = ENCRYPTED_DEK
             this.requestId = requestId
             poolOffsets += POOL_OFFSETS
             maxEventDate = MAX_EVENT_DATE
@@ -1125,6 +1177,7 @@ abstract class PoolAssignmentJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = shard.poolAssignmentJobResourceId
             etag = shard.etag
+            encryptedDek = ENCRYPTED_DEK
             this.requestId = requestId
           }
         )
@@ -1174,6 +1227,7 @@ abstract class PoolAssignmentJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = shard0.poolAssignmentJobResourceId
             etag = shard0.etag
+            encryptedDek = ENCRYPTED_DEK
             this.requestId = requestId
           }
         )
@@ -1186,6 +1240,7 @@ abstract class PoolAssignmentJobServiceTest {
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           poolAssignmentJobResourceId = shard1.poolAssignmentJobResourceId
           etag = shard1.etag
+          encryptedDek = ENCRYPTED_DEK
           poolOffsets += POOL_OFFSETS
           maxEventDate = MAX_EVENT_DATE
         }
@@ -1198,6 +1253,7 @@ abstract class PoolAssignmentJobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = shard0.poolAssignmentJobResourceId
             etag = shard0.etag
+            encryptedDek = ENCRYPTED_DEK
             this.requestId = requestId
           }
         )
@@ -1258,6 +1314,7 @@ abstract class PoolAssignmentJobServiceTest {
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           poolAssignmentJobResourceId = modelLineAShard0.poolAssignmentJobResourceId
           etag = modelLineAShard0.etag
+          encryptedDek = ENCRYPTED_DEK
         }
       )
     assertThat(firstResponse.hasLastShardResult()).isFalse()
@@ -1271,6 +1328,7 @@ abstract class PoolAssignmentJobServiceTest {
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           poolAssignmentJobResourceId = modelLineAShard1.poolAssignmentJobResourceId
           etag = modelLineAShard1.etag
+          encryptedDek = ENCRYPTED_DEK
           poolOffsets += POOL_OFFSETS
           maxEventDate = MAX_EVENT_DATE
         }
@@ -1315,6 +1373,7 @@ abstract class PoolAssignmentJobServiceTest {
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
           etag = failed.etag
+          encryptedDek = ENCRYPTED_DEK
         }
       )
 
