@@ -206,7 +206,9 @@ class BasicReportsService(
         // ReportingSet ReportingUnit components (the only case where campaign_group may be omitted)
         // are gated behind a deployment flag. When disabled, campaign_group is required as before.
         if (!enableReportingSetReportingUnitComponents) {
-          throw RequiredFieldNotSetException("basic_report.campaign_group")
+          throw RequiredFieldNotSetException("basic_report.campaign_group") { fieldPath ->
+              "$fieldPath must be specified when ReportingSet ReportingUnits are not enabled"
+            }
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
         null

@@ -123,8 +123,8 @@ a dummy value for `spanner_instance`.
 
 Note: `reporting_set_reporting_unit_components_enabled` gates whether `BasicReport`
 `ReportingUnit`s may reference `ReportingSet`s (with a server-synthesized
-`campaign_group`) rather than only `DataProvider`s. It defaults to `false` and
-should remain `false` until the feature is fully released.
+`campaign_group`) rather than only `DataProvider`s. Set it to `false`; it should
+remain `false` until the feature is fully released.
 
 Extract the generated archive to some directory.
 
