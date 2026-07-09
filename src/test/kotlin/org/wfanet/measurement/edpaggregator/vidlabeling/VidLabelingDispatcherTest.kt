@@ -62,12 +62,17 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
+import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
@@ -93,6 +98,12 @@ class VidLabelingDispatcherTest {
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase =
     mockService()
   private val workItemsService: WorkItemsGrpcKt.WorkItemsCoroutineImplBase = mockService()
+  private val poolAssignmentJobService:
+    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase =
+    mockService()
+  private val vidLabelingJobService:
+    VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase =
+    mockService()
   private val storageClient: StorageClient = mock()
 
   @get:Rule
@@ -104,6 +115,12 @@ class VidLabelingDispatcherTest {
     addService(rawImpressionUploadFileService)
     addService(rawImpressionUploadModelLineService)
     addService(workItemsService)
+    addService(poolAssignmentJobService)
+    addService(vidLabelingJobService)
+  }
+
+  private val poolAssignmentJobStub by lazy {
+    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val modelLinesStub by lazy {
@@ -138,6 +155,10 @@ class VidLabelingDispatcherTest {
 
   private val workItemsStub by lazy {
     WorkItemsGrpcKt.WorkItemsCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private val vidLabelingJobStub by lazy {
+    VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val fixedClock: Clock = Clock.fixed(FIXED_NOW, ZoneId.of("UTC"))
@@ -179,13 +200,20 @@ class VidLabelingDispatcherTest {
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
       workItemsStub = workItemsStub,
+      poolAssignmentJobStub = poolAssignmentJobStub,
       modelRolloutsStub = modelRolloutsStub,
       modelShardsStub = modelShardsStub,
+      modelLinesStub = modelLinesStub,
       dataProviderName = DATA_PROVIDER_NAME,
       vidLabelerParamsTemplate = vidLabelerParams {},
+      subpoolAssignerParamsTemplate = SubpoolAssignerParams.getDefaultInstance(),
       queueName = QUEUE_NAME,
+      poolAssignerQueueName = POOL_ASSIGNER_QUEUE_NAME,
       numberOfShards = NUMBER_OF_SHARDS,
       modelLineConfigs = modelLineConfigs,
+      rawImpressionUploadFileStub = rawImpressionUploadFilesStub,
+      vidLabelingJobStub = vidLabelingJobStub,
+      maxFileBatchSizeBytes = MAX_FILE_BATCH_SIZE_BYTES,
     )
   }
 
@@ -210,9 +238,10 @@ class VidLabelingDispatcherTest {
     )
   }
 
-  private fun createMockBlob(key: String): StorageClient.Blob {
+  private fun createMockBlob(key: String, size: Long = 100L): StorageClient.Blob {
     val blob: StorageClient.Blob = mock()
     whenever(blob.blobKey).thenReturn(key)
+    whenever(blob.size).thenReturn(size)
     return blob
   }
 
@@ -309,8 +338,8 @@ class VidLabelingDispatcherTest {
   @Test
   fun `upload creates a RawImpressionUploadFile for each blob`() =
     runBlocking<Unit> {
-      val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
-      val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet")
+      val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet", size = 111L)
+      val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet", size = 222L)
       whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2))
       stubRawImpressionUploadCreation()
       stubFullResolutionChain(MODEL_LINE_1)
@@ -333,6 +362,9 @@ class VidLabelingDispatcherTest {
           "file:///$bucket/$FOLDER_PREFIX/file1.parquet",
           "file:///$bucket/$FOLDER_PREFIX/file2.parquet",
         )
+      // size_bytes is populated from each blob's size in the storage listing.
+      assertThat(request.requestsList.map { it.rawImpressionUploadFile.sizeBytes })
+        .containsExactly(111L, 222L)
     }
 
   @Test
@@ -727,7 +759,9 @@ class VidLabelingDispatcherTest {
     private const val RAW_IMPRESSION_UPLOAD_ID = "upload-abc123"
     private const val DONE_BLOB_GENERATION = 12345L
     private const val NUMBER_OF_SHARDS = 2
+    private const val MAX_FILE_BATCH_SIZE_BYTES = 1000L
     private const val QUEUE_NAME = "queues/vid-labeler"
+    private const val POOL_ASSIGNER_QUEUE_NAME = "queues/pool-assigner"
 
     private val FIXED_NOW: Instant = Instant.parse("2026-06-03T12:00:00Z")
 
@@ -740,11 +774,25 @@ class VidLabelingDispatcherTest {
       mapOf(
         MODEL_LINE_1 to
           VidLabelerParamsKt.modelLineConfig {
-            labelerInputFieldMapping["age"] = "user_age"
-            labelerInputFieldMapping["gender"] = "user_gender"
+            labelerInputFieldMapping +=
+              LabelerInputFieldMapping.newBuilder()
+                .setFieldPath("age")
+                .setScalar(ScalarColumn.newBuilder().setColumn("user_age"))
+                .build()
+            labelerInputFieldMapping +=
+              LabelerInputFieldMapping.newBuilder()
+                .setFieldPath("gender")
+                .setScalar(ScalarColumn.newBuilder().setColumn("user_gender"))
+                .build()
           },
         MODEL_LINE_2 to
-          VidLabelerParamsKt.modelLineConfig { labelerInputFieldMapping["age"] = "user_age" },
+          VidLabelerParamsKt.modelLineConfig {
+            labelerInputFieldMapping +=
+              LabelerInputFieldMapping.newBuilder()
+                .setFieldPath("age")
+                .setScalar(ScalarColumn.newBuilder().setColumn("user_age"))
+                .build()
+          },
       )
   }
 }

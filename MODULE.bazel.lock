@@ -553,8 +553,8 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.14.0/source.json": "abc2a96da0f5af0a85672811998798a55a8dce68083a470cfd341c68e06d2262",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.129.0/MODULE.bazel": "2bf570f12d4cd8b5d743bc3d619b7bd554f7f18d8179114c33a30f39abb7e447",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.144.0/MODULE.bazel": "ae82b24c179800af0ae855fa33730741f47136d8034e0302ca8d7a460c1bd853",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.146.1/MODULE.bazel": "bf4d7ee476364eb1ddbf1330744e0cb6e0b3fcc4f0716cbf516eb0ed403e6721",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.146.1/source.json": "e83f1a0029d11766b83c0bea8cfdc7519c15e5a5c3c2ffaca18d9337d50bffc9",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.147.0/MODULE.bazel": "c698f095eba2dc821c88b6b5f743b2d3c9d71cb00d3b9d136b446b985b179230",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.147.0/source.json": "9f4f1b15557da50384b57316b3cdfdc5450c65973571ef79e56e30ded51502ed",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.23.0/MODULE.bazel": "5fde5a3f897ec6a39300666bc745cb309b4c12e74ce4fcddef6429e5e4a627a2",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.23.0/source.json": "3798af185e6c71cabea6550303035ea4ad325a6d53854ab056ee6c93acf03b89",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/crc32c/1.1.0/MODULE.bazel": "not found",
@@ -2354,7 +2354,7 @@
     "@@rules_oci+//oci:extensions.bzl%oci": {
       "general": {
         "bzlTransitiveDigest": "s075cVqoQaL7Zz3pYrDkPf02xkWwcVTAoV2PmzVV3x8=",
-        "usagesDigest": "g1zK4tN2H0ugrO9EaCgnIcvVytXmX5oCBPKijHtkE2g=",
+        "usagesDigest": "LbpSCdAM6NXzCmSu6GnWpyKW8i8N0HfOLB54DQd3UYo=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
