@@ -7836,29 +7836,30 @@ class BasicReportsServiceTest {
         )
     }
 
-  // Regression for the orphan-row property that every pre-internal-create validation block
-  // is responsible for: a request that fails validation must fail on `createBasicReport` AND
-  // leave no internal BasicReport row behind. Uses the "wrong enum value" rejection path
-  // (`CreateBasicReportRequestValidation` -> `EventTemplateFieldInvalid`, exits at the
-  // request-validation stage well before the CEL compile-check block runs). Any block that
-  // is reordered past `internalCreate` -- including CEL validation -- would fail the
-  // `getBasicReport ... NOT_FOUND` assertion below.
-  //
-  // Note: this specifically pins request-validation ordering, not CEL-validation ordering.
-  // See discussion on PR #4077. Every user-input filter shape that would reach the CEL
-  // block on the current test event templates is already rejected by
-  // `CreateBasicReportRequestValidation` upstream (`validateEventTemplateFieldValue`
-  // unconditionally rejects `FLOAT_VALUE` from user input, requires `selectorCase` to match
-  // the field's protobuf type for all other cases, and requires enum names to be valid).
-  // The CEL block is defense-in-depth against future regressions in those upstream
-  // validators or against `toCelValue` receiving a value shape it does not round-trip
-  // safely (see `CelPredicates`'s KDoc for the specific classes it backstops).
-  // Constructing a service-level test that reaches the CEL block would require injecting
-  // a test double for one of the upstream validators or adding a STRING / FLOAT-typed
-  // `IMPRESSION_QUALIFICATION` field to the test event template; both are out of scope for
-  // this PR. The CEL block's routing is covered directly by unit tests in
-  // `BasicReportTransformationsTest` (`Custom IQF with bad CEL ...`,
-  // `Base IQF with bad CEL ...`, `Named IQF with bad CEL ...`).
+  /**
+   * Regression for the orphan-row property that every pre-internal-create validation block is
+   * responsible for: a request that fails validation must fail on `createBasicReport` AND leave no
+   * internal BasicReport row behind. Uses the "wrong enum value" rejection path
+   * (`CreateBasicReportRequestValidation` -> `EventTemplateFieldInvalid`, exits at the
+   * request-validation stage well before the CEL compile-check block runs). Any block that is
+   * reordered past `internalCreate` -- including CEL validation -- would fail the `getBasicReport
+   * ... NOT_FOUND` assertion below.
+   *
+   * This specifically pins request-validation ordering, not CEL-validation ordering. Every
+   * user-input filter shape that would reach the CEL block on the current test event templates is
+   * already rejected by `CreateBasicReportRequestValidation` upstream
+   * (`validateEventTemplateFieldValue` unconditionally rejects `FLOAT_VALUE` from user input,
+   * requires `selectorCase` to match the field's protobuf type for all other cases, and requires
+   * enum names to be valid). The CEL block is defense-in-depth against future regressions in those
+   * upstream validators or against `toCelValue` receiving a value shape it does not round-trip
+   * safely (see `CelPredicates`'s KDoc for the specific classes it backstops).
+   *
+   * Constructing a service-level test that reaches the CEL block would require injecting a test
+   * double for one of the upstream validators or adding a STRING / FLOAT-typed
+   * `IMPRESSION_QUALIFICATION` field to the test event template; both are out of scope. The CEL
+   * block's routing is covered directly by unit tests in `BasicReportTransformationsTest` (`Custom
+   * IQF with bad CEL ...`, `Base IQF with bad CEL ...`, `Named IQF with bad CEL ...`).
+   */
   @Test
   fun `createBasicReport with bad request leaves no internal BasicReport row`() = runBlocking {
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
