@@ -420,6 +420,7 @@ private object V2AlphaPublicApiServer {
             measurementConsumerConfigs,
             defaultReportStartHour,
             baseImpressionQualificationFilters.map { it.externalImpressionQualificationFilterId },
+            reportingApiServerFlags.enableReportingSetReportingUnitComponents,
             v2AlphaPublicServerFlags.emitCelNullGuardsForNestedMembers,
             serviceDispatcher,
           )

@@ -18,7 +18,7 @@ package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
 import "google/type/date.proto";
-import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
+import "wfa/measurement/internal/edpaggregator/encrypted_dek.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
@@ -35,35 +35,37 @@ message RawImpressionUploadModelLine {
   // Resource ID of the parent upload.
   string raw_impression_upload_resource_id = 2;
 
+  // Resource ID of this record (server-generated).
+  string raw_impression_upload_model_line_resource_id = 3;
+
   // The CMMS model line resource name this record tracks.
-  string cmms_model_line = 3;
+  string cmms_model_line = 4;
 
   // The pipeline state for this model line.
-  RawImpressionUploadModelLineState state = 4;
+  RawImpressionUploadModelLineState state = 5;
 
   // The timestamp when this record was created.
-  google.protobuf.Timestamp create_time = 5;
+  google.protobuf.Timestamp create_time = 6;
 
   // The timestamp when this record was last updated.
-  google.protobuf.Timestamp update_time = 6;
+  google.protobuf.Timestamp update_time = 7;
 
   // Detail about the failure, set when state is FAILED.
-  string error_message = 7;
+  string error_message = 8;
 
   // Entity tag for optimistic concurrency control.
-  string etag = 8;
+  string etag = 9;
 
   // Union of subpool offsets discovered across all shards during Phase 0;
   // populated on last-shard-out.
-  repeated int64 pool_offsets = 9;
+  repeated int64 pool_offsets = 10;
 
   // Maximum event date (UTC) across all impressions discovered during Phase 0;
   // populated on last-shard-out alongside `pool_offsets`.
-  google.type.Date max_event_date = 10;
+  google.type.Date max_event_date = 11;
 
   // DEK that encrypts the merged per-subpool SubpoolFingerprints blobs; the
   // last shard's encrypted_dek, promoted on last-shard-out so a retrying
   // SubpoolAssigner reuses it.
-  wfa.measurement.securecomputation.impressions.EncryptedDek
-      encrypted_merged_dek = 11;
+  EncryptedDek encrypted_merged_dek = 12;
 }

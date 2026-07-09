@@ -1,0 +1,66 @@
+/*
+ * Copyright 2026 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.edpaggregator.subpoolassigner
+
+import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ByteString
+import java.nio.file.Paths
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.virtualpeople.common.eventId
+import org.wfanet.virtualpeople.common.labelerInput
+
+@RunWith(JUnit4::class)
+class VirtualPeoplePoolEmitLabelerTest {
+  @Test
+  fun `fromCompiledNodeBlob reads a Riegeli CompiledNode list`() {
+    val modelBlob: ByteString =
+      MODEL_BLOB_PATH.toFile().inputStream().use { ByteString.readFrom(it) }
+
+    // Loads without throwing: the blob is a Riegeli record list, so the pre-fix single-node
+    // `CompiledNode.parseFrom(modelBlob)` threw here; the list reader succeeds.
+    val labeler = VirtualPeoplePoolEmitLabeler.fromCompiledNodeBlob(modelBlob)
+    val offsets = labeler.emit(labelerInput { eventId = eventId { id = "any-event" } })
+
+    // `single_id_model` is a single-VID model with no `RankedPopulationNode`, so POOL_IDENTITY
+    // emits no pool offsets. The point of this test is that the Riegeli list is read and the
+    // `Labeler` builds — the load path the pre-fix loader broke.
+    assertThat(offsets).isEmpty()
+  }
+
+  companion object {
+    /**
+     * Riegeli-encoded `CompiledNode` list, vendored from `virtual-people-core-serving` v0.3.1 into
+     * `src/main/resources/testing/labeler`. Shared with `VirtualPeopleVidAssignerTest`; exercises
+     * the Riegeli-list read path in [VirtualPeoplePoolEmitLabeler.fromCompiledNodeBlob].
+     */
+    private val MODEL_BLOB_PATH =
+      getRuntimePath(
+        Paths.get(
+          "wfa_measurement_system",
+          "src",
+          "main",
+          "resources",
+          "testing",
+          "labeler",
+          "single_id_model_riegeli_list",
+        )
+      )!!
+  }
+}
