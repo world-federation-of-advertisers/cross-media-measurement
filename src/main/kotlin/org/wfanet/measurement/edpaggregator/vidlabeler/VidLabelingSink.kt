@@ -94,8 +94,8 @@ import org.wfanet.virtualpeople.common.copy
  * @param modelLineContexts model lines to label with, each with its [ActiveWindow] and
  *   [VidAssigner].
  * @param impressionConverter converts a Parquet row into a [ConvertedImpression] (schema seam).
- * @param fileEntityKeys this file's entity keys (and event group reference id), read from its
- *   plaintext Parquet footer and applied to every impression converted from the file.
+ * @param fileEntityKeys this file's per-file metadata (event date), read from its plaintext Parquet
+ *   footer and used to place the labeled output under `model-line/<id>/<YYYY-MM-DD>/`.
  * @param encryptKmsClient encrypt/decrypt KMS client for the labeled output.
  * @param encryptKekUri KEK URI for generating per-output DEKs.
  * @param outputStorageParams GCS project + blob prefix for labeled output.
@@ -146,7 +146,7 @@ class VidLabelingSink(
     for (digestedEvent in events) {
       for (context in modelLineContexts) {
         try {
-          val converted = impressionConverter.convert(digestedEvent, context.config, fileEntityKeys)
+          val converted = impressionConverter.convert(digestedEvent, context.config)
           if (converted == null) {
             metrics.impressionsDroppedCounter.add(
               1,
@@ -202,7 +202,6 @@ class VidLabelingSink(
                   eventTime = converted.eventTime
                   vid = person.virtualPersonId
                   event = converted.event
-                  eventGroupReferenceId = converted.eventGroupReferenceId
                   entityKeys += converted.entityKeys
                 },
               )
@@ -463,9 +462,8 @@ data class ModelLineContext(
 )
 
 /**
- * Identifies one labeled-output blob within an input file: one blob per model line. New writers
- * group by model line and carry the per-blob entity-key union on `BlobDetails.entity_keys` rather
- * than splitting output by the legacy `event_group_reference_id`.
+ * Identifies one labeled-output blob within an input file: one blob per model line. Writers group by
+ * model line and carry the per-blob entity-key union on `BlobDetails.entity_keys`.
  */
 private data class OutputGroupKey(val modelLine: String)
 
