@@ -49,10 +49,14 @@ isolation, retries, sync modes), see the KDoc on `EventGroupActivitySync`.
       gs://secure-computation-storage-<env>-bucket/edp/<edp>/spot-data.json
     ```
 
-    List real EventGroups for the DataProvider via
-    `grpcurl … v2alpha.kingdom.<env>.halo-cmm.org:8443
-    wfa.measurement.api.v2alpha.EventGroups/ListEventGroups` so the `parent`
-    values reference resources that actually exist in the Kingdom.
+    List real EventGroups for the DataProvider so the `parent`
+    values reference resources that actually exist in the Kingdom:
+
+    ```shell
+    grpcurl -cert <client.pem> -key <client.key> \
+      v2alpha.kingdom.<env>.halo-cmm.org:8443 \
+      wfa.measurement.api.v2alpha.EventGroups/ListEventGroups
+    ```
 
 ## Provision a Workload Identity binding for the CronJob's SA
 
