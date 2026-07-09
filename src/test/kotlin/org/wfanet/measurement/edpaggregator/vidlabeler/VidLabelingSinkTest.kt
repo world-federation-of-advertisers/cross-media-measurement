@@ -159,9 +159,8 @@ class VidLabelingSinkTest {
 
       val blobDetails = readSoleBlobDetails()
       assertThat(blobDetails.modelLine).isEqualTo(MODEL_LINE)
-      // The sink records the file's first non-empty event_group_reference_id for
-      // DataAvailabilitySync (TODO(#4175) removes this end-to-end).
-      assertThat(blobDetails.eventGroupReferenceId).isEqualTo("eg1")
+      // The sink no longer stamps event_group_reference_id on the sidecar (#4175); the per-blob
+      // entity-key union identifies the blob for DataAvailabilitySync instead.
 
       val impressions = readImpressions(blobDetails)
       assertThat(impressions).hasSize(2)
