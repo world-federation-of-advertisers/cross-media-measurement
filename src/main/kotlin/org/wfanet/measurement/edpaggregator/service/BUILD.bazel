@@ -19,6 +19,7 @@ kt_jvm_library(
         "RankerJobKey.kt",
         "RawImpressionMetadataKey.kt",
         "RawImpressionUploadKey.kt",
+        "RawImpressionUploadModelLineKey.kt",
         "RequisitionMetadataKey.kt",
         "VidLabelingJobKey.kt",
     ],
