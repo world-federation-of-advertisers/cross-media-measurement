@@ -474,7 +474,7 @@ class BasicReportsService(
       Map<ReportingSet, List<InternalMetricCalculationSpec.Details>> =
       try {
         buildReportingSetMetricCalculationSpecDetailsMap(
-          campaignGroupName = request.basicReport.campaignGroup,
+          campaignGroupName = campaignGroupResolution.campaignGroup.name,
           impressionQualificationFilterSpecs = sourcedImpressionQualificationFilterSpecs,
           dataProviderPrimitiveReportingSetMap =
             reportingSetMaps.primitiveReportingSetsByComponentKey.mapKeys { it.key.toName() },

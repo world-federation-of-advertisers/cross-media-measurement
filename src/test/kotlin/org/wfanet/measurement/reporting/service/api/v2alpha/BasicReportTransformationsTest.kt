@@ -3556,6 +3556,260 @@ class BasicReportTransformationsTest {
     assertThat(exception.message).contains("abc")
   }
 
+  // STRING_VALUE branch: assert the transformer emits a properly-quoted CEL string
+  // literal for a base IQF whose stringValue lands on a STRING IMPRESSION_QUALIFICATION
+  // field. Uses TestingOnly.testing_string (see event_templates/testing/testing_only.proto).
+
+  @Test
+  fun `toCelValue emits properly quoted STRING literal end to end`() {
+    val filter =
+      buildCelExpression(
+        impressionQualificationFilterSpecs =
+          listOf(
+            impressionQualificationFilterSpec {
+              mediaType = MediaType.OTHER
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "testing_only.testing_string"
+                  value = EventTemplateFieldKt.fieldValue { stringValue = "abc" }
+                }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter).contains("testing_only.testing_string == \"abc\"")
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `toCelValue escapes embedded quote and backslash in STRING literal`() {
+    val filter =
+      buildCelExpression(
+        impressionQualificationFilterSpecs =
+          listOf(
+            impressionQualificationFilterSpec {
+              mediaType = MediaType.OTHER
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "testing_only.testing_string"
+                  value = EventTemplateFieldKt.fieldValue { stringValue = "he said \"hi\\bye\"" }
+                }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter).contains("testing_only.testing_string == \"he said \\\"hi\\\\bye\\\"\"")
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `toCelValue escapes control characters in STRING literal`() {
+    val filter =
+      buildCelExpression(
+        impressionQualificationFilterSpecs =
+          listOf(
+            impressionQualificationFilterSpec {
+              mediaType = MediaType.OTHER
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "testing_only.testing_string"
+                  value =
+                    EventTemplateFieldKt.fieldValue {
+                      stringValue = "line1\nline2\ttab\rreturnbell"
+                    }
+                }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter)
+      .contains("testing_only.testing_string == \"line1\\nline2\\ttab\\rreturn\\u0001bell\"")
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `toCelValue passes through printable non-ASCII in STRING literal`() {
+    val filter =
+      buildCelExpression(
+        impressionQualificationFilterSpecs =
+          listOf(
+            impressionQualificationFilterSpec {
+              mediaType = MediaType.OTHER
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "testing_only.testing_string"
+                  value = EventTemplateFieldKt.fieldValue { stringValue = "café" }
+                }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter).contains("testing_only.testing_string == \"café\"")
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `toCelValue handles empty STRING as empty quoted literal`() {
+    val filter =
+      buildCelExpression(
+        impressionQualificationFilterSpecs =
+          listOf(
+            impressionQualificationFilterSpec {
+              mediaType = MediaType.OTHER
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "testing_only.testing_string"
+                  value = EventTemplateFieldKt.fieldValue { stringValue = "" }
+                }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter).contains("testing_only.testing_string == \"\"")
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `toCelValue emits properly quoted STRING literal via DimensionSpec filter end to end`() {
+    // Coverage that the STRING_VALUE fix works via the DimensionSpec (dimension_spec.filters)
+    // path as well as the IQF path. Same underlying toCelValue branch; different upstream caller
+    // in BasicReportTransformations.buildCelExpression. Uses testing_only.testing_string_filterable
+    // which is FILTERABLE + POPULATION_ATTRIBUTE (rather than IMPRESSION_QUALIFICATION like
+    // testing_string) so it flows through the dimension-spec CEL builder.
+    val filter =
+      buildCelExpression(
+        dimensionSpecFilters =
+          listOf(
+            eventFilter {
+              terms += eventTemplateField {
+                path = "testing_only.testing_string_filterable"
+                value = EventTemplateFieldKt.fieldValue { stringValue = "abc" }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter).contains("testing_only.testing_string_filterable == \"abc\"")
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `toCelValue escapes quotes in STRING literal via DimensionSpec filter`() {
+    val filter =
+      buildCelExpression(
+        dimensionSpecFilters =
+          listOf(
+            eventFilter {
+              terms += eventTemplateField {
+                path = "testing_only.testing_string_filterable"
+                value = EventTemplateFieldKt.fieldValue { stringValue = "he said \"hi\"" }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter).contains("testing_only.testing_string_filterable == \"he said \\\"hi\\\"\"")
+    assertCompilesCleanly(filter)
+  }
+
+  // FLOAT_VALUE branch: finite values pass through; NaN / infinities throw.
+
+  @Test
+  fun `toCelValue emits finite FLOAT literal end to end`() {
+    val filter =
+      buildCelExpression(
+        impressionQualificationFilterSpecs =
+          listOf(
+            impressionQualificationFilterSpec {
+              mediaType = MediaType.OTHER
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "testing_only.testing_float"
+                  value = EventTemplateFieldKt.fieldValue { floatValue = 0.5f }
+                }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+    assertThat(filter).contains("testing_only.testing_float == 0.5")
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `toCelValue rejects NaN FLOAT with IllegalArgumentException`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        buildCelExpression(
+          impressionQualificationFilterSpecs =
+            listOf(
+              impressionQualificationFilterSpec {
+                mediaType = MediaType.OTHER
+                filters += eventFilter {
+                  terms += eventTemplateField {
+                    path = "testing_only.testing_float"
+                    value = EventTemplateFieldKt.fieldValue { floatValue = Float.NaN }
+                  }
+                }
+              }
+            ),
+          eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        )
+      }
+    assertThat(exception.message).contains("non-finite float")
+  }
+
+  @Test
+  fun `toCelValue rejects positive Infinity FLOAT with IllegalArgumentException`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        buildCelExpression(
+          impressionQualificationFilterSpecs =
+            listOf(
+              impressionQualificationFilterSpec {
+                mediaType = MediaType.OTHER
+                filters += eventFilter {
+                  terms += eventTemplateField {
+                    path = "testing_only.testing_float"
+                    value = EventTemplateFieldKt.fieldValue { floatValue = Float.POSITIVE_INFINITY }
+                  }
+                }
+              }
+            ),
+          eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        )
+      }
+    assertThat(exception.message).contains("non-finite float")
+  }
+
+  @Test
+  fun `toCelValue rejects negative Infinity FLOAT with IllegalArgumentException`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        buildCelExpression(
+          impressionQualificationFilterSpecs =
+            listOf(
+              impressionQualificationFilterSpec {
+                mediaType = MediaType.OTHER
+                filters += eventFilter {
+                  terms += eventTemplateField {
+                    path = "testing_only.testing_float"
+                    value = EventTemplateFieldKt.fieldValue { floatValue = Float.NEGATIVE_INFINITY }
+                  }
+                }
+              }
+            ),
+          eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+        )
+      }
+    assertThat(exception.message).contains("non-finite float")
+  }
+
   /**
    * Asserts that [filter] compiles cleanly against a CEL environment built from `TestEvent`. Fails
    * the enclosing test with the CEL diagnostic if compilation fails.
