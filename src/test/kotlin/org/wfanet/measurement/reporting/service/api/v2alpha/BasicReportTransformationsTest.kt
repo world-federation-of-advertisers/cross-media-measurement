@@ -3173,9 +3173,7 @@ class BasicReportTransformationsTest {
   fun `Base IQF with bad CEL throws IllegalStateException naming the IQF id`() {
     for (case in BAD_CEL_CASES) {
       val exception =
-        assertFailsWith<IllegalStateException>(
-          "case: ${case.label} filter='${case.filter}'"
-        ) {
+        assertFailsWith<IllegalStateException>("case: ${case.label} filter='${case.filter}'") {
           validateImpressionQualificationFilterCel(
             env = TEST_CEL_ENV,
             filter = case.filter,
@@ -3191,9 +3189,7 @@ class BasicReportTransformationsTest {
   fun `Named IQF with bad CEL throws IllegalStateException naming the IQF resource and request index`() {
     for (case in BAD_CEL_CASES) {
       val exception =
-        assertFailsWith<IllegalStateException>(
-          "case: ${case.label} filter='${case.filter}'"
-        ) {
+        assertFailsWith<IllegalStateException>("case: ${case.label} filter='${case.filter}'") {
           validateImpressionQualificationFilterCel(
             env = TEST_CEL_ENV,
             filter = case.filter,

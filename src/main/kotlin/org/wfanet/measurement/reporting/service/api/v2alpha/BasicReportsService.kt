@@ -534,7 +534,6 @@ class BasicReportsService(
         }
       }
 
-
     val report: Report =
       try {
         buildReport(

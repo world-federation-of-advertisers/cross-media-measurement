@@ -40,9 +40,7 @@ class CelPredicatesTest {
   @Test
   fun `validate rejects a syntax error with 'not a valid CEL expression'`() {
     val e =
-      assertFailsWith<CelValidationException> {
-        CelPredicates.validate(env, "person.age_group ==")
-      }
+      assertFailsWith<CelValidationException> { CelPredicates.validate(env, "person.age_group ==") }
     assertThat(e.message).contains("not a valid CEL expression")
   }
 
@@ -58,9 +56,7 @@ class CelPredicatesTest {
   @Test
   fun `validate rejects a non-boolean result type`() {
     val e =
-      assertFailsWith<CelValidationException> {
-        CelPredicates.validate(env, "person.age_group")
-      }
+      assertFailsWith<CelValidationException> { CelPredicates.validate(env, "person.age_group") }
     assertThat(e.message).contains("does not evaluate to a boolean")
   }
 

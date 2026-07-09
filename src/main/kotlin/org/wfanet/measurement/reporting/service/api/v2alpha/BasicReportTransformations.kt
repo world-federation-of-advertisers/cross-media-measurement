@@ -56,8 +56,8 @@ import org.wfanet.measurement.reporting.v2alpha.reportingSet
  * - [Custom] failures are user input; the validator surfaces them as `INVALID_ARGUMENT` with the
  *   field path pointing at the offending entry in the request.
  * - [Base] and [Named] failures are server-controlled (a configured or registry-resolved IQF
- *   generated invalid CEL); they surface as an [IllegalStateException] indicating a broken
- *   server invariant.
+ *   generated invalid CEL); they surface as an [IllegalStateException] indicating a broken server
+ *   invariant.
  */
 sealed interface ImpressionQualificationFilterSpecsSource {
   /** [ImpressionQualificationFilterSpec]s from a base (server-configured) IQF. */
@@ -120,10 +120,10 @@ private data class MetricCalculationSpecInfo(
  * @throws org.wfanet.measurement.reporting.service.api.InvalidFieldValueException when a generated
  *   CEL string fails to compile or does not evaluate to a boolean AND the source is user input
  *   ([ImpressionQualificationFilterSpecsSource.Custom] or a [ResultGroupSpec]'s dimension_spec).
- * @throws
- *   [IllegalStateException] when a generated CEL string fails to compile or does not evaluate to
- *   a boolean AND the source is server-controlled ([ImpressionQualificationFilterSpecsSource.Base]
- *   or [ImpressionQualificationFilterSpecsSource.Named]) -- indicates a broken server invariant.
+ * @throws [IllegalStateException] when a generated CEL string fails to compile or does not evaluate
+ *   to a boolean AND the source is server-controlled
+ *   ([ImpressionQualificationFilterSpecsSource.Base] or
+ *   [ImpressionQualificationFilterSpecsSource.Named]) -- indicates a broken server invariant.
  */
 fun buildReportingSetMetricCalculationSpecDetailsMap(
   campaignGroupName: String,
@@ -316,8 +316,8 @@ private fun MediaType.toCmmsMediaType(): CmmsMediaType {
  * - [ImpressionQualificationFilterSpecsSource.Custom] -> [InvalidFieldValueException] anchored at
  *   the offending request entry. Surfaced to the user as `INVALID_ARGUMENT`.
  * - [ImpressionQualificationFilterSpecsSource.Base] / [Named] -> [IllegalStateException]. The CEL
- *   was generated from server-controlled inputs; a failure here indicates a broken server
- *   invariant (server startup should have refused to boot -- see
+ *   was generated from server-controlled inputs; a failure here indicates a broken server invariant
+ *   (server startup should have refused to boot -- see
  *   [org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping]). This
  *   backstop exists so a code path that bypasses startup validation still fails loudly rather than
  *   silently emitting malformed CEL to downstream persistence.

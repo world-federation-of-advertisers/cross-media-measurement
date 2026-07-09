@@ -27,8 +27,10 @@ import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 class CelFilteringMethodsTest {
   @Test
   fun `filterList with Message-based env returns items matching a string-equality filter`() {
-    // Regression for the CelPredicates.buildEnvironment(Message) overload: it must preserve the reflectType
-    // binding that ProtoTypeRegistry.registerMessage installs, so that CelPredicates.filterList can convert
+    // Regression for the CelPredicates.buildEnvironment(Message) overload: it must preserve the
+    // reflectType
+    // binding that ProtoTypeRegistry.registerMessage installs, so that CelPredicates.filterList can
+    // convert
     // runtime MetricCalculationSpec values to CEL native values without falling back to the
     // DynamicMessage path. If the overload regresses to a descriptor-only registration the
     // expected match below either returns the wrong set or throws on conversion.

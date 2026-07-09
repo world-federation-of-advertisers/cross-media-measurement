@@ -179,7 +179,8 @@ class ReportScheduleIterationsService(
 
   companion object {
     const val GET_REPORT_SCHEDULE_PERMISSION = "reporting.reportSchedules.get"
-    private val ENV: Env = CelPredicates.buildEnvironment(ReportScheduleIteration.getDefaultInstance())
+    private val ENV: Env =
+      CelPredicates.buildEnvironment(ReportScheduleIteration.getDefaultInstance())
   }
 }
 

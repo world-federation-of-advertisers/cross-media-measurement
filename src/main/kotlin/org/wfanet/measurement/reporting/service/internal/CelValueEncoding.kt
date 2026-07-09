@@ -24,7 +24,8 @@ import org.wfanet.measurement.internal.reporting.v2.EventTemplateField as Intern
  * Encodes an [InternalEventTemplateField.FieldValue] as a CEL value literal against the given
  * [fieldInfo].
  *
- * Shared between the request-time CEL builder ([org.wfanet.measurement.reporting.service.api.v2alpha
+ * Shared between the request-time CEL builder
+ * ([org.wfanet.measurement.reporting.service.api.v2alpha
  * .BasicReportTransformations.buildCelExpression]) and the server-startup validator
  * ([ImpressionQualificationFilterMapping]) so both sites agree on how each `selectorCase` renders
  * into CEL.
