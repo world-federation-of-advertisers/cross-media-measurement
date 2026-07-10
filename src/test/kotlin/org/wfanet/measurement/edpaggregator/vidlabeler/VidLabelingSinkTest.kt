@@ -46,7 +46,7 @@ import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest
-import org.wfanet.measurement.edpaggregator.rawimpressions.FileEntityKeys
+import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
@@ -86,7 +86,8 @@ class VidLabelingSinkTest {
   private fun sink(
     contexts: List<ModelLineContext>,
     converter: ImpressionConverter = FakeImpressionConverter(),
-    fileEntityKeys: FileEntityKeys = FileEntityKeys(eventDate = LocalDate.parse("2026-06-30")),
+    fileMetadata: RawImpressionFileMetadata =
+      RawImpressionFileMetadata(eventDate = LocalDate.parse("2026-06-30")),
     encryptKmsClient: KmsClient = kmsClient,
     encryptionKeySemaphore: Semaphore =
       Semaphore(VidLabelingSink.DEFAULT_ENCRYPTION_KEY_PARALLELISM),
@@ -95,7 +96,7 @@ class VidLabelingSinkTest {
       inputBlobUri = "file:///raw/file-1.parquet",
       modelLineContexts = contexts,
       impressionConverter = converter,
-      fileEntityKeys = fileEntityKeys,
+      fileMetadata = fileMetadata,
       encryptKmsClient = encryptKmsClient,
       encryptKekUri = kekUri,
       outputStorageParams = outputStorageParams,
@@ -300,9 +301,7 @@ class VidLabelingSinkTest {
         )
 
       assertFailsWith<IllegalArgumentException> {
-        sink.processBatch(
-          listOf(rawEvent(eventTimeMicros = 1_000L, idByte = 1))
-        )
+        sink.processBatch(listOf(rawEvent(eventTimeMicros = 1_000L, idByte = 1)))
       }
     }
 

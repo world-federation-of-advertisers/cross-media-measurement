@@ -111,11 +111,11 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "FileEntityKeysTest",
-    srcs = ["FileEntityKeysTest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.rawimpressions.FileEntityKeysTest",
+    name = "RawImpressionFileMetadataTest",
+    srcs = ["RawImpressionFileMetadataTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadataTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:file_entity_keys",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:raw_impression_file_metadata",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",

@@ -227,7 +227,7 @@ class VidLabelingDispatcherFunctionTest {
     val parquetStorageClient =
       ParquetStorageClient(parquetConf, org.apache.hadoop.fs.Path(tempFolder.root.path))
     // The dispatcher reads each raw-impression file's event_date from its plaintext Parquet footer,
-    // so the fixtures must be real Parquet files carrying the FileEntityKeys footer metadata.
+    // so the fixtures must be real Parquet files carrying the RawImpressionFileMetadata footer metadata.
     val footer = mapOf("event_group_reference_id" to "eg-1", "event_date" to "2026-06-01")
     runBlocking {
       storageClient.writeBlob("edp/edp_name/timestamp/done", emptyFlow())
