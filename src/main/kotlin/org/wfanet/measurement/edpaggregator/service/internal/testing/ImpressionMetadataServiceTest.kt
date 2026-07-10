@@ -421,6 +421,27 @@ abstract class ImpressionMetadataServiceTest {
     }
 
   @Test
+  fun `createImpressionMetadata succeeds with entity_keys and no eventGroupReferenceId`() =
+    runBlocking {
+      val response =
+        service.createImpressionMetadata(
+          createImpressionMetadataRequest {
+            impressionMetadata =
+              IMPRESSION_METADATA.copy {
+                clearEventGroupReferenceId()
+                entityKeys += ENTITY_KEY_AD_1
+                entityKeys += ENTITY_KEY_CAMPAIGN_1
+              }
+          }
+        )
+
+      assertThat(response.eventGroupReferenceId).isEmpty()
+      assertThat(response.entityKeysList)
+        .containsExactly(ENTITY_KEY_AD_1, ENTITY_KEY_CAMPAIGN_1)
+        .inOrder()
+    }
+
+  @Test
   fun `createImpressionMetadata throws INVALID_ARGUMENT if cmmsModelLine not set`() = runBlocking {
     val request = createImpressionMetadataRequest {
       impressionMetadata = IMPRESSION_METADATA.copy { clearCmmsModelLine() }
