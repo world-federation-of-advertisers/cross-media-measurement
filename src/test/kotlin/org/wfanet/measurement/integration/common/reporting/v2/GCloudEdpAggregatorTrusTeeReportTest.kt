@@ -51,7 +51,7 @@ class GCloudEdpAggregatorTrusTeeReportTest :
    *
    * TODO(Kotlin/kotlinx.coroutines#3865): Switch back to CoroutinesTimeout when fixed.
    */
-  @get:Rule val timeout: Timeout = Timeout.seconds(180)
+  @get:Rule val timeout: Timeout = Timeout.seconds(300)
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()

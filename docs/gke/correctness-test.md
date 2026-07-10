@@ -85,6 +85,7 @@ bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGen
     --define=reporting_token_audience=reporting.dev.halo-cmm.org \
     --define=access_public_api_target=access.reporting.dev.halo-cmm.org:8443 \
     --define=basic_reports_enabled=true \
+    --define=reporting_set_reporting_unit_components_enabled=true \
     --define=mc_name=measurementConsumers/Rcn7fKd25C8 \
     --define=mc_api_key=W9q4zad246g \
     --define=edp1_name=dataProviders/FeQ5FqAQ5_0 \

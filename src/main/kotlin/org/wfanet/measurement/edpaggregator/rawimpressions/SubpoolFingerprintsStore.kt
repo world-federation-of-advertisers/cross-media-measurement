@@ -64,18 +64,19 @@ class SubpoolFingerprintsStore(
    * record per emitted chunk (each chunk a multiple of 12 packed bytes), envelope-encrypted with
    * [encryptedDek]. The chunk stream is consumed lazily, so memory stays bounded.
    *
-   * TODO(world-federation-of-advertisers/cross-media-measurement#3999): write with an
-   *   `ifGenerationMatch=0` (write-if-absent) precondition so a `WorkItem` delivered to two VMs
-   *   (Pub/Sub at-least-once) can't last-writer-wins clobber each other's ciphertext — the etag CAS
-   *   on `MarkPoolAssignmentJobSucceeded` only guards the row, after the bytes are already on GCS.
-   *   The write-if-absent primitive lands in world-federation-of-advertisers/common-jvm#389
-   *   (`writeBlobIfGeneration` / `writeBlobIfAbsent` on `ConditionalOperationStorageClient`,
-   *   forwarded end-to-end through the `AeadStorageClient` / `StreamingAeadStorageClient` /
-   *   `MesosRecordIoStorageClient` wrappers). Once it merges and the common-jvm override is bumped,
-   *   collapse the per-attempt-UUID blob keys to deterministic keys written via a read-gen-at-start
-   *     + write-with-precondition call, and surface the `412` (without retrying on it) so
-   *       [SubpoolAssigner] can take the lost-race path. Not yet available — written
-   *       unconditionally for now.
+   * NOTE(world-federation-of-advertisers/cross-media-measurement#3999): this write is intentionally
+   * unconditional. common-jvm#389's write-if-absent primitive (`writeBlobIfNotFound`) IS available
+   * now, but adopting it on this deterministic key would be UNSAFE for these blobs: each is
+   * envelope-encrypted with a per-attempt random DEK (+ AES-GCM random IV), so no retry ever
+   * reproduces the bytes. A writer that crashes after this write but before
+   * `MarkPoolAssignmentJobSucceeded` is auto-recovered today (the retry re-writes, then marks);
+   * with write-if-absent the orphan ciphertext would fail every retry with a 412 and, since the job
+   * never reaches SUCCEEDED, strand the shard permanently (DLQ -> FAILED). The clobber it would
+   * prevent — a `WorkItem` delivered to two live VMs whose distinct DEKs desync from the
+   * mark-winner's row DEK — is real but narrow. A fix that avoids BOTH needs a retry to recover the
+   * winner's DEK: row-first DEK persistence, or per-attempt-UUID keys (as [RankIndexStore] uses)
+   * with the winning key stored on the `PoolAssignmentJob` row — i.e. an API change. Left
+   * unconditional deliberately.
    */
   suspend fun writeBlob(
     blobKey: String,
@@ -109,11 +110,11 @@ class SubpoolFingerprintsStore(
    * with no blob for this subpool) are skipped. Memory stays bounded — records stream straight
    * through.
    *
-   * TODO(world-federation-of-advertisers/cross-media-measurement#3999): write [outputKey] with an
-   *   `ifGenerationMatch=0` (write-if-absent) precondition (see [writeBlob]). Note the merged blob
-   *   differs from the per-shard case: [SubpoolAssigner]'s last-shard-out recovery deliberately
-   *   re-runs the merge on redelivery, so a `412` here means "already merged" and the caller should
-   *   skip-and-continue the idempotent fan-out, not treat it as a lost race.
+   * NOTE(world-federation-of-advertisers/cross-media-measurement#3999): also written
+   * unconditionally, for the same reason as [writeBlob]. The merge is deliberately idempotent —
+   * [SubpoolAssigner]'s last-shard-out recovery re-runs it on redelivery, and re-writing the merged
+   * blob is how that recovery works — so a write-if-absent precondition here would break the very
+   * recovery it is meant to support.
    */
   suspend fun mergeSubpool(
     inputs: List<SubpoolBlob>,

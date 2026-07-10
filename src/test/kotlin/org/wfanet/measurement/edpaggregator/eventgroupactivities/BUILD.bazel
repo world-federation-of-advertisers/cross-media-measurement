@@ -1,0 +1,32 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "EventGroupActivitySyncTest",
+    srcs = ["EventGroupActivitySyncTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.eventgroupactivities.EventGroupActivitySyncTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/eventgroupactivities:event_group_activity_sync",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_activities_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_activity_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
+    ],
+)
+
+kt_jvm_test(
+    name = "SpotDataParserTest",
+    srcs = ["SpotDataParserTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.eventgroupactivities.SpotDataParserTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/eventgroupactivities:event_group_activity_sync",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

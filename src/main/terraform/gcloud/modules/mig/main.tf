@@ -150,13 +150,21 @@ resource "google_compute_region_instance_group_manager" "mig" {
     instance_template = google_compute_instance_template.confidential_vm_template.id
   }
   distribution_policy_zones = var.mig_distribution_policy_zones
+  # ANY picks whichever listed zone has capacity (or an unused reservation) at
+  # insert time, instead of trying to keep VM counts even across zones. Matches
+  # the availability-first intent of widening distribution_policy_zones.
+  distribution_policy_target_shape = "ANY"
   lifecycle {
     create_before_destroy = true
   }
   update_policy {
     type                  = "PROACTIVE"
     minimal_action        = "REPLACE"
-    max_surge_fixed       = 1
+    # PROACTIVE rolling updates on a regional MIG require max_surge >= zone count so the
+    # replacement pool can honor distribution_policy_zones during the roll. Trade-off vs
+    # a fixed max_surge=1: rolls now briefly run up to zone-count extra instances instead
+    # of one (extra surge cost and a transient per-zone capacity claim during the roll).
+    max_surge_fixed       = length(var.mig_distribution_policy_zones)
     max_unavailable_fixed = 0
   }
 }
