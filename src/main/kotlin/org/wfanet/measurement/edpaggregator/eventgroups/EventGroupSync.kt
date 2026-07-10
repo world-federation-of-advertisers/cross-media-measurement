@@ -516,7 +516,8 @@ class EventGroupSync(
     val pendingByKey = pendingCreates.associateBy { CreatePairingKey.of(it.request.eventGroup) }
     check(pendingByKey.size == pendingCreates.size) {
       "BatchCreateEventGroups pairing keys are not unique within a batch of ${pendingCreates.size};" +
-        " EventGroupSync's per-batch dedup guard should have prevented this."
+        " guaranteed by the producer emitting a unique entity_key (or event_group_reference_id)" +
+        " per EventGroup — the per-batch dedup guard only prevents duplicate request_ids."
     }
     response.eventGroupsList.forEach { syncedEventGroup ->
       val item = pendingByKey[CreatePairingKey.of(syncedEventGroup)]

@@ -28,10 +28,10 @@ option java_outer_classname = "EventGroupMapProto";
 // Allows data providers to learn the EventGroup resource names for their
 // campaigns.
 //
-// Emitted by `EventGroupSync` once per successfully-synced `EventGroup`; carries
-// whichever identifier the source `EventGroup` was keyed by so callers can join
-// the mapping back to their input. At least one of `event_group_reference_id`
-// or `entity_key` is always populated.
+// Emitted by `EventGroupSync` once per successfully-synced `EventGroup`;
+// carries whichever identifier the source `EventGroup` was keyed by so callers
+// can join the mapping back to their input. At least one of
+// `event_group_reference_id` or `entity_key` is always populated.
 message MappedEventGroup {
   // A map from `event_group_reference_id` to the EventGroup resource name.
   //
