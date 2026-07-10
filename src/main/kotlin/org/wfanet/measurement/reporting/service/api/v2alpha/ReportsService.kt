@@ -53,6 +53,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.cel.CelPredicates
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -857,7 +858,7 @@ class ReportsService(
 
   private fun filterReports(reports: List<Report>, filter: String): List<Report> {
     return try {
-      filterList(ENV, reports, filter)
+      CelPredicates.filterList(ENV, reports, filter)
     } catch (e: IllegalArgumentException) {
       throw Status.INVALID_ARGUMENT.withDescription(e.message).asRuntimeException()
     }
@@ -871,7 +872,7 @@ class ReportsService(
 
   companion object {
     private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
-    private val ENV: Env = buildCelEnvironment(Report.getDefaultInstance())
+    private val ENV: Env = CelPredicates.buildEnvironment(Report.getDefaultInstance())
   }
 }
 
