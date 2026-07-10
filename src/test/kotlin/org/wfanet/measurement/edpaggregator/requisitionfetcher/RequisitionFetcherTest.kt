@@ -474,6 +474,8 @@ class RequisitionFetcherTest {
 
     assertThat(refuseRequisitionRequests).hasSize(1)
     assertThat(createRequisitionMetadataRequests).isEmpty()
+    // A requisition refused for a bad spec was still fetched from the Kingdom, so it is counted.
+    assertThat(counterValue("edpa.requisition_fetcher.requisitions_fetched")).isEqualTo(1)
   }
 
   @Test

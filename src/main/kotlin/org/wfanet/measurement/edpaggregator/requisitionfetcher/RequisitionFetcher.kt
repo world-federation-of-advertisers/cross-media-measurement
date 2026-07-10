@@ -29,6 +29,8 @@ import java.util.logging.Logger
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -38,6 +40,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -302,18 +305,32 @@ class RequisitionFetcher(
       return units
     }
 
+    // Snapshots the open buffers under the lock, then sends the work units outside it (see
+    // [drainAll]). Used by the periodic ticker, the total-bytes backstop, and the final drain.
+    suspend fun drainAndSend() {
+      for (unit in buffersMutex.withLock { drainAll() }) channel.send(unit)
+    }
+
     // Periodic drain: the primary dispatch trigger. Runs until the collector completes and cancels
     // it. Each tick flushes every open buffer so downstream sees blobs continuously, and no report
     // is held longer than roughly one interval regardless of how long the stream takes to read.
     val drainTicker = launch {
       while (isActive) {
         delay(flushInterval.toMillis())
-        for (unit in buffersMutex.withLock { drainAll() }) channel.send(unit)
+        // The delay above is the cancellation point that stops the ticker. Once a drain has removed
+        // buffers from the map, its sends must complete (NonCancellable) so cancellation between
+        // drainAll and send cannot drop already-drained units — they would otherwise be lost, since
+        // the final drain no longer sees them.
+        withContext(NonCancellable) { drainAndSend() }
       }
     }
 
     try {
       flow.collect { requisition ->
+        // Counts every requisition streamed from the Kingdom, including those refused below for an
+        // unparseable spec. Only this (single) collector mutates totalFetched, so no lock is
+        // needed.
+        totalFetched += 1
         val reportId = extractReportId(requisition)
         if (reportId == null) {
           requisitionGrouper.refuseRequisitionToCmms(
@@ -329,10 +346,8 @@ class RequisitionFetcher(
         }
 
         val requisitionBytes = requisition.serializedSize.toLong()
-        // Snapshot any backstop drain under the lock, then send outside it (see drainAll).
-        val toSend =
+        val overCap =
           buffersMutex.withLock {
-            totalFetched += 1
             val existing = openBuffers[reportId]
             if (existing == null) {
               openBuffers[reportId] =
@@ -350,17 +365,19 @@ class RequisitionFetcher(
             if (totalBufferedBytes > bufferedBytesHighWater) {
               bufferedBytesHighWater = totalBufferedBytes
             }
-            // Memory backstop between periodic drains.
-            if (totalBufferedBytes >= maxTotalBufferedBytes) drainAll() else emptyList()
+            totalBufferedBytes >= maxTotalBufferedBytes
           }
-        for (unit in toSend) channel.send(unit)
+        // Memory backstop between periodic drains.
+        if (overCap) drainAndSend()
       }
     } finally {
-      drainTicker.cancel()
+      // cancelAndJoin (not cancel) so the ticker is fully stopped before the final drain — no drain
+      // runs concurrently with it, and any in-flight NonCancellable send completes first.
+      drainTicker.cancelAndJoin()
     }
 
     // Final drain of whatever remains when the stream ends within the instance lifetime.
-    for (unit in buffersMutex.withLock { drainAll() }) channel.send(unit)
+    drainAndSend()
 
     metrics.openBufferHighWaterMark.record(openBufferHighWater.toLong(), dataProviderAttrs)
     metrics.bufferedBytesHighWaterMark.record(bufferedBytesHighWater, dataProviderAttrs)
