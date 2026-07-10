@@ -325,17 +325,46 @@ abstract class MeasurementConsumerSimulator(
     runId: String,
     numMeasurements: Int,
     eventGroupFilter: ((EventGroup) -> Boolean)? = null,
+    reportId: String? = null,
   ) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     logger.info("Creating measurements...")
+    // The requisition fetcher groups requisitions by report, and the results fulfiller rejects a
+    // group that mixes reference-id and entity-key event groups. When a caller supplies a distinct
+    // reportId, override the measurement spec's report so that this measurement's requisitions
+    // group under a separate report from the default one (e.g. entity-key measurements must not
+    // share a report with reference-id measurements).
+    val newMeasurementSpec:
+      (ProtoAny, List<ByteString>, VidSamplingInterval) -> MeasurementSpec =
+      if (reportId == null) {
+        ::newReachAndFrequencyMeasurementSpec
+      } else {
+        val overrideReportName =
+          ReportKey(
+              MeasurementConsumerKey.fromName(measurementConsumerData.name)!!.measurementConsumerId,
+              reportId,
+            )
+            .toName()
+        fun(
+          packedMeasurementPublicKey: ProtoAny,
+          nonceHashes: List<ByteString>,
+          vidSamplingInterval: VidSamplingInterval,
+        ): MeasurementSpec =
+          newReachAndFrequencyMeasurementSpec(
+              packedMeasurementPublicKey,
+              nonceHashes,
+              vidSamplingInterval,
+            )
+            .copy { reportingMetadata = reportingMetadata { report = overrideReportName } }
+      }
     val measurementInfos =
       (1..numMeasurements).map { measurementNumber ->
         val measurementInfo =
           createMeasurement(
             measurementConsumer,
             runId,
-            ::newReachAndFrequencyMeasurementSpec,
+            newMeasurementSpec,
             ProtocolConfig.Protocol.ProtocolCase.DIRECT,
             DEFAULT_VID_SAMPLING_INTERVAL,
             measurementNumber.toDouble() / numMeasurements,

@@ -35,3 +35,18 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
 )
+
+kt_jvm_library(
+    name = "raw_impressions_writer",
+    srcs = [
+        "RawImpressionsWriter.kt",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeled_event",
+        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//imports/java/org/apache/hadoop:hadoop_client_api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:parquet_storage_client",
+        "@wfa_common_jvm//src/main/proto/wfa/measurement/storage:parquet_row_kt_jvm_proto",
+    ],
+)
