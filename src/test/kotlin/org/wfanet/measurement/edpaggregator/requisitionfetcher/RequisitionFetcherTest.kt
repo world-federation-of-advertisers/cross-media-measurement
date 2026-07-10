@@ -176,8 +176,8 @@ class RequisitionFetcherTest {
   private fun createFetcher(
     storageClient: StorageClient = this.storageClient,
     metrics: RequisitionFetcherMetrics = testMetrics,
-    workerCount: Int = 1,
-    maxBufferedBytesPerReport: Long = RequisitionFetcher.DEFAULT_MAX_BUFFERED_BYTES_PER_REPORT,
+    flushInterval: java.time.Duration = RequisitionFetcher.DEFAULT_FLUSH_INTERVAL,
+    maxTotalBufferedBytes: Long = RequisitionFetcher.DEFAULT_MAX_TOTAL_BUFFERED_BYTES,
     metadataThrottler: Throttler = this.throttler,
   ): RequisitionFetcher {
     val validator =
@@ -202,8 +202,8 @@ class RequisitionFetcherTest {
       requisitionValidator = validator,
       requisitionGrouper = grouper,
       metadataThrottler = metadataThrottler,
-      maxBufferedBytesPerReport = maxBufferedBytesPerReport,
-      workerCount = workerCount,
+      flushInterval = flushInterval,
+      maxTotalBufferedBytes = maxTotalBufferedBytes,
       metrics = metrics,
     )
   }
@@ -243,7 +243,9 @@ class RequisitionFetcherTest {
   }
 
   @Test
-  fun `strictly increasing updateTime closes the buffer and produces two blobs`() = runBlocking {
+  fun `differing updateTimes for same report still produce a single blob`() = runBlocking {
+    // A report's requisitions are transitioned to UNFULFILLED per Measurement, so they legitimately
+    // carry distinct updateTimes. Grouping is by reportId, so they must still land in one blob.
     val r1 = TestRequisitionData.REQUISITION.copy { updateTime = timestamp { seconds = 10 } }
     val r2 =
       TestRequisitionData.REQUISITION.copy {
@@ -255,13 +257,13 @@ class RequisitionFetcherTest {
 
     createFetcher().fetchAndStoreRequisitions()
 
-    assertThat(blobsList()).hasLength(2)
+    assertThat(blobsList()).hasLength(1)
     val groupIds = createRequisitionMetadataRequests.map { it.requisitionMetadata.groupId }.toSet()
-    assertThat(groupIds).hasSize(2)
+    assertThat(groupIds).hasSize(1)
   }
 
   @Test
-  fun `buffer cap split produces two blobs for one updateTime`() = runBlocking {
+  fun `total-bytes backstop flushes open buffers and counts a split`() = runBlocking {
     val requisitions =
       (1..3).map { idx ->
         TestRequisitionData.REQUISITION.copy {
@@ -272,11 +274,11 @@ class RequisitionFetcherTest {
     whenever(requisitionsServiceMock.listRequisitions(any()))
       .thenReturn(listRequisitionsResponse { this.requisitions += requisitions })
 
-    // Cap chosen so that the second add exceeds the cap, dispatching after 2 requisitions and
-    // starting a fresh buffer that holds the third.
+    // Global cap chosen so the second add trips the backstop: r1+r2 flush together (one blob, one
+    // split), then r3 flushes at end (a second blob, no split).
     val perRequisitionBytes = requisitions.first().serializedSize.toLong()
     val cap = perRequisitionBytes + 1
-    createFetcher(maxBufferedBytesPerReport = cap).fetchAndStoreRequisitions()
+    createFetcher(maxTotalBufferedBytes = cap).fetchAndStoreRequisitions()
 
     assertThat(blobsList()).hasLength(2)
     val splitsMetric =
@@ -534,7 +536,7 @@ class RequisitionFetcherTest {
       listRequisitionMetadataResponse {}
     }
 
-    createFetcher(workerCount = 2).fetchAndStoreRequisitions()
+    createFetcher().fetchAndStoreRequisitions()
 
     assertThat(blobsList()).hasLength(1)
     val failuresMetric =
@@ -568,17 +570,31 @@ class RequisitionFetcherTest {
   @Test
   fun `streams more requisitions than channel capacity without deadlock`() = runBlocking {
     val n = 200
+    // Distinct reports so each yields its own blob; exercises producer/consumer backpressure past
+    // the channel capacity without deadlock.
     val requisitions =
       (1..n).map { idx ->
+        val spec =
+          TestRequisitionData.MEASUREMENT_SPEC.copy {
+            reportingMetadata =
+              org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata {
+                report = "report-$idx"
+              }
+          }
         TestRequisitionData.REQUISITION.copy {
           name = "${TestRequisitionData.EDP_NAME}/requisitions/foo$idx"
+          measurementSpec =
+            org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec(
+              spec,
+              TestRequisitionData.MC_SIGNING_KEY,
+            )
           updateTime = timestamp { seconds = idx.toLong() }
         }
       }
     whenever(requisitionsServiceMock.listRequisitions(any()))
       .thenReturn(listRequisitionsResponse { this.requisitions += requisitions })
 
-    createFetcher(workerCount = 4).fetchAndStoreRequisitions()
+    createFetcher().fetchAndStoreRequisitions()
 
     assertThat(blobsList()).hasLength(n)
     assertThat(createRequisitionMetadataRequests).hasSize(n)
@@ -681,7 +697,7 @@ class RequisitionFetcherTest {
 
     createFetcher().fetchAndStoreRequisitions()
 
-    assertThat(counterValue("edpa.requisition_fetcher.storage_writes")).isEqualTo(2)
+    assertThat(counterValue("edpa.requisition_fetcher.storage_writes")).isEqualTo(1)
     assertThat(counterValue("edpa.requisition_fetcher.requisitions_fetched")).isEqualTo(2)
   }
 
@@ -893,7 +909,8 @@ class RequisitionFetcherTest {
   }
 
   @Test
-  fun `out-of-order updateTime within one report opens a new buffer`() = runBlocking {
+  fun `out-of-order updateTime within one report still produces one blob`() = runBlocking {
+    // updateTime does not gate grouping, so ordering within a report is irrelevant to the result.
     val r1 = TestRequisitionData.REQUISITION.copy { updateTime = timestamp { seconds = 20 } }
     val r2 =
       TestRequisitionData.REQUISITION.copy {
@@ -905,9 +922,9 @@ class RequisitionFetcherTest {
 
     createFetcher().fetchAndStoreRequisitions()
 
-    assertThat(blobsList()).hasLength(2)
+    assertThat(blobsList()).hasLength(1)
     val groupIds = createRequisitionMetadataRequests.map { it.requisitionMetadata.groupId }.toSet()
-    assertThat(groupIds).hasSize(2)
+    assertThat(groupIds).hasSize(1)
   }
 
   @Test
@@ -999,40 +1016,76 @@ class RequisitionFetcherTest {
   }
 
   @Test
-  fun `watermark eviction bounds open buffer count to one across many advancing updateTimes`() =
-    runBlocking {
-      // 10 distinct reports each at a distinct updateTime. Under Kingdom's UpdateTime ASC
-      // ordering, each new report's updateTime advances the watermark and evicts every older
-      // buffer. So at any moment the map should hold at most one buffer — open_buffer_high_water
-      // should be 1, not 10.
-      val reqs =
-        (1..10).map { idx ->
-          val spec =
-            TestRequisitionData.MEASUREMENT_SPEC.copy {
-              reportingMetadata =
-                org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata {
-                  report = "report-$idx"
-                }
-            }
-          TestRequisitionData.REQUISITION.copy {
-            name = "${TestRequisitionData.EDP_NAME}/requisitions/r-$idx"
-            measurementSpec =
-              org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec(
-                spec,
-                TestRequisitionData.MC_SIGNING_KEY,
-              )
-            updateTime = timestamp { seconds = idx.toLong() }
+  fun `periodic drain flushes a report split across intervals and counts splits`() = runBlocking {
+    // Two requisitions for one report; the stream pauses between them longer than the flush
+    // interval so the ticker drains the first before the second arrives. Result: two blobs for one
+    // report, and a split counted for the early drain.
+    val r1 = TestRequisitionData.REQUISITION.copy { updateTime = timestamp { seconds = 10 } }
+    val r2 =
+      TestRequisitionData.REQUISITION.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/foo2"
+        updateTime = timestamp { seconds = 20 }
+      }
+    // First list call returns r1, then a slow second page returns r2 after a delay exceeding the
+    // flush interval; a final empty page ends the stream.
+    var call = 0
+    whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer {
+      when (call++) {
+        0 ->
+          listRequisitionsResponse {
+            requisitions += r1
+            nextPageToken = "p1"
+          }
+        1 -> {
+          Thread.sleep(300)
+          listRequisitionsResponse {
+            requisitions += r2
+            nextPageToken = "p2"
           }
         }
-      whenever(requisitionsServiceMock.listRequisitions(any()))
-        .thenReturn(listRequisitionsResponse { requisitions += reqs })
-
-      createFetcher().fetchAndStoreRequisitions()
-
-      assertThat(histogramSumValue("edpa.requisition_fetcher.open_buffer_high_water_mark"))
-        .isEqualTo(1)
-      assertThat(blobsList()).hasLength(10)
+        else -> listRequisitionsResponse {}
+      }
     }
+
+    createFetcher(flushInterval = java.time.Duration.ofMillis(100)).fetchAndStoreRequisitions()
+
+    assertThat(blobsList()).hasLength(2)
+    assertThat(counterValue("edpa.requisition_fetcher.buffer_splits")).isEqualTo(1)
+  }
+
+  @Test
+  fun `distinct reports without a drain all stay open then flush at stream end`() = runBlocking {
+    // With a long flush interval, 10 distinct reports accumulate concurrently and all flush at the
+    // natural end of the stream — one blob each, no splits.
+    val reqs =
+      (1..10).map { idx ->
+        val spec =
+          TestRequisitionData.MEASUREMENT_SPEC.copy {
+            reportingMetadata =
+              org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata {
+                report = "report-$idx"
+              }
+          }
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/r-$idx"
+          measurementSpec =
+            org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec(
+              spec,
+              TestRequisitionData.MC_SIGNING_KEY,
+            )
+          updateTime = timestamp { seconds = idx.toLong() }
+        }
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += reqs })
+
+    createFetcher(flushInterval = java.time.Duration.ofHours(1)).fetchAndStoreRequisitions()
+
+    assertThat(histogramSumValue("edpa.requisition_fetcher.open_buffer_high_water_mark"))
+      .isEqualTo(10)
+    assertThat(blobsList()).hasLength(10)
+    assertThat(counterValue("edpa.requisition_fetcher.buffer_splits")).isEqualTo(0)
+  }
 
   @Test
   fun `open buffer high water mark records peak distinct reportIds`() = runBlocking {
@@ -1057,7 +1110,7 @@ class RequisitionFetcherTest {
     whenever(requisitionsServiceMock.listRequisitions(any()))
       .thenReturn(listRequisitionsResponse { requisitions += reqs })
 
-    createFetcher(workerCount = 2).fetchAndStoreRequisitions()
+    createFetcher().fetchAndStoreRequisitions()
 
     assertThat(histogramSumValue("edpa.requisition_fetcher.open_buffer_high_water_mark"))
       .isEqualTo(5)
@@ -1102,7 +1155,7 @@ class RequisitionFetcherTest {
     }
 
   @Test
-  fun `interleaved updateTime ordering produces one blob per distinct timestamp`() = runBlocking {
+  fun `interleaved updateTimes for one report collapse into one blob`() = runBlocking {
     val reqs =
       listOf(10L, 50L, 5L, 30L).mapIndexed { idx, t ->
         TestRequisitionData.REQUISITION.copy {
@@ -1115,9 +1168,9 @@ class RequisitionFetcherTest {
 
     createFetcher().fetchAndStoreRequisitions()
 
-    assertThat(blobsList()).hasLength(4)
+    assertThat(blobsList()).hasLength(1)
     val groupIds = createRequisitionMetadataRequests.map { it.requisitionMetadata.groupId }.toSet()
-    assertThat(groupIds).hasSize(4)
+    assertThat(groupIds).hasSize(1)
   }
 
   @Test
@@ -1208,8 +1261,23 @@ class RequisitionFetcherTest {
         name = "${TestRequisitionData.EDP_NAME}/requisitions/r2"
         updateTime = timestamp { seconds = 20 }
       }
-    whenever(requisitionsServiceMock.listRequisitions(any()))
-      .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2) })
+    // Two pages for one report, drained apart: the periodic ticker flushes r1 before the slow
+    // second page delivers r2, so the report is processed as two units.
+    var page = 0
+    whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer {
+      when (page++) {
+        0 ->
+          listRequisitionsResponse {
+            requisitions += r1
+            nextPageToken = "p1"
+          }
+        1 -> {
+          Thread.sleep(300)
+          listRequisitionsResponse { requisitions += r2 }
+        }
+        else -> listRequisitionsResponse {}
+      }
+    }
 
     val listCalls = AtomicInteger(0)
     val batchCalls = AtomicInteger(0)
@@ -1228,7 +1296,7 @@ class RequisitionFetcherTest {
       }
     }
 
-    createFetcher().fetchAndStoreRequisitions()
+    createFetcher(flushInterval = java.time.Duration.ofMillis(100)).fetchAndStoreRequisitions()
 
     assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isEqualTo(1)
     // The metadataCache.remove() in the finally is the load-bearing assertion: if it didn't
@@ -1250,14 +1318,28 @@ class RequisitionFetcherTest {
         measurementSpec = signMeasurementSpec(measurementSpec2, TestRequisitionData.MC_SIGNING_KEY)
         updateTime = timestamp { seconds = 10 }
       }
-    // Third requisition in a later unit for the same report — forces a second processReport call.
+    // Third requisition delivered on a drained-apart second page — forces a second processReport
+    // call for the same report.
     val r3 =
       TestRequisitionData.REQUISITION.copy {
         name = "${TestRequisitionData.EDP_NAME}/requisitions/r3"
         updateTime = timestamp { seconds = 20 }
       }
-    whenever(requisitionsServiceMock.listRequisitions(any()))
-      .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2, r3) })
+    var page = 0
+    whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer {
+      when (page++) {
+        0 ->
+          listRequisitionsResponse {
+            requisitions += listOf(r1, r2)
+            nextPageToken = "p1"
+          }
+        1 -> {
+          Thread.sleep(300)
+          listRequisitionsResponse { requisitions += r3 }
+        }
+        else -> listRequisitionsResponse {}
+      }
+    }
 
     val listCalls = AtomicInteger(0)
     val batchCalls = AtomicInteger(0)
@@ -1276,7 +1358,7 @@ class RequisitionFetcherTest {
       }
     }
 
-    createFetcher().fetchAndStoreRequisitions()
+    createFetcher(flushInterval = java.time.Duration.ofMillis(100)).fetchAndStoreRequisitions()
 
     // The first unit's refuse path threw → reportFailures incremented.
     assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isAtLeast(1)
@@ -1406,56 +1488,54 @@ class RequisitionFetcherTest {
     }
 
   @Test
-  fun `two units for one report land on the same worker under workerCount greater than one`() =
-    runBlocking {
-      // Two requisitions for the same report with different updateTimes → two units. Metadata
-      // lists both as STORED-but-blob-missing under one group; recovery requires both units on
-      // the same worker so the PendingRecovery accumulator completes across units. With
-      // workerCount=4 and reportId hashing, this proves per-report routing actually serializes.
-      val groupId = "wedged-multiworker-group"
-      val blobKey = "$STORAGE_PATH_PREFIX/$groupId"
-      val r1 =
-        TestRequisitionData.REQUISITION.copy {
-          name = "${TestRequisitionData.EDP_NAME}/requisitions/r1"
-          updateTime = timestamp { seconds = 10 }
+  fun `cross-unit recovery completes when a report is split across drains`() = runBlocking {
+    // A report split across two drains (a slow second page past the flush interval) yields two
+    // units for one report. Metadata lists both as STORED-but-blob-missing under one group; the
+    // single consumer's PendingRecovery accumulator completes across the two units and rebuilds.
+    val groupId = "wedged-split-group"
+    val blobKey = "$STORAGE_PATH_PREFIX/$groupId"
+    val r1 =
+      TestRequisitionData.REQUISITION.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/r1"
+        updateTime = timestamp { seconds = 10 }
+      }
+    val r2 =
+      TestRequisitionData.REQUISITION.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/r2"
+        updateTime = timestamp { seconds = 20 }
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2) })
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata +=
+            listOf(
+              requisitionMetadata {
+                state = RequisitionMetadata.State.STORED
+                cmmsRequisition = r1.name
+                blobUri = "$BLOB_URI_PREFIX/$blobKey"
+                blobTypeUrl = "type"
+                this.groupId = groupId
+                report = "some-report"
+              },
+              requisitionMetadata {
+                state = RequisitionMetadata.State.STORED
+                cmmsRequisition = r2.name
+                blobUri = "$BLOB_URI_PREFIX/$blobKey"
+                blobTypeUrl = "type"
+                this.groupId = groupId
+                report = "some-report"
+              },
+            )
         }
-      val r2 =
-        TestRequisitionData.REQUISITION.copy {
-          name = "${TestRequisitionData.EDP_NAME}/requisitions/r2"
-          updateTime = timestamp { seconds = 20 }
-        }
-      whenever(requisitionsServiceMock.listRequisitions(any()))
-        .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2) })
-      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
-        .thenReturn(
-          listRequisitionMetadataResponse {
-            requisitionMetadata +=
-              listOf(
-                requisitionMetadata {
-                  state = RequisitionMetadata.State.STORED
-                  cmmsRequisition = r1.name
-                  blobUri = "$BLOB_URI_PREFIX/$blobKey"
-                  blobTypeUrl = "type"
-                  this.groupId = groupId
-                  report = "some-report"
-                },
-                requisitionMetadata {
-                  state = RequisitionMetadata.State.STORED
-                  cmmsRequisition = r2.name
-                  blobUri = "$BLOB_URI_PREFIX/$blobKey"
-                  blobTypeUrl = "type"
-                  this.groupId = groupId
-                  report = "some-report"
-                },
-              )
-          }
-        )
+      )
 
-      createFetcher(workerCount = 4).fetchAndStoreRequisitions()
+    createFetcher().fetchAndStoreRequisitions()
 
-      assertThat(storageClient.getBlob(blobKey)).isNotNull()
-      assertThat(counterValue("edpa.requisition_fetcher.recovery_rebuilds")).isEqualTo(1)
-    }
+    assertThat(storageClient.getBlob(blobKey)).isNotNull()
+    assertThat(counterValue("edpa.requisition_fetcher.recovery_rebuilds")).isEqualTo(1)
+  }
 
   companion object {
     init {

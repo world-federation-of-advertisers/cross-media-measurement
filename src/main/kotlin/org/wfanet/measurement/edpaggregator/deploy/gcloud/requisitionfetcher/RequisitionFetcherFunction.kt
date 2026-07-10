@@ -216,7 +216,8 @@ class RequisitionFetcherFunction : HttpFunction {
       requisitionGrouper = requisitionGrouper,
       metadataThrottler = metadataThrottler,
       responsePageSize = pageSize,
-      maxBufferedBytesPerReport = maxBufferedBytesPerReport,
+      flushInterval = flushInterval,
+      maxTotalBufferedBytes = maxTotalBufferedBytes,
     )
   }
 
@@ -298,6 +299,7 @@ class RequisitionFetcherFunction : HttpFunction {
     private const val DEFAULT_GRPC_REQUEST_INTERVAL = "1s"
     private const val DEFAULT_KINGDOM_EVENT_GROUP_REQUEST_INTERVAL = "50ms"
     private const val DEFAULT_METADATA_REQUEST_INTERVAL = "100ms"
+    private const val DEFAULT_FLUSH_INTERVAL = "5m"
 
     private val grpcRequestInterval: Duration =
       (System.getenv("GRPC_REQUEST_INTERVAL") ?: DEFAULT_GRPC_REQUEST_INTERVAL).toDuration()
@@ -308,9 +310,12 @@ class RequisitionFetcherFunction : HttpFunction {
     private val metadataRequestInterval: Duration =
       (System.getenv("METADATA_REQUEST_INTERVAL") ?: DEFAULT_METADATA_REQUEST_INTERVAL).toDuration()
 
-    private val maxBufferedBytesPerReport: Long =
-      System.getenv("MAX_BUFFERED_BYTES_PER_REPORT")?.toLongOrNull()
-        ?: RequisitionFetcher.DEFAULT_MAX_BUFFERED_BYTES_PER_REPORT
+    private val flushInterval: Duration =
+      (System.getenv("FLUSH_INTERVAL") ?: DEFAULT_FLUSH_INTERVAL).toDuration()
+
+    private val maxTotalBufferedBytes: Long =
+      System.getenv("MAX_TOTAL_BUFFERED_BYTES")?.toLongOrNull()
+        ?: RequisitionFetcher.DEFAULT_MAX_TOTAL_BUFFERED_BYTES
 
     private const val DEFAULT_PAGE_SIZE = 50
 
