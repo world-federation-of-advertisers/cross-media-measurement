@@ -19,7 +19,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeler
 import com.google.protobuf.Any
 import com.google.protobuf.Descriptors
 import com.google.protobuf.util.Timestamps
-import org.wfanet.measurement.edpaggregator.rawimpressions.FileEntityKeys
+import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
