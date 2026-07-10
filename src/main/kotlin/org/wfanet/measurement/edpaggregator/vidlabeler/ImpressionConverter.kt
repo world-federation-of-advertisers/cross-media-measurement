@@ -37,6 +37,10 @@ fun interface ImpressionConverter {
   /**
    * Converts [event]'s row for the model line described by [config].
    *
+   * Per-row `entity_keys` are read from the model line's required/optional entity-key column
+   * mappings via [EntityKeyMapper]; there is no file-level entity-key state (unlike the file-level
+   * event date carried by [RawImpressionFileMetadata]).
+   *
    * @return the [ConvertedImpression], or `null` to skip this row for this model line.
    */
   fun convert(
@@ -53,8 +57,9 @@ fun interface ImpressionConverter {
  *   `event_time`. A typed `Timestamp` so the converter contract carries the unit instead of a bare
  *   epoch-micros `Long`.
  * @property event the Event payload to embed in the labeled output.
- * @property entityKeys entity keys associated with this impression, propagated from the
- *   `EventGroup` metadata to the labeled output and `BlobDetails`.
+ * @property entityKeys entity keys for this impression, read per-row from the model line's
+ *   required/optional entity-key column mappings (see [EntityKeyMapper]); propagated to the labeled
+ *   output and the per-blob `BlobDetails.entity_keys` union.
  */
 data class ConvertedImpression(
   val labelerInput: LabelerInput,
