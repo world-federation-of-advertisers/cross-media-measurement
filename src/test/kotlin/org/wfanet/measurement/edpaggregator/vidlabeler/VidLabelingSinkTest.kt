@@ -85,7 +85,8 @@ class VidLabelingSinkTest {
   private fun sink(
     contexts: List<ModelLineContext>,
     converter: ImpressionConverter = FakeImpressionConverter(),
-    fileEntityKeys: FileEntityKeys = FileEntityKeys(eventDate = LocalDate.parse("2026-06-30")),
+    fileMetadata: RawImpressionFileMetadata =
+      RawImpressionFileMetadata(eventDate = LocalDate.parse("2026-06-30")),
     encryptKmsClient: KmsClient = kmsClient,
     encryptionKeySemaphore: Semaphore =
       Semaphore(VidLabelingSink.DEFAULT_ENCRYPTION_KEY_PARALLELISM),
@@ -94,7 +95,7 @@ class VidLabelingSinkTest {
       inputBlobUri = "file:///raw/file-1.parquet",
       modelLineContexts = contexts,
       impressionConverter = converter,
-      fileEntityKeys = fileEntityKeys,
+      fileMetadata = fileMetadata,
       encryptKmsClient = encryptKmsClient,
       encryptKekUri = kekUri,
       outputStorageParams = outputStorageParams,
@@ -299,9 +300,7 @@ class VidLabelingSinkTest {
         )
 
       assertFailsWith<IllegalArgumentException> {
-        sink.processBatch(
-          listOf(rawEvent(eventTimeMicros = 1_000L, idByte = 1))
-        )
+        sink.processBatch(listOf(rawEvent(eventTimeMicros = 1_000L, idByte = 1)))
       }
     }
 
