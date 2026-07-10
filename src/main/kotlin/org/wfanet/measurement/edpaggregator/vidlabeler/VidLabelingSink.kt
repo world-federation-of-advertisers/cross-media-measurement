@@ -96,7 +96,7 @@ import org.wfanet.virtualpeople.common.copy
  * @param modelLineContexts model lines to label with, each with its [ActiveWindow] and
  *   [VidAssigner].
  * @param impressionConverter converts a Parquet row into a [ConvertedImpression] (schema seam).
- * @param fileEntityKeys this file's per-file metadata (event date), read from its plaintext Parquet
+ * @param fileMetadata this file's per-file metadata (event date), read from its plaintext Parquet
  *   footer and used to place the labeled output under `model-line/<id>/<YYYY-MM-DD>/`.
  * @param encryptKmsClient encrypt/decrypt KMS client for the labeled output.
  * @param encryptKekUri KEK URI for generating per-output DEKs.
@@ -118,7 +118,7 @@ class VidLabelingSink(
   private val inputBlobUri: String,
   private val modelLineContexts: List<ModelLineContext>,
   private val impressionConverter: ImpressionConverter,
-  private val fileEntityKeys: FileEntityKeys,
+  private val fileMetadata: RawImpressionFileMetadata,
   private val encryptKmsClient: KmsClient,
   private val encryptKekUri: String,
   private val outputStorageParams: VidLabelerParams.StorageParams,
@@ -260,9 +260,9 @@ class VidLabelingSink(
    * [send] is called by the concurrent [processBatch] invocations; a dedicated coroutine
    * ([deferred]) drains the bounded [channel] straight into [MesosRecordIoStorageClient.writeBlob],
    * so the records are never all held in memory at once. The per-blob aggregates needed for the
-   * metadata sidecar ([earliest], [latest], [entityIdsByType]) are
-   * accumulated by that single draining coroutine as each record passes through, so no
-   * synchronization is needed and [commit] reads them safely after awaiting [deferred].
+   * metadata sidecar ([earliest], [latest], [entityIdsByType]) are accumulated by that single
+   * draining coroutine as each record passes through, so no synchronization is needed and [commit]
+   * reads them safely after awaiting [deferred].
    */
   private inner class GroupWriter(private val key: OutputGroupKey) {
     private val channel = Channel<LabeledImpression>(WRITER_CHANNEL_CAPACITY)
@@ -401,9 +401,9 @@ class VidLabelingSink(
    * Deterministic output blob key for [key] under this input file:
    * `model-line/<modelLineId>/<YYYY-MM-DD>/<sha256>`. The `model-line/<id>/<date>/` layout is what
    * `DataAvailabilitySync` crawls to classify finalized dates; the date is the file's event date
-   * ([FileEntityKeys.eventDate], read from the footer, UTC; a raw file holds one day). The trailing
-   * SHA of (input file, model line) keeps the key deterministic, so a retried input file overwrites
-   * its previous output instead of duplicating it.
+   * ([RawImpressionFileMetadata.eventDate], read from the footer, UTC; a raw file holds one day).
+   * The trailing SHA of (input file, model line) keeps the key deterministic, so a retried input
+   * file overwrites its previous output instead of duplicating it.
    */
   private fun outputBlobKey(key: OutputGroupKey): String {
     val modelLineId =
@@ -415,7 +415,7 @@ class VidLabelingSink(
       MessageDigest.getInstance("SHA-256")
         .digest("$inputBlobUri|${key.modelLine}".toByteArray(Charsets.UTF_8))
     val sha = digest.joinToString("") { "%02x".format(it) }
-    return "model-line/$modelLineId/${fileEntityKeys.eventDate}/$sha"
+    return "model-line/$modelLineId/${fileMetadata.eventDate}/$sha"
   }
 
   private val Timestamp.epochNanos: Long
@@ -472,8 +472,8 @@ data class ModelLineContext(
 )
 
 /**
- * Identifies one labeled-output blob within an input file: one blob per model line. Writers group by
- * model line and carry the per-blob entity-key union on `BlobDetails.entity_keys`.
+ * Identifies one labeled-output blob within an input file: one blob per model line. Writers group
+ * by model line and carry the per-blob entity-key union on `BlobDetails.entity_keys`.
  */
 private data class OutputGroupKey(val modelLine: String)
 

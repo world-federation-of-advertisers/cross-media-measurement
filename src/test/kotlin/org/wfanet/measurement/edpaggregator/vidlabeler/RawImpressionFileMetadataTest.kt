@@ -24,21 +24,21 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
-class FileEntityKeysTest {
+class RawImpressionFileMetadataTest {
   @Test
   fun `fromFooterMetadata parses event date`() {
     val metadata = mapOf("event_date" to "2026-06-30")
 
-    val fileEntityKeys = FileEntityKeys.fromFooterMetadata(metadata)
+    val fileMetadata = RawImpressionFileMetadata.fromFooterMetadata(metadata)
 
-    assertThat(fileEntityKeys.eventDate).isEqualTo(LocalDate.of(2026, 6, 30))
+    assertThat(fileMetadata.eventDate).isEqualTo(LocalDate.of(2026, 6, 30))
   }
 
   @Test
   fun `fromFooterMetadata throws when event_date is missing`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        FileEntityKeys.fromFooterMetadata(emptyMap())
+        RawImpressionFileMetadata.fromFooterMetadata(emptyMap())
       }
     assertThat(exception).hasMessageThat().contains("event_date")
   }
@@ -47,7 +47,7 @@ class FileEntityKeysTest {
   fun `fromFooterMetadata throws when event_date is not an ISO date`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        FileEntityKeys.fromFooterMetadata(mapOf("event_date" to "30-06-2026"))
+        RawImpressionFileMetadata.fromFooterMetadata(mapOf("event_date" to "30-06-2026"))
       }
     assertThat(exception).hasMessageThat().contains("event_date")
   }

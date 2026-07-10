@@ -692,11 +692,11 @@ class VidLabelerApp(
           parquetStorageClient.getBlob(blobUri) ?: error("Raw-impression blob not found: $blobUri")
         val eventDateString =
           requireNotNull(
-            parquetBlob.readKeyValueMetadata()[FileEntityKeys.EVENT_DATE_KEY]?.takeIf {
+            parquetBlob.readKeyValueMetadata()[RawImpressionFileMetadata.EVENT_DATE_KEY]?.takeIf {
               it.isNotEmpty()
             }
           ) {
-            "raw-impression footer is missing the '${FileEntityKeys.EVENT_DATE_KEY}' metadata " +
+            "raw-impression footer is missing the '${RawImpressionFileMetadata.EVENT_DATE_KEY}' metadata " +
               "entry for $blobUri; the producer must write each file's event date (ISO YYYY-MM-DD) " +
               "into its plaintext footer"
           }

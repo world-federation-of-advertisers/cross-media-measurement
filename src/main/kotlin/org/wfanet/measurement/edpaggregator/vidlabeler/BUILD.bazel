@@ -51,9 +51,9 @@ kt_jvm_library(
     srcs = [
         "EntityKeyMapper.kt",
         "EventMessageMapper.kt",
-        "FileEntityKeys.kt",
         "ImpressionConverter.kt",
         "ParquetImpressionConverter.kt",
+        "RawImpressionFileMetadata.kt",
         "VidLabeler.kt",
         "VidLabelerMetrics.kt",
         "VidLabelingSink.kt",
