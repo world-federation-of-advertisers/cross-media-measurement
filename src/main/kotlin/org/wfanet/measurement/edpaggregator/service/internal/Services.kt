@@ -18,11 +18,13 @@ package org.wfanet.measurement.edpaggregator.service.internal
 
 import io.grpc.BindableService
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankerJobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchFileServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFileServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingJobServiceGrpcKt
@@ -41,9 +43,12 @@ data class Services(
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase,
   val rawImpressionUploadFile:
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase,
+  val rawImpressionUploadModelLine:
+    RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase,
   val vidLabelingJob: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase,
   val rankerJob: RankerJobServiceGrpcKt.RankerJobServiceCoroutineImplBase,
   val rankIndexBlob: RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase,
+  val poolAssignmentJob: PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase,
 ) {
   fun toList(): List<BindableService> =
     listOf(
@@ -53,8 +58,10 @@ data class Services(
       rawImpressionMetadataBatchFile,
       rawImpressionUpload,
       rawImpressionUploadFile,
+      rawImpressionUploadModelLine,
       vidLabelingJob,
       rankerJob,
       rankIndexBlob,
+      poolAssignmentJob,
     )
 }

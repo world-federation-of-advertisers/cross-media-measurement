@@ -19,7 +19,7 @@ package wfa.measurement.internal.edpaggregator;
 import "google/protobuf/timestamp.proto";
 import "google/type/date.proto";
 import "google/type/interval.proto";
-import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
+import "wfa/measurement/internal/edpaggregator/encrypted_dek.proto";
 import "wfa/measurement/internal/edpaggregator/pool_assignment_job.proto";
 import "wfa/measurement/internal/edpaggregator/pool_assignment_state.proto";
 
@@ -168,7 +168,7 @@ message MarkPoolAssignmentJobSucceededRequest {
 
   // DEK that encrypts this shard's SubpoolFingerprints blobs; persisted on the
   // job.
-  wfa.measurement.securecomputation.impressions.EncryptedDek encrypted_dek = 6;
+  EncryptedDek encrypted_dek = 6;
 
   // Subpool offsets discovered by this shard during Phase 0; unioned across
   // shards by the service.

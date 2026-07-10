@@ -23,9 +23,19 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "column_schema_validation",
+    srcs = ["ColumnSchemaValidation.kt"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@wfa_common_jvm//src/main/proto/wfa/measurement/storage:parquet_row_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
     name = "labeler_input_mapper",
     srcs = ["LabelerInputMapper.kt"],
     deps = [
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeler_input_field_mapping_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//src/main/proto/wfa/measurement/storage:parquet_row_kt_jvm_proto",
         "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_kt_jvm_proto",
@@ -39,6 +49,7 @@ kt_jvm_library(
         "RawImpressionSourceMetrics.kt",
     ],
     deps = [
+        ":column_schema_validation",
         ":event_id_digest",
         ":event_id_digest_extractor",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",

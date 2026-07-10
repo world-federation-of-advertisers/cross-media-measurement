@@ -21,6 +21,7 @@ import "google/api/resource.proto";
 import "google/protobuf/duration.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
+import "wfa/measurement/edpaggregator/v1alpha/labeler_input_field_mapping.proto";
 
 option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
@@ -49,8 +50,12 @@ message VidLabelingConfig {
 
   // Message representing the configuration for a model line.
   message ModelLineConfig {
-    // Mapping from labeler input field names to their corresponding values.
-    map<string, string> labeler_input_field_mapping = 1;
+    reserved 1;
+
+    // How each LabelerInput field is sourced from the raw-impression row (plain
+    // column, enum lookup, age-range decode, or identity fallback).
+    repeated wfa.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+        labeler_input_field_mapping = 8;
 
     // Mapping from event template field names to their corresponding values.
     map<string, string> event_template_field_mapping = 2;
@@ -96,6 +101,47 @@ message VidLabelingConfig {
   // for alerting.
   google.protobuf.Duration staleness_threshold = 13
       [(google.api.field_behavior) = REQUIRED];
+
+  // Storage from which the Phase-1 VidRankBuilder reads prior cumulative
+  // rank-index blobs and to which it writes the new day-only + cumulative
+  // rank-index blobs. Passed through to the Phase-0 SubpoolAssigner WorkItem
+  // for memoized model lines.
+  //
+  // Optional because it is only consumed by the memoized (Phase-0/Phase-1)
+  // path: it is required only for EDPs that have at least one model line with
+  // memoized VID assignment enabled. An EDP whose model lines are all
+  // non-memoized may omit it.
+  StorageParams vid_rank_map_storage_params = 14
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Storage to which the Phase-0 SubpoolAssigner writes per-(shard, subpool)
+  // SubpoolFingerprints blobs. Passed through to the SubpoolAssigner WorkItem
+  // for memoized model lines.
+  //
+  // Optional because it is only consumed by the memoized (Phase-0) path: it is
+  // required only for EDPs that have at least one model line with memoized VID
+  // assignment enabled. An EDP whose model lines are all non-memoized may omit
+  // it.
+  StorageParams subpool_map_storage_params = 15
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Storage holding the compiled VID model blobs for this EDP. The compiled
+  // model lives in its own Cloud Storage project, separate from the
+  // impression/map storage above. Passed through to the SubpoolAssigner
+  // WorkItem for memoized model lines.
+  //
+  // Optional because it is only consumed by the memoized (Phase-0) path: it is
+  // required only for EDPs that have at least one model line with memoized VID
+  // assignment enabled. An EDP whose model lines are all non-memoized may omit
+  // it.
+  StorageParams model_storage_params = 16
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Maximum total `RawImpressionUploadFile.size_bytes` packed into a single
+  // non-memoized Phase-2 `VidLabelingJob` (the bin-packing threshold). OPTIONAL
+  // here like the memoized-only storage params above; the dispatcher enforces
+  // it (`> 0`) at the first non-memoized dispatch.
+  int64 max_file_batch_size_bytes = 17 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Wrapper containing VID Labeling configurations for all EDPs.

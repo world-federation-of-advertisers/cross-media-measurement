@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.Any
@@ -27,9 +28,13 @@ import com.google.protobuf.util.Timestamps
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.max
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Semaphore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -46,6 +51,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
+import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.ParquetValue
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -78,17 +84,21 @@ class VidLabelingSinkTest {
   private fun sink(
     contexts: List<ModelLineContext>,
     converter: ImpressionConverter = FakeImpressionConverter(),
+    encryptKmsClient: KmsClient = kmsClient,
+    encryptionKeySemaphore: Semaphore =
+      Semaphore(VidLabelingSink.DEFAULT_ENCRYPTION_KEY_PARALLELISM),
   ) =
     VidLabelingSink(
       inputBlobUri = "file:///raw/file-1.parquet",
       modelLineContexts = contexts,
       impressionConverter = converter,
-      encryptKmsClient = kmsClient,
+      encryptKmsClient = encryptKmsClient,
       encryptKekUri = kekUri,
       outputStorageParams = outputStorageParams,
       storageConfig = StorageConfig(rootDirectory = tempFolder.root),
       dataProvider = DATA_PROVIDER,
       metrics = testMetrics,
+      encryptionKeySemaphore = encryptionKeySemaphore,
     )
 
   /** Sum of a long counter's points matching [attributes] exactly. */
@@ -112,12 +122,18 @@ class VidLabelingSinkTest {
       .put(VidLabelerMetrics.DROP_REASON_KEY, reason)
       .build()
 
-  private fun context(activeWindow: ActiveWindow, assigner: VidAssigner = FixedVidAssigner(VID)) =
+  private fun context(
+    activeWindow: ActiveWindow,
+    assigner: VidAssigner = FixedVidAssigner(VID),
+    modelLine: String = MODEL_LINE,
+    rankIndex: MemoizedRankIndex? = null,
+  ) =
     ModelLineContext(
-      modelLine = MODEL_LINE,
+      modelLine = modelLine,
       activeWindow = activeWindow,
       assigner = assigner,
       config = VidLabelerParams.ModelLineConfig.getDefaultInstance(),
+      rankIndex = rankIndex,
     )
 
   @Test
@@ -139,9 +155,9 @@ class VidLabelingSinkTest {
 
       val blobDetails = readSoleBlobDetails()
       assertThat(blobDetails.modelLine).isEqualTo(MODEL_LINE)
-      // New writers don't set the legacy event_group_reference_id; the per-blob entity-key union
-      // carries grouping instead.
-      assertThat(blobDetails.eventGroupReferenceId).isEmpty()
+      // The sink records the file's first non-empty event_group_reference_id for
+      // DataAvailabilitySync (TODO(#4175) removes this end-to-end).
+      assertThat(blobDetails.eventGroupReferenceId).isEqualTo("eg1")
 
       val impressions = readImpressions(blobDetails)
       assertThat(impressions).hasSize(2)
@@ -180,6 +196,44 @@ class VidLabelingSinkTest {
       val unionByType = blobDetails.entityKeysList.associate { it.entityType to it.entityIdsList }
       assertThat(unionByType.getValue("household")).containsExactly("hh-1", "hh-2")
       assertThat(unionByType.getValue("person")).containsExactly("p-shared")
+    }
+
+  @Test
+  fun `memoized path attaches rank assignments on a hit and leaves the input untouched on a miss`() =
+    runBlocking<Unit> {
+      tempFolder.root.resolve("labeled").mkdirs()
+      // Rank index holds a rank only for the hit event's fingerprint (idByte 1 -> high=1, low=1).
+      val subpoolMap = Bytes12IntMap().apply { put(1L, 1, 7) }
+      val rankIndex = MemoizedRankIndex.fromMaps(mapOf(POOL_OFFSET to subpoolMap))
+      val assigner = CapturingVidAssigner(VID)
+      val sink =
+        sink(
+          listOf(
+            context(
+              ActiveWindow(startMicros = 0L, endMicros = 10_000L),
+              assigner = assigner,
+              rankIndex = rankIndex,
+            )
+          )
+        )
+
+      sink.processBatch(
+        listOf(
+          rawEvent(eventTimeMicros = 1_000L, eventGroup = "eg1", idByte = 1), // hit
+          rawEvent(eventTimeMicros = 1_000L, eventGroup = "eg1", idByte = 2), // miss
+        )
+      )
+      sink.commit()
+      sink.close()
+
+      // Labeling runs on concurrent workers, so assert on the set rather than on order.
+      assertThat(assigner.inputs).hasSize(2)
+      val withRanks = assigner.inputs.filter { it.rankAssignmentsList.isNotEmpty() }
+      assertThat(withRanks).hasSize(1)
+      assertThat(withRanks.single().rankAssignmentsList.map { it.poolOffset to it.localRank })
+        .containsExactly(POOL_OFFSET to 7L)
+      // The miss leaves its LabelerInput untouched (no rank assignments attached).
+      assertThat(assigner.inputs.count { it.rankAssignmentsList.isEmpty() }).isEqualTo(1)
     }
 
   @Test
@@ -328,6 +382,59 @@ class VidLabelingSinkTest {
         .isEqualTo(1)
     }
 
+  @Test
+  fun `commit bounds concurrent KMS key setup with the shared semaphore`() =
+    runBlocking<Unit> {
+      tempFolder.root.resolve("labeled").mkdirs()
+
+      // An Aead that wraps the real one and records how many wrap (encrypt) calls are in flight at
+      // once. The brief sleep widens the overlap window so an unbounded fan-out would be observed.
+      val realAead =
+        KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM")).getPrimitive(Aead::class.java)
+      val inFlight = AtomicInteger(0)
+      val maxInFlight = AtomicInteger(0)
+      val totalEncrypts = AtomicInteger(0)
+      val recordingAead =
+        object : Aead {
+          override fun encrypt(plaintext: ByteArray?, associatedData: ByteArray?): ByteArray {
+            totalEncrypts.incrementAndGet()
+            val now = inFlight.incrementAndGet()
+            maxInFlight.getAndUpdate { max(it, now) }
+            try {
+              Thread.sleep(100)
+              return realAead.encrypt(plaintext, associatedData)
+            } finally {
+              inFlight.decrementAndGet()
+            }
+          }
+
+          override fun decrypt(ciphertext: ByteArray?, associatedData: ByteArray?): ByteArray =
+            realAead.decrypt(ciphertext, associatedData)
+        }
+      val recordingKms = FakeKmsClient().apply { setAead(kekUri, recordingAead) }
+
+      // One WorkItem fanning out to 8 output groups (8 model lines x this 1 file), all wrapping
+      // their DEK against the same KEK, but capped at 2 permits.
+      val window = ActiveWindow(startMicros = 0L, endMicros = 10_000L)
+      val contexts =
+        (1..8).map { i -> context(activeWindow = window, modelLine = "$MODEL_LINE-$i") }
+      val sink =
+        sink(
+          contexts = contexts,
+          encryptKmsClient = recordingKms,
+          encryptionKeySemaphore = Semaphore(2),
+        )
+
+      sink.processBatch(listOf(rawEvent(eventTimeMicros = 1_500L, eventGroup = "eg1", idByte = 1)))
+      sink.commit()
+
+      // Every group wraps its own DEK (8 KMS calls), but the shared semaphore holds concurrency to
+      // the 2 permits -- without it the forced-overlap sleep would let all 8 run at once.
+      assertThat(totalEncrypts.get()).isEqualTo(8)
+      assertThat(maxInFlight.get()).isAtMost(2)
+      assertThat(inFlight.get()).isEqualTo(0)
+    }
+
   /** Reads back the labeled impressions from an output blob via its [BlobDetails]. */
   private suspend fun readImpressions(blobDetails: BlobDetails): List<LabeledImpression> {
     val parsed = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
@@ -395,6 +502,20 @@ class VidLabelingSinkTest {
         .build()
   }
 
+  /**
+   * Records every [LabelerInput] it receives (thread-safe: labeling runs on concurrent workers).
+   */
+  private class CapturingVidAssigner(private val vid: Long) : VidAssigner {
+    val inputs = CopyOnWriteArrayList<LabelerInput>()
+
+    override fun assign(input: LabelerInput): LabelerOutput {
+      inputs.add(input)
+      return LabelerOutput.newBuilder()
+        .addPeople(VirtualPersonActivity.newBuilder().setVirtualPersonId(vid).build())
+        .build()
+    }
+  }
+
   private fun rawEvent(
     eventTimeMicros: Long,
     eventGroup: String,
@@ -418,6 +539,7 @@ class VidLabelingSinkTest {
     private const val DATA_PROVIDER = "dataProviders/edp-1"
     private const val MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
     private const val VID = 42L
+    private const val POOL_OFFSET = 10L
     private const val EVENT_TIME_COLUMN = "event_time_micros"
     private const val EVENT_GROUP_COLUMN = "event_group"
   }

@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.crypto.tink.KmsClient
 import java.util.logging.Logger
+import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
@@ -78,9 +79,17 @@ class VidLabeler(
           activeWindow = spec.activeWindow,
           assigner = vidModelLoader.getAssigner(spec.modelBlobUri),
           config = spec.config,
+          rankIndex = spec.rankIndex,
         )
       }
     logger.info("Labeling shard with ${contexts.size} model line(s)")
+
+    // One semaphore per WorkItem (this is one label() call per WorkItem), shared across every
+    // per-file sink. All of a WorkItem's files belong to the same DataProvider and wrap their
+    // output DEKs against the same KEK, so this caps concurrent KMS key setup across the
+    // WorkItem's whole group fan-out (nModelLines x nFiles) and keeps the shared KEK under Cloud
+    // KMS rate limits.
+    val encryptionKeySemaphore = Semaphore(VidLabelingSink.DEFAULT_ENCRYPTION_KEY_PARALLELISM)
 
     // TODO(world-federation-of-advertisers/cross-media-measurement#4010): Switch to file-batching
     // contract. RawImpressionSource currently shards by fingerprint; once VidLabelerApp is wired
@@ -96,6 +105,7 @@ class VidLabeler(
         storageConfig = storageConfig,
         dataProvider = dataProvider,
         metrics = metrics,
+        encryptionKeySemaphore = encryptionKeySemaphore,
       )
     }
     // TODO(world-federation-of-advertisers/cross-media-measurement#4010): Call
@@ -131,10 +141,14 @@ class VidLabeler(
  * @property modelBlobUri URI of the compiled-model blob, loaded via [VidModelLoader].
  * @property activeWindow the model line's active interval, for event-time filtering.
  * @property config the model line's field-mapping configuration.
+ * @property rankIndex the memoized rank index for this model line, or `null` for the non-memoized
+ *   (hash-only) path. When set, each impression's rank is looked up and attached to the
+ *   `LabelerInput` before labeling.
  */
 data class ModelLineSpec(
   val modelLine: String,
   val modelBlobUri: String,
   val activeWindow: ActiveWindow,
   val config: VidLabelerParams.ModelLineConfig,
+  val rankIndex: MemoizedRankIndex? = null,
 )
