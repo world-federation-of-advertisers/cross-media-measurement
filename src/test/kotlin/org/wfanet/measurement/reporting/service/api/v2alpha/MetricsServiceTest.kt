@@ -5234,7 +5234,13 @@ class MetricsServiceTest {
         permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
       } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
       whenever(measurementsMock.batchCreateMeasurements(any()))
-        .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
+        .thenThrow(
+          StatusRuntimeException(
+            Status.INVALID_ARGUMENT.withDescription(
+              "measurement_spec.reach_and_frequency is required"
+            )
+          )
+        )
 
       val request = createMetricRequest {
         parent = MEASUREMENT_CONSUMERS.values.first().name
@@ -5249,6 +5255,8 @@ class MetricsServiceTest {
           }
         }
       assertThat(exception.grpcStatusCode()).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      // The underlying CMMS error detail is surfaced instead of a generic message.
+      assertThat(exception.message).contains("measurement_spec.reach_and_frequency is required")
     }
 
   @Test
