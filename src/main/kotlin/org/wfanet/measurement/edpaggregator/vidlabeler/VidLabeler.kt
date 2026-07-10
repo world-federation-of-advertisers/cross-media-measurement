@@ -110,13 +110,13 @@ class VidLabeler(
       // The file's plaintext Parquet footer carries the event group reference id and event date;
       // read them here and hand them to the file's sink. Entity keys are NOT in the footer — they
       // are read per impression from dedicated columns by the converter (EntityKeyMapper).
-      val fileEntityKeys = FileEntityKeys.fromFooterMetadata(footerMetadata)
-      observedEventDates.add(fileEntityKeys.eventDate)
+      val fileMetadata = RawImpressionFileMetadata.fromFooterMetadata(footerMetadata)
+      observedEventDates.add(fileMetadata.eventDate)
       VidLabelingSink(
         inputBlobUri = blobUri,
         modelLineContexts = contexts,
         impressionConverter = impressionConverter,
-        fileEntityKeys = fileEntityKeys,
+        fileMetadata = fileMetadata,
         encryptKmsClient = encryptKmsClient,
         encryptKekUri = encryptKekUri,
         outputStorageParams = outputStorageParams,

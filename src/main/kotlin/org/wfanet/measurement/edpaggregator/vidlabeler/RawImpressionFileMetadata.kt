@@ -31,18 +31,18 @@ import java.time.format.DateTimeParseException
  *   day of events). Places the labeled output under `model-line/<id>/<YYYY-MM-DD>/` so
  *   `DataAvailabilitySync` can classify it by date.
  */
-data class FileEntityKeys(val eventDate: LocalDate) {
+data class RawImpressionFileMetadata(val eventDate: LocalDate) {
   companion object {
     /** Footer key holding the file's event date (one day per file) as an ISO `YYYY-MM-DD` (UTC). */
     const val EVENT_DATE_KEY = "event_date"
 
     /**
-     * Parses [FileEntityKeys] from a raw-impression file's footer [metadata].
+     * Parses [RawImpressionFileMetadata] from a raw-impression file's footer [metadata].
      *
      * Fails loudly if the event date is missing: every labeled impression must be dated, so an
      * undated input file is a producer bug, not a per-row condition.
      */
-    fun fromFooterMetadata(metadata: Map<String, String>): FileEntityKeys {
+    fun fromFooterMetadata(metadata: Map<String, String>): RawImpressionFileMetadata {
       val eventDateString =
         requireNotNull(metadata[EVENT_DATE_KEY]?.takeIf { it.isNotEmpty() }) {
           "raw-impression footer is missing the '$EVENT_DATE_KEY' metadata entry; the producer " +
@@ -58,7 +58,7 @@ data class FileEntityKeys(val eventDate: LocalDate) {
             e,
           )
         }
-      return FileEntityKeys(eventDate)
+      return RawImpressionFileMetadata(eventDate)
     }
   }
 }

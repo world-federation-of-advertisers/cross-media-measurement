@@ -135,9 +135,9 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "FileEntityKeysTest",
-    srcs = ["FileEntityKeysTest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.vidlabeler.FileEntityKeysTest",
+    name = "RawImpressionFileMetadataTest",
+    srcs = ["RawImpressionFileMetadataTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidlabeler.RawImpressionFileMetadataTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeling",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
