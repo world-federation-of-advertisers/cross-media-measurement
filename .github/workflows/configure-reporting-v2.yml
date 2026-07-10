@@ -33,6 +33,12 @@ on:
         description: "Apply the new configuration"
         type: boolean
         required: true
+      mcp_host:
+        description: "Public hostname for the MCP server Ingress (blank skips external exposure)"
+        type: string
+      oauth_issuer:
+        description: "OAuth issuer URL for the MCP server (blank uses the environment's OPEN_ID_PROVIDER_ISSUER)"
+        type: string
   workflow_dispatch:
     inputs:
       environment:
@@ -51,6 +57,12 @@ on:
         description: "Apply the new configuration"
         type: boolean
         default: false
+      mcp_host:
+        description: "Public hostname for the MCP server Ingress (blank skips external exposure)"
+        type: string
+      oauth_issuer:
+        description: "OAuth issuer URL for the MCP server (blank uses the environment's OPEN_ID_PROVIDER_ISSUER)"
+        type: string
 
 permissions:
   contents: read
@@ -93,6 +105,8 @@ jobs:
         GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         PDP_NAME: ${{ vars.PDP_NAME }}
+        MCP_HOST: ${{ inputs.mcp_host || vars.MCP_HOST }}
+        OPEN_ID_PROVIDER_ISSUER: ${{ inputs.oauth_issuer || vars.OPEN_ID_PROVIDER_ISSUER }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -109,6 +123,8 @@ jobs:
         build --define reporting_set_reporting_unit_components_enabled=true
         build --define 'event_message_type_url=type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent'
         build --define "pdp_name=$PDP_NAME"
+        build --define "mcp_host=$MCP_HOST"
+        build --define "oauth_issuer=$OPEN_ID_PROVIDER_ISSUER"
         EOF
 
     - name: Export BAZEL_BIN
