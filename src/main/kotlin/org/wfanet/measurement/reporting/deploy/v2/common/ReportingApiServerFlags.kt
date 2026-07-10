@@ -116,6 +116,20 @@ class ReportingApiServerFlags {
   lateinit var populationDataProvider: String
     private set
 
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4067): Remove this flag once
+  // ReportingSet ReportingUnit components in BasicReports are fully validated and released.
+  @set:CommandLine.Option(
+    names = ["--enable-reporting-set-reporting-unit-components"],
+    description =
+      [
+        "Enable ReportingSet resource names as BasicReport ReportingUnit components, with a " +
+          "server-synthesized campaign_group. When false, BasicReport.campaign_group is required."
+      ],
+    defaultValue = "false",
+  )
+  var enableReportingSetReportingUnitComponents by Delegates.notNull<Boolean>()
+    private set
+
   class ReportStart {
     class TimeOffset {
       @CommandLine.Option(

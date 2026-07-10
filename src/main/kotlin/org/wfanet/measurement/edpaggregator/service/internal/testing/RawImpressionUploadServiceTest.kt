@@ -118,6 +118,41 @@ abstract class RawImpressionUploadServiceTest {
   }
 
   @Test
+  fun `createRawImpressionUpload throws ALREADY_EXISTS when request_id reused with different done_blob_uri`():
+    Unit = runBlocking {
+    val requestId: String = UUID.randomUUID().toString()
+    service.createRawImpressionUpload(
+      createRawImpressionUploadRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+        this.requestId = requestId
+      }
+    )
+
+    val exception: StatusRuntimeException =
+      assertFailsWith<StatusRuntimeException> {
+        service.createRawImpressionUpload(
+          createRawImpressionUploadRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUpload = rawImpressionUpload { doneBlobUri = "$DONE_BLOB_URI-different" }
+            this.requestId = requestId
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS.name
+          metadata[Errors.Metadata.DATA_PROVIDER_RESOURCE_ID.key] = DATA_PROVIDER_RESOURCE_ID
+          metadata[Errors.Metadata.CREATE_REQUEST_ID.key] = requestId
+        }
+      )
+  }
+
+  @Test
   fun `createRawImpressionUpload throws INVALID_ARGUMENT if data_provider_resource_id not set`():
     Unit = runBlocking {
     val exception: StatusRuntimeException =
