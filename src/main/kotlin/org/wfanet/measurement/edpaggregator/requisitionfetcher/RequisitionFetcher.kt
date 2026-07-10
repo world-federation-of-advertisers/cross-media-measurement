@@ -283,29 +283,23 @@ class RequisitionFetcher(
 
     val openBuffers = mutableMapOf<String, OpenBuffer>()
     val buffersMutex = Mutex()
-    // reportIds already emitted at least once this run. A second (or later) emission of the same
-    // reportId is a genuine split — the report is being written across more than one blob. Tracking
-    // this makes `bufferSplits` an exact count of split reports regardless of which trigger fired,
-    // instead of over-counting every buffer on every drain.
-    val dispatchedReportIds = mutableSetOf<String>()
     var totalFetched = 0L
     var openBufferHighWater = 0
     var totalBufferedBytes = 0L
     var bufferedBytesHighWater = 0L
 
-    // Must hold buffersMutex. Dispatches every open buffer as its own work unit and clears the map
-    // and the running byte total. Counts a split whenever a reportId is emitted for the second or
-    // later time this run.
-    suspend fun drainAll() {
-      if (openBuffers.isEmpty()) return
-      for (buffer in openBuffers.values) {
-        channel.send(ReportWorkUnit(buffer.reportId, buffer.requisitions.toList()))
-        if (!dispatchedReportIds.add(buffer.reportId)) {
-          metrics.bufferSplits.add(1, dataProviderAttrs)
-        }
-      }
+    // Must hold buffersMutex. Atomically snapshots every open buffer into work units, clears the
+    // map, and resets the running byte total. Does NOT send: this function is non-suspending so the
+    // lock is never held across the suspending `channel.send`. Callers send the returned units
+    // outside the lock, so a slow consumer backing up the channel cannot stall the stream collector
+    // (which needs the same lock to keep buffering). Backpressure is provided solely by the
+    // channel.
+    fun drainAll(): List<ReportWorkUnit> {
+      if (openBuffers.isEmpty()) return emptyList()
+      val units = openBuffers.values.map { ReportWorkUnit(it.reportId, it.requisitions.toList()) }
       openBuffers.clear()
       totalBufferedBytes = 0L
+      return units
     }
 
     // Periodic drain: the primary dispatch trigger. Runs until the collector completes and cancels
@@ -314,7 +308,7 @@ class RequisitionFetcher(
     val drainTicker = launch {
       while (isActive) {
         delay(flushInterval.toMillis())
-        buffersMutex.withLock { drainAll() }
+        for (unit in buffersMutex.withLock { drainAll() }) channel.send(unit)
       }
     }
 
@@ -335,39 +329,38 @@ class RequisitionFetcher(
         }
 
         val requisitionBytes = requisition.serializedSize.toLong()
-        buffersMutex.withLock {
-          totalFetched += 1
-          val existing = openBuffers[reportId]
-          if (existing == null) {
-            openBuffers[reportId] =
-              OpenBuffer(
-                reportId = reportId,
-                requisitions = mutableListOf(requisition),
-                bytes = requisitionBytes,
-              )
-          } else {
-            existing.requisitions.add(requisition)
-            existing.bytes += requisitionBytes
+        // Snapshot any backstop drain under the lock, then send outside it (see drainAll).
+        val toSend =
+          buffersMutex.withLock {
+            totalFetched += 1
+            val existing = openBuffers[reportId]
+            if (existing == null) {
+              openBuffers[reportId] =
+                OpenBuffer(
+                  reportId = reportId,
+                  requisitions = mutableListOf(requisition),
+                  bytes = requisitionBytes,
+                )
+            } else {
+              existing.requisitions.add(requisition)
+              existing.bytes += requisitionBytes
+            }
+            totalBufferedBytes += requisitionBytes
+            if (openBuffers.size > openBufferHighWater) openBufferHighWater = openBuffers.size
+            if (totalBufferedBytes > bufferedBytesHighWater) {
+              bufferedBytesHighWater = totalBufferedBytes
+            }
+            // Memory backstop between periodic drains.
+            if (totalBufferedBytes >= maxTotalBufferedBytes) drainAll() else emptyList()
           }
-          totalBufferedBytes += requisitionBytes
-          if (openBuffers.size > openBufferHighWater) openBufferHighWater = openBuffers.size
-          if (totalBufferedBytes > bufferedBytesHighWater) {
-            bufferedBytesHighWater = totalBufferedBytes
-          }
-          // Memory backstop between periodic drains.
-          if (totalBufferedBytes >= maxTotalBufferedBytes) {
-            drainAll()
-          }
-        }
+        for (unit in toSend) channel.send(unit)
       }
     } finally {
       drainTicker.cancel()
     }
 
-    // Final drain of whatever remains when the stream ends within the instance lifetime. A report
-    // untouched by any earlier drain is emitted here for the first time (no split); one already
-    // partially emitted is counted as a split by drainAll's per-report bookkeeping.
-    buffersMutex.withLock { drainAll() }
+    // Final drain of whatever remains when the stream ends within the instance lifetime.
+    for (unit in buffersMutex.withLock { drainAll() }) channel.send(unit)
 
     metrics.openBufferHighWaterMark.record(openBufferHighWater.toLong(), dataProviderAttrs)
     metrics.bufferedBytesHighWaterMark.record(bufferedBytesHighWater, dataProviderAttrs)
@@ -519,6 +512,15 @@ class RequisitionFetcher(
           return
         } ?: return
 
+      // A report that already has STORED metadata has already had at least one blob written for
+      // it (this run or a prior run); writing another group for it means the report is split across
+      // more than one blob. Count each such additional blob. This is derived from persisted
+      // metadata rather than per-run memory, so it captures cross-run splits (a report whose
+      // requisitions straddle scheduled runs) as well as intra-run splits — the per-run set it
+      // replaced could see neither, since report ids are unique per run.
+      if (storedByGroupId.isNotEmpty()) {
+        metrics.bufferSplits.add(1, dataProviderAttrs)
+      }
       writeBlob(grouped)
       // TODO(world-federation-of-advertisers/cross-media-measurement#4119): A crash between
       //  writeBlob and this batch call leaves an orphan blob (blob present, zero metadata).

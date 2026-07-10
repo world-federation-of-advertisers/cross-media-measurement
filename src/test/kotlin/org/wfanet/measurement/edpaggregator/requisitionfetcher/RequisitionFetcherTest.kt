@@ -210,6 +210,39 @@ class RequisitionFetcherTest {
 
   private fun blobsDir() = tempFolder.root.toPath().resolve(STORAGE_PATH_PREFIX).toFile()
 
+  /**
+   * Makes [requisitionMetadataServiceMock].listRequisitionMetadata stateful: it returns STORED rows
+   * for every requisition already persisted via batchCreateRequisitionMetadata (recorded in
+   * [createRequisitionMetadataRequests]), filtered to the requested report. This mirrors the real
+   * service so that a second work unit for a report observes the first unit's STORED metadata,
+   * which is what the bufferSplits split-detection and cross-unit recovery both key off of.
+   */
+  private fun installStatefulMetadataMock() {
+    requisitionMetadataServiceMock.stub {
+      onBlocking { listRequisitionMetadata(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ListRequisitionMetadataRequest>(0)
+          val reportFilter = request.filter.report
+          listRequisitionMetadataResponse {
+            requisitionMetadata +=
+              createRequisitionMetadataRequests
+                .map { it.requisitionMetadata }
+                .filter { reportFilter.isEmpty() || it.report == reportFilter }
+                .map {
+                  requisitionMetadata {
+                    state = RequisitionMetadata.State.STORED
+                    cmmsRequisition = it.cmmsRequisition
+                    groupId = it.groupId
+                    report = it.report
+                    blobUri = it.blobUri
+                    blobTypeUrl = it.blobTypeUrl
+                  }
+                }
+          }
+        }
+    }
+  }
+
   private fun blobsList() = blobsDir().listFiles().orEmpty()
 
   @Test
@@ -274,18 +307,20 @@ class RequisitionFetcherTest {
     whenever(requisitionsServiceMock.listRequisitions(any()))
       .thenReturn(listRequisitionsResponse { this.requisitions += requisitions })
 
-    // Global cap chosen so the second add trips the backstop: r1+r2 flush together (one blob, one
-    // split), then r3 flushes at end (a second blob, no split).
+    // bufferSplits is derived from persisted metadata: a split is counted when a new group is
+    // written for a report that already has STORED metadata. Make the metadata service stateful so
+    // the second work unit's listRequisitionMetadata returns the STORED rows the first unit
+    // created.
+    installStatefulMetadataMock()
+
+    // Global cap chosen so the second add trips the backstop: r1+r2 flush as one blob, then r3
+    // flushes as a second blob for the same report — the second blob is the counted split.
     val perRequisitionBytes = requisitions.first().serializedSize.toLong()
     val cap = perRequisitionBytes + 1
     createFetcher(maxTotalBufferedBytes = cap).fetchAndStoreRequisitions()
 
     assertThat(blobsList()).hasLength(2)
-    val splitsMetric =
-      metricReader.collectAllMetrics().find { it.name == "edpa.requisition_fetcher.buffer_splits" }
-    assertThat(splitsMetric).isNotNull()
-    val splitsValue = (splitsMetric!!.longSumData.points.first() as LongPointData).value
-    assertThat(splitsValue).isEqualTo(1)
+    assertThat(counterValue("edpa.requisition_fetcher.buffer_splits")).isEqualTo(1)
   }
 
   @Test
@@ -928,52 +963,53 @@ class RequisitionFetcherTest {
   }
 
   @Test
-  fun `cap-split STORED recovery completes when all reqs arrive across units`() = runBlocking {
-    val groupId = "wedged-group-id"
-    val blobKey = "$STORAGE_PATH_PREFIX/$groupId"
-    val r1 = TestRequisitionData.REQUISITION.copy { updateTime = timestamp { seconds = 10 } }
-    val r2 =
-      TestRequisitionData.REQUISITION.copy {
-        name = "${TestRequisitionData.EDP_NAME}/requisitions/foo2"
-        updateTime = timestamp { seconds = 20 }
-      }
-    whenever(requisitionsServiceMock.listRequisitions(any()))
-      .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2) })
-    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
-      .thenReturn(
-        listRequisitionMetadataResponse {
-          requisitionMetadata +=
-            listOf(
-              requisitionMetadata {
-                state = RequisitionMetadata.State.STORED
-                cmmsRequisition = r1.name
-                blobUri = "$BLOB_URI_PREFIX/$blobKey"
-                blobTypeUrl = "type"
-                this.groupId = groupId
-                report = "some-report"
-              },
-              requisitionMetadata {
-                state = RequisitionMetadata.State.STORED
-                cmmsRequisition = r2.name
-                blobUri = "$BLOB_URI_PREFIX/$blobKey"
-                blobTypeUrl = "type"
-                this.groupId = groupId
-                report = "some-report"
-              },
-            )
+  fun `STORED recovery rebuilds a missing blob when all expected reqs arrive in one unit`() =
+    runBlocking {
+      val groupId = "wedged-group-id"
+      val blobKey = "$STORAGE_PATH_PREFIX/$groupId"
+      val r1 = TestRequisitionData.REQUISITION.copy { updateTime = timestamp { seconds = 10 } }
+      val r2 =
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/foo2"
+          updateTime = timestamp { seconds = 20 }
         }
-      )
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2) })
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+        .thenReturn(
+          listRequisitionMetadataResponse {
+            requisitionMetadata +=
+              listOf(
+                requisitionMetadata {
+                  state = RequisitionMetadata.State.STORED
+                  cmmsRequisition = r1.name
+                  blobUri = "$BLOB_URI_PREFIX/$blobKey"
+                  blobTypeUrl = "type"
+                  this.groupId = groupId
+                  report = "some-report"
+                },
+                requisitionMetadata {
+                  state = RequisitionMetadata.State.STORED
+                  cmmsRequisition = r2.name
+                  blobUri = "$BLOB_URI_PREFIX/$blobKey"
+                  blobTypeUrl = "type"
+                  this.groupId = groupId
+                  report = "some-report"
+                },
+              )
+          }
+        )
 
-    createFetcher().fetchAndStoreRequisitions()
+      createFetcher().fetchAndStoreRequisitions()
 
-    val blob = storageClient.getBlob(blobKey)
-    assertThat(blob).isNotNull()
-    val parsed = Any.parseFrom(blob!!.read().flatten()).unpack(GroupedRequisitions::class.java)
-    assertThat(parsed.requisitionsList).hasSize(2)
-    assertThat(parsed.groupId).isEqualTo(groupId)
-    assertThat(createRequisitionMetadataRequests).isEmpty()
-    assertThat(counterValue("edpa.requisition_fetcher.recovery_rebuilds")).isEqualTo(1)
-  }
+      val blob = storageClient.getBlob(blobKey)
+      assertThat(blob).isNotNull()
+      val parsed = Any.parseFrom(blob!!.read().flatten()).unpack(GroupedRequisitions::class.java)
+      assertThat(parsed.requisitionsList).hasSize(2)
+      assertThat(parsed.groupId).isEqualTo(groupId)
+      assertThat(createRequisitionMetadataRequests).isEmpty()
+      assertThat(counterValue("edpa.requisition_fetcher.recovery_rebuilds")).isEqualTo(1)
+    }
 
   @Test
   fun `recovery skipped and metric incremented when stream lacks required reqs`() = runBlocking {
@@ -1046,6 +1082,9 @@ class RequisitionFetcherTest {
         else -> listRequisitionsResponse {}
       }
     }
+
+    // A split is counted only when the second unit sees the first unit's STORED metadata.
+    installStatefulMetadataMock()
 
     createFetcher(flushInterval = java.time.Duration.ofMillis(100)).fetchAndStoreRequisitions()
 
@@ -1174,14 +1213,12 @@ class RequisitionFetcherTest {
   }
 
   @Test
-  fun `recovery deduplicates requisitions that appear in multiple units`(): Unit = runBlocking {
+  fun `recovery deduplicates a requisition that appears more than once`(): Unit = runBlocking {
     val groupId = "wedged-group-id"
     val blobKey = "$STORAGE_PATH_PREFIX/$groupId"
-    // Same requisition appears twice in the stream under different updateTimes (Kingdom-side
-    // drift), so the producer dispatches it in two work units. The second requisition belongs to
-    // the same wedged group. Without dedup, the rebuilt blob would include three RequisitionEntry
-    // protos for two distinct requisitions, and the size check could complete the rebuild before
-    // all distinct requisitions have arrived.
+    // The same requisition (r1) appears twice in the stream (Kingdom-side updateTime drift). The
+    // wedged group expects {r1, r2}. Without dedup, r1 counted twice could satisfy the size check
+    // before r2 arrives and rebuild a blob missing r2. Dedup by name prevents that.
     val r1a = TestRequisitionData.REQUISITION.copy { updateTime = timestamp { seconds = 10 } }
     val r1b = TestRequisitionData.REQUISITION.copy { updateTime = timestamp { seconds = 20 } }
     val r2 =
@@ -1489,9 +1526,11 @@ class RequisitionFetcherTest {
 
   @Test
   fun `cross-unit recovery completes when a report is split across drains`() = runBlocking {
-    // A report split across two drains (a slow second page past the flush interval) yields two
-    // units for one report. Metadata lists both as STORED-but-blob-missing under one group; the
-    // single consumer's PendingRecovery accumulator completes across the two units and rebuilds.
+    // A wedged group (STORED metadata, missing blob) whose two expected requisitions arrive in
+    // SEPARATE work units within one run: r1 on the first page, r2 on a slow second page delivered
+    // after the flush interval so the ticker drains r1 as its own unit first. Neither unit alone
+    // satisfies the expected set {r1, r2}; recovery must accumulate ACROSS units to rebuild. This
+    // test fails if cross-unit accumulation (PendingRecovery) is removed.
     val groupId = "wedged-split-group"
     val blobKey = "$STORAGE_PATH_PREFIX/$groupId"
     val r1 =
@@ -1504,8 +1543,23 @@ class RequisitionFetcherTest {
         name = "${TestRequisitionData.EDP_NAME}/requisitions/r2"
         updateTime = timestamp { seconds = 20 }
       }
-    whenever(requisitionsServiceMock.listRequisitions(any()))
-      .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2) })
+    // Two pages, drained apart: page 0 returns r1 (+token); page 1 sleeps past the flush interval
+    // then returns r2. The periodic drain flushes r1 before r2 arrives -> two units for one report.
+    var page = 0
+    whenever(requisitionsServiceMock.listRequisitions(any())).thenAnswer {
+      when (page++) {
+        0 ->
+          listRequisitionsResponse {
+            requisitions += r1
+            nextPageToken = "p1"
+          }
+        1 -> {
+          Thread.sleep(300)
+          listRequisitionsResponse { requisitions += r2 }
+        }
+        else -> listRequisitionsResponse {}
+      }
+    }
     whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
       .thenReturn(
         listRequisitionMetadataResponse {
@@ -1531,8 +1585,9 @@ class RequisitionFetcherTest {
         }
       )
 
-    createFetcher().fetchAndStoreRequisitions()
+    createFetcher(flushInterval = java.time.Duration.ofMillis(100)).fetchAndStoreRequisitions()
 
+    // Rebuilt only because the two units were accumulated; the blob is present and counted once.
     assertThat(storageClient.getBlob(blobKey)).isNotNull()
     assertThat(counterValue("edpa.requisition_fetcher.recovery_rebuilds")).isEqualTo(1)
   }
