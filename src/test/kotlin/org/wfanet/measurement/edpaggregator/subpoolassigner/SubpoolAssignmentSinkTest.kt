@@ -29,6 +29,8 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
+import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
 import org.wfanet.measurement.storage.ParquetValue
 import org.wfanet.measurement.storage.parquetValue
@@ -36,7 +38,19 @@ import org.wfanet.virtualpeople.common.LabelerInput
 
 @RunWith(JUnit4::class)
 class SubpoolAssignmentSinkTest {
-  private val mapper = LabelerInputMapper(mapOf("timestamp_usec" to "ts", "event_id.id" to "eid"))
+  private val mapper =
+    LabelerInputMapper(
+      listOf(
+        LabelerInputFieldMapping.newBuilder()
+          .setFieldPath("timestamp_usec")
+          .setScalar(ScalarColumn.newBuilder().setColumn("ts"))
+          .build(),
+        LabelerInputFieldMapping.newBuilder()
+          .setFieldPath("event_id.id")
+          .setScalar(ScalarColumn.newBuilder().setColumn("eid"))
+          .build(),
+      )
+    )
 
   private lateinit var metricReader: InMemoryMetricReader
   private lateinit var testMetrics: SubpoolAssignerMetrics

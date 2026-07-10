@@ -37,7 +37,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BatchDeleteRankIndexBlobsReq
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchDeleteRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRankIndexBlobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.DeleteRankIndexBlobRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRankIndexBlobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsResponse
@@ -45,11 +44,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteRankIndexBlobsResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.internal.edpaggregator.BlobType as InternalBlobType
-import org.wfanet.measurement.internal.edpaggregator.EncryptedDek as InternalEncryptedDek
 import org.wfanet.measurement.internal.edpaggregator.ListRankIndexBlobsPageToken as InternalListPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRankIndexBlobsRequestKt as InternalListRankIndexBlobsRequestKt
 import org.wfanet.measurement.internal.edpaggregator.ListRankIndexBlobsResponse as InternalListResponse
@@ -59,7 +56,6 @@ import org.wfanet.measurement.internal.edpaggregator.batchCreateRankIndexBlobsRe
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteRankIndexBlobsRequest as internalBatchDeleteRequest
 import org.wfanet.measurement.internal.edpaggregator.createRankIndexBlobRequest as internalCreateRequest
 import org.wfanet.measurement.internal.edpaggregator.deleteRankIndexBlobRequest as internalDeleteRequest
-import org.wfanet.measurement.internal.edpaggregator.encryptedDek as internalEncryptedDek
 import org.wfanet.measurement.internal.edpaggregator.getRankIndexBlobRequest as internalGetRequest
 import org.wfanet.measurement.internal.edpaggregator.listRankIndexBlobsRequest as internalListRequest
 import org.wfanet.measurement.internal.edpaggregator.rankIndexBlob as internalRankIndexBlob
@@ -474,6 +470,13 @@ class RankIndexBlobService(
         InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+        InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
+        InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
+        InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }
@@ -544,49 +547,5 @@ internal fun RankIndexBlob.BlobType.toInternal(): InternalBlobType {
     RankIndexBlob.BlobType.SNAPSHOT -> InternalBlobType.BLOB_TYPE_SNAPSHOT
     RankIndexBlob.BlobType.BLOB_TYPE_UNSPECIFIED -> InternalBlobType.BLOB_TYPE_UNSPECIFIED
     RankIndexBlob.BlobType.UNRECOGNIZED -> error("Unrecognized blob type")
-  }
-}
-
-/** Converts an internal [InternalEncryptedDek] to a public [EncryptedDek]. */
-internal fun InternalEncryptedDek.toPublic(): EncryptedDek {
-  val source = this
-  return encryptedDek {
-    kekUri = source.kekUri
-    typeUrl = source.typeUrl
-    protobufFormat = source.protobufFormat.toPublicProtobufFormat()
-    ciphertext = source.ciphertext
-  }
-}
-
-/** Converts a public [EncryptedDek] to an internal [InternalEncryptedDek]. */
-internal fun EncryptedDek.toInternal(): InternalEncryptedDek {
-  val source = this
-  return internalEncryptedDek {
-    kekUri = source.kekUri
-    typeUrl = source.typeUrl
-    protobufFormat = source.protobufFormat.toInternalProtobufFormat()
-    ciphertext = source.ciphertext
-  }
-}
-
-private fun InternalEncryptedDek.ProtobufFormat.toPublicProtobufFormat():
-  EncryptedDek.ProtobufFormat {
-  return when (this) {
-    InternalEncryptedDek.ProtobufFormat.BINARY -> EncryptedDek.ProtobufFormat.BINARY
-    InternalEncryptedDek.ProtobufFormat.JSON -> EncryptedDek.ProtobufFormat.JSON
-    InternalEncryptedDek.ProtobufFormat.PROTOBUF_FORMAT_UNSPECIFIED ->
-      EncryptedDek.ProtobufFormat.PROTOBUF_FORMAT_UNSPECIFIED
-    InternalEncryptedDek.ProtobufFormat.UNRECOGNIZED -> error("Unrecognized protobuf format")
-  }
-}
-
-private fun EncryptedDek.ProtobufFormat.toInternalProtobufFormat():
-  InternalEncryptedDek.ProtobufFormat {
-  return when (this) {
-    EncryptedDek.ProtobufFormat.BINARY -> InternalEncryptedDek.ProtobufFormat.BINARY
-    EncryptedDek.ProtobufFormat.JSON -> InternalEncryptedDek.ProtobufFormat.JSON
-    EncryptedDek.ProtobufFormat.PROTOBUF_FORMAT_UNSPECIFIED ->
-      InternalEncryptedDek.ProtobufFormat.PROTOBUF_FORMAT_UNSPECIFIED
-    EncryptedDek.ProtobufFormat.UNRECOGNIZED -> error("Unrecognized protobuf format")
   }
 }

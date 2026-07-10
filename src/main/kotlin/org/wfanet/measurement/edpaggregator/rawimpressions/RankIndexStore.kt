@@ -61,12 +61,15 @@ class RankIndexStore(storageClient: ConditionalOperationStorageClient, kmsClient
    * @return the SHA-256 of the plaintext payload (concatenated record bytes, in order), for the
    *   `RankIndexBlob.blob_checksum` corruption guard.
    *
-   * TODO(world-federation-of-advertisers/cross-media-measurement#3999): once
-   *   world-federation-of-advertisers/common-jvm#389 lands, collapse the per-attempt-UUID blob keys
-   *   (see [snapshotKey] / [dayOnlyKey]) to deterministic keys written via `writeBlobIfGeneration`
-   *   so concurrent writers race-fail at the precondition rather than relying on the row insert as
-   *   the linearization point. Mirrors the Phase-0 adoption path in
-   *   [SubpoolFingerprintsStore.writeBlob].
+   * NOTE(world-federation-of-advertisers/cross-media-measurement#3999): this write is intentionally
+   * unconditional to a per-attempt-UUID key (see [snapshotKey]). Do NOT collapse to a deterministic
+   * key + write-if-absent (common-jvm#389 `writeBlobIfNotFound`): the current UUID-key design is
+   * already clobber-safe (each attempt writes its own key; the winning `RankIndexBlob` row picks
+   * the authoritative blob and a loser just orphans bytes), whereas write-if-absent on a
+   * deterministic, envelope-encrypted blob (per-attempt random DEK + IV -> non-reproducible bytes)
+   * would REGRESS it: a writer that crashes between the write and the row insert leaves an orphan
+   * that fails every retry's 412 forever. See [snapshotKey] and
+   * [SubpoolFingerprintsStore.writeBlob].
    */
   suspend fun writeBlob(
     blobKey: String,
@@ -130,14 +133,15 @@ class RankIndexStore(storageClient: ConditionalOperationStorageClient, kmsClient
      * whichever the winning `RankIndexBlob` row points to (its `blob_uri`); readers always resolve
      * the key from that row, never by recomputing it.
      *
-     * TODO(world-federation-of-advertisers/common-jvm#389): once `writeBlobIfGeneration` is
-     *   available through the AeadStorageClient / StreamingAeadStorageClient /
-     *   MesosRecordIoStorageClient stack, drop [attemptId] and use a deterministic key, guarding
-     *   the write with a GCS generation precondition (`expectedGen = priorBlob?.generation ?: 0L`,
-     *   read before compute). Keep the blob-first-then-row order; on a 412 (BlobChangedException)
-     *   confirm the winning row and ack rather than re-reading the generation and retrying — a
-     *   retry would clobber the winner's already-acked bytes and strand its row's DEK reference.
-     *   The same collapse applies to [SubpoolFingerprintsStore].
+     * NOTE(world-federation-of-advertisers/cross-media-measurement#3999): [attemptId] is kept
+     * deliberately. The tempting simplification — drop it, use a deterministic key, guard the write
+     * with write-if-absent (common-jvm#389 is now available) — would REGRESS crash-recovery: these
+     * blobs are envelope-encrypted with a per-attempt random DEK (+ AES-GCM IV), so no retry
+     * reproduces the bytes, and a writer that crashes after the write but before the
+     * `RankIndexBlob` row insert leaves an orphan that fails every retry with a 412, stranding the
+     * subpool. The UUID-key + row-as-linearization design here avoids both that and the clobber. A
+     * deterministic-key fix would need the winner's DEK recoverable by a retry (row-first DEK) — an
+     * API change.
      */
     fun snapshotKey(
       blobPrefix: String,

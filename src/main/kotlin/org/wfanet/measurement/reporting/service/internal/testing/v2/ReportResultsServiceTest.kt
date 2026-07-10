@@ -818,6 +818,38 @@ abstract class ReportResultsServiceTest {
         }
       )
 
+    // Composite ReportingSet under the same campaign group so that the
+    // "composite-1"-keyed ReportingSetResult in BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST
+    // maps to a known ReportingSet. SpannerBasicReportsService's corruption
+    // pre-check refuses to render any ReportingSetResult whose external_reporting_set_id is
+    // absent from the campaign group's expected set.
+    reportingSetsStub.createReportingSet(
+      createReportingSetRequest {
+        externalReportingSetId = "composite-1"
+        reportingSet = reportingSet {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalCampaignGroupId = campaignGroup.externalCampaignGroupId
+          composite =
+            ReportingSetKt.setExpression {
+              operation = ReportingSet.SetExpression.Operation.UNION
+              lhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  externalReportingSetId = campaignGroup.externalReportingSetId
+                }
+            }
+          weightedSubsetUnions +=
+            ReportingSetKt.weightedSubsetUnion {
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  externalReportingSetId = campaignGroup.externalReportingSetId
+                }
+              weight = 1
+              binaryRepresentation = 1
+            }
+        }
+      }
+    )
+
     // Creating a BasicReport is what ensures that the MeasurementConsumer exists in the DB, as it
     // uses a different DB than the Measurements service.
     return basicReportsStub.createBasicReport(

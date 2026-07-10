@@ -25,6 +25,7 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigestExtracto
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
+import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
@@ -148,12 +149,21 @@ class SubpoolAssignerApp(
       }
 
     // The raw event-id column is the raw-impression field mapped to LabelerInput's `event_id.id`.
+    // The memoized digest path needs a single column to hash, so this entry must be a plain scalar
+    // column (not an enum/age/composite source).
     // TODO(@Marco-Premier): confirm this is the canonical source for the digest column, vs. a
     //   dedicated config knob.
-    val eventIdColumn =
-      requireNotNull(params.labelerInputFieldMappingMap[EVENT_ID_FIELD_PATH]) {
+    val eventIdMapping =
+      requireNotNull(
+        params.labelerInputFieldMappingList.find { it.fieldPath == EVENT_ID_FIELD_PATH }
+      ) {
         "labeler_input_field_mapping must map '$EVENT_ID_FIELD_PATH' to the raw event-id column"
       }
+    require(eventIdMapping.sourceCase == LabelerInputFieldMapping.SourceCase.SCALAR) {
+      "labeler_input_field_mapping '$EVENT_ID_FIELD_PATH' must be a scalar column for the memoized " +
+        "digest, got ${eventIdMapping.sourceCase}"
+    }
+    val eventIdColumn = eventIdMapping.scalar.column
 
     val rawImpressionSource =
       RawImpressionSource(
@@ -169,7 +179,10 @@ class SubpoolAssignerApp(
         eventIdDigestExtractor = eventIdDigestExtractor,
       )
 
-    val mapper = LabelerInputMapper(params.labelerInputFieldMappingMap)
+    val mapper = LabelerInputMapper(params.labelerInputFieldMappingList)
+    // Schema-drift guard: fail fast if a mapped raw column is missing from the upload's parquet
+    // schema (e.g. renamed upstream) instead of silently unsetting the field on every impression.
+    rawImpressionSource.validateSchema(mapper.referencedColumnKinds())
     val activeWindow =
       ActiveWindow.of(
         params.activeStartTime.toInstant(),
@@ -232,7 +245,7 @@ class SubpoolAssignerApp(
       rawImpressionUpload = params.rawImpressionUpload
       modelLine = params.modelLine
       modelBlobPath = params.modelBlobPath
-      labelerInputFieldMapping.putAll(params.labelerInputFieldMappingMap)
+      labelerInputFieldMapping.addAll(params.labelerInputFieldMappingList)
       eventTemplateFieldMapping.putAll(params.eventTemplateFieldMappingMap)
       totalShards = params.totalShards
     }

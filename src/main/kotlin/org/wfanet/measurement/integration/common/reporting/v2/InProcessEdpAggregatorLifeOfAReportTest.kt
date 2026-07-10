@@ -135,6 +135,7 @@ import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilterKt
+import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as ReportingReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub as ReportingReportsCoroutineStub
@@ -797,6 +798,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     createBasicReportRequest: CreateBasicReportRequest,
     createdBasicReport: BasicReport,
     retrievedBasicReport: BasicReport,
+    // Defaults to the caller-supplied campaign_group (the DataProvider-component case, where it
+    // equals effective_campaign_group). For ReportingSet components campaign_group is empty and the
+    // server synthesizes one, so callers pass the synthesized effective_campaign_group explicitly.
+    expectedEffectiveCampaignGroup: String = createBasicReportRequest.basicReport.campaignGroup,
   ) {
     assertThat(retrievedBasicReport)
       .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
@@ -807,8 +812,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           this.effectiveImpressionQualificationFilters +=
             retrievedBasicReport.impressionQualificationFiltersList
           this.effectiveModelLine = inProcessCmmsComponents.modelLineResourceName
-          // Server-derived: equals the caller-supplied campaign_group in DataProvider mode.
-          this.effectiveCampaignGroup = campaignGroup
+          this.effectiveCampaignGroup = expectedEffectiveCampaignGroup
           this.reportingInterval =
             this.reportingInterval.copy {
               this.effectiveReportStart =
@@ -821,31 +825,37 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
 
   protected suspend fun buildCreateBasicReportRequest(
     eventGroups: List<EventGroup>,
-    campaignGroupId: String,
+    campaignGroupId: String?,
     basicReportId: String,
     includeIqfFilter: Boolean = true,
   ): CreateBasicReportRequest {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val measurementConsumerKey = MeasurementConsumerKey.fromName(measurementConsumerData.name)!!
 
-    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, campaignGroupId)
-    val campaignGroup =
-      reportingReportingSetsClient
-        .withCallCredentials(credentials)
-        .createReportingSet(
-          createReportingSetRequest {
-            parent = measurementConsumerData.name
-            reportingSet = reportingSet {
-              displayName = "campaign group"
-              campaignGroup = campaignGroupKey.toName()
-              primitive =
-                ReportingSetKt.primitive {
-                  cmmsEventGroups += eventGroups.take(2).map { it.cmmsEventGroup }
-                }
+    // A null campaignGroupId means the caller omits campaign_group so the server synthesizes one,
+    // which is required for ReportingSet-component reporting units.
+    val campaignGroup: ReportingSet? =
+      if (campaignGroupId == null) {
+        null
+      } else {
+        val campaignGroupKey = ReportingSetKey(measurementConsumerKey, campaignGroupId)
+        reportingReportingSetsClient
+          .withCallCredentials(credentials)
+          .createReportingSet(
+            createReportingSetRequest {
+              parent = measurementConsumerData.name
+              reportingSet = reportingSet {
+                displayName = "campaign group"
+                campaignGroup = campaignGroupKey.toName()
+                primitive =
+                  ReportingSetKt.primitive {
+                    cmmsEventGroups += eventGroups.take(2).map { it.cmmsEventGroup }
+                  }
+              }
+              reportingSetId = campaignGroupKey.reportingSetId
             }
-            reportingSetId = campaignGroupKey.reportingSetId
-          }
-        )
+          )
+      }
 
     val basicReportKey =
       BasicReportKey(
@@ -858,8 +868,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       this.basicReportId = basicReportKey.basicReportId
       basicReport = basicReport {
         title = "title"
-        this.campaignGroup = campaignGroup.name
-        campaignGroupDisplayName = campaignGroup.displayName
+        if (campaignGroup != null) {
+          this.campaignGroup = campaignGroup.name
+          campaignGroupDisplayName = campaignGroup.displayName
+        }
         modelLine = inProcessCmmsComponents.modelLineResourceName
         reportingInterval = reportingInterval {
           reportStart = dateTime {
@@ -918,6 +930,34 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         }
       }
     }
+  }
+
+  /**
+   * Creates a primitive [ReportingSet] spanning [cmmsEventGroups], for use as a [ReportingUnit]
+   * component.
+   *
+   * The `campaign_group` field is intentionally left empty: a ReportingSet component does not
+   * reference the campaign group, which the server synthesizes when `campaign_group` is not
+   * specified on the [CreateBasicReportRequest].
+   */
+  protected suspend fun createPrimitiveReportingSet(
+    reportingSetId: String,
+    displayName: String,
+    cmmsEventGroups: List<String>,
+  ): ReportingSet {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    return reportingReportingSetsClient
+      .withCallCredentials(credentials)
+      .createReportingSet(
+        createReportingSetRequest {
+          parent = measurementConsumerData.name
+          reportingSet = reportingSet {
+            this.displayName = displayName
+            primitive = ReportingSetKt.primitive { this.cmmsEventGroups += cmmsEventGroups }
+          }
+          this.reportingSetId = reportingSetId
+        }
+      )
   }
 
   protected suspend fun listMeasurements(): List<Measurement> {
