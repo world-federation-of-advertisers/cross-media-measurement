@@ -87,9 +87,14 @@ message ImpressionMetadata {
 
   // The reference ID of the EventGroup associated with these impressions.
   //
-  // Optional: superseded by `entity_keys` as the query key (TODO(#4175) removes it
-  // end-to-end once no egid-only records remain). At least one of
+  // Optional: superseded by `entity_keys` as the query key (TODO(#4175) removes
+  // it end-to-end once no egid-only records remain). At least one of
   // `event_group_reference_id` or `entity_keys` must be set.
+  //
+  // Not populated by the EDP Aggregator VID labeler path: rows registered by
+  // `DataAvailabilitySync` from the VID-labeler sidecar carry `entity_keys`
+  // only. Only out-of-band `ImpressionMetadata` uploads set this during the
+  // deprecation window.
   string event_group_reference_id = 4 [(google.api.field_behavior) = OPTIONAL];
 
   // The resource name of the ModelLine associated with these impressions.

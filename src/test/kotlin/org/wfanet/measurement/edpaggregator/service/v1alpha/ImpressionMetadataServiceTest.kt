@@ -1483,6 +1483,24 @@ class ImpressionMetadataServiceTest {
   }
 
   @Test
+  fun `createImpressionMetadata succeeds with entity_keys and no eventGroupReferenceId`() =
+    runBlocking {
+      val response =
+        service.createImpressionMetadata(
+          createImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            impressionMetadata =
+              IMPRESSION_METADATA_WITH_ENTITY_KEYS.copy { clearEventGroupReferenceId() }
+          }
+        )
+
+      assertThat(response.eventGroupReferenceId).isEmpty()
+      assertThat(response.entityKeysList)
+        .containsExactly(ENTITY_KEY_AD_1, ENTITY_KEY_CAMPAIGN_1)
+        .inOrder()
+    }
+
+  @Test
   fun `getImpressionMetadata returns entity_keys`() = runBlocking {
     val created =
       service.createImpressionMetadata(
