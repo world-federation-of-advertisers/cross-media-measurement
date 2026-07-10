@@ -457,10 +457,14 @@ class MetricsService(
           )
       } catch (e: StatusException) {
         throw when (e.status.code) {
-            Status.Code.INVALID_ARGUMENT ->
-              Status.INVALID_ARGUMENT.withDescription(
-                "Invalid measurement request: ${e.status.description ?: "required field unspecified or invalid"}"
-              )
+            Status.Code.INVALID_ARGUMENT -> {
+              // Log the underlying CMMS error for operators; return a generic message so
+              // Kingdom-internal details are not leaked to callers.
+              logger.warning {
+                "CMMS batchCreateMeasurements returned INVALID_ARGUMENT: ${e.status.description}"
+              }
+              Status.INVALID_ARGUMENT.withDescription("Required field unspecified or invalid.")
+            }
             Status.Code.PERMISSION_DENIED ->
               Status.PERMISSION_DENIED.withDescription(
                 "Cannot create CMMS Measurements for another MeasurementConsumer."

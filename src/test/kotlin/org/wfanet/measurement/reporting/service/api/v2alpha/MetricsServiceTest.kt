@@ -5255,8 +5255,9 @@ class MetricsServiceTest {
           }
         }
       assertThat(exception.grpcStatusCode()).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      // The underlying CMMS error detail is surfaced instead of a generic message.
-      assertThat(exception.message).contains("measurement_spec.reach_and_frequency is required")
+      // Kingdom-internal details are not leaked to the caller; a generic message is returned.
+      assertThat(exception.message).contains("Required field unspecified or invalid")
+      assertThat(exception.message).doesNotContain("measurement_spec")
     }
 
   @Test
