@@ -17,6 +17,8 @@
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.crypto.tink.KmsClient
+import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
 import com.google.type.interval
@@ -431,6 +433,14 @@ class VidLabelingSink(
     get() = seconds * NANOS_PER_SECOND + nanos
 
   companion object {
+    init {
+      // The DEK template is a StreamingAead key, so the streaming key managers must be registered
+      // before the DEK is generated; AeadConfig covers the KEK unwrap. Registering in the companion
+      // init guarantees this runs on class-load, ahead of any DEK generation.
+      AeadConfig.register()
+      StreamingAeadConfig.register()
+    }
+
     private val logger = Logger.getLogger(VidLabelingSink::class.java.name)
 
     /**
