@@ -21,16 +21,14 @@ import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import com.google.protobuf.ExtensionRegistry
 import java.util.concurrent.ConcurrentHashMap
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.Path
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResultsFulfillerConfigAsByteArray
-import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.edpaggregator.BaseTeeAppRunner
+import org.wfanet.measurement.edpaggregator.BaseVidLabelingTeeAppRunner
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.gcsHadoopConfiguration
 import org.wfanet.measurement.edpaggregator.runBlockingWithTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
@@ -42,9 +40,6 @@ import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
-import org.wfanet.measurement.storage.ParquetEncryptionConfig
-import org.wfanet.measurement.storage.ParquetStorageClient
-import org.wfanet.measurement.storage.SelectedStorageClient
 import picocli.CommandLine
 
 /**
@@ -59,10 +54,15 @@ import picocli.CommandLine
  * converter seams, and hands everything to [VidLabelerApp.run].
  */
 @CommandLine.Command(name = "vid_labeler_app_runner")
-class VidLabelerAppRunner : BaseTeeAppRunner() {
+class VidLabelerAppRunner :
+  BaseVidLabelingTeeAppRunner(
+    hadoopConfigurationFor = { cfg -> gcsHadoopConfiguration(requireNotNull(cfg.projectId)) }
+  ) {
 
   private val getStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
-    StorageConfig(projectId = storageParams.gcsProjectId)
+    // Carry the blob prefix so buildStorageClient can root the multi-key rank-map store at its
+    // bucket (VidLabelerParams.StorageParams names the prefix field impressions_blob_prefix).
+    storageConfig(storageParams.gcsProjectId).copy(blobPrefix = storageParams.impressionsBlobPrefix)
   }
 
   // Caches resolved EventTemplate descriptors by (blob URI, type name) so a descriptor blob is read
@@ -73,6 +73,18 @@ class VidLabelerAppRunner : BaseTeeAppRunner() {
   override fun run() {
     saveCommonEdpaCerts()
     val kmsClients: Map<String, KmsClient> = buildKmsClientsMap()
+    // Per-EDP output KEK for the non-memoized Phase-2 path (the memoized path derives its KEK
+    // from the rank-index blobs). Only EDPs that use the VID Labeling pipeline set
+    // kms_config.kek_uri; AWS/direct-path EDPs (e.g. edpa_meta) leave it unset in the shared
+    // all-EDP config and never produce Phase-2 work, so skip them here instead of failing to boot.
+    val encryptKekUris: Map<String, String> = buildMap {
+      for (dataProvider in kmsClients.keys) {
+        val kekUri = kekUriForOrNull(dataProvider)
+        if (kekUri != null) {
+          put(dataProvider, kekUri)
+        }
+      }
+    }
 
     val pubSubClient = DefaultGooglePubSubClient()
     val queueSubscriber = createQueueSubscriber(pubSubClient)
@@ -98,32 +110,18 @@ class VidLabelerAppRunner : BaseTeeAppRunner() {
         workItemsClient = workItemsClient,
         workItemAttemptsClient = workItemAttemptsClient,
         kmsClients = kmsClients,
-        // TODO(world-federation-of-advertisers/cross-media-measurement#4093): populate per-EDP
-        //   encrypt KEK URIs from EventDataProviderConfig.KmsConfig.kek_uri (added in #4093) so the
-        //   non-memoized Phase-2 path can wrap its labeled output. Empty until then; the memoized
-        //   path derives its KEK from the rank-index blobs and does not use this.
-        encryptKekUris = emptyMap(),
+        encryptKekUris = encryptKekUris,
         getStorageConfig = getStorageConfig,
         vidLabelingJobsStub = vidLabelingJobsClient,
         rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesClient,
         rankIndexBlobsStub = rankIndexBlobsClient,
         rawImpressionUploadFilesStub = rawImpressionUploadFilesClient,
-        buildParquetStorageClient = { cfg, kms ->
-          ParquetStorageClient(
-            conf = productionConfiguration(requireNotNull(cfg.projectId)),
-            // RawImpressionSource hands ParquetStorageClient absolute gs:// URIs, so the root is
-            // only the FileSystem selector; the read never resolves against it.
-            rootPath = Path(GCS_ROOT_URI),
-            encryptionConfig = ParquetEncryptionConfig(kmsProvider = { kms }),
+        buildParquetStorageClient = { cfg, kms -> buildParquetStorageClient(cfg, kms) },
+        buildVidRankMapStorageClient = { cfg -> buildStorageClient(cfg) },
+        loadAssigner = { modelStorageConfig, modelBlobUri ->
+          VirtualPeopleVidAssigner.fromCompiledNodeBlob(
+            readCompiledModelBlob(modelStorageConfig, modelBlobUri)
           )
-        },
-        buildVidRankMapStorageClient = { cfg -> buildSelectedStorageClient(cfg, GCS_ROOT_URI) },
-        loadAssigner = { modelBlobUri ->
-          val blobUri = SelectedStorageClient.parseBlobUri(modelBlobUri)
-          val modelBlob =
-            SelectedStorageClient(blobUri, /* rootDirectory= */ null, googleProjectId)
-              .getBlob(blobUri.key) ?: error("Compiled-model blob not found: $modelBlobUri")
-          VirtualPeopleVidAssigner.fromCompiledNodeBlob(modelBlob.read().flatten())
         },
         buildImpressionConverter = { _, config ->
           ParquetImpressionConverter(eventDescriptor = resolveEventDescriptor(config))
@@ -165,9 +163,6 @@ class VidLabelerAppRunner : BaseTeeAppRunner() {
   companion object {
     @JvmStatic fun main(args: Array<String>) = commandLineMain(VidLabelerAppRunner(), args)
 
-    /** Root URI selecting the GCS-backed [SelectedStorageClient] for absolute `gs://` blob URIs. */
-    private const val GCS_ROOT_URI = "gs://"
-
     /**
      * [Descriptors.FileDescriptor]s of protobuf types known at compile time that may be referenced
      * from a loaded [DescriptorProtos.FileDescriptorSet].
@@ -180,33 +175,5 @@ class VidLabelerAppRunner : BaseTeeAppRunner() {
       ExtensionRegistry.newInstance()
         .also { EventAnnotationsProto.registerAllExtensions(it) }
         .unmodifiable
-
-    /**
-     * Hadoop [Configuration] selecting the GCS connector with Compute-Engine (VM SA) auth, for the
-     * `ParquetStorageClient` reading raw impressions.
-     */
-    private fun productionConfiguration(projectId: String): Configuration =
-      Configuration().apply {
-        set("fs.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem")
-        set("fs.AbstractFileSystem.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFS")
-        set("fs.gs.auth.type", "COMPUTE_ENGINE")
-        set("fs.gs.project.id", projectId)
-      }
-
-    /**
-     * Builds a [SelectedStorageClient] for [rootUri], passing the optional
-     * [StorageConfig.projectId] through to the underlying GCS client. The concrete type also
-     * satisfies [ConditionalOperationStorageClient] consumers (e.g. [RankIndexStore] via
-     * `buildVidRankMapStorageClient`).
-     */
-    private fun buildSelectedStorageClient(
-      cfg: StorageConfig,
-      rootUri: String,
-    ): SelectedStorageClient =
-      SelectedStorageClient(
-        SelectedStorageClient.parseBlobUri(rootUri),
-        cfg.rootDirectory,
-        cfg.projectId,
-      )
   }
 }
