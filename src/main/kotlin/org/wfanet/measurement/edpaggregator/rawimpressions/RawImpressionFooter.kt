@@ -22,11 +22,10 @@ import org.wfanet.measurement.storage.ParquetStorageClient
 /**
  * Reads a raw-impression file's UTC event date from its plaintext Parquet footer.
  *
- * Reuses [RawImpressionFileMetadata.parseEventDate] so the footer key name and date parsing (including the
- * friendly error messages) live in one place. Parsing only the date — rather than the full
- * [RawImpressionFileMetadata] — keeps this path from coupling to `event_group_reference_id` presence, which it
- * does not need. The footer key-value metadata is plaintext (PLAINTEXT_FOOTER mode), so no KMS/DEK
- * is needed and only the footer bytes are fetched (a tail range read, not the whole file).
+ * Reuses [RawImpressionFileMetadata.parseEventDate] so the footer key name and date parsing
+ * (including the friendly error messages) live in one place. The footer key-value metadata is
+ * plaintext (PLAINTEXT_FOOTER mode), so no KMS/DEK is needed and only the footer bytes are fetched
+ * (a tail range read, not the whole file).
  */
 suspend fun readEventDateFromFooter(
   parquetStorageClient: ParquetStorageClient,
