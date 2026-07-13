@@ -53,6 +53,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markPoolAssignmentJobSucceed
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineRankingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
@@ -406,6 +407,7 @@ class SubpoolAssigner(
         markRawImpressionUploadModelLineRankingRequest {
           name = parent.name
           etag = parent.etag
+          requestId = RequestIds.forMarkRawImpressionUploadModelLineRanking(parent.name)
         }
       )
     } catch (e: StatusException) {

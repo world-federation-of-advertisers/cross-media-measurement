@@ -91,13 +91,15 @@ class RawImpressionUploadModelLineService(
       ?: throw InvalidFieldValueException("raw_impression_upload_model_line.cmms_model_line")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    if (request.requestId.isNotEmpty()) {
-      try {
-        UUID.fromString(request.requestId)
-      } catch (e: IllegalArgumentException) {
-        throw InvalidFieldValueException("request_id", e)
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     val internalResponse: InternalRawImpressionUploadModelLine =
@@ -148,17 +150,19 @@ class RawImpressionUploadModelLineService(
     val seenRequestIds = mutableSetOf<String>()
     val seenModelLines = mutableSetOf<String>()
     request.requestsList.forEachIndexed { index, createRequest ->
-      if (createRequest.requestId.isNotEmpty()) {
-        try {
-          UUID.fromString(createRequest.requestId)
-        } catch (e: IllegalArgumentException) {
-          throw InvalidFieldValueException("requests.$index.request_id", e)
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
-        if (!seenRequestIds.add(createRequest.requestId)) {
-          throw InvalidFieldValueException("requests.$index.request_id")
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
+      if (createRequest.requestId.isEmpty()) {
+        throw RequiredFieldNotSetException("requests.$index.request_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      try {
+        UUID.fromString(createRequest.requestId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("requests.$index.request_id", e)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (!seenRequestIds.add(createRequest.requestId)) {
+        throw InvalidFieldValueException("requests.$index.request_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
       if (createRequest.parent.isNotEmpty() && createRequest.parent != request.parent) {
         throw InvalidFieldValueException("requests.$index.parent")
@@ -322,8 +326,6 @@ class RawImpressionUploadModelLineService(
     }
   }
 
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4074): Add AIP-155 request_id
-  // idempotency
   override suspend fun markRawImpressionUploadModelLinePoolAssigning(
     request: MarkRawImpressionUploadModelLinePoolAssigningRequest
   ): RawImpressionUploadModelLine {
@@ -341,6 +343,16 @@ class RawImpressionUploadModelLineService(
       throw RequiredFieldNotSetException("etag")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val internalResponse: InternalRawImpressionUploadModelLine =
       try {
         internalModelLineStub.markRawImpressionUploadModelLinePoolAssigning(
@@ -349,6 +361,7 @@ class RawImpressionUploadModelLineService(
             rawImpressionUploadResourceId = modelLineKey.rawImpressionUploadId
             rawImpressionUploadModelLineResourceId = modelLineKey.rawImpressionUploadModelLineId
             etag = request.etag
+            requestId = request.requestId
           }
         )
       } catch (e: StatusException) {
@@ -358,8 +371,6 @@ class RawImpressionUploadModelLineService(
     return internalResponse.toPublic()
   }
 
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4074): Add AIP-155 request_id
-  // idempotency
   override suspend fun markRawImpressionUploadModelLineRanking(
     request: MarkRawImpressionUploadModelLineRankingRequest
   ): RawImpressionUploadModelLine {
@@ -377,6 +388,16 @@ class RawImpressionUploadModelLineService(
       throw RequiredFieldNotSetException("etag")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val internalResponse: InternalRawImpressionUploadModelLine =
       try {
         internalModelLineStub.markRawImpressionUploadModelLineRanking(
@@ -385,6 +406,7 @@ class RawImpressionUploadModelLineService(
             rawImpressionUploadResourceId = modelLineKey.rawImpressionUploadId
             rawImpressionUploadModelLineResourceId = modelLineKey.rawImpressionUploadModelLineId
             etag = request.etag
+            requestId = request.requestId
           }
         )
       } catch (e: StatusException) {
@@ -394,8 +416,6 @@ class RawImpressionUploadModelLineService(
     return internalResponse.toPublic()
   }
 
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4074): Add AIP-155 request_id
-  // idempotency
   override suspend fun markRawImpressionUploadModelLineLabeling(
     request: MarkRawImpressionUploadModelLineLabelingRequest
   ): RawImpressionUploadModelLine {
@@ -413,6 +433,16 @@ class RawImpressionUploadModelLineService(
       throw RequiredFieldNotSetException("etag")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val internalResponse: InternalRawImpressionUploadModelLine =
       try {
         internalModelLineStub.markRawImpressionUploadModelLineLabeling(
@@ -421,6 +451,7 @@ class RawImpressionUploadModelLineService(
             rawImpressionUploadResourceId = modelLineKey.rawImpressionUploadId
             rawImpressionUploadModelLineResourceId = modelLineKey.rawImpressionUploadModelLineId
             etag = request.etag
+            requestId = request.requestId
           }
         )
       } catch (e: StatusException) {
@@ -430,8 +461,6 @@ class RawImpressionUploadModelLineService(
     return internalResponse.toPublic()
   }
 
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4074): Add AIP-155 request_id
-  // idempotency
   override suspend fun markRawImpressionUploadModelLineCompleted(
     request: MarkRawImpressionUploadModelLineCompletedRequest
   ): RawImpressionUploadModelLine {
@@ -449,6 +478,16 @@ class RawImpressionUploadModelLineService(
       throw RequiredFieldNotSetException("etag")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val internalResponse: InternalRawImpressionUploadModelLine =
       try {
         internalModelLineStub.markRawImpressionUploadModelLineCompleted(
@@ -457,6 +496,7 @@ class RawImpressionUploadModelLineService(
             rawImpressionUploadResourceId = modelLineKey.rawImpressionUploadId
             rawImpressionUploadModelLineResourceId = modelLineKey.rawImpressionUploadModelLineId
             etag = request.etag
+            requestId = request.requestId
           }
         )
       } catch (e: StatusException) {
@@ -466,8 +506,6 @@ class RawImpressionUploadModelLineService(
     return internalResponse.toPublic()
   }
 
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4074): Add AIP-155 request_id
-  // idempotency
   override suspend fun markRawImpressionUploadModelLineFailed(
     request: MarkRawImpressionUploadModelLineFailedRequest
   ): RawImpressionUploadModelLine {
@@ -485,6 +523,16 @@ class RawImpressionUploadModelLineService(
       throw RequiredFieldNotSetException("etag")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val internalResponse: InternalRawImpressionUploadModelLine =
       try {
         internalModelLineStub.markRawImpressionUploadModelLineFailed(
@@ -493,6 +541,7 @@ class RawImpressionUploadModelLineService(
             rawImpressionUploadResourceId = modelLineKey.rawImpressionUploadId
             rawImpressionUploadModelLineResourceId = modelLineKey.rawImpressionUploadModelLineId
             etag = request.etag
+            requestId = request.requestId
             errorMessage = request.errorMessage
           }
         )

@@ -222,19 +222,21 @@ class SpannerRawImpressionUploadModelLineService(
       }
 
       val requestId = subRequest.requestId
-      if (requestId.isNotEmpty()) {
-        try {
-          UUID.fromString(requestId)
-        } catch (e: IllegalArgumentException) {
-          throw InvalidFieldValueException("requests.$index.request_id", e)
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
-        if (!requestIdSet.add(requestId)) {
-          throw InvalidFieldValueException("requests.$index.request_id") {
-              "request id $requestId is duplicate in the batch of requests"
-            }
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
+      if (requestId.isEmpty()) {
+        throw RequiredFieldNotSetException("requests.$index.request_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      try {
+        UUID.fromString(requestId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("requests.$index.request_id", e)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (!requestIdSet.add(requestId)) {
+        throw InvalidFieldValueException("requests.$index.request_id") {
+            "request id $requestId is duplicate in the batch of requests"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
 
@@ -423,12 +425,15 @@ class SpannerRawImpressionUploadModelLineService(
       request.rawImpressionUploadResourceId,
       request.rawImpressionUploadModelLineResourceId,
       request.etag,
+      request.requestId,
       State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
       validPreviousStates =
         setOf(
           State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED,
           State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
         ),
+      markRequestIdColumn = "MarkPoolAssigningRequestId",
+      currentMarkRequestId = { it.markPoolAssigningRequestId },
     )
   }
 
@@ -440,12 +445,15 @@ class SpannerRawImpressionUploadModelLineService(
       request.rawImpressionUploadResourceId,
       request.rawImpressionUploadModelLineResourceId,
       request.etag,
+      request.requestId,
       State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
       validPreviousStates =
         setOf(
           State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
           State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
         ),
+      markRequestIdColumn = "MarkRankingRequestId",
+      currentMarkRequestId = { it.markRankingRequestId },
     )
   }
 
@@ -457,6 +465,7 @@ class SpannerRawImpressionUploadModelLineService(
       request.rawImpressionUploadResourceId,
       request.rawImpressionUploadModelLineResourceId,
       request.etag,
+      request.requestId,
       State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
       validPreviousStates =
         setOf(
@@ -465,6 +474,8 @@ class SpannerRawImpressionUploadModelLineService(
           State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
           State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
         ),
+      markRequestIdColumn = "MarkLabelingRequestId",
+      currentMarkRequestId = { it.markLabelingRequestId },
     )
   }
 
@@ -476,8 +487,11 @@ class SpannerRawImpressionUploadModelLineService(
       request.rawImpressionUploadResourceId,
       request.rawImpressionUploadModelLineResourceId,
       request.etag,
+      request.requestId,
       State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED,
       validPreviousStates = setOf(State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING),
+      markRequestIdColumn = "MarkCompletedRequestId",
+      currentMarkRequestId = { it.markCompletedRequestId },
     )
   }
 
@@ -491,6 +505,7 @@ class SpannerRawImpressionUploadModelLineService(
         request.rawImpressionUploadResourceId,
         request.rawImpressionUploadModelLineResourceId,
         request.etag,
+        request.requestId,
         State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
         validPreviousStates =
           setOf(
@@ -499,6 +514,8 @@ class SpannerRawImpressionUploadModelLineService(
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
           ),
+        markRequestIdColumn = "MarkFailedRequestId",
+        currentMarkRequestId = { it.markFailedRequestId },
       ) {
         set("ErrorMessage").to(request.errorMessage)
       }
@@ -517,8 +534,11 @@ class SpannerRawImpressionUploadModelLineService(
     rawImpressionUploadResourceId: String,
     rawImpressionUploadModelLineResourceId: String,
     expectedEtag: String,
+    requestId: String,
     nextState: State,
     validPreviousStates: Set<State>,
+    markRequestIdColumn: String,
+    currentMarkRequestId: (RawImpressionUploadModelLineResult) -> String,
     block: (com.google.cloud.spanner.Mutation.WriteBuilder.() -> Unit)? = null,
   ): RawImpressionUploadModelLine {
     if (dataProviderResourceId.isEmpty()) {
@@ -533,9 +553,20 @@ class SpannerRawImpressionUploadModelLineService(
       throw RequiredFieldNotSetException("raw_impression_upload_model_line_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=transitionState"))
+    var isReplay = false
     val updatedModelLine =
       transactionRunner.run { txn ->
         val result =
@@ -550,6 +581,17 @@ class SpannerRawImpressionUploadModelLineService(
                 rawImpressionUploadModelLineResourceId,
               )
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
+
+        // AIP-155 idempotent replay: if this exact mark already ran (row already in nextState and
+        // stamped with this request_id), return it as-is instead of re-transitioning or throwing
+        // FAILED_PRECONDITION on a Pub/Sub redelivery.
+        if (
+          result.rawImpressionUploadModelLine.state == nextState &&
+            currentMarkRequestId(result) == requestId
+        ) {
+          isReplay = true
+          return@run result.rawImpressionUploadModelLine
+        }
 
         if (expectedEtag.isEmpty()) {
           throw RequiredFieldNotSetException("etag")
@@ -602,6 +644,7 @@ class SpannerRawImpressionUploadModelLineService(
           nextState,
         ) {
           if (clearError) set("ErrorMessage").to(null as String?)
+          set(markRequestIdColumn).to(requestId)
           block?.invoke(this)
         }
 
@@ -655,6 +698,9 @@ class SpannerRawImpressionUploadModelLineService(
         result.rawImpressionUploadModelLine.copy { if (clearError) clearErrorMessage() }
       }
 
+    if (isReplay) {
+      return updatedModelLine
+    }
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
     return updatedModelLine.copy {
       state = nextState
@@ -670,12 +716,13 @@ class SpannerRawImpressionUploadModelLineService(
    * @throws InvalidFieldValueException if field values are invalid
    */
   private fun validateCreateRequest(request: CreateRawImpressionUploadModelLineRequest) {
-    if (request.requestId.isNotEmpty()) {
-      try {
-        UUID.fromString(request.requestId)
-      } catch (e: IllegalArgumentException) {
-        throw InvalidFieldValueException("request_id", e)
-      }
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
     }
 
     if (request.dataProviderResourceId.isEmpty()) {
