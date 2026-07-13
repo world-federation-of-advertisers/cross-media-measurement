@@ -133,7 +133,6 @@ class RequisitionFetcher(
   private class OpenBuffer(
     val reportId: String,
     val requisitions: MutableList<Requisition> = mutableListOf(),
-    var bytes: Long = 0L,
   )
 
   /**
@@ -357,14 +356,9 @@ class RequisitionFetcher(
             val existing = openBuffers[reportId]
             if (existing == null) {
               openBuffers[reportId] =
-                OpenBuffer(
-                  reportId = reportId,
-                  requisitions = mutableListOf(requisition),
-                  bytes = requisitionBytes,
-                )
+                OpenBuffer(reportId = reportId, requisitions = mutableListOf(requisition))
             } else {
               existing.requisitions.add(requisition)
-              existing.bytes += requisitionBytes
             }
             totalBufferedBytes += requisitionBytes
             if (openBuffers.size > openBufferHighWater) openBufferHighWater = openBuffers.size
