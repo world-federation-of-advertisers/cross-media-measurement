@@ -65,5 +65,14 @@ object RequestIds {
   fun forVidLabelingJob(uploadName: String, modelLineNames: List<String>, batchIndex: Int): String =
     fromKey("vidLabelingJob:$uploadName:${modelLineNames.sorted().joinToString(",")}:$batchIndex")
 
+  /**
+   * `request_id` for marking a `VidLabelingJob` SUCCEEDED.
+   *
+   * Keyed on [vidLabelingJobName] so a Pub/Sub redelivery of the same job's completion reuses the
+   * same id and the server returns the cached result instead of re-transitioning the resource.
+   */
+  fun forMarkVidLabelingJobSucceeded(vidLabelingJobName: String): String =
+    fromKey("markVidLabelingJobSucceeded:$vidLabelingJobName")
+
   private fun fromKey(key: String): String = UUID.nameUUIDFromBytes(key.toByteArray()).toString()
 }

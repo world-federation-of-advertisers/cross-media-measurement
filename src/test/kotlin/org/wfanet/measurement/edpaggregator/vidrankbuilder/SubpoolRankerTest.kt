@@ -25,6 +25,8 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import com.google.type.Date
 import com.google.type.date
+import io.opentelemetry.sdk.metrics.SdkMeterProvider
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import java.time.LocalDate
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
@@ -95,6 +97,7 @@ class SubpoolRankerTest {
   private fun ranker(
     maxEventDate: Date = epochDayToDate(TODAY_EPOCH_DAY),
     upload: String = UPLOAD,
+    metrics: VidRankBuilderMetrics = VidRankBuilderMetrics(),
   ): SubpoolRanker {
     val retention = SubpoolRetention(fake.stub, rankStore, DP, MODEL_LINE, RETENTION_DAYS, TODAY)
     return SubpoolRanker(
@@ -111,6 +114,7 @@ class SubpoolRankerTest {
       maxEventDate = maxEventDate,
       retentionDays = RETENTION_DAYS,
       today = TODAY,
+      metrics = metrics,
     )
   }
 
@@ -635,6 +639,69 @@ class SubpoolRankerTest {
       assertThat(result.backfill).isTrue()
       // F1's rank comes from the Day-60 snapshot (7), not the Day-40 one (3).
       assertThat(readDayOnly().mapValues { it.value.first }).containsExactly(1L to 0, 7)
+    }
+
+  @Test
+  fun `backfill ignores old-snapshot fingerprints absent from today`() =
+    runBlocking<Unit> {
+      // The old snapshot holds F1 (backfilled today) and F99 (NOT in today). Only the intersection
+      // with today is loaded, so F99 must not leak into the day-only delta or the cumulative.
+      seedPriorSnapshot(
+        listOf(Triple(1L to 0, 5, 75), Triple(99L to 0, 6, 75)),
+        uploadName = "dataProviders/dp/rawImpressionUploads/upOld",
+        createTimeSeconds = 1L,
+        maxEventDate = epochDayToDate(75),
+      )
+      seedPriorSnapshot(
+        listOf(Triple(2L to 0, 0, 90)),
+        uploadName = "dataProviders/dp/rawImpressionUploads/upLatest",
+        createTimeSeconds = 5L,
+        maxEventDate = epochDayToDate(100),
+      )
+      val key = writePhase0(listOf(1L to 0))
+
+      val result = ranker(maxEventDate = epochDayToDate(80)).rank(POOL, key, rankedSize = 100)
+
+      assertThat(result.backfill).isTrue()
+      assertThat(result.backfillReusedOldRank).isEqualTo(1)
+      // F1 reclaims its old rank 5; F99 (old-snapshot only) appears nowhere.
+      assertThat(readDayOnly().mapValues { it.value.first }).containsExactly(1L to 0, 5)
+      assertThat(readSnapshot().mapValues { it.value.first })
+        .containsExactly(2L to 0, 0, 1L to 0, 5)
+    }
+
+  @Test
+  fun `backfill records the full old-snapshot entry count though only the intersection is held`() =
+    runBlocking<Unit> {
+      val metricReader = InMemoryMetricReader.create()
+      val meterProvider = SdkMeterProvider.builder().registerMetricReader(metricReader).build()
+      val metrics = VidRankBuilderMetrics(meterProvider.get("test"))
+
+      // The old snapshot has three fingerprints; only F1 also appears in today's backfill.
+      seedPriorSnapshot(
+        listOf(Triple(1L to 0, 5, 75), Triple(98L to 0, 6, 75), Triple(99L to 0, 7, 75)),
+        uploadName = "dataProviders/dp/rawImpressionUploads/upOld",
+        createTimeSeconds = 1L,
+        maxEventDate = epochDayToDate(75),
+      )
+      seedPriorSnapshot(
+        listOf(Triple(2L to 0, 0, 90)),
+        uploadName = "dataProviders/dp/rawImpressionUploads/upLatest",
+        createTimeSeconds = 5L,
+        maxEventDate = epochDayToDate(100),
+      )
+      val key = writePhase0(listOf(1L to 0))
+
+      ranker(maxEventDate = epochDayToDate(80), metrics = metrics).rank(POOL, key, rankedSize = 100)
+
+      // The histogram reports the full old-snapshot size (3), not the in-heap intersection (1).
+      val metric =
+        metricReader.collectAllMetrics().single {
+          it.name == "edpa.vid_rank_builder.backfill_old_snapshot_entries"
+        }
+      val point = metric.histogramData.points.single()
+      assertThat(point.count).isEqualTo(1) // recorded once
+      assertThat(point.sum).isEqualTo(3.0) // full old-snapshot fingerprint count
     }
 
   @Test
