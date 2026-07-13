@@ -266,7 +266,12 @@ class DataWatcher(
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
     private const val DATA_WATCHER_GENERATION_HEADER: String = "X-DataWatcher-Generation"
 
-    /** Reserved objectMetadata key DataWatcherFunction uses to carry the GCS object generation. */
+    /**
+     * Reserved objectMetadata key DataWatcherFunction uses to carry the GCS object generation. If
+     * an EDP happens to set this key on their object's metadata, DataWatcherFunction overwrites it
+     * with the true generation on ingest (right-wins map merge) -- do not rely on EDP-set values
+     * under this key surviving.
+     */
     const val GENERATION_METADATA_KEY: String = "__datawatcher_object_generation__"
     private const val IMPRESSION_METADATA_RESOURCE_ID_HEADER: String =
       "X-Impression-Metadata-Resource-Id"
