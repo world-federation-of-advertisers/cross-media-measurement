@@ -360,6 +360,9 @@ class VidLabelingDispatcherFunctionTest {
           .setFieldPath("event_id.id")
           .setScalar(ScalarColumn.newBuilder().setColumn("event_id_col"))
           .build()
+      eventTemplateDescriptorBlobUri = "gs://descriptors/event-template-set.binpb"
+      eventTemplateType = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+      requiredEntityKeyFieldMapping["person"] = "person_col"
     }
     modelSuite = MODEL_SUITE
     numberOfShards = 2

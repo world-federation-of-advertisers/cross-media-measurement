@@ -18,9 +18,11 @@ package wfa.measurement.edpaggregator.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
 import "google/type/date.proto";
 import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
 import "wfa/measurement/edpaggregator/v1alpha/labeler_input_field_mapping.proto";
+import "wfa/measurement/edpaggregator/v1alpha/vid_labeler_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
@@ -108,7 +110,12 @@ message VidRankBuilderParams {
   // Pass-through for the Phase-2 VidLabeler WorkItem.
   string model_blob_path = 9 [(google.api.field_behavior) = REQUIRED];
 
-  reserved 10;
+  // Cloud Storage for the compiled VID model blob named by `model_blob_path`.
+  // The compiled model lives in its own Cloud Storage project, separate from
+  // the impression and map storage above. Pass-through for the Phase-2
+  // VidLabeler WorkItem (Phase-1 does not read the model).
+  StorageParams model_storage_params = 20
+      [(google.api.field_behavior) = REQUIRED];
 
   // Mapping from labeler input field names to their corresponding raw
   // impression field names. Used by Phase-2 to project raw EDP impressions
@@ -118,7 +125,7 @@ message VidRankBuilderParams {
   //
   // Not consumed by the Phase-1 ranker. Pass-through for the Phase-2
   // VidLabeler WorkItem.
-  repeated LabelerInputFieldMapping labeler_input_field_mapping = 26;
+  repeated LabelerInputFieldMapping labeler_input_field_mapping = 10;
 
   // Mapping from event template field names to their corresponding raw
   // impression field names. Mirrors the per-(EDP, model line) mapping
@@ -162,4 +169,71 @@ message VidRankBuilderParams {
   // inserts so the retention sweep can identify aged-out blobs via
   // `MaxEventDate < today - RETENTION_DAYS`.
   google.type.Date max_event_date = 15 [(google.api.field_behavior) = REQUIRED];
+
+  // Ranked sub-range size (`RankedPopulationNode.ranked_size`) for each
+  // subpool this `RankerJob` ranks, keyed by subpool/pool offset. Populated
+  // by the SubpoolAssigner Phase-0 last-shard-out (which has the compiled
+  // model loaded) for exactly the offsets in [subpool_map_blob_uris]. The
+  // Phase-1 ranker uses it to size each subpool's rank `BitSet` and to cap
+  // rank allocation: fingerprints beyond `ranked_size` are left unranked
+  // and fall back to the hash path at Phase-2. Required on Day-1 (cold
+  // subpools), where there is no prior cumulative `SNAPSHOT` to recover it
+  // from.
+  map<int64, int32> subpool_ranked_sizes = 16
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Maximum total `RawImpressionUploadFile.size_bytes` the Phase-1
+  // last-`RankerJob`-out bin-packs into a single `VidLabelingJob` for the
+  // Phase-2 VidLabeler fan-out. A single file at or above this size gets its
+  // own job. Forwarded verbatim by the SubpoolAssigner Phase-0 last-shard-out
+  // from `SubpoolAssignerParams.max_file_batch_size_bytes`.
+  //
+  // REQUIRED: this determines Phase-2 VM sizing and has no built-in default — a
+  // wrong default OOMs the Phase-2 VM (cap too high) or under-utilizes it (cap
+  // too low), so the operator MUST choose it explicitly. Validated `> 0` by the
+  // VidRankBuilder constructor.
+  int64 max_file_batch_size_bytes = 17 [(google.api.field_behavior) = REQUIRED];
+
+  // Inclusive start of the model line's active window. Forwarded verbatim by
+  // the SubpoolAssigner Phase-0 last-shard-out from
+  // `SubpoolAssignerParams.active_start_time` so the Phase-1
+  // last-`RankerJob`-out can stamp it on the Phase-2 VidLabeler
+  // `ModelLineConfig`. Impressions whose event timestamp is before this point
+  // are dropped before labeling at Phase-2. Mirrors
+  // `ModelLine.active_start_time` from the public API.
+  google.protobuf.Timestamp active_start_time = 18
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Exclusive end of the model line's active window. Forwarded verbatim by the
+  // SubpoolAssigner Phase-0 last-shard-out from
+  // `SubpoolAssignerParams.active_end_time`. Unset means no upper bound.
+  // Impressions whose event timestamp is at or after this point are dropped
+  // before labeling at Phase-2. Mirrors `ModelLine.active_end_time` from the
+  // public API.
+  google.protobuf.Timestamp active_end_time = 19
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Config-storage blob URI of the FileDescriptorSet for the EventTemplate
+  // types. Not consumed by the Phase-1 ranker; forwarded verbatim by the
+  // SubpoolAssigner Phase-0 last-shard-out from
+  // `SubpoolAssignerParams.event_template_descriptor_blob_uri` so the
+  // last-`RankerJob`-out can stamp it on the Phase-2 VidLabeler
+  // `ModelLineConfig` (Phase-2 requires it to build the labeled-output event).
+  string event_template_descriptor_blob_uri = 21
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Full proto name of the event message within that FileDescriptorSet that
+  // `event_template_field_mapping` targets. Pass-through for Phase-2 (see
+  // `event_template_descriptor_blob_uri`).
+  string event_template_type = 22 [(google.api.field_behavior) = OPTIONAL];
+
+  // Entity types that every impression MUST have. Not consumed by the Phase-1
+  // ranker; forwarded verbatim by the SubpoolAssigner Phase-0 last-shard-out
+  // from SubpoolAssignerParams.required_entity_key_field_mapping so the
+  // last-RankerJob-out stamps it on the Phase-2 VidLabeler ModelLineConfig.
+  map<string, string> required_entity_key_field_mapping = 24;
+
+  // Entity types an impression MAY have. Pass-through, same as
+  // required_entity_key_field_mapping; keys MUST be disjoint from it.
+  map<string, string> optional_entity_key_field_mapping = 23;
 }

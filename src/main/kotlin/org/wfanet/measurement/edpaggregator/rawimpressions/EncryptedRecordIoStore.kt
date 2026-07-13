@@ -17,6 +17,8 @@
 package org.wfanet.measurement.edpaggregator.rawimpressions
 
 import com.google.crypto.tink.KmsClient
+import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
@@ -67,7 +69,15 @@ abstract class EncryptedRecordIoStore(
     )
 
   companion object {
-    const val TINK_KEY_TEMPLATE = "AES128_GCM"
+    init {
+      // The DEK template is a StreamingAead key, so the streaming key managers must be registered
+      // before the DEK is generated; AeadConfig covers the KEK unwrap. Registering in the companion
+      // init guarantees this runs on class-load, ahead of any DEK generation.
+      AeadConfig.register()
+      StreamingAeadConfig.register()
+    }
+
+    const val TINK_KEY_TEMPLATE = "AES256_GCM_HKDF_1MB" // a StreamingAeadKey
     private const val TYPE_URL_TINK_KEYSET = "type.googleapis.com/google.crypto.tink.Keyset"
   }
 }

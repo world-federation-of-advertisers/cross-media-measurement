@@ -117,9 +117,14 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   }
 
   disk {
-    boot                   = true
-    source_image           = data.google_compute_image.confidential_space.self_link
-    disk_type              = "pd-ssd"
+    boot         = true
+    source_image = data.google_compute_image.confidential_space.self_link
+    disk_type    = var.disk_type
+    # provisioned_iops/throughput are only valid for hyperdisk-* disk types; other
+    # types (e.g. pd-balanced, required by machine families without hyperdisk support
+    # such as N2D) reject them, so they must be omitted (null) unless using hyperdisk.
+    provisioned_iops       = var.disk_type == "hyperdisk-balanced" ? 5000 : null
+    provisioned_throughput = var.disk_type == "hyperdisk-balanced" ? 1250 : null
   }
 
   shielded_instance_config {

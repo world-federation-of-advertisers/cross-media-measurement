@@ -25,7 +25,6 @@ import java.security.MessageDigest
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
-import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.common.api.grpc.ResourceList
@@ -50,11 +49,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.createRankerJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getPoolAssignmentJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.markPoolAssignmentJobFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markPoolAssignmentJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineRankingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
+import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
@@ -78,8 +77,9 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  *    the parent `RawImpressionUploadModelLine` `POOL_ASSIGNING` -> `RANKING`.
  *
  * Idempotent on Pub/Sub redelivery at the per-shard granularity (a job already `SUCCEEDED` short-
- * circuits the mark); on failure the job is marked `FAILED` and the error rethrown so the TEE
- * framework nacks.
+ * circuits the mark). On failure the error propagates so the TEE framework nacks (Pub/Sub retries
+ * -> dead-letter); this worker never marks the job `FAILED` itself — the single authoritative
+ * terminal `FAILED` transition is owned by the DLQ listener on retry exhaustion.
  */
 class SubpoolAssigner(
   private val rawImpressionSource: RawImpressionSource,
@@ -123,15 +123,12 @@ class SubpoolAssigner(
     val lastShardOut: Boolean,
   )
 
-  /** Runs the full Phase-0 work for one shard. */
-  suspend fun assign(): Result {
-    try {
-      return runShard()
-    } catch (t: Throwable) {
-      markFailedBestEffort(t)
-      throw t
-    }
-  }
+  /**
+   * Runs the full Phase-0 work for one shard. Any exception propagates so the TEE framework nacks
+   * the message; this worker never marks the job `FAILED` (the DLQ listener owns the terminal
+   * `FAILED` transition on retry exhaustion).
+   */
+  suspend fun assign(): Result = runShard()
 
   private suspend fun runShard(): Result {
     // Gate on job state first: on Pub/Sub redelivery of an already-completed shard, skip the
@@ -147,7 +144,8 @@ class SubpoolAssigner(
 
     // 1. Read -> label -> accumulate.
     val sink = SubpoolAssignmentSink(mapper, labeler, accumulator, activeWindow, metrics)
-    rawImpressionSource.streamBlobs(openSink = { sink })
+    // Phase 0 has no entity keys; ignore the per-file footer metadata.
+    rawImpressionSource.streamBlobs(openSink = { _, _ -> sink })
 
     // 2. Generate this shard's DEK and stream each subpool to its own RecordIO blob, freeing the
     // subpool's in-memory map as soon as its blob is durable.
@@ -373,8 +371,9 @@ class SubpoolAssigner(
         this.rankerJob = rankerJob.name
         this.maxEventDate = maxEventDate
         offsets.forEach { subpoolMapBlobUris.put(it, mergedSubpoolKey(it)) }
+        offsets.forEach { subpoolRankedSizes.put(it, labeler.rankedSize(it)) }
       }
-    val workItemId = "vid-rank-builder-${rankerJob.name.substringAfterLast('/')}"
+    val workItemId = WorkItemIds.forVidRankBuilder(rankerJob.name)
     try {
       workItemsStub.createWorkItem(
         createWorkItemRequest {
@@ -427,27 +426,6 @@ class SubpoolAssigner(
         "markRawImpressionUploadModelLineRanking(${parent.name}) already advanced " +
           "(${e.status.code}); treating as done"
       )
-    }
-  }
-
-  /** Best-effort transition of this job to FAILED so operators see the failure; never throws. */
-  private suspend fun markFailedBestEffort(cause: Throwable) {
-    try {
-      val job =
-        poolAssignmentJobsStub.getPoolAssignmentJob(
-          getPoolAssignmentJobRequest { name = poolAssignmentJob }
-        )
-      if (job.state == PoolAssignmentJob.State.CREATED) {
-        poolAssignmentJobsStub.markPoolAssignmentJobFailed(
-          markPoolAssignmentJobFailedRequest {
-            name = poolAssignmentJob
-            etag = job.etag
-            errorMessage = (cause.message ?: cause::class.java.simpleName).take(MAX_ERROR_MESSAGE)
-          }
-        )
-      }
-    } catch (e: Exception) {
-      logger.log(Level.WARNING, "Failed to mark PoolAssignmentJob $poolAssignmentJob FAILED", e)
     }
   }
 
@@ -567,7 +545,6 @@ class SubpoolAssigner(
     )
 
   companion object {
-    private const val MAX_ERROR_MESSAGE = 1024
     private val logger = Logger.getLogger(SubpoolAssigner::class.java.name)
 
     /**

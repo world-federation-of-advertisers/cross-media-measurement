@@ -73,6 +73,8 @@ jobs:
       EVENT_GROUP_SYNC_CONFIG_CONTENT: ${{ vars.EVENT_GROUP_SYNC_CONFIG_CONTENT }}
       DATA_AVAILABILITY_SYNC_CONFIG_CONTENT: ${{ vars.DATA_AVAILABILITY_SYNC_CONFIG_CONTENT }}
       DATA_AVAILABILITY_MONITOR_CONFIG_CONTENT: ${{ vars.DATA_AVAILABILITY_MONITOR_CONFIG_CONTENT }}
+      VID_LABELING_DISPATCHER_CONFIG_CONTENT: ${{ vars.VID_LABELING_DISPATCHER_CONFIG_CONTENT }}
+      VID_LABELING_MONITOR_CONFIG_CONTENT: ${{ vars.VID_LABELING_MONITOR_CONFIG_CONTENT }}
       RESULTS_FULFILLER_POPULATION_SPEC_CONTENT: ${{ vars.RESULTS_FULFILLER_POPULATION_SPEC_CONTENT }}
       RESULTS_FULFILLER_TRUSTED_CA_CONTENT: ${{ secrets.RESULTS_FULFILLER_TRUSTED_CA_CONTENT }}
       EDP_SIMULATOR_NAMES: '["edp1-simulator", "edp2-simulator", "edp3-simulator", "edp4-simulator", "edp5-simulator", "edp6-simulator"]'
@@ -142,6 +144,8 @@ jobs:
         echo "$EVENT_GROUP_SYNC_CONFIG_CONTENT" > "$CONFIG_DIR/event-group-sync-config.textproto"
         echo "$DATA_AVAILABILITY_SYNC_CONFIG_CONTENT" > "$CONFIG_DIR/data-availability-sync-config.textproto"
         echo "$DATA_AVAILABILITY_MONITOR_CONFIG_CONTENT" > "$CONFIG_DIR/data-availability-monitor-config.textproto"
+        echo "$VID_LABELING_DISPATCHER_CONFIG_CONTENT" > "$CONFIG_DIR/vid-labeling-dispatcher-config.textproto"
+        echo "$VID_LABELING_MONITOR_CONFIG_CONTENT" > "$CONFIG_DIR/vid-labeling-monitor-config.textproto"
         echo "$RESULTS_FULFILLER_POPULATION_SPEC_CONTENT" > "$CONFIG_DIR/results-fulfiller-population-spec.textproto"
         echo "$RESULTS_FULFILLER_TRUSTED_CA_CONTENT" > "$CONFIG_DIR/results-fulfiller-trusted-root-ca.pem"
         
@@ -187,6 +191,10 @@ jobs:
         coords[data-availability-sync]="org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability:data-availability-sync:$ARTIFACT_VERSION:jar"
         coords[data-availability-cleanup]="org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability:data-availability-cleanup:$ARTIFACT_VERSION:jar"
         coords[data-availability-monitor]="org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability:data-availability-monitor:$ARTIFACT_VERSION:jar"
+        # TODO(@marcopremier): requires the function jars to be published to GitHub Packages
+        # (vid-labeling-dispatcher is on main; vid-labeling-monitor needs PR #4020 merged).
+        coords[vid-labeling-dispatcher]="org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling:vid-labeling-dispatcher:$ARTIFACT_VERSION:jar"
+        coords[vid-labeling-monitor]="org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling:vid-labeling-monitor:$ARTIFACT_VERSION:jar"
         
         LOCAL_REPO=$(mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout)
 
@@ -287,6 +295,10 @@ jobs:
         DATA_AVAILABILITY_CLEANUP_ENV_VAR: ${{ vars.DATA_AVAILABILITY_CLEANUP_ENV_VAR }}
         DATA_AVAILABILITY_CLEANUP_SECRET_MAPPING: ${{ vars.DATA_AVAILABILITY_CLEANUP_SECRET_MAPPING }}
         DATA_AVAILABILITY_MONITOR_ENV_VAR: ${{ vars.DATA_AVAILABILITY_MONITOR_ENV_VAR }}
+        VID_LABELING_DISPATCHER_ENV_VAR: ${{ vars.VID_LABELING_DISPATCHER_ENV_VAR }}
+        VID_LABELING_DISPATCHER_SECRET_MAPPING: ${{ vars.VID_LABELING_DISPATCHER_SECRET_MAPPING }}
+        VID_LABELING_MONITOR_ENV_VAR: ${{ vars.VID_LABELING_MONITOR_ENV_VAR }}
+        VID_LABELING_MONITOR_SECRET_MAPPING: ${{ vars.VID_LABELING_MONITOR_SECRET_MAPPING }}
         DUCHY_WORKER1_ID: ${{ vars.WORKER1_DUCHY_ID }}
         DUCHY_WORKER1_TARGET: ${{ vars.WORKER1_PUBLIC_API_TARGET }}
         DUCHY_WORKER2_ID: ${{ vars.WORKER2_DUCHY_ID }}
@@ -336,6 +348,14 @@ jobs:
         -var="data_availability_monitor_config_file_path=$CONFIG_DIR/data-availability-monitor-config.textproto"
         -var="data_availability_monitor_env_var=$DATA_AVAILABILITY_MONITOR_ENV_VAR"
         -var="data_availability_monitor_uber_jar_path=${{ steps.download-uber-jars.outputs.data_availability_monitor_source_path }}"
+        -var="vid_labeling_dispatcher_config_file_path=$CONFIG_DIR/vid-labeling-dispatcher-config.textproto"
+        -var="vid_labeling_dispatcher_env_var=$VID_LABELING_DISPATCHER_ENV_VAR"
+        -var="vid_labeling_dispatcher_secret_mapping=$VID_LABELING_DISPATCHER_SECRET_MAPPING"
+        -var="vid_labeling_dispatcher_uber_jar_path=${{ steps.download-uber-jars.outputs.vid_labeling_dispatcher_source_path }}"
+        -var="vid_labeling_monitor_config_file_path=$CONFIG_DIR/vid-labeling-monitor-config.textproto"
+        -var="vid_labeling_monitor_env_var=$VID_LABELING_MONITOR_ENV_VAR"
+        -var="vid_labeling_monitor_secret_mapping=$VID_LABELING_MONITOR_SECRET_MAPPING"
+        -var="vid_labeling_monitor_uber_jar_path=${{ steps.download-uber-jars.outputs.vid_labeling_monitor_source_path }}"
         -var="image_tag=$IMAGE_TAG"
         -var="results_fulfiller_event_proto_descriptor_path=${{ steps.build-test-event-descriptors.outputs.event_proto_descriptors_path }}"
         -var="results_fulfiller_population_spec_file_path=$CONFIG_DIR/results-fulfiller-population-spec.textproto"
