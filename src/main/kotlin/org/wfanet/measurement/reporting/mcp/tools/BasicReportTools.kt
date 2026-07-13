@@ -61,17 +61,20 @@ fun Server.registerBasicReportTools(
                 "description",
                 "BasicReport as proto JSON (snake_case fields). Structure:\n" +
                   "- campaign_group (optional): resource name of a ReportingSet that is a " +
-                  "campaign group. When set, every result_group_specs[].reporting_unit.components " +
-                  "entry must be a DataProvider resource name, not a ReportingSet.\n" +
+                  "campaign group. It determines the required reporting_unit.components type " +
+                  "(see result_group_specs).\n" +
                   "- reporting_interval (required): report_start_date {year, month, day} for a " +
                   "date-only start (or report_start, a DateTime) plus report_end {year, month, " +
                   "day}. Start is inclusive, end is exclusive.\n" +
                   "- impression_qualification_filters (optional): list of " +
                   "ImpressionQualificationFilter resource names (e.g. " +
-                  "impressionQualificationFilters/ami); when omitted, the server applies default " +
-                  "filters (AMI and MRC).\n" +
+                  "impressionQualificationFilters/ami); when omitted, the server applies the " +
+                  "deployment's configured base filters (currently AMI and MRC). If a deployment " +
+                  "has no base filters configured, at least one must be supplied.\n" +
                   "- result_group_specs (required, non-empty): each has title, reporting_unit " +
-                  "{components: DataProvider or ReportingSet resource names, not mixed}, " +
+                  "{components: all the same type; DataProvider resource names when " +
+                  "campaign_group is set (each within that campaign group), or ReportingSet " +
+                  "resource names when campaign_group is omitted}, " +
                   "metric_frequency ({total: true} or {weekly: a day of week such as MONDAY}), " +
                   "dimension_spec ({} for none), and result_group_metric_spec.\n" +
                   "- result_group_metric_spec: set population_size (bool) and request metrics " +
