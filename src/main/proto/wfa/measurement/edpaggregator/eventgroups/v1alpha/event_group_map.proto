@@ -35,11 +35,14 @@ option java_outer_classname = "EventGroupMapProto";
 message MappedEventGroup {
   // A map from `event_group_reference_id` to the EventGroup resource name.
   //
-  // Optional: superseded by [entity_key] as the query key. To be deprecated in
-  // a future release; see
+  // Optional: superseded by [entity_key] as the query key. Planned for
+  // deprecation in a future release; see
   // https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/4175.
   // At least one of `event_group_reference_id` or `entity_key` must be set.
-  string event_group_reference_id = 1 [(google.api.field_behavior) = OPTIONAL];
+  string event_group_reference_id = 1 [
+    (google.api.field_behavior) = OPTIONAL,
+    (type.future_disposition) = DEPRECATED
+  ];
   // The name of the [EventGroup] in an external system.
   string event_group_resource = 2 [
     (google.api.resource_reference).type = "halo.wfanet.org/EventGroup",
