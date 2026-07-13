@@ -48,12 +48,14 @@ class BaseVidLabelingTeeAppRunnerTest {
    * [Configuration] (here a local `file://` config) instead of the production GCS one, proving the
    * Parquet seam is exercisable without GCS and without mocking it.
    */
-  private class TestRunner(rootUri: String, conf: Configuration) :
-    BaseVidLabelingTeeAppRunner(storageRootUri = rootUri, hadoopConfigurationFor = { conf }) {
+  private class TestRunner(conf: Configuration) :
+    BaseVidLabelingTeeAppRunner(hadoopConfigurationFor = { conf }) {
     override fun run() = error("not exercised by this test")
 
-    fun parquetClient(kms: KmsClient): ParquetStorageClient =
-      buildParquetStorageClient(StorageConfig(), kms)
+    // The raw-impression Parquet client is rooted at StorageConfig.blobPrefix (the configured
+    // bucket), mirroring the production runners; the test passes a local file:// root.
+    fun parquetClient(rawImpressionRoot: String, kms: KmsClient): ParquetStorageClient =
+      buildParquetStorageClient(StorageConfig(blobPrefix = rawImpressionRoot), kms)
 
     fun storageClient(cfg: StorageConfig): ConditionalOperationStorageClient =
       buildStorageClient(cfg)
@@ -71,7 +73,7 @@ class BaseVidLabelingTeeAppRunnerTest {
       // A plain local-filesystem Hadoop config (no fs.gs.impl) with parquet-mr PME keys; the
       // production runner would instead inject gcsHadoopConfiguration(projectId).
       val conf = Configuration().apply { set("parquet.encryption.uniform.key", kekUri) }
-      val client = TestRunner(tempDir.root.absolutePath, conf).parquetClient(kms)
+      val client = TestRunner(conf).parquetClient(tempDir.root.absolutePath, kms)
 
       val key = "model/sample.parquet"
       client.writeBlob(
@@ -96,8 +98,7 @@ class BaseVidLabelingTeeAppRunnerTest {
     // single-blob client at a bare "gs://" (the prior bug) would reject every real key.
     tempDir.newFolder("rank-maps")
     val cfg = StorageConfig(rootDirectory = tempDir.root, blobPrefix = "file:///rank-maps/prefix")
-    val client: ConditionalOperationStorageClient =
-      TestRunner(tempDir.root.absolutePath, Configuration()).storageClient(cfg)
+    val client: ConditionalOperationStorageClient = TestRunner(Configuration()).storageClient(cfg)
 
     client.writeBlob("snapshot-1", flow { emit(ByteString.copyFromUtf8("one")) })
     client.writeBlob("snapshot-2", flow { emit(ByteString.copyFromUtf8("two")) })
