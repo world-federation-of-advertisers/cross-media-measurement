@@ -34,8 +34,10 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadFileRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
@@ -54,10 +56,20 @@ class RawImpressionSourceTest {
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase() {
     var blobUris: List<String> = emptyList()
 
+    /** File-list mode: resource name -> blob_uri, set per-test via [filesByName]. */
+    var filesByName: Map<String, String> = emptyMap()
+
     override suspend fun listRawImpressionUploadFiles(
       request: ListRawImpressionUploadFilesRequest
     ): ListRawImpressionUploadFilesResponse = listRawImpressionUploadFilesResponse {
       blobUris.forEach { rawImpressionUploadFiles.add(rawImpressionUploadFile { blobUri = it }) }
+    }
+
+    override suspend fun getRawImpressionUploadFile(
+      request: GetRawImpressionUploadFileRequest
+    ): RawImpressionUploadFile = rawImpressionUploadFile {
+      name = request.name
+      blobUri = filesByName.getValue(request.name)
     }
   }
 
@@ -148,7 +160,7 @@ class RawImpressionSourceTest {
     opened: ConcurrentLinkedQueue<String>? = null,
     committed: ConcurrentLinkedQueue<String>? = null,
     closed: ConcurrentLinkedQueue<String>? = null,
-  ): suspend (String) -> RawImpressionSource.BlobSink = { blobUri ->
+  ): suspend (String, Map<String, String>) -> RawImpressionSource.BlobSink = { blobUri, _ ->
     opened?.add(blobUri)
     object : RawImpressionSource.BlobSink {
       override suspend fun processBatch(events: List<ParquetDigestedEvent>) {
@@ -181,6 +193,35 @@ class RawImpressionSourceTest {
     assertThat(counterValue(EMITTED)).isEqualTo(3)
     // One per-file processing-time sample per input file.
     assertThat(histogramCount(FILE_DURATION)).isEqualTo(2)
+  }
+
+  @Test
+  fun `streamBlobs in file-list mode reads exactly the given files`(): Unit = runBlocking {
+    val client = newClient()
+    // x and y are on this WorkItem's file list; z is also in the upload but NOT on the list.
+    writeFile(client, "fl/x.parquet", listOf(row("e1"), row("e2")))
+    writeFile(client, "fl/y.parquet", listOf(row("e3")))
+    writeFile(client, "fl/z.parquet", listOf(row("e4")))
+    filesService.filesByName =
+      mapOf("$UPLOAD/files/x" to "fl/x.parquet", "$UPLOAD/files/y" to "fl/y.parquet")
+
+    val subject =
+      RawImpressionSource(
+        parquetStorageClient = client,
+        rawImpressionUploadFilesStub = filesStub,
+        rawImpressionUpload = UPLOAD,
+        eventIdColumn = "event_id",
+        eventIdDigestExtractor = EventIdDigestExtractor(),
+        metrics = testMetrics,
+        inputFiles = listOf("$UPLOAD/files/x", "$UPLOAD/files/y"),
+      )
+    val sink = ConcurrentLinkedQueue<String>()
+    subject.streamBlobs(collectingSink(sink))
+
+    // Only x + y are read (every row, no shard filter); z is excluded.
+    assertThat(sink.toList()).containsExactly("e1", "e2", "e3")
+    assertThat(counterValue(EMITTED)).isEqualTo(3)
+    assertThat(counterValue(DROPPED)).isEqualTo(0)
   }
 
   @Test

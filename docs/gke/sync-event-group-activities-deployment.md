@@ -26,11 +26,36 @@ isolation, retries, sync modes), see the KDoc on `EventGroupActivitySync`.
     [deployment guide](../edpaggregator/deployment-guide.md).
 2.  The EDP has a registered `DataProvider` in the Kingdom and at least one
     `EventGroup`.
-3.  A spot-data JSON file is produced by an upstream pipeline and written to
-    a known GCS object. Schema is a JSON array of records, each:
+3.  A spot-data JSON file exists at a known GCS object. Schema is a JSON
+    array of records, each:
 
     ```json
     {"parent": "dataProviders/<dp>/eventGroups/<eg>", "event_group_activity_date": "2026-06-30T00:00:00Z"}
+    ```
+
+    In production this file is produced by an upstream pipeline. In
+    environments without such a pipeline yet (currently qa/head), seed a
+    minimal file by hand — a few dates against one real EventGroup are
+    enough to exercise the CronJob wiring end-to-end in `--mode=preview`:
+
+    ```shell
+    cat > /tmp/spot-data.json <<'EOF'
+    [
+      {"parent": "dataProviders/<dp>/eventGroups/<eg>", "event_group_activity_date": "2026-06-25T00:00:00Z"},
+      {"parent": "dataProviders/<dp>/eventGroups/<eg>", "event_group_activity_date": "2026-06-26T00:00:00Z"}
+    ]
+    EOF
+    gcloud storage cp /tmp/spot-data.json \
+      gs://secure-computation-storage-<env>-bucket/edp/<edp>/spot-data.json
+    ```
+
+    List real EventGroups for the DataProvider so the `parent`
+    values reference resources that actually exist in the Kingdom:
+
+    ```shell
+    grpcurl -cert <client.pem> -key <client.key> \
+      v2alpha.kingdom.<env>.halo-cmm.org:8443 \
+      wfa.measurement.api.v2alpha.EventGroups/ListEventGroups
     ```
 
 ## Provision a Workload Identity binding for the CronJob's SA
@@ -52,6 +77,12 @@ gcloud iam service-accounts add-iam-policy-binding \
 ```
 
 (Currently performed out-of-band; tracked for Terraformization in #4127.)
+
+**Verify the binding is in place in every environment you plan to deploy
+to** — dev, qa, and head all currently share the `edpa-event-group-sync`
+GCP SA, so the same command must have been run against each project. Deploys
+into an environment without the binding will fail at CronJob runtime with a
+GCS auth error, not at `kubectl apply`.
 
 If using a different GCP SA per environment, update the
 `_iamServiceAccountName` for `#SyncEventGroupActivitiesServiceAccount` in
