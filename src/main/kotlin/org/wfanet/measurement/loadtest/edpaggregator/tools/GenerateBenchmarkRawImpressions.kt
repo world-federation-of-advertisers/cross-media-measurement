@@ -54,7 +54,7 @@ import picocli.CommandLine.Option
  * sub-range on one date, uploaded to Cloud Storage. Mirrors the cloud-test SeedRawImpressionsRule
  * write path (RawImpressionsWriter + testEventColumns + person entity key) so the deployed VID
  * Labeling pipeline consumes it unchanged. Run many instances in parallel (disjoint VID ranges,
- * distinct --event-group-reference-id) to produce many ~300MB files under one date folder.
+ * distinct --blob-key-id) to produce many ~300MB files under one date folder.
  */
 @Command(
   name = "generate-benchmark-raw-impressions",
@@ -63,8 +63,7 @@ import picocli.CommandLine.Option
 class GenerateBenchmarkRawImpressions : Runnable {
   @Option(names = ["--population-spec-file"], required = true) lateinit var populationSpecFile: File
   @Option(names = ["--data-spec-file"], required = true) lateinit var dataSpecFile: File
-  @Option(names = ["--event-group-reference-id"], required = true)
-  lateinit var eventGroupReferenceId: String
+  @Option(names = ["--blob-key-id"], required = true) lateinit var blobKeyId: String
   @Option(names = ["--output-bucket"], required = true) lateinit var outputBucket: String
   @Option(names = ["--output-prefix"], required = false, defaultValue = "edp/edp7")
   lateinit var outputPrefix: String
@@ -84,7 +83,7 @@ class GenerateBenchmarkRawImpressions : Runnable {
 
     val writer =
       RawImpressionsWriter(
-        eventGroupReferenceId = eventGroupReferenceId,
+        blobKeyId = blobKeyId,
         kekUri = kekUri,
         kmsClient = kmsClient,
         storageConfiguration = Configuration(),
