@@ -431,21 +431,36 @@ class EventGroupSync(
 
     when (action) {
       is WriteAction.Create -> {
+        // Two buffered rows that share a pairing key but have DIFFERENT request_ids is bad EDP data
+        // — the kingdom enforces entity_key uniqueness per (DataProvider, MeasurementConsumer), so
+        // two rows sharing an entity_key can't both create. Skip the second row per the same
+        // "log SEVERE + invalidEventGroupFailure metric + continue" pattern that validateEventGroup
+        // failures already use, so one malformed row doesn't take down the whole sync. Same-
+        // request_id duplicates are a legitimate retry (kingdom idempotent-replays) and are handled
+        // by the request_id guard below, not here.
+        val newPairingKey = CreatePairingKey.of(action.request.eventGroup)
+        val samePairingKeyDifferentRequestId =
+          pendingCreates.find {
+            CreatePairingKey.of(it.request.eventGroup) == newPairingKey &&
+              it.request.requestId != action.request.requestId
+          }
+        if (samePairingKeyDifferentRequestId != null) {
+          logger.severe {
+            "Skipping duplicate EventGroup: input contains two rows with the same pairing key" +
+              " $newPairingKey but different request_ids. Kingdom enforces entity_key uniqueness" +
+              " per (DataProvider, MeasurementConsumer); this is malformed EDP input." +
+              " Already-queued row: referenceId=" +
+              "${samePairingKeyDifferentRequestId.request.eventGroup.eventGroupReferenceId}," +
+              " entityKey=${samePairingKeyDifferentRequestId.request.eventGroup.entityKey}"
+          }
+          metrics.invalidEventGroupFailure.add(1, metricAttributes())
+          return
+        }
         // A duplicate request_id within one BatchCreateEventGroups call is rejected by the kingdom,
         // so flush first if it is already buffered. Duplicate input rows then land in separate
         // batches, where the kingdom dedupes by request_id (idempotent) instead of failing the
         // batch.
-        //
-        // Also flush on a duplicate pairing key (entity_key or refId), so two same-entity_key rows
-        // never share a batch — if they did, the response pairing at [flushCreates] would collide
-        // and fire the defensive check there. Different request_ids can produce the same pairing
-        // key (two rows sharing entity_key but with different refIds), so the request_id guard
-        // above does not subsume this one.
-        val newPairingKey = CreatePairingKey.of(action.request.eventGroup)
-        if (
-          pendingCreates.any { it.request.requestId == action.request.requestId } ||
-            pendingCreates.any { CreatePairingKey.of(it.request.eventGroup) == newPairingKey }
-        ) {
+        if (pendingCreates.any { it.request.requestId == action.request.requestId }) {
           flushCreates(pendingCreates)
         }
         pendingCreates.add(
@@ -526,8 +541,8 @@ class EventGroupSync(
     val pendingByKey = pendingCreates.associateBy { CreatePairingKey.of(it.request.eventGroup) }
     check(pendingByKey.size == pendingCreates.size) {
       "BatchCreateEventGroups pairing keys are not unique within a batch of ${pendingCreates.size};" +
-        " prevented by queueEventGroupItem's pairing-key dedup guard, so this should be unreachable." +
-        " If it fires, the queue logic is broken; do not silence."
+        " prevented by queueEventGroupItem rejecting duplicate-pairing-key inputs, so this should" +
+        " be unreachable. If it fires, the queue-side dedup is broken; do not silence."
     }
     response.eventGroupsList.forEach { syncedEventGroup ->
       val item = pendingByKey[CreatePairingKey.of(syncedEventGroup)]

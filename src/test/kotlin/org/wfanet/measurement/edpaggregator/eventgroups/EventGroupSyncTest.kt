@@ -3813,11 +3813,13 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `sync flushes pending batch when a new item shares a pairing key with a buffered one`() {
-    // Two source EventGroups with the SAME entity_key but different reference_ids: same pairing
-    // key, different request_ids. queueEventGroupItem must flush the buffered batch before adding
-    // the second — otherwise both land in one batch and the defensive check at flushCreates fires
-    // (uncaught, aborts sync).
+  fun `sync skips a duplicate-pairing-key input and records invalid_event_group_failure`() {
+    // Two source EventGroups share the SAME entity_key but have different reference_ids: same
+    // pairing key, different request_ids. Kingdom enforces entity_key uniqueness per (DataProvider,
+    // MeasurementConsumer), so this is malformed EDP input. queueEventGroupItem must skip the
+    // second row (SEVERE log + invalidEventGroupFailure metric + continue) instead of taking down
+    // the whole sync or silently splitting into two batches — mirroring the validateEventGroup
+    // failure path.
     val duplicateEntityKeyA = eventGroup {
       eventGroupReferenceId = "ref-A"
       measurementConsumer = "measurementConsumers/measurement-consumer-1"
@@ -3873,14 +3875,20 @@ class EventGroupSyncTest {
       )
     val mappings = runBlocking { eventGroupSync.sync().toList() }
 
-    // Both created (no crash from the defensive check) and via TWO separate batchCreate calls, not
-    // one — the pairing-key dedup guard flushed A before enqueueing B.
-    assertThat(mappings).hasSize(2)
+    // Only the first row is created; the second is skipped as invalid input.
+    assertThat(mappings).hasSize(1)
+    assertThat(mappings.single().eventGroupReferenceId).isEqualTo("ref-A")
     val createCaptor = argumentCaptor<BatchCreateEventGroupsRequest>()
-    verifyBlocking(eventGroupsServiceMock, times(2)) {
+    verifyBlocking(eventGroupsServiceMock, times(1)) {
       batchCreateEventGroups(createCaptor.capture())
     }
-    assertThat(createCaptor.allValues.map { it.requestsList.size }).containsExactly(1, 1).inOrder()
+    assertThat(createCaptor.firstValue.requestsList).hasSize(1)
+
+    // Invalid-input metric ticks by 1 for the skipped duplicate.
+    val invalidEventGroupFailureMetric =
+      getMetrics().find { it.name == "edpa.event_group.invalid_event_group_failure" }
+    assertThat(invalidEventGroupFailureMetric).isNotNull()
+    assertThat(invalidEventGroupFailureMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(1)
   }
 
   companion object {
