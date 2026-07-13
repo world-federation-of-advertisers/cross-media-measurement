@@ -516,6 +516,7 @@ class RawImpressionUploadModelLineService(
       InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
         Status.NOT_FOUND.withCause(e).asRuntimeException()
       InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+      InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
       InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT ->
         Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
       InternalErrors.Reason.ETAG_MISMATCH -> Status.ABORTED.withCause(e).asRuntimeException()
