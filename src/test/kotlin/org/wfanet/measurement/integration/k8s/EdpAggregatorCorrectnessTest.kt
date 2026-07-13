@@ -252,7 +252,9 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
 
     companion object {
-      private const val EVENT_GROUP_SYNC_TIMEOUT = 30_000L
+      // 120s to absorb event-group-sync Cloud Function cold starts (JVM boot
+      // can consume the first several seconds after a fresh deploy).
+      private const val EVENT_GROUP_SYNC_TIMEOUT = 120_000L
       private const val EVENT_GROUP_SYNC_POLLING_INTERVAL = 3000L
     }
   }
