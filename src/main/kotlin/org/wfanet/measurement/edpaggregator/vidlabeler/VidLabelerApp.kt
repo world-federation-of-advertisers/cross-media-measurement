@@ -480,20 +480,22 @@ class VidLabelerApp(
 
   /**
    * Marks this WorkItem's `VidLabelingJob` `SUCCEEDED` and, when the service reports this call
-   * completed one or more model lines (last-job-out), transitions each completed model line's
-   * parent `RawImpressionUploadModelLine` to `COMPLETED` and drops that model line's single `done`
-   * marker blob. The service returns a model line in `completedModelLines` only to the caller whose
-   * mark finished its last outstanding `VidLabelingJob`, so exactly one TEE finalizes each model
-   * line — a sibling TEE that finishes the same model line earlier (while others still label it)
-   * gets nothing back for it and writes no marker. Idempotent on Pub/Sub redelivery: the mark is
-   * keyed by a deterministic `request_id`, the transition swallows the benign already-advanced
-   * races, and the done blob has a deterministic key.
+   * completed one or more model lines (last-job-out), drops that model line's single `done` marker
+   * blob and then transitions its parent `RawImpressionUploadModelLine` to `COMPLETED`. The service
+   * returns a model line in `completedModelLines` only to the caller whose mark finished its last
+   * outstanding `VidLabelingJob`, so exactly one TEE finalizes each model line — a sibling TEE that
+   * finishes the same model line earlier (while others still label it) gets nothing back for it and
+   * writes no marker. Idempotent on Pub/Sub redelivery: the mark is keyed by a deterministic
+   * `request_id`, the transition swallows the benign already-advanced races, and the done blob has
+   * a deterministic key.
    *
    * The mark and the parent-line transitions are two separate RPCs, not a single atomic
    * `MarkLabelingJobSucceeded` that also flips the parent (as an earlier design draft described).
    * This follows the job-API convention where the caller drives the parent `COMPLETED` transition
-   * (matching #4051/#4052/#4044); a crash between the two leaves the parent in `LABELING`, which
-   * the Monitor's stuck-`LABELING` recovery reconciles to `COMPLETED`.
+   * (matching #4051/#4052/#4044). The `done` marker is written before the `COMPLETED` transition so
+   * `COMPLETED` is the last, truth-bearing signal: a crash or persistent done-blob failure leaves
+   * the parent in `LABELING` — retried on redelivery and reconciled by the Monitor's
+   * stuck-`LABELING` recovery — instead of stranding a `COMPLETED`-but-unavailable upload.
    */
   private suspend fun markSucceededAndTransition(
     params: VidLabelerParams,
@@ -566,12 +568,18 @@ class VidLabelerApp(
         )
         continue
       }
-      markParentCompleted(parent, dataProvider)
-      // Only this TEE reached last-job-out for `completedModelLine`, so only it finalizes the
-      // (model line, date). Drop the single `done` marker in that model line's shared-event-date
-      // folder — the one VidLabelingSink wrote its labeled output to — and DataAvailabilitySync
-      // finalizes it. Independent per model line: a FAILED/stuck sibling no longer withholds this
-      // line's availability.
+      // Write the `done` marker BEFORE the COMPLETED transition so COMPLETED is the last,
+      // truth-bearing signal. A persistent writeDoneBlob failure then leaves the model line in
+      // LABELING (recoverable) instead of stranding a COMPLETED-but-unavailable upload: on Pub/Sub
+      // redelivery the idempotent markVidLabelingJobSucceeded replay re-reports this completed
+      // model
+      // line (recomputed from sibling job states), so writeDoneBlob is retried; only once it
+      // succeeds does markParentCompleted commit COMPLETED. Only this TEE reached last-job-out for
+      // `completedModelLine`, so only it finalizes the (model line, date): it drops the single
+      // `done` marker in that model line's shared-event-date folder — the one VidLabelingSink wrote
+      // its labeled output to — and DataAvailabilitySync finalizes it. Independent per model line:
+      // a
+      // FAILED/stuck sibling no longer withholds this line's availability.
       if (eventDate != null) {
         writeDoneBlob(
           params.vidLabeledImpressionsStorageParams,
@@ -580,6 +588,7 @@ class VidLabelerApp(
           dataProvider,
         )
       }
+      markParentCompleted(parent, dataProvider)
     }
   }
 
