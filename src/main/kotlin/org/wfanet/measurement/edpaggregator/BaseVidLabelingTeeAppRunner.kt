@@ -35,7 +35,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * phase's own *Params.StorageParams mapping stays in its runner.
  */
 abstract class BaseVidLabelingTeeAppRunner(
-  private val hadoopConfigurationFor: (StorageConfig) -> Configuration,
+  private val hadoopConfigurationFor: (StorageConfig) -> Configuration
 ) : BaseTeeAppRunner() {
 
   init {
@@ -58,10 +58,10 @@ abstract class BaseVidLabelingTeeAppRunner(
   }
 
   /**
-   * The per-EDP KEK URI, or null when [dataProvider] has no configured KEK URI. EDPs that do not use
-   * the VID Labeling pipeline (e.g. AWS/direct-path EDPs) legitimately leave `kms_config.kek_uri`
-   * unset in the shared all-EDP config and never produce pipeline work, so callers skip them rather
-   * than eagerly requiring a KEK URI that will never be used.
+   * The per-EDP KEK URI, or null when [dataProvider] has no configured KEK URI. EDPs that do not
+   * use the VID Labeling pipeline (e.g. AWS/direct-path EDPs) legitimately leave
+   * `kms_config.kek_uri` unset in the shared all-EDP config and never produce pipeline work, so
+   * callers skip them rather than eagerly requiring a KEK URI that will never be used.
    */
   protected fun kekUriForOrNull(dataProvider: String): String? {
     val edpConfig =
