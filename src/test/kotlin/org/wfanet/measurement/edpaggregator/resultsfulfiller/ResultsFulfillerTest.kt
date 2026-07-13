@@ -1219,6 +1219,110 @@ class ResultsFulfillerTest {
   }
 
   @Test
+  fun `runWork skips orphan blob with no metadata and counts it`() = runBlocking {
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressions =
+      List(130) {
+        LABELED_IMPRESSION.copy {
+          vid = it.toLong() + 1
+          eventTime = TIME_RANGE.start.toProtoTime()
+        }
+      }
+
+    val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+    val impressionMetadataList = createImpressionMetadataList(dates, EVENT_GROUP_NAME)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    // Orphan blob: the RequisitionFetcher wrote the grouped-requisitions blob but has not (yet)
+    // created any RequisitionMetadata for it. ResultsFulfiller must skip and count it, not throw.
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(listRequisitionMetadataResponse {})
+
+    // Set up KMS
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    createData(
+      kmsClient,
+      kekUri,
+      impressionsTmpPath,
+      metadataTmpPath,
+      requisitionsTmpPath,
+      impressions,
+      listOf(DIRECT_RNF_REQUISITION),
+    )
+    val impressionsMetadataService =
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
+        impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+      )
+
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        resultMinimumThresholds = null,
+        overrideImpressionMaxFrequencyPerUser = null,
+        supportedMultiPartyNoiseMechanisms = emptySet(),
+        trusTeeConfig =
+          TrusTeeConfig(
+            kmsClient = kmsClient,
+            workloadIdentityProvider = "test-wip",
+            impersonatedServiceAccount = "test-sa@example.com",
+            awsKmsParams = null,
+          ),
+        kekUriToKeyNameMap = emptyMap(),
+      )
+
+    val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+
+    val resultsFulfiller =
+      ResultsFulfiller(
+        dataProvider = EDP_NAME,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
+        groupedRequisitions = groupedRequisitions,
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionDataSourceProvider = impressionsMetadataService,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
+      )
+
+    // Does not throw despite zero metadata.
+    resultsFulfiller.fulfillRequisitions()
+
+    // Nothing fulfilled or processed for an orphan blob.
+    verifyBlocking(requisitionsServiceMock, times(0)) { fulfillDirectRequisition(any()) }
+    verifyBlocking(requisitionMetadataServiceMock, times(0)) {
+      startProcessingRequisitionMetadata(any())
+    }
+    verifyBlocking(requisitionMetadataServiceMock, times(0)) { fulfillRequisitionMetadata(any()) }
+
+    // The orphan is counted, tagged with the blob's group id.
+    val metricsByName = collectMetrics().associateBy { it.name }
+    val orphanPoints =
+      metricsByName.getValue("edpa.results_fulfiller.orphan_blobs_skipped").longSumData.points
+    assertThat(orphanPoints).hasSize(1)
+    val orphanPoint = orphanPoints.single()
+    assertThat(orphanPoint.value).isEqualTo(1)
+    val groupIdKey = AttributeKey.stringKey("edpa.results_fulfiller.group_id")
+    assertThat(orphanPoint.attributes.get(groupIdKey)).isEqualTo(groupedRequisitions.groupId)
+  }
+
+  @Test
   fun `runWork skips withdrawn requisitions`() = runBlocking {
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val metadataTmpPath = Files.createTempDirectory(null).toFile()

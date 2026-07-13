@@ -95,6 +95,12 @@ class ResultsFulfillerMetrics(meter: Meter) {
       .setUnit("s")
       .build()
 
+  val orphanBlobsSkipped: LongCounter =
+    meter
+      .counterBuilder("edpa.results_fulfiller.orphan_blobs_skipped")
+      .setDescription("Count of grouped-requisition blobs skipped because they had no metadata")
+      .build()
+
   companion object {
     private val statusKey = AttributeKey.stringKey("edpa.results_fulfiller.status")
 

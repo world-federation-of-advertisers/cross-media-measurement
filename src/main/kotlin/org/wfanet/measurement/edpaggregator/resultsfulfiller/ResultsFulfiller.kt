@@ -157,8 +157,25 @@ class ResultsFulfiller(
     // fulfilled or refused already
     val requisitionsMetadata: List<RequisitionMetadata> = listRequisitionMetadata()
 
-    require(requisitionsMetadata.isNotEmpty()) {
-      "No requisition metadata found for group id: ${groupedRequisitions.groupId}"
+    if (requisitionsMetadata.isEmpty()) {
+      // A blob with no corresponding metadata is a benign orphan: the RequisitionFetcher
+      // writes the grouped-requisitions blob before creating its metadata, so a crash
+      // between the two (or a DataWatcher dispatch that races ahead of the metadata write)
+      // can surface a blob here before its metadata exists. The requisitions stay UNFULFILLED
+      // in the Kingdom and are re-processed on a later run, so there is nothing to fulfill
+      // now. Skip rather than throw, which would dead-letter the work item and look like a
+      // real failure. Operators watch the orphan_blobs_skipped counter; an anomalous rate is
+      // the signal to investigate.
+      logger.warning(
+        "Skipping grouped-requisitions blob with no metadata for groupId=" +
+          "${groupedRequisitions.groupId}; likely a benign orphan (blob written before its " +
+          "metadata, or read before the metadata write committed)"
+      )
+      metrics.orphanBlobsSkipped.add(
+        1,
+        Attributes.of(ATTR_GROUP_ID_KEY, groupedRequisitions.groupId),
+      )
+      return
     }
 
     val requisitionMetadataByName: Map<String, RequisitionMetadata> =
