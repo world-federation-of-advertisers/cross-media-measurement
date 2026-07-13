@@ -47,11 +47,11 @@ data class RawImpressionUploadModelLineResult(
   val rawImpressionUploadModelLineId: Long,
   // Per-mark AIP-155 request_id columns (empty when the transition hasn't happened). Used by the
   // service to short-circuit an idempotent replay of the same mark.
-  val markPoolAssigningRequestId: String = "",
-  val markRankingRequestId: String = "",
-  val markLabelingRequestId: String = "",
-  val markCompletedRequestId: String = "",
-  val markFailedRequestId: String = "",
+  val markPoolAssigningRequestId: String,
+  val markRankingRequestId: String,
+  val markLabelingRequestId: String,
+  val markCompletedRequestId: String,
+  val markFailedRequestId: String,
 )
 
 /** Returns whether a [RawImpressionUploadModelLine] with the specified keys exists. */
