@@ -608,6 +608,7 @@ class VidLabelerApp(
         markRawImpressionUploadModelLineCompletedRequest {
           name = parent.name
           etag = parent.etag
+          requestId = RequestIds.forMarkRawImpressionUploadModelLineCompleted(parent.name)
         }
       )
     } catch (e: StatusException) {

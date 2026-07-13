@@ -74,5 +74,28 @@ object RequestIds {
   fun forMarkVidLabelingJobSucceeded(vidLabelingJobName: String): String =
     fromKey("markVidLabelingJobSucceeded:$vidLabelingJobName")
 
+  /**
+   * `request_id`s for the five `MarkRawImpressionUploadModelLine*` transitions.
+   *
+   * Keyed on the operation and [modelLineName] so a Pub/Sub redelivery of the same transition
+   * reuses the same id: the server replays it as an idempotent no-op (returning the already-marked
+   * row) instead of surfacing `FAILED_PRECONDITION`. Distinct per operation so each transition
+   * stamps its own per-mark request-id column.
+   */
+  fun forMarkRawImpressionUploadModelLinePoolAssigning(modelLineName: String): String =
+    fromKey("markRawImpressionUploadModelLinePoolAssigning:$modelLineName")
+
+  fun forMarkRawImpressionUploadModelLineRanking(modelLineName: String): String =
+    fromKey("markRawImpressionUploadModelLineRanking:$modelLineName")
+
+  fun forMarkRawImpressionUploadModelLineLabeling(modelLineName: String): String =
+    fromKey("markRawImpressionUploadModelLineLabeling:$modelLineName")
+
+  fun forMarkRawImpressionUploadModelLineCompleted(modelLineName: String): String =
+    fromKey("markRawImpressionUploadModelLineCompleted:$modelLineName")
+
+  fun forMarkRawImpressionUploadModelLineFailed(modelLineName: String): String =
+    fromKey("markRawImpressionUploadModelLineFailed:$modelLineName")
+
   private fun fromKey(key: String): String = UUID.nameUUIDFromBytes(key.toByteArray()).toString()
 }

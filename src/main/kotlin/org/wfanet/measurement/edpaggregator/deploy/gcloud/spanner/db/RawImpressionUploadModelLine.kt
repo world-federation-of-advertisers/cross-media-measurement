@@ -45,6 +45,13 @@ data class RawImpressionUploadModelLineResult(
   val rawImpressionUploadModelLine: RawImpressionUploadModelLine,
   val rawImpressionUploadId: Long,
   val rawImpressionUploadModelLineId: Long,
+  // Per-mark AIP-155 request_id columns (empty when the transition hasn't happened). Used by the
+  // service to short-circuit an idempotent replay of the same mark.
+  val markPoolAssigningRequestId: String = "",
+  val markRankingRequestId: String = "",
+  val markLabelingRequestId: String = "",
+  val markCompletedRequestId: String = "",
+  val markFailedRequestId: String = "",
 )
 
 /** Returns whether a [RawImpressionUploadModelLine] with the specified keys exists. */
@@ -449,12 +456,18 @@ private object RawImpressionUploadModelLineEntity {
       RawImpressionUploadModelLine.PoolOffsets,
       RawImpressionUploadModelLine.MaxEventDate,
       RawImpressionUploadModelLine.EncryptedMergedDek,
+      RawImpressionUploadModelLine.MarkPoolAssigningRequestId,
+      RawImpressionUploadModelLine.MarkRankingRequestId,
+      RawImpressionUploadModelLine.MarkLabelingRequestId,
+      RawImpressionUploadModelLine.MarkCompletedRequestId,
+      RawImpressionUploadModelLine.MarkFailedRequestId,
     FROM
       RawImpressionUploadModelLine
     """
       .trimIndent()
 
   fun buildResult(struct: Struct): RawImpressionUploadModelLineResult {
+    fun markId(column: String): String = if (struct.isNull(column)) "" else struct.getString(column)
     return RawImpressionUploadModelLineResult(
       rawImpressionUploadModelLine {
         dataProviderResourceId = struct.getString("DataProviderResourceId")
@@ -485,6 +498,11 @@ private object RawImpressionUploadModelLineEntity {
       },
       struct.getLong("RawImpressionUploadId"),
       struct.getLong("RawImpressionUploadModelLineId"),
+      markPoolAssigningRequestId = markId("MarkPoolAssigningRequestId"),
+      markRankingRequestId = markId("MarkRankingRequestId"),
+      markLabelingRequestId = markId("MarkLabelingRequestId"),
+      markCompletedRequestId = markId("MarkCompletedRequestId"),
+      markFailedRequestId = markId("MarkFailedRequestId"),
     )
   }
 }
