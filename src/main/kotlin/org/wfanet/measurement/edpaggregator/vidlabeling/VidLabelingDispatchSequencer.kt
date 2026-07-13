@@ -208,8 +208,7 @@ class VidLabelingDispatchSequencer(
           busyModelLines += modelLine.cmmsModelLine
           if (dispatchedUpload == null) dispatchedUpload = upload.name
         } else {
-          // BENCH(memoized-only): skip non-memoized model lines for the stress test.
-          logger.info("BENCH: skipping non-memoized ${modelLine.cmmsModelLine}")
+          nonMemoized += BundledModelLine(modelLine, shardInfo)
         }
       }
       if (nonMemoized.isNotEmpty()) {
