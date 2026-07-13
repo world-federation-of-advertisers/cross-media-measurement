@@ -435,7 +435,17 @@ class EventGroupSync(
         // so flush first if it is already buffered. Duplicate input rows then land in separate
         // batches, where the kingdom dedupes by request_id (idempotent) instead of failing the
         // batch.
-        if (pendingCreates.any { it.request.requestId == action.request.requestId }) {
+        //
+        // Also flush on a duplicate pairing key (entity_key or refId), so two same-entity_key rows
+        // never share a batch — if they did, the response pairing at [flushCreates] would collide
+        // and fire the defensive check there. Different request_ids can produce the same pairing
+        // key (two rows sharing entity_key but with different refIds), so the request_id guard
+        // above does not subsume this one.
+        val newPairingKey = CreatePairingKey.of(action.request.eventGroup)
+        if (
+          pendingCreates.any { it.request.requestId == action.request.requestId } ||
+            pendingCreates.any { CreatePairingKey.of(it.request.eventGroup) == newPairingKey }
+        ) {
           flushCreates(pendingCreates)
         }
         pendingCreates.add(
@@ -516,8 +526,8 @@ class EventGroupSync(
     val pendingByKey = pendingCreates.associateBy { CreatePairingKey.of(it.request.eventGroup) }
     check(pendingByKey.size == pendingCreates.size) {
       "BatchCreateEventGroups pairing keys are not unique within a batch of ${pendingCreates.size};" +
-        " guaranteed by the producer emitting a unique entity_key (or event_group_reference_id)" +
-        " per EventGroup — the per-batch dedup guard only prevents duplicate request_ids."
+        " prevented by queueEventGroupItem's pairing-key dedup guard, so this should be unreachable." +
+        " If it fires, the queue logic is broken; do not silence."
     }
     response.eventGroupsList.forEach { syncedEventGroup ->
       val item = pendingByKey[CreatePairingKey.of(syncedEventGroup)]
@@ -729,14 +739,18 @@ class EventGroupSync(
   private fun buildCreateRequest(eventGroup: EventGroup): CreateEventGroupRequest {
     return createEventGroupRequest {
       parent = edpName
-      // Prefer event_group_reference_id for the request_id since it is the caller-provided key
-      // most existing operator flows use; fall back to entity_key when the caller did not set an
-      // egid (the compound guard in validateEventGroup ensures at least one is present).
+      // Namespace the two forms with a `ref:` / `ek:` prefix and use `:` as the delimiter so a
+      // legacy reference id of the shape `"{type}-{id}"` (still common on older EDP data) can never
+      // collide with an entity-keyed row's `"${entityType}-${entityId}-${mc}"` — otherwise the
+      // kingdom's request_id dedup would silently drop the second create as a replay. Prefer egid
+      // when present since it is the caller-provided key most existing operator flows use; fall
+      // back to entity_key when the caller did not set an egid (the compound guard in
+      // validateEventGroup ensures at least one is present).
       requestId =
         if (eventGroup.eventGroupReferenceId.isNotBlank()) {
-          "${eventGroup.eventGroupReferenceId}-${eventGroup.measurementConsumer}"
+          "ref:${eventGroup.eventGroupReferenceId}:${eventGroup.measurementConsumer}"
         } else {
-          "${eventGroup.entityKey.entityType}-${eventGroup.entityKey.entityId}-${eventGroup.measurementConsumer}"
+          "ek:${eventGroup.entityKey.entityType}:${eventGroup.entityKey.entityId}:${eventGroup.measurementConsumer}"
         }
       this.eventGroup = cmmsEventGroup {
         measurementConsumer = eventGroup.measurementConsumer
