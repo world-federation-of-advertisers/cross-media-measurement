@@ -69,10 +69,10 @@ resource "terraform_data" "deploy_http_cloud_function" {
         "--runtime=java17"
         "--entry-point=$ENTRY_POINT"
         # 512MB suffices for test environments. The requisition-fetcher groups a report's
-        # requisitions in memory before writing one blob; a production data provider with large
-        # reports (or rare ~1MB requisitions) can need substantially more headroom — up to 8GiB
-        # (Cloud Functions 2nd gen max) — and its MAX_TOTAL_BUFFERED_BYTES should be raised to
-        # match. Size per environment rather than assuming this default holds in production.
+        # requisitions in memory before writing one blob; a data provider with large reports
+        # (or rare ~1MB requisitions) can need substantially more headroom — up to 8GiB (Cloud
+        # Functions 2nd gen max) — and its MAX_TOTAL_BUFFERED_BYTES should be raised to match.
+        # Size per environment rather than assuming this default holds for larger workloads.
         "--memory=512MB"
         "--region=$CLOUD_REGION"
         "--run-service-account=$RUN_SERVICE_ACCOUNT"

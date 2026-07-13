@@ -184,8 +184,8 @@ class RequisitionFetcher(
       var totalFetched = 0L
       coroutineScope {
         // Single queue, single consumer. All report buffers accumulate in the producer and drain to
-        // one worker, so `pendingRecovery` and `metadataCache` are one map each (no per-worker
-        // replication) and there is no cross-worker routing to reason about.
+        // one consumer, so `pendingRecovery` and `metadataCache` are one map each (no per-consumer
+        // replication) and there is no cross-consumer routing to reason about.
         val channel = Channel<ReportWorkUnit>(channelCapacity)
         val consumer = launch {
           val pendingRecovery = mutableMapOf<String, PendingRecovery>()
@@ -505,7 +505,7 @@ class RequisitionFetcher(
           writeBlob(rebuilt)
           metrics.recoveryRebuilds.add(1, dataProviderAttrs)
           // No metadata mutated on the recovery path (the blob is rebuilt for already-existing
-          // STORED rows), so the worker-local metadataCache stays accurate and is intentionally
+          // STORED rows), so the consumer-local metadataCache stays accurate and is intentionally
           // not invalidated here.
         }
         pendingRecovery.remove(existingGroupId)
@@ -517,7 +517,7 @@ class RequisitionFetcher(
     if (unregistered.isEmpty()) return
 
     // Any persist path below mutates RequisitionMetadata for this report, so invalidate the
-    // worker-local cache unconditionally — including on partial-progress exceptions, where the
+    // consumer-local cache unconditionally — including on partial-progress exceptions, where the
     // cache otherwise retains a pre-failure snapshot that hides rows just persisted.
     try {
       val invalidRefusal = validateForReport(unit.reportId, unregistered)
@@ -622,11 +622,13 @@ class RequisitionFetcher(
 
   /**
    * Refuses every requisition in [requisitions] to the Kingdom and persists corresponding `REFUSED`
-   * [RequisitionMetadata] entries under the shared [groupId].
+   * [RequisitionMetadata] entries.
    *
-   * The metadata is created atomically via `BatchCreateRequisitionMetadata` (one Spanner
-   * transaction) before any per-metadata refusal call, so a crash between blob and metadata cannot
-   * leave a partial set of metadata rows under the group.
+   * Requisitions are chunked into groups of at most [maxRequisitionsPerGroup], each under its own
+   * generated groupId, so each `BatchCreateRequisitionMetadata` stays within Spanner's
+   * per-transaction mutation limit (see [batchCreateRequisitionMetadataForGroup]). Each batch is
+   * atomic, so a crash cannot leave a partial set of metadata rows within a group. This path writes
+   * no blob — it only persists REFUSED metadata and refuses each requisition to the Kingdom.
    */
   private suspend fun refuseUnregisteredAndPersist(
     requisitions: List<Requisition>,
@@ -645,7 +647,9 @@ class RequisitionFetcher(
       requisitionGrouper.refuseRequisitionToCmms(requisition, refusal)
     }
     // Chunked for the same Spanner-mutation-limit reason as the store path: a refused report can be
-    // arbitrarily large, and each metadata batch must stay well under the per-transaction limit.
+    // arbitrarily large, and each metadata batch must stay well under the per-transaction limit. No
+    // bufferSplits here: the refuse path writes no blobs, so there is no fulfillment data to
+    // fragment.
     for (chunk in requisitions.chunked(maxRequisitionsPerGroup)) {
       val groupId = UUID.randomUUID().toString()
       val createdMetadata = batchCreateRequisitionMetadataForGroup(chunk, groupId, reportId)
@@ -657,7 +661,7 @@ class RequisitionFetcher(
 
   /**
    * Writes [grouped] to [storageClient]. Increments storage-write or storage-fail counters and
-   * rethrows on failure so the per-report worker can surface the error.
+   * rethrows on failure so the consumer can surface the error.
    */
   private suspend fun writeBlob(grouped: GroupedRequisitions) {
     val blobKey = blobKey(grouped.groupId)
