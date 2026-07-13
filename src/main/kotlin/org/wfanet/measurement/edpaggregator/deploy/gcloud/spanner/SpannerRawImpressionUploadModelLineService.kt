@@ -566,7 +566,6 @@ class SpannerRawImpressionUploadModelLineService(
 
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=transitionState"))
-    var isReplay = false
     val updatedModelLine =
       transactionRunner.run { txn ->
         val result =
@@ -589,7 +588,6 @@ class SpannerRawImpressionUploadModelLineService(
           result.rawImpressionUploadModelLine.state == nextState &&
             currentMarkRequestId(result) == requestId
         ) {
-          isReplay = true
           return@run result.rawImpressionUploadModelLine
         }
 
@@ -698,7 +696,12 @@ class SpannerRawImpressionUploadModelLineService(
         result.rawImpressionUploadModelLine.copy { if (clearError) clearErrorMessage() }
       }
 
-    if (isReplay) {
+    // A replay short-circuit returns the row already in [nextState]; a real transition returns the
+    // pre-transition row (state in validPreviousStates, never [nextState]). Discriminating on the
+    // returned state -- rather than a flag mutated inside the retryable transaction, which Spanner
+    // may re-run on ABORTED -- keeps the response correct across retries (mirrors
+    // createRawImpressionUploadModelLine's hasCreateTime check).
+    if (updatedModelLine.state == nextState) {
       return updatedModelLine
     }
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
