@@ -3359,9 +3359,12 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `does not place a duplicate request_id in a single create batch`() {
+  fun `sync skips an identical duplicate input row and records invalid_event_group_failure`() {
     runBlocking {
-      // Two identical input rows -> same request_id; must not share one batch (kingdom rejects it).
+      // Two identical input rows share every identifier (refId, entity_key). Under the unified
+      // identity rule (any-shared-identifier-with-a-buffered-row = malformed input), the second is
+      // logged SEVERE + counted in invalid_event_group_failure + skipped; only one batchCreate
+      // request goes out.
       val duplicated = eventGroup {
         eventGroupReferenceId = "dup-ref"
         measurementConsumer = "measurementConsumers/measurement-consumer-1"
@@ -3393,12 +3396,16 @@ class EventGroupSyncTest {
       eventGroupSync.sync().toList()
 
       val createCaptor = argumentCaptor<BatchCreateEventGroupsRequest>()
-      verifyBlocking(eventGroupsServiceMock, times(2)) {
+      verifyBlocking(eventGroupsServiceMock, times(1)) {
         batchCreateEventGroups(createCaptor.capture())
       }
-      createCaptor.allValues.forEach { batch ->
-        assertThat(batch.requestsList.map { it.requestId }).containsNoDuplicates()
-      }
+      assertThat(createCaptor.firstValue.requestsList).hasSize(1)
+
+      val invalidEventGroupFailureMetric =
+        getMetrics().find { it.name == "edpa.event_group.invalid_event_group_failure" }
+      assertThat(invalidEventGroupFailureMetric).isNotNull()
+      assertThat(invalidEventGroupFailureMetric!!.longSumData.points.sumOf { it.value })
+        .isEqualTo(1)
     }
   }
 
@@ -3885,6 +3892,151 @@ class EventGroupSyncTest {
     assertThat(createCaptor.firstValue.requestsList).hasSize(1)
 
     // Invalid-input metric ticks by 1 for the skipped duplicate.
+    val invalidEventGroupFailureMetric =
+      getMetrics().find { it.name == "edpa.event_group.invalid_event_group_failure" }
+    assertThat(invalidEventGroupFailureMetric).isNotNull()
+    assertThat(invalidEventGroupFailureMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(1)
+  }
+
+  @Test
+  fun `sync does not re-create an existing EventGroup found by entity_key even if refId changed`() {
+    // Migration case: an EventGroup was previously created (with any request_id shape) and is now
+    // in cmms with (entity_key=(creative,cr-legacy), refId="ref-old"). The sync stream then submits
+    // a row with the SAME entity_key but a DIFFERENT refId "ref-new". findExistingEventGroup must
+    // find the existing row by entity_key and route to update — no batchCreate call.
+    wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
+      .thenAnswer {
+        listEventGroupsResponse {
+          eventGroups += cmmsEventGroup {
+            name = "dataProviders/data-provider-1/eventGroups/existing-1"
+            measurementConsumer = "measurementConsumers/measurement-consumer-1"
+            eventGroupReferenceId = "ref-old"
+            mediaTypes += listOf(CmmsMediaType.VIDEO)
+            eventGroupMetadata = cmmsEventGroupMetadata {
+              this.adMetadata = cmmsAdMetadata {
+                this.campaignMetadata = cmmsCampaignMetadata {
+                  brandName = "brand"
+                  campaignName = "campaign"
+                }
+              }
+            }
+            dataAvailabilityInterval = interval {
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
+            }
+            this.entityKey = cmmsEntityKey {
+              entityType = "creative"
+              entityId = "cr-legacy"
+            }
+          }
+        }
+      }
+
+    val newSourceRow = eventGroup {
+      eventGroupReferenceId = "ref-new"
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand"
+            campaign = "campaign"
+          }
+        }
+      }
+      entityKey = entityKey {
+        entityType = "creative"
+        entityId = "cr-legacy"
+      }
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.VIDEO)
+    }
+
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        listOf(newSourceRow).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+        entityKeyTypes = emptyList(),
+      )
+    runBlocking { eventGroupSync.sync().collect() }
+
+    // No create call at all — the existing row was matched by entity_key and treated as no-change
+    // (this test's source row is byte-equal to the existing one apart from the refId, which the
+    // sync path is expected to reconcile via update or no-op, not by creating a duplicate).
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
+  }
+
+  @Test
+  fun `sync skips a row that shares an event_group_reference_id with a different entity_key`() {
+    // Two rows in one sync stream share a refId but carry DIFFERENT entity_keys. Under the
+    // any-shared-identifier rule this is malformed input on the refId keyspace; skip the second.
+    val rowA = eventGroup {
+      eventGroupReferenceId = "shared-ref"
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand"
+            campaign = "campaign"
+          }
+        }
+      }
+      entityKey = entityKey {
+        entityType = "creative"
+        entityId = "cr-A"
+      }
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.VIDEO)
+    }
+    val rowB = eventGroup {
+      eventGroupReferenceId = "shared-ref"
+      measurementConsumer = "measurementConsumers/measurement-consumer-1"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand"
+            campaign = "campaign"
+          }
+        }
+      }
+      entityKey = entityKey {
+        entityType = "creative"
+        entityId = "cr-B"
+      }
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.VIDEO)
+    }
+
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        listOf(rowA, rowB).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+        entityKeyTypes = emptyList(),
+      )
+    val mappings = runBlocking { eventGroupSync.sync().toList() }
+
+    // Only the first row is created (its entity_key differs from B's, so they collide only on the
+    // refId keyspace; the any-shared-identifier check catches it).
+    assertThat(mappings).hasSize(1)
+    assertThat(mappings.single().entityKey.entityId).isEqualTo("cr-A")
+
     val invalidEventGroupFailureMetric =
       getMetrics().find { it.name == "edpa.event_group.invalid_event_group_failure" }
     assertThat(invalidEventGroupFailureMetric).isNotNull()
