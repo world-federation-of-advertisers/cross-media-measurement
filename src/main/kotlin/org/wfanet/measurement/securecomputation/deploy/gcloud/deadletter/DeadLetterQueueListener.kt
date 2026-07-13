@@ -177,8 +177,8 @@ class DeadLetterQueueListener(
    * dispatching on the `app_params` type:
    * - [SubpoolAssignerParams] (Phase 0) -> `MarkPoolAssignmentJobFailed` + parent model line,
    * - [VidRankBuilderParams] (Phase 1) -> `MarkRankerJobFailed` + parent model line,
-   * - [VidLabelerParams] (Phase 2) -> when memoized, `MarkVidLabelingJobFailed` + parent model
-   *   line; otherwise (non-memoized) the parent model line only,
+   * - [VidLabelerParams] (Phase 2) -> `MarkVidLabelingJobFailed` + every covered model line's
+   *   parent (both the memoized and non-memoized paths create the VidLabelingJob),
    * - anything else (e.g. `ResultsFulfiller` params) -> no EDPA marking.
    *
    * Every call is best-effort and never throws: a failure to mark an EDPA resource must not re-nack
