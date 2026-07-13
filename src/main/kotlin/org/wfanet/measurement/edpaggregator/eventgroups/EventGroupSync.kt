@@ -739,16 +739,21 @@ class EventGroupSync(
   private fun buildCreateRequest(eventGroup: EventGroup): CreateEventGroupRequest {
     return createEventGroupRequest {
       parent = edpName
-      // Namespace the two forms with a `ref:` / `ek:` prefix and use `:` as the delimiter so a
-      // legacy reference id of the shape `"{type}-{id}"` (still common on older EDP data) can never
-      // collide with an entity-keyed row's `"${entityType}-${entityId}-${mc}"` — otherwise the
-      // kingdom's request_id dedup would silently drop the second create as a replay. Prefer egid
-      // when present since it is the caller-provided key most existing operator flows use; fall
-      // back to entity_key when the caller did not set an egid (the compound guard in
-      // validateEventGroup ensures at least one is present).
+      // Keep the reference-id form byte-identical to what earlier deployments produced
+      // (`"${eventGroupReferenceId}-${measurementConsumer}"`) so a retry that straddles a code
+      // rollout — or any request_id previously stamped on the kingdom's side by an earlier
+      // deployment — still hits the AIP-155 replay short-circuit instead of creating a duplicate.
+      // Namespace only the entity-key form with an `ek:` prefix and use `:` as its delimiter, so a
+      // legacy reference id of shape `"{type}-{id}"` (still common on older EDP data) can never
+      // collide with an entity-keyed row: refId form ends in `-<mc>`, entity-key form ends in
+      // `:<mc>`, and the two use different delimiters throughout, so no character contents of
+      // refId / entityType / entityId / mc can make them equal. Prefer egid when present since it
+      // is the caller-provided key most existing operator flows use; fall back to entity_key when
+      // the caller did not set an egid (the compound guard in validateEventGroup ensures at least
+      // one is present).
       requestId =
         if (eventGroup.eventGroupReferenceId.isNotBlank()) {
-          "ref:${eventGroup.eventGroupReferenceId}:${eventGroup.measurementConsumer}"
+          "${eventGroup.eventGroupReferenceId}-${eventGroup.measurementConsumer}"
         } else {
           "ek:${eventGroup.entityKey.entityType}:${eventGroup.entityKey.entityId}:${eventGroup.measurementConsumer}"
         }
