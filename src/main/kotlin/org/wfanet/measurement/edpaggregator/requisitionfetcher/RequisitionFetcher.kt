@@ -749,11 +749,15 @@ class RequisitionFetcher(
    * transaction, leaving zero metadata rows. Either way ResultsFulfiller never sees a blob whose
    * `requisitionsList` references a name with no corresponding metadata row.
    *
-   * This issues one Spanner read-write transaction per call. A RequisitionMetadata row writes ~14
-   * columns across ~8 secondary indexes (~22 mutations/row against Spanner's ~80k per-transaction
-   * limit). Callers bound the batch to [DEFAULT_MAX_REQUISITIONS_PER_GROUP] requisitions per group
-   * (~22k mutations, comfortably under the limit) by splitting oversized reports across groups, so
-   * this call never has to chunk internally.
+   * This issues one Spanner read-write transaction per call. Each requisition writes a
+   * RequisitionMetadata row (~14 columns, 8 secondary indexes) plus a RequisitionMetadataActions
+   * row recording the UNSPECIFIED -> STORED transition (~6 columns, 3 secondary indexes) in the
+   * same transaction. Spanner counts a mutation per written cell and per index-entry cell, so the
+   * cost is ~30 mutations/requisition (one entry per index) up to ~64 (every index cell), against
+   * the ~80k per-transaction limit. Callers bound the batch to [DEFAULT_MAX_REQUISITIONS_PER_GROUP]
+   * requisitions per group by splitting oversized reports across groups, so even under the
+   * worst-case per-cell accounting a single batch stays under the limit and this call never has to
+   * chunk internally.
    *
    * No-op when [requisitions] is empty.
    */
@@ -826,10 +830,15 @@ class RequisitionFetcher(
 
     const val DEFAULT_METADATA_PAGE_SIZE: Int = 100
     const val DEFAULT_MAX_TOTAL_BUFFERED_BYTES: Long = 256L * 1024L * 1024L
-    // Caps requisitions per metadata batch. A RequisitionMetadata row writes ~14 columns across
-    // ~8 secondary indexes (~22 Spanner mutations/row), so 1000 rows is ~22k mutations — well
-    // under the ~80k per-transaction limit, with headroom for schema growth. In practice a
-    // report has fewer requisitions than this, so it is a safety cap rather than a routine split.
+    // Caps requisitions per metadata batch to bound the Spanner mutation count. Each requisition
+    // writes a RequisitionMetadata row (~14 columns, 8 indexes) and a RequisitionMetadataActions
+    // row
+    // (~6 columns, 3 indexes) in one transaction — ~30 mutations/requisition counting one entry per
+    // index, up to ~64 counting every index cell. At 1000 that is ~30k-64k mutations, under the
+    // ~80k
+    // per-transaction limit even in the worst case. In practice a report has fewer requisitions
+    // than
+    // this, so it is a safety cap rather than a routine split.
     const val DEFAULT_MAX_REQUISITIONS_PER_GROUP: Int = 1000
     val DEFAULT_FLUSH_INTERVAL: Duration = Duration.ofMinutes(5)
     const val DEFAULT_CHANNEL_CAPACITY: Int = 4

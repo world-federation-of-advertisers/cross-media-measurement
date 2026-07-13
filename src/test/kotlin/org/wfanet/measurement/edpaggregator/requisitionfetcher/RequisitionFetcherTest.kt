@@ -176,7 +176,7 @@ class RequisitionFetcherTest {
   private fun createFetcher(
     storageClient: StorageClient = this.storageClient,
     metrics: RequisitionFetcherMetrics = testMetrics,
-    flushInterval: java.time.Duration = RequisitionFetcher.DEFAULT_FLUSH_INTERVAL,
+    flushInterval: Duration = RequisitionFetcher.DEFAULT_FLUSH_INTERVAL,
     maxTotalBufferedBytes: Long = RequisitionFetcher.DEFAULT_MAX_TOTAL_BUFFERED_BYTES,
     maxRequisitionsPerGroup: Int = RequisitionFetcher.DEFAULT_MAX_REQUISITIONS_PER_GROUP,
     metadataThrottler: Throttler = this.throttler,
@@ -1118,7 +1118,7 @@ class RequisitionFetcherTest {
     // A split is counted only when the second unit sees the first unit's STORED metadata.
     installStatefulMetadataMock()
 
-    createFetcher(flushInterval = java.time.Duration.ofMillis(100)).fetchAndStoreRequisitions()
+    createFetcher(flushInterval = Duration.ofMillis(100)).fetchAndStoreRequisitions()
 
     assertThat(blobsList()).hasLength(2)
     assertThat(counterValue("edpa.requisition_fetcher.buffer_splits")).isEqualTo(1)
@@ -1150,7 +1150,7 @@ class RequisitionFetcherTest {
     whenever(requisitionsServiceMock.listRequisitions(any()))
       .thenReturn(listRequisitionsResponse { requisitions += reqs })
 
-    createFetcher(flushInterval = java.time.Duration.ofHours(1)).fetchAndStoreRequisitions()
+    createFetcher(flushInterval = Duration.ofHours(1)).fetchAndStoreRequisitions()
 
     assertThat(histogramSumValue("edpa.requisition_fetcher.open_buffer_high_water_mark"))
       .isEqualTo(10)
@@ -1365,7 +1365,7 @@ class RequisitionFetcherTest {
       }
     }
 
-    createFetcher(flushInterval = java.time.Duration.ofMillis(100)).fetchAndStoreRequisitions()
+    createFetcher(flushInterval = Duration.ofMillis(100)).fetchAndStoreRequisitions()
 
     assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isEqualTo(1)
     // The metadataCache.remove() in the finally is the load-bearing assertion: if it didn't
@@ -1427,7 +1427,7 @@ class RequisitionFetcherTest {
       }
     }
 
-    createFetcher(flushInterval = java.time.Duration.ofMillis(100)).fetchAndStoreRequisitions()
+    createFetcher(flushInterval = Duration.ofMillis(100)).fetchAndStoreRequisitions()
 
     // The first unit's refuse path threw → reportFailures incremented.
     assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isAtLeast(1)
@@ -1617,7 +1617,7 @@ class RequisitionFetcherTest {
         }
       )
 
-    createFetcher(flushInterval = java.time.Duration.ofMillis(100)).fetchAndStoreRequisitions()
+    createFetcher(flushInterval = Duration.ofMillis(100)).fetchAndStoreRequisitions()
 
     // Rebuilt only because the two units were accumulated; the blob is present and counted once.
     assertThat(storageClient.getBlob(blobKey)).isNotNull()
