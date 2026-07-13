@@ -376,7 +376,6 @@ locals {
         min_replicas                  = 0
         max_replicas                  = 8
         machine_type                  = "n2d-highmem-16"
-        disk_type                     = "pd-balanced"
         java_tool_options             = "-Xmx96G -Djdk.util.jar.enableMultiRelease=false"
         docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/subpool_assigner:${var.image_tag}"
         tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/subpool_assigner"
@@ -403,7 +402,6 @@ locals {
         min_replicas                  = 0
         max_replicas                  = 8
         machine_type                  = "n2d-highmem-16"
-        disk_type                     = "pd-balanced"
         java_tool_options             = "-Xmx96G -Djdk.util.jar.enableMultiRelease=false"
         docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_rank_builder:${var.image_tag}"
         tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_rank_builder"
@@ -430,7 +428,6 @@ locals {
         min_replicas                  = 0
         max_replicas                  = 8
         machine_type                  = "n2d-highmem-16"
-        disk_type                     = "pd-balanced"
         java_tool_options             = "-Xmx96G -Djdk.util.jar.enableMultiRelease=false"
         docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_labeler:${var.image_tag}"
         tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_labeler"
