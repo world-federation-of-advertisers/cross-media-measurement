@@ -372,10 +372,11 @@ class DeadLetterQueueListener(
           // RawImpressionUploadModelLine resource carries it) instead of an extra Get.
           etag = parent.etag
           this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
-          // TODO(#4074): MarkRawImpressionUploadModelLineFailedRequest has no `request_id` field
-          // yet; #4074 adds it across the 5 RawImpressionUploadModelLine Mark RPCs. Once it lands,
-          // set requestId = deterministicUuid("MarkModelLineFailed:${parent.name}") for AIP-155
-          // idempotency on Pub/Sub redelivery.
+          // TODO(#4211): MarkRawImpressionUploadModelLineFailedRequest has no `request_id` field
+          // yet; #4211 (issue #4074) adds it across the 5 RawImpressionUploadModelLine Mark RPCs
+          // and makes it REQUIRED. Once it lands, set requestId via the shared RequestIds helper
+          // (see deterministicUuid's TODO(#4211)) for AIP-155 idempotency on Pub/Sub redelivery;
+          // otherwise this call fails with INVALID_ARGUMENT.
         }
       )
       logger.info(
@@ -451,6 +452,13 @@ class DeadLetterQueueListener(
      * variant bits forced, so it satisfies a field's `format = UUID4`. Copied from
      * `SubpoolAssigner.deterministicUuid`. Used for the Mark RPC request_ids that carry one
      * (`MarkVidLabelingJobFailed`, `MarkRankerJobFailed`) so a redelivery is idempotent.
+     *
+     * TODO(#4211): this duplicates RequestIds.fromKey and will diverge once #4211 lands (that PR
+     *   switches RequestIds.fromKey from MD5 to SHA-256; this copy stays MD5). When #4211 merges,
+     *   delete this helper and call the shared RequestIds.forMark<Op>Failed(...) at each site,
+     *   adding the missing forMark{RankerJob,VidLabelingJob,PoolAssignmentJob}Failed variants to
+     *   RequestIds.kt and aligning the seed casing (`Mark...:` here vs `mark...:` in RequestIds) so
+     *   ids match across all sites.
      */
     fun deterministicUuid(seed: String): String {
       val bytes = MessageDigest.getInstance("MD5").digest(seed.toByteArray(Charsets.UTF_8))
