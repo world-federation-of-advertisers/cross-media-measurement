@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import com.google.common.truth.Truth.assertThat
+import java.util.UUID
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -60,6 +61,30 @@ class RequestIdsTest {
       .isNotEqualTo(RequestIds.forRawImpressionUploadModelLine(UPLOAD, SHARED))
   }
 
+  @Test
+  fun `request ids are formatted as UUID version 4`() {
+    // Every request_id proto field declares (google.api.field_info).format = UUID4, so the
+    // deterministic ids must render in the version-4 layout. Cover every helper family so no
+    // generator drifts to a different version.
+    val ids =
+      listOf(
+        RequestIds.forRawImpressionUpload(DONE_BLOB, 1L),
+        RequestIds.forRawImpressionUploadFile(UPLOAD, FILE_URI),
+        RequestIds.forRawImpressionUploadModelLine(UPLOAD, MODEL_LINE),
+        RequestIds.forPoolAssignmentJob(UPLOAD, MODEL_LINE, 0),
+        RequestIds.forVidLabelingJob(UPLOAD, listOf(MODEL_LINE), 0),
+        RequestIds.forMarkVidLabelingJobSucceeded(VID_LABELING_JOB),
+        RequestIds.forMarkRawImpressionUploadModelLinePoolAssigning(MODEL_LINE_NAME),
+        RequestIds.forMarkRawImpressionUploadModelLineRanking(MODEL_LINE_NAME),
+        RequestIds.forMarkRawImpressionUploadModelLineLabeling(MODEL_LINE_NAME),
+        RequestIds.forMarkRawImpressionUploadModelLineCompleted(MODEL_LINE_NAME),
+        RequestIds.forMarkRawImpressionUploadModelLineFailed(MODEL_LINE_NAME),
+      )
+    for (id in ids) {
+      assertThat(UUID.fromString(id).version()).isEqualTo(4)
+    }
+  }
+
   companion object {
     private const val DATA_PROVIDER = "dataProviders/edp123"
     private const val UPLOAD = "$DATA_PROVIDER/rawImpressionUploads/upload-1"
@@ -67,5 +92,7 @@ class RequestIdsTest {
     private const val FILE_URI = "gs://bucket/edp/2026-01-01/impressions_001"
     private const val MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
     private const val SHARED = "shared-value"
+    private const val MODEL_LINE_NAME = "$UPLOAD/rawImpressionUploadModelLines/riuml-1"
+    private const val VID_LABELING_JOB = "$UPLOAD/vidLabelingJobs/vlj-1"
   }
 }
