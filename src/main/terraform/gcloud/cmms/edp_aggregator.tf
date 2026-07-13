@@ -332,7 +332,7 @@ locals {
   vid_labeling_dispatch_scheduler_config = {
     schedule                  = "0 */6 * * *" # Every 6 hours
     time_zone                 = "UTC"
-    name                      = "vid-labeling-dispatch-scheduler"
+    name                      = "vid-labeling-dispatch-sched"
     function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/vid-labeling-monitor?mode=dispatch"
     scheduler_sa_display_name = "VID Labeling Dispatch Scheduler"
     scheduler_sa_description  = "Service account for Cloud Scheduler to trigger VID labeling dispatch"
