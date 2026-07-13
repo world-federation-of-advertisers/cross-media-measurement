@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.edpaggregator.service.VidLabelingJobKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
@@ -214,9 +215,21 @@ class DeadLetterQueueListener(
         // `RawImpressionUploadModelLine` FAILED (the upload is the job's parent resource).
         val params = appParams.unpack(VidLabelerParams::class.java)
         markVidLabelingJobFailedBestEffort(params.vidLabelingJob, errorMessage)
-        val rawImpressionUpload = params.vidLabelingJob.substringBeforeLast("/vidLabelingJobs/", "")
-        for (modelLine in params.modelLinesList) {
-          markModelLineFailedBestEffort(rawImpressionUpload, modelLine, errorMessage)
+        // Parse the parent RawImpressionUpload from the VidLabelingJob name via the key parser so a
+        // malformed/extended name fails loud here instead of silently yielding "" (which would
+        // no-op every model-line mark and lose the failure attribution). Mirrors #4083's
+        // VidLabelerApp.parentUpload.
+        val rawImpressionUpload =
+          VidLabelingJobKey.fromName(params.vidLabelingJob)?.parentKey?.toName()
+        if (rawImpressionUpload == null) {
+          logger.warning(
+            "Malformed VidLabelingJob name in VidLabelerParams for ${workItem.name}: " +
+              params.vidLabelingJob
+          )
+        } else {
+          for (modelLine in params.modelLinesList) {
+            markModelLineFailedBestEffort(rawImpressionUpload, modelLine, errorMessage)
+          }
         }
       }
       else -> {
@@ -404,7 +417,17 @@ class DeadLetterQueueListener(
         ResourceList(response.rawImpressionUploadModelLinesList, response.nextPageToken)
       }
       .collect { page ->
-        page.forEach { line -> if (line.cmmsModelLine == cmmsModelLine) parentRow = line }
+        page.forEach { line ->
+          if (line.cmmsModelLine == cmmsModelLine) {
+            // The (upload, cmms_model_line) unique index guarantees at most one match; fail loud on
+            // a violation (swallowed by the best-effort catch) instead of silently last-wins,
+            // mirroring VidRankBuilder.getParent (#4009).
+            check(parentRow == null) {
+              "Duplicate RawImpressionUploadModelLine for $cmmsModelLine under $rawImpressionUpload"
+            }
+            parentRow = line
+          }
+        }
       }
     return parentRow
   }
