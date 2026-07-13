@@ -1238,7 +1238,7 @@ class ResultsFulfillerTest {
       .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
 
     // Orphan blob: the RequisitionFetcher wrote the grouped-requisitions blob but has not (yet)
-    // created any RequisitionMetadata for it. ResultsFulfiller must skip and count it, not throw.
+    // created any RequisitionMetadata for it. ResultsFulfiller must throw to nack for retry.
     whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
       .thenReturn(listRequisitionMetadataResponse {})
 
