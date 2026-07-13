@@ -380,13 +380,17 @@ class RequisitionFetcher(
       // cancelAndJoin (not cancel) so the ticker is fully stopped before the final drain — no drain
       // runs concurrently with it, and any in-flight NonCancellable send completes first.
       drainTicker.cancelAndJoin()
+      // Record the memory high-water gauges here (in finally, before the final drain) so they are
+      // emitted even when flow.collect throws mid-run — a failed run is exactly when the
+      // buffer-cardinality and bytes-at-risk telemetry is most useful. The final drain does not
+      // change these peaks, so recording before it yields the same values.
+      metrics.openBufferHighWaterMark.record(openBufferHighWater.toLong(), dataProviderAttrs)
+      metrics.bufferedBytesHighWaterMark.record(bufferedBytesHighWater, dataProviderAttrs)
     }
 
     // Final drain of whatever remains when the stream ends within the instance lifetime.
     drainAndSend()
 
-    metrics.openBufferHighWaterMark.record(openBufferHighWater.toLong(), dataProviderAttrs)
-    metrics.bufferedBytesHighWaterMark.record(bufferedBytesHighWater, dataProviderAttrs)
     totalFetched
   }
 
@@ -522,18 +526,17 @@ class RequisitionFetcher(
         return
       }
 
-      // Split the report's requisitions into groups of at most [maxRequisitionsPerGroup], each its
-      // own groupId with its own blob and its own atomic metadata batch. There is no upstream limit
-      // on requisitions per report; in practice a report has far fewer than one chunk, so the
-      // common
-      // case is a single group (identical to no chunking). The cap bounds the metadata batch's
-      // Spanner mutation count (rows x written columns x secondary indexes) well under the ~80k
-      // per-transaction limit, so an unusually large report cannot produce a batch that fails every
-      // run and wedges the report. Each chunk's (blob, metadata) pair is internally consistent, so
-      // a
-      // mid-report failure only leaves already-persisted chunks (fully consistent) plus at most one
-      // benign orphan blob (blob without metadata), recovered on a later run — the same
-      // recoverable state the single-group path already relies on.
+      // Split the report's requisitions into groups of at most [maxRequisitionsPerGroup],
+      // each with its own groupId, blob, and atomic metadata batch. There is no upstream
+      // limit on requisitions per report; in practice a report has far fewer than one
+      // chunk, so the common case is a single group (identical to no chunking). The cap
+      // bounds the metadata batch's Spanner mutation count (rows x columns x secondary
+      // indexes) well under the ~80k per-transaction limit, so an unusually large report
+      // cannot produce a batch that fails every run and wedges the report. Each chunk's
+      // (blob, metadata) pair is internally consistent, so a mid-report failure only leaves
+      // already-persisted chunks (fully consistent) plus at most one benign orphan blob
+      // (blob without metadata), recovered on a later run — the same recoverable state the
+      // single-group path already relies on.
       var priorBlobForReport = storedByGroupId.isNotEmpty()
       for (chunk in unregistered.chunked(maxRequisitionsPerGroup)) {
         val groupId = UUID.randomUUID().toString()
@@ -830,15 +833,13 @@ class RequisitionFetcher(
 
     const val DEFAULT_METADATA_PAGE_SIZE: Int = 100
     const val DEFAULT_MAX_TOTAL_BUFFERED_BYTES: Long = 256L * 1024L * 1024L
-    // Caps requisitions per metadata batch to bound the Spanner mutation count. Each requisition
-    // writes a RequisitionMetadata row (~14 columns, 8 indexes) and a RequisitionMetadataActions
-    // row
-    // (~6 columns, 3 indexes) in one transaction — ~30 mutations/requisition counting one entry per
-    // index, up to ~64 counting every index cell. At 1000 that is ~30k-64k mutations, under the
-    // ~80k
-    // per-transaction limit even in the worst case. In practice a report has fewer requisitions
-    // than
-    // this, so it is a safety cap rather than a routine split.
+    // Caps requisitions per metadata batch to bound the Spanner mutation count. Each
+    // requisition writes a RequisitionMetadata row (~14 columns, 8 indexes) and a
+    // RequisitionMetadataActions row (~6 columns, 3 indexes) in one transaction — ~30
+    // mutations/requisition counting one entry per index, up to ~64 counting every index
+    // cell. At 1000 that is ~30k-64k mutations, under the ~80k per-transaction limit even in
+    // the worst case. In practice a report has fewer requisitions than this, so it is a
+    // safety cap rather than a routine split.
     const val DEFAULT_MAX_REQUISITIONS_PER_GROUP: Int = 1000
     val DEFAULT_FLUSH_INTERVAL: Duration = Duration.ofMinutes(5)
     const val DEFAULT_CHANNEL_CAPACITY: Int = 4
