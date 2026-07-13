@@ -233,11 +233,11 @@ class VidLabelingDispatcherFunction : HttpFunction {
             VidLabelingFunctionHelpers.buildSubpoolAssignerParamsTemplate(config),
           queueName = vidLabelerQueueName,
           poolAssignerQueueName = poolAssignerQueueName,
-          numberOfShards = 32 /* BENCH: hardcoded Phase-0 shards */,
+          numberOfShards = config.numberOfShards,
           modelLineConfigs = modelLineConfigs,
           rawImpressionUploadFileStub = rawImpressionUploadFilesStub,
           vidLabelingJobStub = vidLabelingJobStub,
-          maxFileBatchSizeBytes = 2_087_795_490L /* BENCH WS3.5: 66809455691 total_raw / 32 = ~32 Phase-2 batches */,
+          maxFileBatchSizeBytes = config.maxFileBatchSizeBytes,
         )
 
       val dispatcher =
