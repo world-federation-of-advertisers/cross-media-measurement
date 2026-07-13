@@ -30,6 +30,7 @@ import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import java.time.Clock
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertThrows
@@ -249,21 +250,17 @@ class RequisitionFetcherTest {
 
   @Test
   fun `constructor rejects non-positive flushInterval`() {
-    assertThrows(IllegalArgumentException::class.java) {
-      createFetcher(flushInterval = Duration.ZERO)
-    }
+    assertFailsWith<IllegalArgumentException> { createFetcher(flushInterval = Duration.ZERO) }
   }
 
   @Test
   fun `constructor rejects non-positive maxRequisitionsPerGroup`() {
-    assertThrows(IllegalArgumentException::class.java) {
-      createFetcher(maxRequisitionsPerGroup = 0)
-    }
+    assertFailsWith<IllegalArgumentException> { createFetcher(maxRequisitionsPerGroup = 0) }
   }
 
   @Test
   fun `constructor rejects non-positive maxTotalBufferedBytes`() {
-    assertThrows(IllegalArgumentException::class.java) { createFetcher(maxTotalBufferedBytes = 0) }
+    assertFailsWith<IllegalArgumentException> { createFetcher(maxTotalBufferedBytes = 0) }
   }
 
   @Test
