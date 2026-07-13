@@ -248,6 +248,25 @@ class RequisitionFetcherTest {
   private fun blobsList() = blobsDir().listFiles().orEmpty()
 
   @Test
+  fun `constructor rejects non-positive flushInterval`() {
+    assertThrows(IllegalArgumentException::class.java) {
+      createFetcher(flushInterval = Duration.ZERO)
+    }
+  }
+
+  @Test
+  fun `constructor rejects non-positive maxRequisitionsPerGroup`() {
+    assertThrows(IllegalArgumentException::class.java) {
+      createFetcher(maxRequisitionsPerGroup = 0)
+    }
+  }
+
+  @Test
+  fun `constructor rejects non-positive maxTotalBufferedBytes`() {
+    assertThrows(IllegalArgumentException::class.java) { createFetcher(maxTotalBufferedBytes = 0) }
+  }
+
+  @Test
   fun `fetchAndStoreRequisitions writes single grouped blob and creates metadata`() = runBlocking {
     createFetcher().fetchAndStoreRequisitions()
 

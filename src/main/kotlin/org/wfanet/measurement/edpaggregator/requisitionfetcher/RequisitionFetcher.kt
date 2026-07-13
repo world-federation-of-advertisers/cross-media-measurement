@@ -29,7 +29,6 @@ import java.util.logging.Logger
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
@@ -40,7 +39,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -127,6 +125,24 @@ class RequisitionFetcher(
   private val channelCapacity: Int = DEFAULT_CHANNEL_CAPACITY,
   private val metrics: RequisitionFetcherMetrics = RequisitionFetcherMetrics.Default,
 ) {
+
+  init {
+    // Fail fast at construction rather than deep in the run loop, where an invalid value would
+    // surface as an opaque error: flushInterval <= 0 makes the drain ticker a delay(0) spin loop;
+    // maxRequisitionsPerGroup <= 0 makes chunked() throw; channelCapacity <= 0 is rejected by
+    // Channel(); a non-positive byte cap would flush on every requisition.
+    require(!flushInterval.isNegative && !flushInterval.isZero) {
+      "flushInterval must be positive, was $flushInterval"
+    }
+    require(maxTotalBufferedBytes > 0) {
+      "maxTotalBufferedBytes must be positive, was $maxTotalBufferedBytes"
+    }
+    require(maxRequisitionsPerGroup > 0) {
+      "maxRequisitionsPerGroup must be positive, was $maxRequisitionsPerGroup"
+    }
+    require(channelCapacity > 0) { "channelCapacity must be positive, was $channelCapacity" }
+    require(metadataPageSize > 0) { "metadataPageSize must be positive, was $metadataPageSize" }
+  }
 
   private data class ReportWorkUnit(val reportId: String, val requisitions: List<Requisition>)
 
@@ -322,11 +338,14 @@ class RequisitionFetcher(
     val drainTicker = launch {
       while (isActive) {
         delay(flushInterval.toMillis())
-        // The delay above is the cancellation point that stops the ticker. Once a drain has removed
-        // buffers from the map, its sends must complete (NonCancellable) so cancellation between
-        // drainAll and send cannot drop already-drained units — they would otherwise be lost, since
-        // the final drain no longer sees them.
-        withContext(NonCancellable) { drainAndSend() }
+        // Cancellable on purpose. If the scope is cancelled mid-send the drained units are dropped,
+        // but that is recoverable: they were never blobbed or given metadata, so they remain
+        // UNFULFILLED at the Kingdom and are re-streamed on the next scheduled run. Do NOT shield
+        // this with NonCancellable — channel.send can block indefinitely on a full channel once the
+        // consumer stops receiving (e.g. the scope is cancelled on instance shutdown/timeout), and
+        // shielding a blocking send turns a recoverable drop into a deadlock that hangs the
+        // instance.
+        drainAndSend()
       }
     }
 
@@ -371,8 +390,8 @@ class RequisitionFetcher(
         if (overCap) drainAndSend()
       }
     } finally {
-      // cancelAndJoin (not cancel) so the ticker is fully stopped before the final drain — no drain
-      // runs concurrently with it, and any in-flight NonCancellable send completes first.
+      // cancelAndJoin (not cancel) so the ticker is fully stopped before the final drain runs — no
+      // tick can execute concurrently with the final drain and double-send or race the buffer map.
       drainTicker.cancelAndJoin()
       // Record the memory high-water gauges here (in finally, before the final drain) so they are
       // emitted even when flow.collect throws mid-run — a failed run is exactly when the
