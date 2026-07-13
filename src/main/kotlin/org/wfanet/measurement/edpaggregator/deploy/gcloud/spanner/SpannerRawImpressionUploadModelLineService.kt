@@ -50,6 +50,7 @@ import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadModelLineNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadModelLineStateInvalidException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
+import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadStateInvalidException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateRawImpressionUploadModelLinesRequest
@@ -144,7 +145,12 @@ class SpannerRawImpressionUploadModelLineService(
             createRequestId = request.requestId,
           )
 
-          reactivateParentForBackfill(txn, request.dataProviderResourceId, rawImpressionUploadId)
+          reactivateParentForBackfill(
+            txn,
+            request.dataProviderResourceId,
+            request.rawImpressionUploadResourceId,
+            rawImpressionUploadId,
+          )
 
           request.rawImpressionUploadModelLine.copy {
             dataProviderResourceId = request.dataProviderResourceId
@@ -311,7 +317,12 @@ class SpannerRawImpressionUploadModelLineService(
           // Reactivate the parent only when this batch actually added a model line (backfill),
           // not on a pure idempotent replay where every requested line already existed.
           if (anyInserted) {
-            reactivateParentForBackfill(txn, dataProviderResourceId, rawImpressionUploadId)
+            reactivateParentForBackfill(
+              txn,
+              dataProviderResourceId,
+              rawImpressionUploadResourceId,
+              rawImpressionUploadId,
+            )
           }
 
           created
@@ -357,6 +368,7 @@ class SpannerRawImpressionUploadModelLineService(
   private suspend fun reactivateParentForBackfill(
     txn: AsyncDatabaseClient.TransactionContext,
     dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
     rawImpressionUploadId: Long,
   ) {
     when (txn.getRawImpressionUploadState(dataProviderResourceId, rawImpressionUploadId)) {
@@ -367,10 +379,12 @@ class SpannerRawImpressionUploadModelLineService(
           RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
         )
       RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED ->
-        throw Status.FAILED_PRECONDITION.withDescription(
-            "Cannot add a model line to a FAILED RawImpressionUpload"
+        throw RawImpressionUploadStateInvalidException(
+            dataProviderResourceId,
+            rawImpressionUploadResourceId,
+            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
           )
-          .asRuntimeException()
+          .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       else -> {}
     }
   }
