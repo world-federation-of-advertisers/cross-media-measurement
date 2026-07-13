@@ -17,6 +17,8 @@
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.crypto.tink.KmsClient
+import java.time.LocalDate
+import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
 import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -67,8 +69,14 @@ class VidLabeler(
   // raw_impression_upload_files, and model_lines fields to VidLabelerParams for the
   // VidLabelerApp wiring PR.
 
-  /** Labels this VM's shard of the upload, writing encrypted labeled output per input file. */
-  suspend fun label() {
+  /**
+   * Labels this VM's shard of the upload, writing encrypted labeled output per input file.
+   *
+   * @return the set of distinct `event_date`s read from the processed files' footers. One date per
+   *   upload is expected; [VidLabelerApp] uses this to place (and validate) the done marker's date
+   *   folder without re-reading the footers.
+   */
+  suspend fun label(): Set<LocalDate> {
     val specs = resolveModelLineSpecs()
     require(specs.isNotEmpty()) { "No model lines to label with" }
 
@@ -91,14 +99,24 @@ class VidLabeler(
     // KMS rate limits.
     val encryptionKeySemaphore = Semaphore(VidLabelingSink.DEFAULT_ENCRYPTION_KEY_PARALLELISM)
 
+    // Distinct event dates seen across this WorkItem's files, read from their footers as they
+    // stream. streamBlobs reads files in parallel, so this must be a concurrent set.
+    val observedEventDates: MutableSet<LocalDate> = ConcurrentHashMap.newKeySet()
+
     // TODO(world-federation-of-advertisers/cross-media-measurement#4010): Switch to file-batching
     // contract. RawImpressionSource currently shards by fingerprint; once VidLabelerApp is wired
     // up, pass VidLabelingJob.raw_impression_upload_files directly and remove fingerprint sharding.
-    rawImpressionSource.streamBlobs { blobUri ->
+    rawImpressionSource.streamBlobs { blobUri, footerMetadata ->
+      // The file's plaintext Parquet footer carries the event group reference id and event date;
+      // read them here and hand them to the file's sink. Entity keys are NOT in the footer — they
+      // are read per impression from dedicated columns by the converter (EntityKeyMapper).
+      val fileEntityKeys = FileEntityKeys.fromFooterMetadata(footerMetadata)
+      observedEventDates.add(fileEntityKeys.eventDate)
       VidLabelingSink(
         inputBlobUri = blobUri,
         modelLineContexts = contexts,
         impressionConverter = impressionConverter,
+        fileEntityKeys = fileEntityKeys,
         encryptKmsClient = encryptKmsClient,
         encryptKekUri = encryptKekUri,
         outputStorageParams = outputStorageParams,
@@ -116,6 +134,7 @@ class VidLabeler(
     //   write the done blob to the labeled-impressions folder so DataAvailabilitySync triggers and
     //   registers the ImpressionMetadata rows for Halo report fulfillment.
     logger.info("Finished labeling shard")
+    return observedEventDates
   }
 
   /** Model lines to label with: [overrideModelLines] if set, else all of [modelLineSpecs]. */
