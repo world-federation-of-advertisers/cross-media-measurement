@@ -123,6 +123,13 @@ private constructor(
      * selected blob is then decrypted and decoded into a [Bytes12IntMap], up to [readerParallelism]
      * blobs at a time.
      *
+     * Memory: the entire cumulative index is held in heap for the WorkItem's lifetime — every
+     * subpool's latest `SNAPSHOT` is decoded into a [Bytes12IntMap] and retained until the WorkItem
+     * finishes. There is no runtime size bound; capacity is a deployment assumption (~6 GiB
+     * steady-state on the 128 GB VID-labeler VM). Size the VM for the model line's total
+     * fingerprint count; reducing VM memory can OOM here, and bounding the resident set would
+     * require a redesign (e.g. a sharded/streaming lookup).
+     *
      * @param rankIndexBlobsStub stub used to locate the per-subpool `SNAPSHOT` blob pointers.
      * @param rankIndexStore reads + decrypts the rank-index blob bytes (keyed to the vid-rank-map
      *   storage).
