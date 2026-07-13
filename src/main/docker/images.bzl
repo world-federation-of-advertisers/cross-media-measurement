@@ -378,6 +378,21 @@ SECURE_COMPUTATION_TEE_APP_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller_image",
         repository = _PREFIX + "/edp-aggregator/results_fulfiller",
     ),
+    struct(
+        name = "gcloud_subpool_assigner_app",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/subpoolassigner:subpool_assigner_image",
+        repository = _PREFIX + "/edp-aggregator/subpool_assigner",
+    ),
+    struct(
+        name = "gcloud_vid_rank_builder_app",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:vid_rank_builder_image",
+        repository = _PREFIX + "/edp-aggregator/vid_rank_builder",
+    ),
+    struct(
+        name = "gcloud_vid_labeler_app",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeler_image",
+        repository = _PREFIX + "/edp-aggregator/vid_labeler",
+    ),
 ]
 
 ALL_SECURE_COMPUTATION_GKE_IMAGES = SECURE_COMPUTATION_COMMON_IMAGES + SECURE_COMPUTATION_GKE_IMAGES
