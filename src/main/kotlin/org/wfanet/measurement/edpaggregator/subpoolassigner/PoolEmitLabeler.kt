@@ -58,5 +58,13 @@ interface PoolEmitLabeler : AutoCloseable {
    */
   fun emit(input: LabelerInput): List<Long>
 
+  /**
+   * Returns the configured ranked sub-range size (`RankedPopulationNode.ranked_size`) of the
+   * subpool at [poolOffset]. A static property of the compiled model, used by the Phase-0
+   * last-shard-out to stamp each `VidRankBuilderParams.subpool_ranked_sizes` entry so the Phase-1
+   * ranker can size its rank `BitSet` and cap allocation without loading the model itself.
+   */
+  fun rankedSize(poolOffset: Long): Int
+
   override fun close() {}
 }

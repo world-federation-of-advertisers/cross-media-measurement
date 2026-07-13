@@ -19,6 +19,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/edpaggregator/v1alpha/labeled_impression.proto";
 import "wfa/measurement/edpaggregator/v1alpha/labeler_input_field_mapping.proto";
 import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 
@@ -54,24 +55,20 @@ message VidLabelerParams {
   StorageParams vid_labeled_impressions_storage_params = 3
       [(google.api.field_behavior) = REQUIRED];
 
-  // Connection used by the TEE app to access the VID Repo.
+  // TLS connection for a remote VID Repo service.
   //
-  // Configuration-dependent, not path-dependent: one labeler serves both the
-  // non-memoized and memoized model-line configurations. Required for the
-  // non-memoized configuration, which resolves VIDs against the VID Repo. Unset
-  // for the memoized configuration ([memoized_params] set), which derives each
-  // VID from its memoized rank using the compiled model named for its model
-  // line in [model_blob_paths] and never calls the VID Repo (an overflow /
-  // unseen fingerprint falls back to the locally-computed hash path).
+  // Currently UNUSED by the labeler: both the non-memoized and memoized
+  // configurations load the compiled model from [model_blob_paths] and label
+  // locally inside the TEE, which never contacts a VID Repo. (An overflow /
+  // unseen fingerprint falls back to the locally-computed hash path, not the
+  // VID Repo.) OPTIONAL; leave unset.
   TransportLayerSecurityParams vid_repo_connection = 4
       [(google.api.field_behavior) = OPTIONAL];
 
   // Message representing the configuration for a model line.
   message ModelLineConfig {
-    reserved 1;
-
     // How each LabelerInput field is sourced from the raw-impression row.
-    repeated LabelerInputFieldMapping labeler_input_field_mapping = 10;
+    repeated LabelerInputFieldMapping labeler_input_field_mapping = 1;
 
     // Mapping from event template field names to their corresponding values.
     map<string, string> event_template_field_mapping = 2;
@@ -88,6 +85,30 @@ message VidLabelerParams {
     // the public API.
     google.protobuf.Timestamp active_end_time = 4
         [(google.api.field_behavior) = OPTIONAL];
+
+    // Config-storage blob URI of the FileDescriptorSet for the EventTemplate
+    // types (mirrors ResultsFulfiller's event-template descriptor). Required to
+    // build the labeled-output event.
+    string event_template_descriptor_blob_uri = 5
+        [(google.api.field_behavior) = OPTIONAL];
+
+    // Full proto name of the event message within that FileDescriptorSet that
+    // event_template_field_mapping targets.
+    string event_template_type = 6 [(google.api.field_behavior) = OPTIONAL];
+
+    // Mapping from entity_type (the DataProvider's taxonomy label, which
+    // becomes LabeledImpression.EntityKey.entity_type) to the raw-impression
+    // Parquet column holding that entity's id. One string column per
+    // entity_type. Every impression MUST have a non-null, non-empty value in
+    // each of these columns. Read per row by the TEE; entity keys are not
+    // carried in the file footer.
+    map<string, string> required_entity_key_field_mapping = 7;
+
+    // Like required_entity_key_field_mapping, but an impression MAY omit these:
+    // a NULL/empty cell means the impression is not associated with that
+    // entity_type. Keys MUST be disjoint from
+    // required_entity_key_field_mapping.
+    map<string, string> optional_entity_key_field_mapping = 8;
   }
 
   // Map from model line resource name to its configuration.

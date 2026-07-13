@@ -254,13 +254,16 @@ package k8s
 		}
 
 		"reporting-mcp-server": {
+			// OAuth flags are injected per environment by the overlay (empty by
+			// default), so the base deployment stays OAuth-agnostic.
+			_oauthArgs: [...string] | *[]
 			_container: {
 				args: [
 					"--host=0.0.0.0",
 					"--port=8080",
 					"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
 					_debugVerboseGrpcClientLoggingFlag,
-				] + _tlsArgs + _reportingApiTarget.args
+				] + _tlsArgs + _reportingApiTarget.args + _oauthArgs
 				ports: [{
 					containerPort: 8080
 				}]
