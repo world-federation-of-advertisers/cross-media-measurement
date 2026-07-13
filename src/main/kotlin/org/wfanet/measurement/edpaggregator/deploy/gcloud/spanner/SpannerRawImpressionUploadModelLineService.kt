@@ -564,9 +564,14 @@ class SpannerRawImpressionUploadModelLineService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    data class TransactionResult(
+      val modelLine: RawImpressionUploadModelLine,
+      val isReplay: Boolean = false,
+    )
+
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=transitionState"))
-    val updatedModelLine =
+    val txnResult =
       transactionRunner.run { txn ->
         val result =
           txn.getRawImpressionUploadModelLineByResourceIds(
@@ -588,7 +593,7 @@ class SpannerRawImpressionUploadModelLineService(
           result.rawImpressionUploadModelLine.state == nextState &&
             currentMarkRequestId(result) == requestId
         ) {
-          return@run result.rawImpressionUploadModelLine
+          return@run TransactionResult(result.rawImpressionUploadModelLine, isReplay = true)
         }
 
         if (expectedEtag.isEmpty()) {
@@ -693,19 +698,20 @@ class SpannerRawImpressionUploadModelLineService(
           }
           else -> {}
         }
-        result.rawImpressionUploadModelLine.copy { if (clearError) clearErrorMessage() }
+        TransactionResult(
+          result.rawImpressionUploadModelLine.copy { if (clearError) clearErrorMessage() }
+        )
       }
 
-    // A replay short-circuit returns the row already in [nextState]; a real transition returns the
-    // pre-transition row (state in validPreviousStates, never [nextState]). Discriminating on the
-    // returned state -- rather than a flag mutated inside the retryable transaction, which Spanner
-    // may re-run on ABORTED -- keeps the response correct across retries (mirrors
-    // createRawImpressionUploadModelLine's hasCreateTime check).
-    if (updatedModelLine.state == nextState) {
-      return updatedModelLine
+    // Carry the replay flag in the transaction's return value (not a var mutated inside the lambda)
+    // so it stays correct across Spanner ABORTED retries, matching SpannerRankerJobService /
+    // SpannerVidLabelingJobService. isReplay=true returns the row already committed in [nextState];
+    // otherwise stamp the commit timestamp and etag onto the just-transitioned row.
+    if (txnResult.isReplay) {
+      return txnResult.modelLine
     }
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-    return updatedModelLine.copy {
+    return txnResult.modelLine.copy {
       state = nextState
       updateTime = commitTimestamp
       etag = ETags.computeETag(commitTimestamp.toInstant())
