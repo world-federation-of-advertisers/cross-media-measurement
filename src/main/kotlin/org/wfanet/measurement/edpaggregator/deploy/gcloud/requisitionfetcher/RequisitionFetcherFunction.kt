@@ -218,6 +218,7 @@ class RequisitionFetcherFunction : HttpFunction {
       responsePageSize = pageSize,
       flushInterval = flushInterval,
       maxTotalBufferedBytes = maxTotalBufferedBytes,
+      maxRequisitionsPerGroup = maxRequisitionsPerGroup,
     )
   }
 
@@ -316,6 +317,10 @@ class RequisitionFetcherFunction : HttpFunction {
     private val maxTotalBufferedBytes: Long =
       System.getenv("MAX_TOTAL_BUFFERED_BYTES")?.toLongOrNull()
         ?: RequisitionFetcher.DEFAULT_MAX_TOTAL_BUFFERED_BYTES
+
+    private val maxRequisitionsPerGroup: Int =
+      System.getenv("MAX_REQUISITIONS_PER_GROUP")?.toIntOrNull()
+        ?: RequisitionFetcher.DEFAULT_MAX_REQUISITIONS_PER_GROUP
 
     private const val DEFAULT_PAGE_SIZE = 50
 

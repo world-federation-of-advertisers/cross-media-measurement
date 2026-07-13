@@ -178,6 +178,7 @@ class RequisitionFetcherTest {
     metrics: RequisitionFetcherMetrics = testMetrics,
     flushInterval: java.time.Duration = RequisitionFetcher.DEFAULT_FLUSH_INTERVAL,
     maxTotalBufferedBytes: Long = RequisitionFetcher.DEFAULT_MAX_TOTAL_BUFFERED_BYTES,
+    maxRequisitionsPerGroup: Int = RequisitionFetcher.DEFAULT_MAX_REQUISITIONS_PER_GROUP,
     metadataThrottler: Throttler = this.throttler,
   ): RequisitionFetcher {
     val validator =
@@ -204,6 +205,7 @@ class RequisitionFetcherTest {
       metadataThrottler = metadataThrottler,
       flushInterval = flushInterval,
       maxTotalBufferedBytes = maxTotalBufferedBytes,
+      maxRequisitionsPerGroup = maxRequisitionsPerGroup,
       metrics = metrics,
     )
   }
@@ -254,6 +256,34 @@ class RequisitionFetcherTest {
     assertThat(createRequisitionMetadataRequests).hasSize(1)
     val groupId = createRequisitionMetadataRequests.single().requisitionMetadata.groupId
     assertThat(files.single().name).isEqualTo(groupId)
+  }
+
+  @Test
+  fun `report exceeding maxRequisitionsPerGroup is written across multiple groups`() = runBlocking {
+    // Five requisitions for one report with a cap of 2 -> 3 groups (2 + 2 + 1). Each group is its
+    // own blob and its own metadata batch; every requisition is covered exactly once.
+    val reqs =
+      (1..5).map { idx ->
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/foo$idx"
+          updateTime = timestamp { seconds = 10 }
+        }
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += reqs })
+
+    createFetcher(maxRequisitionsPerGroup = 2).fetchAndStoreRequisitions()
+
+    // 3 blobs, 3 distinct groupIds, all 5 requisitions registered exactly once.
+    assertThat(blobsList()).hasLength(3)
+    val perGroup = createRequisitionMetadataRequests.groupBy { it.requisitionMetadata.groupId }
+    assertThat(perGroup.keys).hasSize(3)
+    assertThat(perGroup.values.map { it.size }.sorted()).containsExactly(1, 2, 2)
+    val allNames =
+      createRequisitionMetadataRequests.map { it.requisitionMetadata.cmmsRequisition }.toSet()
+    assertThat(allNames).isEqualTo(reqs.map { it.name }.toSet())
+    // Two blobs beyond the first are splits.
+    assertThat(counterValue("edpa.requisition_fetcher.buffer_splits")).isEqualTo(2)
   }
 
   @Test

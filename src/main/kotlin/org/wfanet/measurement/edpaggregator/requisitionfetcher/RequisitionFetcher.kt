@@ -102,6 +102,11 @@ import org.wfanet.measurement.storage.StorageClient
  *   window between periodic drains). Bytes-based because per-requisition size varies widely (the
  *   encrypted spec dominates) and the budget that matters is bytes, not count.
  * @property channelCapacity capacity of the channel between the stream producer and the consumer.
+ * @property maxRequisitionsPerGroup maximum requisitions per grouped-requisitions blob and its
+ *   metadata batch. A report with more than this is written across multiple groups (blobs),
+ *   bounding each metadata `BatchCreate` well under Spanner's per-transaction mutation limit. There
+ *   is no upstream cap on requisitions per report; in practice a report has far fewer than this, so
+ *   it is a safety bound rather than a routine split.
  * @property metrics OpenTelemetry metrics sink.
  */
 class RequisitionFetcher(
@@ -118,6 +123,7 @@ class RequisitionFetcher(
   private val metadataPageSize: Int = DEFAULT_METADATA_PAGE_SIZE,
   private val flushInterval: Duration = DEFAULT_FLUSH_INTERVAL,
   private val maxTotalBufferedBytes: Long = DEFAULT_MAX_TOTAL_BUFFERED_BYTES,
+  private val maxRequisitionsPerGroup: Int = DEFAULT_MAX_REQUISITIONS_PER_GROUP,
   private val channelCapacity: Int = DEFAULT_CHANNEL_CAPACITY,
   private val metrics: RequisitionFetcherMetrics = RequisitionFetcherMetrics.Default,
 ) {
@@ -154,9 +160,9 @@ class RequisitionFetcher(
   /**
    * Fetches and stores unfulfilled requisitions for the configured data provider.
    *
-   * Streams `UNFULFILLED` [Requisition]s from the Kingdom, buffers them per `(reportId,
-   * updateTime)` tuple, dispatches each closed buffer onto a bounded channel, and processes each
-   * report in one of a fixed-size pool of worker coroutines. Per-report failures are logged and
+   * Streams `UNFULFILLED` [Requisition]s from the Kingdom, buffers them by `reportId`, drains each
+   * report's buffer onto a bounded channel (periodically and at a total-bytes cap), and processes
+   * the drained work units in a single consumer coroutine. Per-report failures are logged and
    * isolated so one bad report does not stop the run.
    *
    * @throws Exception if there is an error while listing requisitions from the Kingdom.
@@ -506,45 +512,57 @@ class RequisitionFetcher(
     val unregistered = unit.requisitions.filter { it.name !in existingNames }
     if (unregistered.isEmpty()) return
 
-    val groupId = UUID.randomUUID().toString()
     // Any persist path below mutates RequisitionMetadata for this report, so invalidate the
     // worker-local cache unconditionally — including on partial-progress exceptions, where the
     // cache otherwise retains a pre-failure snapshot that hides rows just persisted.
     try {
       val invalidRefusal = validateForReport(unit.reportId, unregistered)
       if (invalidRefusal != null) {
-        refuseUnregisteredAndPersist(unregistered, groupId, unit.reportId, invalidRefusal)
+        refuseUnregisteredAndPersist(unregistered, unit.reportId, invalidRefusal)
         return
       }
 
-      val grouped =
-        try {
-          requisitionGrouper.groupForReport(unit.reportId, unregistered, groupId)
-        } catch (e: InconsistentEventGroupSelectorsException) {
-          val refusal = refusal {
-            justification = Requisition.Refusal.Justification.UNFULFILLABLE
-            message = e.message ?: "Invalid event group configuration"
-          }
-          refuseUnregisteredAndPersist(unregistered, groupId, unit.reportId, refusal)
-          return
-        } ?: return
+      // Split the report's requisitions into groups of at most [maxRequisitionsPerGroup], each its
+      // own groupId with its own blob and its own atomic metadata batch. There is no upstream limit
+      // on requisitions per report; in practice a report has far fewer than one chunk, so the
+      // common
+      // case is a single group (identical to no chunking). The cap bounds the metadata batch's
+      // Spanner mutation count (rows x written columns x secondary indexes) well under the ~80k
+      // per-transaction limit, so an unusually large report cannot produce a batch that fails every
+      // run and wedges the report. Each chunk's (blob, metadata) pair is internally consistent, so
+      // a
+      // mid-report failure only leaves already-persisted chunks (fully consistent) plus at most one
+      // benign orphan blob (blob without metadata), recovered on a later run — the same
+      // recoverable state the single-group path already relies on.
+      var priorBlobForReport = storedByGroupId.isNotEmpty()
+      for (chunk in unregistered.chunked(maxRequisitionsPerGroup)) {
+        val groupId = UUID.randomUUID().toString()
+        val grouped =
+          try {
+            requisitionGrouper.groupForReport(unit.reportId, chunk, groupId)
+          } catch (e: InconsistentEventGroupSelectorsException) {
+            val refusal = refusal {
+              justification = Requisition.Refusal.Justification.UNFULFILLABLE
+              message = e.message ?: "Invalid event group configuration"
+            }
+            refuseUnregisteredAndPersist(chunk, unit.reportId, refusal)
+            continue
+          } ?: continue
 
-      // A report that already has STORED metadata has already had at least one blob written for
-      // it (this run or a prior run); writing another group for it means the report is split across
-      // more than one blob. Count each such additional blob. This is derived from persisted
-      // metadata rather than per-run memory, so it captures cross-run splits (a report whose
-      // requisitions straddle scheduled runs) as well as intra-run splits — the per-run set it
-      // replaced could see neither, since report ids are unique per run.
-      if (storedByGroupId.isNotEmpty()) {
-        metrics.bufferSplits.add(1, dataProviderAttrs)
+        // Every blob beyond the report's first (a prior STORED group from any run, or an earlier
+        // chunk this run) means the report is written across more than one blob: a split.
+        if (priorBlobForReport) {
+          metrics.bufferSplits.add(1, dataProviderAttrs)
+        }
+        priorBlobForReport = true
+        writeBlob(grouped)
+        // TODO(world-federation-of-advertisers/cross-media-measurement#4119): A crash between
+        //  writeBlob and this batch call leaves an orphan blob (blob present, zero metadata).
+        //  The orphan is benign for fetcher correctness but currently causes ResultsFulfiller to
+        //  fail loudly at ResultsFulfiller.kt:160 and dead-letter the work item. Downstream fix:
+        //  change ResultsFulfiller to log + skip rather than throw on the empty-metadata case.
+        batchCreateRequisitionMetadataForGroup(chunk, groupId, unit.reportId)
       }
-      writeBlob(grouped)
-      // TODO(world-federation-of-advertisers/cross-media-measurement#4119): A crash between
-      //  writeBlob and this batch call leaves an orphan blob (blob present, zero metadata).
-      //  The orphan is benign for fetcher correctness but currently causes ResultsFulfiller to
-      //  fail loudly at ResultsFulfiller.kt:160 and dead-letter the work item. Downstream fix:
-      //  change ResultsFulfiller to log + skip rather than throw on the empty-metadata case.
-      batchCreateRequisitionMetadataForGroup(unregistered, groupId, unit.reportId)
     } finally {
       metadataCache.remove(unit.reportId)
     }
@@ -609,7 +627,6 @@ class RequisitionFetcher(
    */
   private suspend fun refuseUnregisteredAndPersist(
     requisitions: List<Requisition>,
-    groupId: String,
     reportId: String,
     refusal: Requisition.Refusal,
   ) {
@@ -624,9 +641,14 @@ class RequisitionFetcher(
     for (requisition in requisitions) {
       requisitionGrouper.refuseRequisitionToCmms(requisition, refusal)
     }
-    val createdMetadata = batchCreateRequisitionMetadataForGroup(requisitions, groupId, reportId)
-    for (metadata in createdMetadata) {
-      metadataThrottler.onReady { refuseRequisitionMetadata(metadata, refusal.message) }
+    // Chunked for the same Spanner-mutation-limit reason as the store path: a refused report can be
+    // arbitrarily large, and each metadata batch must stay well under the per-transaction limit.
+    for (chunk in requisitions.chunked(maxRequisitionsPerGroup)) {
+      val groupId = UUID.randomUUID().toString()
+      val createdMetadata = batchCreateRequisitionMetadataForGroup(chunk, groupId, reportId)
+      for (metadata in createdMetadata) {
+        metadataThrottler.onReady { refuseRequisitionMetadata(metadata, refusal.message) }
+      }
     }
   }
 
@@ -727,13 +749,11 @@ class RequisitionFetcher(
    * transaction, leaving zero metadata rows. Either way ResultsFulfiller never sees a blob whose
    * `requisitionsList` references a name with no corresponding metadata row.
    *
-   * Sizing assumption: this issues one Spanner read-write transaction per call. Spanner's
-   * per-transaction mutation limit (~80k mutations, rows × index entries) caps the safe batch at
-   * roughly 13k metadata rows. Reports are bounded by an upstream invariant to ≤10k requisitions,
-   * comfortably under that limit. If that upstream bound is ever raised above ~10k, this call needs
-   * to chunk into multiple sub-batches (each its own atomic transaction; the cross-run
-   * `unregistered` pre-check and STORED-recovery path together handle the partial-progress state a
-   * mid-chunk failure would leave).
+   * This issues one Spanner read-write transaction per call. A RequisitionMetadata row writes ~14
+   * columns across ~8 secondary indexes (~22 mutations/row against Spanner's ~80k per-transaction
+   * limit). Callers bound the batch to [DEFAULT_MAX_REQUISITIONS_PER_GROUP] requisitions per group
+   * (~22k mutations, comfortably under the limit) by splitting oversized reports across groups, so
+   * this call never has to chunk internally.
    *
    * No-op when [requisitions] is empty.
    */
@@ -806,6 +826,11 @@ class RequisitionFetcher(
 
     const val DEFAULT_METADATA_PAGE_SIZE: Int = 100
     const val DEFAULT_MAX_TOTAL_BUFFERED_BYTES: Long = 256L * 1024L * 1024L
+    // Caps requisitions per metadata batch. A RequisitionMetadata row writes ~14 columns across
+    // ~8 secondary indexes (~22 Spanner mutations/row), so 1000 rows is ~22k mutations — well
+    // under the ~80k per-transaction limit, with headroom for schema growth. In practice a
+    // report has fewer requisitions than this, so it is a safety cap rather than a routine split.
+    const val DEFAULT_MAX_REQUISITIONS_PER_GROUP: Int = 1000
     val DEFAULT_FLUSH_INTERVAL: Duration = Duration.ofMinutes(5)
     const val DEFAULT_CHANNEL_CAPACITY: Int = 4
     const val MIN_LIST_REQUISITIONS_PAGE_SIZE: Int = 1
