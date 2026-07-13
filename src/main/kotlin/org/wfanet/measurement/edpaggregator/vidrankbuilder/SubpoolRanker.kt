@@ -34,6 +34,7 @@ import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.edpaggregator.benchmarking.MemorySampler
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
@@ -296,6 +297,8 @@ class SubpoolRanker(
     // One shared CPU cap across the parse, free, and assign phases (mirrors RawImpressionSource).
     val cpuDispatcher = workerDispatcher.limitedParallelism(stripes)
 
+    MemorySampler.setStep("p1.parse")
+
     // 1. Parse (parallel + backpressure): one reader collects the merged blob on Dispatchers.IO;
     // each ~1M-fingerprint record is parsed by a worker that buckets its fingerprints by stripe and
     // inserts each stripe's fingerprints with ONE monitor acquisition via addTodayBulk (instead of
@@ -365,8 +368,10 @@ class SubpoolRanker(
     allocator.freeAgedRanks(cutoffEpochDay, cpuDispatcher)
 
     // 4. Assign ranks to today's fingerprints (parallel per stripe over the shared rank pool).
+    MemorySampler.setStep("p1.assign")
     allocator.assign(cpuDispatcher)
 
+    MemorySampler.setStep("p1.write")
     // 5. Single serial write: ONE SNAPSHOT + ONE DAY_ONLY blob, streamed across all stripes.
     writeBlobsAndRows(
       poolOffset,

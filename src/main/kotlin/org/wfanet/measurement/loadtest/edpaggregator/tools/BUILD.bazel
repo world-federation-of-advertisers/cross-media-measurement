@@ -113,3 +113,24 @@ java_binary(
     main_class = "org.wfanet.measurement.loadtest.edpaggregator.tools.GenerateBenchmarkRawImpressionsKt",
     runtime_deps = [":generate_benchmark_raw_impressions"],
 )
+
+# BENCHMARK-ONLY (throwaway) large-pool model rewriter. Remove before merge.
+kt_jvm_library(
+    name = "generate_large_pool_model",
+    srcs = [
+        "GenerateLargePoolModel.kt",
+        "HighwayHash.java",
+    ],
+    visibility = ["//visibility:private"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/riegeli",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_kt_jvm_proto",
+    ],
+)
+
+java_binary(
+    name = "GenerateLargePoolModel",
+    main_class = "org.wfanet.measurement.loadtest.edpaggregator.tools.GenerateLargePoolModelKt",
+    runtime_deps = [":generate_large_pool_model"],
+)

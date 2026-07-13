@@ -79,6 +79,7 @@ kt_jvm_library(
         "SubpoolRanker.kt",
     ],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/benchmarking:memory_sampler",
         ":concurrent_rank_allocator",
         ":event_id_digest_bytes",
         ":rank_allocator",
