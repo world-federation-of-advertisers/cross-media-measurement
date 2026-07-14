@@ -39,5 +39,18 @@ fun requireValidModelLineConfigs(config: VidLabelingConfig) {
       "labeler_input_field_mapping must map '$EVENT_ID_FIELD_PATH' for model line $modelLine on " +
         config.dataProvider
     }
+    require(modelLineConfig.eventTemplateDescriptorBlobUri.isNotEmpty()) {
+      "event_template_descriptor_blob_uri missing for model line $modelLine on ${config.dataProvider}"
+    }
+    require(modelLineConfig.eventTemplateType.isNotEmpty()) {
+      "event_template_type missing for model line $modelLine on ${config.dataProvider}"
+    }
+    require(
+      modelLineConfig.requiredEntityKeyFieldMappingMap.isNotEmpty() ||
+        modelLineConfig.optionalEntityKeyFieldMappingMap.isNotEmpty()
+    ) {
+      "entity_key_field_mapping (required or optional) must have at least one entry for model " +
+        "line $modelLine on ${config.dataProvider}"
+    }
   }
 }
