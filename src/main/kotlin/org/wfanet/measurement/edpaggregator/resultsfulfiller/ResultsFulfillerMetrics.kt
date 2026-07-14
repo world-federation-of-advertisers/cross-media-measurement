@@ -95,6 +95,15 @@ class ResultsFulfillerMetrics(meter: Meter) {
       .setUnit("s")
       .build()
 
+  val emptyMetadataRetries: LongCounter =
+    meter
+      .counterBuilder("edpa.results_fulfiller.empty_metadata_retries")
+      .setDescription(
+        "Count of grouped-requisition blobs nacked for retry because their RequisitionMetadata " +
+          "was not found (usually the fetcher's metadata write racing behind the blob write)"
+      )
+      .build()
+
   companion object {
     private val statusKey = AttributeKey.stringKey("edpa.results_fulfiller.status")
 

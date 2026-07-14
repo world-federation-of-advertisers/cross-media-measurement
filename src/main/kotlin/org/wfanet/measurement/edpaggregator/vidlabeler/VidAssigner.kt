@@ -22,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.wfanet.measurement.common.riegeli.Riegeli
+import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.virtualpeople.common.CompiledNode
 import org.wfanet.virtualpeople.common.LabelerInput
 import org.wfanet.virtualpeople.common.LabelerOutput
@@ -90,7 +91,10 @@ class VirtualPeopleVidAssigner(private val labeler: Labeler) : VidAssigner {
  * TODO(world-federation-of-advertisers/cross-media-measurement#3899): replace with the shared EDP
  *   Aggregator VID model cache once it is available.
  */
-class VidModelLoader(private val loadAssigner: suspend (modelBlobUri: String) -> VidAssigner) {
+class VidModelLoader(
+  private val loadAssigner:
+    suspend (modelStorageConfig: StorageConfig, modelBlobUri: String) -> VidAssigner
+) {
   private val assignersByModelBlobUri = ConcurrentHashMap<String, VidAssigner>()
   private val loadMutexes = ConcurrentHashMap<String, Mutex>()
 
@@ -102,13 +106,15 @@ class VidModelLoader(private val loadAssigner: suspend (modelBlobUri: String) ->
    * model is read and built at most once. The load is never held under a lock shared across keys,
    * since building a multi-MB `CompiledNode` into a [Labeler] is seconds of work.
    */
-  suspend fun getAssigner(modelBlobUri: String): VidAssigner {
+  suspend fun getAssigner(modelStorageConfig: StorageConfig, modelBlobUri: String): VidAssigner {
     assignersByModelBlobUri[modelBlobUri]?.let {
       return it
     }
     val loadMutex = loadMutexes.computeIfAbsent(modelBlobUri) { Mutex() }
     return loadMutex.withLock {
-      assignersByModelBlobUri.getOrPut(modelBlobUri) { loadAssigner(modelBlobUri) }
+      assignersByModelBlobUri.getOrPut(modelBlobUri) {
+        loadAssigner(modelStorageConfig, modelBlobUri)
+      }
     }
   }
 }
