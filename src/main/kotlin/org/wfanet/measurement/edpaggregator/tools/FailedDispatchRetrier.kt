@@ -80,15 +80,22 @@ class FailedDispatchRetrier(
   )
 
   /**
-   * Re-triggers the `FAILED` `(rawImpressionUpload, cmmsModelLine)` at the furthest phase it
-   * reached and transitions it out of `FAILED`.
+   * Re-triggers the `FAILED` `(rawImpressionUpload, cmmsModelLine)` and transitions it out of
+   * `FAILED`. Re-triggers [fromPhase] if given, otherwise the furthest phase the model line
+   * reached.
    *
-   * @throws IllegalArgumentException if the model line is missing or not `FAILED`, or no jobs exist
-   *   to re-publish.
+   * @param fromPhase optional override of the phase to re-trigger from (`POOL_ASSIGNING`,
+   *   `RANKING`, or `LABELING`); when null the furthest reached phase is auto-detected.
+   * @throws IllegalArgumentException if the model line is missing or not `FAILED`, [fromPhase] is
+   *   not a phase state, or no jobs exist for the target phase to re-publish.
    * @throws IllegalStateException if a job's original WorkItem no longer exists (its dispatch never
    *   enqueued), so it cannot be re-published standalone.
    */
-  suspend fun retryFailed(rawImpressionUpload: String, cmmsModelLine: String): RetryResult {
+  suspend fun retryFailed(
+    rawImpressionUpload: String,
+    cmmsModelLine: String,
+    fromPhase: RawImpressionUploadModelLine.State? = null,
+  ): RetryResult {
     val modelLine =
       modelLinesStub.findModelLine(rawImpressionUpload, cmmsModelLine)
         ?: throw IllegalArgumentException(
@@ -98,30 +105,10 @@ class FailedDispatchRetrier(
       "${modelLine.name} is ${modelLine.state}, expected FAILED"
     }
 
-    // Re-trigger the furthest phase reached (the deepest one that created job rows).
-    val oldWorkItemIds: List<String>
-    val targetState: RawImpressionUploadModelLine.State
-    val vidLabelingJobNames = listVidLabelingJobNames(rawImpressionUpload, cmmsModelLine)
-    if (vidLabelingJobNames.isNotEmpty()) {
-      oldWorkItemIds = vidLabelingJobNames.map { WorkItemIds.forVidLabeler(it) }
-      targetState = RawImpressionUploadModelLine.State.LABELING
-    } else {
-      val rankerJobNames = listRankerJobNames(rawImpressionUpload, cmmsModelLine)
-      if (rankerJobNames.isNotEmpty()) {
-        oldWorkItemIds = rankerJobNames.map { WorkItemIds.forVidRankBuilder(it) }
-        targetState = RawImpressionUploadModelLine.State.RANKING
-      } else {
-        val shardIndices = listPoolAssignmentJobShards(rawImpressionUpload, cmmsModelLine)
-        require(shardIndices.isNotEmpty()) {
-          "No jobs found for $cmmsModelLine under $rawImpressionUpload; nothing to retry"
-        }
-        oldWorkItemIds =
-          shardIndices.map {
-            WorkItemIds.forSubpoolAssigner(rawImpressionUpload, cmmsModelLine, it)
-          }
-        targetState = RawImpressionUploadModelLine.State.POOL_ASSIGNING
-      }
-    }
+    // Re-trigger [fromPhase] if the operator specified one; otherwise the furthest phase reached
+    // (the deepest one that created job rows).
+    val targetState = fromPhase ?: detectFurthestPhase(rawImpressionUpload, cmmsModelLine)
+    val oldWorkItemIds = workItemIdsForPhase(rawImpressionUpload, cmmsModelLine, targetState)
 
     // Re-publish before transitioning, so the work exists before the line is claimed.
     var republished = 0
@@ -132,6 +119,62 @@ class FailedDispatchRetrier(
     val updated = transition(modelLine, targetState)
     return RetryResult(updated.name, republished, updated.state)
   }
+
+  /**
+   * The furthest phase [cmmsModelLine] under [uploadName] reached, inferred from which per-phase
+   * job rows exist: `VidLabelingJob`s ⇒ `LABELING`, else `RankerJob`s ⇒ `RANKING`, else
+   * `PoolAssignmentJob`s ⇒ `POOL_ASSIGNING`.
+   */
+  private suspend fun detectFurthestPhase(
+    uploadName: String,
+    cmmsModelLine: String,
+  ): RawImpressionUploadModelLine.State {
+    if (listVidLabelingJobNames(uploadName, cmmsModelLine).isNotEmpty()) {
+      return RawImpressionUploadModelLine.State.LABELING
+    }
+    if (listRankerJobNames(uploadName, cmmsModelLine).isNotEmpty()) {
+      return RawImpressionUploadModelLine.State.RANKING
+    }
+    require(listPoolAssignmentJobShards(uploadName, cmmsModelLine).isNotEmpty()) {
+      "No jobs found for $cmmsModelLine under $uploadName; nothing to retry"
+    }
+    return RawImpressionUploadModelLine.State.POOL_ASSIGNING
+  }
+
+  /** The origin WorkItem ids to republish to re-trigger [phase] for (upload, model line). */
+  private suspend fun workItemIdsForPhase(
+    uploadName: String,
+    cmmsModelLine: String,
+    phase: RawImpressionUploadModelLine.State,
+  ): List<String> =
+    when (phase) {
+      RawImpressionUploadModelLine.State.LABELING -> {
+        val names = listVidLabelingJobNames(uploadName, cmmsModelLine)
+        require(names.isNotEmpty()) {
+          "No VidLabelingJobs for $cmmsModelLine under $uploadName; cannot retry from LABELING"
+        }
+        names.map { WorkItemIds.forVidLabeler(it) }
+      }
+      RawImpressionUploadModelLine.State.RANKING -> {
+        val names = listRankerJobNames(uploadName, cmmsModelLine)
+        require(names.isNotEmpty()) {
+          "No RankerJobs for $cmmsModelLine under $uploadName; cannot retry from RANKING"
+        }
+        names.map { WorkItemIds.forVidRankBuilder(it) }
+      }
+      RawImpressionUploadModelLine.State.POOL_ASSIGNING -> {
+        val shards = listPoolAssignmentJobShards(uploadName, cmmsModelLine)
+        require(shards.isNotEmpty()) {
+          "No PoolAssignmentJobs for $cmmsModelLine under $uploadName; cannot retry from " +
+            "POOL_ASSIGNING"
+        }
+        shards.map { WorkItemIds.forSubpoolAssigner(uploadName, cmmsModelLine, it) }
+      }
+      else ->
+        throw IllegalArgumentException(
+          "--from-phase must be one of POOL_ASSIGNING, RANKING, LABELING; got $phase"
+        )
+    }
 
   private suspend fun listVidLabelingJobNames(
     uploadName: String,
@@ -238,6 +281,11 @@ class FailedDispatchRetrier(
     modelLine: RawImpressionUploadModelLine,
     targetState: RawImpressionUploadModelLine.State,
   ): RawImpressionUploadModelLine =
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4211): once #4211 makes
+    // request_id REQUIRED on the Mark* RPCs, set requestId on each mark below via the matching
+    // RequestIds.forMarkRawImpressionUploadModelLine<Phase>(modelLine.name) helper so a repeat
+    // retry
+    // hits the AIP-155 replay short-circuit instead of failing INVALID_ARGUMENT.
     when (targetState) {
       RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
         modelLinesStub.markRawImpressionUploadModelLinePoolAssigning(

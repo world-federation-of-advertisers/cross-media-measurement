@@ -54,6 +54,10 @@ class DispatchFailer(private val modelLinesStub: RawImpressionUploadModelLineSer
         logger.info("${modelLine.name} is ${modelLine.state} (not stuck); leaving as-is.")
         continue
       }
+      // TODO(world-federation-of-advertisers/cross-media-measurement#4211): once #4211 makes
+      // request_id REQUIRED on the Mark* RPCs, set
+      // requestId = RequestIds.forMarkRawImpressionUploadModelLineFailed(modelLine.name) so an
+      // operator re-run hits the AIP-155 replay short-circuit instead of failing INVALID_ARGUMENT.
       modelLinesStub.markRawImpressionUploadModelLineFailed(
         markRawImpressionUploadModelLineFailedRequest {
           name = modelLine.name
