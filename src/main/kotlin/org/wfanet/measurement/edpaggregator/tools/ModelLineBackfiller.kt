@@ -32,10 +32,10 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
  * `VidLabelingMonitorFunction` dispatches the new work. Adding a model line to a FAILED upload is
  * rejected server-side (backfilling a failed upload is unsupported).
  *
- * @param modelLinesStub stub for `RawImpressionUploadModelLineService`.
+ * @param rawImpressionModelLinesStub stub for `RawImpressionUploadModelLineService`.
  */
 class ModelLineBackfiller(
-  private val modelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub
+  private val rawImpressionModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub
 ) {
   /** Outcome of a [backfill] run. */
   data class BackfillResult(
@@ -56,7 +56,7 @@ class ModelLineBackfiller(
 
     val created = mutableListOf<String>()
     for (uploadName in rawImpressionUploads) {
-      val existing = modelLinesStub.findModelLine(uploadName, cmmsModelLine)
+      val existing = rawImpressionModelLinesStub.findModelLine(uploadName, cmmsModelLine)
       if (existing != null) {
         logger.info(
           "$cmmsModelLine already present under $uploadName (${existing.name}); skipping."
@@ -66,7 +66,7 @@ class ModelLineBackfiller(
       // Creating the model line atomically reactivates a COMPLETED parent (and rejects a FAILED
       // one).
       val modelLine =
-        modelLinesStub.createRawImpressionUploadModelLine(
+        rawImpressionModelLinesStub.createRawImpressionUploadModelLine(
           createRawImpressionUploadModelLineRequest {
             parent = uploadName
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {

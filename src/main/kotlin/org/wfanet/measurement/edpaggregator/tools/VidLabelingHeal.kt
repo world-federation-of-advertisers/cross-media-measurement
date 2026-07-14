@@ -406,7 +406,8 @@ class BackfillModelLineCommand : EdpaApiCommand() {
  * Evicts uploads that carry bad data for a model line. Marks the bad upload and every later upload
  * for the model line FAILED and soft-deletes their cumulative SNAPSHOT rank-index blobs, so Phase-1
  * falls back to the last good snapshot when the affected uploads are re-triggered. Confined to the
- * retention window. Prints the cascade and only mutates when `--confirm` is passed.
+ * retention window. Prints the cascade and prompts the operator to confirm before mutating
+ * anything.
  */
 @Command(
   name = "evict-uploads",
@@ -448,12 +449,6 @@ class EvictUploadsCommand : EdpaApiCommand() {
   )
   private lateinit var reason: String
 
-  @Option(
-    names = ["--confirm"],
-    description = ["Actually perform the eviction. Without it the command only prints the cascade."],
-  )
-  private var confirm: Boolean = false
-
   override fun run() {
     val channel: ManagedChannel = buildEdpaChannel()
     try {
@@ -467,6 +462,11 @@ class EvictUploadsCommand : EdpaApiCommand() {
         val cutoffTime: Instant = Instant.now().minus(Duration.ofDays(retentionDays.toLong()))
         val plan = evictUploader.plan(modelLine, badUploads, cutoffTime)
 
+        if (plan.cascade.isEmpty()) {
+          println("Nothing to evict: no $modelLine model lines found for the given upload(s).")
+          return@runBlocking
+        }
+
         println(
           "Eviction cascade for $modelLine (${plan.cascade.size} upload(s)): " +
             plan.cascade.map { it.uploadName }
@@ -476,11 +476,15 @@ class EvictUploadsCommand : EdpaApiCommand() {
             "NOTE: uploads created after the bad one(s) will also be evicted: ${plan.extraUploads}"
           )
         }
-        if (!confirm) {
-          println(
-            "Dry run. Re-run with --confirm to mark these model lines FAILED and soft-delete their " +
-              "cumulative snapshots."
-          )
+
+        // Require explicit operator confirmation before any mutation.
+        print(
+          "This marks the ${plan.cascade.size} model line(s) above FAILED and soft-deletes their " +
+            "cumulative snapshots. Type 'yes' to proceed: "
+        )
+        System.out.flush()
+        if (!isAffirmative(readLine())) {
+          println("Aborted; nothing was changed.")
           return@runBlocking
         }
 
@@ -496,6 +500,16 @@ class EvictUploadsCommand : EdpaApiCommand() {
       channel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
     }
   }
+}
+
+/**
+ * Returns true iff [answer] is an affirmative confirmation — "y" or "yes" (case-insensitive,
+ * surrounding whitespace trimmed). A null answer (no stdin / EOF) is treated as a decline, so the
+ * `evict-uploads` prompt fails closed when the command is run without an interactive terminal.
+ */
+fun isAffirmative(answer: String?): Boolean {
+  val normalized: String? = answer?.trim()?.lowercase()
+  return normalized == "y" || normalized == "yes"
 }
 
 fun main(args: Array<String>) = commandLineMain(VidLabelingHeal(), args)
