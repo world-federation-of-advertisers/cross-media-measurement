@@ -385,7 +385,15 @@ class SpannerRawImpressionUploadModelLineService(
             RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
           )
           .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-      else -> {}
+      // CREATED/ACTIVE need no reactivation — the normal child-Mark cascade handles them.
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED,
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE -> {}
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_UNSPECIFIED,
+      RawImpressionUploadState.UNRECOGNIZED,
+      null ->
+        error(
+          "Unrecognized RawImpressionUpload state for backfill parent $rawImpressionUploadResourceId"
+        )
     }
   }
 
