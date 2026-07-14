@@ -293,20 +293,6 @@ Check metrics and traces before grepping logs — see the
   ensure `MAX_REQUISITIONS_PER_GROUP` is at its safe default (1000) and was not
   raised. On the impression side, reduce the batch size at data-availability-sync.
 
-### results-fulfiller can't find impression metadata
-
-- `ListImpressionMetadata` returned nothing for the model line + event group +
-  interval. Verify the row exists and is not soft-deleted (`State`), and that the
-  filter matches the index prefix. See
-  [missing impression blobs](report-debugging-guide.md#missing-impression-blobs)
-  and [model-line mismatch](report-debugging-guide.md#model-line-mismatch).
-
-### Duplicate blobs for one report
-
-- Two concurrent fetcher invocations. Confirm `max_instances = 1`. Metadata
-  creation is idempotent so no duplicate rows result, but distinct random
-  `groupId`s can produce duplicate blobs until one run's metadata wins.
-
 ## Quick tuning reference
 
 | Symptom | First knob to reach for |
