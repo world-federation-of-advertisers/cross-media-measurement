@@ -31,15 +31,39 @@ you are authorized to see.
 
 ## Add the connector
 
-Add the connector using your client's connector settings, or from the command
-line:
+Point your MCP client at the connector endpoint (`https://<MCP_HOST>/mcp`) and
+complete the OAuth sign-in. Use a name that identifies the environment if you
+connect to more than one.
+
+### Claude Code (CLI)
 
 ```shell
-claude mcp add halo-reporting https://<MCP_HOST>/mcp
+claude mcp add --transport http halo-reporting https://<MCP_HOST>/mcp
 ```
 
-Use a name that identifies the environment (for example, one per environment if
-you connect to more than one).
+The `--transport http` flag is required for a remote server.
+
+### Claude Desktop / Claude.ai (web)
+
+Settings &rarr; Connectors &rarr; Add custom connector &rarr; paste
+`https://<MCP_HOST>/mcp` &rarr; Add, then complete the OAuth sign-in in the
+browser.
+
+### Other MCP clients
+
+Any client that supports the Streamable HTTP transport can connect — point it at
+`https://<MCP_HOST>/mcp`. The server advertises OAuth Protected Resource
+Metadata at `/.well-known/oauth-protected-resource`, so clients discover where to
+authenticate automatically.
+
+### Server-to-server (machine-to-machine)
+
+A backend service that runs without a browser uses the OAuth Client Credentials
+grant instead of the interactive sign-in: request a token from the provider's
+token endpoint with `grant_type=client_credentials`, the reporting API audience,
+and the `reporting.*` scope, then send it as `Authorization: Bearer <token>` on
+requests to `https://<MCP_HOST>/mcp`. The service's own identity still needs an
+access grant — see the deployment guide's server-to-server section.
 
 ## Sign in
 
@@ -49,6 +73,17 @@ the server's protected-resource metadata and requests the `reporting.*` scope
 automatically — you do not need to configure scopes by hand.
 
 Once sign-in succeeds, the client loads the available tools.
+
+## Verify your connection
+
+Confirm the client shows the connector loaded with its tools and prompts (10
+tools and 4 prompts). Then try a read-only call:
+
+-   "List the event groups for `<MEASUREMENT_CONSUMER>`."
+
+If it returns data, authentication and access are working. If it returns
+`PERMISSION_DENIED`, your account still needs an access grant — ask your
+administrator (deployment guide, Step 5).
 
 ## What you can do
 
@@ -60,6 +95,20 @@ The connector provides read and create tools over the core reporting resources:
 | Reporting sets (campaign groups) | `get_reporting_set`, `list_reporting_sets`, `create_reporting_set` |
 | Basic reports                 | `get_basic_report`, `list_basic_reports`, `create_basic_report`       |
 | Impression qualification filters | `get_impression_qualification_filter`, `list_impression_qualification_filters` |
+
+## Guided prompts
+
+The connector also provides **prompts** — guided workflows that call the tools in
+the right order. In clients that support them, they appear as slash commands.
+
+| Prompt                   | What it does                                                          |
+| ------------------------ | -------------------------------------------------------------------- |
+| Explore Reporting Data   | Discover the event groups, reporting sets, and impression qualification filters available before building a report |
+| Create Basic Report      | End to end: pick a campaign group, choose a date range, create the report, and poll until it is done |
+| Interpret Basic Report   | Read a completed report for a media-planning audience, with headline metrics, tables, and charts |
+| Compare Campaigns        | Compare reach and frequency across recent campaigns                  |
+
+Using a prompt is often easier than calling the tools one by one.
 
 ## Example prompts
 

@@ -222,6 +222,23 @@ If you cannot capture the token directly, the OIDC provider's logs record each
 token exchange — including the audience and scope it issued — which is a quick
 way to confirm what the client actually received.
 
+## Server-to-server (machine-to-machine) access
+
+Backend services that call the MCP server without a browser use the OAuth Client
+Credentials grant. The MCP server does not care how the token was obtained — it
+forwards the bearer token to the Reporting API, which validates it the same way.
+
+1.  Register a **Machine-to-Machine** application in the OIDC provider.
+2.  Authorize it for the API audience (`<REPORTING_API_AUDIENCE>`) with the
+    `reporting.*` scope.
+3.  The service requests a token from the provider's token endpoint
+    (`grant_type=client_credentials`) and sends it as
+    `Authorization: Bearer <token>` on MCP requests.
+4.  Register a principal and bind a role (Step 5) for the application's identity.
+    In Client Credentials tokens the subject is derived from the application's
+    `client_id` — register the principal against the `sub` claim the provider
+    actually issues.
+
 ## Troubleshooting
 
 | Symptom (error)                                        | Likely cause                                             | Fix     |
