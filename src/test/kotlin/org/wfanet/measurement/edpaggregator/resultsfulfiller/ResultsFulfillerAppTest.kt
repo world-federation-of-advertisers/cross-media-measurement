@@ -415,7 +415,7 @@ class ResultsFulfillerAppTest {
   }
 
   @Test
-  fun `runWork throws where requisition metadata is not found`() {
+  fun `runWork nacks work item when requisition metadata is not found`() {
     runBlocking {
       val subscriber =
         Subscriber(
@@ -522,7 +522,10 @@ class ResultsFulfillerAppTest {
           mapOf("some-model-line" to MODEL_LINE_INFO),
           metrics = ResultsFulfillerMetrics.create(),
         )
-      assertFailsWith<IllegalArgumentException> { app.runWork(Any.pack(workItemParams)) }
+      // Empty metadata is treated as transient (the fetcher writes metadata just after the blob,
+      // and DataWatcher dispatches on the blob), so runWork throws to nack the work item for retry
+      // rather than acking and abandoning fulfillable requisitions. See #4119 / #4213.
+      assertFailsWith<IllegalStateException> { app.runWork(Any.pack(workItemParams)) }
     }
   }
 
