@@ -168,6 +168,12 @@ variable "config_files_bucket_name" {
   nullable    = false
 }
 
+variable "vid_models_bucket_name" {
+  description = "Name of the Google Cloud Storage bucket holding the compiled VID model blobs read by the VID Labeling TEE apps."
+  type        = string
+  nullable    = false
+}
+
 variable "data_watcher_config" {
   description = "An object containing the local path of the data watcher config file and its destination path in Cloud Storage."
   type = object({
