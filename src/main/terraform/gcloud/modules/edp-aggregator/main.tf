@@ -330,6 +330,13 @@ module "requisition_fetcher_cloud_function" {
   # max_instances = 1, that makes overlapping invocations over the same UNFULFILLED requisitions
   # structurally impossible (the Cloud Scheduler -> Cloud Function path has no built-in overlap
   # guard, unlike a K8s CronJob concurrencyPolicy).
+  #
+  # 600s suits test environments. A production data provider with a large UNFULFILLED backlog may
+  # need substantially longer to drain — raise timeout_seconds toward 3600s (the gen2 HTTP-trigger
+  # maximum, 60m) and size it per environment. At a timeout that exceeds the scheduler interval,
+  # overlap protection rests entirely on max_instances = 1 (a busy instance makes concurrent
+  # scheduler fires no-op), so also widen the scheduler interval to exceed the expected drain time
+  # rather than firing rejected requests mid-drain.
   timeout_seconds = 600
   max_instances   = 1
 }
