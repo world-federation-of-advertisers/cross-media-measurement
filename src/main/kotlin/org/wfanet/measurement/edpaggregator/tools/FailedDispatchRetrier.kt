@@ -58,14 +58,14 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  * re-merge of blobs that no longer exist. Phase 1 instead re-reads the still-present merged subpool
  * blob, and Phase 2 re-reads the snapshot.
  *
- * @param modelLinesStub stub for `RawImpressionUploadModelLineService`.
+ * @param rawImpressionModelLinesStub stub for `RawImpressionUploadModelLineService`.
  * @param poolAssignmentJobsStub stub for `PoolAssignmentJobService` (Phase 0).
  * @param rankerJobsStub stub for `RankerJobService` (Phase 1).
  * @param vidLabelingJobsStub stub for `VidLabelingJobService` (Phase 2).
  * @param workItemsStub stub for the Secure Computation control-plane `WorkItems` service.
  */
 class FailedDispatchRetrier(
-  private val modelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
+  private val rawImpressionModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
   private val poolAssignmentJobsStub: PoolAssignmentJobServiceCoroutineStub,
   private val rankerJobsStub: RankerJobServiceCoroutineStub,
   private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
@@ -97,7 +97,7 @@ class FailedDispatchRetrier(
     fromPhase: RawImpressionUploadModelLine.State? = null,
   ): RetryResult {
     val modelLine =
-      modelLinesStub.findModelLine(rawImpressionUpload, cmmsModelLine)
+      rawImpressionModelLinesStub.findModelLine(rawImpressionUpload, cmmsModelLine)
         ?: throw IllegalArgumentException(
           "No RawImpressionUploadModelLine for $cmmsModelLine under $rawImpressionUpload"
         )
@@ -288,21 +288,21 @@ class FailedDispatchRetrier(
     // hits the AIP-155 replay short-circuit instead of failing INVALID_ARGUMENT.
     when (targetState) {
       RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
-        modelLinesStub.markRawImpressionUploadModelLinePoolAssigning(
+        rawImpressionModelLinesStub.markRawImpressionUploadModelLinePoolAssigning(
           markRawImpressionUploadModelLinePoolAssigningRequest {
             name = modelLine.name
             etag = modelLine.etag
           }
         )
       RawImpressionUploadModelLine.State.RANKING ->
-        modelLinesStub.markRawImpressionUploadModelLineRanking(
+        rawImpressionModelLinesStub.markRawImpressionUploadModelLineRanking(
           markRawImpressionUploadModelLineRankingRequest {
             name = modelLine.name
             etag = modelLine.etag
           }
         )
       RawImpressionUploadModelLine.State.LABELING ->
-        modelLinesStub.markRawImpressionUploadModelLineLabeling(
+        rawImpressionModelLinesStub.markRawImpressionUploadModelLineLabeling(
           markRawImpressionUploadModelLineLabelingRequest {
             name = modelLine.name
             etag = modelLine.etag

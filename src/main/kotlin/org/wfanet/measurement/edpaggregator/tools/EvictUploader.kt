@@ -49,12 +49,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModel
  *
  * @param uploadsStub stub for `RawImpressionUploadService` (create-time ordering + retention
  *   check).
- * @param modelLinesStub stub for `RawImpressionUploadModelLineService` (mark FAILED).
+ * @param rawImpressionModelLinesStub stub for `RawImpressionUploadModelLineService` (mark FAILED).
  * @param rankIndexBlobsStub stub for `RankIndexBlobService` (soft-delete SNAPSHOT rows).
  */
 class EvictUploader(
   private val uploadsStub: RawImpressionUploadServiceCoroutineStub,
-  private val modelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
+  private val rawImpressionModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
   private val rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
 ) {
   /** A single `(upload, model line)` in the eviction cascade. */
@@ -106,7 +106,7 @@ class EvictUploader(
     var pageToken = ""
     do {
       val response =
-        modelLinesStub.listRawImpressionUploadModelLines(
+        rawImpressionModelLinesStub.listRawImpressionUploadModelLines(
           listRawImpressionUploadModelLinesRequest {
             parent = "$dataProvider/rawImpressionUploads/-"
             filter =
@@ -147,7 +147,7 @@ class EvictUploader(
       // skip
       // rows that are already FAILED.
       val current =
-        modelLinesStub.getRawImpressionUploadModelLine(
+        rawImpressionModelLinesStub.getRawImpressionUploadModelLine(
           getRawImpressionUploadModelLineRequest { name = entry.modelLineName }
         )
       if (current.state != RawImpressionUploadModelLine.State.FAILED) {
@@ -156,7 +156,7 @@ class EvictUploader(
         // requestId = RequestIds.forMarkRawImpressionUploadModelLineFailed(entry.modelLineName) so
         // a
         // re-run hits the AIP-155 replay short-circuit instead of failing INVALID_ARGUMENT.
-        modelLinesStub.markRawImpressionUploadModelLineFailed(
+        rawImpressionModelLinesStub.markRawImpressionUploadModelLineFailed(
           markRawImpressionUploadModelLineFailedRequest {
             name = entry.modelLineName
             errorMessage = reason
