@@ -95,26 +95,24 @@ class SpannerRawImpressionUploadModelLineService(
     val modelLine: RawImpressionUploadModelLine =
       try {
         transactionRunner.run { txn ->
-          if (request.requestId.isNotEmpty()) {
-            val existing =
-              txn.findRawImpressionUploadModelLineByRequestId(
-                request.dataProviderResourceId,
-                request.rawImpressionUploadResourceId,
-                request.requestId,
-              )
-            if (existing != null) {
-              if (
-                existing.rawImpressionUploadModelLine.cmmsModelLine !=
-                  request.rawImpressionUploadModelLine.cmmsModelLine
-              ) {
-                throw Status.ALREADY_EXISTS.withDescription(
-                    "RawImpressionUploadModelLine already exists for request_id " +
-                      "${request.requestId} with a different cmms_model_line"
-                  )
-                  .asRuntimeException()
-              }
-              return@run existing.rawImpressionUploadModelLine
+          val existing =
+            txn.findRawImpressionUploadModelLineByRequestId(
+              request.dataProviderResourceId,
+              request.rawImpressionUploadResourceId,
+              request.requestId,
+            )
+          if (existing != null) {
+            if (
+              existing.rawImpressionUploadModelLine.cmmsModelLine !=
+                request.rawImpressionUploadModelLine.cmmsModelLine
+            ) {
+              throw Status.ALREADY_EXISTS.withDescription(
+                  "RawImpressionUploadModelLine already exists for request_id " +
+                    "${request.requestId} with a different cmms_model_line"
+                )
+                .asRuntimeException()
             }
+            return@run existing.rawImpressionUploadModelLine
           }
 
           val rawImpressionUploadId =
@@ -255,7 +253,7 @@ class SpannerRawImpressionUploadModelLineService(
             txn.findRawImpressionUploadModelLinesByRequestIds(
               dataProviderResourceId,
               rawImpressionUploadResourceId,
-              request.requestsList.mapNotNull { it.requestId.ifEmpty { null } },
+              request.requestsList.map { it.requestId },
             )
 
           request.requestsList.map { subRequest ->
@@ -421,85 +419,89 @@ class SpannerRawImpressionUploadModelLineService(
     request: MarkRawImpressionUploadModelLinePoolAssigningRequest
   ): RawImpressionUploadModelLine {
     return transitionState(
-      request.dataProviderResourceId,
-      request.rawImpressionUploadResourceId,
-      request.rawImpressionUploadModelLineResourceId,
-      request.etag,
-      request.requestId,
-      State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
-      validPreviousStates =
-        setOf(
-          State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED,
-          State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
-        ),
-      markRequestIdColumn = "MarkPoolAssigningRequestId",
-      currentMarkRequestId = { it.markPoolAssigningRequestId },
-    )
+        request.dataProviderResourceId,
+        request.rawImpressionUploadResourceId,
+        request.rawImpressionUploadModelLineResourceId,
+        request.etag,
+        request.requestId,
+        State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
+        validPreviousStates =
+          setOf(
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED,
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
+          ),
+        markRequestIdColumn = "MarkPoolAssigningRequestId",
+        currentMarkRequestId = { it.markPoolAssigningRequestId },
+      )
+      .modelLine
   }
 
   override suspend fun markRawImpressionUploadModelLineRanking(
     request: MarkRawImpressionUploadModelLineRankingRequest
   ): RawImpressionUploadModelLine {
     return transitionState(
-      request.dataProviderResourceId,
-      request.rawImpressionUploadResourceId,
-      request.rawImpressionUploadModelLineResourceId,
-      request.etag,
-      request.requestId,
-      State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
-      validPreviousStates =
-        setOf(
-          State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
-          State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
-        ),
-      markRequestIdColumn = "MarkRankingRequestId",
-      currentMarkRequestId = { it.markRankingRequestId },
-    )
+        request.dataProviderResourceId,
+        request.rawImpressionUploadResourceId,
+        request.rawImpressionUploadModelLineResourceId,
+        request.etag,
+        request.requestId,
+        State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
+        validPreviousStates =
+          setOf(
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
+          ),
+        markRequestIdColumn = "MarkRankingRequestId",
+        currentMarkRequestId = { it.markRankingRequestId },
+      )
+      .modelLine
   }
 
   override suspend fun markRawImpressionUploadModelLineLabeling(
     request: MarkRawImpressionUploadModelLineLabelingRequest
   ): RawImpressionUploadModelLine {
     return transitionState(
-      request.dataProviderResourceId,
-      request.rawImpressionUploadResourceId,
-      request.rawImpressionUploadModelLineResourceId,
-      request.etag,
-      request.requestId,
-      State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
-      validPreviousStates =
-        setOf(
-          // Non-memoized uploads skip Phase 0/1 and go straight CREATED -> LABELING.
-          State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED,
-          State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
-          State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
-        ),
-      markRequestIdColumn = "MarkLabelingRequestId",
-      currentMarkRequestId = { it.markLabelingRequestId },
-    )
+        request.dataProviderResourceId,
+        request.rawImpressionUploadResourceId,
+        request.rawImpressionUploadModelLineResourceId,
+        request.etag,
+        request.requestId,
+        State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
+        validPreviousStates =
+          setOf(
+            // Non-memoized uploads skip Phase 0/1 and go straight CREATED -> LABELING.
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED,
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
+          ),
+        markRequestIdColumn = "MarkLabelingRequestId",
+        currentMarkRequestId = { it.markLabelingRequestId },
+      )
+      .modelLine
   }
 
   override suspend fun markRawImpressionUploadModelLineCompleted(
     request: MarkRawImpressionUploadModelLineCompletedRequest
   ): RawImpressionUploadModelLine {
     return transitionState(
-      request.dataProviderResourceId,
-      request.rawImpressionUploadResourceId,
-      request.rawImpressionUploadModelLineResourceId,
-      request.etag,
-      request.requestId,
-      State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED,
-      validPreviousStates = setOf(State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING),
-      markRequestIdColumn = "MarkCompletedRequestId",
-      currentMarkRequestId = { it.markCompletedRequestId },
-    )
+        request.dataProviderResourceId,
+        request.rawImpressionUploadResourceId,
+        request.rawImpressionUploadModelLineResourceId,
+        request.etag,
+        request.requestId,
+        State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED,
+        validPreviousStates = setOf(State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING),
+        markRequestIdColumn = "MarkCompletedRequestId",
+        currentMarkRequestId = { it.markCompletedRequestId },
+      )
+      .modelLine
   }
 
   override suspend fun markRawImpressionUploadModelLineFailed(
     request: MarkRawImpressionUploadModelLineFailedRequest
   ): RawImpressionUploadModelLine {
 
-    val modelLine =
+    val transitionResult =
       transitionState(
         request.dataProviderResourceId,
         request.rawImpressionUploadResourceId,
@@ -519,8 +521,27 @@ class SpannerRawImpressionUploadModelLineService(
       ) {
         set("ErrorMessage").to(request.errorMessage)
       }
-    return modelLine.copy { errorMessage = request.errorMessage }
+    // On an AIP-155 replay the stored (first) error_message is authoritative and returned as-is;
+    // only a fresh transition adopts this request's error_message (the row read before the write
+    // does not yet reflect it).
+    return if (transitionResult.isReplay) {
+      transitionResult.modelLine
+    } else {
+      transitionResult.modelLine.copy { errorMessage = request.errorMessage }
+    }
   }
+
+  /**
+   * The outcome of a [transitionState] call.
+   *
+   * @property modelLine the resulting row
+   * @property isReplay true if this was an AIP-155 idempotent replay (the row was already in the
+   *   target state and stamped with this request_id), so [modelLine] is the row as first committed
+   */
+  private data class TransactionResult(
+    val modelLine: RawImpressionUploadModelLine,
+    val isReplay: Boolean = false,
+  )
 
   /**
    * Transitions the state of a [RawImpressionUploadModelLine].
@@ -540,7 +561,7 @@ class SpannerRawImpressionUploadModelLineService(
     markRequestIdColumn: String,
     currentMarkRequestId: (RawImpressionUploadModelLineResult) -> String,
     block: (com.google.cloud.spanner.Mutation.WriteBuilder.() -> Unit)? = null,
-  ): RawImpressionUploadModelLine {
+  ): TransactionResult {
     if (dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("data_provider_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -563,11 +584,6 @@ class SpannerRawImpressionUploadModelLineService(
       throw InvalidFieldValueException("request_id", e)
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-
-    data class TransactionResult(
-      val modelLine: RawImpressionUploadModelLine,
-      val isReplay: Boolean = false,
-    )
 
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=transitionState"))
@@ -708,14 +724,16 @@ class SpannerRawImpressionUploadModelLineService(
     // SpannerVidLabelingJobService. isReplay=true returns the row already committed in [nextState];
     // otherwise stamp the commit timestamp and etag onto the just-transitioned row.
     if (txnResult.isReplay) {
-      return txnResult.modelLine
+      return txnResult
     }
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-    return txnResult.modelLine.copy {
-      state = nextState
-      updateTime = commitTimestamp
-      etag = ETags.computeETag(commitTimestamp.toInstant())
-    }
+    return TransactionResult(
+      txnResult.modelLine.copy {
+        state = nextState
+        updateTime = commitTimestamp
+        etag = ETags.computeETag(commitTimestamp.toInstant())
+      }
+    )
   }
 
   /**

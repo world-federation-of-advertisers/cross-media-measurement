@@ -384,6 +384,10 @@ message MarkRawImpressionUploadModelLineFailedRequest {
   // result. Generating a fresh UUID per attempt defeats AIP-155 and surfaces as
   // FAILED_PRECONDITION on retry against an already-transitioned row.
   //
+  // Note: on a same-`request_id` retry, the row is returned with the
+  // `error_message` from the first successful mark; a differing `error_message`
+  // in the retry is ignored (AIP-155: the first response is returned as-is).
+  //
   // This field must be a UUID4 (RFC 4122) string.
   string request_id = 4 [
     (google.api.field_behavior) = REQUIRED,

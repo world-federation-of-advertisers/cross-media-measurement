@@ -339,20 +339,7 @@ class RawImpressionUploadModelLineService(
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    if (request.etag.isEmpty()) {
-      throw RequiredFieldNotSetException("etag")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-    if (request.requestId.isEmpty()) {
-      throw RequiredFieldNotSetException("request_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-    try {
-      UUID.fromString(request.requestId)
-    } catch (e: IllegalArgumentException) {
-      throw InvalidFieldValueException("request_id", e)
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
+    validateEtagAndRequestId(request.etag, request.requestId)
     val internalResponse: InternalRawImpressionUploadModelLine =
       try {
         internalModelLineStub.markRawImpressionUploadModelLinePoolAssigning(
@@ -384,20 +371,7 @@ class RawImpressionUploadModelLineService(
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    if (request.etag.isEmpty()) {
-      throw RequiredFieldNotSetException("etag")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-    if (request.requestId.isEmpty()) {
-      throw RequiredFieldNotSetException("request_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-    try {
-      UUID.fromString(request.requestId)
-    } catch (e: IllegalArgumentException) {
-      throw InvalidFieldValueException("request_id", e)
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
+    validateEtagAndRequestId(request.etag, request.requestId)
     val internalResponse: InternalRawImpressionUploadModelLine =
       try {
         internalModelLineStub.markRawImpressionUploadModelLineRanking(
@@ -429,20 +403,7 @@ class RawImpressionUploadModelLineService(
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    if (request.etag.isEmpty()) {
-      throw RequiredFieldNotSetException("etag")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-    if (request.requestId.isEmpty()) {
-      throw RequiredFieldNotSetException("request_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-    try {
-      UUID.fromString(request.requestId)
-    } catch (e: IllegalArgumentException) {
-      throw InvalidFieldValueException("request_id", e)
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
+    validateEtagAndRequestId(request.etag, request.requestId)
     val internalResponse: InternalRawImpressionUploadModelLine =
       try {
         internalModelLineStub.markRawImpressionUploadModelLineLabeling(
@@ -474,20 +435,7 @@ class RawImpressionUploadModelLineService(
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    if (request.etag.isEmpty()) {
-      throw RequiredFieldNotSetException("etag")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-    if (request.requestId.isEmpty()) {
-      throw RequiredFieldNotSetException("request_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-    try {
-      UUID.fromString(request.requestId)
-    } catch (e: IllegalArgumentException) {
-      throw InvalidFieldValueException("request_id", e)
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
+    validateEtagAndRequestId(request.etag, request.requestId)
     val internalResponse: InternalRawImpressionUploadModelLine =
       try {
         internalModelLineStub.markRawImpressionUploadModelLineCompleted(
@@ -519,20 +467,7 @@ class RawImpressionUploadModelLineService(
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    if (request.etag.isEmpty()) {
-      throw RequiredFieldNotSetException("etag")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-    if (request.requestId.isEmpty()) {
-      throw RequiredFieldNotSetException("request_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-    try {
-      UUID.fromString(request.requestId)
-    } catch (e: IllegalArgumentException) {
-      throw InvalidFieldValueException("request_id", e)
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
+    validateEtagAndRequestId(request.etag, request.requestId)
     val internalResponse: InternalRawImpressionUploadModelLine =
       try {
         internalModelLineStub.markRawImpressionUploadModelLineFailed(
@@ -550,6 +485,29 @@ class RawImpressionUploadModelLineService(
       }
 
     return internalResponse.toPublic()
+  }
+
+  /**
+   * Validates the `etag` and `request_id` shared by every `Mark*` RPC.
+   *
+   * @throws io.grpc.StatusRuntimeException with [Status.Code.INVALID_ARGUMENT] if `etag` or
+   *   `request_id` is empty, or if `request_id` is not a valid UUID.
+   */
+  private fun validateEtagAndRequestId(etag: String, requestId: String) {
+    if (etag.isEmpty()) {
+      throw RequiredFieldNotSetException("etag")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
   }
 
   private fun handleInternalError(e: StatusException): StatusRuntimeException {
