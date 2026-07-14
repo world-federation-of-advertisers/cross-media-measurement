@@ -21,6 +21,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.virtualpeople.common.LabelerInput
 import org.wfanet.virtualpeople.common.LabelerOutput
 
@@ -30,14 +31,14 @@ class VidModelLoaderTest {
   fun `getAssigner loads once per model blob uri and reuses the cached assigner`() =
     runBlocking<Unit> {
       val loadCounts = mutableMapOf<String, Int>()
-      val loader = VidModelLoader { uri ->
+      val loader = VidModelLoader { _, uri ->
         loadCounts[uri] = (loadCounts[uri] ?: 0) + 1
         FakeVidAssigner()
       }
 
-      val first = loader.getAssigner("model-a")
-      val second = loader.getAssigner("model-a")
-      val other = loader.getAssigner("model-b")
+      val first = loader.getAssigner(StorageConfig(), "model-a")
+      val second = loader.getAssigner(StorageConfig(), "model-a")
+      val other = loader.getAssigner(StorageConfig(), "model-b")
 
       assertThat(second).isSameInstanceAs(first)
       assertThat(other).isNotSameInstanceAs(first)

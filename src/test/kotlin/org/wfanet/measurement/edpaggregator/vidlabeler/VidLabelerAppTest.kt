@@ -198,7 +198,10 @@ class VidLabelerAppTest {
   private fun createApp(
     kmsClients: Map<String, KmsClient> = mapOf(DATA_PROVIDER_NAME to kmsClient),
     encryptKekUris: Map<String, String> = mapOf(DATA_PROVIDER_NAME to kekUri),
-    loadAssigner: suspend (modelBlobUri: String) -> VidAssigner = { mockVidAssigner },
+    loadAssigner: suspend (modelStorageConfig: StorageConfig, modelBlobUri: String) -> VidAssigner =
+      { _, _ ->
+        mockVidAssigner
+      },
     metrics: VidLabelerAppMetrics = VidLabelerAppMetrics(),
   ): VidLabelerApp {
     return VidLabelerApp(
@@ -252,6 +255,11 @@ class VidLabelerAppTest {
     vidLabelingJob = VID_LABELING_JOB
     modelLines += MODEL_LINE
     modelBlobPaths.put(MODEL_LINE, "file:///models/model.binpb")
+    modelStorageParams =
+      VidLabelerParamsKt.storageParams {
+        gcsProjectId = "test-model-project"
+        impressionsBlobPrefix = "file:///models"
+      }
     memoizedParams =
       VidLabelerParamsKt.memoizedParams {
         vidRankMapStorageParams =
@@ -287,6 +295,11 @@ class VidLabelerAppTest {
     )
     modelLines += MODEL_LINE
     modelBlobPaths.put(MODEL_LINE, "file:///models/model.binpb")
+    modelStorageParams =
+      VidLabelerParamsKt.storageParams {
+        gcsProjectId = "test-model-project"
+        impressionsBlobPrefix = "file:///models"
+      }
     vidLabelingJob = VID_LABELING_JOB
   }
 
@@ -745,7 +758,7 @@ class VidLabelerAppTest {
     val loadCount = AtomicInteger(0)
     val app =
       createApp(
-        loadAssigner = {
+        loadAssigner = { _, _ ->
           loadCount.incrementAndGet()
           mockVidAssigner
         }

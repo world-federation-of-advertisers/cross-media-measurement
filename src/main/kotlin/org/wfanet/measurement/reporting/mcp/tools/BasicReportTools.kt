@@ -59,9 +59,31 @@ fun Server.registerBasicReportTools(
               put("type", "object")
               put(
                 "description",
-                "BasicReport message in JSON. Key fields: campaign_group (resource name), " +
-                  "reporting_interval (report_start, report_end), " +
-                  "impression_qualification_filters, result_group_specs.",
+                "BasicReport as proto JSON (snake_case fields). Structure:\n" +
+                  "- campaign_group (optional): resource name of a ReportingSet that is a " +
+                  "campaign group. It determines the required reporting_unit.components type " +
+                  "(see result_group_specs).\n" +
+                  "- reporting_interval (required): report_start_date {year, month, day} for a " +
+                  "date-only start (or report_start, a DateTime) plus report_end {year, month, " +
+                  "day}. Start is inclusive, end is exclusive.\n" +
+                  "- impression_qualification_filters (optional): list of " +
+                  "ImpressionQualificationFilter resource names (e.g. " +
+                  "impressionQualificationFilters/ami); when omitted, the server applies the " +
+                  "deployment's configured base filters (currently AMI and MRC). If a deployment " +
+                  "has no base filters configured, at least one must be supplied.\n" +
+                  "- result_group_specs (required, non-empty): each has title, reporting_unit " +
+                  "{components: all the same type; DataProvider resource names when " +
+                  "campaign_group is set (each within that campaign group), or ReportingSet " +
+                  "resource names when campaign_group is omitted}, " +
+                  "metric_frequency ({total: true} or {weekly: a day of week such as MONDAY}), " +
+                  "dimension_spec ({} for none), and result_group_metric_spec.\n" +
+                  "- result_group_metric_spec: set population_size (bool) and request metrics " +
+                  "under reporting_unit (the whole unit) and/or component (per component), each " +
+                  "holding cumulative or non_cumulative: {reach, impressions, average_frequency, " +
+                  "k_plus_reach (int), percent_reach, grps}. Use non_cumulative with " +
+                  "metric_frequency weekly and cumulative with metric_frequency total " +
+                  "(non_cumulative is invalid with total). Metrics live here, not at the top " +
+                  "level.",
               )
             }
           },
