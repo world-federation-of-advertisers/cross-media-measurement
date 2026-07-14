@@ -237,8 +237,6 @@ suspend fun AsyncDatabaseClient.ReadContext.findRawImpressionUploadModelLineByRe
   rawImpressionUploadResourceId: String,
   requestId: String,
 ): RawImpressionUploadModelLineResult? {
-  if (requestId.isEmpty()) return null
-
   val sql = buildString {
     appendLine(RawImpressionUploadModelLineEntity.BASE_SQL)
     appendLine(
@@ -409,9 +407,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUploadModelLine(
     set("RawImpressionUploadModelLineId").to(rawImpressionUploadModelLineId)
     set("RawImpressionUploadModelLineResourceId").to(rawImpressionUploadModelLineResourceId)
     set("CmmsModelLine").to(cmmsModelLine)
-    if (createRequestId.isNotEmpty()) {
-      set("CreateRequestId").to(createRequestId)
-    }
+    set("CreateRequestId").to(createRequestId)
     set("State").to(State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
