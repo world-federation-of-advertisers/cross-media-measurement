@@ -193,9 +193,9 @@ module "config_files_bucket" {
 }
 
 resource "google_storage_bucket_object" "upload_data_watcher_config" {
-  name   = var.data_watcher_config.destination
-  bucket = module.config_files_bucket.storage_bucket.name
-  source = var.data_watcher_config.local_path
+  name           = var.data_watcher_config.destination
+  bucket         = module.config_files_bucket.storage_bucket.name
+  source         = var.data_watcher_config.local_path
   source_md5hash = filemd5(var.data_watcher_config.local_path)
 }
 
@@ -206,9 +206,9 @@ resource "google_storage_bucket_object" "upload_data_watcher_delete_config" {
 }
 
 resource "google_storage_bucket_object" "upload_requisition_fetcher_config" {
-  name   = var.requisition_fetcher_config.destination
-  bucket = module.config_files_bucket.storage_bucket.name
-  source = var.requisition_fetcher_config.local_path
+  name           = var.requisition_fetcher_config.destination
+  bucket         = module.config_files_bucket.storage_bucket.name
+  source         = var.requisition_fetcher_config.local_path
   source_md5hash = filemd5(var.requisition_fetcher_config.local_path)
 }
 
@@ -312,7 +312,17 @@ module "requisition_fetcher_cloud_function" {
   secret_mappings                          = var.cloud_function_configs.requisition_fetcher.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.requisition_fetcher.uber_jar_path
   secrets_to_access                        = [for key in local.requisition_fetcher_secrets_access : local.all_secrets[key].secret_id]
-  config_path                               = var.requisition_fetcher_config.local_path
+  config_path                              = var.requisition_fetcher_config.local_path
+
+  # The periodic drain ticker fires every FLUSH_INTERVAL (default 5m), so a single invocation must
+  # run longer than that for incremental draining to happen at all — the gen2 default of 60s would
+  # kill the function before the first tick. 600s (10m) lets several ticks fire while staying under
+  # the 15m scheduler interval, so a run always finishes before the next is triggered. Combined with
+  # max_instances = 1, that makes overlapping invocations over the same UNFULFILLED requisitions
+  # structurally impossible (the Cloud Scheduler -> Cloud Function path has no built-in overlap
+  # guard, unlike a K8s CronJob concurrencyPolicy).
+  timeout_seconds = 600
+  max_instances   = 1
 }
 
 module "requisition_fetcher_cloud_scheduler" {
