@@ -65,6 +65,7 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
@@ -96,6 +97,92 @@ data class EntityKeyId(
   val entityId: String,
   val measurementConsumer: String,
 )
+
+/**
+ * Pairing key used to match a `BatchCreateEventGroups` response row back to its request AND to
+ * derive the request_id, keeping the two provably in lockstep. Prefers `entity_key` when populated
+ * (the #4175 canonical identifier); otherwise falls back to `event_group_reference_id`.
+ * `validateEventGroup` guarantees at least one is set on the source `EventGroup`, so [of] always
+ * returns a well-formed key.
+ *
+ * Using a sealed class rather than a compound `(refId, entityType, entityId, mc)` tuple keeps the
+ * join robust if the kingdom ever stops echoing the "other" identifier: each side reads only the
+ * identifier the row is actually keyed under.
+ */
+private sealed class CreatePairingKey {
+  data class ByEntityKey(
+    val entityType: String,
+    val entityId: String,
+    val measurementConsumer: String,
+  ) : CreatePairingKey()
+
+  data class ByReferenceId(val referenceId: String, val measurementConsumer: String) :
+    CreatePairingKey()
+
+  /**
+   * Deterministic AIP-155 `request_id` for this key. Kept in lockstep with the key so that two
+   * requests with the same pairing key always produce the same `request_id` — the kingdom then
+   * idempotent-replays a duplicate instead of failing the batch, and the pairing-uniqueness
+   * invariant at [flushCreates] holds by construction.
+   *
+   * The two forms use different delimiters (`-` for the ref form to preserve byte-compat with
+   * earlier deployments; `:` and an `ek:` prefix for the entity-key form) so no character contents
+   * of refId / entityType / entityId / mc can make them equal.
+   */
+  fun toRequestId(): String =
+    when (this) {
+      is ByEntityKey -> "ek:$entityType:$entityId:$measurementConsumer"
+      is ByReferenceId -> "$referenceId-$measurementConsumer"
+    }
+
+  companion object {
+    fun of(eventGroup: CmmsEventGroup): CreatePairingKey =
+      if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
+        require(eventGroup.entityKey.entityType.isNotBlank()) {
+          "EventGroup.entity_key.entity_type must be non-blank when entity_id is set"
+        }
+        ByEntityKey(
+          eventGroup.entityKey.entityType,
+          eventGroup.entityKey.entityId,
+          eventGroup.measurementConsumer,
+        )
+      } else {
+        require(eventGroup.eventGroupReferenceId.isNotBlank()) {
+          "EventGroup must have a non-blank event_group_reference_id when entity_key is unset"
+        }
+        ByReferenceId(eventGroup.eventGroupReferenceId, eventGroup.measurementConsumer)
+      }
+
+    /**
+     * Returns every identifier keyspace this [eventGroup] occupies:
+     * - always the primary [CreatePairingKey] (see [of], the one that drives the request_id and
+     *   response pairing),
+     * - PLUS the "other" keyspace if the row also carries a non-blank identifier of that form (e.g.
+     *   an entity-keyed row that also sets refId contributes both).
+     *
+     * Used by [queueEventGroupItem] to detect malformed EDP input where two rows collide on either
+     * identifier — a row with `entity_key=(cr,cr-1)` and one with `refId="ref-1"` can't collide on
+     * the primary key alone if they use different forms, but if a THIRD row combined those two
+     * identifiers it would collide with each of them.
+     */
+    fun allKeys(eventGroup: CmmsEventGroup): List<CreatePairingKey> {
+      val keys = mutableListOf<CreatePairingKey>()
+      if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
+        keys.add(
+          ByEntityKey(
+            eventGroup.entityKey.entityType,
+            eventGroup.entityKey.entityId,
+            eventGroup.measurementConsumer,
+          )
+        )
+      }
+      if (eventGroup.eventGroupReferenceId.isNotBlank()) {
+        keys.add(ByReferenceId(eventGroup.eventGroupReferenceId, eventGroup.measurementConsumer))
+      }
+      return keys
+    }
+  }
+}
 
 /** A buffered batch write request tagged with identifying info for response zipping and metrics. */
 private data class PendingWrite<T>(
@@ -376,6 +463,9 @@ class EventGroupSync(
               mappedEventGroup {
                 eventGroupReferenceId = existingEventGroup.eventGroupReferenceId
                 eventGroupResource = existingEventGroup.name
+                if (existingEventGroup.hasEntityKey()) {
+                  entityKey = existingEventGroup.entityKey.toEdpaEntityKey()
+                }
               }
             )
             WriteAction.None
@@ -387,12 +477,32 @@ class EventGroupSync(
 
     when (action) {
       is WriteAction.Create -> {
-        // A duplicate request_id within one BatchCreateEventGroups call is rejected by the kingdom,
-        // so flush first if it is already buffered. Duplicate input rows then land in separate
-        // batches, where the kingdom dedupes by request_id (idempotent) instead of failing the
-        // batch.
-        if (pendingCreates.any { it.request.requestId == action.request.requestId }) {
-          flushCreates(pendingCreates)
+        // Two rows in one sync that share an entity_key OR share a reference_id (independently)
+        // are malformed EDP input — the kingdom enforces uniqueness on BOTH identifiers per
+        // (DataProvider, MeasurementConsumer). Skip the second row per the same
+        // "log SEVERE + invalidEventGroupFailure metric + continue" pattern that validateEventGroup
+        // failures already use, so one malformed row doesn't take down the whole sync.
+        //
+        // Two rows sharing the primary pairing key produce the same request_id under
+        // [CreatePairingKey.toRequestId], so they'd be caught here even without the explicit
+        // request_id check — but a shared "other" identifier (e.g. two entity-keyed rows both
+        // setting the same refId to different entity keys) escapes the pairing-key-only check;
+        // hence the `allKeys` sweep.
+        val newKeys = CreatePairingKey.allKeys(action.request.eventGroup).toSet()
+        val collision =
+          pendingCreates.find { pending ->
+            CreatePairingKey.allKeys(pending.request.eventGroup).any { it in newKeys }
+          }
+        if (collision != null) {
+          logger.severe {
+            "Skipping duplicate EventGroup: input contains two rows sharing an identifier" +
+              " (entity_key or event_group_reference_id) that must be unique per" +
+              " (DataProvider, MeasurementConsumer). Already-queued row: referenceId=" +
+              "${collision.request.eventGroup.eventGroupReferenceId}," +
+              " entityKey=${collision.request.eventGroup.entityKey}"
+          }
+          metrics.invalidEventGroupFailure.add(1, metricAttributes())
+          return
         }
         pendingCreates.add(
           PendingWrite(referenceId, entityType, entityId, itemStartTime, action.request)
@@ -463,23 +573,20 @@ class EventGroupSync(
         pendingCreates.clear()
         return
       }
-    // Pair responses to requests by (referenceId, measurementConsumer) rather than list position,
-    // since the batch response order is not guaranteed. The per-batch dedup guard keeps this key
-    // unique within the batch.
-    val pendingByKey =
-      pendingCreates.associateBy {
-        EventGroupKey(
-          it.request.eventGroup.eventGroupReferenceId,
-          it.request.eventGroup.measurementConsumer,
-        )
-      }
+    // Pair responses to requests by whichever identifier the source `EventGroup` was keyed by
+    // (entity_key preferred, event_group_reference_id fallback), rather than list position, since
+    // the batch response order is not guaranteed. Keying only on `event_group_reference_id` is
+    // unsafe once #4175 lands and `EventGroup.event_group_reference_id` is optional: N
+    // entity-key-only items in one batch would collapse to a single `("", mc)` entry and every
+    // response row would resolve to the last request. See #4195 review discussion.
+    val pendingByKey = pendingCreates.associateBy { CreatePairingKey.of(it.request.eventGroup) }
+    check(pendingByKey.size == pendingCreates.size) {
+      "BatchCreateEventGroups pairing keys are not unique within a batch of ${pendingCreates.size};" +
+        " prevented by queueEventGroupItem rejecting duplicate-pairing-key inputs, so this should" +
+        " be unreachable. If it fires, the queue-side dedup is broken; do not silence."
+    }
     response.eventGroupsList.forEach { syncedEventGroup ->
-      val item =
-        pendingByKey[
-          EventGroupKey(
-            syncedEventGroup.eventGroupReferenceId,
-            syncedEventGroup.measurementConsumer,
-          )]
+      val item = pendingByKey[CreatePairingKey.of(syncedEventGroup)]
       if (item == null) {
         // A well-behaved kingdom only returns EventGroups we requested; skip an unmatched response
         // entry rather than aborting the whole sync run.
@@ -494,12 +601,7 @@ class EventGroupSync(
         item.startTime.elapsedNow().inWholeMilliseconds / 1000.0,
         metricAttributes(),
       )
-      emit(
-        mappedEventGroup {
-          eventGroupReferenceId = item.eventGroupReferenceId
-          eventGroupResource = syncedEventGroup.name
-        }
-      )
+      emit(buildMappedEventGroup(item, syncedEventGroup.name))
     }
     pendingCreates.clear()
   }
@@ -523,12 +625,7 @@ class EventGroupSync(
           item.startTime.elapsedNow().inWholeMilliseconds / 1000.0,
           metricAttributes(),
         )
-        emit(
-          mappedEventGroup {
-            eventGroupReferenceId = item.eventGroupReferenceId
-            eventGroupResource = syncedEventGroup.name
-          }
-        )
+        emit(buildMappedEventGroup(item, syncedEventGroup.name))
       } catch (e: Exception) {
         if (e is CancellationException) throw e
         recordItemFailure(e, item)
@@ -601,12 +698,7 @@ class EventGroupSync(
         item.startTime.elapsedNow().inWholeMilliseconds / 1000.0,
         metricAttributes(),
       )
-      emit(
-        mappedEventGroup {
-          eventGroupReferenceId = item.eventGroupReferenceId
-          eventGroupResource = syncedEventGroup.name
-        }
-      )
+      emit(buildMappedEventGroup(item, syncedEventGroup.name))
     }
     pendingUpdates.clear()
   }
@@ -630,12 +722,7 @@ class EventGroupSync(
           item.startTime.elapsedNow().inWholeMilliseconds / 1000.0,
           metricAttributes(),
         )
-        emit(
-          mappedEventGroup {
-            eventGroupReferenceId = item.eventGroupReferenceId
-            eventGroupResource = syncedEventGroup.name
-          }
-        )
+        emit(buildMappedEventGroup(item, syncedEventGroup.name))
       } catch (e: Exception) {
         if (e is CancellationException) throw e
         recordItemFailure(e, item)
@@ -659,7 +746,11 @@ class EventGroupSync(
         .build(),
     )
     logger.log(Level.SEVERE, e) {
-      "Unable to sync Event Group ${item.eventGroupReferenceId}: error_type=$errorType"
+      "Unable to sync Event Group ${item.eventGroupReferenceId}" +
+        (if (item.entityType.isNotBlank() && item.entityId.isNotBlank())
+          " (entityType=${item.entityType}, entityId=${item.entityId})"
+        else "") +
+        ": error_type=$errorType"
     }
   }
 
@@ -702,19 +793,28 @@ class EventGroupSync(
 
   /** Builds a [CreateEventGroupRequest] for [eventGroup] without issuing it. */
   private fun buildCreateRequest(eventGroup: EventGroup): CreateEventGroupRequest {
+    val newCmmsEventGroup = cmmsEventGroup {
+      measurementConsumer = eventGroup.measurementConsumer
+      eventGroupReferenceId = eventGroup.eventGroupReferenceId
+      this.eventGroupMetadata = eventGroup.toCmmsEventGroupMetadata()
+      mediaTypes += eventGroup.mediaTypesList.map { it.toCmmsMediaType() }
+      dataAvailabilityInterval = eventGroup.dataAvailabilityInterval
+      if (eventGroup.hasEntityKey()) {
+        this.entityKey = eventGroup.entityKey.toCmmsEntityKey()
+      }
+    }
     return createEventGroupRequest {
       parent = edpName
-      requestId = "${eventGroup.eventGroupReferenceId}-${eventGroup.measurementConsumer}"
-      this.eventGroup = cmmsEventGroup {
-        measurementConsumer = eventGroup.measurementConsumer
-        eventGroupReferenceId = eventGroup.eventGroupReferenceId
-        this.eventGroupMetadata = eventGroup.toCmmsEventGroupMetadata()
-        mediaTypes += eventGroup.mediaTypesList.map { it.toCmmsMediaType() }
-        dataAvailabilityInterval = eventGroup.dataAvailabilityInterval
-        if (eventGroup.hasEntityKey()) {
-          this.entityKey = eventGroup.entityKey.toCmmsEntityKey()
-        }
-      }
+      // Derive the request_id from the row's primary pairing key (entity_key preferred, refId
+      // fallback), so any two requests with the same pairing key produce the same request_id —
+      // kingdom idempotent-replays instead of failing the batch, and the pairing-uniqueness
+      // invariant at [flushCreates] holds by construction. The ref form is byte-identical to what
+      // earlier deployments produced (`"${refId}-${mc}"`), preserving cross-deployment retry
+      // idempotency for rows that were previously refId-only; the entity-key form is new
+      // ("ek:type:id:mc") and applies only to rows that carry an entity_key, which existing
+      // deployments did not create.
+      requestId = CreatePairingKey.of(newCmmsEventGroup).toRequestId()
+      this.eventGroup = newCmmsEventGroup
     }
   }
 
@@ -937,6 +1037,33 @@ class EventGroupSync(
       entityId = source.entityId
     }
   }
+
+  private fun CmmsEventGroup.EntityKey.toEdpaEntityKey(): EventGroup.EntityKey {
+    val source = this
+    return EventGroupKt.entityKey {
+      entityType = source.entityType
+      entityId = source.entityId
+    }
+  }
+
+  /**
+   * Builds the [MappedEventGroup] emitted for a successfully-synced item. Populates whichever
+   * identifiers were carried by the source `EventGroup`; the `MappedEventGroup` contract requires
+   * at least one of `event_group_reference_id` / `entity_key` to be set, which [validateEventGroup]
+   * guarantees upstream.
+   */
+  private fun buildMappedEventGroup(item: PendingWrite<*>, resourceName: String): MappedEventGroup =
+    mappedEventGroup {
+      eventGroupReferenceId = item.eventGroupReferenceId
+      eventGroupResource = resourceName
+      if (item.entityType.isNotBlank() && item.entityId.isNotBlank()) {
+        entityKey =
+          EventGroupKt.entityKey {
+            entityType = item.entityType
+            entityId = item.entityId
+          }
+      }
+    }
 
   companion object {
     /** Maximum number of sub-requests per BatchCreate/BatchUpdate EventGroups RPC. */
