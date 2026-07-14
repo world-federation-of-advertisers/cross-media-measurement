@@ -119,11 +119,22 @@ API does not read — the value must end up in `scope`.
 
 ### 3f. Audience delivery across environments
 
-A single OIDC tenant has one default audience, but each environment needs a
-different audience (`<REPORTING_API_AUDIENCE>`). Either have the client request
-the per-environment audience explicitly (via the resource indicator / the MCP
-server's advertised protected resource), or use a separate tenant per
-environment. Decide this per deployment.
+Each environment has its own audience (`<REPORTING_API_AUDIENCE>`), so a client
+must receive a token carrying the audience of the environment it is connecting
+to.
+
+Watch out for a tenant-wide **default audience** setting: when set, the provider
+stamps it on *every* token and ignores the audience requested per connection. If
+one tenant serves several environments, a default audience makes every token
+carry that one audience, so connecting to any other environment fails with a
+token/audience error **even though sign-in succeeds**. Prefer one of:
+
+-   Leave the tenant default audience unset and have each client request its
+    environment's audience explicitly via the resource indicator — that is, the
+    MCP server's advertised protected resource (Step 4), which the provider must
+    map to the matching API. This lets one tenant serve all environments.
+-   Or use a separate tenant per environment, each with its own default
+    audience.
 
 ### 3g. The client application
 
@@ -143,27 +154,59 @@ discovery and tell the client which scope to request:
 --oauth-scope=reporting.*
 ```
 
+The client requests a token for the value of `--oauth-protected-resource` (the
+resource indicator), so for per-environment audience delivery (3f) this must
+resolve, at the provider, to `<REPORTING_API_AUDIENCE>`. If the advertised
+resource and the API audience differ, configure the provider to map one to the
+other; otherwise the token comes back with the wrong audience.
+
 ## Step 5 — Register the principal and bind a role
 
 This satisfies the second authorization check. Each user's OIDC identity must be
 a registered principal in the Access service, bound to a reporting role on the
 target `MeasurementConsumer`. Use the Access CLI with a client mTLS certificate
-trusted by the Access server's client-auth CA.
+trusted by the Access server's client-auth CA. The CLI reaches the Access public
+API over mTLS, so this works from anywhere that can reach that endpoint — no
+cluster access is required.
+
+Every call takes the same TLS and target flags:
+
+```shell
+ACCESS_FLAGS="--tls-cert-file=<CLIENT_MTLS_CERT> \
+  --tls-key-file=<CLIENT_MTLS_KEY> \
+  --cert-collection-file=<ACCESS_TRUST_CA> \
+  --access-public-api-target=<ACCESS_PUBLIC_API_TARGET>"
+```
+
+Look up the `MeasurementConsumer`'s policy first, to get its name and current
+etag (`add-members` requires the etag, and it changes on every write):
+
+```shell
+Access $ACCESS_FLAGS policies lookup \
+  --protected-resource=<MEASUREMENT_CONSUMER>
+```
+
+Then create the principal and add it to a reporting role (for example
+`roles/mcUser`) on that policy:
 
 ```shell
 # Create the principal for the user's OIDC identity.
-Access principals create \
+Access $ACCESS_FLAGS principals create \
   --issuer=<OIDC_ISSUER> \
   --subject=<USER_SUBJECT> \
   --principal-id=<PRINCIPAL_ID>
 
 # Add the principal to a reporting role on the MeasurementConsumer's policy.
-Access policies add-members \
+Access $ACCESS_FLAGS policies add-members \
   --name=<POLICY_NAME> \
   --binding-role=roles/<REPORTING_ROLE> \
   --binding-member=principals/<PRINCIPAL_ID> \
   --etag=<CURRENT_ETAG>
 ```
+
+The etag printed by `policies lookup` is in protobuf text format, which escapes
+the inner quotes (for example `W/\"...\"`); pass the unescaped value
+(`W/"..."`) to `--etag`.
 
 This is per-user: the Access model has no group- or tenant-wide grant, so every
 user who needs access gets their own principal and binding.
@@ -175,6 +218,10 @@ user who needs access gets their own principal and binding.
     correct **and** that `scope` contains `reporting.*`.
 3.  Call a tool (for example, list event groups) and confirm it returns data.
 
+If you cannot capture the token directly, the OIDC provider's logs record each
+token exchange — including the audience and scope it issued — which is a quick
+way to confirm what the client actually received.
+
 ## Troubleshooting
 
 | Symptom (error)                                        | Likely cause                                             | Fix     |
@@ -182,6 +229,7 @@ user who needs access gets their own principal and binding.
 | `UNAUTHENTICATED: Principal not found`                 | User not registered in the Access service               | Step 5  |
 | `UNAUTHENTICATED: expected type header at+jwt`         | JWT profile is not RFC 9068                              | Step 3b |
 | `UNAUTHENTICATED: Token is not a valid signed JWT`     | Wrong or missing audience requested                     | Step 3f |
+| Sign-in succeeds but every tool call fails with an invalid/expired-token error | Token carries the wrong environment's audience — often a tenant default audience overriding the per-environment request | Step 3f |
 | `PERMISSION_DENIED`, token has **no** `scope` claim    | Client app not granted the scope (per-app authorization) | Step 3d |
 | `PERMISSION_DENIED`, token **has** the `reporting.*` scope | Reporting role not bound to the principal            | Step 5  |
 | Connector fails to connect, endpoint unreachable       | Managed certificate still provisioning, or exposure not rendered (both `MCP_HOST` and the issuer must be set) | Steps 1–2 |

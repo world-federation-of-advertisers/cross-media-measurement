@@ -64,7 +64,10 @@ The connector provides read and create tools over the core reporting resources:
 ## Example prompts
 
 Replace `<MEASUREMENT_CONSUMER>` with your resource name (it looks like
-`measurementConsumers/<id>`).
+`measurementConsumers/<id>`). If you connect to more than one environment, use
+the `MeasurementConsumer` that belongs to the environment this connector points
+at — each environment has its own, and using another environment's ID returns a
+permission or not-found error.
 
 -   "For `<MEASUREMENT_CONSUMER>`, list the event groups and show a table of
     brand, campaign, publisher, media types, and data-availability window."
@@ -90,7 +93,10 @@ until its state is `SUCCEEDED`.
     Ask your administrator to complete the access grant (deployment guide,
     Step 3d and Step 5).
 -   **Sign-in loops or a tool says the token is missing/expired.** Sign out and
-    reconnect the connector so the client mints a fresh token.
+    reconnect the connector so the client mints a fresh token. If your
+    administrator recently changed the OIDC or audience configuration, remove and
+    re-add the connector — a cached token keeps the old audience and will keep
+    failing until it is reissued.
 
 ## See also
 
