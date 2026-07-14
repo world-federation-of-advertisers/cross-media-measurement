@@ -19,6 +19,8 @@ package org.wfanet.measurement.edpaggregator.tools
 import java.time.Instant
 import java.util.logging.Logger
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLineKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
@@ -27,6 +29,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.deleteRankIndexBlobRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
@@ -55,12 +58,7 @@ class EvictUploader(
   private val rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
 ) {
   /** A single `(upload, model line)` in the eviction cascade. */
-  data class CascadeEntry(
-    val uploadName: String,
-    val modelLineName: String,
-    val etag: String,
-    val alreadyFailed: Boolean,
-  )
+  data class CascadeEntry(val uploadName: String, val modelLineName: String)
 
   /** The forward cascade to evict, ordered by upload create time. */
   data class EvictionPlan(
@@ -123,15 +121,7 @@ class EvictUploader(
         val uploadName = uploadNameOf(row.name)
         val uploadTime = createTimeByUpload[uploadName] ?: continue
         if (uploadTime.isBefore(earliestBadTime)) continue
-        entries.add(
-          uploadTime to
-            CascadeEntry(
-              uploadName = uploadName,
-              modelLineName = row.name,
-              etag = row.etag,
-              alreadyFailed = row.state == RawImpressionUploadModelLine.State.FAILED,
-            )
-        )
+        entries.add(uploadTime to CascadeEntry(uploadName = uploadName, modelLineName = row.name))
       }
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
@@ -151,12 +141,26 @@ class EvictUploader(
     val failed = mutableListOf<String>()
     var deleted = 0
     for (entry in plan.cascade) {
-      if (!entry.alreadyFailed) {
+      // Re-fetch the model line so the Mark uses a current etag and state: the plan may be minutes
+      // old, and the Monitor or another operator could have advanced the row since. Reusing the
+      // plan-time etag would throw ABORTED partway through the cascade; re-reading also lets us
+      // skip
+      // rows that are already FAILED.
+      val current =
+        modelLinesStub.getRawImpressionUploadModelLine(
+          getRawImpressionUploadModelLineRequest { name = entry.modelLineName }
+        )
+      if (current.state != RawImpressionUploadModelLine.State.FAILED) {
+        // TODO(world-federation-of-advertisers/cross-media-measurement#4211): once #4211 makes
+        // request_id REQUIRED on the Mark* RPCs, set
+        // requestId = RequestIds.forMarkRawImpressionUploadModelLineFailed(entry.modelLineName) so
+        // a
+        // re-run hits the AIP-155 replay short-circuit instead of failing INVALID_ARGUMENT.
         modelLinesStub.markRawImpressionUploadModelLineFailed(
           markRawImpressionUploadModelLineFailedRequest {
             name = entry.modelLineName
             errorMessage = reason
-            etag = entry.etag
+            etag = current.etag
           }
         )
         failed.add(entry.modelLineName)
@@ -214,12 +218,20 @@ class EvictUploader(
   companion object {
     private val logger: Logger = Logger.getLogger(EvictUploader::class.java.name)
 
-    /** The `dataProviders/{data_provider}` prefix of an upload resource name. */
+    /** The `dataProviders/{data_provider}` parent of an upload resource name. */
     private fun dataProviderOf(uploadName: String): String =
-      uploadName.substringBefore("/rawImpressionUploads/")
+      requireNotNull(RawImpressionUploadKey.fromName(uploadName)) {
+          "Malformed RawImpressionUpload resource name: $uploadName"
+        }
+        .parentKey
+        .toName()
 
     /** The parent `RawImpressionUpload` resource name of a model-line resource name. */
     private fun uploadNameOf(modelLineName: String): String =
-      modelLineName.substringBefore("/rawImpressionUploadModelLines/")
+      requireNotNull(RawImpressionUploadModelLineKey.fromName(modelLineName)) {
+          "Malformed RawImpressionUploadModelLine resource name: $modelLineName"
+        }
+        .parentKey
+        .toName()
   }
 }
