@@ -264,7 +264,8 @@ class DeadLetterQueueListener(
           this.name = name
           this.etag = job.etag
           this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
-          // TODO(#4078): MarkPoolAssignmentJobFailedRequest has no `request_id` field on the
+          // TODO(world-federation-of-advertisers/cross-media-measurement#4078):
+          // MarkPoolAssignmentJobFailedRequest has no `request_id` field on the
           // current base; #4078 adds it (flipping it OPTIONAL -> REQUIRED). Once it lands, set
           // requestId = deterministicUuid("MarkPoolAssignmentJobFailed:$name") for AIP-155
           // idempotency on Pub/Sub redelivery, mirroring MarkVidLabelingJobFailed.
@@ -372,10 +373,13 @@ class DeadLetterQueueListener(
           // RawImpressionUploadModelLine resource carries it) instead of an extra Get.
           etag = parent.etag
           this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
-          // TODO(#4211): MarkRawImpressionUploadModelLineFailedRequest has no `request_id` field
+          // TODO(world-federation-of-advertisers/cross-media-measurement#4211):
+          // MarkRawImpressionUploadModelLineFailedRequest has no `request_id` field
           // yet; #4211 (issue #4074) adds it across the 5 RawImpressionUploadModelLine Mark RPCs
           // and makes it REQUIRED. Once it lands, set requestId via the shared RequestIds helper
-          // (see deterministicUuid's TODO(#4211)) for AIP-155 idempotency on Pub/Sub redelivery;
+          // (see deterministicUuid's
+          // TODO(world-federation-of-advertisers/cross-media-measurement#4211)) for AIP-155
+          // idempotency on Pub/Sub redelivery;
           // otherwise this call fails with INVALID_ARGUMENT.
         }
       )
@@ -453,12 +457,13 @@ class DeadLetterQueueListener(
      * `SubpoolAssigner.deterministicUuid`. Used for the Mark RPC request_ids that carry one
      * (`MarkVidLabelingJobFailed`, `MarkRankerJobFailed`) so a redelivery is idempotent.
      *
-     * TODO(#4211): this duplicates RequestIds.fromKey and will diverge once #4211 lands (that PR
-     *   switches RequestIds.fromKey from MD5 to SHA-256; this copy stays MD5). When #4211 merges,
-     *   delete this helper and call the shared RequestIds.forMark<Op>Failed(...) at each site,
-     *   adding the missing forMark{RankerJob,VidLabelingJob,PoolAssignmentJob}Failed variants to
-     *   RequestIds.kt and aligning the seed casing (`Mark...:` here vs `mark...:` in RequestIds) so
-     *   ids match across all sites.
+     * TODO(world-federation-of-advertisers/cross-media-measurement#4211): this duplicates
+     *   RequestIds.fromKey and will diverge once #4211 lands (that PR switches RequestIds.fromKey
+     *   from MD5 to SHA-256; this copy stays MD5). When #4211 merges, delete this helper and call
+     *   the shared RequestIds.forMark<Op>Failed(...) at each site, adding the missing
+     *   forMark{RankerJob,VidLabelingJob,PoolAssignmentJob}Failed variants to RequestIds.kt and
+     *   aligning the seed casing (`Mark...:` here vs `mark...:` in RequestIds) so ids match across
+     *   all sites.
      */
     fun deterministicUuid(seed: String): String {
       val bytes = MessageDigest.getInstance("MD5").digest(seed.toByteArray(Charsets.UTF_8))
