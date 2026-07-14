@@ -97,6 +97,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     val created =
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -1567,6 +1568,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       // Backfilling a new model line onto the COMPLETED upload reactivates the parent.
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -1591,6 +1593,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           requests += createRawImpressionUploadModelLineRequest {
+            requestId = UUID.randomUUID().toString()
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
               cmmsModelLine = CMMS_MODEL_LINE_2
             }
@@ -1607,6 +1610,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     val created =
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -1630,6 +1634,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.createRawImpressionUploadModelLine(
           createRawImpressionUploadModelLineRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -1646,6 +1651,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
   fun `createRawImpressionUploadModelLine leaves a CREATED parent unchanged`() = runBlocking {
     service.createRawImpressionUploadModelLine(
       createRawImpressionUploadModelLineRequest {
+        requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -2132,6 +2138,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       completeSoleModelLine()
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -2142,9 +2149,11 @@ abstract class RawImpressionUploadModelLineServiceTest {
       assertThat(getParentUploadState(DATA_PROVIDER_RESOURCE_ID, RAW_IMPRESSION_UPLOAD_RESOURCE_ID))
         .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE)
 
-      // A further backfill onto the now-ACTIVE parent hits the else -> {} branch — no state change.
+      // A further backfill onto the now-ACTIVE parent hits the ACTIVE no-op branch — no state
+      // change.
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
