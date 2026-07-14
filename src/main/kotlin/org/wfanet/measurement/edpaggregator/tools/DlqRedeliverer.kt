@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.tools
 
+import com.google.protobuf.ByteString
 import java.util.logging.Logger
 import kotlinx.coroutines.withTimeoutOrNull
 import org.wfanet.measurement.queue.QueuePublisher
@@ -44,9 +45,15 @@ class DlqRedeliverer(
    * (or [topicOverride] when set), acknowledging it off the dead-letter subscription only after a
    * successful republish.
    *
-   * Stops after [maxMessages] have been redelivered, or once [idleTimeoutMillis] elapses with no
-   * new message (the dead-letter subscription is drained). The underlying subscriber pulls
-   * indefinitely, so one of these bounds is what ends the run.
+   * When [queueFilter] is set, only messages whose origin [WorkItem.getQueue] matches are
+   * redelivered; non-matching messages are nacked back onto the dead-letter subscription (never
+   * dropped) for a later, differently-filtered run. Pub/Sub message *attributes* are not exposed by
+   * [QueueSubscriber] (only the parsed body), so filtering is by origin queue, not by attribute.
+   *
+   * Stops after [maxMessages] have been redelivered, once [idleTimeoutMillis] elapses with no new
+   * message (the subscription is drained), or once a nacked non-matching message is redelivered
+   * back to us (a full pass over the non-matching messages — the matching ones are drained). The
+   * underlying subscriber pulls indefinitely, so one of these bounds is what ends the run.
    *
    * @return the number of messages redelivered.
    */
@@ -55,14 +62,23 @@ class DlqRedeliverer(
     maxMessages: Int,
     idleTimeoutMillis: Long,
     topicOverride: String? = null,
+    queueFilter: String? = null,
   ): Int {
     require(maxMessages > 0) { "maxMessages must be positive" }
     val channel = subscriber.subscribe(dlqSubscription, WorkItem.parser())
     var redelivered = 0
+    // Non-matching WorkItems nacked back onto the subscription this run. Seeing one again means we
+    // have made a full pass and the matching messages are drained, so we stop.
+    val skipped = mutableSetOf<ByteString>()
     while (redelivered < maxMessages) {
       val message =
         withTimeoutOrNull(idleTimeoutMillis) { channel.receiveCatching().getOrNull() } ?: break
       val workItem: WorkItem = message.body
+      if (queueFilter != null && workItem.queue != queueFilter) {
+        message.nack()
+        if (!skipped.add(workItem.toByteString())) break
+        continue
+      }
       val topic = topicOverride ?: workItem.queue
       require(topic.isNotEmpty()) {
         "WorkItem ${workItem.name} has no origin queue; rerun with --topic-override"
