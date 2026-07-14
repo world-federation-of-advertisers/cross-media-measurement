@@ -22,6 +22,7 @@ _reportingMcConfigSecretName:                         string       @tag("mc_conf
 _publicApiAddressName:                                string       @tag("public_api_address_name")
 _mcpHost:                                             *"" | string @tag("mcp_host")
 _oauthIssuer:                                         *"" | string @tag("oauth_issuer")
+_oauthProtectedResource:                              *"" | string @tag("oauth_protected_resource")
 _accessPublicApiAddressName:                          "access-public"
 
 #KingdomApiTarget: #GrpcTarget & {
@@ -152,7 +153,7 @@ reporting: #Reporting & {
 			}
 			if _mcpHost != "" && _oauthIssuer != "" {
 				_oauthArgs: [
-					"--oauth-protected-resource=https://" + _mcpHost,
+					"--oauth-protected-resource=" + [ if _oauthProtectedResource != "" {_oauthProtectedResource}, "https://" + _mcpHost][0],
 					"--oauth-authorization-server=" + _oauthIssuer,
 					"--oauth-scope=reporting.*",
 				]
