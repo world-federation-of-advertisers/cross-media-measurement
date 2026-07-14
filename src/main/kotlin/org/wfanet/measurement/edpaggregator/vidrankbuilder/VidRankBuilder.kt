@@ -49,6 +49,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markRankerJobSucceededReques
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
@@ -382,6 +383,7 @@ class VidRankBuilder(
         markRawImpressionUploadModelLineLabelingRequest {
           name = parent.name
           etag = parent.etag
+          requestId = RequestIds.forMarkRawImpressionUploadModelLineLabeling(parent.name)
         }
       )
     } catch (e: StatusException) {
@@ -409,6 +411,7 @@ class VidRankBuilder(
         markRawImpressionUploadModelLineCompletedRequest {
           name = parent.name
           etag = parent.etag
+          requestId = RequestIds.forMarkRawImpressionUploadModelLineCompleted(parent.name)
         }
       )
     } catch (e: StatusException) {
