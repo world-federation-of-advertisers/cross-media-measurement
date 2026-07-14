@@ -64,6 +64,7 @@ import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCor
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DeleteEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.entityKey as cmmsEntityKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata as cmmsCampaignMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata as cmmsAdMetadata
@@ -85,12 +86,14 @@ import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup as EdpaEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.State
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 
 @RunWith(JUnit4::class)
@@ -4041,6 +4044,211 @@ class EventGroupSyncTest {
       getMetrics().find { it.name == "edpa.event_group.invalid_event_group_failure" }
     assertThat(invalidEventGroupFailureMetric).isNotNull()
     assertThat(invalidEventGroupFailureMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(1)
+  }
+
+  @Test
+  fun `EDP migration from refId-only to entity_key-only preserves identity and applies updates across three syncs`() {
+    // Walks the #4175 migration end-to-end from an EDP's perspective, mutating the EventGroup at
+    // each phase so the update path is exercised as well as the create path:
+    //
+    //   Phase 1: EDP syncs with event_group_reference_id only (pre-#4195 behavior).
+    //            Kingdom creates the EventGroup with entity_key unset.
+    //   Phase 1b: EDP re-syncs the same refId with a MUTATED metadata field.
+    //            findExistingEventGroup matches on refId, routes to update; kingdom row's
+    //            metadata is updated in place. No new row created.
+    //   Phase 2: EDP adds entity_key alongside refId (dual-keyed).
+    //            findExistingEventGroup matches on refId, update path backfills entity_key.
+    //            No new row created.
+    //   Phase 2b: EDP re-syncs with the entity_key AND mutates the availability interval.
+    //            findExistingEventGroup now matches on entity_key (primary lookup); update path
+    //            forwards the new interval. Same row, updated.
+    //   Phase 3: EDP drops refId entirely — sends only entity_key + another mutation.
+    //            findExistingEventGroup matches on entity_key; update path forwards the change.
+    //            Same row, updated. refId on the kingdom row keeps its historical value.
+    //
+    // The invariants that matter: one logical EventGroup, one kingdom resource name across all
+    // phases (never duplicated), every mutation from source is reflected on the kingdom row, and
+    // exactly one create call is made across all five syncs.
+    val edpName = "edp-migration"
+    val mcName = "measurementConsumers/mc-migration"
+    val kingdomResourceName = "dataProviders/$edpName/eventGroups/eg-migration"
+    val edpRefId = "creative-42"
+    val edpEntityType = "creative"
+    val edpEntityId = "cr-42"
+
+    // Kingdom state, mutated by each sync's create/update. Starts empty (fresh EDP).
+    var kingdomRow: CmmsEventGroup? = null
+
+    wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
+      .thenAnswer { listEventGroupsResponse { kingdomRow?.let { eventGroups += it } } }
+    wheneverBlocking { eventGroupsServiceMock.batchCreateEventGroups(any()) }
+      .thenAnswer { invocation ->
+        val requests = invocation.getArgument<BatchCreateEventGroupsRequest>(0).requestsList
+        batchCreateEventGroupsResponse {
+          eventGroups +=
+            requests.map { req ->
+              val created = cmmsEventGroup {
+                name = kingdomResourceName
+                measurementConsumer = req.eventGroup.measurementConsumer
+                eventGroupReferenceId = req.eventGroup.eventGroupReferenceId
+                if (req.eventGroup.hasEntityKey()) entityKey = req.eventGroup.entityKey
+                eventGroupMetadata = req.eventGroup.eventGroupMetadata
+                dataAvailabilityInterval = req.eventGroup.dataAvailabilityInterval
+                mediaTypes += req.eventGroup.mediaTypesList
+              }
+              kingdomRow = created
+              created
+            }
+        }
+      }
+    wheneverBlocking { eventGroupsServiceMock.batchUpdateEventGroups(any()) }
+      .thenAnswer { invocation ->
+        val requests = invocation.getArgument<BatchUpdateEventGroupsRequest>(0).requestsList
+        batchUpdateEventGroupsResponse {
+          eventGroups +=
+            requests.map { req ->
+              // Kingdom applies the update: keep the resource name and refId (immutable on update
+              // in
+              // practice — refId is set at create; we preserve whatever the request carries), and
+              // overwrite mutable fields from the request.
+              val updated = req.eventGroup
+              kingdomRow = updated
+              updated
+            }
+        }
+      }
+
+    fun metadataWithCampaign(campaign: String) = eventGroupMetadata {
+      this.adMetadata = adMetadata {
+        this.campaignMetadata = campaignMetadata {
+          brand = "brand"
+          this.campaign = campaign
+        }
+      }
+    }
+    fun availabilityEnding(endSeconds: Long) = interval {
+      startTime = timestamp { seconds = 200 }
+      endTime = timestamp { seconds = endSeconds }
+    }
+
+    fun runPhase(source: EdpaEventGroup): List<MappedEventGroup> = runBlocking {
+      EventGroupSync(
+          edpName,
+          eventGroupsStub,
+          clientAccountsStub,
+          listOf(source).asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+          entityKeyTypes = emptyList(),
+        )
+        .sync()
+        .toList()
+    }
+
+    // Phase 1: refId-only sync — CREATE.
+    val phase1Mappings =
+      runPhase(
+        eventGroup {
+          eventGroupReferenceId = edpRefId
+          measurementConsumer = mcName
+          eventGroupMetadata = metadataWithCampaign("c1")
+          dataAvailabilityInterval = availabilityEnding(300)
+          mediaTypes += listOf(MediaType.VIDEO)
+        }
+      )
+    assertThat(phase1Mappings).hasSize(1)
+    assertThat(phase1Mappings.single().eventGroupResource).isEqualTo(kingdomResourceName)
+    assertThat(phase1Mappings.single().eventGroupReferenceId).isEqualTo(edpRefId)
+    assertThat(phase1Mappings.single().entityKey.entityId).isEmpty()
+    val phase1Row = checkNotNull(kingdomRow)
+    assertThat(phase1Row.eventGroupReferenceId).isEqualTo(edpRefId)
+    assertThat(phase1Row.hasEntityKey()).isFalse()
+    assertThat(phase1Row.eventGroupMetadata.adMetadata.campaignMetadata.campaignName)
+      .isEqualTo("c1")
+
+    // Phase 1b: same refId, mutated metadata (campaign renamed) — UPDATE.
+    runPhase(
+      eventGroup {
+        eventGroupReferenceId = edpRefId
+        measurementConsumer = mcName
+        eventGroupMetadata = metadataWithCampaign("c1-renamed")
+        dataAvailabilityInterval = availabilityEnding(300)
+        mediaTypes += listOf(MediaType.VIDEO)
+      }
+    )
+    val phase1bRow = checkNotNull(kingdomRow)
+    assertThat(phase1bRow.name).isEqualTo(kingdomResourceName) // same resource
+    assertThat(phase1bRow.eventGroupMetadata.adMetadata.campaignMetadata.campaignName)
+      .isEqualTo("c1-renamed") // metadata update landed
+
+    // Phase 2: refId + entity_key — UPDATE (matched by refId, backfills entity_key).
+    runPhase(
+      eventGroup {
+        eventGroupReferenceId = edpRefId
+        measurementConsumer = mcName
+        eventGroupMetadata = metadataWithCampaign("c1-renamed")
+        entityKey = entityKey {
+          entityType = edpEntityType
+          entityId = edpEntityId
+        }
+        dataAvailabilityInterval = availabilityEnding(300)
+        mediaTypes += listOf(MediaType.VIDEO)
+      }
+    )
+    val phase2Row = checkNotNull(kingdomRow)
+    assertThat(phase2Row.name).isEqualTo(kingdomResourceName)
+    assertThat(phase2Row.eventGroupReferenceId).isEqualTo(edpRefId)
+    assertThat(phase2Row.hasEntityKey()).isTrue()
+    assertThat(phase2Row.entityKey.entityType).isEqualTo(edpEntityType)
+    val phase2EntityId: String = phase2Row.entityKey.entityId
+    assertThat(phase2EntityId).isEqualTo(edpEntityId)
+
+    // Phase 2b: entity_key present, availability window extended — UPDATE (matched by entity_key
+    // primary lookup now that the row is dual-keyed).
+    runPhase(
+      eventGroup {
+        eventGroupReferenceId = edpRefId
+        measurementConsumer = mcName
+        eventGroupMetadata = metadataWithCampaign("c1-renamed")
+        entityKey = entityKey {
+          entityType = edpEntityType
+          entityId = edpEntityId
+        }
+        dataAvailabilityInterval = availabilityEnding(400)
+        mediaTypes += listOf(MediaType.VIDEO)
+      }
+    )
+    val phase2bRow = checkNotNull(kingdomRow)
+    assertThat(phase2bRow.name).isEqualTo(kingdomResourceName)
+    assertThat(phase2bRow.dataAvailabilityInterval.endTime.seconds)
+      .isEqualTo(400L) // window updated
+
+    // Phase 3: EDP drops refId entirely — entity_key only, with a further metadata mutation.
+    // findExistingEventGroup matches on entity_key; update path forwards the change.
+    runPhase(
+      eventGroup {
+        // No eventGroupReferenceId set.
+        measurementConsumer = mcName
+        eventGroupMetadata = metadataWithCampaign("c1-final")
+        entityKey = entityKey {
+          entityType = edpEntityType
+          entityId = edpEntityId
+        }
+        dataAvailabilityInterval = availabilityEnding(400)
+        mediaTypes += listOf(MediaType.VIDEO)
+      }
+    )
+    val phase3Row = checkNotNull(kingdomRow)
+    assertThat(phase3Row.name).isEqualTo(kingdomResourceName)
+    assertThat(phase3Row.hasEntityKey()).isTrue()
+    val phase3EntityId: String = phase3Row.entityKey.entityId
+    assertThat(phase3EntityId).isEqualTo(edpEntityId)
+    assertThat(phase3Row.eventGroupMetadata.adMetadata.campaignMetadata.campaignName)
+      .isEqualTo("c1-final") // metadata update landed
+
+    // Assert no duplicate EventGroup was ever created. Exactly one create call across all five
+    // syncs; the other four all took the update path.
+    verifyBlocking(eventGroupsServiceMock, times(1)) { batchCreateEventGroups(any()) }
   }
 
   companion object {
