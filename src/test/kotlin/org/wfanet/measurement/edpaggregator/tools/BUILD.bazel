@@ -130,3 +130,14 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/queue:queue_subscriber",
     ],
 )
+
+kt_jvm_test(
+    name = "VidLabelingHealTest",
+    srcs = ["VidLabelingHealTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.tools.VidLabelingHealTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:vid_labeling_heal",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
