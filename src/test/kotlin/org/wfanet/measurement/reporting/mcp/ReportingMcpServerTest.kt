@@ -425,6 +425,233 @@ class ReportingMcpServerTest {
     }
   }
 
+  /**
+   * When an authorization server is configured, the server publishes OAuth 2.0 Protected Resource
+   * Metadata (RFC 9728) so MCP clients can discover where to obtain a token.
+   */
+  @Test
+  fun servesOAuthProtectedResourceMetadataWhenConfigured() = runBlocking {
+    val server =
+      embeddedServer(CIO, host = "127.0.0.1", port = 0) {
+        installReportingMcp(
+          createFakeApiClientWithServices(),
+          oauthProtectedResource = "https://mcp.example.test/",
+          oauthAuthorizationServers = listOf("https://auth.example.test/"),
+          oauthScopesSupported = listOf("reporting"),
+          oauthResourceDocumentation = "https://docs.example.test/",
+        )
+      }
+    server.start(wait = false)
+    try {
+      val port = server.engine.resolvedConnectors().first().port
+      val response =
+        HttpClient.newHttpClient()
+          .send(
+            HttpRequest.newBuilder(
+                URI("http://127.0.0.1:$port/.well-known/oauth-protected-resource")
+              )
+              .GET()
+              .build(),
+            HttpResponse.BodyHandlers.ofString(),
+          )
+      assertThat(response.statusCode()).isEqualTo(200)
+      assertThat(response.body()).contains("https://mcp.example.test/")
+      assertThat(response.body()).contains("https://auth.example.test/")
+      assertThat(response.body()).contains("authorization_servers")
+      assertThat(response.body()).contains("scopes_supported")
+      assertThat(response.body()).contains("reporting")
+      assertThat(response.body()).contains("resource_documentation")
+      assertThat(response.body()).contains("https://docs.example.test/")
+    } finally {
+      server.stop()
+    }
+  }
+
+  /**
+   * The optional metadata fields `scopes_supported` and `resource_documentation` are omitted when
+   * not configured, leaving the required fields in place.
+   */
+  @Test
+  fun omitsOptionalOAuthMetadataFieldsWhenUnset() = runBlocking {
+    val server =
+      embeddedServer(CIO, host = "127.0.0.1", port = 0) {
+        installReportingMcp(
+          createFakeApiClientWithServices(),
+          oauthProtectedResource = "https://mcp.example.test/",
+          oauthAuthorizationServers = listOf("https://auth.example.test/"),
+        )
+      }
+    server.start(wait = false)
+    try {
+      val port = server.engine.resolvedConnectors().first().port
+      val response =
+        HttpClient.newHttpClient()
+          .send(
+            HttpRequest.newBuilder(
+                URI("http://127.0.0.1:$port/.well-known/oauth-protected-resource")
+              )
+              .GET()
+              .build(),
+            HttpResponse.BodyHandlers.ofString(),
+          )
+      assertThat(response.statusCode()).isEqualTo(200)
+      assertThat(response.body()).contains("authorization_servers")
+      assertThat(response.body()).doesNotContain("scopes_supported")
+      assertThat(response.body()).doesNotContain("resource_documentation")
+    } finally {
+      server.stop()
+    }
+  }
+
+  /** Without OAuth configuration, the metadata endpoint is absent and behavior is unchanged. */
+  @Test
+  fun omitsOAuthProtectedResourceMetadataByDefault() = runBlocking {
+    val server =
+      embeddedServer(CIO, host = "127.0.0.1", port = 0) {
+        installReportingMcp(createFakeApiClientWithServices())
+      }
+    server.start(wait = false)
+    try {
+      val port = server.engine.resolvedConnectors().first().port
+      val response =
+        HttpClient.newHttpClient()
+          .send(
+            HttpRequest.newBuilder(
+                URI("http://127.0.0.1:$port/.well-known/oauth-protected-resource")
+              )
+              .GET()
+              .build(),
+            HttpResponse.BodyHandlers.ofString(),
+          )
+      assertThat(response.statusCode()).isEqualTo(404)
+    } finally {
+      server.stop()
+    }
+  }
+
+  /**
+   * With OAuth configured, an MCP request without a bearer token gets a 401 whose WWW-Authenticate
+   * header points at the Protected Resource Metadata (which triggers the client's login), while
+   * health and discovery endpoints stay open.
+   */
+  @Test
+  fun challengesUnauthenticatedMcpRequestWhenOAuthConfigured() = runBlocking {
+    val server =
+      embeddedServer(CIO, host = "127.0.0.1", port = 0) {
+        installReportingMcp(
+          createFakeApiClientWithServices(),
+          oauthProtectedResource = "https://mcp.example.test/",
+          oauthAuthorizationServers = listOf("https://auth.example.test/"),
+        )
+      }
+    server.start(wait = false)
+    try {
+      val port = server.engine.resolvedConnectors().first().port
+      val httpClient = HttpClient.newHttpClient()
+
+      val challenged =
+        httpClient.send(
+          HttpRequest.newBuilder(URI("http://127.0.0.1:$port/mcp"))
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json, text/event-stream")
+            .POST(
+              HttpRequest.BodyPublishers.ofString(
+                """{"jsonrpc":"2.0","method":"tools/call","id":1,"params":{""" +
+                  """"name":"get_basic_report",""" +
+                  """"arguments":{"name":"measurementConsumers/mc1/basicReports/br1"}}}"""
+              )
+            )
+            .build(),
+          HttpResponse.BodyHandlers.ofString(),
+        )
+      assertThat(challenged.statusCode()).isEqualTo(401)
+      assertThat(challenged.headers().firstValue("WWW-Authenticate").orElse(""))
+        .contains("https://mcp.example.test/.well-known/oauth-protected-resource")
+
+      // Health stays open under OAuth.
+      val health =
+        httpClient.send(
+          HttpRequest.newBuilder(URI("http://127.0.0.1:$port/healthz")).GET().build(),
+          HttpResponse.BodyHandlers.ofString(),
+        )
+      assertThat(health.statusCode()).isEqualTo(200)
+    } finally {
+      server.stop()
+    }
+  }
+
+  /** With OAuth configured, an MCP request that carries a bearer token is not challenged. */
+  @Test
+  fun allowsAuthenticatedMcpRequestWhenOAuthConfigured() = runBlocking {
+    val server =
+      embeddedServer(CIO, host = "127.0.0.1", port = 0) {
+        installReportingMcp(
+          createFakeApiClientWithServices(),
+          oauthProtectedResource = "https://mcp.example.test/",
+          oauthAuthorizationServers = listOf("https://auth.example.test/"),
+        )
+      }
+    server.start(wait = false)
+    try {
+      val port = server.engine.resolvedConnectors().first().port
+      val response =
+        HttpClient.newHttpClient()
+          .send(
+            HttpRequest.newBuilder(URI("http://127.0.0.1:$port/mcp"))
+              .header("Authorization", "Bearer test-token")
+              .header("Content-Type", "application/json")
+              .header("Accept", "application/json, text/event-stream")
+              .POST(
+                HttpRequest.BodyPublishers.ofString(
+                  """{"jsonrpc":"2.0","method":"initialize","id":1,"params":{""" +
+                    """"protocolVersion":"2025-03-26","capabilities":{},""" +
+                    """"clientInfo":{"name":"test","version":"1.0"}}}"""
+                )
+              )
+              .build(),
+            HttpResponse.BodyHandlers.ofString(),
+          )
+      assertThat(response.statusCode()).isEqualTo(200)
+    } finally {
+      server.stop()
+    }
+  }
+
+  /** Without OAuth configured, an unauthenticated MCP request is not challenged (unchanged). */
+  @Test
+  fun doesNotChallengeUnauthenticatedMcpRequestWhenOAuthNotConfigured() = runBlocking {
+    val server =
+      embeddedServer(CIO, host = "127.0.0.1", port = 0) {
+        installReportingMcp(createFakeApiClientWithServices())
+      }
+    server.start(wait = false)
+    try {
+      val port = server.engine.resolvedConnectors().first().port
+      val response =
+        HttpClient.newHttpClient()
+          .send(
+            HttpRequest.newBuilder(URI("http://127.0.0.1:$port/mcp"))
+              .header("Content-Type", "application/json")
+              .header("Accept", "application/json, text/event-stream")
+              .POST(
+                HttpRequest.BodyPublishers.ofString(
+                  """{"jsonrpc":"2.0","method":"tools/call","id":1,"params":{""" +
+                    """"name":"get_basic_report",""" +
+                    """"arguments":{"name":"measurementConsumers/mc1/basicReports/br1"}}}"""
+                )
+              )
+              .build(),
+            HttpResponse.BodyHandlers.ofString(),
+          )
+      // Unchanged behavior: the request is not challenged (not 401) and flows through to the
+      // normal clean tool error rather than regressing to some other status/body.
+      assertThat(response.statusCode()).isEqualTo(200)
+      assertThat(response.body()).contains("Missing bearer token")
+    } finally {
+      server.stop()
+    }
+  }
+
   @Test
   fun forwardsPerRequestBearerTokenAsCallCredentials() = runBlocking {
     val capturedAuthorization = AtomicReference<String?>()

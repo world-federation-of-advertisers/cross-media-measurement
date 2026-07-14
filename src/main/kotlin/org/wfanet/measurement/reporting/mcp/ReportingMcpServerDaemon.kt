@@ -92,7 +92,14 @@ class ReportingMcpServerDaemon : Runnable {
       )
 
     embeddedServer(CIO, host = mcpServerFlags.host, port = mcpServerFlags.port) {
-        installReportingMcp(apiClient, mcpServerFlags.allowedHosts)
+        installReportingMcp(
+          apiClient,
+          allowedHosts = mcpServerFlags.allowedHosts,
+          oauthProtectedResource = mcpServerFlags.oauthProtectedResource,
+          oauthAuthorizationServers = mcpServerFlags.oauthAuthorizationServers,
+          oauthScopesSupported = mcpServerFlags.oauthScopesSupported,
+          oauthResourceDocumentation = mcpServerFlags.oauthResourceDocumentation,
+        )
       }
       .start(wait = true)
   }
@@ -150,6 +157,55 @@ class McpServerFlags {
       ],
   )
   var allowedHosts: List<String> = emptyList()
+    private set
+
+  @CommandLine.Option(
+    names = ["--oauth-protected-resource"],
+    description =
+      [
+        "OAuth 2.0 resource identifier for this server (RFC 9728), e.g. its public URL. When set " +
+          "together with --oauth-authorization-server, the server serves Protected Resource " +
+          "Metadata at /.well-known/oauth-protected-resource so MCP clients can discover how to " +
+          "obtain a token. Unset (default) disables the endpoint and leaves behavior unchanged."
+      ],
+  )
+  var oauthProtectedResource: String? = null
+    private set
+
+  @CommandLine.Option(
+    names = ["--oauth-authorization-server"],
+    description =
+      [
+        "Issuer URL of an OAuth 2.0 authorization server that issues tokens for this resource " +
+          "(RFC 9728 authorization_servers; may be repeated)."
+      ],
+  )
+  var oauthAuthorizationServers: List<String> = emptyList()
+    private set
+
+  @CommandLine.Option(
+    names = ["--oauth-scope"],
+    description =
+      [
+        "OAuth 2.0 scope a client should request to access this resource (RFC 9728 " +
+          "scopes_supported; may be repeated). When set, it is advertised in the Protected " +
+          "Resource Metadata so clients know which scopes to request. Unset (default) omits the " +
+          "field."
+      ],
+  )
+  var oauthScopesSupported: List<String> = emptyList()
+    private set
+
+  @CommandLine.Option(
+    names = ["--oauth-resource-documentation"],
+    description =
+      [
+        "URL of human-readable documentation for this resource (RFC 9728 resource_documentation). " +
+          "When set, it is advertised in the Protected Resource Metadata. Unset (default) omits " +
+          "the field."
+      ],
+  )
+  var oauthResourceDocumentation: String? = null
     private set
 
   @set:CommandLine.Option(

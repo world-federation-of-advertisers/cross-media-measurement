@@ -49,7 +49,11 @@ locals {
     managed_instance_group_name   = "trustee-mill-mig"
     mig_service_account_name      = "trustee-mill-mig-sa"
     replicas                      = 1
-    machine_type                  = "c4d-standard-2"
+    # Using n2d for better Confidential VM availability.
+    # Production deployments may prefer c4d-standard-2 with
+    # hyperdisk-balanced disk (provisioned_iops=5000,
+    # provisioned_throughput=1250).
+    machine_type                  = "n2d-standard-2"
     docker_image                  = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill:${var.image_tag}"
     signed_image_repo             = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill"
     mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]

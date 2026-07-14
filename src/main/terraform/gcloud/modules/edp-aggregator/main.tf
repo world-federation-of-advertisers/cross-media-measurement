@@ -149,6 +149,8 @@ locals {
     "data_watcher_delete"       = module.data_watcher_delete_cloud_function.cloud_function_service_account.email
     "data_availability_cleanup" = module.data_availability_cleanup_cloud_function.cloud_function_service_account.email
     "data_availability_monitor" = module.data_availability_monitor_cloud_function.cloud_function_service_account.email
+    "vid_labeling_dispatcher"   = module.vid_labeling_dispatcher_cloud_function.cloud_function_service_account.email
+    "vid_labeling_monitor"      = module.vid_labeling_monitor_cloud_function.cloud_function_service_account.email
   }
 
   otel_metadata = {
@@ -189,6 +191,13 @@ module "config_files_bucket" {
   source = "../storage-bucket"
 
   name     = var.config_files_bucket_name
+  location = var.edp_aggregator_buckets_location
+}
+
+module "vid_models_bucket" {
+  source = "../storage-bucket"
+
+  name     = var.vid_models_bucket_name
   location = var.edp_aggregator_buckets_location
 }
 
@@ -678,4 +687,222 @@ resource "google_storage_bucket_iam_member" "data_availability_monitor_config_st
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.data_availability_monitor_cloud_function.cloud_function_service_account.email}"
+}
+
+# ============================================================================
+# VID Labeling pipeline (memoized VID assignment).
+#
+# Phase 0 (SubpoolAssigner), Phase 1 (VidRankBuilder) and Phase 2 (VidLabeler)
+# run as Confidential Space TEE applications on Managed Instance Groups, each
+# fed by its own Pub/Sub work queue (the pubsub module auto-creates the
+# dead-letter queue). WorkItems are created through the Secure Computation
+# control plane, which publishes to the queues, so the control-plane internal
+# service account is granted publisher on each topic (same as result_fulfiller).
+#
+# The VidLabelingDispatcher (invoked by the DataWatcher on a "done" blob) and
+# the scheduled VidLabelingMonitor run as HTTP Cloud Functions.
+# ============================================================================
+
+locals {
+  # Cert / root-CA secrets the VID Labeling cloud functions need to open mTLS
+  # gRPC channels: edpa-tee-app TLS (client identity) + the SecureComputation root
+  # (control_plane_connection) + the EdpAggregator root (raw_impression_metadata_storage_connection).
+  # The monitor additionally calls the VID Repository (ModelRollouts/ModelShards/ModelLines)
+  # using the per-EDP TLS certs against the Kingdom root (trusted-root-ca).
+  vid_labeling_function_secrets_access = concat(
+    [
+      "edpa_tee_app_tls_key",
+      "edpa_tee_app_tls_pem",
+      "secure_computation_root_ca",
+      "metadata_storage_root_ca",
+      "trusted_root_ca_collection",
+    ],
+    local.edp_tls_keys,
+  )
+}
+
+module "vid_labeling_queue" {
+  source   = "../pubsub"
+  for_each = var.vid_labeling_workers
+
+  topic_name            = each.value.queue.topic_name
+  subscription_name     = each.value.queue.subscription_name
+  ack_deadline_seconds  = each.value.queue.ack_deadline_seconds
+  max_delivery_attempts = each.value.queue.max_delivery_attempts
+}
+
+resource "google_pubsub_topic_iam_member" "vid_labeling_publisher" {
+  for_each = var.vid_labeling_workers
+
+  topic  = module.vid_labeling_queue[each.key].pubsub_topic.id
+  role   = "roles/pubsub.publisher"
+  member = var.pubsub_iam_service_account_member
+}
+
+# Allow the Secure Computation control plane to consume each phase's dead-letter
+# subscription so its dead-letter listener can mark the EDPA pipeline resources
+# FAILED on Pub/Sub retry exhaustion.
+resource "google_pubsub_subscription_iam_member" "vid_labeling_dead_letter_subscriber" {
+  for_each = var.vid_labeling_workers
+
+  subscription = module.vid_labeling_queue[each.key].dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = var.pubsub_iam_service_account_member
+}
+
+module "vid_labeling_tee_app" {
+  source   = "../mig"
+  for_each = var.vid_labeling_workers
+
+  depends_on = [module.secrets]
+
+  instance_template_name        = each.value.worker.instance_template_name
+  base_instance_name            = each.value.worker.base_instance_name
+  managed_instance_group_name   = each.value.worker.managed_instance_group_name
+  subscription_id               = module.vid_labeling_queue[each.key].pubsub_subscription.name
+  mig_service_account_name      = each.value.worker.mig_service_account_name
+  single_instance_assignment    = each.value.worker.single_instance_assignment
+  min_replicas                  = each.value.worker.min_replicas
+  max_replicas                  = each.value.worker.max_replicas
+  machine_type                  = each.value.worker.machine_type
+  disk_type                     = each.value.worker.disk_type
+  java_tool_options             = each.value.worker.java_tool_options
+  docker_image                  = each.value.worker.docker_image
+  mig_distribution_policy_zones = each.value.worker.mig_distribution_policy_zones
+  terraform_service_account     = var.terraform_service_account
+  secrets_to_access             = local.common_secrets_to_access
+  tee_cmd                       = each.value.worker.app_flags
+  disk_image_family             = var.results_fulfiller_disk_image_family
+  config_storage_bucket         = module.config_files_bucket.storage_bucket.name
+  subnetwork_name               = google_compute_subnetwork.private_subnetwork.name
+  tee_signed_image_repo         = each.value.worker.tee_signed_image_repo
+  extra_metadata                = local.otel_metadata
+}
+
+# The VID Labeling TEE apps read raw impressions and read/write/delete their own pipeline outputs
+# and intermediate blobs on this bucket: subpool-map and rank-index temp blobs are deleted after
+# each merge (SubpoolFingerprintsStore/RankIndexStore.delete), and labeled outputs are overwritten
+# on retry. That requires object delete in addition to create/read, so grant objectUser (create +
+# read + delete + list) rather than the create+read-only objectCreator/objectViewer pair.
+resource "google_storage_bucket_iam_member" "vid_labeling_storage_object_user" {
+  for_each = var.vid_labeling_workers
+
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${module.vid_labeling_tee_app[each.key].mig_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "vid_labeling_config_storage_viewer" {
+  for_each = var.vid_labeling_workers
+
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.vid_labeling_tee_app[each.key].mig_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "vid_labeling_model_storage_viewer" {
+  for_each = var.vid_labeling_workers
+
+  bucket = module.vid_models_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.vid_labeling_tee_app[each.key].mig_service_account.email}"
+}
+
+# ---- VidLabelingDispatcher (HTTP Cloud Function, invoked by the DataWatcher) ----
+resource "google_storage_bucket_object" "upload_vid_labeling_dispatcher_config" {
+  name           = var.vid_labeling_dispatcher_config.destination
+  bucket         = module.config_files_bucket.storage_bucket.name
+  source         = var.vid_labeling_dispatcher_config.local_path
+  source_md5hash = filemd5(var.vid_labeling_dispatcher_config.local_path)
+}
+
+module "vid_labeling_dispatcher_cloud_function" {
+  source = "../http-cloud-function"
+
+  depends_on = [
+    module.secrets,
+    google_storage_bucket_object.upload_vid_labeling_dispatcher_config,
+  ]
+
+  http_cloud_function_service_account_name = var.vid_labeling_dispatcher_service_account_name
+  terraform_service_account                = var.terraform_service_account
+  function_name                            = var.cloud_function_configs.vid_labeling_dispatcher.function_name
+  entry_point                              = var.cloud_function_configs.vid_labeling_dispatcher.entry_point
+  extra_env_vars                           = var.cloud_function_configs.vid_labeling_dispatcher.extra_env_vars
+  secret_mappings                          = var.cloud_function_configs.vid_labeling_dispatcher.secret_mappings
+  uber_jar_path                            = var.cloud_function_configs.vid_labeling_dispatcher.uber_jar_path
+  secrets_to_access                        = [for key in local.vid_labeling_function_secrets_access : local.all_secrets[key].secret_id]
+}
+
+# The DataWatcher invokes the dispatcher over HTTP when a "done" blob lands.
+resource "google_cloud_run_service_iam_member" "vid_labeling_dispatcher_invoker" {
+  depends_on = [module.vid_labeling_dispatcher_cloud_function]
+  service    = var.cloud_function_configs.vid_labeling_dispatcher.function_name
+  role       = "roles/run.invoker"
+  member     = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "vid_labeling_dispatcher_storage_viewer" {
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.vid_labeling_dispatcher_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "vid_labeling_dispatcher_config_storage_viewer" {
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.vid_labeling_dispatcher_cloud_function.cloud_function_service_account.email}"
+}
+
+# ---- VidLabelingMonitor (HTTP Cloud Function, triggered by Cloud Scheduler) ----
+resource "google_storage_bucket_object" "upload_vid_labeling_monitor_config" {
+  name           = var.vid_labeling_monitor_config.destination
+  bucket         = module.config_files_bucket.storage_bucket.name
+  source         = var.vid_labeling_monitor_config.local_path
+  source_md5hash = filemd5(var.vid_labeling_monitor_config.local_path)
+}
+
+module "vid_labeling_monitor_cloud_function" {
+  source = "../http-cloud-function"
+
+  depends_on = [
+    module.secrets,
+    google_storage_bucket_object.upload_vid_labeling_monitor_config,
+  ]
+
+  http_cloud_function_service_account_name = var.vid_labeling_monitor_service_account_name
+  terraform_service_account                = var.terraform_service_account
+  function_name                            = var.cloud_function_configs.vid_labeling_monitor.function_name
+  entry_point                              = var.cloud_function_configs.vid_labeling_monitor.entry_point
+  extra_env_vars                           = var.cloud_function_configs.vid_labeling_monitor.extra_env_vars
+  secret_mappings                          = var.cloud_function_configs.vid_labeling_monitor.secret_mappings
+  uber_jar_path                            = var.cloud_function_configs.vid_labeling_monitor.uber_jar_path
+  secrets_to_access                        = [for key in local.vid_labeling_function_secrets_access : local.all_secrets[key].secret_id]
+}
+
+module "vid_labeling_monitor_cloud_scheduler" {
+  source                    = "../cloud-scheduler"
+  terraform_service_account = var.terraform_service_account
+  scheduler_config          = var.vid_labeling_monitor_scheduler_config
+  depends_on                = [module.vid_labeling_monitor_cloud_function]
+}
+
+module "vid_labeling_dispatch_cloud_scheduler" {
+  source                    = "../cloud-scheduler"
+  terraform_service_account = var.terraform_service_account
+  scheduler_config          = var.vid_labeling_dispatch_scheduler_config
+  depends_on                = [module.vid_labeling_monitor_cloud_function]
+}
+
+resource "google_storage_bucket_iam_member" "vid_labeling_monitor_storage_viewer" {
+  depends_on = [module.vid_labeling_monitor_cloud_function]
+  bucket     = module.edp_aggregator_bucket.storage_bucket.name
+  role       = "roles/storage.objectViewer"
+  member     = "serviceAccount:${module.vid_labeling_monitor_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "vid_labeling_monitor_config_storage_viewer" {
+  bucket = module.config_files_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.vid_labeling_monitor_cloud_function.cloud_function_service_account.email}"
 }

@@ -28,6 +28,7 @@ import com.google.protobuf.util.Timestamps
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
+import java.time.LocalDate
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
@@ -84,6 +85,8 @@ class VidLabelingSinkTest {
   private fun sink(
     contexts: List<ModelLineContext>,
     converter: ImpressionConverter = FakeImpressionConverter(),
+    fileEntityKeys: FileEntityKeys =
+      FileEntityKeys(eventGroupReferenceId = "eg-ref", eventDate = LocalDate.parse("2026-06-30")),
     encryptKmsClient: KmsClient = kmsClient,
     encryptionKeySemaphore: Semaphore =
       Semaphore(VidLabelingSink.DEFAULT_ENCRYPTION_KEY_PARALLELISM),
@@ -92,6 +95,7 @@ class VidLabelingSinkTest {
       inputBlobUri = "file:///raw/file-1.parquet",
       modelLineContexts = contexts,
       impressionConverter = converter,
+      fileEntityKeys = fileEntityKeys,
       encryptKmsClient = encryptKmsClient,
       encryptKekUri = kekUri,
       outputStorageParams = outputStorageParams,
@@ -287,7 +291,7 @@ class VidLabelingSinkTest {
         sink(
           contexts = listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L))),
           converter =
-            ImpressionConverter { event, _ ->
+            ImpressionConverter { event, _, _ ->
               ConvertedImpression(
                 labelerInput = LabelerInput.getDefaultInstance(),
                 eventTime = Timestamps.fromMicros(event.row.getValue(EVENT_TIME_COLUMN).int64Value),
@@ -362,7 +366,7 @@ class VidLabelingSinkTest {
       // converter_skip: the converter returns null for the row.
       sink(
           contexts = listOf(context(ActiveWindow(startMicros = 0L, endMicros = 10_000L))),
-          converter = ImpressionConverter { _, _ -> null },
+          converter = ImpressionConverter { _, _, _ -> null },
         )
         .processBatch(listOf(rawEvent(eventTimeMicros = 1_500L, eventGroup = "eg1", idByte = 2)))
 
@@ -462,6 +466,7 @@ class VidLabelingSinkTest {
     override fun convert(
       event: ParquetDigestedEvent,
       config: VidLabelerParams.ModelLineConfig,
+      fileEntityKeys: FileEntityKeys,
     ): ConvertedImpression =
       ConvertedImpression(
         labelerInput = LabelerInput.getDefaultInstance(),
