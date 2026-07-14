@@ -4251,6 +4251,159 @@ class EventGroupSyncTest {
     verifyBlocking(eventGroupsServiceMock, times(1)) { batchCreateEventGroups(any()) }
   }
 
+  @Test
+  fun `EDP fleet migration keeps kingdom row count static as EventGroups migrate at different paces`() {
+    // Fleet-wide partial-migration scenario across five syncs. Three EventGroups (eg-A, eg-B, eg-C)
+    // start refId-only. Each migrates independently to entity_key at a different pace: eg-A
+    // migrates
+    // first, then eg-B, then eg-C. The invariant across every sync is: the kingdom row count is
+    // exactly the number of distinct EventGroups (3), and each EDP's identifier evolves without
+    // touching the others.
+    val edpName = "edp-fleet"
+    val mcName = "measurementConsumers/mc-fleet"
+
+    // Kingdom state, keyed by resource name so we can detect duplicates by count.
+    val kingdom = mutableMapOf<String, CmmsEventGroup>()
+
+    wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
+      .thenAnswer { listEventGroupsResponse { eventGroups += kingdom.values } }
+    wheneverBlocking { eventGroupsServiceMock.batchCreateEventGroups(any()) }
+      .thenAnswer { invocation ->
+        val requests = invocation.getArgument<BatchCreateEventGroupsRequest>(0).requestsList
+        batchCreateEventGroupsResponse {
+          eventGroups +=
+            requests.map { req ->
+              // Deterministic resource name per (refId or entityKey) so a duplicate-create would be
+              // detectable — same input identifier maps to same resource name here.
+              val identityKey =
+                if (req.eventGroup.hasEntityKey() && req.eventGroup.entityKey.entityId.isNotBlank())
+                  "ek-${req.eventGroup.entityKey.entityType}-${req.eventGroup.entityKey.entityId}"
+                else "ref-${req.eventGroup.eventGroupReferenceId}"
+              val resourceName = "dataProviders/$edpName/eventGroups/$identityKey"
+              val created = cmmsEventGroup {
+                name = resourceName
+                measurementConsumer = req.eventGroup.measurementConsumer
+                eventGroupReferenceId = req.eventGroup.eventGroupReferenceId
+                if (req.eventGroup.hasEntityKey()) entityKey = req.eventGroup.entityKey
+                eventGroupMetadata = req.eventGroup.eventGroupMetadata
+                dataAvailabilityInterval = req.eventGroup.dataAvailabilityInterval
+                mediaTypes += req.eventGroup.mediaTypesList
+              }
+              kingdom[resourceName] = created
+              created
+            }
+        }
+      }
+    wheneverBlocking { eventGroupsServiceMock.batchUpdateEventGroups(any()) }
+      .thenAnswer { invocation ->
+        val requests = invocation.getArgument<BatchUpdateEventGroupsRequest>(0).requestsList
+        batchUpdateEventGroupsResponse {
+          eventGroups +=
+            requests.map { req ->
+              kingdom[req.eventGroup.name] = req.eventGroup
+              req.eventGroup
+            }
+        }
+      }
+
+    fun basicMetadata() = eventGroupMetadata {
+      this.adMetadata = adMetadata {
+        this.campaignMetadata = campaignMetadata {
+          brand = "brand"
+          campaign = "campaign"
+        }
+      }
+    }
+    val availability = interval {
+      startTime = timestamp { seconds = 200 }
+      endTime = timestamp { seconds = 300 }
+    }
+
+    fun sourceRow(refId: String, entityId: String?): EdpaEventGroup = eventGroup {
+      if (refId.isNotEmpty()) eventGroupReferenceId = refId
+      measurementConsumer = mcName
+      eventGroupMetadata = basicMetadata()
+      if (entityId != null) {
+        entityKey = entityKey {
+          entityType = "creative"
+          this.entityId = entityId
+        }
+      }
+      dataAvailabilityInterval = availability
+      mediaTypes += listOf(MediaType.VIDEO)
+    }
+
+    fun runSync(vararg sources: EdpaEventGroup): List<MappedEventGroup> = runBlocking {
+      EventGroupSync(
+          edpName,
+          eventGroupsStub,
+          clientAccountsStub,
+          sources.toList().asFlow(),
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          100,
+          entityKeyTypes = emptyList(),
+        )
+        .sync()
+        .toList()
+    }
+
+    // Sync 1: three refId-only EventGroups. All new -> 3 creates.
+    val sync1 =
+      runSync(
+        sourceRow("ref-A", entityId = null),
+        sourceRow("ref-B", entityId = null),
+        sourceRow("ref-C", entityId = null),
+      )
+    assertThat(sync1).hasSize(3)
+    assertThat(kingdom.keys.size).isEqualTo(3)
+    val initialResourceNames = kingdom.keys.toSet()
+
+    // Sync 2: eg-A migrates (adds entity_key). eg-B and eg-C stay refId-only.
+    // eg-A: findExistingEventGroup matches by refId -> update path backfills entity_key. Same row.
+    // eg-B, eg-C: matched by refId, no change -> no-op (WriteAction.None emits mapping without
+    // any RPC).
+    runSync(
+      sourceRow("ref-A", entityId = "id-A"),
+      sourceRow("ref-B", entityId = null),
+      sourceRow("ref-C", entityId = null),
+    )
+    assertThat(kingdom.keys).isEqualTo(initialResourceNames) // no duplicates
+    assertThat(kingdom.values.count { it.hasEntityKey() }).isEqualTo(1) // only eg-A migrated
+
+    // Sync 3: eg-B migrates too. eg-C still refId-only.
+    runSync(
+      sourceRow("ref-A", entityId = "id-A"),
+      sourceRow("ref-B", entityId = "id-B"),
+      sourceRow("ref-C", entityId = null),
+    )
+    assertThat(kingdom.keys).isEqualTo(initialResourceNames)
+    assertThat(kingdom.values.count { it.hasEntityKey() }).isEqualTo(2)
+
+    // Sync 4: eg-C migrates. Now all three are dual-keyed.
+    runSync(
+      sourceRow("ref-A", entityId = "id-A"),
+      sourceRow("ref-B", entityId = "id-B"),
+      sourceRow("ref-C", entityId = "id-C"),
+    )
+    assertThat(kingdom.keys).isEqualTo(initialResourceNames)
+    assertThat(kingdom.values.count { it.hasEntityKey() }).isEqualTo(3)
+
+    // Sync 5: eg-A and eg-B drop refId (entity_key only). eg-C keeps refId.
+    runSync(
+      sourceRow("", entityId = "id-A"),
+      sourceRow("", entityId = "id-B"),
+      sourceRow("ref-C", entityId = "id-C"),
+    )
+    // Kingdom row count still 3 — no duplicate created because findExistingEventGroup matched by
+    // entity_key on eg-A / eg-B (they're already dual-keyed from sync 3-4).
+    assertThat(kingdom.keys).isEqualTo(initialResourceNames)
+    assertThat(kingdom.values.count { it.hasEntityKey() }).isEqualTo(3)
+
+    // Total creates across all five syncs = 3 (only sync 1). All later syncs took the update or
+    // no-op path.
+    verifyBlocking(eventGroupsServiceMock, times(1)) { batchCreateEventGroups(any()) }
+  }
+
   companion object {
     private val CAMPAIGNS =
       listOf(
