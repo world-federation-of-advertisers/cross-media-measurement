@@ -61,6 +61,12 @@ import picocli.CommandLine.Option
       BackfillModelLineCommand::class,
       EvictUploadsCommand::class,
       RedeliverDlqCommand::class,
+      // TODO(world-federation-of-advertisers/cross-media-measurement#4223): add
+      // HealRankIndexCommand
+      // to rebuild a corrupted cumulative rank-index SNAPSHOT from retained inputs. A COMPLETED
+      // model
+      // line is terminal today, so this needs a reopen-for-re-rank transition or a ranker TEE heal
+      // mode — see the issue.
       CommandLine.HelpCommand::class,
     ],
 )
