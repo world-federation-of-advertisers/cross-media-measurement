@@ -185,14 +185,26 @@ Indexes:
 | `ImpressionMetadataByResourceId` (unique) | Lookup by resource ID |
 | `ImpressionMetadataByCreateRequestId` (unique, null-filtered) | Idempotency on create |
 | `ImpressionMetadataByBlobUri` (unique) | Lookup / cleanup by blob URI |
-| `ImpressionMetadataByListFilterAndPagination` | Backs `ListImpressionMetadata` filtered by model line + event group + state + interval, and pagination |
+| `ImpressionMetadataByListFilterAndPagination` | Backs `ListImpressionMetadata` filtered by model line + event group + interval, and pagination |
 
-`ListImpressionMetadata` is index-covered by
-`ImpressionMetadataByListFilterAndPagination` (`DataProviderResourceId`,
-`CmmsModelLine`, `EventGroupReferenceId`, `State`, `IntervalStartTime`,
-`IntervalEndTime`, …), so a well-formed filter is a range scan, not a table scan.
-A filter that omits the leading columns (e.g. filters only by interval) cannot
-use the index efficiently.
+Entity keys live in an interleaved child table, `ImpressionMetadataEntityKeys`
+(`DataProviderResourceId`, `ImpressionMetadataId`, `EntityType`, `EntityId`),
+`INTERLEAVE IN PARENT ImpressionMetadata ON DELETE CASCADE`, with a
+`ImpressionMetadataEntityKeysByTypeAndId` index. Each entity key on a row is one
+additional interleaved row plus its index entry — factor this into write
+mutation cost for entity-keyed metadata, and note it backs the `entity_keys`
+list filter.
+
+`ListImpressionMetadata` is backed by `ImpressionMetadataByListFilterAndPagination`
+(`DataProviderResourceId`, `CmmsModelLine`, `EventGroupReferenceId`, `State`,
+`IntervalStartTime`, `IntervalEndTime`, `CreateTime`,
+`ImpressionMetadataResourceId`). The public filter exposes `model_line`,
+`event_group_reference_id`, `interval_overlaps`, `blob_uri_prefix`,
+`entity_keys`, and `blob_uris` (plus a `show_deleted` flag that governs whether
+soft-`DELETED` rows are returned — `State` is an index column, not a caller-set
+filter field). A filter that supplies the leading index columns (model line,
+then event group, then interval) is a range scan; one that omits them cannot use
+the index efficiently.
 
 ## ImpressionMetadata service: behavior at scale
 
@@ -201,9 +213,8 @@ use the index efficiently.
   batch size must stay under the mutation limit (see below). A day's worth of
   metadata for many event groups × dates is created here.
 - **`ListImpressionMetadata` from the results-fulfiller** is the read hot path.
-  It is paginated and index-covered; keep filters aligned to the index prefix
-  (model line, then event group, then state, then interval) so they stay range
-  scans.
+  It is paginated and index-backed; keep filters aligned to the index prefix
+  (model line, then event group, then interval) so they stay range scans.
 - **`ComputeModelLineBounds`** aggregates over a model line's rows to find the
   covered interval. It scans more rows than a point lookup; call it deliberately
   (e.g. once per planning step), not in a tight loop, and expect its cost to grow
