@@ -197,7 +197,7 @@ module "config_files_bucket" {
 module "vid_models_bucket" {
   source = "../storage-bucket"
 
-  name     = "vid-models-storage"
+  name     = var.vid_models_bucket_name
   location = var.edp_aggregator_buckets_location
 }
 
