@@ -16,11 +16,11 @@
 
 package org.wfanet.measurement.edpaggregator.tools
 
-import java.util.UUID
 import java.util.logging.Logger
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 
 /**
  * Adds a new model line to existing (already COMPLETED) `RawImpressionUpload`s so it is labeled
@@ -72,7 +72,7 @@ class ModelLineBackfiller(
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
               this.cmmsModelLine = cmmsModelLine
             }
-            requestId = backfillRequestId(uploadName, cmmsModelLine)
+            requestId = RequestIds.forRawImpressionUploadModelLine(uploadName, cmmsModelLine)
           }
         )
       created.add(modelLine.name)
@@ -83,9 +83,5 @@ class ModelLineBackfiller(
 
   companion object {
     private val logger: Logger = Logger.getLogger(ModelLineBackfiller::class.java.name)
-
-    /** Deterministic Create request id so a re-run of the backfill is idempotent. */
-    private fun backfillRequestId(uploadName: String, cmmsModelLine: String): String =
-      UUID.nameUUIDFromBytes("backfill:$uploadName:$cmmsModelLine".toByteArray()).toString()
   }
 }

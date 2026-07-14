@@ -28,6 +28,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
@@ -205,6 +206,17 @@ class RetryFailedCommand : EdpaApiCommand() {
   )
   private lateinit var modelLine: String
 
+  @Option(
+    names = ["--from-phase"],
+    description =
+      [
+        "Override the phase to re-trigger from (POOL_ASSIGNING, RANKING, or LABELING). Default: " +
+          "the furthest phase the model line reached, auto-detected from existing job rows."
+      ],
+    required = false,
+  )
+  private var fromPhase: RawImpressionUploadModelLine.State? = null
+
   override fun run() {
     val edpaChannel: ManagedChannel = buildEdpaChannel()
     val controlPlaneChannel: ManagedChannel =
@@ -219,7 +231,7 @@ class RetryFailedCommand : EdpaApiCommand() {
             VidLabelingJobServiceCoroutineStub(edpaChannel),
             WorkItemsCoroutineStub(controlPlaneChannel),
           )
-        val result = retrier.retryFailed(rawImpressionUpload, modelLine)
+        val result = retrier.retryFailed(rawImpressionUpload, modelLine, fromPhase)
         println(
           "Re-triggered ${result.modelLineName} at ${result.newState}: republished " +
             "${result.workItemsRepublished} WorkItem(s)."
