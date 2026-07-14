@@ -29,9 +29,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModel
  * `VidLabelingMonitorFunction` owns automated recovery (stuck-phase advancement, dispatch
  * sequencing).
  *
- * @param modelLinesStub stub for the `RawImpressionUploadModelLineService` public API.
+ * @param rawImpressionModelLinesStub stub for the `RawImpressionUploadModelLineService` public API.
  */
-class DispatchFailer(private val modelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub) {
+class DispatchFailer(
+  private val rawImpressionModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub
+) {
   /**
    * Marks every non-terminal child model line of [rawImpressionUpload] `FAILED`, recording [reason]
    * as its `error_message`.
@@ -49,7 +51,7 @@ class DispatchFailer(private val modelLinesStub: RawImpressionUploadModelLineSer
    */
   suspend fun failUpload(rawImpressionUpload: String, reason: String): List<String> {
     val failed = mutableListOf<String>()
-    for (modelLine in modelLinesStub.listModelLines(rawImpressionUpload)) {
+    for (modelLine in rawImpressionModelLinesStub.listModelLines(rawImpressionUpload)) {
       if (modelLine.state !in STUCK_STATES) {
         logger.info("${modelLine.name} is ${modelLine.state} (not stuck); leaving as-is.")
         continue
@@ -58,7 +60,7 @@ class DispatchFailer(private val modelLinesStub: RawImpressionUploadModelLineSer
       // request_id REQUIRED on the Mark* RPCs, set
       // requestId = RequestIds.forMarkRawImpressionUploadModelLineFailed(modelLine.name) so an
       // operator re-run hits the AIP-155 replay short-circuit instead of failing INVALID_ARGUMENT.
-      modelLinesStub.markRawImpressionUploadModelLineFailed(
+      rawImpressionModelLinesStub.markRawImpressionUploadModelLineFailed(
         markRawImpressionUploadModelLineFailedRequest {
           name = modelLine.name
           errorMessage = reason
