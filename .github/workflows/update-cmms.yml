@@ -296,7 +296,7 @@ jobs:
       - name: Run Compliance Check
         env:
           DASHBOARD_CONFIG_CONTENT: ${{ vars.DASHBOARD_CONFIG_CONTENT }}
-          GOOGLE_CLOUD_PROJECT: ${{ vars.GOOGLE_CLOUD_PROJECT }}
+          GOOGLE_CLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
         run: |
           set -euo pipefail
           # Dashboard config is consolidated into DASHBOARD_CONFIG_CONTENT (#4124);
