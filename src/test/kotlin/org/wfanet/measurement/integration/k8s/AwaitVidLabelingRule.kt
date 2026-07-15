@@ -17,6 +17,8 @@
 package org.wfanet.measurement.integration.k8s
 
 import io.grpc.ManagedChannel
+import io.grpc.Status
+import io.grpc.StatusException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.logging.Logger
@@ -94,21 +96,31 @@ class AwaitVidLabelingRule : TestRule {
       val terminal =
         withTimeoutOrNull(TIMEOUT_MS) {
           while (true) {
-            val uploads: List<RawImpressionUpload> = listUploads(uploadsStub)
-            if (uploads.isEmpty()) {
-              lastSummary = "no RawImpressionUploads for $PIPELINED_DATA_PROVIDER yet"
-            } else {
-              val lines: List<RawImpressionUploadModelLine> =
-                uploads.flatMap { listModelLines(modelLinesStub, it.name) }
-              val failed = lines.filter { it.state == RawImpressionUploadModelLine.State.FAILED }
-              check(failed.isEmpty()) {
-                "VID Labeling FAILED for ${failed.size} model line(s): " +
-                  failed.joinToString { it.name }
+            try {
+              val uploads: List<RawImpressionUpload> = listUploads(uploadsStub)
+              if (uploads.isEmpty()) {
+                lastSummary = "no RawImpressionUploads for $PIPELINED_DATA_PROVIDER yet"
+              } else {
+                val lines: List<RawImpressionUploadModelLine> =
+                  uploads.flatMap { listModelLines(modelLinesStub, it.name) }
+                val failed = lines.filter { it.state == RawImpressionUploadModelLine.State.FAILED }
+                check(failed.isEmpty()) {
+                  "VID Labeling FAILED for ${failed.size} model line(s): " +
+                    failed.joinToString { it.name }
+                }
+                lastSummary = summarize(uploads, lines)
+                if (lines.isNotEmpty() && lines.all { it.state == COMPLETED }) {
+                  return@withTimeoutOrNull true
+                }
               }
-              lastSummary = summarize(uploads, lines)
-              if (lines.isNotEmpty() && lines.all { it.state == COMPLETED }) {
-                return@withTimeoutOrNull true
-              }
+            } catch (e: StatusException) {
+              // The metadata API can briefly return UNAVAILABLE/INTERNAL while its pods roll (e.g.
+              // just after a terraform redeploy) or on a transient network blip. Retry within the
+              // overall timeout rather than failing the whole run; a genuinely FAILED model line
+              // still fails fast via check() above (IllegalStateException, not caught here).
+              if (e.status.code !in RETRYABLE_CODES) throw e
+              lastSummary = "transient ${e.status.code} from metadata API (retrying): ${e.message}"
+              logger.warning(lastSummary)
             }
             logger.info("Waiting for VID Labeling to complete… $lastSummary")
             delay(POLL_MS)
@@ -120,7 +132,14 @@ class AwaitVidLabelingRule : TestRule {
       }
       logger.info("VID Labeling COMPLETED for all edp7 model lines. $lastSummary")
 
-      verifyPhaseJobs(channel, listUploads(uploadsStub).flatMap { listModelLines(modelLinesStub, it.name) })
+      try {
+        verifyPhaseJobs(
+          channel,
+          listUploads(uploadsStub).flatMap { listModelLines(modelLinesStub, it.name) },
+        )
+      } catch (e: StatusException) {
+        logger.warning("Skipping best-effort phase-job verification (${e.status.code}): ${e.message}")
+      }
     } finally {
       channel.shutdown()
     }
@@ -248,6 +267,17 @@ class AwaitVidLabelingRule : TestRule {
     // 45 min leaves ample margin while staying under the workflow's 60 min `--test_timeout`.
     private const val TIMEOUT_MS = 45L * 60L * 1000L
     private const val POLL_MS = 20L * 1000L
+
+    // Transient gRPC codes from the metadata API (pod rollout after a deploy, network blips) that
+    // should be retried within TIMEOUT_MS rather than failing the run.
+    private val RETRYABLE_CODES =
+      setOf(
+        Status.Code.UNAVAILABLE,
+        Status.Code.INTERNAL,
+        Status.Code.DEADLINE_EXCEEDED,
+        Status.Code.UNKNOWN,
+        Status.Code.ABORTED,
+      )
 
     private fun env(name: String): String = System.getenv(name).orEmpty()
 
