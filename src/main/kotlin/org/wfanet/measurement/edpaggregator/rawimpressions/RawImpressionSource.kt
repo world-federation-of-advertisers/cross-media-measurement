@@ -24,6 +24,8 @@ import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -173,6 +175,14 @@ class RawImpressionSource(
   // fingerprint-shard filter and NO whole-upload discovery. When null (Phase 0), discover all
   // of [rawImpressionUpload]'s files and apply the shard filter.
   private val inputFiles: List<String>? = null,
+  // Whether the event-id [EventIdDigest] is needed downstream. When false AND [totalShards] == 1
+  // (no shard filter to apply either), the per-row SHA-256 digest is skipped and a null digest
+  // is delivered — used by the non-memoized single-shard Phase-2 path, whose consumer never reads
+  // the digest. A null (rather than a placeholder value) makes any accidental future read fail fast
+  // instead of silently colliding. Defaults to true (compute), matching all prior callers
+  // (Phase-0 subpool assignment and memoized Phase-2, which key on the digest). When [totalShards]
+  // > 1 the digest is always computed regardless, since the shard filter needs it.
+  private val needsDigest: Boolean = true,
 ) {
   init {
     require(totalShards > 0) { "totalShards must be positive, got $totalShards" }
@@ -392,10 +402,20 @@ class RawImpressionSource(
     var droppedOtherShard = 0L
     var emitted = 0L
     var batch = ArrayList<ParquetDigestedEvent>(batchSize)
+    // Compute the digest only when a consumer needs it or the shard filter does (totalShards > 1).
+    // On the non-memoized single-shard path both are false, so the SHA-256 per row is skipped and
+    // the (never-read) digest is null; the shard filter is also skipped (it is a no-op at
+    // totalShards == 1, where belongsToShard is always true).
+    val computeDigest = needsDigest || totalShards > 1
     parquetBlob.readRows().collect { row ->
       read++
-      val digest = eventIdDigestExtractor.extract(readEventIdBytes(row, blobUri))
-      if (!belongsToShard(digest)) {
+      val digest =
+        if (computeDigest) {
+          eventIdDigestExtractor.extract(readEventIdBytes(row, blobUri))
+        } else {
+          null
+        }
+      if (computeDigest && !belongsToShard(digest!!)) {
         droppedOtherShard++
         return@collect
       }
@@ -422,14 +442,29 @@ class RawImpressionSource(
    */
   private suspend fun discoverBlobUris(): List<String> {
     if (inputFiles != null) {
-      return inputFiles.map { fileName ->
-        try {
-          rawImpressionUploadFilesStub
-            .getRawImpressionUploadFile(getRawImpressionUploadFileRequest { name = fileName })
-            .blobUri
-        } catch (e: StatusException) {
-          throw Exception("Error getting RawImpressionUploadFile $fileName", e)
-        }
+      // Resolve the file-list -> blob_uri lookups with bounded concurrency, collecting BY INDEX
+      // (awaitAll) so the resolved order is identical to the serial order. This is a separate,
+      // ephemeral scope that completes before any row-processing worker starts, so it never shares
+      // the CPU worker pool.
+      val resolveSemaphore = Semaphore(FILE_RESOLVE_CONCURRENCY)
+      return coroutineScope {
+        inputFiles
+          .map { fileName ->
+            async(readDispatcher) {
+              resolveSemaphore.withPermit {
+                try {
+                  rawImpressionUploadFilesStub
+                    .getRawImpressionUploadFile(
+                      getRawImpressionUploadFileRequest { name = fileName }
+                    )
+                    .blobUri
+                } catch (e: StatusException) {
+                  throw Exception("Error getting RawImpressionUploadFile $fileName", e)
+                }
+              }
+            }
+          }
+          .awaitAll()
       }
     }
     val blobUris = mutableListOf<String>()
@@ -528,5 +563,8 @@ class RawImpressionSource(
 
     /** Page size for listing the upload's files. */
     private const val LIST_PAGE_SIZE = 1000
+
+    /** Max concurrent `GetRawImpressionUploadFile` lookups when resolving a file list. */
+    private const val FILE_RESOLVE_CONCURRENCY = 8
   }
 }

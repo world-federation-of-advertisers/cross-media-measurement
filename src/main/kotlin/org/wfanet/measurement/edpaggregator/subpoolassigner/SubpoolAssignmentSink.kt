@@ -94,7 +94,7 @@ class SubpoolAssignmentSink(
       // return count says whether the event routed anywhere.
       val routed =
         labeler.emit(input) { offset ->
-          accumulator.add(offset, event.digest.high, event.digest.low)
+          accumulator.add(offset, event.digest!!.high, event.digest!!.low)
         }
       if (routed == 0) {
         // Per-event logging is intentionally avoided on this hot path (potentially billions of

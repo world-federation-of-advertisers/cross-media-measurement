@@ -27,6 +27,7 @@ package org.wfanet.measurement.edpaggregator.rawimpressions
  * `LabelerInput` proto) via the `labeler_input_field_mapping`.
  *
  * @property row the decoded row.
- * @property digest the event-id [EventIdDigest]; distinct from the labeler's `acting_fingerprint`.
+ * @property digest the event-id [EventIdDigest], or null when it was not computed (the non-memoized
+ *   single-shard path skips the SHA-256); distinct from the labeler's `acting_fingerprint`.
  */
-data class DigestedEvent<R>(val row: R, val digest: EventIdDigest)
+data class DigestedEvent<R>(val row: R, val digest: EventIdDigest?)
