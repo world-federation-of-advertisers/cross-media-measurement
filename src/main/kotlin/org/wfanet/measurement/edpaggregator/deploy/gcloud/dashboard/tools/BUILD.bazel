@@ -2,12 +2,22 @@ load("@rules_java//java:java_binary.bzl", "java_binary")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 kt_jvm_library(
-    name = "dashboard_compliance_check",
-    srcs = ["DashboardComplianceCheck.kt"],
+    name = "dashboard_compliance_runner",
+    srcs = ["DashboardComplianceRunner.kt"],
+    visibility = ["//visibility:public"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard:dashboard_isolation_checks",
         "@maven//:com_google_auth_google_auth_library_oauth2_http",
         "@maven//:com_google_cloud_google_cloud_bigquery",
+    ],
+)
+
+kt_jvm_library(
+    name = "dashboard_compliance_check",
+    srcs = ["DashboardComplianceCheck.kt"],
+    deps = [
+        ":dashboard_compliance_runner",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard:dashboard_isolation_checks",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
@@ -17,4 +27,21 @@ java_binary(
     name = "DashboardComplianceCheck",
     main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.tools.DashboardComplianceCheck",
     runtime_deps = [":dashboard_compliance_check"],
+)
+
+kt_jvm_library(
+    name = "dashboard_compliance_check_function",
+    srcs = ["DashboardComplianceCheckFunction.kt"],
+    deps = [
+        ":dashboard_compliance_runner",
+        "//src/main/kotlin/org/wfanet/measurement/common:env_vars",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard:dashboard_isolation_checks",
+        "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
+    ],
+)
+
+java_binary(
+    name = "DashboardComplianceCheckFunction",
+    main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.tools.DashboardComplianceCheckFunction",
+    runtime_deps = [":dashboard_compliance_check_function"],
 )
