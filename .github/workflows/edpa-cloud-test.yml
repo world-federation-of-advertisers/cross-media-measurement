@@ -94,6 +94,17 @@ jobs:
       - name: Set TCP keepalive
         run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
 
+      # The edpa_meta AWS KMS client authenticates via web-identity federation: it needs a GitHub
+      # OIDC token on disk, pointed to by AWS_WEB_IDENTITY_TOKEN_FILE. The AWS role
+      # (EDPA_META_AWS_ROLE_ARN) trust policy must accept GitHub's OIDC issuer
+      # (token.actions.githubusercontent.com) with the sts.amazonaws.com audience.
+      - name: Write AWS web-identity token file
+        run: |
+          token_file="$RUNNER_TEMP/aws-web-identity-token"
+          curl -sSf -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value' > "$token_file"
+          echo "AWS_WEB_IDENTITY_TOKEN_FILE=$token_file" >> "$GITHUB_ENV"
+
       - name: Run tests
         id: run-tests
         env:
