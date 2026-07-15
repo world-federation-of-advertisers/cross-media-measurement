@@ -330,7 +330,7 @@ locals {
   # so new uploads start promptly; dispatch is user-visible latency, so it wants
   # a fast clock independent of the slow health cadence.
   vid_labeling_dispatch_scheduler_config = {
-    schedule                  = "*/5 * * * *" # Every 5 minutes (backstop for a missed fast-path dispatch)
+    schedule                  = "0 */6 * * *" # Every 6 hours
     time_zone                 = "UTC"
     name                      = "vid-labeling-dispatch-sched"
     function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/vid-labeling-monitor?mode=dispatch"
