@@ -22,7 +22,11 @@ import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.UUID
 import java.util.logging.Logger
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.pack
@@ -120,10 +124,15 @@ class VidRankBuilder(
   private val vidLabelerQueue: String,
   private val maxFileBatchSizeBytes: Long,
   private val maxJobsPerBatchCreate: Int = DEFAULT_MAX_JOBS_PER_BATCH_CREATE,
+  // Max subpools ranked concurrently within one RankerJob. Each subpool's own rank build is already
+  // parallelized across cores by SubpoolRanker, so this stays small (default 2) and never breaks a
+  // 1-subpool job (which then runs exactly one rank at a time). Must be >= 1.
+  private val maxConcurrentSubpools: Int = DEFAULT_MAX_CONCURRENT_SUBPOOLS,
 ) {
   init {
     require(maxFileBatchSizeBytes > 0) { "maxFileBatchSizeBytes must be > 0" }
     require(maxJobsPerBatchCreate > 0) { "maxJobsPerBatchCreate must be > 0" }
+    require(maxConcurrentSubpools > 0) { "maxConcurrentSubpools must be > 0" }
     // Fail fast at construction rather than on the eventual last-job-out (possibly days later), so
     // a
     // deployment missing the queue is caught before any RankerJob is processed.
@@ -154,12 +163,18 @@ class VidRankBuilder(
       return recoverIfLastJobOut()
     }
 
-    for ((poolOffset, blobUri) in subpoolMapBlobUris) {
-      val rankedSize =
-        requireNotNull(subpoolRankedSizes[poolOffset]) {
-          "subpool_ranked_sizes missing offset $poolOffset for $rankerJob"
-        }
-      subpoolRanker.rank(poolOffset, blobUri, rankedSize)
+    // Rank this job's subpools, overlapping up to [maxConcurrentSubpools] at a time (each subpool's
+    // own build is already core-parallel). A 1-subpool job runs exactly one rank. Any subpool
+    // failure cancels the siblings and propagates so the framework nacks and Pub/Sub retries.
+    coroutineScope {
+      val subpoolPermits = Semaphore(maxConcurrentSubpools)
+      for ((poolOffset, blobUri) in subpoolMapBlobUris) {
+        val rankedSize =
+          requireNotNull(subpoolRankedSizes[poolOffset]) {
+            "subpool_ranked_sizes missing offset $poolOffset for $rankerJob"
+          }
+        launch { subpoolPermits.withPermit { subpoolRanker.rank(poolOffset, blobUri, rankedSize) } }
+      }
     }
 
     val markResponse =
@@ -512,6 +527,9 @@ class VidRankBuilder(
      * service's per-batch limit).
      */
     private const val DEFAULT_MAX_JOBS_PER_BATCH_CREATE = 50
+
+    /** Default number of subpools ranked concurrently within one `RankerJob`. */
+    const val DEFAULT_MAX_CONCURRENT_SUBPOOLS = 2
 
     private val logger = Logger.getLogger(VidRankBuilder::class.java.name)
   }

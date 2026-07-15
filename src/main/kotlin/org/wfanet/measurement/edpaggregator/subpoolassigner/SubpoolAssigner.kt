@@ -26,7 +26,12 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 import java.util.logging.Logger
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.pack
@@ -162,14 +167,30 @@ class SubpoolAssigner(
     //   row-first DEK, or key-on-row) is an API change; kept unconditional for now.
     val dek: EncryptedDek = store.generateDek(kekUri)
     val subpoolIds = accumulator.subpoolIds().toList()
-    for (subpoolId in subpoolIds) {
-      store.writeBlob(
-        shardSubpoolKey(shardIndex, subpoolId),
-        dek,
-        subpoolId,
-        accumulator.streamChunks(subpoolId),
-      )
-      accumulator.remove(subpoolId)
+    // Write the per-subpool blobs with bounded concurrency (each subpool is a distinct blob key and
+    // a distinct accumulator bucket, so the writes are independent). The shared encrypted client is
+    // thread-safe for concurrent writeBlob, and streamChunks/remove operate on disjoint buckets, so
+    // this is safe. This runs after the read/label stream has fully drained, so it uses a separate,
+    // ephemeral scope — never the row-processing worker pool. Each subpool's map is freed as soon
+    // as
+    // its blob is durable, so peak memory is unchanged (all maps are already resident here).
+    coroutineScope {
+      val uploadSemaphore = Semaphore(SUBPOOL_UPLOAD_CONCURRENCY)
+      subpoolIds
+        .map { subpoolId ->
+          async {
+            uploadSemaphore.withPermit {
+              store.writeBlob(
+                shardSubpoolKey(shardIndex, subpoolId),
+                dek,
+                subpoolId,
+                accumulator.streamChunks(subpoolId),
+              )
+              accumulator.remove(subpoolId)
+            }
+          }
+        }
+        .awaitAll()
     }
     val subpoolCount = subpoolIds.size
 
@@ -273,20 +294,30 @@ class SubpoolAssigner(
     // MarkPoolAssignmentJobSucceeded; recover them via ListPoolAssignmentJobs for this model line.
     val shardDeks: Map<Int, EncryptedDek> = listShardDeks()
 
-    for (poolOffset in poolOffsets) {
-      val inputs =
-        (0 until totalShards).map { shard ->
-          SubpoolFingerprintsStore.SubpoolBlob(
-            shardSubpoolKey(shard, poolOffset),
-            requireNotNull(shardDeks[shard]) { "Missing DEK for shard $shard; cannot merge" },
-          )
+    // Merge the subpools CONCURRENTLY, all sharing one Semaphore so the TOTAL number of in-flight
+    // shard reads across every subpool merge is bounded by MERGE_READ_CONCURRENCY, keeping merge
+    // memory bounded regardless of the subpool/shard fan-out.
+    val readSemaphore = Semaphore(MERGE_READ_CONCURRENCY)
+    coroutineScope {
+      poolOffsets
+        .map { poolOffset ->
+          async {
+            val inputs =
+              (0 until totalShards).map { shard ->
+                SubpoolFingerprintsStore.SubpoolBlob(
+                  shardSubpoolKey(shard, poolOffset),
+                  requireNotNull(shardDeks[shard]) { "Missing DEK for shard $shard; cannot merge" },
+                )
+              }
+            // NOTE(world-federation-of-advertisers/cross-media-measurement#3999): mergeSubpool
+            //   writes unconditionally (see SubpoolFingerprintsStore.mergeSubpool). This recovery
+            //   path re-runs the merge idempotently by re-writing the merged blob, which a
+            //   write-if-absent precondition would break, so the merge is deliberately left
+            //   unconditional.
+            store.mergeSubpool(inputs, mergedSubpoolKey(poolOffset), mergedDek, readSemaphore)
+          }
         }
-      // NOTE(world-federation-of-advertisers/cross-media-measurement#3999): mergeSubpool
-      //   writes unconditionally (see SubpoolFingerprintsStore.mergeSubpool). This recovery
-      //   path re-runs the merge idempotently by re-writing the merged blob, which a
-      //   write-if-absent precondition would break, so the merge is deliberately left
-      //   unconditional.
-      store.mergeSubpool(inputs, mergedSubpoolKey(poolOffset), mergedDek)
+        .awaitAll()
     }
 
     fanOutRanking(parent, poolOffsets, maxEventDate, mergedDek)
@@ -546,6 +577,20 @@ class SubpoolAssigner(
 
   companion object {
     private val logger = Logger.getLogger(SubpoolAssigner::class.java.name)
+
+    /** Default max total in-flight shard reads across all concurrent subpool merges. */
+    private const val DEFAULT_MERGE_READ_CONCURRENCY = 16
+
+    /**
+     * Max total in-flight shard reads across all concurrent subpool merges, bounding merge memory.
+     * Tunable via the `MERGE_READ_CONCURRENCY` env var; default [DEFAULT_MERGE_READ_CONCURRENCY].
+     */
+    private val MERGE_READ_CONCURRENCY =
+      (System.getenv("MERGE_READ_CONCURRENCY")?.toIntOrNull() ?: DEFAULT_MERGE_READ_CONCURRENCY)
+        .coerceAtLeast(1)
+
+    /** Max concurrent per-subpool blob uploads for one shard's flush. */
+    private const val SUBPOOL_UPLOAD_CONCURRENCY = 8
 
     /**
      * Parent states that mean the last-shard-out fan-out already completed (state flip is last).
