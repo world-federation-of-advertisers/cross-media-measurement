@@ -179,21 +179,29 @@ data-availability.
 
 ### The Spanner `ImpressionMetadata` table
 
-Columns (14): `DataProviderResourceId`, `ImpressionMetadataId`,
-`ImpressionMetadataResourceId`, `CreateRequestId`, `UpdateRequestId`, `BlobUri`,
-`BlobTypeUrl`, `EventGroupReferenceId`, `CmmsModelLine`, `IntervalStartTime`,
-`IntervalEndTime`, `State`, `CreateTime`, `UpdateTime`.
+Columns (16, verified against the live schema after all migrations):
+`DataProviderResourceId`, `ImpressionMetadataId`, `ImpressionMetadataResourceId`,
+`CreateRequestId`, `UpdateRequestId`, `BlobUri`, `BlobTypeUrl`,
+`EventGroupReferenceId`, `CmmsModelLine`, `IntervalStartTime`, `IntervalEndTime`,
+`State`, `CreateTime`, `UpdateTime`, `RawImpressionFileId`,
+`RawImpressionBatchId`. The last two are the foreign key into
+`RawImpressionMetadataBatchFile` (nullable; populated only for the VID-labeling
+raw-impression path, not the impression-blob path this guide focuses on).
 
 Indexes:
 
-| Index | Purpose |
-|-------|---------|
-| `ImpressionMetadataByResourceId` (unique) | Lookup by resource ID |
-| `ImpressionMetadataByCreateRequestId` (unique, null-filtered) | Idempotency on create |
-| `ImpressionMetadataByBlobUri` (unique) | Lookup / cleanup by exact blob URI |
-| `ImpressionMetadataByBlobUriPrefix` (non-unique) | Prefix lookup by blob URI. **Not null-filtered** and `BlobUri` is `NOT NULL`, so it adds an index entry on every create — counts toward create-path mutations. |
-| `ImpressionMetadataByUpdateRequestId` (unique, null-filtered) | Idempotency on update. `UpdateRequestId` is NULL on create, so it costs nothing on the create path (only on update). |
-| `ImpressionMetadataByListFilterAndPagination` | Backs `ListImpressionMetadata` filtered by model line + event group + interval, and pagination |
+There are 8 secondary indexes (verified against the live schema):
+
+| Index | Null-filtered? | Purpose |
+|-------|----------------|---------|
+| `ImpressionMetadataByResourceId` (unique) | no | Lookup by resource ID. Entry on every create. |
+| `ImpressionMetadataByCreateRequestId` (unique) | yes | Idempotency on create. Populated on create. |
+| `ImpressionMetadataByBlobUri` (unique) | no | Lookup / cleanup by exact blob URI. Entry on every create. |
+| `ImpressionMetadataByBlobUriPrefix` (non-unique) | no | Prefix lookup by blob URI. `BlobUri` is `NOT NULL`, so an entry on every create. |
+| `ImpressionMetadataByUpdateRequestId` (unique) | yes | Idempotency on update. `UpdateRequestId` is NULL on create, so no cost on the create path (only on update). |
+| `ImpressionMetadataByListFilterAndPagination` | no | Backs `ListImpressionMetadata` (model line + event group + interval) and pagination. Entry on every create. |
+| `ImpressionMetadataByRawImpressionAndModelLine` (unique) | yes | Idempotency for the raw-impression FK path. NULL (no cost) unless `RawImpressionBatchId` is set. |
+| FK backing index on `(RawImpressionBatchId, RawImpressionFileId)` | yes | Auto-created for the `RawImpressionMetadataBatchFile` foreign key. NULL (no cost) on the impression-blob path. |
 
 Entity keys live in an interleaved child table, `ImpressionMetadataEntityKeys`
 (`DataProviderResourceId`, `ImpressionMetadataId`, `EntityType`, `EntityId`),
@@ -237,8 +245,9 @@ Spanner caps a single read-write transaction at ~80,000 mutations, counting a
 mutation per written cell **and** per secondary-index entry. Both batch-create
 paths are bounded to stay well under this:
 
-- **RequisitionMetadata**: each requisition writes a base row (~14 columns, 8
-  secondary indexes) plus a `RequisitionMetadataActions` row recording the
+- **RequisitionMetadata**: each requisition writes a base row (~15 written
+  columns — a 16th, `RequisitionMetadataIndexShardId`, is `GENERATED ALWAYS`;
+  8 secondary indexes) plus a `RequisitionMetadataActions` row recording the
   `UNSPECIFIED → STORED` transition (~6 columns, 3 indexes) in the same
   transaction — roughly 30 mutations/requisition counting one entry per index,
   up to ~64 counting every index cell. At the `MAX_REQUISITIONS_PER_GROUP`
@@ -246,17 +255,17 @@ paths are bounded to stay well under this:
   case. **Do not raise `MAX_REQUISITIONS_PER_GROUP` without redoing this
   arithmetic** — an oversized group produces a batch that fails every run and
   wedges the report.
-- **ImpressionMetadata**: each create writes a base row (14 columns) plus index
-  entries. Of the 6 secondary indexes, the 3 non-null-filtered ones
-  (`ByResourceId`, `ByBlobUri`, `ByBlobUriPrefix`) and the covering
-  `ByListFilterAndPagination` add an entry on every create; the 2 null-filtered
-  unique indexes (`ByCreateRequestId`, `ByUpdateRequestId`) cost nothing when
-  their key is NULL. That is roughly ~20 mutations/row before entity keys, plus
-  **one interleaved `ImpressionMetadataEntityKeys` row + its index entry per
-  entity key** on the row. `BatchCreate` size is bounded by the caller
-  (data-availability-sync); size the batch so `rows x (~20 + 2 x entity_keys)`
-  stays well under the ~80k limit. If you see `BatchCreate` failures citing
-  transaction size, reduce the batch size at the caller.
+- **ImpressionMetadata**: on the impression-blob create path a row writes its
+  populated base cells plus index entries for the 5 indexes that are populated on
+  create — `ByResourceId`, `ByCreateRequestId`, `ByBlobUri`, `ByBlobUriPrefix`,
+  and `ByListFilterAndPagination` (the other 3 indexes are NULL-keyed on this
+  path: `ByUpdateRequestId` until an update, and the two raw-impression indexes
+  unless the FK columns are set). That is roughly ~20 mutations/row, plus **one
+  interleaved `ImpressionMetadataEntityKeys` row + its index entry per entity
+  key**. `BatchCreate` size is bounded by the caller (data-availability-sync);
+  size the batch so `rows x (~20 + 2 x entity_keys)` stays well under the ~80k
+  limit. If you see `BatchCreate` failures citing transaction size, reduce the
+  batch size at the caller.
 
 ## Metrics to watch
 
@@ -272,6 +281,8 @@ RequisitionFetcher (prefix `edpa.requisition_fetcher.`):
 | `report_refusals` | Reports refused (invalid spec, mixed model lines) | Spikes indicate upstream config problems |
 | `recovery_rebuilds` / `recovery_skipped_incomplete` | Blob-recovery outcomes for STORED-but-missing blobs | `recovery_skipped_incomplete` climbing on the same group → a blob is lost and not re-buildable from the current stream |
 | `page_size_reductions` | Adaptive `listRequisitions` page-size halvings | Frequent reductions → Kingdom responses near the gRPC message limit |
+| `storage_writes` / `storage_fails` | Grouped-requisition blobs written to / failed to write to GCS | Any sustained `storage_fails` → GCS write problem (permissions, quota, outage) blocking dispatch |
+| `fetch_latency` | Latency from fetch start to storage completion per run | Rising toward the function timeout → approaching the timeout-kill threshold; raise `timeout_seconds` |
 
 Check metrics and traces before grepping logs — see the
 [report debugging guide](report-debugging-guide.md#telemetry-metrics-and-traces-check-before-grepping-logs).
