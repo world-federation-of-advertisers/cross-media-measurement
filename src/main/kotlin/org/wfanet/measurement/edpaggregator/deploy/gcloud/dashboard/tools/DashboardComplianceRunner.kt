@@ -20,7 +20,10 @@ import com.google.auth.oauth2.GoogleCredentials
 import com.google.auth.oauth2.ImpersonatedCredentials
 import com.google.cloud.bigquery.BigQuery
 import com.google.cloud.bigquery.BigQueryOptions
+import com.google.protobuf.InvalidProtocolBufferException
+import com.google.protobuf.util.JsonFormat
 import java.util.logging.Logger
+import org.wfanet.measurement.config.edpaggregator.DashboardConfig
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.DashboardIsolationChecks
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.DashboardIsolationChecks.CheckResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.DashboardIsolationChecks.EdpConfig
@@ -39,6 +42,9 @@ object DashboardComplianceRunner {
   private val logger = Logger.getLogger(this::class.java.name)
 
   private val SCOPES = listOf("https://www.googleapis.com/auth/cloud-platform")
+
+  /** The EDPs and BigQuery region resolved from a DASHBOARD_CONFIG_CONTENT document. */
+  data class ResolvedConfig(val edps: List<EdpConfig>, val region: String)
 
   /** A named group of [CheckResult]s (mirrors the CLI's section layout). */
   data class Section(val name: String, val results: List<CheckResult>)
@@ -115,6 +121,32 @@ object DashboardComplianceRunner {
         }
         EdpConfig(parts[0], parts[1])
       }
+  }
+
+  /**
+   * Parses a DASHBOARD_CONFIG_CONTENT JSON document against the [DashboardConfig] proto schema and
+   * extracts the EDPs and BigQuery region.
+   *
+   * @throws IllegalArgumentException if the JSON is malformed or a required field (`edps`,
+   *   `bigquery_region`) is missing
+   */
+  fun parseDashboardConfig(json: String): ResolvedConfig {
+    val config =
+      try {
+        DashboardConfig.newBuilder()
+          .apply { JsonFormat.parser().ignoringUnknownFields().merge(json, this) }
+          .build()
+      } catch (e: InvalidProtocolBufferException) {
+        throw IllegalArgumentException("Malformed dashboard config JSON: ${e.message}", e)
+      }
+    require(config.edpsList.isNotEmpty()) {
+      "dashboard config must contain at least one entry in 'edps'"
+    }
+    require(config.bigqueryRegion.isNotEmpty()) { "dashboard config must set 'bigquery_region'" }
+    return ResolvedConfig(
+      config.edpsList.map { EdpConfig(it.name, it.resourceId) },
+      config.bigqueryRegion,
+    )
   }
 
   private fun buildBaseCredentials(impersonateServiceAccount: String?): GoogleCredentials {

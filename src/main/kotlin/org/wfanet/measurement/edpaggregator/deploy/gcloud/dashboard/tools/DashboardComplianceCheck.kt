@@ -16,8 +16,9 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.tools
 
+import java.io.File
+import java.io.IOException
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.DashboardIsolationChecks.EdpConfig
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -26,6 +27,8 @@ import picocli.CommandLine
   sortOptions = false,
 )
 class DashboardComplianceCheck : Runnable {
+
+  @CommandLine.Spec private lateinit var spec: CommandLine.Model.CommandSpec
 
   @CommandLine.Option(names = ["--project"], required = true, description = ["GCP project ID"])
   private lateinit var project: String
@@ -39,15 +42,15 @@ class DashboardComplianceCheck : Runnable {
   private lateinit var dataset: String
 
   @CommandLine.Option(
-    names = ["--edp"],
+    names = ["--dashboard-config"],
     required = true,
-    description = ["EDP config as name:resourceId (repeatable)"],
-    split = ",",
+    description =
+      [
+        "Path to a DASHBOARD_CONFIG_CONTENT JSON file supplying the EDPs and BigQuery region, " +
+          "parsed against the DashboardConfig proto schema."
+      ],
   )
-  private lateinit var edpFlags: List<String>
-
-  @CommandLine.Option(names = ["--region"], required = true, description = ["BigQuery region"])
-  private lateinit var region: String
+  private lateinit var dashboardConfigFile: File
 
   @CommandLine.Option(
     names = ["--impersonate-service-account"],
@@ -56,22 +59,33 @@ class DashboardComplianceCheck : Runnable {
   )
   private var impersonateServiceAccount: String? = null
 
-  private val edps by lazy {
-    edpFlags.map { flag ->
-      val (name, resourceId) = flag.split(":", limit = 2)
-      EdpConfig(name, resourceId)
-    }
-  }
-
   override fun run() {
+    val config =
+      try {
+        DashboardComplianceRunner.parseDashboardConfig(dashboardConfigFile.readText())
+      } catch (e: IOException) {
+        throw CommandLine.ParameterException(
+          spec.commandLine(),
+          "Cannot read --dashboard-config file '${dashboardConfigFile.path}': ${e.message}",
+        )
+      } catch (e: IllegalArgumentException) {
+        throw CommandLine.ParameterException(spec.commandLine(), e.message)
+      }
+
     println("=== EDPA Dashboard Compliance Check ===")
     println("Project: $project")
     println("Dataset: $dataset")
-    println("EDPs: ${edps.map { it.name }}")
+    println("EDPs: ${config.edps.map { it.name }}")
     println()
 
     val report =
-      DashboardComplianceRunner.run(project, dataset, region, impersonateServiceAccount, edps)
+      DashboardComplianceRunner.run(
+        project,
+        dataset,
+        config.region,
+        impersonateServiceAccount,
+        config.edps,
+      )
 
     for (section in report.sections) {
       println("[${section.name}]")
