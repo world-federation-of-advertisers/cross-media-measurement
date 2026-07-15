@@ -71,18 +71,22 @@ Splits are counted in the `buffer_splits` metric.
 
 All are environment variables on the Cloud Function (set via the
 `requisition_fetcher_env_var` terraform variable), plus two deploy-level knobs on
-the function resource itself.
+the function resource (`timeout_seconds`, `max_instances`). Function memory is a
+third deploy-level input but is **hardcoded** in the module, not a per-environment
+variable (see the memory row).
 
 | Knob | Where | Default | Effect |
 |------|-------|---------|--------|
 | `FLUSH_INTERVAL` | env var | `5m` | Wall-clock period between forced drains. Must be **less than the function timeout** or the ticker never fires. |
-| `MAX_TOTAL_BUFFERED_BYTES` | env var | `256 MiB` | Memory backstop across all open buffers (serialized bytes). Lower it to drain sooner and cap heap; raise it to hold more and split less. |
+| `MAX_TOTAL_BUFFERED_BYTES` | env var | `268435456` (256 MiB) | Memory backstop across all open buffers (serialized bytes). **Set as a plain integer number of bytes** — it is parsed with `toLongOrNull()`, so a human-readable value like `256MiB` is silently ignored and falls back to the default. Lower it to drain sooner and cap heap; raise it to hold more and split less. |
 | `MAX_REQUISITIONS_PER_GROUP` | env var | `1000` | Max requisitions per blob / per metadata `BatchCreate`. Bounds the Spanner mutation count per transaction. |
 | `METADATA_REQUEST_INTERVAL` | env var | `100ms` | Minimum interval between RequisitionMetadata service RPCs. The pacing multiplier for all list/batch-create calls. |
 | `GRPC_REQUEST_INTERVAL` | env var | `1s` | Minimum interval between Kingdom mutation RPCs (e.g. `refuseRequisition`). |
+| `KINGDOM_EVENT_GROUP_REQUEST_INTERVAL` | env var | `50ms` | Minimum interval between Kingdom `getEventGroup` RPCs (called during grouping). |
+| `PAGE_SIZE` | env var | `50` | Starting page size for `listRequisitions`. Halved and retried on gRPC `RESOURCE_EXHAUSTED` (surfaced by the `page_size_reductions` metric), down to a floor of 1. |
 | function timeout | terraform `timeout_seconds` | `600s` | How long a single invocation may run. **Must exceed `FLUSH_INTERVAL`** so at least one drain happens. Max for an HTTP-triggered gen2 function is **3600s (60m)**. |
 | max instances | terraform `max_instances` | `1` | Concurrency cap. `1` prevents overlapping invocations from processing the same `UNFULFILLED` requisitions. |
-| function memory | terraform `--memory` | `512MB` | Heap ceiling. Must be sized above the peak buffered working set (see scale section). |
+| function memory | **hardcoded** `--memory=512MB` in `http-cloud-function/main.tf` | `512MB` | Heap ceiling. **Not a terraform variable** — sizing it per environment currently requires editing the module. Must be above the peak buffered working set (see scale section). |
 
 ### The timeout / drain / schedule relationship
 
@@ -107,13 +111,15 @@ with a large `UNFULFILLED` backlog needs more:
 
 - **Timeout**: raise `timeout_seconds` toward **3600s** (the gen2 HTTP maximum)
   so a large backlog can drain in one run.
-- **Memory vs. buffer cap**: two independent dials both bound peak heap. Either
-  raise `--memory` (hold more, fewer splits, higher cost) **or** lower
-  `MAX_TOTAL_BUFFERED_BYTES` (drain sooner, less heap, more splits). Do **not**
-  set `MAX_TOTAL_BUFFERED_BYTES` below a single report's working set, or the
-  backstop fires mid-report and refragments — the exact failure this design
-  removed. The safe band is: above the largest expected single-report working
-  set, below what the heap can hold given unpacked-proto overhead.
+- **Memory vs. buffer cap**: two dials bound peak heap. `MAX_TOTAL_BUFFERED_BYTES`
+  is an env var (lower it to drain sooner, less heap, more splits); function
+  `--memory` is currently **hardcoded to 512MB** in the module, so raising it
+  per environment requires a module edit (raising it lets buffers hold more with
+  fewer splits). Do **not** set `MAX_TOTAL_BUFFERED_BYTES` below a single
+  report's working set, or the backstop fires mid-report and refragments — the
+  exact failure this design removed. The safe band is: above the largest
+  expected single-report working set, below what the heap can hold given
+  unpacked-proto overhead.
 
 ## RequisitionFetcher: behavior at scale
 
@@ -173,10 +179,10 @@ data-availability.
 
 ### The Spanner `ImpressionMetadata` table
 
-Columns: `DataProviderResourceId`, `ImpressionMetadataId`,
-`ImpressionMetadataResourceId`, `CreateRequestId`, `BlobUri`, `BlobTypeUrl`,
-`EventGroupReferenceId`, `CmmsModelLine`, `IntervalStartTime`, `IntervalEndTime`,
-`State`, `CreateTime`, `UpdateTime`.
+Columns (14): `DataProviderResourceId`, `ImpressionMetadataId`,
+`ImpressionMetadataResourceId`, `CreateRequestId`, `UpdateRequestId`, `BlobUri`,
+`BlobTypeUrl`, `EventGroupReferenceId`, `CmmsModelLine`, `IntervalStartTime`,
+`IntervalEndTime`, `State`, `CreateTime`, `UpdateTime`.
 
 Indexes:
 
@@ -184,7 +190,9 @@ Indexes:
 |-------|---------|
 | `ImpressionMetadataByResourceId` (unique) | Lookup by resource ID |
 | `ImpressionMetadataByCreateRequestId` (unique, null-filtered) | Idempotency on create |
-| `ImpressionMetadataByBlobUri` (unique) | Lookup / cleanup by blob URI |
+| `ImpressionMetadataByBlobUri` (unique) | Lookup / cleanup by exact blob URI |
+| `ImpressionMetadataByBlobUriPrefix` (non-unique) | Prefix lookup by blob URI. **Not null-filtered** and `BlobUri` is `NOT NULL`, so it adds an index entry on every create — counts toward create-path mutations. |
+| `ImpressionMetadataByUpdateRequestId` (unique, null-filtered) | Idempotency on update. `UpdateRequestId` is NULL on create, so it costs nothing on the create path (only on update). |
 | `ImpressionMetadataByListFilterAndPagination` | Backs `ListImpressionMetadata` filtered by model line + event group + interval, and pagination |
 
 Entity keys live in an interleaved child table, `ImpressionMetadataEntityKeys`
@@ -238,9 +246,17 @@ paths are bounded to stay well under this:
   case. **Do not raise `MAX_REQUISITIONS_PER_GROUP` without redoing this
   arithmetic** — an oversized group produces a batch that fails every run and
   wedges the report.
-- **ImpressionMetadata**: `BatchCreate` size is likewise bounded by the caller
-  (data-availability-sync) for the same reason. If you see `BatchCreate`
-  failures citing transaction size, reduce the batch size at the caller.
+- **ImpressionMetadata**: each create writes a base row (14 columns) plus index
+  entries. Of the 6 secondary indexes, the 3 non-null-filtered ones
+  (`ByResourceId`, `ByBlobUri`, `ByBlobUriPrefix`) and the covering
+  `ByListFilterAndPagination` add an entry on every create; the 2 null-filtered
+  unique indexes (`ByCreateRequestId`, `ByUpdateRequestId`) cost nothing when
+  their key is NULL. That is roughly ~20 mutations/row before entity keys, plus
+  **one interleaved `ImpressionMetadataEntityKeys` row + its index entry per
+  entity key** on the row. `BatchCreate` size is bounded by the caller
+  (data-availability-sync); size the batch so `rows x (~20 + 2 x entity_keys)`
+  stays well under the ~80k limit. If you see `BatchCreate` failures citing
+  transaction size, reduce the batch size at the caller.
 
 ## Metrics to watch
 
