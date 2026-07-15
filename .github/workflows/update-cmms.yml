@@ -295,16 +295,17 @@ jobs:
 
       - name: Run Compliance Check
         env:
-          DASHBOARD_EDP_CONFIG: ${{ vars.DASHBOARD_EDP_CONFIG }}
+          DASHBOARD_CONFIG_CONTENT: ${{ vars.DASHBOARD_CONFIG_CONTENT }}
           GOOGLE_CLOUD_PROJECT: ${{ vars.GOOGLE_CLOUD_PROJECT }}
-          BIGQUERY_REGION: ${{ vars.BIGQUERY_REGION }}
         run: |
-          EDP_ARGS=$(echo "$DASHBOARD_EDP_CONFIG" | jq -r '.[] | "--edp=\(.name):\(.resource_id)"' | tr '\n' ' ')
+          set -euo pipefail
+          # Dashboard config is consolidated into DASHBOARD_CONFIG_CONTENT (#4124);
+          # the check parses it against the DashboardConfig proto schema.
+          printf '%s' "$DASHBOARD_CONFIG_CONTENT" > "${RUNNER_TEMP}/dashboard-config.json"
           bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard/tools:DashboardComplianceCheck -- \
             --impersonate-service-account="dashboard-compliance@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com" \
             --project="$GOOGLE_CLOUD_PROJECT" \
-            --region="$BIGQUERY_REGION" \
-            $EDP_ARGS
+            --dashboard-config="${RUNNER_TEMP}/dashboard-config.json"
 
   send-slack-notification:
     uses: ./.github/workflows/slack-nightly-build-notification.yml
