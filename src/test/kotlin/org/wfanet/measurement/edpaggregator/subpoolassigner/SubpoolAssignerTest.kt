@@ -17,9 +17,17 @@
 package org.wfanet.measurement.edpaggregator.subpoolassigner
 
 import com.google.common.truth.Truth.assertThat
+import com.google.crypto.tink.Aead
+import com.google.crypto.tink.KeyTemplates
+import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.streamingaead.StreamingAeadConfig
+import com.google.protobuf.ByteString
 import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -32,6 +40,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
@@ -57,6 +66,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.virtualpeople.common.LabelerInput
 
 private const val UPLOAD = "dataProviders/dp/rawImpressionUploads/up1"
@@ -115,7 +125,7 @@ class SubpoolAssignerTest {
         order.add("write")
         Unit
       }
-    onBlocking { mergeSubpool(any(), any(), any()) } doAnswer
+    onBlocking { mergeSubpool(any(), any(), any(), any()) } doAnswer
       {
         order.add("merge")
         Unit
@@ -151,6 +161,7 @@ class SubpoolAssignerTest {
     workItemsStub: WorkItemsCoroutineStub = workItemsStubMock(),
     source: RawImpressionSource = mock(),
     accumulator: SubpoolFingerprintsAccumulator = SubpoolFingerprintsAccumulator(),
+    totalShards: Int = 1,
   ) =
     SubpoolAssigner(
       rawImpressionSource = source,
@@ -169,7 +180,7 @@ class SubpoolAssignerTest {
       modelLine = MODEL_LINE,
       poolAssignmentJob = POOL_ASSIGNMENT_JOB,
       shardIndex = 0,
-      totalShards = 1,
+      totalShards = totalShards,
       vidRankBuilderQueue = QUEUE,
       vidRankBuilderParamsTemplate = TEMPLATE,
       accumulator = accumulator,
@@ -199,7 +210,7 @@ class SubpoolAssignerTest {
     assertThat(result.lastShardOut).isFalse()
     verifyBlocking(store) { writeBlob(any(), any(), any(), any()) }
     verifyBlocking(paj) { markPoolAssignmentJobSucceeded(any(), any()) }
-    verifyBlocking(store, never()) { mergeSubpool(any(), any(), any()) }
+    verifyBlocking(store, never()) { mergeSubpool(any(), any(), any(), any()) }
     verifyBlocking(ranker, never()) { createRankerJob(any(), any()) }
     verifyBlocking(workItems, never()) { createWorkItem(any(), any()) }
     verifyBlocking(ruml, never()) { markRawImpressionUploadModelLineRanking(any(), any()) }
@@ -252,7 +263,7 @@ class SubpoolAssignerTest {
       .inOrder()
     // Normal path merges with this VM's freshly generated DEK.
     val dekCaptor = argumentCaptor<EncryptedDek>()
-    verifyBlocking(store) { mergeSubpool(any(), any(), dekCaptor.capture()) }
+    verifyBlocking(store) { mergeSubpool(any(), any(), dekCaptor.capture(), any()) }
     assertThat(dekCaptor.firstValue).isEqualTo(DEK_GEN)
   }
 
@@ -280,7 +291,7 @@ class SubpoolAssignerTest {
     val result = assigner(store, paj, ruml, ranker, workItems).assign()
 
     assertThat(result.lastShardOut).isFalse()
-    verifyBlocking(store, never()) { mergeSubpool(any(), any(), any()) }
+    verifyBlocking(store, never()) { mergeSubpool(any(), any(), any(), any()) }
     verifyBlocking(ranker, never()) { createRankerJob(any(), any()) }
   }
 
@@ -308,7 +319,7 @@ class SubpoolAssignerTest {
       val result = assigner(store, paj, ruml, ranker, workItems).assign()
 
       assertThat(result.lastShardOut).isTrue()
-      verifyBlocking(store, never()) { mergeSubpool(any(), any(), any()) }
+      verifyBlocking(store, never()) { mergeSubpool(any(), any(), any(), any()) }
       verifyBlocking(ranker, never()) { createRankerJob(any(), any()) }
       verifyBlocking(workItems, never()) { createWorkItem(any(), any()) }
     }
@@ -358,7 +369,7 @@ class SubpoolAssignerTest {
     assertThat(order).containsExactly("merge", "ranker", "workitem", "flip", "delete").inOrder()
     // Re-merge reuses the persisted DEK so it stays consistent with the already-written blobs.
     val dekCaptor = argumentCaptor<EncryptedDek>()
-    verifyBlocking(store) { mergeSubpool(any(), any(), dekCaptor.capture()) }
+    verifyBlocking(store) { mergeSubpool(any(), any(), dekCaptor.capture(), any()) }
     assertThat(dekCaptor.firstValue).isEqualTo(DEK_MERGED)
   }
 
@@ -391,7 +402,7 @@ class SubpoolAssignerTest {
         }
 
       assertThat(thrown).isInstanceOf(IllegalArgumentException::class.java)
-      verifyBlocking(store, never()) { mergeSubpool(any(), any(), any()) }
+      verifyBlocking(store, never()) { mergeSubpool(any(), any(), any(), any()) }
     }
 
   @Test
@@ -547,6 +558,123 @@ class SubpoolAssignerTest {
           .associate { it.key to it.value }
       assertThat(stamped).containsExactly(7L, 1007, 11L, 1011)
     }
+
+  @Test
+  fun `last shard out merges multiple shards and subpools into the correct union`() =
+    runBlocking<Unit> {
+      // A REAL store (real streaming AEAD storage + KMS) so the merge produces readable blobs.
+      AeadConfig.register()
+      StreamingAeadConfig.register()
+      val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
+      val kmsClient =
+        FakeKmsClient().apply {
+          setAead(
+            kekUri,
+            KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM")).getPrimitive(Aead::class.java),
+          )
+        }
+      val storageClient = InMemoryStorageClient()
+      val store = SubpoolFingerprintsStore(storageClient, kmsClient)
+
+      // Two shards, each with its own DEK; two subpools (7, 8) with disjoint fingerprints.
+      val dek0 = store.generateDek(kekUri)
+      val dek1 = store.generateDek(kekUri)
+      val mergedDek = store.generateDek(kekUri)
+      suspend fun writeShard(shard: Int, dek: EncryptedDek, offset: Long, fps: List<ByteArray>) =
+        store.writeBlob(
+          SubpoolFingerprintsStore.shardSubpoolKey("maps", UPLOAD, MODEL_LINE, shard, offset),
+          dek,
+          offset,
+          flowOf(pack(fps)),
+        )
+      writeShard(0, dek0, 7L, listOf(fp(0x11), fp(0x22)))
+      writeShard(1, dek1, 7L, listOf(fp(0x33)))
+      writeShard(0, dek0, 8L, listOf(fp(0x44)))
+      writeShard(1, dek1, 8L, listOf(fp(0x55), fp(0x66)))
+
+      // Drive the last-shard-out via the recovery path (already-SUCCEEDED shard, parent still
+      // POOL_ASSIGNING with the persisted merged DEK and pool offsets).
+      val paj =
+        mock<PoolAssignmentJobServiceCoroutineStub> {
+          onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
+            jobResponse(PoolAssignmentJob.State.SUCCEEDED)
+          onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
+            listPoolAssignmentJobsResponse {
+              poolAssignmentJobs += poolAssignmentJob {
+                shardIndex = 0
+                encryptedDek = dek0
+              }
+              poolAssignmentJobs += poolAssignmentJob {
+                shardIndex = 1
+                encryptedDek = dek1
+              }
+              nextPageToken = ""
+            }
+        }
+      val ruml =
+        mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                name = PARENT_NAME
+                cmmsModelLine = MODEL_LINE
+                state = RawImpressionUploadModelLine.State.POOL_ASSIGNING
+                poolOffsets += listOf(7L, 8L)
+                maxEventDate = date {
+                  year = 2026
+                  month = 6
+                  day = 15
+                }
+                encryptedMergedDek = mergedDek
+              }
+              nextPageToken = ""
+            }
+          onBlocking { markRawImpressionUploadModelLineRanking(any(), any()) } doReturn
+            parent(RawImpressionUploadModelLine.State.RANKING, listOf(7L, 8L), withMergedDek = true)
+        }
+
+      assigner(store, paj, ruml, totalShards = 2).assign()
+
+      // Each merged subpool blob is the disjoint union of its shards, order-independent.
+      assertThat(fingerprintSet(store, mergedKey(7L), mergedDek))
+        .containsExactly(bs(fp(0x11)), bs(fp(0x22)), bs(fp(0x33)))
+      assertThat(fingerprintSet(store, mergedKey(8L), mergedDek))
+        .containsExactly(bs(fp(0x44)), bs(fp(0x55)), bs(fp(0x66)))
+    }
+
+  private fun pack(fingerprints: List<ByteArray>): ByteString {
+    val out = ByteString.newOutput()
+    fingerprints.forEach {
+      require(it.size == 12)
+      out.write(it)
+    }
+    return out.toByteString()
+  }
+
+  private fun fp(fill: Int): ByteArray = ByteArray(12) { fill.toByte() }
+
+  private fun bs(bytes: ByteArray): ByteString = ByteString.copyFrom(bytes)
+
+  private fun mergedKey(offset: Long): String =
+    SubpoolFingerprintsStore.mergedSubpoolKey("maps", UPLOAD, MODEL_LINE, offset)
+
+  /** Decrypts [key] and returns its 12-byte fingerprints as a SET (order-independent). */
+  private suspend fun fingerprintSet(
+    store: SubpoolFingerprintsStore,
+    key: String,
+    dek: EncryptedDek,
+  ): Set<ByteString> {
+    val set = mutableSetOf<ByteString>()
+    store.readBlob(key, dek).toList().forEach { record ->
+      val bytes = record.fingerprints
+      var i = 0
+      while (i < bytes.size()) {
+        set.add(bytes.substring(i, i + 12))
+        i += 12
+      }
+    }
+    return set
+  }
 
   private object FakePoolEmitLabeler : PoolEmitLabeler {
     override fun emit(input: LabelerInput, onPoolOffset: (Long) -> Unit): Int = 0
