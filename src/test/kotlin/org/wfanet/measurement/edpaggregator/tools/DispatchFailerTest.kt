@@ -17,6 +17,9 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
+import io.grpc.Status
+import io.grpc.StatusException
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -103,6 +106,66 @@ class DispatchFailerTest {
     }
 
     assertThat(failed).isEmpty()
+    verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineFailed(any()) }
+  }
+
+  @Test
+  fun `failUpload fails every non-terminal state in a mixed cascade`() {
+    val failed = runBlocking {
+      whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines +=
+              modelLine("c", RawImpressionUploadModelLine.State.CREATED)
+            rawImpressionUploadModelLines +=
+              modelLine("pa", RawImpressionUploadModelLine.State.POOL_ASSIGNING)
+            rawImpressionUploadModelLines +=
+              modelLine("r", RawImpressionUploadModelLine.State.RANKING)
+            rawImpressionUploadModelLines +=
+              modelLine("l", RawImpressionUploadModelLine.State.LABELING)
+            rawImpressionUploadModelLines +=
+              modelLine("done", RawImpressionUploadModelLine.State.COMPLETED)
+            rawImpressionUploadModelLines +=
+              modelLine("f", RawImpressionUploadModelLine.State.FAILED)
+          }
+        )
+      whenever(modelLineService.markRawImpressionUploadModelLineFailed(any())).thenAnswer {
+        rawImpressionUploadModelLine { state = RawImpressionUploadModelLine.State.FAILED }
+      }
+      failer.failUpload(UPLOAD_NAME, REASON)
+    }
+
+    assertThat(failed)
+      .containsExactly(
+        "$UPLOAD_NAME/rawImpressionUploadModelLines/c",
+        "$UPLOAD_NAME/rawImpressionUploadModelLines/pa",
+        "$UPLOAD_NAME/rawImpressionUploadModelLines/r",
+        "$UPLOAD_NAME/rawImpressionUploadModelLines/l",
+      )
+  }
+
+  @Test
+  fun `failUpload marks nothing when the upload has no model lines`() {
+    val failed = runBlocking {
+      whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(listRawImpressionUploadModelLinesResponse {})
+      failer.failUpload(UPLOAD_NAME, REASON)
+    }
+
+    assertThat(failed).isEmpty()
+    verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineFailed(any()) }
+  }
+
+  @Test
+  fun `failUpload propagates NOT_FOUND when the upload does not exist`() {
+    assertFailsWith<StatusException> {
+      runBlocking {
+        whenever(modelLineService.listRawImpressionUploadModelLines(any())).thenAnswer {
+          throw Status.NOT_FOUND.asRuntimeException()
+        }
+        failer.failUpload(UPLOAD_NAME, REASON)
+      }
+    }
     verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineFailed(any()) }
   }
 

@@ -238,10 +238,18 @@ class RetryFailedCommand : EdpaApiCommand() {
             WorkItemsCoroutineStub(controlPlaneChannel),
           )
         val result = retrier.retryFailed(rawImpressionUpload, modelLine, fromPhase)
-        println(
-          "Re-triggered ${result.modelLineName} at ${result.newState}: republished " +
-            "${result.workItemsRepublished} WorkItem(s)."
-        )
+        if (result.workItemsRepublished == 0) {
+          println(
+            "WARN: all target WorkItems for ${result.modelLineName} already exist from a prior " +
+              "retry; the model line remains ${result.newState} and no new work was created. " +
+              "Investigate the prior retry's WorkItems (workItems/rt-<...>) before re-running."
+          )
+        } else {
+          println(
+            "Re-triggered ${result.modelLineName} at ${result.newState}: republished " +
+              "${result.workItemsRepublished} WorkItem(s)."
+          )
+        }
       }
     } finally {
       edpaChannel.shutdown()
@@ -302,18 +310,6 @@ class RedeliverDlqCommand : Runnable {
   )
   private var topicOverride: String? = null
 
-  @Option(
-    names = ["--filter"],
-    description =
-      [
-        "Only redeliver messages whose origin queue matches, given as queue=<queue-id>. Omit to " +
-          "redeliver every message on the subscription. Pub/Sub message attributes are not exposed " +
-          "by the queue client, so attribute-based filters are not supported."
-      ],
-    required = false,
-  )
-  private var filter: String? = null
-
   override fun run() {
     val pubSubClient = DefaultGooglePubSubClient()
     val subscriber = Subscriber(googleProjectId, pubSubClient, maxMessages = PULL_BATCH_SIZE)
@@ -321,13 +317,7 @@ class RedeliverDlqCommand : Runnable {
     try {
       val redelivered = runBlocking {
         DlqRedeliverer(subscriber, publisher)
-          .redeliver(
-            dlqSubscription,
-            maxMessages,
-            idleTimeoutMillis,
-            topicOverride,
-            queueFilterOf(filter),
-          )
+          .redeliver(dlqSubscription, maxMessages, idleTimeoutMillis, topicOverride)
       }
       println("Redelivered $redelivered message(s) from $dlqSubscription.")
     } finally {
@@ -339,16 +329,6 @@ class RedeliverDlqCommand : Runnable {
   companion object {
     /** Messages pulled per Pub/Sub request; the total is bounded by --max-messages. */
     private const val PULL_BATCH_SIZE = 10
-
-    /** Parses a `--filter` value of the form `queue=<queue-id>` into the origin queue id. */
-    private fun queueFilterOf(filter: String?): String? {
-      if (filter == null) return null
-      val parts = filter.split("=", limit = 2)
-      require(parts.size == 2 && parts[0] == "queue" && parts[1].isNotEmpty()) {
-        "--filter must be of the form queue=<queue-id>; got '$filter'"
-      }
-      return parts[1]
-    }
   }
 }
 
