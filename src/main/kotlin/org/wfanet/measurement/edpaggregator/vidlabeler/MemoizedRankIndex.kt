@@ -36,6 +36,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
+import org.wfanet.measurement.edpaggregator.vidrankbuilder.EventIdDigestBytes
 import org.wfanet.virtualpeople.common.RankAssignment
 import org.wfanet.virtualpeople.common.rankAssignment
 
@@ -236,7 +237,11 @@ private constructor(
       rankIndexStore: RankIndexStore,
       blob: RankIndexBlob,
     ): LoadedSubpool {
-      val map = Bytes12IntMap()
+      val estimatedEntries =
+        (rankIndexStore.blobSize(blob.blobUri, blob.encryptedDek) /
+            RankIndexStore.ON_DISK_BYTES_PER_ENTRY)
+          .coerceAtLeast(Bytes12IntMap.MIN_CAPACITY)
+      val map = Bytes12IntMap(estimatedEntries)
       var rankedSize = -1
       rankIndexStore.readBlob(blob.blobUri, blob.encryptedDek, blob.blobChecksum).collect { record
         ->
@@ -249,20 +254,24 @@ private constructor(
           }
         }
         val fingerprints = record.fingerprints
-        val ranks = record.ranksList
-        // `rank_index_map.proto`: `fingerprints` length MUST equal `ranks.size` * 12. Enforce it so
+        // `rank_index_map.proto`: `fingerprints` length MUST equal `ranks_count` * 12. Enforce it
+        // so
         // a malformed blob fails with a clear, attributable error instead of an opaque
         // IndexOutOfBoundsException (too short) or silently dropped trailing fingerprints (too
         // long).
-        check(fingerprints.size() == ranks.size * FINGERPRINT_BYTES) {
+        check(fingerprints.size() == record.ranksCount * FINGERPRINT_BYTES) {
           "Malformed rank index blob ${blob.blobUri}: ${fingerprints.size()} fingerprint bytes " +
-            "for ${ranks.size} ranks (expected ${ranks.size * FINGERPRINT_BYTES})"
+            "for ${record.ranksCount} ranks (expected ${record.ranksCount * FINGERPRINT_BYTES})"
         }
+        // Read fingerprint hi/lo + the primitive rank directly. The old per-entry
+        // `substring(...).toByteArray()` + boxed `ranksList` allocated ~2 objects per entry, which
+        // GC-thrashed the index load into a crawl at 4B scale (hundreds of millions of entries).
         var offset = 0
-        for (i in ranks.indices) {
+        for (i in 0 until record.ranksCount) {
           map.put(
-            fingerprints.substring(offset, offset + FINGERPRINT_BYTES).toByteArray(),
-            ranks[i],
+            EventIdDigestBytes.readHi(fingerprints, offset),
+            EventIdDigestBytes.readLo(fingerprints, offset + 8),
+            record.getRanks(i),
           )
           offset += FINGERPRINT_BYTES
         }

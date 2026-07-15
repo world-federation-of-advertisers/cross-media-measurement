@@ -28,6 +28,7 @@ kt_jvm_library(
         "MemoizedRankIndexMetrics.kt",
     ],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:event_id_digest_bytes",
         "//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:event_id_digest",
