@@ -157,3 +157,14 @@ kt_jvm_proto_library(
     name = "data_availability_monitor_config_kt_jvm_proto",
     deps = [":data_availability_monitor_config_proto"],
 )
+
+proto_library(
+    name = "dashboard_config_proto",
+    srcs = ["dashboard_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "dashboard_config_kt_jvm_proto",
+    deps = [":dashboard_config_proto"],
+)

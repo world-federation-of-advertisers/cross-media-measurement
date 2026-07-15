@@ -7,4 +7,3 @@ results_fulfiller_event_proto_descriptor_blob_uri = "gs://edpa-configs-storage-h
 results_fulfiller_event_template_type_name        = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
 results_fulfiller_population_spec_blob_uri        = "gs://edpa-configs-storage-head-bucket/results-fulfiller-population-spec.textproto"
 edpa_model_line_map                               = "modelProviders/PYauXl6kcsA/modelSuites/IvSb6madWtE/modelLines/T0gzKmadWLc"
-dashboard_deletion_protection                     = false

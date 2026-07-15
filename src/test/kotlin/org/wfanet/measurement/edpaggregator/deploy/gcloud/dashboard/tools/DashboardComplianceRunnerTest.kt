@@ -104,4 +104,68 @@ class DashboardComplianceRunnerTest {
       DashboardComplianceRunner.parseEdps("meta:")
     }
   }
+
+  @Test
+  fun `parseDashboardConfig returns edps and region from valid config`() {
+    val json =
+      """
+      {
+        "bigquery_region": "us-central1",
+        "deletion_protection": false,
+        "operators": ["user:alice@example.com"],
+        "edps": [
+          {"name": "meta", "resource_id": "J3-pzhqS9Lo"},
+          {"name": "edp7", "resource_id": "T5RryPMNong"}
+        ]
+      }
+      """
+        .trimIndent()
+
+    val resolved = DashboardComplianceRunner.parseDashboardConfig(json)
+
+    assertThat(resolved.region).isEqualTo("us-central1")
+    assertThat(resolved.edps)
+      .containsExactly(EdpConfig("meta", "J3-pzhqS9Lo"), EdpConfig("edp7", "T5RryPMNong"))
+      .inOrder()
+  }
+
+  @Test
+  fun `parseDashboardConfig ignores unknown fields`() {
+    val json =
+      """{"bigquery_region": "us-central1", "future_field": "x", "edps": [{"name": "meta", "resource_id": "abc"}]}"""
+
+    val resolved = DashboardComplianceRunner.parseDashboardConfig(json)
+
+    assertThat(resolved.region).isEqualTo("us-central1")
+    assertThat(resolved.edps).containsExactly(EdpConfig("meta", "abc"))
+  }
+
+  @Test
+  fun `parseDashboardConfig throws when edps is empty`() {
+    val exception =
+      assertThrows(IllegalArgumentException::class.java) {
+        DashboardComplianceRunner.parseDashboardConfig(
+          """{"bigquery_region": "us-central1", "edps": []}"""
+        )
+      }
+    assertThat(exception).hasMessageThat().contains("edps")
+  }
+
+  @Test
+  fun `parseDashboardConfig throws when bigquery_region is missing`() {
+    val exception =
+      assertThrows(IllegalArgumentException::class.java) {
+        DashboardComplianceRunner.parseDashboardConfig(
+          """{"edps": [{"name": "meta", "resource_id": "abc"}]}"""
+        )
+      }
+    assertThat(exception).hasMessageThat().contains("bigquery_region")
+  }
+
+  @Test
+  fun `parseDashboardConfig throws on malformed json`() {
+    assertThrows(IllegalArgumentException::class.java) {
+      DashboardComplianceRunner.parseDashboardConfig("{not valid json")
+    }
+  }
 }

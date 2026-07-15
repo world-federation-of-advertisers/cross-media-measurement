@@ -41,18 +41,21 @@ jobs:
       id-token: write
     environment: ${{ inputs.environment }}
     outputs:
-      edp_config: ${{ steps.load-edp-config.outputs.edp_config }}
+      edp_config: ${{ steps.load-config.outputs.edp_config }}
+      region: ${{ steps.load-config.outputs.region }}
     steps:
-      - name: Load EDP config from environment vars
-        id: load-edp-config
+      - name: Load dashboard config from environment vars
+        id: load-config
         env:
-          EDP_CONFIG: ${{ vars.DASHBOARD_EDP_CONFIG }}
+          DASHBOARD_CONFIG_CONTENT: ${{ vars.DASHBOARD_CONFIG_CONTENT }}
         run: |
-          if [ -z "$EDP_CONFIG" ]; then
-            echo "vars.DASHBOARD_EDP_CONFIG is empty for environment ${{ inputs.environment }}" >&2
+          set -euo pipefail
+          if [ -z "$DASHBOARD_CONFIG_CONTENT" ]; then
+            echo "vars.DASHBOARD_CONFIG_CONTENT is empty for environment ${{ inputs.environment }}" >&2
             exit 1
           fi
-          echo "edp_config=$EDP_CONFIG" >> "$GITHUB_OUTPUT"
+          echo "edp_config=$(jq -c '.edps' <<< "$DASHBOARD_CONFIG_CONTENT")" >> "$GITHUB_OUTPUT"
+          echo "region=$(jq -r '.bigquery_region' <<< "$DASHBOARD_CONFIG_CONTENT")" >> "$GITHUB_OUTPUT"
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
@@ -63,7 +66,7 @@ jobs:
       - name: Trigger all dashboard scheduled queries
         env:
           PROJECT: ${{ vars.GOOGLE_CLOUD_PROJECT }}
-          REGION: ${{ vars.BIGQUERY_REGION }}
+          REGION: ${{ steps.load-config.outputs.region }}
         run: |
           set -euo pipefail
           RUN_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -177,7 +180,7 @@ jobs:
         id: run-tests
         env:
           GOOGLE_CLOUD_PROJECT: ${{ vars.GOOGLE_CLOUD_PROJECT }}
-          BIGQUERY_REGION: ${{ vars.BIGQUERY_REGION }}
+          BIGQUERY_REGION: ${{ needs.trigger-scheduled-queries.outputs.region }}
           EDP_NAME: ${{ matrix.edp.name }}
           EDP_RESOURCE_ID: ${{ matrix.edp.resource_id }}
           INSPECTOR_IMPERSONATE_SA: dashboard-compliance@${{ vars.GOOGLE_CLOUD_PROJECT }}.iam.gserviceaccount.com

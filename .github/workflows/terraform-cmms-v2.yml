@@ -255,14 +255,27 @@ jobs:
     - name: Write dashboard tfvars
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       env:
-        DATA_PROVIDER_RESOURCE_IDS: ${{ vars.DATA_PROVIDER_RESOURCE_IDS }}
-        DASHBOARD_OPERATORS: ${{ vars.DASHBOARD_OPERATORS }}
+        DASHBOARD_CONFIG_CONTENT: ${{ vars.DASHBOARD_CONFIG_CONTENT }}
         SPANNER_PROJECT: ${{ vars.GOOGLE_CLOUD_PROJECT }}
         SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
       run: |
+        set -euo pipefail
+        # Dashboard config (EDPs, operators, deletion protection) is consolidated
+        # into the single DASHBOARD_CONFIG_CONTENT JSON var (#4124). Terraform reads
+        # it natively as *.tfvars.json.
+        # Fail loudly if any required key is missing rather than silently emitting
+        # null (which Terraform would treat as unset, falling back to defaults).
+        jq -e 'has("bigquery_region") and has("deletion_protection")
+          and has("operators") and has("edps")' \
+          <<< "$DASHBOARD_CONFIG_CONTENT" > /dev/null \
+          || { echo "DASHBOARD_CONFIG_CONTENT is missing required keys" >&2; exit 1; }
+        jq '{
+          data_provider_resource_ids: ((.edps // [] | map({(.name): .resource_id}) | add) // {}),
+          dashboard_operators: .operators,
+          dashboard_deletion_protection: .deletion_protection
+        }' <<< "$DASHBOARD_CONFIG_CONTENT" > dashboard.auto.tfvars.json
+
         cat > dashboard.auto.tfvars << EOF
-        data_provider_resource_ids      = ${DATA_PROVIDER_RESOURCE_IDS}
-        dashboard_operators             = ${DASHBOARD_OPERATORS}
         edp_aggregator_spanner_project  = "${SPANNER_PROJECT}"
         edp_aggregator_spanner_instance = "${SPANNER_INSTANCE}"
         kingdom_spanner_project         = "${SPANNER_PROJECT}"
