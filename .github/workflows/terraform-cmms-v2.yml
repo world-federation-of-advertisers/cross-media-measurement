@@ -256,7 +256,7 @@ jobs:
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       env:
         DASHBOARD_CONFIG_CONTENT: ${{ vars.DASHBOARD_CONFIG_CONTENT }}
-        SPANNER_PROJECT: ${{ vars.GOOGLE_CLOUD_PROJECT }}
+        SPANNER_PROJECT: ${{ vars.GCLOUD_PROJECT }}
         SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
       run: |
         set -euo pipefail

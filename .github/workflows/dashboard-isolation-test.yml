@@ -65,7 +65,7 @@ jobs:
 
       - name: Trigger all dashboard scheduled queries
         env:
-          PROJECT: ${{ vars.GOOGLE_CLOUD_PROJECT }}
+          PROJECT: ${{ vars.GCLOUD_PROJECT }}
           REGION: ${{ steps.load-config.outputs.region }}
         run: |
           set -euo pipefail
@@ -179,13 +179,13 @@ jobs:
       - name: Run Dashboard Isolation Tests
         id: run-tests
         env:
-          GOOGLE_CLOUD_PROJECT: ${{ vars.GOOGLE_CLOUD_PROJECT }}
+          GOOGLE_CLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
           BIGQUERY_REGION: ${{ needs.trigger-scheduled-queries.outputs.region }}
           EDP_NAME: ${{ matrix.edp.name }}
           EDP_RESOURCE_ID: ${{ matrix.edp.resource_id }}
-          INSPECTOR_IMPERSONATE_SA: dashboard-compliance@${{ vars.GOOGLE_CLOUD_PROJECT }}.iam.gserviceaccount.com
-          EDP_DELEGATES: dashboard-compliance@${{ vars.GOOGLE_CLOUD_PROJECT }}.iam.gserviceaccount.com
-          EDP_IMPERSONATE_SA: edp-${{ matrix.edp.name }}-dashboard@${{ vars.GOOGLE_CLOUD_PROJECT }}.iam.gserviceaccount.com
+          INSPECTOR_IMPERSONATE_SA: dashboard-compliance@${{ vars.GCLOUD_PROJECT }}.iam.gserviceaccount.com
+          EDP_DELEGATES: dashboard-compliance@${{ vars.GCLOUD_PROJECT }}.iam.gserviceaccount.com
+          EDP_IMPERSONATE_SA: edp-${{ matrix.edp.name }}-dashboard@${{ vars.GCLOUD_PROJECT }}.iam.gserviceaccount.com
         run: |
           bazel test \
           --test_env=GOOGLE_APPLICATION_CREDENTIALS \
