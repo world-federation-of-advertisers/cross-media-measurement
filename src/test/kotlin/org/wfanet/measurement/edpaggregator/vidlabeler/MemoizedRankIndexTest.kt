@@ -47,7 +47,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
+import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
+import org.wfanet.virtualpeople.common.LabelerInput
 
 private const val DP = "dataProviders/dp"
 private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml1"
@@ -145,6 +147,30 @@ class MemoizedRankIndexTest {
 
     assertThat(index.lookup(digestOf(fpX)).map { it.poolOffset to it.localRank })
       .containsExactly(10L to 3L, 20L to 8L)
+  }
+
+  @Test
+  fun `appendRankAssignments matches lookup and returns the appended count`() {
+    val fpX = fp(0x33)
+    val digest = digestOf(fpX)
+    // The same fingerprint is ranked in two subpools.
+    val mapA = Bytes12IntMap().apply { put(digest.high, digest.low, 3) }
+    val mapB = Bytes12IntMap().apply { put(digest.high, digest.low, 8) }
+    val index = MemoizedRankIndex.fromMaps(linkedMapOf(10L to mapA, 20L to mapB))
+
+    val builder = LabelerInput.newBuilder()
+    val appended = index.appendRankAssignments(digest, builder)
+
+    assertThat(appended).isEqualTo(2)
+    // Appended assignments match lookup() exactly, in the same order.
+    assertThat(builder.rankAssignmentsList.map { it.poolOffset to it.localRank })
+      .containsExactlyElementsIn(index.lookup(digest).map { it.poolOffset to it.localRank })
+      .inOrder()
+
+    // A miss appends nothing and returns 0.
+    val missBuilder = LabelerInput.newBuilder()
+    assertThat(index.appendRankAssignments(digestOf(fp(0x99)), missBuilder)).isEqualTo(0)
+    assertThat(missBuilder.rankAssignmentsList).isEmpty()
   }
 
   @Test

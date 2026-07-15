@@ -18,7 +18,6 @@ package org.wfanet.measurement.edpaggregator.subpoolassigner
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.UnsafeByteOperations
-import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
@@ -51,24 +50,69 @@ class SubpoolFingerprintsAccumulator {
     val map = Bytes12IntMap()
   }
 
-  private val buckets = ConcurrentHashMap<Long, Bucket>()
+  /**
+   * Immutable, atomically-published pairing of subpool offsets to their [Bucket]s: `ids[i]` is the
+   * subpool offset of `buckets[i]`. Subpools are few, so [add]'s hot path does a primitive linear
+   * scan over the `ids` [LongArray] — no `Long` boxing, no ConcurrentHashMap bin lookup. A single
+   * [Snapshot] reference is published (under [growthLock]) whenever a new subpool first appears, so
+   * a concurrent reader always sees a consistent `(ids, buckets)` pair; a bucket, once created,
+   * keeps its index and is never replaced.
+   */
+  private class Snapshot(val ids: LongArray, val buckets: Array<Bucket>)
+
+  @Volatile private var snapshot = Snapshot(LongArray(0), emptyArray())
+  private val growthLock = Any()
 
   /**
    * Records that the fingerprint `(keyHi, keyLo)` belongs to [subpoolId]. Idempotent per subpool.
    */
   fun add(subpoolId: Long, keyHi: Long, keyLo: Int) {
-    // Lock-free fast path: the bucket almost always already exists (subpools are few, adds are
-    // many), so avoid CHM's computeIfAbsent bin-lock on the hot path.
-    val bucket = buckets[subpoolId] ?: buckets.computeIfAbsent(subpoolId) { Bucket() }
+    val bucket = bucketFor(subpoolId)
     synchronized(bucket) { bucket.map.put(keyHi, keyLo, PRESENT) }
   }
 
+  /** The [Bucket] for [subpoolId], creating it (under [growthLock]) the first time it is seen. */
+  private fun bucketFor(subpoolId: Long): Bucket {
+    // Lock-free fast path: subpools almost always already exist (few subpools, many adds).
+    val current = snapshot
+    val index = indexOf(current.ids, subpoolId)
+    if (index >= 0) return current.buckets[index]
+    // Slow path: create the bucket (or find it, if a concurrent add just created it), then publish
+    // a
+    // new snapshot with the appended (id, bucket) pair.
+    synchronized(growthLock) {
+      val latest = snapshot
+      val existing = indexOf(latest.ids, subpoolId)
+      if (existing >= 0) return latest.buckets[existing]
+      val bucket = Bucket()
+      snapshot = Snapshot(latest.ids + subpoolId, latest.buckets + bucket)
+      return bucket
+    }
+  }
+
+  private fun indexOf(ids: LongArray, subpoolId: Long): Int {
+    for (i in ids.indices) {
+      if (ids[i] == subpoolId) return i
+    }
+    return -1
+  }
+
   /** The subpool offsets seen so far. */
-  fun subpoolIds(): Set<Long> = buckets.keys
+  fun subpoolIds(): Set<Long> {
+    val current = snapshot
+    val ids = LinkedHashSet<Long>(current.ids.size)
+    for (id in current.ids) {
+      ids.add(id)
+    }
+    return ids
+  }
 
   /** Number of distinct fingerprints accumulated for [subpoolId]. */
   fun size(subpoolId: Long): Long {
-    val bucket = buckets[subpoolId] ?: return 0L
+    val current = snapshot
+    val index = indexOf(current.ids, subpoolId)
+    if (index < 0) return 0L
+    val bucket = current.buckets[index]
     return synchronized(bucket) { bucket.map.size }
   }
 
@@ -82,7 +126,10 @@ class SubpoolFingerprintsAccumulator {
     subpoolId: Long,
     chunkFingerprints: Int = DEFAULT_CHUNK_FINGERPRINTS,
   ): Flow<ByteString> = flow {
-    val bucket = buckets[subpoolId] ?: return@flow
+    val current = snapshot
+    val index = indexOf(current.ids, subpoolId)
+    if (index < 0) return@flow
+    val bucket = current.buckets[index]
     val total = bucket.map.size
     if (total == 0L) return@flow
 
@@ -111,7 +158,14 @@ class SubpoolFingerprintsAccumulator {
 
   /** Drops [subpoolId]'s map, freeing its heap once the subpool's blob has been written. */
   fun remove(subpoolId: Long) {
-    buckets.remove(subpoolId)
+    synchronized(growthLock) {
+      val latest = snapshot
+      val index = indexOf(latest.ids, subpoolId)
+      if (index < 0) return
+      val keptIds = latest.ids.filterIndexed { i, _ -> i != index }.toLongArray()
+      val keptBuckets = latest.buckets.filterIndexed { i, _ -> i != index }.toTypedArray()
+      snapshot = Snapshot(keptIds, keptBuckets)
+    }
   }
 
   companion object {
@@ -121,9 +175,15 @@ class SubpoolFingerprintsAccumulator {
     private const val PRESENT = 1
 
     /**
-     * ~16M fingerprints (~192 MB) per chunk: one RecordIO record, one buffer in memory at a time.
+     * ~1M fingerprints (~12 MB) per chunk: one RecordIO record, one buffer in memory at a time.
+     *
+     * Phase-0 writes these per-(shard, subpool) records and the last-shard-out merge
+     * ([org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore.mergeSubpool])
+     * streams them straight through unchanged (a pure record-by-record concatenation, no
+     * re-chunking), so the merged blob Phase-1 reads inherits this same ~1M-fingerprint record
+     * size.
      */
-    const val DEFAULT_CHUNK_FINGERPRINTS = 16 * 1024 * 1024
+    const val DEFAULT_CHUNK_FINGERPRINTS = 1 * 1024 * 1024
 
     private fun writeBigEndianLong(out: ByteArray, offset: Int, value: Long) {
       out[offset] = (value ushr 56).toByte()

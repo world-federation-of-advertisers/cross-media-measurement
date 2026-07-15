@@ -122,6 +122,47 @@ class RankIndexStore(storageClient: ConditionalOperationStorageClient, kmsClient
       }
       .buffer(recordBufferCapacity)
 
+  /**
+   * Opens [blobKey] with a SINGLE `getBlob`, returning its plaintext byte size together with a
+   * [readBlob]-equivalent record [Flow], or `null` when the blob is absent.
+   *
+   * A caller that needs both the size (e.g. to pre-size a map) and the contents would otherwise
+   * call [blobSize] and [readBlob], each doing its own `getBlob`. This resolves the blob handle
+   * once and reuses it for both. The returned flow streams the same `RankIndexMap` records as
+   * [readBlob] and enforces [expectedChecksum] identically (hashing the plaintext payload as it
+   * streams and throwing at end-of-stream on mismatch). Memory stays bounded: only the blob handle
+   * is resolved eagerly; record bytes stream lazily on collection.
+   */
+  suspend fun openBlob(
+    blobKey: String,
+    encryptedDek: EncryptedDek,
+    expectedChecksum: ByteString? = null,
+    recordBufferCapacity: Int = DEFAULT_READ_RECORD_BUFFER,
+  ): Pair<Long, Flow<RankIndexMap>>? {
+    val blob = encryptedClient(encryptedDek).getBlob(blobKey) ?: return null
+    val readFlow =
+      flow {
+          val digest =
+            if (expectedChecksum != null && !expectedChecksum.isEmpty) {
+              MessageDigest.getInstance("SHA-256")
+            } else {
+              null
+            }
+          blob.read().collect { record ->
+            digest?.update(record.asReadOnlyByteBuffer())
+            emit(RankIndexMap.parseFrom(record))
+          }
+          if (digest != null) {
+            val actual = ByteString.copyFrom(digest.digest())
+            check(actual == expectedChecksum) {
+              "RankIndexBlob $blobKey checksum mismatch; cumulative blob is corrupt"
+            }
+          }
+        }
+        .buffer(recordBufferCapacity)
+    return blob.size to readFlow
+  }
+
   /** Deletes [blobKey] from Cloud Storage if present (used to evict aged-out rank-index blobs). */
   suspend fun delete(blobKey: String) {
     storageClient.getBlob(blobKey)?.delete()
@@ -132,13 +173,10 @@ class RankIndexStore(storageClient: ConditionalOperationStorageClient, kmsClient
    * byte count as reported by the encrypted storage client, not the plaintext size. The Phase-2
    * index load uses it to pre-size its per-subpool map: on disk each entry is
    * ~[ON_DISK_BYTES_PER_ENTRY] bytes (12-byte fingerprint + 4-byte fixed32 rank + 2-byte last-seen
-   * day), so the entry count is approximately `size / ON_DISK_BYTES_PER_ENTRY` (a safe slight
-   * over-estimate given framing/encryption).
-   *
-   * TODO(world-federation-of-advertisers/cross-media-measurement#4234): the Phase-2 caller
-   *   pre-sizes with this and then reads the blob, so each subpool resolves the blob handle (and
-   *   unwraps the DEK) twice. #4234's `openBlob` resolves it once and returns the size and record
-   *   flow together, collapsing this to a single unwrap.
+   * day), so the entry count is approximately `size / ON_DISK_BYTES_PER_ENTRY`. This is only a
+   * sizing hint: RecordIO framing and StreamingAead padding make the true per-entry size vary, so
+   * it may under- or over-shoot the real count — the map auto-resizes if under-sized (the pre-size
+   * just aims to avoid that).
    */
   suspend fun blobSize(blobKey: String, encryptedDek: EncryptedDek): Long =
     encryptedClient(encryptedDek).getBlob(blobKey)?.size ?: 0L

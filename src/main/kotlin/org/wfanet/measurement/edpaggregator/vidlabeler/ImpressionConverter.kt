@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
+import com.google.protobuf.util.Timestamps
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
@@ -61,12 +62,16 @@ fun interface ImpressionConverter {
  * @property entityKeys entity keys for this impression, read per-row from the model line's
  *   required/optional entity-key column mappings (see [EntityKeyMapper]); propagated to the labeled
  *   output and the per-blob `BlobDetails.entity_keys` union.
+ * @property eventTimeMicros [eventTime] as epoch-micros, carried alongside the typed [eventTime] so
+ *   the sink's active-window check does not re-derive it per row via `Timestamps.toMicros`.
+ *   Defaults to `Timestamps.toMicros(eventTime)`, so it is always exactly that value.
  */
 data class ConvertedImpression(
   val labelerInput: LabelerInput,
   val eventTime: com.google.protobuf.Timestamp,
   val event: com.google.protobuf.Any,
   val entityKeys: List<org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression.EntityKey>,
+  val eventTimeMicros: Long = Timestamps.toMicros(eventTime),
 ) {
   init {
     // Making entityKeys a required parameter only blocks accidental omission at the call site; an
