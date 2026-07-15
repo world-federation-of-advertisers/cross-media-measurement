@@ -171,6 +171,41 @@ class LabelerInputMapperTest {
   }
 
   @Test
+  fun `rejects a lookup_table entry naming a non-existent enum value at construction`() {
+    // The lookup target is resolved to its EnumValueDescriptor once at construction, so an entry
+    // that names a non-existent enum value fails fast at startup (not on the first matching row).
+    val ex =
+      assertFailsWith<IllegalArgumentException> {
+        mapperOf(
+          labelerInputFieldMapping {
+            fieldPath = GENDER_PATH
+            enumLookup = enumLookup {
+              column = "g"
+              lookupTable["M"] = "NOT_A_GENDER"
+            }
+          }
+        )
+      }
+    assertThat(ex).hasMessageThat().contains("NOT_A_GENDER")
+  }
+
+  @Test
+  fun `rejects a default_enum_value naming a non-existent enum value at construction`() {
+    assertFailsWith<IllegalArgumentException> {
+      mapperOf(
+        labelerInputFieldMapping {
+          fieldPath = GENDER_PATH
+          enumLookup = enumLookup {
+            column = "g"
+            lookupTable["M"] = "GENDER_MALE"
+            defaultEnumValue = "NOT_A_GENDER"
+          }
+        }
+      )
+    }
+  }
+
+  @Test
   fun `rejects an enum_lookup targeting a non-enum field at construction`() {
     assertFailsWith<IllegalArgumentException> {
       mapperOf(

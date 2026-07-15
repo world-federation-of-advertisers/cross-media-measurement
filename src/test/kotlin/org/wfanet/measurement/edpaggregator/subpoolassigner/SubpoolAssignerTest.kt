@@ -549,7 +549,7 @@ class SubpoolAssignerTest {
     }
 
   private object FakePoolEmitLabeler : PoolEmitLabeler {
-    override fun emit(input: LabelerInput): List<Long> = emptyList()
+    override fun emit(input: LabelerInput, onPoolOffset: (Long) -> Unit): Int = 0
 
     // Distinct per offset so a key-swap / dropped-offset regression in the rankedSize stamping is
     // observable (a constant would hide it).
