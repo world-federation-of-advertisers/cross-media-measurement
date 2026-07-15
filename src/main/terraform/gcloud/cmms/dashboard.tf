@@ -986,3 +986,102 @@ resource "google_service_account_iam_member" "dashboard_compliance_terraform_tok
   member             = "serviceAccount:${var.terraform_service_account}"
 }
 
+
+# --- Scheduled compliance check (#3930) --------------------------------------
+# Packages DashboardComplianceCheck as an HTTP Cloud Function and runs it daily
+# via Cloud Scheduler (OIDC), independently of the post-deploy CI check, to
+# detect drift against the live state between deploys. Failed checks are logged
+# at SEVERE with an "ALERT:" prefix and surfaced by the log-based alert policy.
+#
+# Gated on dashboard_compliance_uber_jar_path: environments that do not supply
+# the function uber jar (e.g. local plans) skip the scheduled check cleanly.
+locals {
+  deploy_dashboard_compliance_scheduler = (
+    var.dashboard_compliance_uber_jar_path != null &&
+    var.dashboard_compliance_uber_jar_path != "" &&
+    length(var.data_provider_resource_ids) > 0
+  )
+  dashboard_compliance_function_name = "dashboard-compliance-check"
+
+  # Derived from data_provider_resource_ids so it can never drift from the SAs /
+  # row access policies. Semicolon-separated so it can travel in the Cloud
+  # Function's comma-delimited env-var string.
+  dashboard_edps_env = join(
+    ";",
+    [for name, resource_id in var.data_provider_resource_ids : "${name}:${resource_id}"],
+  )
+}
+
+module "dashboard_compliance_cloud_function" {
+  count  = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  source = "../modules/http-cloud-function"
+
+  http_cloud_function_service_account_name = "dashboard-compliance-fn"
+  terraform_service_account                = var.terraform_service_account
+  function_name                            = local.dashboard_compliance_function_name
+  entry_point                              = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.tools.DashboardComplianceCheckFunction"
+  uber_jar_path                            = var.dashboard_compliance_uber_jar_path
+  secret_mappings                          = ""
+  extra_env_vars = join(",", [
+    "GOOGLE_CLOUD_PROJECT=${data.google_client_config.default.project}",
+    "BIGQUERY_REGION=${data.google_client_config.default.region}",
+    "DASHBOARD_DATASET=${google_bigquery_dataset.dashboard.dataset_id}",
+    "IMPERSONATE_SERVICE_ACCOUNT=${google_service_account.dashboard_compliance.email}",
+    "DASHBOARD_EDPS=${local.dashboard_edps_env}",
+  ])
+}
+
+# The function runs as its own SA and impersonates the least-privilege
+# dashboard-compliance SA (the same identity the post-deploy CI check uses).
+resource "google_service_account_iam_member" "dashboard_compliance_function_token_creator" {
+  count              = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  service_account_id = google_service_account.dashboard_compliance.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${module.dashboard_compliance_cloud_function[0].cloud_function_service_account.email}"
+}
+
+module "dashboard_compliance_cloud_scheduler" {
+  count                     = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  source                    = "../modules/cloud-scheduler"
+  terraform_service_account = var.terraform_service_account
+  scheduler_config = {
+    schedule                  = "0 6 * * *"
+    time_zone                 = "UTC"
+    name                      = "dashboard-compliance-scheduler"
+    function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/${local.dashboard_compliance_function_name}"
+    scheduler_sa_display_name = "Dashboard Compliance Scheduler"
+    scheduler_sa_description  = "Service account for Cloud Scheduler to trigger the dashboard compliance check"
+    scheduler_job_description = "Daily DashboardComplianceCheck run to detect drift between deploys (#3930)"
+    scheduler_job_name        = local.dashboard_compliance_function_name
+  }
+  depends_on = [module.dashboard_compliance_cloud_function]
+}
+
+# Log-based alert policy: the function logs SEVERE (Cloud Logging ERROR) on any
+# failed check or execution error. Notifies the configured channels (Slack /
+# PagerDuty). With no channels configured, the policy still records incidents.
+resource "google_monitoring_alert_policy" "dashboard_compliance_failures" {
+  count        = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  display_name = "Dashboard Compliance Check Failures"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "DashboardComplianceCheck reported failures"
+    condition_matched_log {
+      filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${local.dashboard_compliance_function_name}\" AND severity>=ERROR"
+    }
+  }
+
+  notification_channels = var.dashboard_alert_notification_channels
+
+  alert_strategy {
+    notification_rate_limit {
+      period = "3600s"
+    }
+    auto_close = "1800s"
+  }
+
+  documentation {
+    content = "The scheduled DashboardComplianceCheck (#3930) reported one or more failed checks or errored. Inspect the dashboard-compliance-check Cloud Function logs for entries prefixed with 'ALERT:'."
+  }
+}

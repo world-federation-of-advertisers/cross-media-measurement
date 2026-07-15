@@ -455,3 +455,16 @@ variable "vid_labeling_monitor_config_file_path" {
   description = "Path to VidLabelingMonitor config file."
   type        = string
 }
+
+variable "dashboard_compliance_uber_jar_path" {
+  description = "Path to the DashboardComplianceCheck Cloud Function uber jar. When unset, the scheduled compliance check (Cloud Function + Cloud Scheduler + alert policy) is not deployed."
+  type        = string
+  nullable    = true
+  default     = null
+}
+
+variable "dashboard_alert_notification_channels" {
+  description = "Cloud Monitoring notification channel IDs (Slack/PagerDuty) to notify on dashboard compliance check failures. Empty creates the policy without notifications."
+  type        = list(string)
+  default     = []
+}
