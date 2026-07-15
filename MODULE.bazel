@@ -51,7 +51,7 @@ bazel_dep(
 # DO_NOT_SUBMIT: use release version
 git_override(
     module_name = "common-jvm",
-    commit = "2fe978a7d8188093300a5c7bddc376e7c3c2e4ed",
+    commit = "a3eaafdeb31ce4fd28acf7b8e0d177182f2e3a8d",
     remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
 bazel_dep(
@@ -154,12 +154,12 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_jvm_external",
-    version = "6.8",
+    version = "7.0",
 )
 # TODO(bazel-contrib/rules_jvm_external#1603): Remove when fixed
 single_version_override(
     module_name = "rules_jvm_external",
-    version = "6.8",
+    version = "7.0",
 )
 bazel_dep(
     name = "rules_python",
@@ -341,7 +341,7 @@ maven.install(
         "org.apache.commons:commons-numbers-bom:1.2",
     ],
     fail_if_repin_required = True,
-    fetch_sources = True,  # For IDE integration.
+    fetch_sources = False,  # For IDE integration.
     known_contributing_modules = [
         "any-sketch-java",
         "common-jvm",
