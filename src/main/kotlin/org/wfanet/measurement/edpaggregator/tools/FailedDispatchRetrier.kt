@@ -116,6 +116,13 @@ class FailedDispatchRetrier(
       if (republishWorkItem(oldId)) republished++
     }
 
+    // If every target WorkItem already exists (a re-retry after a prior retry left them in place),
+    // do NOT advance the model line: transitioning with no fresh worker signal would masquerade as
+    // progress. Leave it FAILED so stuck-phase recovery or the operator can investigate.
+    if (republished == 0) {
+      return RetryResult(modelLine.name, 0, modelLine.state)
+    }
+
     val updated = transition(modelLine, targetState)
     return RetryResult(updated.name, republished, updated.state)
   }

@@ -25,6 +25,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -158,6 +160,111 @@ class EvictUploaderTest {
         }
       }
     assertThat(error).hasMessageThat().contains("retention window")
+  }
+
+  @Test
+  fun `plan throws when a requested upload has no model-line row for the model line`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        runBlocking {
+          whenever(uploadService.listRawImpressionUploads(any()))
+            .thenReturn(
+              listRawImpressionUploadsResponse {
+                rawImpressionUploads += rawImpressionUpload {
+                  name = uploadName("up1")
+                  createTime = T1.toProtoTime()
+                }
+                rawImpressionUploads += rawImpressionUpload {
+                  name = uploadName("up2")
+                  createTime = T2.toProtoTime()
+                }
+              }
+            )
+          // Only up1 has a row for MODEL_LINE; up2 is a valid, in-window upload with none.
+          whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+            .thenReturn(
+              listRawImpressionUploadModelLinesResponse {
+                rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                  name = modelLineName("up1")
+                  cmmsModelLine = MODEL_LINE
+                  state = RawImpressionUploadModelLine.State.COMPLETED
+                }
+              }
+            )
+          evictUploader.plan(
+            MODEL_LINE,
+            listOf(uploadName("up1"), uploadName("up2")),
+            cutoffTime = T0,
+          )
+        }
+      }
+    assertThat(error).hasMessageThat().contains("no $MODEL_LINE model-line row")
+  }
+
+  @Test
+  fun `plan rejects bad uploads spanning multiple DataProviders`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        runBlocking {
+          evictUploader.plan(
+            MODEL_LINE,
+            listOf(uploadName("up1"), "dataProviders/dp2/rawImpressionUploads/up2"),
+            cutoffTime = T0,
+          )
+        }
+      }
+    assertThat(error).hasMessageThat().contains("same DataProvider")
+  }
+
+  @Test
+  fun `evict skips an already-FAILED model line but still soft-deletes its snapshots`() {
+    val result = runBlocking {
+      whenever(uploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("up1")
+              createTime = T1.toProtoTime()
+            }
+          }
+        )
+      whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = modelLineName("up1")
+              cmmsModelLine = MODEL_LINE
+              state = RawImpressionUploadModelLine.State.COMPLETED
+            }
+          }
+        )
+      // evict() re-fetches current state before marking; it is already FAILED, so Mark is skipped.
+      whenever(modelLineService.getRawImpressionUploadModelLine(any()))
+        .thenReturn(
+          rawImpressionUploadModelLine {
+            name = modelLineName("up1")
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.FAILED
+          }
+        )
+      whenever(rankIndexBlobService.listRankIndexBlobs(any()))
+        .thenReturn(
+          listRankIndexBlobsResponse {
+            rankIndexBlobs += rankIndexBlob {
+              name = "snapshot-blob"
+              blobType = RankIndexBlob.BlobType.SNAPSHOT
+            }
+          }
+        )
+      whenever(rankIndexBlobService.deleteRankIndexBlob(any())).thenAnswer { rankIndexBlob {} }
+
+      val plan = evictUploader.plan(MODEL_LINE, listOf(uploadName("up1")), cutoffTime = T0)
+      evictUploader.evict(MODEL_LINE, plan, REASON)
+    }
+
+    assertThat(result.failedModelLines).isEmpty()
+    assertThat(result.deletedSnapshots).isEqualTo(1)
+    verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineFailed(any()) }
   }
 
   companion object {
