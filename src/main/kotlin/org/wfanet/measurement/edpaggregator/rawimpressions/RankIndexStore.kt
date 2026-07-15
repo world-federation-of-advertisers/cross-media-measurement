@@ -20,6 +20,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.ByteString
 import java.security.MessageDigest
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
@@ -98,32 +99,59 @@ class RankIndexStore(storageClient: ConditionalOperationStorageClient, kmsClient
     blobKey: String,
     encryptedDek: EncryptedDek,
     expectedChecksum: ByteString? = null,
-  ): Flow<RankIndexMap> = flow {
-    val blob = encryptedClient(encryptedDek).getBlob(blobKey) ?: return@flow
-    val digest =
-      if (expectedChecksum != null && !expectedChecksum.isEmpty) {
-        MessageDigest.getInstance("SHA-256")
-      } else {
-        null
+    recordBufferCapacity: Int = DEFAULT_READ_RECORD_BUFFER,
+  ): Flow<RankIndexMap> =
+    flow {
+        val blob = encryptedClient(encryptedDek).getBlob(blobKey) ?: return@flow
+        val digest =
+          if (expectedChecksum != null && !expectedChecksum.isEmpty) {
+            MessageDigest.getInstance("SHA-256")
+          } else {
+            null
+          }
+        blob.read().collect { record ->
+          digest?.update(record.asReadOnlyByteBuffer())
+          emit(RankIndexMap.parseFrom(record))
+        }
+        if (digest != null) {
+          val actual = ByteString.copyFrom(digest.digest())
+          check(actual == expectedChecksum) {
+            "RankIndexBlob $blobKey checksum mismatch; cumulative blob is corrupt"
+          }
+        }
       }
-    blob.read().collect { record ->
-      digest?.update(record.asReadOnlyByteBuffer())
-      emit(RankIndexMap.parseFrom(record))
-    }
-    if (digest != null) {
-      val actual = ByteString.copyFrom(digest.digest())
-      check(actual == expectedChecksum) {
-        "RankIndexBlob $blobKey checksum mismatch; cumulative blob is corrupt"
-      }
-    }
-  }
+      .buffer(recordBufferCapacity)
 
   /** Deletes [blobKey] from Cloud Storage if present (used to evict aged-out rank-index blobs). */
   suspend fun delete(blobKey: String) {
     storageClient.getBlob(blobKey)?.delete()
   }
 
+  /**
+   * Byte size of the SNAPSHOT blob at [blobKey], or 0 if absent. The Phase-2 index load uses this
+   * to pre-size its per-subpool map: on disk each entry is ~[ON_DISK_BYTES_PER_ENTRY] bytes
+   * (12-byte fingerprint + 4-byte fixed32 rank + 2-byte last-seen day), so the entry count is
+   * approximately `size / ON_DISK_BYTES_PER_ENTRY` (a safe slight over-estimate given
+   * framing/encryption).
+   */
+  suspend fun blobSize(blobKey: String, encryptedDek: EncryptedDek): Long =
+    encryptedClient(encryptedDek).getBlob(blobKey)?.size ?: 0L
+
   companion object {
+    /**
+     * Approximate on-disk bytes per rank-index entry: 12-byte fingerprint + 4-byte fixed32 rank +
+     * 2-byte last-seen day. Used to pre-size the Phase-2 load map from the blob byte size.
+     */
+    const val ON_DISK_BYTES_PER_ENTRY = 18L
+
+    /**
+     * Prefetch depth (in RankIndexMap records, ~18 MiB each at 1M entries/record) between the
+     * read/decrypt/parse producer and the map-insert consumer, so the GCS read runs ahead of
+     * inserts instead of stalling on them. Small on purpose: memory ~= capacity x ~18 MiB x
+     * concurrent readers (Phase-2 loads up to 6 subpools at once => ~430 MiB total at 4).
+     */
+    const val DEFAULT_READ_RECORD_BUFFER = 4
+
     /**
      * Storage key for a cumulative `SNAPSHOT` blob of [poolOffset], scoped to the (upload, model
      * line) run and to a single write [attemptId].
