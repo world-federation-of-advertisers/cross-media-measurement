@@ -52,6 +52,7 @@ import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.cel.CelPredicates
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -455,7 +456,7 @@ class ReportSchedulesService(
   }
 
   companion object {
-    private val ENV: Env = buildCelEnvironment(ReportSchedule.getDefaultInstance())
+    private val ENV: Env = CelPredicates.buildEnvironment(ReportSchedule.getDefaultInstance())
     private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
     private val REQUEST_ID_REGEX = Regex("^[a-zA-Z0-9]{1,36}$")
 
@@ -470,7 +471,7 @@ class ReportSchedulesService(
       filter: String,
     ): List<ReportSchedule> {
       return try {
-        filterList(ENV, reportSchedules, filter)
+        CelPredicates.filterList(ENV, reportSchedules, filter)
       } catch (e: IllegalArgumentException) {
         throw Status.INVALID_ARGUMENT.withDescription(e.message).asRuntimeException()
       }

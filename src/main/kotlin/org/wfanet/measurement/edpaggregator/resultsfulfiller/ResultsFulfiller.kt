@@ -157,8 +157,32 @@ class ResultsFulfiller(
     // fulfilled or refused already
     val requisitionsMetadata: List<RequisitionMetadata> = listRequisitionMetadata()
 
-    require(requisitionsMetadata.isNotEmpty()) {
-      "No requisition metadata found for group id: ${groupedRequisitions.groupId}"
+    // Empty metadata is almost always transient, not a permanent orphan. DataWatcher dispatches
+    // this work item on the blob write, but the RequisitionFetcher creates the RequisitionMetadata
+    // *after* writing the blob (writeBlob then batchCreateRequisitionMetadataForGroup), so a
+    // dispatch that wins the race against that metadata write reads zero rows here even though they
+    // land moments later. Throwing nacks the work item, which redelivers and self-heals once the
+    // metadata exists — do NOT skip-and-ack, which would abandon requisitions that are about to
+    // become fulfillable and leave the report permanently unfulfilled.
+    //
+    // The genuinely-orphaned case (fetcher crashed between blob and metadata, so metadata never
+    // arrives) is indistinguishable from the race at read time; it retries up to the queue's
+    // max_delivery_attempts and then dead-letters. Silencing that dead-letter noise requires gating
+    // dispatch on metadata existence (a done-marker) so empty metadata can only mean a true orphan;
+    // until then this stays a throw-and-retry. See #4119 (blocked by #4213).
+    //
+    // emptyMetadataRetries is the observability hook: a low steady rate is the normal race, a
+    // sustained climb on the same groupId is a stuck orphan worth investigating.
+    if (requisitionsMetadata.isEmpty()) {
+      metrics.emptyMetadataRetries.add(
+        1,
+        Attributes.of(ATTR_GROUP_ID_KEY, groupedRequisitions.groupId),
+      )
+      throw IllegalStateException(
+        "No requisition metadata for groupId=${groupedRequisitions.groupId}; the metadata write " +
+          "likely has not committed yet. Nacking to retry; if this persists for a groupId the blob " +
+          "may be a true orphan from a fetcher crash between blob and metadata writes."
+      )
     }
 
     val requisitionMetadataByName: Map<String, RequisitionMetadata> =

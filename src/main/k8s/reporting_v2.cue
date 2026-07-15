@@ -87,10 +87,11 @@ package k8s
 			"\(name)": config.image
 		}
 	}
-	_basicReportsEnabled:        string
-	_secretName:                 string
-	_mcConfigSecretName:         string
-	_populationDataProviderName: string
+	_basicReportsEnabled:                        string
+	_reportingSetReportingUnitComponentsEnabled: string
+	_secretName:                                 string
+	_mcConfigSecretName:                         string
+	_populationDataProviderName:                 string
 
 	_tlsArgs: [
 		"--tls-cert-file=/var/run/secrets/files/reporting_tls.pem",
@@ -211,6 +212,7 @@ package k8s
 						"--pdp-name=\(_populationDataProviderName)",
 						"--default-report-start-time-zone=America/New_York",
 						"--default-report-start-hour=6",
+						"--enable-reporting-set-reporting-unit-components=\(_reportingSetReportingUnitComponentsEnabled)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 
 			spec: template: spec: {
@@ -252,13 +254,16 @@ package k8s
 		}
 
 		"reporting-mcp-server": {
+			// OAuth flags are injected per environment by the overlay (empty by
+			// default), so the base deployment stays OAuth-agnostic.
+			_oauthArgs: [...string] | *[]
 			_container: {
 				args: [
 					"--host=0.0.0.0",
 					"--port=8080",
 					"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
 					_debugVerboseGrpcClientLoggingFlag,
-				] + _tlsArgs + _reportingApiTarget.args
+				] + _tlsArgs + _reportingApiTarget.args + _oauthArgs
 				ports: [{
 					containerPort: 8080
 				}]

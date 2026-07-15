@@ -17,23 +17,28 @@
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.protobuf.Any
-import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
+import java.time.Duration
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -63,8 +68,8 @@ import org.wfanet.measurement.storage.StorageClient
 /**
  * Fetches requisitions from the Kingdom and persists them, grouped by report, to a [StorageClient].
  *
- * The fetcher streams requisitions through a bounded channel into a pool of per-report workers.
- * Each worker:
+ * The fetcher streams requisitions through a bounded channel into a single consumer coroutine. The
+ * consumer:
  * 1. Lists existing [RequisitionMetadata] for its report.
  * 2. Recovers any STORED metadata whose blob is missing by re-running the grouper.
  * 3. For the requisitions that have no metadata yet, validates them, writes the grouped blob first,
@@ -85,12 +90,21 @@ import org.wfanet.measurement.storage.StorageClient
  * @property metadataThrottler throttles all Requisition Metadata Service RPCs.
  * @property responsePageSize optional page size for `listRequisitions`.
  * @property metadataPageSize page size for `listRequisitionMetadata`.
- * @property maxBufferedBytesPerReport upper bound on the serialized bytes of [Requisition]s
- *   buffered for a single `(reportId, updateTime)` tuple before the buffer is dispatched and a new
- *   one is started. Bytes-based rather than count-based because per-requisition size varies widely
- *   (the encrypted spec dominates) and the memory budget that matters is bytes, not count.
- * @property workerCount number of concurrent per-report workers.
- * @property channelCapacity capacity of the channel between the stream producer and workers.
+ * @property flushInterval wall-clock period between forced drains of every open report buffer. This
+ *   is the primary dispatch trigger: because the stream carries no per-report completeness signal
+ *   and may outlive the Cloud Run instance (or never fully drain), the fetcher cannot wait for
+ *   end-of-stream to emit blobs. Draining periodically bounds data-at-risk and feeds downstream
+ *   continuously, at the cost of splitting any report whose requisitions span more than one window.
+ * @property maxTotalBufferedBytes global upper bound on the serialized bytes across all open report
+ *   buffers. When reached, every open buffer is flushed immediately (a memory backstop for a fast
+ *   window between periodic drains). Bytes-based because per-requisition size varies widely (the
+ *   encrypted spec dominates) and the budget that matters is bytes, not count.
+ * @property channelCapacity capacity of the channel between the stream producer and the consumer.
+ * @property maxRequisitionsPerGroup maximum requisitions per grouped-requisitions blob and its
+ *   metadata batch. A report with more than this is written across multiple groups (blobs),
+ *   bounding each metadata `BatchCreate` well under Spanner's per-transaction mutation limit. There
+ *   is no upstream cap on requisitions per report; in practice a report has far fewer than this, so
+ *   it is a safety bound rather than a routine split.
  * @property metrics OpenTelemetry metrics sink.
  */
 class RequisitionFetcher(
@@ -105,28 +119,45 @@ class RequisitionFetcher(
   private val metadataThrottler: Throttler,
   private val responsePageSize: Int? = null,
   private val metadataPageSize: Int = DEFAULT_METADATA_PAGE_SIZE,
-  private val maxBufferedBytesPerReport: Long = DEFAULT_MAX_BUFFERED_BYTES_PER_REPORT,
-  private val workerCount: Int = DEFAULT_WORKER_COUNT,
+  private val flushInterval: Duration = DEFAULT_FLUSH_INTERVAL,
+  private val maxTotalBufferedBytes: Long = DEFAULT_MAX_TOTAL_BUFFERED_BYTES,
+  private val maxRequisitionsPerGroup: Int = DEFAULT_MAX_REQUISITIONS_PER_GROUP,
   private val channelCapacity: Int = DEFAULT_CHANNEL_CAPACITY,
   private val metrics: RequisitionFetcherMetrics = RequisitionFetcherMetrics.Default,
 ) {
+
+  init {
+    // Fail fast at construction rather than deep in the run loop, where an invalid value would
+    // surface as an opaque error: flushInterval <= 0 makes the drain ticker a delay(0) spin loop;
+    // maxRequisitionsPerGroup <= 0 makes chunked() throw; channelCapacity <= 0 is rejected by
+    // Channel(); a non-positive byte cap would flush on every requisition.
+    require(!flushInterval.isNegative && !flushInterval.isZero) {
+      "flushInterval must be positive, was $flushInterval"
+    }
+    require(maxTotalBufferedBytes > 0) {
+      "maxTotalBufferedBytes must be positive, was $maxTotalBufferedBytes"
+    }
+    require(maxRequisitionsPerGroup > 0) {
+      "maxRequisitionsPerGroup must be positive, was $maxRequisitionsPerGroup"
+    }
+    require(channelCapacity > 0) { "channelCapacity must be positive, was $channelCapacity" }
+    require(metadataPageSize > 0) { "metadataPageSize must be positive, was $metadataPageSize" }
+  }
 
   private data class ReportWorkUnit(val reportId: String, val requisitions: List<Requisition>)
 
   private class OpenBuffer(
     val reportId: String,
-    var currentUpdateTime: com.google.protobuf.Timestamp,
     val requisitions: MutableList<Requisition> = mutableListOf(),
-    var bytes: Long = 0L,
   )
 
   /**
-   * Per-worker accumulator for STORED metadata rows whose blob is missing.
+   * Accumulator for STORED metadata rows whose blob is missing.
    *
    * A wedged group's requisitions may arrive across multiple [ReportWorkUnit]s for the same
-   * reportId (different updateTimes, or buffer-cap splits). Per-report routing guarantees those
-   * units land on the same worker; the worker collects matching requisitions across units and
-   * rebuilds the blob only once the full expected set is present.
+   * reportId (a report split across periodic drains or a byte-cap flush). The single consumer
+   * collects matching requisitions across units and rebuilds the blob only once the full expected
+   * set is present.
    *
    * [collected] is keyed by [Requisition.getName] so that re-emissions of the same requisition
    * across units (e.g. Kingdom-side `updateTime` drift between pages causing the same requisition
@@ -134,7 +165,7 @@ class RequisitionFetcher(
    * [expected]`.size` while still missing distinct requisitions, triggering a premature rebuild
    * that writes a blob inconsistent with the metadata it shadows.
    *
-   * Worker state, not shared.
+   * Consumer state, not shared.
    */
   private class PendingRecovery(
     val expected: Set<String>,
@@ -144,9 +175,9 @@ class RequisitionFetcher(
   /**
    * Fetches and stores unfulfilled requisitions for the configured data provider.
    *
-   * Streams `UNFULFILLED` [Requisition]s from the Kingdom, buffers them per `(reportId,
-   * updateTime)` tuple, dispatches each closed buffer onto a bounded channel, and processes each
-   * report in one of a fixed-size pool of worker coroutines. Per-report failures are logged and
+   * Streams `UNFULFILLED` [Requisition]s from the Kingdom, buffers them by `reportId`, drains each
+   * report's buffer onto a bounded channel (periodically and at a total-bytes cap), and processes
+   * the drained work units in a single consumer coroutine. Per-report failures are logged and
    * isolated so one bad report does not stop the run.
    *
    * @throws Exception if there is an error while listing requisitions from the Kingdom.
@@ -167,33 +198,28 @@ class RequisitionFetcher(
     traceSuspending(spanName = SPAN_FETCH_REQUISITIONS, attributes = dataProviderAttrs) {
       var totalFetched = 0L
       coroutineScope {
-        // Per-worker channels keyed by reportId.hashCode().mod(workerCount). All work units for
-        // a given reportId land on the same worker, which lets the worker accumulate cross-unit
-        // state (notably PendingRecovery) without races against peer workers.
-        val perWorkerCapacity = (channelCapacity / workerCount).coerceAtLeast(1)
-        val channels: List<Channel<ReportWorkUnit>> =
-          List(workerCount) { Channel<ReportWorkUnit>(perWorkerCapacity) }
-        val workers =
-          channels.map { ch ->
-            launch {
-              val pendingRecovery = mutableMapOf<String, PendingRecovery>()
-              val metadataCache = mutableMapOf<String, List<RequisitionMetadata>>()
-              try {
-                for (unit in ch) {
-                  processReport(unit, pendingRecovery, metadataCache)
-                }
-              } finally {
-                finalizePendingRecovery(pendingRecovery)
-              }
+        // Single queue, single consumer. All report buffers accumulate in the producer and drain to
+        // one consumer, so `pendingRecovery` and `metadataCache` are one map each (no per-consumer
+        // replication) and there is no cross-consumer routing to reason about.
+        val channel = Channel<ReportWorkUnit>(channelCapacity)
+        val consumer = launch {
+          val pendingRecovery = mutableMapOf<String, PendingRecovery>()
+          val metadataCache = mutableMapOf<String, List<RequisitionMetadata>>()
+          try {
+            for (unit in channel) {
+              processReport(unit, pendingRecovery, metadataCache)
             }
+          } finally {
+            finalizePendingRecovery(pendingRecovery)
           }
+        }
 
         try {
-          totalFetched = produceWorkUnits(channels)
+          totalFetched = produceWorkUnits(channel)
         } finally {
-          channels.forEach { it.close() }
+          channel.close()
         }
-        workers.forEach { it.join() }
+        consumer.join()
       }
       metrics.requisitionsFetched.add(totalFetched, dataProviderAttrs)
       Span.current()
@@ -208,39 +234,42 @@ class RequisitionFetcher(
     }
 
   /**
-   * Streams requisitions from the Kingdom and dispatches per-report work units onto [channels].
+   * Streams requisitions from the Kingdom and dispatches per-report work units onto [channel].
    *
-   * Maintains an [OpenBuffer] per `reportId`. The Kingdom does not guarantee per-report monotonic
-   * `updateTime` ordering in its `listRequisitions` response, so a buffer is closed and dispatched
-   * on (a) *any* change to the report's `updateTime` (forward or backward), (b) the buffer's
-   * serialized requisition byte total reaching [maxBufferedBytesPerReport], or (c) the stream
-   * ending. Requisitions whose [MeasurementSpec] cannot be parsed are refused to the Kingdom in
-   * line and not dispatched.
+   * Maintains one [OpenBuffer] per `reportId` and groups strictly by `reportId` — `updateTime` does
+   * not gate grouping. A report's requisitions are transitioned to `UNFULFILLED` per Measurement
+   * (each Kingdom `SetParticipantRequisitionParams` stamps a fresh commit timestamp), so a
+   * multi-metric report legitimately spans many distinct `updateTime`s; keying the buffer on
+   * `updateTime` would fragment every such report into one blob per requisition. Requisitions whose
+   * [MeasurementSpec] cannot be parsed are refused to the Kingdom in line and not buffered.
    *
-   * Dispatch hashes `reportId` to a per-worker channel so all units for one report land on the same
-   * worker. The producer can backpressure on a hot report's channel while other workers keep
-   * draining.
+   * Buffers are dispatched by two triggers, neither of which is end-of-stream (the stream carries
+   * no per-report completeness signal and can outlive the Cloud Run instance or never fully drain,
+   * so waiting for it to end would starve downstream and risk emitting nothing):
+   * 1. **Periodic drain** — every [flushInterval], a background ticker flushes *all* open buffers.
+   *    This is the primary trigger; it bounds data-at-risk and feeds downstream continuously.
+   * 2. **Total-bytes backstop** — when the serialized bytes across all open buffers reach
+   *    [maxTotalBufferedBytes], all buffers are flushed immediately to bound memory between ticks.
    *
-   * The `openBuffers` map is pruned as the stream's `updateTime` cursor advances: any buffer whose
-   * `currentUpdateTime` is strictly less than the incoming requisition's `updateTime` is dispatched
-   * and removed before the new requisition is buffered. This is provably safe under the global
-   * `UpdateTime ASC` ordering — once the cursor moves past T, no later requisition can have
-   * `updateTime ≤ T`, so older buffers are complete and cannot grow further. Peak `openBuffers`
-   * size is therefore bounded by the count of reports sharing the *current* `updateTime` (typically
-   * 1 under one-COMMIT_TIMESTAMP-per-Measurement semantics, occasionally a few). Both the map
-   * cardinality and the total buffered bytes are reported via
-   * [RequisitionFetcherMetrics.openBufferHighWaterMark] and
+   * A report whose requisitions all arrive within one window becomes a single blob; a report
+   * straddling K windows (or a byte-cap flush) is split across ~K blobs. Splitting is the accepted
+   * cost of incremental progress and is counted in [RequisitionFetcherMetrics.bufferSplits].
+   *
+   * `openBuffers` is guarded by a [Mutex] because the periodic-drain ticker and the stream
+   * collector run concurrently and both mutate it. Peak map cardinality and total buffered bytes
+   * are reported via [RequisitionFetcherMetrics.openBufferHighWaterMark] and
    * [RequisitionFetcherMetrics.bufferedBytesHighWaterMark].
    *
    * @return the total number of requisitions consumed from the Kingdom stream.
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  private suspend fun produceWorkUnits(channels: List<Channel<ReportWorkUnit>>): Long {
-    // Invariant: Kingdom's internal streamRequisitions (which ListRequisitions proxies to) orders
-    // pages globally by `UpdateTime ASC, ExternalDataProviderId ASC, ExternalRequisitionId ASC`
-    // (see Kingdom's StreamRequisitions query). The streaming buffer scheme relies on this for
-    // memory bounding: as the global updateTime advances, each open per-report buffer closes the
-    // next time a requisition with a different updateTime arrives.
+  private suspend fun produceWorkUnits(channel: Channel<ReportWorkUnit>): Long = coroutineScope {
+    // Kingdom's internal streamRequisitions (which ListRequisitions proxies to) orders pages
+    // globally by `UpdateTime ASC, ExternalDataProviderId ASC, ExternalRequisitionId ASC` (see
+    // Kingdom's StreamRequisitions query). Grouping does not depend on that ordering — buffers are
+    // keyed by reportId and flushed by the periodic ticker and the total-bytes backstop — but the
+    // ordering does mean a report's requisitions tend to arrive contiguously, so most reports are
+    // collected and emitted as a single blob between drains.
     val startingPageSize = responsePageSize ?: KINGDOM_LIST_REQUISITIONS_DEFAULT_PAGE_SIZE
     val flow: Flow<Requisition> =
       requisitionsStub
@@ -277,108 +306,106 @@ class RequisitionFetcher(
         .flattenConcat()
 
     val openBuffers = mutableMapOf<String, OpenBuffer>()
+    val buffersMutex = Mutex()
     var totalFetched = 0L
     var openBufferHighWater = 0
     var totalBufferedBytes = 0L
     var bufferedBytesHighWater = 0L
 
-    suspend fun dispatch(buffer: OpenBuffer) {
-      val unit = ReportWorkUnit(buffer.reportId, buffer.requisitions.toList())
-      totalBufferedBytes -= buffer.bytes
-      channels[channelIndexFor(buffer.reportId)].send(unit)
+    // Must hold buffersMutex. Atomically snapshots every open buffer into work units, clears the
+    // map, and resets the running byte total. Does NOT send: this function is non-suspending so the
+    // lock is never held across the suspending `channel.send`. Callers send the returned units
+    // outside the lock, so a slow consumer backing up the channel cannot stall the stream collector
+    // (which needs the same lock to keep buffering). Backpressure is provided solely by the
+    // channel.
+    fun drainAll(): List<ReportWorkUnit> {
+      if (openBuffers.isEmpty()) return emptyList()
+      val units = openBuffers.values.map { ReportWorkUnit(it.reportId, it.requisitions.toList()) }
+      openBuffers.clear()
+      totalBufferedBytes = 0L
+      return units
     }
 
-    // Watermark eviction: dispatch and remove any buffer strictly older than the incoming
-    // requisition's updateTime. Safe under Kingdom's `UpdateTime ASC` ordering — once the cursor
-    // moves past T, no later requisition can have updateTime ≤ T, so older buffers cannot grow.
-    suspend fun evictBuffersOlderThan(watermark: com.google.protobuf.Timestamp) {
-      val iterator = openBuffers.entries.iterator()
-      while (iterator.hasNext()) {
-        val buffer = iterator.next().value
-        if (Timestamps.compare(buffer.currentUpdateTime, watermark) < 0) {
-          if (buffer.requisitions.isNotEmpty()) dispatch(buffer)
-          iterator.remove()
+    // Snapshots the open buffers under the lock, then sends the work units outside it (see
+    // [drainAll]). Used by the periodic ticker, the total-bytes backstop, and the final drain.
+    suspend fun drainAndSend() {
+      for (unit in buffersMutex.withLock { drainAll() }) channel.send(unit)
+    }
+
+    // Periodic drain: the primary dispatch trigger. Runs until the collector completes and cancels
+    // it. Each tick flushes every open buffer so downstream sees blobs continuously, and no report
+    // is held longer than roughly one interval regardless of how long the stream takes to read.
+    val drainTicker = launch {
+      while (isActive) {
+        delay(flushInterval.toMillis())
+        // Cancellable on purpose. If the scope is cancelled mid-send the drained units are dropped,
+        // but that is recoverable: they were never blobbed or given metadata, so they remain
+        // UNFULFILLED at the Kingdom and are re-streamed on the next scheduled run. Do NOT shield
+        // this with NonCancellable — channel.send can block indefinitely on a full channel once the
+        // consumer stops receiving (e.g. the scope is cancelled on instance shutdown/timeout), and
+        // shielding a blocking send turns a recoverable drop into a deadlock that hangs the
+        // instance.
+        drainAndSend()
+      }
+    }
+
+    try {
+      flow.collect { requisition ->
+        // Counts every requisition streamed from the Kingdom, including those refused below for an
+        // unparseable spec. Only this (single) collector mutates totalFetched, so no lock is
+        // needed.
+        totalFetched += 1
+        val reportId = extractReportId(requisition)
+        if (reportId == null) {
+          requisitionGrouper.refuseRequisitionToCmms(
+            requisition,
+            refusal {
+              justification = Requisition.Refusal.Justification.SPEC_INVALID
+              message =
+                "MeasurementSpec missing or has no reportingMetadata.report; unable to extract " +
+                  "report id"
+            },
+          )
+          return@collect
         }
+
+        val requisitionBytes = requisition.serializedSize.toLong()
+        val overCap =
+          buffersMutex.withLock {
+            val existing = openBuffers[reportId]
+            if (existing == null) {
+              openBuffers[reportId] =
+                OpenBuffer(reportId = reportId, requisitions = mutableListOf(requisition))
+            } else {
+              existing.requisitions.add(requisition)
+            }
+            totalBufferedBytes += requisitionBytes
+            if (openBuffers.size > openBufferHighWater) openBufferHighWater = openBuffers.size
+            if (totalBufferedBytes > bufferedBytesHighWater) {
+              bufferedBytesHighWater = totalBufferedBytes
+            }
+            totalBufferedBytes >= maxTotalBufferedBytes
+          }
+        // Memory backstop between periodic drains.
+        if (overCap) drainAndSend()
       }
+    } finally {
+      // cancelAndJoin (not cancel) so the ticker is fully stopped before the final drain runs — no
+      // tick can execute concurrently with the final drain and double-send or race the buffer map.
+      drainTicker.cancelAndJoin()
+      // Record the memory high-water gauges here (in finally, before the final drain) so they are
+      // emitted even when flow.collect throws mid-run — a failed run is exactly when the
+      // buffer-cardinality and bytes-at-risk telemetry is most useful. The final drain does not
+      // change these peaks, so recording before it yields the same values.
+      metrics.openBufferHighWaterMark.record(openBufferHighWater.toLong(), dataProviderAttrs)
+      metrics.bufferedBytesHighWaterMark.record(bufferedBytesHighWater, dataProviderAttrs)
     }
 
-    flow.collect { requisition ->
-      totalFetched += 1
-      val reportId = extractReportId(requisition)
-      if (reportId == null) {
-        requisitionGrouper.refuseRequisitionToCmms(
-          requisition,
-          refusal {
-            justification = Requisition.Refusal.Justification.SPEC_INVALID
-            message =
-              "MeasurementSpec missing or has no reportingMetadata.report; unable to extract " +
-                "report id"
-          },
-        )
-        return@collect
-      }
+    // Final drain of whatever remains when the stream ends within the instance lifetime.
+    drainAndSend()
 
-      evictBuffersOlderThan(requisition.updateTime)
-
-      val requisitionBytes = requisition.serializedSize.toLong()
-
-      val existing = openBuffers[reportId]
-      if (existing == null) {
-        openBuffers[reportId] =
-          OpenBuffer(
-            reportId = reportId,
-            currentUpdateTime = requisition.updateTime,
-            requisitions = mutableListOf(requisition),
-            bytes = requisitionBytes,
-          )
-        totalBufferedBytes += requisitionBytes
-        if (openBuffers.size > openBufferHighWater) openBufferHighWater = openBuffers.size
-        if (totalBufferedBytes > bufferedBytesHighWater) bufferedBytesHighWater = totalBufferedBytes
-        return@collect
-      }
-
-      if (Timestamps.compare(requisition.updateTime, existing.currentUpdateTime) != 0) {
-        dispatch(existing)
-        openBuffers[reportId] =
-          OpenBuffer(
-            reportId = reportId,
-            currentUpdateTime = requisition.updateTime,
-            requisitions = mutableListOf(requisition),
-            bytes = requisitionBytes,
-          )
-        totalBufferedBytes += requisitionBytes
-        if (totalBufferedBytes > bufferedBytesHighWater) bufferedBytesHighWater = totalBufferedBytes
-        return@collect
-      }
-
-      existing.requisitions.add(requisition)
-      existing.bytes += requisitionBytes
-      totalBufferedBytes += requisitionBytes
-      if (totalBufferedBytes > bufferedBytesHighWater) bufferedBytesHighWater = totalBufferedBytes
-      if (existing.bytes >= maxBufferedBytesPerReport) {
-        dispatch(existing)
-        metrics.bufferSplits.add(1, dataProviderAttrs)
-        openBuffers[reportId] =
-          OpenBuffer(
-            reportId = reportId,
-            currentUpdateTime = existing.currentUpdateTime,
-            requisitions = mutableListOf(),
-            bytes = 0L,
-          )
-      }
-    }
-
-    for (buffer in openBuffers.values) {
-      if (buffer.requisitions.isNotEmpty()) {
-        dispatch(buffer)
-      }
-    }
-    metrics.openBufferHighWaterMark.record(openBufferHighWater.toLong(), dataProviderAttrs)
-    metrics.bufferedBytesHighWaterMark.record(bufferedBytesHighWater, dataProviderAttrs)
-    return totalFetched
+    totalFetched
   }
-
-  private fun channelIndexFor(reportId: String): Int = reportId.hashCode().mod(workerCount)
 
   /**
    * Runs [processReportInner] for one [ReportWorkUnit] inside a trace span, isolating any failure
@@ -491,7 +518,7 @@ class RequisitionFetcher(
           writeBlob(rebuilt)
           metrics.recoveryRebuilds.add(1, dataProviderAttrs)
           // No metadata mutated on the recovery path (the blob is rebuilt for already-existing
-          // STORED rows), so the worker-local metadataCache stays accurate and is intentionally
+          // STORED rows), so the consumer-local metadataCache stays accurate and is intentionally
           // not invalidated here.
         }
         pendingRecovery.remove(existingGroupId)
@@ -502,36 +529,56 @@ class RequisitionFetcher(
     val unregistered = unit.requisitions.filter { it.name !in existingNames }
     if (unregistered.isEmpty()) return
 
-    val groupId = UUID.randomUUID().toString()
     // Any persist path below mutates RequisitionMetadata for this report, so invalidate the
-    // worker-local cache unconditionally — including on partial-progress exceptions, where the
+    // consumer-local cache unconditionally — including on partial-progress exceptions, where the
     // cache otherwise retains a pre-failure snapshot that hides rows just persisted.
     try {
       val invalidRefusal = validateForReport(unit.reportId, unregistered)
       if (invalidRefusal != null) {
-        refuseUnregisteredAndPersist(unregistered, groupId, unit.reportId, invalidRefusal)
+        refuseUnregisteredAndPersist(unregistered, unit.reportId, invalidRefusal)
         return
       }
 
-      val grouped =
-        try {
-          requisitionGrouper.groupForReport(unit.reportId, unregistered, groupId)
-        } catch (e: InconsistentEventGroupSelectorsException) {
-          val refusal = refusal {
-            justification = Requisition.Refusal.Justification.UNFULFILLABLE
-            message = e.message ?: "Invalid event group configuration"
-          }
-          refuseUnregisteredAndPersist(unregistered, groupId, unit.reportId, refusal)
-          return
-        } ?: return
+      // Split the report's requisitions into groups of at most [maxRequisitionsPerGroup],
+      // each with its own groupId, blob, and atomic metadata batch. There is no upstream
+      // limit on requisitions per report; in practice a report has far fewer than one
+      // chunk, so the common case is a single group (identical to no chunking). The cap
+      // bounds the metadata batch's Spanner mutation count (rows x columns x secondary
+      // indexes) well under the ~80k per-transaction limit, so an unusually large report
+      // cannot produce a batch that fails every run and wedges the report. Each chunk's
+      // (blob, metadata) pair is internally consistent, so a mid-report failure only leaves
+      // already-persisted chunks (fully consistent) plus at most one benign orphan blob
+      // (blob without metadata), recovered on a later run — the same recoverable state the
+      // single-group path already relies on.
+      var priorBlobForReport = storedByGroupId.isNotEmpty()
+      for (chunk in unregistered.chunked(maxRequisitionsPerGroup)) {
+        val groupId = UUID.randomUUID().toString()
+        val grouped =
+          try {
+            requisitionGrouper.groupForReport(unit.reportId, chunk, groupId)
+          } catch (e: InconsistentEventGroupSelectorsException) {
+            val refusal = refusal {
+              justification = Requisition.Refusal.Justification.UNFULFILLABLE
+              message = e.message ?: "Invalid event group configuration"
+            }
+            refuseUnregisteredAndPersist(chunk, unit.reportId, refusal)
+            continue
+          } ?: continue
 
-      writeBlob(grouped)
-      // TODO(world-federation-of-advertisers/cross-media-measurement#4119): A crash between
-      //  writeBlob and this batch call leaves an orphan blob (blob present, zero metadata).
-      //  The orphan is benign for fetcher correctness but currently causes ResultsFulfiller to
-      //  fail loudly at ResultsFulfiller.kt:160 and dead-letter the work item. Downstream fix:
-      //  change ResultsFulfiller to log + skip rather than throw on the empty-metadata case.
-      batchCreateRequisitionMetadataForGroup(unregistered, groupId, unit.reportId)
+        // Every blob beyond the report's first (a prior STORED group from any run, or an earlier
+        // chunk this run) means the report is written across more than one blob: a split.
+        if (priorBlobForReport) {
+          metrics.bufferSplits.add(1, dataProviderAttrs)
+        }
+        priorBlobForReport = true
+        writeBlob(grouped)
+        // TODO(world-federation-of-advertisers/cross-media-measurement#4119): A crash between
+        //  writeBlob and this batch call leaves an orphan blob (blob present, zero metadata).
+        //  The orphan is benign for fetcher correctness but currently causes ResultsFulfiller to
+        //  fail loudly at ResultsFulfiller.kt:160 and dead-letter the work item. Downstream fix:
+        //  change ResultsFulfiller to log + skip rather than throw on the empty-metadata case.
+        batchCreateRequisitionMetadataForGroup(chunk, groupId, unit.reportId)
+      }
     } finally {
       metadataCache.remove(unit.reportId)
     }
@@ -588,15 +635,16 @@ class RequisitionFetcher(
 
   /**
    * Refuses every requisition in [requisitions] to the Kingdom and persists corresponding `REFUSED`
-   * [RequisitionMetadata] entries under the shared [groupId].
+   * [RequisitionMetadata] entries.
    *
-   * The metadata is created atomically via `BatchCreateRequisitionMetadata` (one Spanner
-   * transaction) before any per-metadata refusal call, so a crash between blob and metadata cannot
-   * leave a partial set of metadata rows under the group.
+   * Requisitions are chunked into groups of at most [maxRequisitionsPerGroup], each under its own
+   * generated groupId, so each `BatchCreateRequisitionMetadata` stays within Spanner's
+   * per-transaction mutation limit (see [batchCreateRequisitionMetadataForGroup]). Each batch is
+   * atomic, so a crash cannot leave a partial set of metadata rows within a group. This path writes
+   * no blob — it only persists REFUSED metadata and refuses each requisition to the Kingdom.
    */
   private suspend fun refuseUnregisteredAndPersist(
     requisitions: List<Requisition>,
-    groupId: String,
     reportId: String,
     refusal: Requisition.Refusal,
   ) {
@@ -611,15 +659,22 @@ class RequisitionFetcher(
     for (requisition in requisitions) {
       requisitionGrouper.refuseRequisitionToCmms(requisition, refusal)
     }
-    val createdMetadata = batchCreateRequisitionMetadataForGroup(requisitions, groupId, reportId)
-    for (metadata in createdMetadata) {
-      metadataThrottler.onReady { refuseRequisitionMetadata(metadata, refusal.message) }
+    // Chunked for the same Spanner-mutation-limit reason as the store path: a refused report can be
+    // arbitrarily large, and each metadata batch must stay well under the per-transaction limit. No
+    // bufferSplits here: the refuse path writes no blobs, so there is no fulfillment data to
+    // fragment.
+    for (chunk in requisitions.chunked(maxRequisitionsPerGroup)) {
+      val groupId = UUID.randomUUID().toString()
+      val createdMetadata = batchCreateRequisitionMetadataForGroup(chunk, groupId, reportId)
+      for (metadata in createdMetadata) {
+        metadataThrottler.onReady { refuseRequisitionMetadata(metadata, refusal.message) }
+      }
     }
   }
 
   /**
    * Writes [grouped] to [storageClient]. Increments storage-write or storage-fail counters and
-   * rethrows on failure so the per-report worker can surface the error.
+   * rethrows on failure so the consumer can surface the error.
    */
   private suspend fun writeBlob(grouped: GroupedRequisitions) {
     val blobKey = blobKey(grouped.groupId)
@@ -714,13 +769,15 @@ class RequisitionFetcher(
    * transaction, leaving zero metadata rows. Either way ResultsFulfiller never sees a blob whose
    * `requisitionsList` references a name with no corresponding metadata row.
    *
-   * Sizing assumption: this issues one Spanner read-write transaction per call. Spanner's
-   * per-transaction mutation limit (~80k mutations, rows × index entries) caps the safe batch at
-   * roughly 13k metadata rows. Reports are bounded by an upstream invariant to ≤10k requisitions,
-   * comfortably under that limit. If that upstream bound is ever raised above ~10k, this call needs
-   * to chunk into multiple sub-batches (each its own atomic transaction; the cross-run
-   * `unregistered` pre-check and STORED-recovery path together handle the partial-progress state a
-   * mid-chunk failure would leave).
+   * This issues one Spanner read-write transaction per call. Each requisition writes a
+   * RequisitionMetadata row (~14 columns, 8 secondary indexes) plus a RequisitionMetadataActions
+   * row recording the UNSPECIFIED -> STORED transition (~6 columns, 3 secondary indexes) in the
+   * same transaction. Spanner counts a mutation per written cell and per index-entry cell, so the
+   * cost is ~30 mutations/requisition (one entry per index) up to ~64 (every index cell), against
+   * the ~80k per-transaction limit. Callers bound the batch to [DEFAULT_MAX_REQUISITIONS_PER_GROUP]
+   * requisitions per group by splitting oversized reports across groups, so even under the
+   * worst-case per-cell accounting a single batch stays under the limit and this call never has to
+   * chunk internally.
    *
    * No-op when [requisitions] is empty.
    */
@@ -792,8 +849,16 @@ class RequisitionFetcher(
       ProtoReflection.getTypeUrl(GroupedRequisitions.getDescriptor())
 
     const val DEFAULT_METADATA_PAGE_SIZE: Int = 100
-    const val DEFAULT_MAX_BUFFERED_BYTES_PER_REPORT: Long = 256L * 1024L * 1024L
-    const val DEFAULT_WORKER_COUNT: Int = 4
+    const val DEFAULT_MAX_TOTAL_BUFFERED_BYTES: Long = 256L * 1024L * 1024L
+    // Caps requisitions per metadata batch to bound the Spanner mutation count. Each
+    // requisition writes a RequisitionMetadata row (~14 columns, 8 indexes) and a
+    // RequisitionMetadataActions row (~6 columns, 3 indexes) in one transaction — ~30
+    // mutations/requisition counting one entry per index, up to ~64 counting every index
+    // cell. At 1000 that is ~30k-64k mutations, under the ~80k per-transaction limit even in
+    // the worst case. In practice a report has fewer requisitions than this, so it is a
+    // safety cap rather than a routine split.
+    const val DEFAULT_MAX_REQUISITIONS_PER_GROUP: Int = 1000
+    val DEFAULT_FLUSH_INTERVAL: Duration = Duration.ofMinutes(5)
     const val DEFAULT_CHANNEL_CAPACITY: Int = 4
     const val MIN_LIST_REQUISITIONS_PAGE_SIZE: Int = 1
     private const val KINGDOM_LIST_REQUISITIONS_DEFAULT_PAGE_SIZE: Int = 10

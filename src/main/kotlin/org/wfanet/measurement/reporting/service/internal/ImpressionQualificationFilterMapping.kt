@@ -18,6 +18,8 @@ import com.google.protobuf.Descriptors
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MediaType as EventAnnotationMediaType
 import org.wfanet.measurement.common.api.ResourceIds
+import org.wfanet.measurement.common.cel.CelPredicates
+import org.wfanet.measurement.common.cel.CelValidationException
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
@@ -101,6 +103,38 @@ class ImpressionQualificationFilterMapping(
       throw IllegalArgumentException(
         "There are duplicate internal ids of impressionQualificationFilters"
       )
+    }
+
+    // Server-startup fail-fast: every base/named IQF's generated CEL must compile
+    // against the deployment event template. A misconfigured mapping refuses to
+    // boot rather than surfacing as UNKNOWN from `BasicReportsService.createBasicReport`
+    // at first request. `BasicReportTransformations.validateImpressionQualificationFilterCel`
+    // is a backstop for code paths that bypass this init (test fixtures, alternative loaders,
+    // direct constructor calls) and should never fire in normal operation.
+    val celEnv = CelPredicates.buildEnvironment(eventMessageDescriptor)
+    for (configFilter in impressionQualificationFilters) {
+      for (spec in configFilter.filterSpecsList) {
+        val celString: String =
+          spec.filtersList.joinToString(" && ") { configEventFilter ->
+            configEventFilter.termsList.joinToString(" && ") { configTerm ->
+              val fieldInfo = eventTemplateFieldsByPath.getValue(configTerm.path)
+              val internalTerm = configTerm.toEventTemplateField()
+              val valueLiteral = internalTerm.value.toCelValue(fieldInfo)
+              "${configTerm.path} == $valueLiteral"
+            }
+          }
+        try {
+          CelPredicates.validate(celEnv, celString)
+        } catch (e: CelValidationException) {
+          throw IllegalArgumentException(
+            "Impression qualification filter " +
+              "${configFilter.externalImpressionQualificationFilterId} spec (mediaType=" +
+              "${spec.mediaType}) generates invalid CEL against the deployment event " +
+              "template: ${e.message}. Fix the base IQF configuration or the event template.",
+            e,
+          )
+        }
+      }
     }
   }
 
@@ -187,6 +221,13 @@ class ImpressionQualificationFilterMapping(
           ImpressionQualificationFilterConfig.EventTemplateField.FieldValue.SelectorCase
             .FLOAT_VALUE -> {
             if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.FLOAT) {
+              return false
+            }
+            // Reject NaN / +Infinity / -Infinity: these have no valid CEL numeric-literal
+            // representation (CelValueEncoding.toCelNumericLiteral would throw). Fail
+            // fast at server startup so a misconfigured base IQF refuses to load instead of
+            // surfacing as INTERNAL from a gRPC handler at first request.
+            if (!eventTemplateField.value.floatValue.isFinite()) {
               return false
             }
           }

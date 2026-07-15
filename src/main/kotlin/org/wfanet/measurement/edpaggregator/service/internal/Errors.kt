@@ -50,6 +50,7 @@ object Errors {
     POOL_ASSIGNMENT_JOB_NOT_FOUND,
     POOL_ASSIGNMENT_JOB_STATE_INVALID,
     POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
+    RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
     RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
     RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
     VID_LABELING_JOB_NOT_FOUND,
@@ -93,6 +94,7 @@ object Errors {
     POOL_ASSIGNMENT_JOB_RESOURCE_ID("poolAssignmentJobResourceId"),
     POOL_ASSIGNMENT_JOB_STATE("poolAssignmentJobState"),
     EXPECTED_POOL_ASSIGNMENT_JOB_STATES("expectedPoolAssignmentJobStates"),
+    CREATE_REQUEST_ID("createRequestId"),
     FILE_RESOURCE_ID("fileResourceId"),
     VID_LABELING_JOB_RESOURCE_ID("vidLabelingJobResourceId"),
     VID_LABELING_JOB_STATE("vidLabelingJobState"),
@@ -370,6 +372,25 @@ class RawImpressionUploadModelLineConcurrentException(
       Errors.Metadata.CMMS_MODEL_LINE to cmmsModelLine,
       Errors.Metadata.CONFLICTING_RAW_IMPRESSION_UPLOAD_RESOURCE_IDS to
         conflictingUploads.joinToString(",") { (id, _) -> id },
+    ),
+    cause,
+  )
+
+class RawImpressionUploadAlreadyExistsException(
+  dataProviderResourceId: String,
+  requestId: String,
+  existingDoneBlobUri: String,
+  incomingDoneBlobUri: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
+    "RawImpressionUpload already exists for DataProvider $dataProviderResourceId with " +
+      "request_id $requestId: existing done_blob_uri=$existingDoneBlobUri, " +
+      "incoming done_blob_uri=$incomingDoneBlobUri",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.CREATE_REQUEST_ID to requestId,
     ),
     cause,
   )

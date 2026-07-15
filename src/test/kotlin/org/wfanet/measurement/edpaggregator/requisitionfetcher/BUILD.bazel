@@ -31,6 +31,7 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/io/opentelemetry/sdk",
         "@wfa_common_jvm//imports/java/io/opentelemetry/sdk/testing",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",

@@ -420,6 +420,8 @@ private object V2AlphaPublicApiServer {
             measurementConsumerConfigs,
             defaultReportStartHour,
             baseImpressionQualificationFilters.map { it.externalImpressionQualificationFilterId },
+            reportingApiServerFlags.enableReportingSetReportingUnitComponents,
+            v2AlphaPublicServerFlags.emitCelNullGuardsForNestedMembers,
             serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
@@ -466,6 +468,23 @@ private object V2AlphaPublicApiServer {
       required = true,
     )
     lateinit var dataProviderCacheExpirationDuration: Duration
+      private set
+
+    @CommandLine.Option(
+      names = ["--emit-cel-null-guards-for-nested-members"],
+      description =
+        [
+          "Whether generated CEL filters for BasicReports should include a " +
+            "`<template>.<member> != null && ...` guard when a filter term addresses a field " +
+            "nested inside a `oneof` member of an event template.",
+          "Off by default because at least one EDP implementation currently fails to evaluate " +
+            "CEL filters containing `!= null` clauses. Without the guard, unset oneof members " +
+            "return proto defaults, which can silently match the wrong bucket in certain IQF " +
+            "shapes; enable this flag once the target EDPs support null-guarded CEL filters.",
+        ],
+      required = false,
+    )
+    var emitCelNullGuardsForNestedMembers: Boolean = false
       private set
   }
 }
