@@ -52,13 +52,16 @@ import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCor
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter as listEventGroupsFilter
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
@@ -748,6 +751,72 @@ class InProcessEdpAggregatorComponents(
         }
       }
       .toMap()
+  }
+
+  /**
+   * Re-runs [EventGroupSync] for a single EDP against the already-running in-process Kingdom, using
+   * the same real [EventGroupsCoroutineStub] the harness wires in [startDaemons]. Test-only seam
+   * for exercising repeated syncs (e.g. the #4175 reference-id -> entity_key migration) after the
+   * initial daemon startup. Returns the [MappedEventGroup]s emitted by the sync.
+   */
+  fun syncEventGroups(
+    edpAggregatorShortName: String,
+    sources: List<EventGroup>,
+    entityKeyTypes: List<String> = emptyList(),
+  ): List<MappedEventGroup> = runBlocking {
+    val edpResourceName = edpResourceNameMap.getValue(edpAggregatorShortName)
+    val eventGroupsClient =
+      EventGroupsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
+    val clientAccountsClient =
+      ClientAccountsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
+    EventGroupSync(
+        edpResourceName,
+        eventGroupsClient,
+        clientAccountsClient,
+        sources.asFlow(),
+        throttler,
+        entityKeyTypes = entityKeyTypes,
+        listEventGroupPageSize = 500,
+      )
+      .sync()
+      .toList()
+  }
+
+  /**
+   * Lists every CMMS [EventGroup] the given EDP owns on the in-process Kingdom, via the raw v2alpha
+   * `EventGroups.ListEventGroups` (not the Reporting API). Test-only seam for asserting the exact
+   * Kingdom row count and resource-name set, which is how "no EventGroup explosion / no duplicate
+   * rows" is proven independent of any Reporting-side filtering or de-duplication.
+   */
+  fun listCmmsEventGroups(edpAggregatorShortName: String): List<CmmsEventGroup> = runBlocking {
+    val edpResourceName = edpResourceNameMap.getValue(edpAggregatorShortName)
+    val eventGroupsClient =
+      EventGroupsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
+    val eventGroups = mutableListOf<CmmsEventGroup>()
+    var pageToken = ""
+    while (true) {
+      val response =
+        throttler.onReady {
+          eventGroupsClient.listEventGroups(
+            listEventGroupsRequest {
+              parent = edpResourceName
+              pageSize = 1000
+              this.pageToken = pageToken
+              // Kingdom defaults entity_type_in to ["campaign"] when unset; enumerate all entity
+              // types the tests use so migrated (creative-id / ad_group) rows are not hidden.
+              filter = listEventGroupsFilter {
+                entityTypeIn += "campaign"
+                entityTypeIn += "creative-id"
+                entityTypeIn += "ad_group"
+              }
+            }
+          )
+        }
+      eventGroups += response.eventGroupsList
+      if (response.nextPageToken.isEmpty()) break
+      pageToken = response.nextPageToken
+    }
+    eventGroups
   }
 
   fun stopDaemons() {
