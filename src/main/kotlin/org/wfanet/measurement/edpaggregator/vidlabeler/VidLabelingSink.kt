@@ -192,7 +192,7 @@ class VidLabelingSink(
               converted.labelerInput
             } else {
               val builder = converted.labelerInput.toBuilder()
-              if (rankIndex.appendRankAssignments(digestedEvent.digest, builder) == 0) {
+              if (rankIndex.appendRankAssignments(digestedEvent.digest!!, builder) == 0) {
                 converted.labelerInput // miss: leave the input untouched, exactly as before
               } else {
                 builder.build()

@@ -332,6 +332,47 @@ class RawImpressionSourceTest {
   }
 
   @Test
+  fun `streamBlobs with needsDigest false skips the digest but still emits every row`(): Unit =
+    runBlocking {
+      val client = newClient()
+      writeFile(client, "nd/a.parquet", listOf(row("e1"), row("e2"), row("e3")))
+      val subject =
+        RawImpressionSource(
+          parquetStorageClient = client,
+          rawImpressionUploadFilesStub = filesStub,
+          rawImpressionUpload = UPLOAD,
+          eventIdColumn = "event_id",
+          eventIdDigestExtractor = EventIdDigestExtractor(),
+          metrics = testMetrics,
+          needsDigest = false,
+        )
+
+      val ids = ConcurrentLinkedQueue<String>()
+      val digestPresent = ConcurrentLinkedQueue<Boolean>()
+      subject.streamBlobs { _, _ ->
+        object : RawImpressionSource.BlobSink {
+          override suspend fun processBatch(events: List<ParquetDigestedEvent>) {
+            events.forEach {
+              ids.add(eventId(it))
+              digestPresent.add(it.digest != null)
+            }
+          }
+
+          override suspend fun commit() {}
+
+          override suspend fun close() {}
+        }
+      }
+
+      assertThat(ids.toList()).containsExactly("e1", "e2", "e3")
+      // The per-row SHA-256 was skipped: every event carries a null digest (never read on this
+      // path), so a future accidental read fails fast instead of silently colliding.
+      assertThat(digestPresent.toList()).containsExactly(false, false, false)
+      assertThat(counterValue(EMITTED)).isEqualTo(3)
+      assertThat(counterValue(DROPPED)).isEqualTo(0)
+    }
+
+  @Test
   fun `streamBlobs reads a raw BINARY (ByteString) event-id column`(): Unit = runBlocking {
     val client = newClient()
     writeFile(client, "b/a.parquet", listOf(rowWithBytesId("e1"), rowWithBytesId("e2")))

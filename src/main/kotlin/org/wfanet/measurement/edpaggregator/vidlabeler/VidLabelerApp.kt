@@ -130,6 +130,11 @@ class VidLabelerApp(
   private val buildImpressionConverter:
     suspend (modelLine: String, config: VidLabelerParams.ModelLineConfig) -> ImpressionConverter,
   private val eventIdDigestExtractor: EventIdDigestExtractor = EventIdDigestExtractor(),
+  // Process-scoped cache of the built memoized rank index, shared across WorkItems so consecutive
+  // WorkItems for the same (dataProvider, modelLine) with an unchanged snapshot set reuse the index
+  // instead of rebuilding the (tens-of-GB) structure. Defaulted so the instance is process-scoped
+  // (one VidLabelerApp per process); the runner passes an explicit instance for clarity.
+  private val memoizedRankIndexCache: MemoizedRankIndexCache = MemoizedRankIndexCache(),
   private val metrics: VidLabelerAppMetrics = VidLabelerAppMetrics(),
 ) :
   BaseTeeApplication(
@@ -319,8 +324,16 @@ class VidLabelerApp(
         buildVidRankMapStorageClient(getStorageConfig(mp.vidRankMapStorageParams)),
         kmsClient,
       )
+    // Resolve the current snapshot set every WorkItem (cheap listing); reuse the process-wide
+    // cached
+    // index when the exact same blobs would load, else build it (evicting the old one first). New
+    // Phase-1 output changes the chosen blob URIs -> a new cache key -> a rebuild.
+    val resolvedBlobs =
+      MemoizedRankIndex.resolveLatestBlobs(rankIndexBlobsStub, dataProvider, modelLine)
     val rankIndex =
-      MemoizedRankIndex.load(rankIndexBlobsStub, rankIndexStore, dataProvider, modelLine)
+      memoizedRankIndexCache.getOrBuild(resolvedBlobs.key) {
+        MemoizedRankIndex.buildFrom(rankIndexStore, dataProvider, modelLine, resolvedBlobs.blobs)
+      }
 
     // The raw event-id column is the raw-impression field mapped to LabelerInput's `event_id.id`.
     val eventIdColumn = resolveEventIdColumn(config)
@@ -339,6 +352,9 @@ class VidLabelerApp(
         eventIdColumn = eventIdColumn,
         eventIdDigestExtractor = eventIdDigestExtractor,
         inputFiles = inputFiles,
+        // The memoized path probes the rank index per impression by its event-id digest, so the
+        // digest must be computed.
+        needsDigest = true,
       )
 
     // Schema-drift guard (#3993): fail fast if a mapped raw column is missing from the file schema
@@ -428,6 +444,9 @@ class VidLabelerApp(
         eventIdColumn = eventIdColumn,
         eventIdDigestExtractor = eventIdDigestExtractor,
         inputFiles = inputFiles,
+        // The non-memoized path has no rank index (rankIndex = null for every model line) and runs
+        // single-shard (file-list mode), so no consumer reads the digest: skip the per-row SHA-256.
+        needsDigest = false,
       )
 
     require(params.hasModelStorageParams()) { "model_storage_params must be set" }
