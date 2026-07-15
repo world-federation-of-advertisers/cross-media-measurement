@@ -107,7 +107,10 @@ jobs:
           workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
           token_format: 'id_token'
-          id_token_audience: 'sts.amazonaws.com'
+          # Google->AWS: the aud must be an audience the AWS accounts.google.com OIDC provider
+          # accepts (the edpa_meta identity), NOT sts.amazonaws.com. The CI SA's sub is in the
+          # GcpSyntheticDataKmsRole trust.
+          id_token_audience: ${{ vars.EDPA_META_AWS_AUDIENCE }}
           create_credentials_file: false
           export_environment_variables: false
 
