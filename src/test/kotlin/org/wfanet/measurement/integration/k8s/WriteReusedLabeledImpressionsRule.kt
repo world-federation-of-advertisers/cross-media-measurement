@@ -291,12 +291,16 @@ class WriteReusedLabeledImpressionsRule(
     // re-encrypt edp7's regenerated impressions. The CI runner can wrap this with its Google Cloud
     // credentials. The EDP7_KEK_URI env overrides. Kept in sync with
     // SeedRawImpressionsRule.KEK_URI_BY_PROJECT.
+    // edp7's KMS key is in the dev EDP project for all three test envs (edp7
+    // kms_config.service_account = primus-sa@halo-cmm-dev-edp everywhere).
+    private val EDP7_KEK_URI_ALL_ENVS: String =
+      "gcp-kms://projects/halo-cmm-dev-edp/locations/global/keyRings/" +
+        "halo-cmm-dev-edp-enc-kr/cryptoKeys/halo-cmm-dev-edp-enc-key-"
     private val EDP7_KEK_URI_BY_PROJECT: Map<String, String> =
       mapOf(
-        "halo-cmm-dev" to
-          "gcp-kms://projects/halo-cmm-dev-edp/locations/global/keyRings/" +
-            "halo-cmm-dev-edp-enc-kr/cryptoKeys/halo-cmm-dev-edp-enc-key-"
-        // TODO(marcopremier): add halo-cmm-head and halo-cmm-qa edp7 storage KEK URIs.
+        "halo-cmm-dev" to EDP7_KEK_URI_ALL_ENVS,
+        "halo-cmm-head" to EDP7_KEK_URI_ALL_ENVS,
+        "halo-cmm-qa" to EDP7_KEK_URI_ALL_ENVS,
       )
 
     private val edp7KekUri: String =

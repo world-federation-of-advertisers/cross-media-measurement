@@ -261,12 +261,17 @@ class SeedRawImpressionsRule(
     // edp7's storage KEK per GCP project (KMS resource names, not secrets) — the key the deployed
     // VidLabeler TEE decrypts raw impressions with. Kept here rather than a per-env GitHub variable
     // (the env var limit is reached); the EDP7_KEK_URI env still overrides.
+    // edp7's KMS key lives in the dev EDP project for ALL three test envs: edp7's
+    // kms_config.service_account is primus-sa@halo-cmm-dev-edp in dev/head/qa alike (see the
+    // per-env EDPA_EDPS_CONFIG variable), so the same key backs edp7 everywhere.
+    private val EDP7_KEK_URI_ALL_ENVS: String =
+      "gcp-kms://projects/halo-cmm-dev-edp/locations/global/keyRings/" +
+        "halo-cmm-dev-edp-enc-kr/cryptoKeys/halo-cmm-dev-edp-enc-key-"
     private val KEK_URI_BY_PROJECT: Map<String, String> =
       mapOf(
-        "halo-cmm-dev" to
-          "gcp-kms://projects/halo-cmm-dev-edp/locations/global/keyRings/" +
-            "halo-cmm-dev-edp-enc-kr/cryptoKeys/halo-cmm-dev-edp-enc-key-"
-        // TODO(marcopremier): add halo-cmm-head and halo-cmm-qa edp7 KEK URIs.
+        "halo-cmm-dev" to EDP7_KEK_URI_ALL_ENVS,
+        "halo-cmm-head" to EDP7_KEK_URI_ALL_ENVS,
+        "halo-cmm-qa" to EDP7_KEK_URI_ALL_ENVS,
       )
     private val EDP7_KEK_URI: String =
       env("EDP7_KEK_URI").ifEmpty { KEK_URI_BY_PROJECT[PROJECT_ID].orEmpty() }
