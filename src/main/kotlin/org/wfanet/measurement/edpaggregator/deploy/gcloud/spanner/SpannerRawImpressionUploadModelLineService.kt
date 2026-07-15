@@ -371,7 +371,10 @@ class SpannerRawImpressionUploadModelLineService(
     rawImpressionUploadResourceId: String,
     rawImpressionUploadId: Long,
   ) {
-    when (txn.getRawImpressionUploadState(dataProviderResourceId, rawImpressionUploadId)) {
+    val parentState =
+      txn.getRawImpressionUploadState(dataProviderResourceId, rawImpressionUploadId)
+        ?: error("RawImpressionUpload not found for backfill parent $rawImpressionUploadResourceId")
+    when (parentState) {
       RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED ->
         txn.updateRawImpressionUploadState(
           dataProviderResourceId,
@@ -389,8 +392,7 @@ class SpannerRawImpressionUploadModelLineService(
       RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED,
       RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE -> {}
       RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_UNSPECIFIED,
-      RawImpressionUploadState.UNRECOGNIZED,
-      null ->
+      RawImpressionUploadState.UNRECOGNIZED ->
         error(
           "Unrecognized RawImpressionUpload state for backfill parent $rawImpressionUploadResourceId"
         )
