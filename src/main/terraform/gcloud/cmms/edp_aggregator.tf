@@ -377,7 +377,7 @@ locals {
         max_replicas                  = 16
         machine_type                  = "n2d-highmem-32"
         disk_type                     = "pd-balanced"
-        java_tool_options             = "-Xmx200G -Djdk.util.jar.enableMultiRelease=false"
+        java_tool_options             = "-Xmx96G -Djdk.util.jar.enableMultiRelease=false"
         docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/subpool_assigner:${var.image_tag}"
         tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/subpool_assigner"
         mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
@@ -404,7 +404,7 @@ locals {
         max_replicas                  = 8
         machine_type                  = "n2d-highmem-32"
         disk_type                     = "pd-balanced"
-        java_tool_options             = "-Xmx200G -Djdk.util.jar.enableMultiRelease=false"
+        java_tool_options             = "-Xmx96G -Djdk.util.jar.enableMultiRelease=false"
         docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_rank_builder:${var.image_tag}"
         tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_rank_builder"
         mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
