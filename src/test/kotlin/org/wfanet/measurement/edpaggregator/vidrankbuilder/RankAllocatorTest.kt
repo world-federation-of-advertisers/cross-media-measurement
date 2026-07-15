@@ -346,6 +346,51 @@ class RankAllocatorTest {
       .isEqualTo(Pair(Bytes12IntMap.MIN_CAPACITY, Bytes12IntMap.MIN_CAPACITY))
   }
 
+  @Test
+  fun `cumulativeCapacity pre-sizes the cumulative map independently (prior greater than today)`() {
+    // A warm/backfill caller sizes the cumulative to prior+today (>> today) while day-only stays at
+    // today's size; the two maps size independently.
+    val allocator =
+      RankAllocator(
+        poolOffset = 7L,
+        rankedSize = 100,
+        eventDay = EVENT_DAY,
+        initialCapacity = 100,
+        cumulativeCapacity = 10_000,
+      )
+    // 10_000 -> next power of two (16_384) for the cumulative; 100 -> 128 for day-only.
+    assertThat(allocator.mapCapacities()).isEqualTo(Pair(16_384L, 128L))
+  }
+
+  @Test
+  fun `pre-sizing and a small estimatedTotalRanks do not change loaded ranks (taken auto-grows)`() =
+    runBlocking<Unit> {
+      // A deliberately tiny estimatedTotalRanks (3) under-sizes the taken BitSet; it must auto-grow
+      // and produce identical ranks. Ranks 5 and 9 are taken, so a fresh assign takes rank 0.
+      val record =
+        buildRecord(
+          7L,
+          100,
+          entries = listOf(Entry(10L, 0, rank = 5, day = 30), Entry(20L, 0, rank = 9, day = 40)),
+        )
+      val allocator =
+        RankAllocator(
+          poolOffset = 7L,
+          rankedSize = 100,
+          eventDay = EVENT_DAY,
+          initialCapacity = 2,
+          cumulativeCapacity = 10_000,
+          estimatedTotalRanks = 3,
+        )
+
+      allocator.loadFrom(listOf(record).asFlow())
+
+      assertThat(allocator.get(10L, 0)).isEqualTo(5)
+      assertThat(allocator.get(20L, 0)).isEqualTo(9)
+      assertThat(allocator.lastSeenOf(9)).isEqualTo(40)
+      assertThat(allocator.assign(30L, 0)).isEqualTo(0)
+    }
+
   private data class Entry(val hi: Long, val lo: Int, val rank: Int, val day: Int)
 
   private fun packFingerprint(hi: Long, lo: Int): com.google.protobuf.ByteString {

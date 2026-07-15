@@ -103,6 +103,44 @@ class RankIndexStoreTest {
   }
 
   @Test
+  fun `openBlob returns the byte size and streams the same records as readBlob`() = runBlocking {
+    val store = RankIndexStore(storageClient, kmsClient)
+    val dek = store.generateDek(kekUri)
+    store.writeBlob("snapshot/subpool-7", dek, flowOf(record(7L, 100, 0, 1), record(7L, 100, 2)))
+
+    val opened = store.openBlob("snapshot/subpool-7", dek)
+    assertThat(opened).isNotNull()
+    val (size, flow) = opened!!
+    // Size matches the underlying (encrypted) blob's size — the same value blobSize returns.
+    assertThat(size).isEqualTo(store.blobSize("snapshot/subpool-7", dek))
+    assertThat(size).isGreaterThan(0L)
+    // Records stream identically to readBlob.
+    val viaOpen = flow.toList()
+    val viaRead = store.readBlob("snapshot/subpool-7", dek).toList()
+    assertThat(viaOpen).isEqualTo(viaRead)
+    assertThat(viaOpen.flatMap { it.ranksList }).containsExactly(0, 1, 2).inOrder()
+  }
+
+  @Test
+  fun `openBlob enforces the checksum on the returned flow`() = runBlocking {
+    val store = RankIndexStore(storageClient, kmsClient)
+    val dek = store.generateDek(kekUri)
+    store.writeBlob("snapshot/subpool-7", dek, flowOf(record(7L, 100, 0, 1, 2)))
+    val wrongChecksum = ByteString.copyFromUtf8("not-the-real-checksum")
+
+    val (_, flow) = store.openBlob("snapshot/subpool-7", dek, expectedChecksum = wrongChecksum)!!
+    assertFailsWith<IllegalStateException> { flow.toList() }
+    Unit
+  }
+
+  @Test
+  fun `openBlob returns null for an absent blob`() = runBlocking {
+    val store = RankIndexStore(storageClient, kmsClient)
+    val dek = store.generateDek(kekUri)
+    assertThat(store.openBlob("snapshot/does-not-exist", dek)).isNull()
+  }
+
+  @Test
   fun `delete removes a blob`() = runBlocking {
     val store = RankIndexStore(storageClient, kmsClient)
     val dek = store.generateDek(kekUri)

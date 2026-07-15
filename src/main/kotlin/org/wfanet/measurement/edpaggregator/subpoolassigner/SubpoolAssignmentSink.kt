@@ -76,27 +76,51 @@ class SubpoolAssignmentSink(
     get() = unroutedCounter.get()
 
   override suspend fun processBatch(events: List<ParquetDigestedEvent>) {
+    // Tally this batch's outcomes in local vars, then fold them into the shared atomics /
+    // OpenTelemetry counters ONCE per batch instead of once per event. The final totals (read after
+    // the whole stream drains) and the cumulative counter sums are identical — only the update
+    // granularity changes (maxOf is associative, so the per-batch max reduces to the global max).
+    var labeledInBatch = 0L
+    var droppedInBatch = 0L
+    var unroutedInBatch = 0L
+    var maxTimestampInBatch = Long.MIN_VALUE
     for (event in events) {
       val input = mapper.project(event.row)
       if (!input.hasTimestampUsec() || !activeWindow.contains(input.timestampUsec)) {
-        droppedOutsideWindowCounter.incrementAndGet()
-        metrics.eventsDroppedOutsideWindowCounter.add(1)
+        droppedInBatch++
         continue
       }
-      val offsets = labeler.emit(input)
-      if (offsets.isEmpty()) {
+      // Hand each primitive pool offset straight to the accumulator (no boxed List<Long>); the
+      // return count says whether the event routed anywhere.
+      val routed =
+        labeler.emit(input) { offset ->
+          accumulator.add(offset, event.digest.high, event.digest.low)
+        }
+      if (routed == 0) {
         // Per-event logging is intentionally avoided on this hot path (potentially billions of
         // events); the aggregate [unrouted] tally and OTel counter carry the signal instead.
-        unroutedCounter.incrementAndGet()
-        metrics.eventsUnroutedCounter.add(1)
+        unroutedInBatch++
         continue
       }
-      for (offset in offsets) {
-        accumulator.add(offset, event.digest.high, event.digest.low)
+      labeledInBatch++
+      if (input.timestampUsec > maxTimestampInBatch) {
+        maxTimestampInBatch = input.timestampUsec
       }
-      labeledCounter.incrementAndGet()
-      maxTimestampUsecValue.accumulateAndGet(input.timestampUsec, ::maxOf)
-      metrics.eventsLabeledCounter.add(1)
+    }
+    if (droppedInBatch > 0L) {
+      droppedOutsideWindowCounter.addAndGet(droppedInBatch)
+      metrics.eventsDroppedOutsideWindowCounter.add(droppedInBatch)
+    }
+    if (unroutedInBatch > 0L) {
+      unroutedCounter.addAndGet(unroutedInBatch)
+      metrics.eventsUnroutedCounter.add(unroutedInBatch)
+    }
+    if (labeledInBatch > 0L) {
+      labeledCounter.addAndGet(labeledInBatch)
+      metrics.eventsLabeledCounter.add(labeledInBatch)
+    }
+    if (maxTimestampInBatch != Long.MIN_VALUE) {
+      maxTimestampUsecValue.accumulateAndGet(maxTimestampInBatch, ::maxOf)
     }
   }
 
