@@ -1,0 +1,52 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.config.edpaggregator;
+
+option java_package = "org.wfanet.measurement.config.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "DashboardConfigProto";
+
+// Consolidated configuration for the reporting dashboard.
+//
+// Stored as a single `DASHBOARD_CONFIG_CONTENT` GitHub variable (JSON) per
+// environment, replacing the five separate dashboard variables. Consumed by
+// Terraform (natively as `*.tfvars.json`), by workflows (via `jq`), and by the
+// dashboard compliance check (parsed against this schema via `JsonFormat`).
+message DashboardConfig {
+  // BigQuery region hosting the dashboard dataset (e.g. "us-central1").
+  string bigquery_region = 1;
+
+  // Whether the dashboard BigQuery dataset has deletion protection enabled.
+  bool deletion_protection = 2;
+
+  // IAM principals granted platform-wide access to the dashboard tables
+  // (e.g. "user:alice@example.com").
+  repeated string operators = 3;
+
+  // The EDPs whose data the dashboard exposes; each is isolated to its own
+  // rows.
+  repeated Edp edps = 4;
+
+  // A single EDP: its short name and `DataProvider` resource ID.
+  message Edp {
+    // Short EDP name used for per-EDP resource naming (e.g. "meta").
+    string name = 1;
+
+    // The `DataProvider` resource ID (e.g. "J3-pzhqS9Lo").
+    string resource_id = 2;
+  }
+}
