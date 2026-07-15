@@ -94,15 +94,29 @@ jobs:
       - name: Set TCP keepalive
         run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
 
-      # The edpa_meta AWS KMS client authenticates via web-identity federation: it needs a GitHub
-      # OIDC token on disk, pointed to by AWS_WEB_IDENTITY_TOKEN_FILE. The AWS role
-      # (EDPA_META_AWS_ROLE_ARN) trust policy must accept GitHub's OIDC issuer
-      # (token.actions.githubusercontent.com) with the sts.amazonaws.com audience.
+      # The edpa_meta AWS KMS client authenticates via web-identity federation using a Google
+      # (accounts.google.com) OIDC token. The AWS role EDPA_META_AWS_ROLE_ARN
+      # (GcpSyntheticDataKmsRole) trusts the CI service account's numeric subject
+      # (accounts.google.com:sub) and has no audience condition. Mint a fresh id_token for the CI
+      # service account here (right before the test, for maximum validity headroom) and point
+      # AWS_WEB_IDENTITY_TOKEN_FILE at it.
+      - name: Mint Google web-identity token for AWS
+        id: aws_auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+          token_format: 'id_token'
+          id_token_audience: 'sts.amazonaws.com'
+          create_credentials_file: false
+          export_environment_variables: false
+
       - name: Write AWS web-identity token file
+        env:
+          AWS_WEB_IDENTITY_ID_TOKEN: ${{ steps.aws_auth.outputs.id_token }}
         run: |
           token_file="$RUNNER_TEMP/aws-web-identity-token"
-          curl -sSf -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value' > "$token_file"
+          printf '%s' "$AWS_WEB_IDENTITY_ID_TOKEN" > "$token_file"
           echo "AWS_WEB_IDENTITY_TOKEN_FILE=$token_file" >> "$GITHUB_ENV"
 
       - name: Run tests
