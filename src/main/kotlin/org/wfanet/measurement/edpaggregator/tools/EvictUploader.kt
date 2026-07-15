@@ -127,8 +127,18 @@ class EvictUploader(
     } while (pageToken.isNotEmpty())
 
     val cascade = entries.sortedBy { it.first }.map { it.second }
-    val requested = badUploads.toSet()
-    val extraUploads = cascade.map { it.uploadName }.filter { it !in requested }.distinct()
+    val requestedNames = badUploads.toSet()
+    val cascadedNames = cascade.map { it.uploadName }.toSet()
+    // Fail loud if a requested bad upload has no model-line row for [cmmsModelLine]: it exists and
+    // is in-window (so the guards above pass) but never enters the cascade. Silently dropping part
+    // of the operator's input on a destructive cascade-forward op would let the confirm prompt lie
+    // by omission.
+    val requestedMissing = requestedNames - cascadedNames
+    require(requestedMissing.isEmpty()) {
+      "requested upload(s) have no $cmmsModelLine model-line row (nothing to evict): " +
+        "$requestedMissing"
+    }
+    val extraUploads = cascade.map { it.uploadName }.filter { it !in requestedNames }.distinct()
     return EvictionPlan(cascade, extraUploads)
   }
 

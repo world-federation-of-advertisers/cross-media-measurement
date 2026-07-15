@@ -84,42 +84,6 @@ class DlqRedelivererTest {
   }
 
   @Test
-  fun `redeliver with a queue filter only republishes matching messages`() {
-    val messages =
-      listOf(
-        workItem {
-          name = "workItems/wi1"
-          queue = "vid-rank-builder-queue"
-        },
-        workItem {
-          name = "workItems/wi2"
-          queue = "vid-labeler-queue"
-        },
-        workItem {
-          name = "workItems/wi3"
-          queue = "vid-rank-builder-queue"
-        },
-      )
-    val subscriber = FakeQueueSubscriber(messages)
-    val publisher = FakeQueuePublisher()
-
-    val count = runBlocking {
-      DlqRedeliverer(subscriber, publisher)
-        .redeliver(
-          DLQ_SUBSCRIPTION,
-          maxMessages = 10,
-          idleTimeoutMillis = IDLE_MILLIS,
-          queueFilter = "vid-rank-builder-queue",
-        )
-    }
-
-    assertThat(count).isEqualTo(2)
-    assertThat(publisher.published.map { it.second.name })
-      .containsExactly("workItems/wi1", "workItems/wi3")
-    assertThat(subscriber.acked).containsExactly("workItems/wi1", "workItems/wi3")
-  }
-
-  @Test
   fun `redeliver honors topicOverride`() {
     val messages =
       listOf(

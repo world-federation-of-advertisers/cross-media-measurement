@@ -25,6 +25,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -202,6 +204,60 @@ class FailedDispatchRetrierTest {
         }
       }
     assertThat(error).hasMessageThat().contains("cannot be re-published")
+  }
+
+  @Test
+  fun `retryFailed does not advance the model line when all WorkItems already exist`() {
+    val result = runBlocking {
+      stubFailedModelLine()
+      whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+        .thenReturn(
+          listVidLabelingJobsResponse { vidLabelingJobs += vidLabelingJob { name = VID_JOB_NAME } }
+        )
+      whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = "q" })
+      // Re-retry: the deterministic rt-<hash> WorkItem already exists from a prior retry.
+      whenever(workItemsService.createWorkItem(any())).thenAnswer {
+        throw Status.ALREADY_EXISTS.asRuntimeException()
+      }
+
+      retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+    }
+
+    assertThat(result.workItemsRepublished).isEqualTo(0)
+    assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.FAILED)
+    verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineLabeling(any()) }
+  }
+
+  @Test
+  fun `retryFailed honors a --from-phase override`() {
+    val result = runBlocking {
+      stubFailedModelLine()
+      // VidLabelingJobs would auto-detect LABELING, but --from-phase forces RANKING.
+      whenever(rankerJobService.listRankerJobs(any()))
+        .thenReturn(listRankerJobsResponse { rankerJobs += rankerJob { name = RANKER_JOB_NAME } })
+      whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = "q" })
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      whenever(modelLineService.markRawImpressionUploadModelLineRanking(any()))
+        .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.RANKING })
+
+      retrier.retryFailed(UPLOAD_NAME, MODEL_LINE, RawImpressionUploadModelLine.State.RANKING)
+    }
+
+    assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.RANKING)
+    assertThat(result.workItemsRepublished).isEqualTo(1)
+    verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineLabeling(any()) }
+  }
+
+  @Test
+  fun `retryFailed rejects a non-phase --from-phase`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        runBlocking {
+          stubFailedModelLine()
+          retrier.retryFailed(UPLOAD_NAME, MODEL_LINE, RawImpressionUploadModelLine.State.COMPLETED)
+        }
+      }
+    assertThat(error).hasMessageThat().contains("--from-phase")
   }
 
   companion object {
