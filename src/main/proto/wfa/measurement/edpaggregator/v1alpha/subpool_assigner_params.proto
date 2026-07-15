@@ -19,6 +19,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/edpaggregator/v1alpha/labeler_input_field_mapping.proto";
 import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -111,6 +112,13 @@ message SubpoolAssignerParams {
   // Phase-2 WorkItem).
   string model_blob_path = 9 [(google.api.field_behavior) = REQUIRED];
 
+  // Cloud Storage for the compiled VID model blob named by `model_blob_path`.
+  // The compiled model lives in its own Cloud Storage project, separate from
+  // the impression and map storage above, so it carries a dedicated project
+  // here.
+  StorageParams model_storage_params = 17
+      [(google.api.field_behavior) = REQUIRED];
+
   // Inclusive start of the model line's active window. Impressions whose
   // event timestamp is before this point are dropped before labeling.
   // Mirrors `ModelLine.active_start_time` from the public API.
@@ -141,7 +149,7 @@ message SubpoolAssignerParams {
   //
   // Also carried as pass-through for VidRankBuilder Phase-1 / VidLabeler
   // Phase-2 WorkItem construction by the last-shard-out.
-  map<string, string> labeler_input_field_mapping = 14;
+  repeated LabelerInputFieldMapping labeler_input_field_mapping = 14;
 
   // Mapping from event template field names to their corresponding raw
   // impression field names. Mirrors the per-(EDP, model line) mapping
@@ -165,4 +173,38 @@ message SubpoolAssignerParams {
     (google.api.resource_reference).type =
         "edpaggregator.halo-cmm.org/PoolAssignmentJob"
   ];
+
+  // Maximum total `RawImpressionUploadFile.size_bytes` packed into a single
+  // memoized Phase-2 `VidLabelingJob` (the bin-packing threshold). Forwarded by
+  // the VID Labeling Dispatcher/Monitor from
+  // `VidLabelingConfig.max_file_batch_size_bytes` so the Phase-1 ranker's
+  // last-`RankerJob`-out fan-out bin-packs identically to the non-memoized
+  // dispatcher. REQUIRED; there is no built-in default (a wrong one OOMs or
+  // under-utilizes the Phase-2 VM). SubpoolAssignerApp validates it `> 0`.
+  int64 max_file_batch_size_bytes = 18 [(google.api.field_behavior) = REQUIRED];
+
+  // Config-storage blob URI of the FileDescriptorSet for the EventTemplate
+  // types. Mirrors the per-(EDP, model line)
+  // `VidLabelingConfig.ModelLineConfig.event_template_descriptor_blob_uri`.
+  // Not consumed by the Phase-0 SubpoolAssigner; carried as pass-through so the
+  // last-shard-out can stamp it on the VidRankBuilder Phase-1 WorkItem, which
+  // the Phase-1 last-out then stamps on the Phase-2 VidLabeler
+  // `ModelLineConfig` (Phase-2 requires it to build the labeled-output event).
+  string event_template_descriptor_blob_uri = 19
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Full proto name of the event message within that FileDescriptorSet that
+  // `event_template_field_mapping` targets. Pass-through for Phase-2 (see
+  // `event_template_descriptor_blob_uri`).
+  string event_template_type = 20 [(google.api.field_behavior) = OPTIONAL];
+
+  // Entity types that every impression MUST have. Not consumed by the Phase-0
+  // SubpoolAssigner; carried as pass-through so the last-shard-out stamps it on
+  // the VidRankBuilder Phase-1 WorkItem, which the Phase-1 last-out stamps on
+  // the Phase-2 VidLabeler ModelLineConfig (Phase-2 reads entity keys per row).
+  map<string, string> required_entity_key_field_mapping = 22;
+
+  // Entity types an impression MAY have. Pass-through, same as
+  // required_entity_key_field_mapping; keys MUST be disjoint from it.
+  map<string, string> optional_entity_key_field_mapping = 21;
 }

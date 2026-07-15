@@ -27,25 +27,24 @@ import org.wfanet.virtualpeople.common.LabelerInput
  * This is the seam between the raw-impression reader (which hands out rows keyed by **Parquet
  * column name** — see [ParquetDigestedEvent]) and the VirtualPeople [LabelerInput]. The conversion
  * is model-line-specific because the column→field mapping lives in
- * [VidLabelerParams.ModelLineConfig.getLabelerInputFieldMappingMap].
+ * [VidLabelerParams.ModelLineConfig.getLabelerInputFieldMappingList].
  *
  * It is injected (rather than implemented inline) so the labeling pipeline can be built and tested
- * before the Parquet schema is finalized: tests supply a fake, and the production converter is
- * wired in once the schema is pinned.
- *
- * TODO(world-federation-of-advertisers/cross-media-measurement#3913): provide the production
- *   implementation once the raw-impression Parquet schema (column names + types) is finalized with
- *   the reader (#3954).
+ * independently of the production projection: tests supply a fake, and the production converter
+ * ([ParquetImpressionConverter]) is wired in by the runner.
  */
 fun interface ImpressionConverter {
   /**
    * Converts [event]'s row for the model line described by [config].
    *
+   * @param fileEntityKeys the entity keys (and event group reference id) of the raw-impression file
+   *   this row came from, read from the file's plaintext Parquet footer ("Option Y").
    * @return the [ConvertedImpression], or `null` to skip this row for this model line.
    */
   fun convert(
     event: ParquetDigestedEvent,
     config: VidLabelerParams.ModelLineConfig,
+    fileEntityKeys: FileEntityKeys,
   ): ConvertedImpression?
 }
 

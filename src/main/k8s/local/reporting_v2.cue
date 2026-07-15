@@ -14,19 +14,21 @@
 
 package k8s
 
-_pdpName:                      string @tag("pdp_name")
-_reportingBasicReportsEnabled: string @tag("basic_reports_enabled")
-_reportingSecretName:          string @tag("secret_name")
-_reportingDbSecretName:        string @tag("db_secret_name")
-_reportingMcConfigSecretName:  string @tag("mc_config_secret_name")
+_pdpName:                                             string @tag("pdp_name")
+_reportingBasicReportsEnabled:                        string @tag("basic_reports_enabled")
+_reportingReportingSetReportingUnitComponentsEnabled: string @tag("reporting_set_reporting_unit_components_enabled")
+_reportingSecretName:                                 string @tag("secret_name")
+_reportingDbSecretName:                               string @tag("db_secret_name")
+_reportingMcConfigSecretName:                         string @tag("mc_config_secret_name")
 
 objectSets: [ for objectSet in reporting {objectSet}]
 
 reporting: #Reporting & {
-	_populationDataProviderName: _pdpName
-	_basicReportsEnabled:        _reportingBasicReportsEnabled
-	_secretName:                 _reportingSecretName
-	_mcConfigSecretName:         _reportingMcConfigSecretName
+	_populationDataProviderName:                 _pdpName
+	_basicReportsEnabled:                        _reportingBasicReportsEnabled
+	_reportingSetReportingUnitComponentsEnabled: _reportingReportingSetReportingUnitComponentsEnabled
+	_secretName:                                 _reportingSecretName
+	_mcConfigSecretName:                         _reportingMcConfigSecretName
 	_postgresConfig: {
 		serviceName:      "postgres"
 		password:         "$(POSTGRES_PASSWORD)"

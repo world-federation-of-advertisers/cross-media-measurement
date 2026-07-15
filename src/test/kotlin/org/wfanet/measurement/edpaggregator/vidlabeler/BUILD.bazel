@@ -29,6 +29,34 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "MemoizedRankIndexTest",
+    srcs = ["MemoizedRankIndexTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidlabeler.MemoizedRankIndexTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:event_id_digest",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:rank_index_store",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:memoized_rank_index",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_map_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/sdk",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/sdk/testing",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_test(
     name = "VidLabelingSinkTest",
     srcs = ["VidLabelingSinkTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.vidlabeler.VidLabelingSinkTest",
@@ -36,9 +64,11 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:event_id_digest",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:raw_impression_source",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:memoized_rank_index",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_assigner",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeling",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/utils:active_window",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/utils:bytes12_int_map",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeler_params_kt_jvm_proto",
@@ -86,25 +116,104 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "ParquetImpressionConverterTest",
+    srcs = ["ParquetImpressionConverterTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidlabeler.ParquetImpressionConverterTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:event_id_digest",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:raw_impression_source",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeling",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeler_params_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/proto/wfa/measurement/storage:parquet_row_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_test(
+    name = "FileEntityKeysTest",
+    srcs = ["FileEntityKeysTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidlabeler.FileEntityKeysTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeling",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "EntityKeyMapperTest",
+    srcs = ["EntityKeyMapperTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidlabeler.EntityKeyMapperTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeling",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/proto/wfa/measurement/storage:parquet_row_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_test(
     name = "VidLabelerAppTest",
     srcs = ["VidLabelerAppTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.vidlabeler.VidLabelerAppTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:rank_index_store",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_assigner",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeler_app",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeling",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_map_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_file_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeler_params_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeling_job_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeling_job_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_attempts_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/crypto/tink",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/sdk",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/sdk/testing",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/queue:queue_subscriber",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:parquet_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "VidLabelerAppRunnerTest",
+    srcs = ["VidLabelerAppRunnerTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidlabeler.VidLabelerAppRunnerTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeler_app_runner",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeler_params_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )

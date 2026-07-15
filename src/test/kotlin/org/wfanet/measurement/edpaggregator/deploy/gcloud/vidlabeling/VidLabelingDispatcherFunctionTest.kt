@@ -64,10 +64,12 @@ import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
 import org.wfanet.measurement.config.edpaggregator.vidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.vidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
@@ -198,6 +200,7 @@ class VidLabelingDispatcherFunctionTest {
           "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
           "CONTROL_PLANE_CERT_HOST" to "localhost",
           "VID_LABELER_QUEUE_NAME" to "queues/vid-labeler",
+          "POOL_ASSIGNER_QUEUE_NAME" to "queues/pool-assigner",
           "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
           "VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH" to tempFolder.root.path,
           "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
@@ -351,7 +354,16 @@ class VidLabelingDispatcherFunctionTest {
       privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
       certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
     }
-    modelLineConfigs[MODEL_LINE] = modelLineConfig { labelerInputFieldMapping["field1"] = "value1" }
+    modelLineConfigs[MODEL_LINE] = modelLineConfig {
+      labelerInputFieldMapping +=
+        LabelerInputFieldMapping.newBuilder()
+          .setFieldPath("event_id.id")
+          .setScalar(ScalarColumn.newBuilder().setColumn("event_id_col"))
+          .build()
+      eventTemplateDescriptorBlobUri = "gs://descriptors/event-template-set.binpb"
+      eventTemplateType = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+      requiredEntityKeyFieldMapping["person"] = "person_col"
+    }
     modelSuite = MODEL_SUITE
     numberOfShards = 2
   }

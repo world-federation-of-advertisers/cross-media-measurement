@@ -119,7 +119,10 @@ DUCHY_K8S_SETTINGS = struct(
 REPORTING_K8S_SETTINGS = struct(
     public_api_address_name = "$(reporting_public_api_address_name)",
     basic_reports_enabled = "$(basic_reports_enabled)",
+    reporting_set_reporting_unit_components_enabled = "$(reporting_set_reporting_unit_components_enabled)",
     event_message_type_url = "$(event_message_type_url)",
+    mcp_host = "$(mcp_host)",
+    oauth_issuer = "$(oauth_issuer)",
 )
 
 # Settings for Population DataProvider Kubernetes objects.

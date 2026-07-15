@@ -46,18 +46,22 @@ resource "terraform_data" "deploy_http_cloud_function" {
     var.extra_env_vars,
     var.secret_mappings,
     var.config_path != null ? filesha256(var.config_path) : "",
+    var.timeout_seconds,
+    var.max_instances,
   ]
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
     environment = {
-      FUNCTION_NAME           = var.function_name
-      ENTRY_POINT             = var.entry_point
-      CLOUD_REGION            = data.google_client_config.default.region
-      RUN_SERVICE_ACCOUNT     = google_service_account.http_cloud_function_service_account.email
-      EXTRA_ENV_VARS          = var.extra_env_vars
-      SECRET_MAPPINGS         = var.secret_mappings
-      UBER_JAR_DIRECTORY      = dirname(var.uber_jar_path)
+      FUNCTION_NAME       = var.function_name
+      ENTRY_POINT         = var.entry_point
+      CLOUD_REGION        = data.google_client_config.default.region
+      RUN_SERVICE_ACCOUNT = google_service_account.http_cloud_function_service_account.email
+      EXTRA_ENV_VARS      = var.extra_env_vars
+      SECRET_MAPPINGS     = var.secret_mappings
+      UBER_JAR_DIRECTORY  = dirname(var.uber_jar_path)
+      TIMEOUT_SECONDS     = var.timeout_seconds == null ? "" : tostring(var.timeout_seconds)
+      MAX_INSTANCES       = var.max_instances == null ? "" : tostring(var.max_instances)
     }
     command = <<-EOT
       #!/bin/bash
@@ -68,6 +72,11 @@ resource "terraform_data" "deploy_http_cloud_function" {
         "--gen2"
         "--runtime=java17"
         "--entry-point=$ENTRY_POINT"
+        # 512MB suffices for test environments. The requisition-fetcher groups a report's
+        # requisitions in memory before writing one blob; a data provider with large reports
+        # (or rare ~1MB requisitions) can need substantially more headroom — up to 8GiB (Cloud
+        # Functions 2nd gen max) — and its MAX_TOTAL_BUFFERED_BYTES should be raised to match.
+        # Size per environment rather than assuming this default holds for larger workloads.
         "--memory=512MB"
         "--region=$CLOUD_REGION"
         "--run-service-account=$RUN_SERVICE_ACCOUNT"
@@ -82,6 +91,14 @@ resource "terraform_data" "deploy_http_cloud_function" {
 
       if [[ -n "$SECRET_MAPPINGS" ]]; then
         args+=("--set-secrets=$SECRET_MAPPINGS")
+      fi
+
+      if [[ -n "$TIMEOUT_SECONDS" ]]; then
+        args+=("--timeout=$TIMEOUT_SECONDS")
+      fi
+
+      if [[ -n "$MAX_INSTANCES" ]]; then
+        args+=("--max-instances=$MAX_INSTANCES")
       fi
 
       gcloud $${args[@]}

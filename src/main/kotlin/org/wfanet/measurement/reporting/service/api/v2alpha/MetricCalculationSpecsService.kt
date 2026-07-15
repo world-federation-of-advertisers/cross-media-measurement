@@ -34,6 +34,7 @@ import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.cel.CelPredicates
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -311,7 +312,7 @@ class MetricCalculationSpecsService(
     filter: String,
   ): List<MetricCalculationSpec> {
     return try {
-      filterList(ENV, metricCalculationSpecs, filter)
+      CelPredicates.filterList(ENV, metricCalculationSpecs, filter)
     } catch (e: IllegalArgumentException) {
       throw Status.INVALID_ARGUMENT.withDescription(e.message).asRuntimeException()
     }
@@ -329,7 +330,8 @@ class MetricCalculationSpecsService(
     private const val MIN_PAGE_SIZE = 1
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 1000
-    private val ENV: Env = buildCelEnvironment(MetricCalculationSpec.getDefaultInstance())
+    private val ENV: Env =
+      CelPredicates.buildEnvironment(MetricCalculationSpec.getDefaultInstance())
 
     /**
      * Converts a public [ListMetricCalculationSpecsRequest] to a

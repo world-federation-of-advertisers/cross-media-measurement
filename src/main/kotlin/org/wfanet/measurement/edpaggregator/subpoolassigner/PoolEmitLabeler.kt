@@ -34,16 +34,20 @@ import org.wfanet.virtualpeople.common.LabelerInput
  * additive to — the fact that across events the same fingerprint commonly routes to several
  * subpools. Both fan-outs are expected and deduped by [SubpoolFingerprintsAccumulator].
  *
+ * The production implementation is [VirtualPeoplePoolEmitLabeler], which runs the canonical Kotlin
+ * `Labeler` in pool-emit mode.
+ *
  * ## Concurrency
  *
  * [emit] is called concurrently from many batch-processing coroutines (see
- * [SubpoolAssignmentSink]); implementations MUST be safe for concurrent invocation. The eventual
- * C++/JNI labeler is expected to satisfy this with a per-thread native handle (mirroring
- * `EventIdDigestExtractor`'s ThreadLocal `MessageDigest`).
+ * [SubpoolAssignmentSink]); implementations MUST be safe for concurrent invocation.
+ * [VirtualPeoplePoolEmitLabeler] satisfies this because the canonical `Labeler` is immutable after
+ * construction and mutates only its per-call event builder.
  *
- * TODO(@Marco-Premier): provide the production implementation that loads the compiled model from
- *   `SubpoolAssignerParams.model_blob_path` and invokes the C++ labeler in pool-emit mode (JNI),
- *   including projecting `event_template_field_mapping` onto the model's event-template message.
+ * TODO(@Marco-Premier): wire [VirtualPeoplePoolEmitLabeler] into
+ *   `SubpoolAssignerAppRunner.loadPoolEmitLabeler`, loading the compiled model from
+ *   `SubpoolAssignerParams.model_blob_path` and projecting `event_template_field_mapping` onto the
+ *   model's event-template message.
  */
 interface PoolEmitLabeler : AutoCloseable {
   /**
@@ -53,6 +57,14 @@ interface PoolEmitLabeler : AutoCloseable {
    * [SubpoolFingerprintsAccumulator] dedupes per subpool.
    */
   fun emit(input: LabelerInput): List<Long>
+
+  /**
+   * Returns the configured ranked sub-range size (`RankedPopulationNode.ranked_size`) of the
+   * subpool at [poolOffset]. A static property of the compiled model, used by the Phase-0
+   * last-shard-out to stamp each `VidRankBuilderParams.subpool_ranked_sizes` entry so the Phase-1
+   * ranker can size its rank `BitSet` and cap allocation without loading the model itself.
+   */
+  fun rankedSize(poolOffset: Long): Int
 
   override fun close() {}
 }

@@ -289,8 +289,8 @@ proto_library(
     srcs = ["raw_impression_upload_model_line.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":encrypted_dek_proto",
         ":raw_impression_upload_model_line_state_proto",
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_proto",
         "@com_google_googleapis//google/type:date_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
@@ -377,8 +377,8 @@ proto_library(
     srcs = ["pool_assignment_job.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":encrypted_dek_proto",
         ":pool_assignment_state_proto",
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -393,9 +393,9 @@ proto_library(
     srcs = ["pool_assignment_job_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":encrypted_dek_proto",
         ":pool_assignment_job_proto",
         ":pool_assignment_state_proto",
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_proto",
         "@com_google_googleapis//google/type:date_proto",
         "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
