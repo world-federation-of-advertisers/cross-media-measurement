@@ -14,6 +14,20 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "MemoizedRankIndexCacheTest",
+    srcs = ["MemoizedRankIndexCacheTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidlabeler.MemoizedRankIndexCacheTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:memoized_rank_index",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/utils:bytes12_int_map",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_test(
     name = "VirtualPeopleVidAssignerTest",
     srcs = ["VirtualPeopleVidAssignerTest.kt"],
     data = ["//src/main/resources/testing/labeler:single_id_model_riegeli"],

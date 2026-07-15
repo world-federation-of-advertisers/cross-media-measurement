@@ -247,8 +247,6 @@ SECRET_FILES = [
     "edp7_enc_public.tink",
     "edp7_tls.key",
     "edp7_tls.pem",
-    "data_availability_tls.key",
-    "data_availability_tls.pem",
     "mp1_tls.pem",
     "mp1_tls.key",
     "mp1_cs_cert.der",

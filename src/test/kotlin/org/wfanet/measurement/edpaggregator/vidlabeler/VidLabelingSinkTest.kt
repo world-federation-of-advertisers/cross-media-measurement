@@ -471,7 +471,7 @@ class VidLabelingSinkTest {
           listOf(
             LabeledImpressionKt.entityKey {
               entityType = "household"
-              entityId = "hh-${event.digest.high}"
+              entityId = "hh-${event.digest!!.high}"
             },
             LabeledImpressionKt.entityKey {
               entityType = "person"
