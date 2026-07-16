@@ -611,6 +611,7 @@ class VidLabelingDispatchSequencer(
         markRawImpressionUploadModelLineLabelingRequest {
           name = modelLineName
           this.etag = etag
+          requestId = RequestIds.forMarkRawImpressionUploadModelLineLabeling(modelLineName)
         }
       )
     } catch (e: StatusException) {
@@ -631,6 +632,7 @@ class VidLabelingDispatchSequencer(
         markRawImpressionUploadModelLinePoolAssigningRequest {
           name = modelLineName
           this.etag = etag
+          requestId = RequestIds.forMarkRawImpressionUploadModelLinePoolAssigning(modelLineName)
         }
       )
     } catch (e: StatusException) {

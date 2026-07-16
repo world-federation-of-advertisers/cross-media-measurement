@@ -42,9 +42,37 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadModelLine
 
 data class RawImpressionUploadModelLineResult(
+  /** The [RawImpressionUploadModelLine] read from Spanner. */
   val rawImpressionUploadModelLine: RawImpressionUploadModelLine,
+  /** Internal numeric ID of the parent `RawImpressionUpload` row. */
   val rawImpressionUploadId: Long,
+  /** Internal numeric ID of the `RawImpressionUploadModelLine` row. */
   val rawImpressionUploadModelLineId: Long,
+  /**
+   * AIP-155 `request_id` of the mark that moved this line to `POOL_ASSIGNING`, or empty if that
+   * transition hasn't happened. Used to short-circuit an idempotent replay of the same mark.
+   */
+  val markPoolAssigningRequestId: String,
+  /**
+   * AIP-155 `request_id` of the mark that moved this line to `RANKING`, or empty if that transition
+   * hasn't happened. Used to short-circuit an idempotent replay of the same mark.
+   */
+  val markRankingRequestId: String,
+  /**
+   * AIP-155 `request_id` of the mark that moved this line to `LABELING`, or empty if that
+   * transition hasn't happened. Used to short-circuit an idempotent replay of the same mark.
+   */
+  val markLabelingRequestId: String,
+  /**
+   * AIP-155 `request_id` of the mark that moved this line to `COMPLETED`, or empty if that
+   * transition hasn't happened. Used to short-circuit an idempotent replay of the same mark.
+   */
+  val markCompletedRequestId: String,
+  /**
+   * AIP-155 `request_id` of the mark that moved this line to `FAILED`, or empty if that transition
+   * hasn't happened. Used to short-circuit an idempotent replay of the same mark.
+   */
+  val markFailedRequestId: String,
 )
 
 /** Returns whether a [RawImpressionUploadModelLine] with the specified keys exists. */
@@ -230,8 +258,6 @@ suspend fun AsyncDatabaseClient.ReadContext.findRawImpressionUploadModelLineByRe
   rawImpressionUploadResourceId: String,
   requestId: String,
 ): RawImpressionUploadModelLineResult? {
-  if (requestId.isEmpty()) return null
-
   val sql = buildString {
     appendLine(RawImpressionUploadModelLineEntity.BASE_SQL)
     appendLine(
@@ -402,9 +428,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUploadModelLine(
     set("RawImpressionUploadModelLineId").to(rawImpressionUploadModelLineId)
     set("RawImpressionUploadModelLineResourceId").to(rawImpressionUploadModelLineResourceId)
     set("CmmsModelLine").to(cmmsModelLine)
-    if (createRequestId.isNotEmpty()) {
-      set("CreateRequestId").to(createRequestId)
-    }
+    set("CreateRequestId").to(createRequestId)
     set("State").to(State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
@@ -449,12 +473,18 @@ private object RawImpressionUploadModelLineEntity {
       RawImpressionUploadModelLine.PoolOffsets,
       RawImpressionUploadModelLine.MaxEventDate,
       RawImpressionUploadModelLine.EncryptedMergedDek,
+      RawImpressionUploadModelLine.MarkPoolAssigningRequestId,
+      RawImpressionUploadModelLine.MarkRankingRequestId,
+      RawImpressionUploadModelLine.MarkLabelingRequestId,
+      RawImpressionUploadModelLine.MarkCompletedRequestId,
+      RawImpressionUploadModelLine.MarkFailedRequestId,
     FROM
       RawImpressionUploadModelLine
     """
       .trimIndent()
 
   fun buildResult(struct: Struct): RawImpressionUploadModelLineResult {
+    fun markId(column: String): String = if (struct.isNull(column)) "" else struct.getString(column)
     return RawImpressionUploadModelLineResult(
       rawImpressionUploadModelLine {
         dataProviderResourceId = struct.getString("DataProviderResourceId")
@@ -485,6 +515,11 @@ private object RawImpressionUploadModelLineEntity {
       },
       struct.getLong("RawImpressionUploadId"),
       struct.getLong("RawImpressionUploadModelLineId"),
+      markPoolAssigningRequestId = markId("MarkPoolAssigningRequestId"),
+      markRankingRequestId = markId("MarkRankingRequestId"),
+      markLabelingRequestId = markId("MarkLabelingRequestId"),
+      markCompletedRequestId = markId("MarkCompletedRequestId"),
+      markFailedRequestId = markId("MarkFailedRequestId"),
     )
   }
 }
