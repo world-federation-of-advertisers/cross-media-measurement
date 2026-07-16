@@ -783,12 +783,22 @@ class InProcessEdpAggregatorComponents(
   }
 
   /**
-   * Lists every CMMS [EventGroup] the given EDP owns on the in-process Kingdom, via the raw v2alpha
-   * `EventGroups.ListEventGroups` (not the Reporting API). Test-only seam for asserting the exact
-   * Kingdom row count and resource-name set, which is how "no EventGroup explosion / no duplicate
-   * rows" is proven independent of any Reporting-side filtering or de-duplication.
+   * Lists the CMMS [CmmsEventGroup]s the given EDP owns on the in-process Kingdom, filtered to
+   * [entityTypes], via the raw v2alpha `EventGroups.ListEventGroups` (not the Reporting API).
+   *
+   * [entityTypes] must enumerate every entity type the caller may have created: the Kingdom
+   * defaults `entity_type_in` to `["campaign"]` when unset, so a non-campaign row (e.g.
+   * `creative-id`) is hidden unless its type is listed here. Passing the caller's own type set
+   * keeps this lister from silently under-counting as new entity types are exercised.
+   *
+   * Test-only seam for asserting the exact Kingdom row count and resource-name set, which is how
+   * "no EventGroup explosion / no duplicate rows" is proven independent of any Reporting-side
+   * filtering or de-duplication.
    */
-  fun listCmmsEventGroups(edpAggregatorShortName: String): List<CmmsEventGroup> = runBlocking {
+  fun listCmmsEventGroups(
+    edpAggregatorShortName: String,
+    entityTypes: List<String>,
+  ): List<CmmsEventGroup> = runBlocking {
     val edpResourceName = edpResourceNameMap.getValue(edpAggregatorShortName)
     val eventGroupsClient =
       EventGroupsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
@@ -802,13 +812,7 @@ class InProcessEdpAggregatorComponents(
               parent = edpResourceName
               pageSize = 1000
               this.pageToken = pageToken
-              // Kingdom defaults entity_type_in to ["campaign"] when unset; enumerate all entity
-              // types the tests use so migrated (creative-id / ad_group) rows are not hidden.
-              filter = listEventGroupsFilter {
-                entityTypeIn += "campaign"
-                entityTypeIn += "creative-id"
-                entityTypeIn += "ad_group"
-              }
+              filter = listEventGroupsFilter { entityTypeIn += entityTypes }
             }
           )
         }

@@ -94,12 +94,7 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.metricSpecConfig
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup as EdpaEventGroup
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata as edpaCampaignMetadata
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata as edpaAdMetadata
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey as edpaEntityKey
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as edpaEventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup as edpaEventGroup
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
@@ -1013,44 +1008,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     inProcessCmmsComponents.getMeasurementConsumerData().name
 
   /**
-   * Builds a valid EDPA-side source [EdpaEventGroup] for driving [EventGroupSync] directly in
-   * migration tests. Sets whichever of `event_group_reference_id` / `entity_key` is provided
-   * (mirroring how an EDP evolves a row across the #4175 migration), plus the fields
-   * `EventGroupSync.validateEventGroup` requires: media type, data-availability interval, and
-   * metadata. `campaign` names the campaign metadata so a mutation is observable across syncs.
-   */
-  protected fun buildMigrationSourceEventGroup(
-    referenceId: String?,
-    entityType: String?,
-    entityId: String?,
-    campaign: String,
-  ): EdpaEventGroup = edpaEventGroup {
-    if (!referenceId.isNullOrEmpty()) {
-      eventGroupReferenceId = referenceId
-    }
-    measurementConsumer = measurementConsumerName()
-    if (entityType != null && entityId != null) {
-      entityKey = edpaEntityKey {
-        this.entityType = entityType
-        this.entityId = entityId
-      }
-    }
-    eventGroupMetadata = edpaEventGroupMetadata {
-      adMetadata = edpaAdMetadata {
-        campaignMetadata = edpaCampaignMetadata {
-          brand = "migration-brand"
-          this.campaign = campaign
-        }
-      }
-    }
-    dataAvailabilityInterval = interval {
-      startTime = timestamp { seconds = 200 }
-      endTime = timestamp { seconds = 300 }
-    }
-    mediaTypes += EdpaEventGroup.MediaType.VIDEO
-  }
-
-  /**
    * Re-runs [EventGroupSync] for a single EDP against the running in-process Kingdom. Test-only
    * seam for driving repeated migration syncs after daemon startup.
    */
@@ -1066,12 +1023,17 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     )
 
   /**
-   * Lists the raw CMMS [CmmsEventGroup]s an EDP owns on the Kingdom (bypassing the Reporting API).
-   * Used to assert the exact Kingdom row count and resource-name set, proving no EventGroup
-   * explosion / duplicate rows during migration.
+   * Lists the raw CMMS [CmmsEventGroup]s an EDP owns on the Kingdom (bypassing the Reporting API),
+   * filtered to [entityTypes]. Used to assert the exact Kingdom row count and resource-name set,
+   * proving no EventGroup explosion / duplicate rows during migration. [entityTypes] must include
+   * every entity type the caller may have created, since the Kingdom hides non-`campaign` rows
+   * unless their type is listed.
    */
-  protected fun listCmmsEventGroups(edpAggregatorShortName: String): List<CmmsEventGroup> =
-    inProcessEdpAggregatorComponents.listCmmsEventGroups(edpAggregatorShortName)
+  protected fun listCmmsEventGroups(
+    edpAggregatorShortName: String,
+    entityTypes: List<String>,
+  ): List<CmmsEventGroup> =
+    inProcessEdpAggregatorComponents.listCmmsEventGroups(edpAggregatorShortName, entityTypes)
 
   protected suspend fun listReportingEventGroups(): List<EventGroup> {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
