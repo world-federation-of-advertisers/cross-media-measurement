@@ -359,14 +359,22 @@ class VidLabelingMonitorFunction : HttpFunction {
       require(config.vidLabeledImpressionsStorageParams.hasGcs()) {
         "VidLabelingConfig vid_labeled_impressions_storage_params must use GCS"
       }
+      require(config.edpImpressionPath.isNotEmpty()) {
+        "VidLabelingConfig.edp_impression_path is required"
+      }
 
       return vidLabelerParams {
         dataProvider = config.dataProvider
         vidLabeledImpressionsStorageParams =
           VidLabelerParamsKt.storageParams {
             gcsProjectId = config.vidLabeledImpressionsStorageParams.gcs.projectId
+            // Per-EDP folder segment so each EDP's labeled output lives under its own
+            // folder: gs://<bucket>/<edp_impression_path>/model-line/<id>/<date>/. Required,
+            // and must match this EDP's DataAvailabilitySyncConfig edp_impression_path so the
+            // writer and the registrar agree on the location.
             impressionsBlobPrefix =
-              "gs://${config.vidLabeledImpressionsStorageParams.gcs.bucketName}"
+              "gs://${config.vidLabeledImpressionsStorageParams.gcs.bucketName}" +
+                "/${config.edpImpressionPath}"
           }
         rawImpressionsStorageParams =
           VidLabelerParamsKt.storageParams {
