@@ -46,6 +46,13 @@ import kotlinx.coroutines.sync.withLock
  * multi-GB indexes). This is the intended trade-off — the labeler is memory-bound on the index, so
  * serializing its (re)build is preferable to duplicating it.
  *
+ * **Cross-key serialization.** Callers with DIFFERENT keys also serialize on the mutex — the second
+ * waits for the first's build to complete, then evicts it and rebuilds. Two concurrent WorkItems
+ * for two different (dataProvider, modelLine) pairs on the same VM therefore run their builds
+ * sequentially, not in parallel. Intentional: two multi-GB indexes in heap simultaneously would OOM
+ * the VM. (In practice the TEE app leases one WorkItem at a time, so this contention does not arise
+ * in production.)
+ *
  * One instance per process (wired at `VidLabelerAppRunner`, shared by every WorkItem), NOT one per
  * WorkItem.
  */
