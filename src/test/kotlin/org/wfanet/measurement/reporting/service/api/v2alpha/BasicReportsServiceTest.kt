@@ -740,7 +740,8 @@ class BasicReportsServiceTest {
           },
         )
 
-      // The two same-DataProvider components remain distinct metric buckets (keyed by ReportingSet).
+      // The two same-DataProvider components remain distinct metric buckets (keyed by
+      // ReportingSet).
       val createReportRequest =
         argumentCaptor { verify(reportsServiceMock).createReport(capture()) }.firstValue
       assertThat(createReportRequest.report.reportingMetricEntriesList.map { it.key })

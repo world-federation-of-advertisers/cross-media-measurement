@@ -1009,8 +1009,8 @@ class BasicReportsService(
    *
    * Resolves the ReportingSet components across all ResultGroupSpecs, validates that each is a
    * primitive ReportingSet, and transactionally get-or-creates a primitive self-referencing
-   * Campaign Group whose EventGroup universe is the union of the components' EventGroups. Concurrent
-   * and retried requests with the same universe converge on one shared ReportingSet.
+   * Campaign Group whose EventGroup universe is the union of the components' EventGroups.
+   * Concurrent and retried requests with the same universe converge on one shared ReportingSet.
    *
    * Components that resolve to the same DataProvider set are allowed: the post-processor keys
    * measured sets by primitive ReportingSet id, not by DataProvider combination, so they do not
