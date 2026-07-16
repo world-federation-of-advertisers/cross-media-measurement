@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Send new issue slack notification
+name: Send new PR slack notification
 
 on:
-  issues:
+  pull_request:
     types: [opened]
 
 permissions:
@@ -43,7 +43,7 @@ jobs:
               await github.rest.teams.getMembershipForUserInOrg({
                 org: "world-federation-of-advertisers",
                 team_slug: "haloengineering",
-                username: context.payload.issue.user.login,
+                username: context.payload.pull_request.user.login,
               });
               return true;
             } catch (error) {
@@ -67,13 +67,13 @@ jobs:
           token: ${{ secrets.SLACK_BOT_TOKEN }}
           payload: |
             channel: ${{ vars.SLACK_ISSUE_NOTIFICATION_CHANNEL }}
-            text: "A new issue was filed by a user outside the Halo team."
+            text: "A new PR was opened by a user outside the Halo team."
             blocks: [
               {
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": ":card_file_box: A new issue was filed by a user outside the Halo team:"
+                  "text": ":twisted_rightwards_arrows: A new Pull Request was filed by a user outside the Halo team:"
                 }
               },
               {
@@ -81,15 +81,11 @@ jobs:
                 "fields": [
                   {
                     "type": "mrkdwn",
-                    "text": "*Issue:* <${{ github.event.issue.html_url }}|Issue #${{ github.event.issue.number }}>"
+                    "text": "*PR:* <${{ github.event.pull_request.html_url }}|PR #${{ github.event.pull_request.number }}>"
                   },
                   {
                     "type": "mrkdwn",
-                    "text": "*User:* ${{ github.event.issue.user.login }}"
-                  },
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Type:* ${{ github.event.issue.type.name }}"
+                    "text": "*User:* ${{ github.event.pull_request.user.login }}"
                   }
                 ]
               },
@@ -97,7 +93,7 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "plain_text",
-                  "text": ${{ toJSON(github.event.issue.title) }}
+                  "text": ${{ toJSON(github.event.pull_request.title) }}
                 }
               }
             ]
