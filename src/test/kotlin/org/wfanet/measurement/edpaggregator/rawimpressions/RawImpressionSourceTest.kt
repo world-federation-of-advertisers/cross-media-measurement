@@ -129,7 +129,7 @@ class RawImpressionSourceTest {
     shardIndex: Int = 0,
     totalShards: Int = 1,
     extractor: EventIdDigestExtractor = EventIdDigestExtractor(),
-  ): RawImpressionSource =
+  ): RawImpressionSource<ParquetRawEvent> =
     RawImpressionSource(
       parquetStorageClient = client,
       rawImpressionUploadFilesStub = filesStub,
@@ -139,10 +139,11 @@ class RawImpressionSourceTest {
       totalShards = totalShards,
       eventIdDigestExtractor = extractor,
       metrics = testMetrics,
+      toEvent = { row, d -> if (d != null) DigestedEvent(row, d) else UndigestedEvent(row) },
     )
 
   /** Reads the decoded `event_id` (STRING or BINARY) from a [DigestedEvent]. */
-  private fun eventId(event: ParquetDigestedEvent): String {
+  private fun eventId(event: ParquetRawEvent): String {
     val v = event.row.getValue("event_id")
     return when (v.kindCase) {
       ParquetValue.KindCase.STRING_VALUE -> v.stringValue
@@ -160,22 +161,23 @@ class RawImpressionSourceTest {
     opened: ConcurrentLinkedQueue<String>? = null,
     committed: ConcurrentLinkedQueue<String>? = null,
     closed: ConcurrentLinkedQueue<String>? = null,
-  ): suspend (String, Map<String, String>) -> RawImpressionSource.BlobSink = { blobUri, _ ->
-    opened?.add(blobUri)
-    object : RawImpressionSource.BlobSink {
-      override suspend fun processBatch(events: List<ParquetDigestedEvent>) {
-        events.forEach { sink.add(eventId(it)) }
-      }
+  ): suspend (String, Map<String, String>) -> RawImpressionSource.BlobSink<ParquetRawEvent> =
+    { blobUri, _ ->
+      opened?.add(blobUri)
+      object : RawImpressionSource.BlobSink<ParquetRawEvent> {
+        override suspend fun processBatch(events: List<ParquetRawEvent>) {
+          events.forEach { sink.add(eventId(it)) }
+        }
 
-      override suspend fun commit() {
-        committed?.add(blobUri)
-      }
+        override suspend fun commit() {
+          committed?.add(blobUri)
+        }
 
-      override suspend fun close() {
-        closed?.add(blobUri)
+        override suspend fun close() {
+          closed?.add(blobUri)
+        }
       }
     }
-  }
 
   @Test
   fun `streamBlobs emits every row of the shard`(): Unit = runBlocking {
@@ -214,6 +216,7 @@ class RawImpressionSourceTest {
         eventIdDigestExtractor = EventIdDigestExtractor(),
         metrics = testMetrics,
         inputFiles = listOf("$UPLOAD/files/x", "$UPLOAD/files/y"),
+        toEvent = { row, d -> if (d != null) DigestedEvent(row, d) else UndigestedEvent(row) },
       )
     val sink = ConcurrentLinkedQueue<String>()
     subject.streamBlobs(collectingSink(sink))
@@ -345,16 +348,17 @@ class RawImpressionSourceTest {
           eventIdDigestExtractor = EventIdDigestExtractor(),
           metrics = testMetrics,
           needsDigest = false,
+          toEvent = { row, d -> if (d != null) DigestedEvent(row, d) else UndigestedEvent(row) },
         )
 
       val ids = ConcurrentLinkedQueue<String>()
       val digestPresent = ConcurrentLinkedQueue<Boolean>()
       subject.streamBlobs { _, _ ->
-        object : RawImpressionSource.BlobSink {
-          override suspend fun processBatch(events: List<ParquetDigestedEvent>) {
+        object : RawImpressionSource.BlobSink<ParquetRawEvent> {
+          override suspend fun processBatch(events: List<ParquetRawEvent>) {
             events.forEach {
               ids.add(eventId(it))
-              digestPresent.add(it.digest != null)
+              digestPresent.add(it is DigestedEvent)
             }
           }
 
@@ -413,6 +417,7 @@ class RawImpressionSourceTest {
         0,
         0,
         EventIdDigestExtractor(),
+        toEvent = { row, d -> if (d != null) DigestedEvent(row, d) else UndigestedEvent(row) },
       )
     }
     // shardIndex out of range.
@@ -425,6 +430,7 @@ class RawImpressionSourceTest {
         5,
         2,
         EventIdDigestExtractor(),
+        toEvent = { row, d -> if (d != null) DigestedEvent(row, d) else UndigestedEvent(row) },
       )
     }
     // maxOpenFiles must be positive.
@@ -437,16 +443,35 @@ class RawImpressionSourceTest {
         0,
         1,
         EventIdDigestExtractor(),
+        toEvent = { row, d -> if (d != null) DigestedEvent(row, d) else UndigestedEvent(row) },
         maxOpenFiles = 0,
       )
     }
     // rawImpressionUpload must be non-blank.
     assertFailsWith<IllegalArgumentException> {
-      RawImpressionSource(newClient(), filesStub, "  ", "event_id", 0, 1, EventIdDigestExtractor())
+      RawImpressionSource(
+        newClient(),
+        filesStub,
+        "  ",
+        "event_id",
+        0,
+        1,
+        EventIdDigestExtractor(),
+        toEvent = { row, d -> if (d != null) DigestedEvent(row, d) else UndigestedEvent(row) },
+      )
     }
     // eventIdColumn must be non-blank.
     assertFailsWith<IllegalArgumentException> {
-      RawImpressionSource(newClient(), filesStub, UPLOAD, "  ", 0, 1, EventIdDigestExtractor())
+      RawImpressionSource(
+        newClient(),
+        filesStub,
+        UPLOAD,
+        "  ",
+        0,
+        1,
+        EventIdDigestExtractor(),
+        toEvent = { row, d -> if (d != null) DigestedEvent(row, d) else UndigestedEvent(row) },
+      )
     }
   }
 
