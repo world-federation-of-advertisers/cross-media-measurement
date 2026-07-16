@@ -90,9 +90,9 @@ class VidLabelingSinkTest {
       RawImpressionFileMetadata(eventDate = LocalDate.parse("2026-06-30")),
     encryptKmsClient: KmsClient = kmsClient,
     encryptionKeySemaphore: Semaphore =
-      Semaphore(VidLabelingSink.DEFAULT_ENCRYPTION_KEY_PARALLELISM),
+      Semaphore(BaseVidLabelingSink.DEFAULT_ENCRYPTION_KEY_PARALLELISM),
   ) =
-    VidLabelingSink(
+    MemoizedVidLabelingSink(
       inputBlobUri = "file:///raw/file-1.parquet",
       modelLineContexts = contexts,
       impressionConverter = converter,

@@ -33,7 +33,6 @@ import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigestExtractor
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
-import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetRawEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.rawimpressions.UndigestedEvent
@@ -347,7 +346,7 @@ class VidLabelerApp(
     // File-list mode: label exactly the RawImpressionUploadFiles carried on this WorkItem's
     // VidLabelingJob (the bin-packed batch), each read whole (no fingerprint-shard filter).
     val rawImpressionSource =
-      RawImpressionSource<ParquetRawEvent>(
+      RawImpressionSource(
         parquetStorageClient =
           buildParquetStorageClient(
             getStorageConfig(params.rawImpressionsStorageParams),
@@ -405,6 +404,7 @@ class VidLabelerApp(
         // The labeled output is wrapped with the EDP's KEK, the same one the rank-index blobs were
         // written with; read it from the loaded RankIndexBlobs so there is no separate KEK field.
         encryptKekUri = rankIndex.kekUri,
+        newSink = ::MemoizedVidLabelingSink,
         outputStorageParams = params.vidLabeledImpressionsStorageParams,
         storageConfig = getStorageConfig(params.vidLabeledImpressionsStorageParams),
         dataProvider = dataProvider,
@@ -440,7 +440,7 @@ class VidLabelerApp(
     val eventIdColumn = resolveEventIdColumn(firstConfig)
 
     val rawImpressionSource =
-      RawImpressionSource<ParquetRawEvent>(
+      RawImpressionSource(
         parquetStorageClient =
           buildParquetStorageClient(
             getStorageConfig(params.rawImpressionsStorageParams),
@@ -507,6 +507,7 @@ class VidLabelerApp(
         impressionConverter = impressionConverter,
         encryptKmsClient = kmsClient,
         encryptKekUri = encryptKekUri,
+        newSink = ::PlainVidLabelingSink,
         outputStorageParams = params.vidLabeledImpressionsStorageParams,
         storageConfig = getStorageConfig(params.vidLabeledImpressionsStorageParams),
         dataProvider = dataProvider,
