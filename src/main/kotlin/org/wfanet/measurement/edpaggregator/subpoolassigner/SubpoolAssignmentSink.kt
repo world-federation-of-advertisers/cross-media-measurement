@@ -47,7 +47,7 @@ class SubpoolAssignmentSink(
   private val accumulator: SubpoolFingerprintsAccumulator,
   private val activeWindow: ActiveWindow,
   private val metrics: SubpoolAssignerMetrics = SubpoolAssignerMetrics(),
-) : RawImpressionSource.BlobSink {
+) : RawImpressionSource.BlobSink<ParquetDigestedEvent> {
   private val labeledCounter = AtomicLong()
   private val droppedOutsideWindowCounter = AtomicLong()
   private val unroutedCounter = AtomicLong()
@@ -94,7 +94,7 @@ class SubpoolAssignmentSink(
       // return count says whether the event routed anywhere.
       val routed =
         labeler.emit(input) { offset ->
-          accumulator.add(offset, event.digest!!.high, event.digest!!.low)
+          accumulator.add(offset, event.digest.high, event.digest.low)
         }
       if (routed == 0) {
         // Per-event logging is intentionally avoided on this hot path (potentially billions of

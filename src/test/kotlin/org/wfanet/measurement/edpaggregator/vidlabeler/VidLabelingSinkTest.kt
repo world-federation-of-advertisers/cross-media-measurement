@@ -46,8 +46,9 @@ import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest
-import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
+import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
+import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetRawEvent
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
@@ -460,7 +461,7 @@ class VidLabelingSinkTest {
    */
   private class FakeImpressionConverter : ImpressionConverter {
     override fun convert(
-      event: ParquetDigestedEvent,
+      event: ParquetRawEvent,
       config: VidLabelerParams.ModelLineConfig,
     ): ConvertedImpression =
       ConvertedImpression(
@@ -471,7 +472,7 @@ class VidLabelingSinkTest {
           listOf(
             LabeledImpressionKt.entityKey {
               entityType = "household"
-              entityId = "hh-${event.digest!!.high}"
+              entityId = "hh-${(event as DigestedEvent).digest.high}"
             },
             LabeledImpressionKt.entityKey {
               entityType = "person"

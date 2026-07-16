@@ -17,8 +17,7 @@
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.protobuf.util.Timestamps
-import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
-import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
+import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetRawEvent
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.virtualpeople.common.LabelerInput
 
@@ -27,8 +26,8 @@ import org.wfanet.virtualpeople.common.LabelerInput
  * one model line.
  *
  * This is the seam between the raw-impression reader (which hands out rows keyed by **Parquet
- * column name** — see [ParquetDigestedEvent]) and the VirtualPeople [LabelerInput]. The conversion
- * is model-line-specific because the column→field mapping lives in
+ * column name** — see [ParquetRawEvent]) and the VirtualPeople [LabelerInput]. The conversion is
+ * model-line-specific because the column→field mapping lives in
  * [VidLabelerParams.ModelLineConfig.getLabelerInputFieldMappingList].
  *
  * It is injected (rather than implemented inline) so the labeling pipeline can be built and tested
@@ -46,7 +45,7 @@ fun interface ImpressionConverter {
    * @return the [ConvertedImpression], or `null` to skip this row for this model line.
    */
   fun convert(
-    event: ParquetDigestedEvent,
+    event: ParquetRawEvent,
     config: VidLabelerParams.ModelLineConfig,
   ): ConvertedImpression?
 }
