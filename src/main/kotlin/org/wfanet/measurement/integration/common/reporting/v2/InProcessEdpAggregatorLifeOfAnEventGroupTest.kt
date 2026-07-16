@@ -448,4 +448,72 @@ abstract class InProcessEdpAggregatorLifeOfAnEventGroupTest(
       assertThat(afterPhase3.eventGroupMetadata.adMetadata.campaignMetadata.campaignName)
         .isEqualTo("c1")
     }
+
+  @Test
+  fun `EDPA EventGroup with non-campaign entity_type silently drops updates when entity_key_types is unset`() =
+    runBlocking {
+      // Documents the (undesirable) behavior of a MISCONFIGURED EventGroupSync — entity_key_types
+      // left unset — for an EventGroup created directly with a non-"campaign" entity_type (a
+      // publisher onboarding a new campaign/entity type, with no refId migration involved). This is
+      // the counterpart to the migration footgun above: the correct configuration sets
+      // entity_key_types so these rows stay visible to the sync (see the migration tests, which
+      // do).
+      //
+      // Because the row is entity-keyed from creation, its CREATE request_id is derived from the
+      // entity_key and is stable across syncs. The campaign-default fetch never sees the
+      // creative-id
+      // row, so every sync takes the CREATE path. The first CREATE lands the row; every later
+      // CREATE
+      // carries the same request_id, so the Kingdom idempotent-replays it and returns the ORIGINAL
+      // resource. Two consequences of the misconfiguration, both proven below:
+      //   1. No duplicate rows / no explosion and no ALREADY_EXISTS failure — idempotency absorbs
+      //      the redundant CREATE (unlike the migrated-then-dropped-refId case, where the differing
+      //      request_id hits the unique index instead).
+      //   2. Because every sync replays the original CREATE instead of issuing an UPDATE, later
+      //      changes to the source (here, a renamed campaign) are SILENTLY DROPPED — they never
+      //      reach the Kingdom row and no error signals the misconfiguration.
+      val edp = "edp1"
+      val entityId = "born-creative-entity"
+      val presentEntityTypes = listOf("campaign", CREATIVE_ID_ENTITY_TYPE)
+
+      val baselineCount = listCmmsEventGroups(edp, presentEntityTypes).size
+
+      fun source(campaign: String) =
+        listOf(
+          buildMigrationSourceEventGroup(
+            referenceId = null,
+            entityType = CREATIVE_ID_ENTITY_TYPE,
+            entityId = entityId,
+            campaign = campaign,
+          )
+        )
+
+      // Sync 1: entity_key_types unset (the misconfiguration). The row is new — CREATE succeeds.
+      val sync1 = syncEventGroups(edp, source("c1"))
+      assertThat(sync1).hasSize(1)
+      val resourceName = sync1.single().eventGroupResource
+      assertThat(resourceName).isNotEmpty()
+      assertThat(listCmmsEventGroups(edp, presentEntityTypes)).hasSize(baselineCount + 1)
+
+      // Sync 2: identical source. The campaign-default fetch still can't see the creative-id row,
+      // so
+      // the sync re-issues a CREATE with the same entity-key request_id; the Kingdom idempotent-
+      // replays and returns the same resource. No duplicate row, no failure.
+      val sync2 = syncEventGroups(edp, source("c1"))
+      assertThat(sync2).hasSize(1)
+      assertThat(sync2.single().eventGroupResource).isEqualTo(resourceName)
+      assertThat(listCmmsEventGroups(edp, presentEntityTypes)).hasSize(baselineCount + 1)
+
+      // Sync 3: the source renames the campaign to "c2". Still invisible to the fetch, so the sync
+      // replays the original CREATE instead of updating — the rename is silently dropped.
+      val sync3 = syncEventGroups(edp, source("c2"))
+      assertThat(sync3).hasSize(1)
+      assertThat(sync3.single().eventGroupResource).isEqualTo(resourceName)
+      assertThat(listCmmsEventGroups(edp, presentEntityTypes)).hasSize(baselineCount + 1)
+      // The stored row still shows the original campaign ("c1"); the "c2" update never landed.
+      val afterSync3 =
+        listCmmsEventGroups(edp, presentEntityTypes).single { it.name == resourceName }
+      assertThat(afterSync3.eventGroupMetadata.adMetadata.campaignMetadata.campaignName)
+        .isEqualTo("c1")
+    }
 }
