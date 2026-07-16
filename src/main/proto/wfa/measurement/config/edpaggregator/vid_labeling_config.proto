@@ -171,6 +171,15 @@ message VidLabelingConfig {
   // here like the memoized-only storage params above; the dispatcher enforces
   // it (`> 0`) at the first non-memoized dispatch.
   int64 max_file_batch_size_bytes = 17 [(google.api.field_behavior) = OPTIONAL];
+
+  // Per-EDP folder segment for this EDP's VID-labeled impression output, placed
+  // between the storage bucket and the `model-line/<id>/<date>/` layout so each
+  // EDP writes to its own folder (e.g. `gs://<bucket>/<edp_impression_path>/
+  // model-line/...`). Keeps multiple EDPs that label the same model line in the
+  // same bucket from colliding in one folder. REQUIRED, and must match the
+  // `edp_impression_path` in this EDP's `DataAvailabilitySyncConfig` so the writer
+  // and the registrar agree on the location.
+  string edp_impression_path = 18 [(google.api.field_behavior) = REQUIRED];
 }
 
 // Wrapper containing VID Labeling configurations for all EDPs.
