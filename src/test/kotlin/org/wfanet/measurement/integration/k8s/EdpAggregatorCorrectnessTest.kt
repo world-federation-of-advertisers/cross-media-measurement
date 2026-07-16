@@ -53,6 +53,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -282,7 +283,17 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
 
     private suspend fun createDoneBlobs() {
-      buildPaths().forEach { path ->
+      // The pipeline (and WriteReusedLabeledImpressionsRule) write under
+      // `<edp_impression_path>/model-line/<modelLineId>/<date>/`, so the `done` markers that
+      // trigger the DataAvailabilitySync must sit in that same per-model-line folder. Use the
+      // memoized model line the pre-labeled data is stamped with.
+      val modelLine = provisionModelResources.memoizedModelLine ?: TEST_CONFIG.modelLine
+      val modelLineId =
+        requireNotNull(ModelLineKey.fromName(modelLine)) {
+            "memoized model line must be a full ModelLine resource name: $modelLine"
+          }
+          .modelLineId
+      buildPaths(modelLineId).forEach { path ->
         val doneBlobUri = SelectedStorageClient.parseBlobUri(path)
         val selectedStorageClient =
           SelectedStorageClient(
@@ -310,23 +321,31 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
       // edp7's pipelined date — MUST stay in sync with SeedRawImpressionsRule.PIPELINED_DATES. For
       // this date the deployed VidLabeler drops edp7's own `done` marker, so the test must NOT. All
-      // earlier dates use pre-labeled impressions staged in edp/edp7/<date>/ (like the direct EDP),
-      // so the test drops an edp7 `done` for them too.
+      // earlier dates use pre-labeled impressions staged under edp/edp7/model-line/<id>/<date>/
+      // (like the direct EDP), so the test drops an edp7 `done` for them too.
       private val EDP7_PIPELINED_DATES: Set<LocalDate> =
         setOf(LocalDate.parse("2021-03-21", DATE_FORMATTER))
 
-      fun buildPaths(): List<String> {
+      // Per-EDP folder segment for VID-labeled impressions. MUST match each EDP's
+      // `output_base_path` (impression_test_data_config.textproto), the `edp_impression_path` in
+      // the deployed VidLabeling dispatcher/monitor + DataAvailabilitySync configs, and the
+      // data-watcher `data-availability` regex.
+      private const val EDP7_IMPRESSION_PATH = "edp/edp7"
+      private const val EDPA_META_IMPRESSION_PATH = "edp/edpa_meta"
+
+      fun buildPaths(modelLineId: String): List<String> {
         return generateSequence(START_DATE) { it.plusDays(1) }
           .takeWhile { !it.isAfter(END_DATE) }
           .flatMap { date ->
             val ds = date.format(DATE_FORMATTER)
             buildList {
               // Direct EDP: test-dropped for every date.
-              add("gs://$bucket/edp/edpa_meta/$ds/done")
-              // Pipelined EDP: only the pre-labeled (non-pipelined) dates get a test-dropped `done`;
+              add("gs://$bucket/$EDPA_META_IMPRESSION_PATH/model-line/$modelLineId/$ds/done")
+              // Pipelined EDP: only the pre-labeled (non-pipelined) dates get a test-dropped
+              // `done`;
               // the pipeline drops its own for EDP7_PIPELINED_DATES.
               if (date !in EDP7_PIPELINED_DATES) {
-                add("gs://$bucket/edp/edp7/$ds/done")
+                add("gs://$bucket/$EDP7_IMPRESSION_PATH/model-line/$modelLineId/$ds/done")
               }
             }
           }
@@ -516,10 +535,10 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     /**
      * edp7's flattened event-group configs (edpa_meta excluded), keyed by the flattened id (legacy
-     * groups by event_group_reference_id; entity-key groups split so each entity key spec is its own
-     * entry keyed "${entityType}-${entityId}"). Each entry carries its own entity key so the seeder
-     * can stamp the pipelined day's raw impressions with the same entity keys the out-of-band
-     * days-15-20 data uses.
+     * groups by event_group_reference_id; entity-key groups split so each entity key spec is its
+     * own entry keyed "${entityType}-${entityId}"). Each entry carries its own entity key so the
+     * seeder can stamp the pipelined day's raw impressions with the same entity keys the
+     * out-of-band days-15-20 data uses.
      */
     private val edp7EventGroupConfigs: Map<String, EventGroupConfig> = run {
       val configs = linkedMapOf<String, EventGroupConfig>()
@@ -537,8 +556,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
       )
     private val uploadEventGroup = UploadEventGroup()
-    private val seedRawImpressions =
-      SeedRawImpressionsRule(populationSpec, edp7EventGroupConfigs)
+    private val seedRawImpressions = SeedRawImpressionsRule(populationSpec, edp7EventGroupConfigs)
     private val awaitVidLabeling = AwaitVidLabelingRule()
     // Writes pre-labeled impressions stamped with the memoized model line for the dates the
     // pipeline does not produce, so the `done` blobs dropped by createDoneBlobs register them under
@@ -556,7 +574,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     @ClassRule
     @JvmField
-    val chainedRule = chainRulesSequentially(
+    val chainedRule =
+      chainRulesSequentially(
         provisionModelResources,
         uploadEventGroup,
         seedRawImpressions,
