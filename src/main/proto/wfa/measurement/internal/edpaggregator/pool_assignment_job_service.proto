@@ -220,4 +220,7 @@ message MarkPoolAssignmentJobFailedRequest {
 
   // Human-readable detail about the failure.
   string error_message = 5;
+
+  // A request ID provided by the client to ensure idempotency.
+  string request_id = 6;
 }

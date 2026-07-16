@@ -63,8 +63,6 @@ class PoolAssignmentJobService(
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : PoolAssignmentJobServiceCoroutineImplBase(coroutineContext) {
 
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4078): Flip request_id to REQUIRED
-  // + UUID4
   override suspend fun createPoolAssignmentJob(
     request: CreatePoolAssignmentJobRequest
   ): PoolAssignmentJob {
@@ -88,13 +86,15 @@ class PoolAssignmentJobService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (request.requestId.isNotEmpty()) {
-      try {
-        UUID.fromString(request.requestId)
-      } catch (e: IllegalArgumentException) {
-        throw InvalidFieldValueException("request_id", e)
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     val internalResponse: InternalPoolAssignmentJob =
@@ -117,8 +117,6 @@ class PoolAssignmentJobService(
     return internalResponse.toPublic()
   }
 
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4078): Flip per-element request_id
-  // to REQUIRED + UUID4
   override suspend fun batchCreatePoolAssignmentJobs(
     request: BatchCreatePoolAssignmentJobsRequest
   ): BatchCreatePoolAssignmentJobsResponse {
@@ -152,13 +150,15 @@ class PoolAssignmentJobService(
         throw RequiredFieldNotSetException("requests.$index.pool_assignment_job.cmms_model_line")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
-      if (createRequest.requestId.isNotEmpty()) {
-        try {
-          UUID.fromString(createRequest.requestId)
-        } catch (e: IllegalArgumentException) {
-          throw InvalidFieldValueException("requests.$index.request_id", e)
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
+      if (createRequest.requestId.isEmpty()) {
+        throw RequiredFieldNotSetException("requests.$index.request_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      try {
+        UUID.fromString(createRequest.requestId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("requests.$index.request_id", e)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
 
@@ -311,8 +311,6 @@ class PoolAssignmentJobService(
     }
   }
 
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4078): Flip request_id to REQUIRED
-  // + UUID4
   override suspend fun markPoolAssignmentJobSucceeded(
     request: MarkPoolAssignmentJobSucceededRequest
   ): MarkPoolAssignmentJobSucceededResponse {
@@ -326,23 +324,11 @@ class PoolAssignmentJobService(
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    if (request.etag.isEmpty()) {
-      throw RequiredFieldNotSetException("etag")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
+    validateEtagAndRequestId(request.etag, request.requestId)
 
     if (!request.hasEncryptedDek()) {
       throw RequiredFieldNotSetException("encrypted_dek")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
-    if (request.requestId.isNotEmpty()) {
-      try {
-        UUID.fromString(request.requestId)
-      } catch (e: IllegalArgumentException) {
-        throw InvalidFieldValueException("request_id", e)
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
     }
 
     val internalResponse: InternalMarkSucceededResponse =
@@ -378,8 +364,6 @@ class PoolAssignmentJobService(
     }
   }
 
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4078): Validate request_id (UUID4)
-  // and forward it to the internal request, mirroring markPoolAssignmentJobSucceeded.
   override suspend fun markPoolAssignmentJobFailed(
     request: MarkPoolAssignmentJobFailedRequest
   ): PoolAssignmentJob {
@@ -393,10 +377,7 @@ class PoolAssignmentJobService(
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    if (request.etag.isEmpty()) {
-      throw RequiredFieldNotSetException("etag")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
+    validateEtagAndRequestId(request.etag, request.requestId)
 
     val internalResponse: InternalPoolAssignmentJob =
       try {
@@ -407,6 +388,7 @@ class PoolAssignmentJobService(
             poolAssignmentJobResourceId = jobKey.poolAssignmentJobId
             etag = request.etag
             errorMessage = request.errorMessage
+            requestId = request.requestId
           }
         )
       } catch (e: StatusException) {
@@ -414,6 +396,23 @@ class PoolAssignmentJobService(
       }
 
     return internalResponse.toPublic()
+  }
+
+  private fun validateEtagAndRequestId(etag: String, requestId: String) {
+    if (etag.isEmpty()) {
+      throw RequiredFieldNotSetException("etag")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
   }
 
   companion object {

@@ -98,23 +98,22 @@ class SpannerPoolAssignmentJobService(
     val createdJob: PoolAssignmentJob =
       try {
         transactionRunner.run { txn ->
-          if (request.requestId.isNotEmpty()) {
-            val existing =
-              txn.findPoolAssignmentJobByRequestId(
-                job.dataProviderResourceId,
-                job.rawImpressionUploadResourceId,
-                request.requestId,
-              )
-            if (existing != null) {
-              if (
-                existing.poolAssignmentJob.cmmsModelLine != job.cmmsModelLine ||
-                  existing.poolAssignmentJob.shardIndex != job.shardIndex
-              ) {
-                throw PoolAssignmentJobAlreadyExistsException()
-                  .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-              }
-              return@run existing.poolAssignmentJob
+          // request_id is REQUIRED (validated above), so always attempt the idempotent replay.
+          val existing =
+            txn.findPoolAssignmentJobByRequestId(
+              job.dataProviderResourceId,
+              job.rawImpressionUploadResourceId,
+              request.requestId,
+            )
+          if (existing != null) {
+            if (
+              existing.poolAssignmentJob.cmmsModelLine != job.cmmsModelLine ||
+                existing.poolAssignmentJob.shardIndex != job.shardIndex
+            ) {
+              throw PoolAssignmentJobAlreadyExistsException()
+                .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
             }
+            return@run existing.poolAssignmentJob
           }
 
           val rawImpressionUploadId =
@@ -222,19 +221,21 @@ class SpannerPoolAssignmentJobService(
       }
 
       val requestId = subRequest.requestId
-      if (requestId.isNotEmpty()) {
-        try {
-          UUID.fromString(requestId)
-        } catch (e: IllegalArgumentException) {
-          throw InvalidFieldValueException("requests[$index].request_id", e)
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
-        if (!requestIdSet.add(requestId)) {
-          throw InvalidFieldValueException("requests[$index].request_id") {
-              "Duplicate request_id $requestId in batch"
-            }
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
+      if (requestId.isEmpty()) {
+        throw RequiredFieldNotSetException("requests[$index].request_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      try {
+        UUID.fromString(requestId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("requests[$index].request_id", e)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (!requestIdSet.add(requestId)) {
+        throw InvalidFieldValueException("requests[$index].request_id") {
+            "Duplicate request_id $requestId in batch"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
 
@@ -259,7 +260,8 @@ class SpannerPoolAssignmentJobService(
             txn.findPoolAssignmentJobsByRequestIds(
               dataProviderResourceId,
               rawImpressionUploadResourceId,
-              request.requestsList.mapNotNull { it.requestId.ifEmpty { null } },
+              // request_id is REQUIRED per element (validated above).
+              request.requestsList.map { it.requestId },
             )
 
           request.requestsList.map { subRequest ->
@@ -414,11 +416,9 @@ class SpannerPoolAssignmentJobService(
   /**
    * Marks a [PoolAssignmentJob] SUCCEEDED.
    *
-   * Idempotency contract gap: while `request_id` remains OPTIONAL, a caller that omits it gets
-   * non-idempotent behavior — on retry the replay short-circuit is skipped, the state is already
-   * SUCCEEDED (not in the valid previous states), and the call returns `FAILED_PRECONDITION`.
-   * Callers MUST pass a deterministic non-empty `request_id` until it is made REQUIRED. See
-   * [#4078](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/4078).
+   * `request_id` is REQUIRED: a retry with the same `request_id` replays the original response
+   * without re-transitioning the resource (AIP-155), so a Pub/Sub redelivery of the mark stays
+   * idempotent instead of surfacing `FAILED_PRECONDITION` against the already-SUCCEEDED row.
    */
   override suspend fun markPoolAssignmentJobSucceeded(
     request: MarkPoolAssignmentJobSucceededRequest
@@ -437,6 +437,16 @@ class SpannerPoolAssignmentJobService(
     }
     if (request.etag.isEmpty()) {
       throw RequiredFieldNotSetException("etag")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     if (!request.hasEncryptedDek()) {
@@ -478,8 +488,7 @@ class SpannerPoolAssignmentJobService(
         // iff all siblings are now SUCCEEDED AND none reached SUCCEEDED after it.
         if (
           currentJob.state == State.POOL_ASSIGNMENT_STATE_SUCCEEDED &&
-            request.requestId.isNotEmpty() &&
-            result.markRequestId == request.requestId
+            result.markSucceededRequestId == request.requestId
         ) {
           val wasLastShard =
             txn.countNonSucceededPoolAssignmentJobs(
@@ -540,11 +549,8 @@ class SpannerPoolAssignmentJobService(
           poolAssignmentJobId = result.poolAssignmentJobId,
           state = State.POOL_ASSIGNMENT_STATE_SUCCEEDED,
         ) {
-          // Leave MarkSucceededRequestId NULL when no request_id is supplied; the NULL_FILTERED
-          // unique index would otherwise reject a second empty-string value in the group.
-          if (request.requestId.isNotEmpty()) {
-            set("MarkSucceededRequestId").to(request.requestId)
-          }
+          // request_id is REQUIRED, so stamp it unconditionally for AIP-155 replay detection.
+          set("MarkSucceededRequestId").to(request.requestId)
           // Persist the per-shard DEK that encrypts this shard's SubpoolFingerprints blobs.
           set("EncryptedDek").toProtoBytes(request.encryptedDek)
           // Clear any stale failure detail on the FAILED -> SUCCEEDED transition.
@@ -637,8 +643,14 @@ class SpannerPoolAssignmentJobService(
     }
   }
 
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4078): Add AIP-155 request_id
-  // idempotency (replay check + MarkRequestId stamp), mirroring markPoolAssignmentJobSucceeded.
+  /**
+   * Marks a [PoolAssignmentJob] FAILED.
+   *
+   * `request_id` is REQUIRED: a retry with the same `request_id` replays the original response
+   * without re-transitioning the resource (AIP-155). Because `FAILED` is a valid previous state
+   * (the CREATED|FAILED self-loop), a Pub/Sub redelivery would otherwise re-stamp a fresh commit
+   * timestamp and rotate the etag, breaking a later CAS; the replay short-circuit prevents that.
+   */
   override suspend fun markPoolAssignmentJobFailed(
     request: MarkPoolAssignmentJobFailedRequest
   ): PoolAssignmentJob {
@@ -658,11 +670,23 @@ class SpannerPoolAssignmentJobService(
       throw RequiredFieldNotSetException("etag")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=markPoolAssignmentJobFailed"))
 
-    val updatedJob: PoolAssignmentJob =
+    data class TransactionResult(val job: PoolAssignmentJob, val isReplay: Boolean = false)
+
+    val txnResult: TransactionResult =
       transactionRunner.run { txn ->
         val result =
           txn.getPoolAssignmentJobByResourceId(
@@ -678,6 +702,15 @@ class SpannerPoolAssignmentJobService(
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
         val currentJob = result.poolAssignmentJob
+
+        // AIP-155 idempotent replay: if this exact mark already ran (this MarkFailed's request_id
+        // is already stamped on the row), return the resource as-is instead of re-transitioning or
+        // throwing FAILED_PRECONDITION on a Pub/Sub redelivery. Matching the request_id alone is
+        // sufficient per AIP-155, even if the resource has since advanced to a later state; it also
+        // preserves the original error_message, since the update below is skipped.
+        if (result.markFailedRequestId == request.requestId) {
+          return@run TransactionResult(currentJob, isReplay = true)
+        }
 
         val validPreviousStates =
           setOf(State.POOL_ASSIGNMENT_STATE_CREATED, State.POOL_ASSIGNMENT_STATE_FAILED)
@@ -704,19 +737,28 @@ class SpannerPoolAssignmentJobService(
           poolAssignmentJobId = result.poolAssignmentJobId,
           state = State.POOL_ASSIGNMENT_STATE_FAILED,
         ) {
+          set("MarkFailedRequestId").to(request.requestId)
           set("ErrorMessage").to(request.errorMessage)
         }
 
-        currentJob.copy {
-          state = State.POOL_ASSIGNMENT_STATE_FAILED
-          errorMessage = request.errorMessage
-          clearUpdateTime()
-        }
+        TransactionResult(
+          currentJob.copy {
+            state = State.POOL_ASSIGNMENT_STATE_FAILED
+            errorMessage = request.errorMessage
+            clearUpdateTime()
+          }
+        )
       }
+
+    // isReplay=true returns the row as already committed (possibly in a later state); otherwise
+    // stamp the commit timestamp and etag onto the just-transitioned row.
+    if (txnResult.isReplay) {
+      return txnResult.job
+    }
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
 
-    return updatedJob.copy {
+    return txnResult.job.copy {
       updateTime = commitTimestamp
       etag = ETags.computeETag(commitTimestamp.toInstant())
     }
@@ -729,14 +771,6 @@ class SpannerPoolAssignmentJobService(
    * @throws InvalidFieldValueException if field values are invalid
    */
   private fun validateCreateRequest(request: CreatePoolAssignmentJobRequest) {
-    if (request.requestId.isNotEmpty()) {
-      try {
-        UUID.fromString(request.requestId)
-      } catch (e: IllegalArgumentException) {
-        throw InvalidFieldValueException("request_id", e)
-      }
-    }
-
     if (!request.hasPoolAssignmentJob()) {
       throw RequiredFieldNotSetException("pool_assignment_job")
     }
@@ -748,6 +782,14 @@ class SpannerPoolAssignmentJobService(
     }
     if (request.poolAssignmentJob.cmmsModelLine.isEmpty()) {
       throw RequiredFieldNotSetException("pool_assignment_job.cmms_model_line")
+    }
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
     }
   }
 
