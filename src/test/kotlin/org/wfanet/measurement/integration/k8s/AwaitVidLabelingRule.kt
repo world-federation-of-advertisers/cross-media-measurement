@@ -62,11 +62,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsRequest
  * `SUCCEEDED` (logged; not fatal if the job listing is unavailable).
  *
  * Runs after the pipeline has been triggered and before the measurement rules, so the measurement
- * reads edp7's freshly-labeled output. Authentication is edp7 mutual-TLS against the EDPA public API
- * (trust root `edp_aggregator_root.pem`).
+ * reads edp7's freshly-labeled output. Authentication is edp7 mutual-TLS against the EDPA public
+ * API (trust root `edp_aggregator_root.pem`).
  *
  * Env-provided inputs; the rule is a **no-op** unless both are set:
- * * `EDPA_PUBLIC_API_TARGET` — the EDP-Aggregator public API (`system.edp-aggregator.<env>...:8443`).
+ * * `EDPA_PUBLIC_API_TARGET` — the EDP-Aggregator public API
+ *   (`system.edp-aggregator.<env>...:8443`).
  * * `PIPELINED_DATA_PROVIDER` — the EDP whose uploads to poll (edp7).
  */
 class AwaitVidLabelingRule : TestRule {
@@ -92,14 +93,46 @@ class AwaitVidLabelingRule : TestRule {
       val uploadsStub = RawImpressionUploadServiceCoroutineStub(channel)
       val modelLinesStub = RawImpressionUploadModelLineServiceCoroutineStub(channel)
 
-      var lastSummary = "(no uploads yet)"
+      // Snapshot uploads that already exist (from earlier or failed runs) BEFORE waiting. The
+      // dispatcher creates THIS run's upload only after [SeedRawImpressionsRule] drops the raw
+      // `done` blob (which ran just before this rule), so any upload already present now is stale.
+      // We then wait exclusively for a NEW upload — a leftover COMPLETED upload from a prior run
+      // must not short-circuit the wait (which would let the test proceed before this run's
+      // pipeline actually runs). Identity (resource name) is used rather than a create-time
+      // comparison to avoid CI-runner vs. Spanner commit-clock skew.
+      val preexistingUploadNames: Set<String> =
+        checkNotNull(
+          withTimeoutOrNull(TIMEOUT_MS) {
+            while (true) {
+              try {
+                return@withTimeoutOrNull listUploads(uploadsStub).map { it.name }.toSet()
+              } catch (e: StatusException) {
+                if (e.status.code !in RETRYABLE_CODES) throw e
+                logger.warning(
+                  "transient ${e.status.code} snapshotting uploads (retrying): ${e.message}"
+                )
+                delay(POLL_MS)
+              }
+            }
+            @Suppress("UNREACHABLE_CODE") null
+          }
+        ) {
+          "Timed out snapshotting pre-existing edp7 uploads before awaiting VID Labeling."
+        }
+      logger.info(
+        "Ignoring ${preexistingUploadNames.size} pre-existing edp7 upload(s) from earlier runs; " +
+          "awaiting only this run's upload."
+      )
+
+      var lastSummary = "(no fresh uploads yet)"
       val terminal =
         withTimeoutOrNull(TIMEOUT_MS) {
           while (true) {
             try {
-              val uploads: List<RawImpressionUpload> = listUploads(uploadsStub)
+              val uploads: List<RawImpressionUpload> =
+                listUploads(uploadsStub).filter { it.name !in preexistingUploadNames }
               if (uploads.isEmpty()) {
-                lastSummary = "no RawImpressionUploads for $PIPELINED_DATA_PROVIDER yet"
+                lastSummary = "no new RawImpressionUpload for $PIPELINED_DATA_PROVIDER yet"
               } else {
                 val lines: List<RawImpressionUploadModelLine> =
                   uploads.flatMap { listModelLines(modelLinesStub, it.name) }
@@ -130,22 +163,28 @@ class AwaitVidLabelingRule : TestRule {
       checkNotNull(terminal) {
         "Timed out after ${TIMEOUT_MS / 1000}s waiting for edp7 VID Labeling. Last state: $lastSummary"
       }
-      logger.info("VID Labeling COMPLETED for all edp7 model lines. $lastSummary")
+      logger.info("VID Labeling COMPLETED for this run's edp7 model lines. $lastSummary")
 
       try {
         verifyPhaseJobs(
           channel,
-          listUploads(uploadsStub).flatMap { listModelLines(modelLinesStub, it.name) },
+          listUploads(uploadsStub)
+            .filter { it.name !in preexistingUploadNames }
+            .flatMap { listModelLines(modelLinesStub, it.name) },
         )
       } catch (e: StatusException) {
-        logger.warning("Skipping best-effort phase-job verification (${e.status.code}): ${e.message}")
+        logger.warning(
+          "Skipping best-effort phase-job verification (${e.status.code}): ${e.message}"
+        )
       }
     } finally {
       channel.shutdown()
     }
   }
 
-  /** Best-effort per-phase check: each COMPLETED model line should have a SUCCEEDED job per phase. */
+  /**
+   * Best-effort per-phase check: each COMPLETED model line should have a SUCCEEDED job per phase.
+   */
   private suspend fun verifyPhaseJobs(
     channel: ManagedChannel,
     modelLines: List<RawImpressionUploadModelLine>,
