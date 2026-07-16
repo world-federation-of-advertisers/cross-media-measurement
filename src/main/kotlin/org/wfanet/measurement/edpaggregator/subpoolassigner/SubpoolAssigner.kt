@@ -36,6 +36,7 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
+import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
@@ -87,7 +88,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  * terminal `FAILED` transition is owned by the DLQ listener on retry exhaustion.
  */
 class SubpoolAssigner(
-  private val rawImpressionSource: RawImpressionSource,
+  private val rawImpressionSource: RawImpressionSource<ParquetDigestedEvent>,
   private val mapper: LabelerInputMapper,
   private val labeler: PoolEmitLabeler,
   private val activeWindow: ActiveWindow,

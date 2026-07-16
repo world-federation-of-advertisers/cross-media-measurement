@@ -30,10 +30,13 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigestExtractor
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
+import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetRawEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
+import org.wfanet.measurement.edpaggregator.rawimpressions.UndigestedEvent
 import org.wfanet.measurement.edpaggregator.service.VidLabelingJobKey
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
@@ -132,8 +135,11 @@ class VidLabelerApp(
   private val eventIdDigestExtractor: EventIdDigestExtractor = EventIdDigestExtractor(),
   // Process-scoped cache of the built memoized rank index, shared across WorkItems so consecutive
   // WorkItems for the same (dataProvider, modelLine) with an unchanged snapshot set reuse the index
-  // instead of rebuilding the (tens-of-GB) structure. Defaulted so the instance is process-scoped
-  // (one VidLabelerApp per process); the runner passes an explicit instance for clarity.
+  // instead of rebuilding the (tens-of-GB) structure. Defaults to a FRESH instance per constructor
+  // call, which gives tests isolated caches (no cross-test pollution). For production the runner
+  // passes an explicit process-scoped instance so the index is reused across WorkItems — DO NOT
+  // rely
+  // on the default to get that reuse; any second production path must pass the shared instance.
   private val memoizedRankIndexCache: MemoizedRankIndexCache = MemoizedRankIndexCache(),
   private val metrics: VidLabelerAppMetrics = VidLabelerAppMetrics(),
 ) :
@@ -341,7 +347,7 @@ class VidLabelerApp(
     // File-list mode: label exactly the RawImpressionUploadFiles carried on this WorkItem's
     // VidLabelingJob (the bin-packed batch), each read whole (no fingerprint-shard filter).
     val rawImpressionSource =
-      RawImpressionSource(
+      RawImpressionSource<ParquetRawEvent>(
         parquetStorageClient =
           buildParquetStorageClient(
             getStorageConfig(params.rawImpressionsStorageParams),
@@ -355,6 +361,7 @@ class VidLabelerApp(
         // The memoized path probes the rank index per impression by its event-id digest, so the
         // digest must be computed.
         needsDigest = true,
+        toEvent = { row, digest -> DigestedEvent(row, checkNotNull(digest)) },
       )
 
     // Schema-drift guard (#3993): fail fast if a mapped raw column is missing from the file schema
@@ -433,7 +440,7 @@ class VidLabelerApp(
     val eventIdColumn = resolveEventIdColumn(firstConfig)
 
     val rawImpressionSource =
-      RawImpressionSource(
+      RawImpressionSource<ParquetRawEvent>(
         parquetStorageClient =
           buildParquetStorageClient(
             getStorageConfig(params.rawImpressionsStorageParams),
@@ -447,6 +454,7 @@ class VidLabelerApp(
         // The non-memoized path has no rank index (rankIndex = null for every model line) and runs
         // single-shard (file-list mode), so no consumer reads the digest: skip the per-row SHA-256.
         needsDigest = false,
+        toEvent = { row, _ -> UndigestedEvent(row) },
       )
 
     require(params.hasModelStorageParams()) { "model_storage_params must be set" }

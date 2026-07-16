@@ -42,7 +42,8 @@ import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
+import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
+import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetRawEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
@@ -124,7 +125,7 @@ class VidLabelingSink(
   private val dataProvider: String,
   private val metrics: VidLabelerMetrics,
   private val encryptionKeySemaphore: Semaphore,
-) : RawImpressionSource.BlobSink {
+) : RawImpressionSource.BlobSink<ParquetRawEvent> {
 
   /**
    * Sink-owned scope for the per-group writer coroutines.
@@ -139,7 +140,7 @@ class VidLabelingSink(
   /** One streaming writer per model-line output group, created on the group's first record. */
   private val writers = ConcurrentHashMap<OutputGroupKey, GroupWriter>()
 
-  override suspend fun processBatch(events: List<ParquetDigestedEvent>) {
+  override suspend fun processBatch(events: List<ParquetRawEvent>) {
     // Label (CPU work; the canonical Labeler is stateless) and stream each produced record straight
     // into its group's writer. processBatch is invoked concurrently for this blob. Iterating model
     // lines in the OUTER loop lets each context precompute its metric Attributes and resolve its
@@ -191,8 +192,11 @@ class VidLabelingSink(
             if (rankIndex == null) {
               converted.labelerInput
             } else {
+              check(digestedEvent is DigestedEvent) {
+                "memoized model line received a digest-less event; check needsDigest wiring"
+              }
               val builder = converted.labelerInput.toBuilder()
-              if (rankIndex.appendRankAssignments(digestedEvent.digest!!, builder) == 0) {
+              if (rankIndex.appendRankAssignments(digestedEvent.digest, builder) == 0) {
                 converted.labelerInput // miss: leave the input untouched, exactly as before
               } else {
                 builder.build()

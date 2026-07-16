@@ -22,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
 import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetRawEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
@@ -52,7 +53,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
  * @param storageConfig storage configuration built from [outputStorageParams].
  */
 class VidLabeler(
-  private val rawImpressionSource: RawImpressionSource,
+  private val rawImpressionSource: RawImpressionSource<ParquetRawEvent>,
   private val modelLineSpecs: List<ModelLineSpec>,
   private val overrideModelLines: List<String>,
   private val vidModelLoader: VidModelLoader,
