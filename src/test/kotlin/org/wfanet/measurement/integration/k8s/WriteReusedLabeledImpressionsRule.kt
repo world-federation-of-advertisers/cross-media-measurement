@@ -75,8 +75,8 @@ import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
  * additionally no-ops when its KMS settings are unresolved (edp7's Google Cloud KEK URI, or
  * edpa_meta's AWS role/region/web-identity-token/KEK), so unrelated runs are unaffected.
  *
- * @property config the parsed [ImpressionTestDataConfig]; supplies each event group's
- *   `output_key`, `output_base_path`, `edp_name`, and (entity-key) data specs.
+ * @property config the parsed [ImpressionTestDataConfig]; supplies each event group's `output_key`,
+ *   `output_base_path`, `edp_name`, and (entity-key) data specs.
  * @property populationSpec the synthetic population, shared with the direct path so both EDPs draw
  *   from the same universe.
  * @property bucket the storage bucket the results-fulfiller / DataAvailabilitySync read from.
@@ -139,10 +139,11 @@ class WriteReusedLabeledImpressionsRule(
   }
 
   /**
-   * Writes one flat-folder impressions blob (`impressions${output_key_suffix}`) + metadata per date
-   * for a single [event group][ImpressionTestDataConfig.SyntheticEventGroup], mirroring
-   * [org.wfanet.measurement.loadtest.edpaggregator.tools.GenerateSyntheticData]'s writer wiring but
-   * restricted to [datesToWrite] and stamped with [memoizedModelLine].
+   * Writes one impressions blob (`impressions${output_key_suffix}`) + metadata sidecar per date for
+   * a single [event group][ImpressionTestDataConfig.SyntheticEventGroup], under the canonical
+   * per-EDP, per-model-line layout `<output_base_path>/model-line/<modelLineId>/<date>/` that the
+   * deployed VidLabeler produces, so the pre-labeled data lands in the same folder the
+   * DataAvailabilitySync crawls. Restricted to [datesToWrite] and stamped with [memoizedModelLine].
    */
   private suspend fun writeEventGroup(
     eventGroup: ImpressionTestDataConfig.SyntheticEventGroup,
@@ -168,23 +169,25 @@ class WriteReusedLabeledImpressionsRule(
     impressionWriter.writeLabeledImpressionData(
       shards,
       memoizedModelLine,
-      flatOutputBasePath = eventGroup.outputBasePath,
+      modelLineOutputBasePath = eventGroup.outputBasePath,
     )
     logger.info(
       "Wrote memoized impressions for event group '${eventGroup.eventGroupReferenceId}' " +
-        "(${datesToWrite.size} date(s)) under ${eventGroup.outputBasePath}."
+        "(${datesToWrite.size} date(s)) under " +
+        "${eventGroup.outputBasePath}/model-line/<id>/<date>/."
     )
   }
 
   /**
-   * Regenerates edpa_meta's impressions (impressions blob + metadata sidecar) via [ImpressionsWriter]
-   * for **every** date in the window (edpa_meta is never pipelined, so the test produces all of its
-   * dates out-of-band), stamped with [memoizedModelLine] and each event group's real entity key.
+   * Regenerates edpa_meta's impressions (impressions blob + metadata sidecar) via
+   * [ImpressionsWriter] for **every** date in the window (edpa_meta is never pipelined, so the test
+   * produces all of its dates out-of-band), stamped with [memoizedModelLine] and each event group's
+   * real entity key.
    *
    * Encrypts with edpa_meta's **AWS KMS** KEK, assumed via web-identity federation
-   * ([AwsKmsClientFactory] + [AwsWebIdentityCredentials]), so the deployed results-fulfiller decrypts
-   * the same bytes with the same AWS KEK. No-op when the edpa_meta AWS settings are unresolved so
-   * unrelated runs are unaffected.
+   * ([AwsKmsClientFactory] + [AwsWebIdentityCredentials]), so the deployed results-fulfiller
+   * decrypts the same bytes with the same AWS KEK. No-op when the edpa_meta AWS settings are
+   * unresolved so unrelated runs are unaffected.
    */
   private suspend fun regenerateEdpaMetaImpressions(memoizedModelLine: String) {
     if (
@@ -274,9 +277,7 @@ class WriteReusedLabeledImpressionsRule(
     private val END_DATE: LocalDate = LocalDate.parse("2021-03-21")
 
     private val ALL_DATES: Set<LocalDate> =
-      generateSequence(START_DATE) { it.plusDays(1) }
-        .takeWhile { !it.isAfter(END_DATE) }
-        .toSet()
+      generateSequence(START_DATE) { it.plusDays(1) }.takeWhile { !it.isAfter(END_DATE) }.toSet()
 
     // edp7's pipelined date — MUST stay in sync with SeedRawImpressionsRule.PIPELINED_DATES and
     // CreateDoneBlobs.EDP7_PIPELINED_DATES. For this date the pipeline produces edp7's
@@ -308,7 +309,8 @@ class WriteReusedLabeledImpressionsRule(
 
     // edpa_meta's AWS KMS settings for regenerating its impressions in-test. These mirror
     // GenerateSyntheticData's AWS flags (--kek-uri aws-kms://arn:..., --aws-role-arn, --aws-region,
-    // --aws-web-identity-token-file) and must be provided to the CI runner (the same AWS role/key the
+    // --aws-web-identity-token-file) and must be provided to the CI runner (the same AWS role/key
+    // the
     // data staging uses). AWS_WEB_IDENTITY_TOKEN_FILE is the standard AWS SDK env var.
     private const val EDPA_META_AWS_ROLE_SESSION_NAME = "edpa-meta-correctness-test"
     private val EDPA_META_KEK_URI: String = env("EDPA_META_KEK_URI")
