@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.vidlabeling
 
+import java.security.MessageDigest
 import java.util.UUID
 
 /**
@@ -74,5 +75,42 @@ object RequestIds {
   fun forMarkVidLabelingJobSucceeded(vidLabelingJobName: String): String =
     fromKey("markVidLabelingJobSucceeded:$vidLabelingJobName")
 
-  private fun fromKey(key: String): String = UUID.nameUUIDFromBytes(key.toByteArray()).toString()
+  /**
+   * `request_id`s for the five `MarkRawImpressionUploadModelLine*` transitions.
+   *
+   * Keyed on the operation and [modelLineName] so a Pub/Sub redelivery of the same transition
+   * reuses the same id: the server replays it as an idempotent no-op (returning the already-marked
+   * row) instead of surfacing `FAILED_PRECONDITION`. Distinct per operation so each transition
+   * stamps its own per-mark request-id column.
+   */
+  fun forMarkRawImpressionUploadModelLinePoolAssigning(modelLineName: String): String =
+    fromKey("markRawImpressionUploadModelLinePoolAssigning:$modelLineName")
+
+  fun forMarkRawImpressionUploadModelLineRanking(modelLineName: String): String =
+    fromKey("markRawImpressionUploadModelLineRanking:$modelLineName")
+
+  fun forMarkRawImpressionUploadModelLineLabeling(modelLineName: String): String =
+    fromKey("markRawImpressionUploadModelLineLabeling:$modelLineName")
+
+  fun forMarkRawImpressionUploadModelLineCompleted(modelLineName: String): String =
+    fromKey("markRawImpressionUploadModelLineCompleted:$modelLineName")
+
+  fun forMarkRawImpressionUploadModelLineFailed(modelLineName: String): String =
+    fromKey("markRawImpressionUploadModelLineFailed:$modelLineName")
+
+  private fun fromKey(key: String): String {
+    // Render the deterministic (name-based) id in the RFC 4122 version-4 layout so the value
+    // conforms to the `(google.api.field_info).format = UUID4` annotation shared by every
+    // request_id
+    // field across the EDPA gRPC APIs. A random v4 UUID can't be reproduced on retry, so the 16
+    // bytes come from a SHA-256 hash of [key] with the version and variant bits set to 4 / IETF.
+    val bytes = MessageDigest.getInstance("SHA-256").digest(key.toByteArray())
+    bytes[6] = ((bytes[6].toInt() and 0x0f) or 0x40).toByte() // version 4
+    bytes[8] = ((bytes[8].toInt() and 0x3f) or 0x80).toByte() // IETF variant
+    var msb = 0L
+    var lsb = 0L
+    for (i in 0 until 8) msb = (msb shl 8) or (bytes[i].toLong() and 0xff)
+    for (i in 8 until 16) lsb = (lsb shl 8) or (bytes[i].toLong() and 0xff)
+    return UUID(msb, lsb).toString()
+  }
 }

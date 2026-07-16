@@ -194,6 +194,9 @@ message MarkRawImpressionUploadModelLinePoolAssigningRequest {
 
   // Entity tag for optimistic concurrency control.
   string etag = 4;
+
+  // A request ID provided by the client to ensure idempotency on retry.
+  string request_id = 5;
 }
 
 // Request message for MarkRawImpressionUploadModelLineRanking.
@@ -209,6 +212,9 @@ message MarkRawImpressionUploadModelLineRankingRequest {
 
   // Entity tag for optimistic concurrency control.
   string etag = 4;
+
+  // A request ID provided by the client to ensure idempotency on retry.
+  string request_id = 5;
 }
 
 // Request message for MarkRawImpressionUploadModelLineLabeling.
@@ -224,6 +230,9 @@ message MarkRawImpressionUploadModelLineLabelingRequest {
 
   // Entity tag for optimistic concurrency control.
   string etag = 4;
+
+  // A request ID provided by the client to ensure idempotency on retry.
+  string request_id = 5;
 }
 
 // Request message for MarkRawImpressionUploadModelLineCompleted.
@@ -239,6 +248,9 @@ message MarkRawImpressionUploadModelLineCompletedRequest {
 
   // Entity tag for optimistic concurrency control.
   string etag = 4;
+
+  // A request ID provided by the client to ensure idempotency on retry.
+  string request_id = 5;
 }
 
 // Request message for MarkRawImpressionUploadModelLineFailed.
@@ -257,4 +269,7 @@ message MarkRawImpressionUploadModelLineFailedRequest {
 
   // Entity tag for optimistic concurrency control.
   string etag = 5;
+
+  // A request ID provided by the client to ensure idempotency on retry.
+  string request_id = 6;
 }
