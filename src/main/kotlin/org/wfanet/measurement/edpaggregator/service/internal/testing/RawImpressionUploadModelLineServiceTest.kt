@@ -1686,6 +1686,69 @@ abstract class RawImpressionUploadModelLineServiceTest {
   }
 
   @Test
+  fun `markRawImpressionUploadModelLineRanking replays after the line advanced past RANKING`() =
+    runBlocking {
+      // AIP-155 stale success: a redelivered mark whose request_id already ran must return success
+      // reflecting the current committed state, even after the line advanced (RANKING -> LABELING),
+      // rather than FAILED_PRECONDITION.
+      val created = createModelLine()
+      val poolAssigning =
+        service.markRawImpressionUploadModelLinePoolAssigning(
+          markRawImpressionUploadModelLinePoolAssigningRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = created.etag
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      val rankingRequestId = UUID.randomUUID().toString()
+      val ranking =
+        service.markRawImpressionUploadModelLineRanking(
+          markRawImpressionUploadModelLineRankingRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = poolAssigning.etag
+            requestId = rankingRequestId
+          }
+        )
+      // The line moves on to LABELING before the Ranking mark is redelivered.
+      val labeling =
+        service.markRawImpressionUploadModelLineLabeling(
+          markRawImpressionUploadModelLineLabelingRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = ranking.etag
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+
+      // Pub/Sub redelivers the original Ranking mark (same request_id) after the advance.
+      val replay =
+        service.markRawImpressionUploadModelLineRanking(
+          markRawImpressionUploadModelLineRankingRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = poolAssigning.etag
+            requestId = rankingRequestId
+          }
+        )
+
+      assertThat(labeling.state)
+        .isEqualTo(
+          RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING
+        )
+      assertThat(replay.state)
+        .isEqualTo(
+          RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING
+        )
+      assertThat(replay.etag).isEqualTo(labeling.etag)
+    }
+
+  @Test
   fun `markRawImpressionUploadModelLineLabeling is idempotent with same request_id`() =
     runBlocking {
       // Non-memoized path: CREATED -> LABELING directly.

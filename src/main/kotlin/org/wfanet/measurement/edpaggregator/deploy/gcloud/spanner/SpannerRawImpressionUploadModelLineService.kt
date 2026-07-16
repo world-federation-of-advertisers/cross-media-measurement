@@ -535,8 +535,8 @@ class SpannerRawImpressionUploadModelLineService(
    * The outcome of a [transitionState] call.
    *
    * @property modelLine the resulting row
-   * @property isReplay true if this was an AIP-155 idempotent replay (the row was already in the
-   *   target state and stamped with this request_id), so [modelLine] is the row as first committed
+   * @property isReplay true if this was an AIP-155 idempotent replay (this mark's request_id was
+   *   already stamped on the row), so [modelLine] is the current committed row, not a re-transition
    */
   private data class TransactionResult(
     val modelLine: RawImpressionUploadModelLine,
@@ -602,13 +602,11 @@ class SpannerRawImpressionUploadModelLineService(
               )
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
-        // AIP-155 idempotent replay: if this exact mark already ran (row already in nextState and
-        // stamped with this request_id), return it as-is instead of re-transitioning or throwing
-        // FAILED_PRECONDITION on a Pub/Sub redelivery.
-        if (
-          result.rawImpressionUploadModelLine.state == nextState &&
-            currentMarkRequestId(result) == requestId
-        ) {
+        // AIP-155 idempotent replay: if this exact mark already ran (this mark's request_id is
+        // already stamped on the row), return the resource as-is instead of re-transitioning or
+        // throwing FAILED_PRECONDITION on a Pub/Sub redelivery. Matching the request_id is
+        // sufficient per AIP-155, even if the resource has since advanced to a later state.
+        if (currentMarkRequestId(result) == requestId) {
           return@run TransactionResult(result.rawImpressionUploadModelLine, isReplay = true)
         }
 
@@ -721,8 +719,8 @@ class SpannerRawImpressionUploadModelLineService(
 
     // Carry the replay flag in the transaction's return value (not a var mutated inside the lambda)
     // so it stays correct across Spanner ABORTED retries, matching SpannerRankerJobService /
-    // SpannerVidLabelingJobService. isReplay=true returns the row already committed in [nextState];
-    // otherwise stamp the commit timestamp and etag onto the just-transitioned row.
+    // SpannerVidLabelingJobService. isReplay=true returns the row as already committed (possibly in
+    // a later state); otherwise stamp the commit timestamp and etag onto the just-transitioned row.
     if (txnResult.isReplay) {
       return txnResult
     }

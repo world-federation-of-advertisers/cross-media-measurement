@@ -42,15 +42,36 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadModelLine
 
 data class RawImpressionUploadModelLineResult(
+  /** The [RawImpressionUploadModelLine] read from Spanner. */
   val rawImpressionUploadModelLine: RawImpressionUploadModelLine,
+  /** Internal numeric ID of the parent `RawImpressionUpload` row. */
   val rawImpressionUploadId: Long,
+  /** Internal numeric ID of the `RawImpressionUploadModelLine` row. */
   val rawImpressionUploadModelLineId: Long,
-  // Per-mark AIP-155 request_id columns (empty when the transition hasn't happened). Used by the
-  // service to short-circuit an idempotent replay of the same mark.
+  /**
+   * AIP-155 `request_id` of the mark that moved this line to `POOL_ASSIGNING`, or empty if that
+   * transition hasn't happened. Used to short-circuit an idempotent replay of the same mark.
+   */
   val markPoolAssigningRequestId: String,
+  /**
+   * AIP-155 `request_id` of the mark that moved this line to `RANKING`, or empty if that transition
+   * hasn't happened. Used to short-circuit an idempotent replay of the same mark.
+   */
   val markRankingRequestId: String,
+  /**
+   * AIP-155 `request_id` of the mark that moved this line to `LABELING`, or empty if that
+   * transition hasn't happened. Used to short-circuit an idempotent replay of the same mark.
+   */
   val markLabelingRequestId: String,
+  /**
+   * AIP-155 `request_id` of the mark that moved this line to `COMPLETED`, or empty if that
+   * transition hasn't happened. Used to short-circuit an idempotent replay of the same mark.
+   */
   val markCompletedRequestId: String,
+  /**
+   * AIP-155 `request_id` of the mark that moved this line to `FAILED`, or empty if that transition
+   * hasn't happened. Used to short-circuit an idempotent replay of the same mark.
+   */
   val markFailedRequestId: String,
 )
 
