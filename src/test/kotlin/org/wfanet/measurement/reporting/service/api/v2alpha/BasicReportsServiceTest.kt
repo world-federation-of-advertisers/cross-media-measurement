@@ -685,33 +685,67 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when ReportingSets share a DataProvider set`():
-    Unit = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
-    measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer {
-        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-      }
-    )
-    // Both ReportingSets resolve to the same DataProvider set ({dp1}).
-    val reportingSetComponent1 =
-      createPrimitiveReportingSet(measurementConsumerKey, "reportingset1", "dp1", "eg1")
-    val reportingSetComponent2 =
-      createPrimitiveReportingSet(measurementConsumerKey, "reportingset2", "dp1", "eg2")
-
-    val request =
-      reportingSetComponentBasicReportRequest(
-        measurementConsumerKey,
-        "a1234",
-        listOf(reportingSetComponent1, reportingSetComponent2),
+  fun `createBasicReport buckets distinctly when ReportingSets share a DataProvider set`(): Unit =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
       )
+      // Two primitive ReportingSet components that resolve to the SAME DataProvider set ({dp1}) but
+      // contain different EventGroups. The report post-processor keys each measured set by its
+      // primitive ReportingSet id (not by DataProvider combination), so these do not collide and
+      // must be accepted as two distinct custom-group buckets.
+      val reportingSetComponent1 =
+        createPrimitiveReportingSet(measurementConsumerKey, "reportingset1", "dp1", "eg1")
+      val reportingSetComponent2 =
+        createPrimitiveReportingSet(measurementConsumerKey, "reportingset2", "dp1", "eg2")
 
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
+      val request =
+        reportingSetComponentBasicReportRequest(
+          measurementConsumerKey,
+          "a1234",
+          listOf(reportingSetComponent1, reportingSetComponent2),
+        )
+
+      val response =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-      }
-    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
-  }
+
+      assertThat(response.campaignGroup).isEmpty()
+      assertThat(response.effectiveCampaignGroup).isNotEmpty()
+
+      // The synthesized campaign group's EventGroups are the union of the two components' (both on
+      // dp1 but distinct event groups).
+      val synthesizedKey = checkNotNull(ReportingSetKey.fromName(response.effectiveCampaignGroup))
+      val synthesized =
+        internalReportingSetsService
+          .batchGetReportingSets(
+            batchGetReportingSetsRequest {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalReportingSetIds += synthesizedKey.reportingSetId
+            }
+          )
+          .reportingSetsList
+          .single()
+      assertThat(synthesized.primitive.eventGroupKeysList)
+        .containsExactly(
+          ReportingSetKt.PrimitiveKt.eventGroupKey {
+            cmmsDataProviderId = "dp1"
+            cmmsEventGroupId = "eg1"
+          },
+          ReportingSetKt.PrimitiveKt.eventGroupKey {
+            cmmsDataProviderId = "dp1"
+            cmmsEventGroupId = "eg2"
+          },
+        )
+
+      // The two same-DataProvider components remain distinct metric buckets (keyed by ReportingSet).
+      val createReportRequest =
+        argumentCaptor { verify(reportsServiceMock).createReport(capture()) }.firstValue
+      assertThat(createReportRequest.report.reportingMetricEntriesList.map { it.key })
+        .containsAtLeast(reportingSetComponent1, reportingSetComponent2)
+    }
 
   @Test
   fun `createBasicReport throws FAILED_PRECONDITION when a ReportingSet does not exist`(): Unit =

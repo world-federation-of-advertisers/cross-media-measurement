@@ -1007,15 +1007,17 @@ class BasicReportsService(
   /**
    * Synthesizes the Campaign Group for a [request] whose `campaign_group` is not specified.
    *
-   * Resolves the ReportingSet components across all ResultGroupSpecs, validates them (each must be
-   * a primitive ReportingSet, and no two may resolve to the same DataProvider set), and
-   * transactionally get-or-creates a primitive self-referencing Campaign Group whose EventGroup
-   * universe is the union of the components' EventGroups. Concurrent and retried requests with the
-   * same universe converge on one shared ReportingSet.
+   * Resolves the ReportingSet components across all ResultGroupSpecs, validates that each is a
+   * primitive ReportingSet, and transactionally get-or-creates a primitive self-referencing
+   * Campaign Group whose EventGroup universe is the union of the components' EventGroups. Concurrent
+   * and retried requests with the same universe converge on one shared ReportingSet.
+   *
+   * Components that resolve to the same DataProvider set are allowed: the post-processor keys
+   * measured sets by primitive ReportingSet id, not by DataProvider combination, so they do not
+   * collide.
    *
    * @throws ReportingSetNotFoundException if a ReportingSet component does not exist
-   * @throws InvalidFieldValueException if a component is not a primitive ReportingSet, or two
-   *   components resolve to the same DataProvider set
+   * @throws InvalidFieldValueException if a component is not a primitive ReportingSet
    * @throws InternalReportingSetsException on other internal errors
    */
   private suspend fun synthesizeCampaignGroup(
@@ -1046,21 +1048,15 @@ class BasicReportsService(
     val reportingSetComponentsByName: Map<String, ReportingSet> =
       getReportingSets(parentKey, componentKeys)
 
-    // Each component must be a primitive ReportingSet, and no two may resolve to the same
-    // DataProvider set (which would silently collide in the post-processor).
-    val nameByDataProviderSet = mutableMapOf<Set<String>, String>()
+    // Each component must be a primitive ReportingSet. Two components that resolve to the same
+    // DataProvider set are permitted: the report post-processor keys each measured set by its
+    // primitive ReportingSet id (not by DataProvider combination), so distinct ReportingSets that
+    // span the same DataProviders map to distinct buckets and do not collide. (Literally-identical
+    // components are already deduplicated by componentNames above.)
     for ((name, reportingSet) in reportingSetComponentsByName) {
       if (!reportingSet.hasPrimitive()) {
         throw InvalidFieldValueException(componentsFieldPath) { fieldPath ->
           "$fieldPath must each reference a primitive ReportingSet; $name is not primitive"
-        }
-      }
-      val dataProviderSet = dataProviderNames(reportingSet)
-      val collidingName = nameByDataProviderSet.put(dataProviderSet, name)
-      if (collidingName != null) {
-        throw InvalidFieldValueException(componentsFieldPath) { fieldPath ->
-          "$fieldPath entries $name and $collidingName resolve to the same DataProvider set; " +
-            "this would collide in per-DataProvider metric bucketing"
         }
       }
     }
