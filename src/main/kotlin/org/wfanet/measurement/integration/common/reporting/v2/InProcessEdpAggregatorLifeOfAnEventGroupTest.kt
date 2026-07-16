@@ -516,4 +516,150 @@ abstract class InProcessEdpAggregatorLifeOfAnEventGroupTest(
       assertThat(afterSync3.eventGroupMetadata.adMetadata.campaignMetadata.campaignName)
         .isEqualTo("c1")
     }
+
+  @Test
+  fun `EDPA EventGroup dropping refId while adding entity_key in one step duplicates the row`() =
+    runBlocking {
+      // Documents a migration-PROCEDURE footgun that is independent of entity_key_types: it happens
+      // even with the correct configuration (entity_key_types set below). The safe migration keeps
+      // event_group_reference_id while adding entity_key — the dual-keyed step lets the existing
+      // row
+      // be matched by refId and UPDATED to carry the entity_key (see the "preserves identity across
+      // syncs" test). If instead an EDP jumps straight from refId-only to entity_key-only in a
+      // single step, the new entity-keyed source shares no identifier with the existing refId-only
+      // row (match is by entity_key, then by refId, and neither is common to both), so the sync
+      // cannot correlate them: it CREATEs a second row and orphans the original. Because the old
+      // row
+      // never carried an entity_key, the unique EventGroupsByEntityKey index does not block the new
+      // CREATE, so a genuine duplicate lands — unlike the two misconfiguration cases above, which
+      // do
+      // not explode.
+      val edp = "edp1"
+      val migRefId = "jump-ref"
+      val migEntityId = "jump-entity"
+      // Correct configuration — the duplication below is not caused by a missing entity_key_types.
+      val entityKeyTypes = listOf("campaign", CREATIVE_ID_ENTITY_TYPE)
+
+      val baselineCount = listCmmsEventGroups(edp, entityKeyTypes).size
+
+      // Sync 1: refId-only — CREATE. Stored as a campaign-typed row keyed only by refId.
+      val sync1 =
+        syncEventGroups(
+          edp,
+          listOf(
+            buildMigrationSourceEventGroup(
+              referenceId = migRefId,
+              entityType = null,
+              entityId = null,
+              campaign = "c1",
+            )
+          ),
+          entityKeyTypes,
+        )
+      assertThat(sync1).hasSize(1)
+      val refIdResource = sync1.single().eventGroupResource
+      assertThat(listCmmsEventGroups(edp, entityKeyTypes)).hasSize(baselineCount + 1)
+
+      // Sync 2: entity_key-only, with refId dropped in the same step (no dual-keyed bridge). The
+      // source can't be matched to the existing refId-only row, so a second, entity-keyed row is
+      // created and the original is orphaned.
+      val sync2 =
+        syncEventGroups(
+          edp,
+          listOf(
+            buildMigrationSourceEventGroup(
+              referenceId = null,
+              entityType = CREATIVE_ID_ENTITY_TYPE,
+              entityId = migEntityId,
+              campaign = "c1",
+            )
+          ),
+          entityKeyTypes,
+        )
+      assertThat(sync2).hasSize(1)
+      val entityKeyResource = sync2.single().eventGroupResource
+      // A distinct resource from the refId-only row: the two are not correlated.
+      assertThat(entityKeyResource).isNotEqualTo(refIdResource)
+      // Both rows now exist for what should be a single logical EventGroup — the duplicate.
+      assertThat(listCmmsEventGroups(edp, entityKeyTypes)).hasSize(baselineCount + 2)
+    }
+
+  @Test
+  fun `EDPA EventGroup keeping refId while adding entity_key stalls (does not explode) when entity_key_types is unset`() =
+    runBlocking {
+      // The proper migration procedure — keep event_group_reference_id while adding entity_key
+      // (dual-keyed), so the existing row is matched by refId and UPDATED to carry the entity_key —
+      // still breaks when entity_key_types is left unset, but it does NOT explode: the unique
+      // EventGroupsByEntityKey index blocks the redundant CREATE, so the item stalls instead.
+      //
+      // The subtle part this pins: once the first dual-keyed sync backfills the entity_key, the row
+      // becomes non-"campaign"-typed and drops out of the campaign-default fetch. On the next sync
+      // the refId in the source no longer helps, because the row is no longer returned by the fetch
+      // at all, so it can be matched neither by entity_key nor by refId. The sync issues a CREATE
+      // that collides on the unique index and fails the item (no mapping emitted). No duplicate row
+      // is created — the migration is stuck, not exploded. Setting entity_key_types keeps the row
+      // visible so the re-sync is a no-op UPDATE instead.
+      val edp = "edp1"
+      val migRefId = "keep-ref"
+      val migEntityId = "keep-entity"
+
+      val listTypes = listOf("campaign", CREATIVE_ID_ENTITY_TYPE)
+      val baselineCount = listCmmsEventGroups(edp, listTypes).size
+
+      // Sync 1: refId-only, entity_key_types unset — CREATE (campaign-typed).
+      val sync1 =
+        syncEventGroups(
+          edp,
+          listOf(
+            buildMigrationSourceEventGroup(
+              referenceId = migRefId,
+              entityType = null,
+              entityId = null,
+              campaign = "c1",
+            )
+          ),
+        )
+      assertThat(sync1).hasSize(1)
+      val resourceName = sync1.single().eventGroupResource
+      assertThat(listCmmsEventGroups(edp, listTypes)).hasSize(baselineCount + 1)
+
+      // Sync 2: add entity_key while KEEPING refId. The row is still campaign-typed at fetch time,
+      // so it is matched by refId and UPDATED (entity_key backfilled). No new row.
+      val sync2 =
+        syncEventGroups(
+          edp,
+          listOf(
+            buildMigrationSourceEventGroup(
+              referenceId = migRefId,
+              entityType = CREATIVE_ID_ENTITY_TYPE,
+              entityId = migEntityId,
+              campaign = "c1",
+            )
+          ),
+        )
+      assertThat(sync2).hasSize(1)
+      assertThat(sync2.single().eventGroupResource).isEqualTo(resourceName)
+      assertThat(listCmmsEventGroups(edp, listTypes)).hasSize(baselineCount + 1)
+      val afterSync2 = listCmmsEventGroups(edp, listTypes).single { it.name == resourceName }
+      assertThat(afterSync2.entityKey.entityId).isEqualTo(migEntityId)
+
+      // Sync 3: identical dual-keyed source. The row is now creative-id-typed, so the campaign-
+      // default fetch misses it and the refId in the source can't rescue the match either. The sync
+      // issues a CREATE that the unique index rejects — the item stalls (no mapping), and crucially
+      // no duplicate row is created.
+      val sync3 =
+        syncEventGroups(
+          edp,
+          listOf(
+            buildMigrationSourceEventGroup(
+              referenceId = migRefId,
+              entityType = CREATIVE_ID_ENTITY_TYPE,
+              entityId = migEntityId,
+              campaign = "c1",
+            )
+          ),
+        )
+      assertThat(sync3).isEmpty()
+      assertThat(listCmmsEventGroups(edp, listTypes)).hasSize(baselineCount + 1)
+    }
 }
