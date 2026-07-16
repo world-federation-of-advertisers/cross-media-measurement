@@ -44,7 +44,16 @@ class TruncatedLaplaceNoiseDistribution(
   private val cdfLow: Double = laplaceCdf(-bound)
   private val cdfHigh: Double = laplaceCdf(bound)
 
-  /** Maps a uniform [u] in `[0, 1)` to a draw in `[-bound, bound]` (the inverse CDF / quantile). */
+  /**
+   * Maps a uniform [u] in `[0, 1)` to a draw in `[-bound, bound]` (the inverse CDF / quantile).
+   *
+   * This continuous draw MUST NOT be released as noise. A floating-point inverse-CDF draw lands on
+   * an uneven lattice of representable doubles whose low bits depend on the true value being noised,
+   * which breaks differential privacy (Mironov, "On Significance of the Least Significant Bits for
+   * Differential Privacy", CCS 2012, https://dl.acm.org/doi/10.1145/2382196.2382264). Round the draw
+   * to an integer before release; [DeterministicTruncatedLaplaceNoiseSampler.sampleRounded] does
+   * this. The method is exposed only for the sampler and for reproducibility tests.
+   */
   fun inverseCdf(u: Double): Double {
     require(u >= 0.0 && u < 1.0) { "u must be in [0, 1), got $u" }
     val p: Double = cdfLow + u * (cdfHigh - cdfLow)

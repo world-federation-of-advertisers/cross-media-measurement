@@ -18,8 +18,8 @@ import java.nio.ByteBuffer
 import java.security.MessageDigest
 
 /**
- * A [DeterministicSampler] returning a uniform in `[0, 1)`, derived from the SHA-256 of its
- * [parts].
+ * A deterministic uniform in `[0, 1)`, derived from the SHA-256 of its [parts]: identical [parts]
+ * always yield the same value, a pure function of the inputs with no hidden state or randomness.
  *
  * Each part is length-prefixed (a 4-byte big-endian count) before hashing, so the parts are
  * unambiguously separated even when a part contains the framing bytes: `sample(a, b)` collides with
@@ -29,8 +29,8 @@ import java.security.MessageDigest
  * The value is bit-reproducible across builds and hosts: SHA-256 with exact integer and IEEE-754
  * arithmetic, no RNG algorithm whose bit output could drift between JVMs.
  */
-class DeterministicUniformSampler : DeterministicSampler {
-  override fun sample(vararg parts: ByteArray): Double {
+class DeterministicUniformSampler {
+  fun sample(vararg parts: ByteArray): Double {
     val digest = MessageDigest.getInstance("SHA-256")
     for (part in parts) {
       digest.update(ByteBuffer.allocate(Int.SIZE_BYTES).putInt(part.size).array())
