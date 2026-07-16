@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.protobuf.util.Timestamps
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetRawEvent
+import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.virtualpeople.common.LabelerInput
 
