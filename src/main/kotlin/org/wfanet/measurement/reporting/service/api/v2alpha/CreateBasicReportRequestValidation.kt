@@ -307,8 +307,8 @@ object CreateBasicReportRequestValidation {
    *   name belonging to the Campaign Group.
    * - When it was not ([campaignGroupInfo] `null`): every component must be a ReportingSet resource
    *   name. The referenced ReportingSets are resolved and further validated (primitive, Measurement
-   *   Consumer-owned, distinct DataProvider sets) server-side in `BasicReportsService`, where they
-   *   are fetched for Campaign Group synthesis.
+   *   Consumer-owned) server-side in `BasicReportsService`, where they are fetched for Campaign
+   *   Group synthesis.
    *
    * @param fieldPath Path of [reportingUnit] relative to the request message
    * @param campaignGroupInfo Information about the supplied Campaign Group, or `null` when
