@@ -96,6 +96,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     val modelLine: RawImpressionUploadModelLine =
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -184,6 +185,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.createRawImpressionUploadModelLine(
             createRawImpressionUploadModelLineRequest {
+              requestId = UUID.randomUUID().toString()
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               rawImpressionUploadModelLine = rawImpressionUploadModelLine {
                 cmmsModelLine = CMMS_MODEL_LINE
@@ -210,6 +212,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.createRawImpressionUploadModelLine(
             createRawImpressionUploadModelLineRequest {
+              requestId = UUID.randomUUID().toString()
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadModelLine = rawImpressionUploadModelLine {
                 cmmsModelLine = CMMS_MODEL_LINE
@@ -236,6 +239,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.createRawImpressionUploadModelLine(
             createRawImpressionUploadModelLineRequest {
+              requestId = UUID.randomUUID().toString()
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             }
@@ -260,6 +264,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.createRawImpressionUploadModelLine(
             createRawImpressionUploadModelLineRequest {
+              requestId = UUID.randomUUID().toString()
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               rawImpressionUploadModelLine = rawImpressionUploadModelLine {}
@@ -316,11 +321,13 @@ abstract class RawImpressionUploadModelLineServiceTest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             requests += createRawImpressionUploadModelLineRequest {
+              requestId = UUID.randomUUID().toString()
               rawImpressionUploadModelLine = rawImpressionUploadModelLine {
                 cmmsModelLine = CMMS_MODEL_LINE
               }
             }
             requests += createRawImpressionUploadModelLineRequest {
+              requestId = UUID.randomUUID().toString()
               rawImpressionUploadModelLine = rawImpressionUploadModelLine {
                 cmmsModelLine = CMMS_MODEL_LINE_2
               }
@@ -338,6 +345,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     val created: RawImpressionUploadModelLine =
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -414,6 +422,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
   fun `listRawImpressionUploadModelLines returns resources`() = runBlocking {
     service.createRawImpressionUploadModelLine(
       createRawImpressionUploadModelLineRequest {
+        requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -423,6 +432,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     )
     service.createRawImpressionUploadModelLine(
       createRawImpressionUploadModelLineRequest {
+        requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -447,6 +457,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     for (i in 1..3) {
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -474,6 +485,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     val created: RawImpressionUploadModelLine =
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -483,6 +495,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       )
     service.createRawImpressionUploadModelLine(
       createRawImpressionUploadModelLineRequest {
+        requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -493,6 +506,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
 
     service.markRawImpressionUploadModelLinePoolAssigning(
       markRawImpressionUploadModelLinePoolAssigningRequest {
+        requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -523,6 +537,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
   fun `listRawImpressionUploadModelLines filters by cmms_model_line`() = runBlocking {
     service.createRawImpressionUploadModelLine(
       createRawImpressionUploadModelLineRequest {
+        requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -532,6 +547,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     )
     service.createRawImpressionUploadModelLine(
       createRawImpressionUploadModelLineRequest {
+        requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -560,6 +576,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     for (i in 1..3) {
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -601,6 +618,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val created: RawImpressionUploadModelLine =
         service.createRawImpressionUploadModelLine(
           createRawImpressionUploadModelLineRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -612,6 +630,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val modelLine: RawImpressionUploadModelLine =
         service.markRawImpressionUploadModelLinePoolAssigning(
           markRawImpressionUploadModelLinePoolAssigningRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -631,6 +650,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val created: RawImpressionUploadModelLine =
         service.createRawImpressionUploadModelLine(
           createRawImpressionUploadModelLineRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -642,6 +662,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.markRawImpressionUploadModelLinePoolAssigning(
             markRawImpressionUploadModelLinePoolAssigningRequest {
+              requestId = UUID.randomUUID().toString()
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               rawImpressionUploadModelLineResourceId =
@@ -659,6 +680,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val created: RawImpressionUploadModelLine =
         service.createRawImpressionUploadModelLine(
           createRawImpressionUploadModelLineRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -671,6 +693,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.markRawImpressionUploadModelLinePoolAssigning(
             markRawImpressionUploadModelLinePoolAssigningRequest {
+              requestId = UUID.randomUUID().toString()
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               rawImpressionUploadModelLineResourceId =
@@ -688,6 +711,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val created: RawImpressionUploadModelLine =
         service.createRawImpressionUploadModelLine(
           createRawImpressionUploadModelLineRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -698,6 +722,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val poolAssigning =
         service.markRawImpressionUploadModelLinePoolAssigning(
           markRawImpressionUploadModelLinePoolAssigningRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -707,6 +732,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val failed =
         service.markRawImpressionUploadModelLineFailed(
           markRawImpressionUploadModelLineFailedRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -717,6 +743,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val resumed =
         service.markRawImpressionUploadModelLinePoolAssigning(
           markRawImpressionUploadModelLinePoolAssigningRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -736,6 +763,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val created: RawImpressionUploadModelLine =
         service.createRawImpressionUploadModelLine(
           createRawImpressionUploadModelLineRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -745,6 +773,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         )
       service.markRawImpressionUploadModelLinePoolAssigning(
         markRawImpressionUploadModelLinePoolAssigningRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -755,6 +784,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val modelLine: RawImpressionUploadModelLine =
         service.markRawImpressionUploadModelLineRanking(
           markRawImpressionUploadModelLineRankingRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -771,6 +801,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     val created: RawImpressionUploadModelLine =
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -780,6 +811,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       )
     service.markRawImpressionUploadModelLinePoolAssigning(
       markRawImpressionUploadModelLinePoolAssigningRequest {
+        requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -788,6 +820,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     )
     service.markRawImpressionUploadModelLineRanking(
       markRawImpressionUploadModelLineRankingRequest {
+        requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -798,6 +831,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     val modelLine: RawImpressionUploadModelLine =
       service.markRawImpressionUploadModelLineLabeling(
         markRawImpressionUploadModelLineLabelingRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -815,6 +849,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val created: RawImpressionUploadModelLine =
         service.createRawImpressionUploadModelLine(
           createRawImpressionUploadModelLineRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -824,6 +859,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         )
       service.markRawImpressionUploadModelLinePoolAssigning(
         markRawImpressionUploadModelLinePoolAssigningRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -832,6 +868,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       )
       service.markRawImpressionUploadModelLineRanking(
         markRawImpressionUploadModelLineRankingRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -840,6 +877,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       )
       service.markRawImpressionUploadModelLineLabeling(
         markRawImpressionUploadModelLineLabelingRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -850,6 +888,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val modelLine: RawImpressionUploadModelLine =
         service.markRawImpressionUploadModelLineCompleted(
           markRawImpressionUploadModelLineCompletedRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -868,6 +907,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     val created: RawImpressionUploadModelLine =
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -879,6 +919,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     val modelLine: RawImpressionUploadModelLine =
       service.markRawImpressionUploadModelLineFailed(
         markRawImpressionUploadModelLineFailedRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -898,6 +939,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val created: RawImpressionUploadModelLine =
         service.createRawImpressionUploadModelLine(
           createRawImpressionUploadModelLineRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -907,6 +949,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         )
       service.markRawImpressionUploadModelLinePoolAssigning(
         markRawImpressionUploadModelLinePoolAssigningRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -917,6 +960,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val modelLine: RawImpressionUploadModelLine =
         service.markRawImpressionUploadModelLineFailed(
           markRawImpressionUploadModelLineFailedRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -935,6 +979,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val created: RawImpressionUploadModelLine =
         service.createRawImpressionUploadModelLine(
           createRawImpressionUploadModelLineRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -947,6 +992,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.markRawImpressionUploadModelLineRanking(
             markRawImpressionUploadModelLineRankingRequest {
+              requestId = UUID.randomUUID().toString()
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               rawImpressionUploadModelLineResourceId =
@@ -965,6 +1011,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val created: RawImpressionUploadModelLine =
         service.createRawImpressionUploadModelLine(
           createRawImpressionUploadModelLineRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -977,6 +1024,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.markRawImpressionUploadModelLineCompleted(
             markRawImpressionUploadModelLineCompletedRequest {
+              requestId = UUID.randomUUID().toString()
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               rawImpressionUploadModelLineResourceId =
@@ -996,6 +1044,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.markRawImpressionUploadModelLinePoolAssigning(
             markRawImpressionUploadModelLinePoolAssigningRequest {
+              requestId = UUID.randomUUID().toString()
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               rawImpressionUploadModelLineResourceId = "nonexistent-resource-id"
@@ -1012,6 +1061,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     val created =
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -1023,6 +1073,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.markRawImpressionUploadModelLineRanking(
           markRawImpressionUploadModelLineRankingRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -1038,6 +1089,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     val created =
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -1049,6 +1101,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.markRawImpressionUploadModelLineLabeling(
           markRawImpressionUploadModelLineLabelingRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -1064,6 +1117,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     val created =
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -1075,6 +1129,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.markRawImpressionUploadModelLineCompleted(
           markRawImpressionUploadModelLineCompletedRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -1090,6 +1145,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     val created =
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -1101,6 +1157,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.markRawImpressionUploadModelLineFailed(
           markRawImpressionUploadModelLineFailedRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -1117,6 +1174,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val created =
         service.createRawImpressionUploadModelLine(
           createRawImpressionUploadModelLineRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -1127,6 +1185,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val poolAssigning =
         service.markRawImpressionUploadModelLinePoolAssigning(
           markRawImpressionUploadModelLinePoolAssigningRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -1136,6 +1195,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val ranking =
         service.markRawImpressionUploadModelLineRanking(
           markRawImpressionUploadModelLineRankingRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -1146,6 +1206,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.markRawImpressionUploadModelLinePoolAssigning(
             markRawImpressionUploadModelLinePoolAssigningRequest {
+              requestId = UUID.randomUUID().toString()
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               rawImpressionUploadModelLineResourceId =
@@ -1163,6 +1224,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.markRawImpressionUploadModelLineRanking(
           markRawImpressionUploadModelLineRankingRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = "riuml-does-not-exist"
@@ -1184,6 +1246,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               for (i in 0 until 51) {
                 requests += createRawImpressionUploadModelLineRequest {
+                  requestId = UUID.randomUUID().toString()
                   rawImpressionUploadModelLine = rawImpressionUploadModelLine {
                     cmmsModelLine = "modelProviders/mp1/modelSuites/ms1/modelLines/ml$i"
                   }
@@ -1301,6 +1364,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     val created =
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -1311,6 +1375,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
 
     service.markRawImpressionUploadModelLinePoolAssigning(
       markRawImpressionUploadModelLinePoolAssigningRequest {
+        requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -1328,6 +1393,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val created =
         service.createRawImpressionUploadModelLine(
           createRawImpressionUploadModelLineRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -1340,6 +1406,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val modelLine =
         service.markRawImpressionUploadModelLineLabeling(
           markRawImpressionUploadModelLineLabelingRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -1360,6 +1427,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     val created =
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -1370,6 +1438,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
 
     service.markRawImpressionUploadModelLineFailed(
       markRawImpressionUploadModelLineFailedRequest {
+        requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -1387,6 +1456,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     val modelLine1 =
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -1397,6 +1467,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     val modelLine2 =
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -1408,6 +1479,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     // Complete model line 1 (non-memoized: CREATED -> LABELING -> COMPLETED).
     service.markRawImpressionUploadModelLineLabeling(
       markRawImpressionUploadModelLineLabelingRequest {
+        requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = modelLine1.rawImpressionUploadModelLineResourceId
@@ -1416,6 +1488,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     )
     service.markRawImpressionUploadModelLineCompleted(
       markRawImpressionUploadModelLineCompletedRequest {
+        requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = modelLine1.rawImpressionUploadModelLineResourceId
@@ -1430,6 +1503,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     // Complete model line 2; now every model line is COMPLETED.
     service.markRawImpressionUploadModelLineLabeling(
       markRawImpressionUploadModelLineLabelingRequest {
+        requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = modelLine2.rawImpressionUploadModelLineResourceId
@@ -1438,6 +1512,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     )
     service.markRawImpressionUploadModelLineCompleted(
       markRawImpressionUploadModelLineCompletedRequest {
+        requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = modelLine2.rawImpressionUploadModelLineResourceId
@@ -1459,6 +1534,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val first: RawImpressionUploadModelLine =
         service.createRawImpressionUploadModelLine(
           createRawImpressionUploadModelLineRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -1469,6 +1545,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       val second: RawImpressionUploadModelLine =
         service.createRawImpressionUploadModelLine(
           createRawImpressionUploadModelLineRequest {
+            requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = secondUpload
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
@@ -1480,6 +1557,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       // Put the first upload's model line in flight.
       service.markRawImpressionUploadModelLinePoolAssigning(
         markRawImpressionUploadModelLinePoolAssigningRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLineResourceId = first.rawImpressionUploadModelLineResourceId
@@ -1492,6 +1570,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.markRawImpressionUploadModelLinePoolAssigning(
             markRawImpressionUploadModelLinePoolAssigningRequest {
+              requestId = UUID.randomUUID().toString()
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = secondUpload
               rawImpressionUploadModelLineResourceId = second.rawImpressionUploadModelLineResourceId
@@ -1513,6 +1592,340 @@ abstract class RawImpressionUploadModelLineServiceTest {
               RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           }
         )
+    }
+
+  /** Creates a model line in the CREATED state with a fresh (valid) request_id. */
+  private suspend fun createModelLine(
+    cmmsModelLine: String = CMMS_MODEL_LINE
+  ): RawImpressionUploadModelLine =
+    service.createRawImpressionUploadModelLine(
+      createRawImpressionUploadModelLineRequest {
+        requestId = UUID.randomUUID().toString()
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+          this.cmmsModelLine = cmmsModelLine
+        }
+      }
+    )
+
+  @Test
+  fun `markRawImpressionUploadModelLinePoolAssigning is idempotent with same request_id`() =
+    runBlocking {
+      val created = createModelLine()
+      val requestId = UUID.randomUUID().toString()
+
+      val first =
+        service.markRawImpressionUploadModelLinePoolAssigning(
+          markRawImpressionUploadModelLinePoolAssigningRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = created.etag
+            this.requestId = requestId
+          }
+        )
+      // A Pub/Sub redelivery replays the identical request (same etag, same request_id).
+      val second =
+        service.markRawImpressionUploadModelLinePoolAssigning(
+          markRawImpressionUploadModelLinePoolAssigningRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = created.etag
+            this.requestId = requestId
+          }
+        )
+
+      assertThat(first.state)
+        .isEqualTo(
+          RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING
+        )
+      assertThat(second).isEqualTo(first)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineRanking is idempotent with same request_id`() = runBlocking {
+    val created = createModelLine()
+    val poolAssigning =
+      service.markRawImpressionUploadModelLinePoolAssigning(
+        markRawImpressionUploadModelLinePoolAssigningRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = created.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    val requestId = UUID.randomUUID().toString()
+
+    val first =
+      service.markRawImpressionUploadModelLineRanking(
+        markRawImpressionUploadModelLineRankingRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = poolAssigning.etag
+          this.requestId = requestId
+        }
+      )
+    val second =
+      service.markRawImpressionUploadModelLineRanking(
+        markRawImpressionUploadModelLineRankingRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = poolAssigning.etag
+          this.requestId = requestId
+        }
+      )
+
+    assertThat(first.state)
+      .isEqualTo(RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING)
+    assertThat(second).isEqualTo(first)
+  }
+
+  @Test
+  fun `markRawImpressionUploadModelLineRanking replays after the line advanced past RANKING`() =
+    runBlocking {
+      // AIP-155 stale success: a redelivered mark whose request_id already ran must return success
+      // reflecting the current committed state, even after the line advanced (RANKING -> LABELING),
+      // rather than FAILED_PRECONDITION.
+      val created = createModelLine()
+      val poolAssigning =
+        service.markRawImpressionUploadModelLinePoolAssigning(
+          markRawImpressionUploadModelLinePoolAssigningRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = created.etag
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      val rankingRequestId = UUID.randomUUID().toString()
+      val ranking =
+        service.markRawImpressionUploadModelLineRanking(
+          markRawImpressionUploadModelLineRankingRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = poolAssigning.etag
+            requestId = rankingRequestId
+          }
+        )
+      // The line moves on to LABELING before the Ranking mark is redelivered.
+      val labeling =
+        service.markRawImpressionUploadModelLineLabeling(
+          markRawImpressionUploadModelLineLabelingRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = ranking.etag
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+
+      // Pub/Sub redelivers the original Ranking mark (same request_id) after the advance.
+      val replay =
+        service.markRawImpressionUploadModelLineRanking(
+          markRawImpressionUploadModelLineRankingRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = poolAssigning.etag
+            requestId = rankingRequestId
+          }
+        )
+
+      assertThat(labeling.state)
+        .isEqualTo(
+          RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING
+        )
+      assertThat(replay.state)
+        .isEqualTo(
+          RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING
+        )
+      assertThat(replay.etag).isEqualTo(labeling.etag)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineLabeling is idempotent with same request_id`() =
+    runBlocking {
+      // Non-memoized path: CREATED -> LABELING directly.
+      val created = createModelLine()
+      val requestId = UUID.randomUUID().toString()
+
+      val first =
+        service.markRawImpressionUploadModelLineLabeling(
+          markRawImpressionUploadModelLineLabelingRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = created.etag
+            this.requestId = requestId
+          }
+        )
+      val second =
+        service.markRawImpressionUploadModelLineLabeling(
+          markRawImpressionUploadModelLineLabelingRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = created.etag
+            this.requestId = requestId
+          }
+        )
+
+      assertThat(first.state)
+        .isEqualTo(
+          RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING
+        )
+      assertThat(second).isEqualTo(first)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineCompleted is idempotent with same request_id`() =
+    runBlocking {
+      val created = createModelLine()
+      val labeling =
+        service.markRawImpressionUploadModelLineLabeling(
+          markRawImpressionUploadModelLineLabelingRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = created.etag
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      val requestId = UUID.randomUUID().toString()
+
+      val first =
+        service.markRawImpressionUploadModelLineCompleted(
+          markRawImpressionUploadModelLineCompletedRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = labeling.etag
+            this.requestId = requestId
+          }
+        )
+      val second =
+        service.markRawImpressionUploadModelLineCompleted(
+          markRawImpressionUploadModelLineCompletedRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = labeling.etag
+            this.requestId = requestId
+          }
+        )
+
+      assertThat(first.state)
+        .isEqualTo(
+          RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED
+        )
+      assertThat(second).isEqualTo(first)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineFailed is idempotent with same request_id`() = runBlocking {
+    val created = createModelLine()
+    val requestId = UUID.randomUUID().toString()
+
+    val first =
+      service.markRawImpressionUploadModelLineFailed(
+        markRawImpressionUploadModelLineFailedRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = created.etag
+          this.requestId = requestId
+          errorMessage = "boom"
+        }
+      )
+    val second =
+      service.markRawImpressionUploadModelLineFailed(
+        markRawImpressionUploadModelLineFailedRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = created.etag
+          this.requestId = requestId
+          errorMessage = "boom"
+        }
+      )
+
+    assertThat(first.state)
+      .isEqualTo(RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED)
+    assertThat(second).isEqualTo(first)
+  }
+
+  @Test
+  fun `markRawImpressionUploadModelLineFailed preserves original error_message on same-request_id replay`() =
+    runBlocking {
+      val created = createModelLine()
+      val requestId = UUID.randomUUID().toString()
+
+      val first =
+        service.markRawImpressionUploadModelLineFailed(
+          markRawImpressionUploadModelLineFailedRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = created.etag
+            this.requestId = requestId
+            errorMessage = "first failure"
+          }
+        )
+      // Same request_id, different error_message: the replay returns the first response as-is.
+      val second =
+        service.markRawImpressionUploadModelLineFailed(
+          markRawImpressionUploadModelLineFailedRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = created.etag
+            this.requestId = requestId
+            errorMessage = "second failure"
+          }
+        )
+
+      assertThat(first.errorMessage).isEqualTo("first failure")
+      assertThat(second.errorMessage).isEqualTo("first failure")
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLinePoolAssigning with different request_id after transition throws FAILED_PRECONDITION`() =
+    runBlocking {
+      val created = createModelLine()
+      service.markRawImpressionUploadModelLinePoolAssigning(
+        markRawImpressionUploadModelLinePoolAssigningRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = created.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+
+      // A different request_id does NOT replay: the row is already POOL_ASSIGNING, which is not a
+      // valid previous state for PoolAssigning, so this is a state violation (etag is current, so
+      // it is not an etag mismatch).
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLinePoolAssigning(
+            markRawImpressionUploadModelLinePoolAssigningRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              rawImpressionUploadModelLineResourceId =
+                created.rawImpressionUploadModelLineResourceId
+              etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
+              requestId = UUID.randomUUID().toString()
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     }
 
   companion object {

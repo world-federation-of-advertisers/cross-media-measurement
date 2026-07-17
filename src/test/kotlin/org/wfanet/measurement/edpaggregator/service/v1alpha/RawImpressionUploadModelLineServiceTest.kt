@@ -318,11 +318,13 @@ class RawImpressionUploadModelLineServiceTest {
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
             cmmsModelLine = CMMS_MODEL_LINE
           }
+          requestId = UUID.randomUUID().toString()
         }
         requests += createRawImpressionUploadModelLineRequest {
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
             cmmsModelLine = CMMS_MODEL_LINE_2
           }
+          requestId = UUID.randomUUID().toString()
         }
       }
 
@@ -342,6 +344,7 @@ class RawImpressionUploadModelLineServiceTest {
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
             cmmsModelLine = CMMS_MODEL_LINE
           }
+          requestId = UUID.randomUUID().toString()
         }
       }
 
@@ -389,6 +392,7 @@ class RawImpressionUploadModelLineServiceTest {
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
             cmmsModelLine = "not-a-model-line"
           }
+          requestId = UUID.randomUUID().toString()
         }
       }
 
@@ -417,11 +421,13 @@ class RawImpressionUploadModelLineServiceTest {
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
             cmmsModelLine = CMMS_MODEL_LINE
           }
+          requestId = UUID.randomUUID().toString()
         }
         requests += createRawImpressionUploadModelLineRequest {
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
             cmmsModelLine = CMMS_MODEL_LINE
           }
+          requestId = UUID.randomUUID().toString()
         }
       }
 
@@ -545,6 +551,7 @@ class RawImpressionUploadModelLineServiceTest {
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
               cmmsModelLine = CMMS_MODEL_LINE
             }
+            requestId = UUID.randomUUID().toString()
           }
         )
 
@@ -568,6 +575,7 @@ class RawImpressionUploadModelLineServiceTest {
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
               cmmsModelLine = CMMS_MODEL_LINE
             }
+            requestId = UUID.randomUUID().toString()
           }
         )
       val created2 =
@@ -577,6 +585,7 @@ class RawImpressionUploadModelLineServiceTest {
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
               cmmsModelLine = CMMS_MODEL_LINE
             }
+            requestId = UUID.randomUUID().toString()
           }
         )
 
@@ -600,6 +609,7 @@ class RawImpressionUploadModelLineServiceTest {
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
             cmmsModelLine = CMMS_MODEL_LINE
           }
+          requestId = UUID.randomUUID().toString()
         }
       )
     val created2 =
@@ -609,6 +619,7 @@ class RawImpressionUploadModelLineServiceTest {
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
             cmmsModelLine = CMMS_MODEL_LINE_2
           }
+          requestId = UUID.randomUUID().toString()
         }
       )
     val sortedCreated = listOf(created1, created2).sortedBy { it.name }
@@ -735,6 +746,7 @@ class RawImpressionUploadModelLineServiceTest {
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
             cmmsModelLine = CMMS_MODEL_LINE
           }
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -743,6 +755,7 @@ class RawImpressionUploadModelLineServiceTest {
         markRawImpressionUploadModelLinePoolAssigningRequest {
           name = created.name
           etag = created.etag
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -801,6 +814,7 @@ class RawImpressionUploadModelLineServiceTest {
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
             cmmsModelLine = CMMS_MODEL_LINE
           }
+          requestId = UUID.randomUUID().toString()
         }
       )
     val poolAssigning =
@@ -808,6 +822,7 @@ class RawImpressionUploadModelLineServiceTest {
         markRawImpressionUploadModelLinePoolAssigningRequest {
           name = created.name
           etag = created.etag
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -816,6 +831,7 @@ class RawImpressionUploadModelLineServiceTest {
         markRawImpressionUploadModelLineRankingRequest {
           name = created.name
           etag = poolAssigning.etag
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -845,6 +861,7 @@ class RawImpressionUploadModelLineServiceTest {
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
             cmmsModelLine = CMMS_MODEL_LINE
           }
+          requestId = UUID.randomUUID().toString()
         }
       )
     val poolAssigning =
@@ -852,6 +869,7 @@ class RawImpressionUploadModelLineServiceTest {
         markRawImpressionUploadModelLinePoolAssigningRequest {
           name = created.name
           etag = created.etag
+          requestId = UUID.randomUUID().toString()
         }
       )
     val ranking =
@@ -859,6 +877,7 @@ class RawImpressionUploadModelLineServiceTest {
         markRawImpressionUploadModelLineRankingRequest {
           name = created.name
           etag = poolAssigning.etag
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -867,6 +886,7 @@ class RawImpressionUploadModelLineServiceTest {
         markRawImpressionUploadModelLineLabelingRequest {
           name = created.name
           etag = ranking.etag
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -896,6 +916,7 @@ class RawImpressionUploadModelLineServiceTest {
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
             cmmsModelLine = CMMS_MODEL_LINE
           }
+          requestId = UUID.randomUUID().toString()
         }
       )
     val poolAssigning =
@@ -903,6 +924,7 @@ class RawImpressionUploadModelLineServiceTest {
         markRawImpressionUploadModelLinePoolAssigningRequest {
           name = created.name
           etag = created.etag
+          requestId = UUID.randomUUID().toString()
         }
       )
     val ranking =
@@ -910,6 +932,7 @@ class RawImpressionUploadModelLineServiceTest {
         markRawImpressionUploadModelLineRankingRequest {
           name = created.name
           etag = poolAssigning.etag
+          requestId = UUID.randomUUID().toString()
         }
       )
     val labeling =
@@ -917,6 +940,7 @@ class RawImpressionUploadModelLineServiceTest {
         markRawImpressionUploadModelLineLabelingRequest {
           name = created.name
           etag = ranking.etag
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -925,6 +949,7 @@ class RawImpressionUploadModelLineServiceTest {
         markRawImpressionUploadModelLineCompletedRequest {
           name = created.name
           etag = labeling.etag
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -954,6 +979,7 @@ class RawImpressionUploadModelLineServiceTest {
           rawImpressionUploadModelLine = rawImpressionUploadModelLine {
             cmmsModelLine = CMMS_MODEL_LINE
           }
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -963,6 +989,7 @@ class RawImpressionUploadModelLineServiceTest {
           name = created.name
           etag = created.etag
           errorMessage = "Something went wrong"
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -1014,6 +1041,7 @@ class RawImpressionUploadModelLineServiceTest {
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
               cmmsModelLine = CMMS_MODEL_LINE
             }
+            requestId = UUID.randomUUID().toString()
           }
         )
       val exception =
@@ -1036,6 +1064,7 @@ class RawImpressionUploadModelLineServiceTest {
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
               cmmsModelLine = CMMS_MODEL_LINE
             }
+            requestId = UUID.randomUUID().toString()
           }
         )
       val exception =
@@ -1058,6 +1087,7 @@ class RawImpressionUploadModelLineServiceTest {
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
               cmmsModelLine = CMMS_MODEL_LINE
             }
+            requestId = UUID.randomUUID().toString()
           }
         )
       val exception =
@@ -1080,6 +1110,7 @@ class RawImpressionUploadModelLineServiceTest {
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
               cmmsModelLine = CMMS_MODEL_LINE
             }
+            requestId = UUID.randomUUID().toString()
           }
         )
       val exception =
@@ -1102,6 +1133,7 @@ class RawImpressionUploadModelLineServiceTest {
             rawImpressionUploadModelLine = rawImpressionUploadModelLine {
               cmmsModelLine = CMMS_MODEL_LINE
             }
+            requestId = UUID.randomUUID().toString()
           }
         )
       val exception =
@@ -1112,6 +1144,262 @@ class RawImpressionUploadModelLineServiceTest {
         }
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     }
+
+  @Test
+  fun `createRawImpressionUploadModelLine throws INVALID_ARGUMENT for missing requestId`() =
+    runBlocking {
+      createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+      val request = createRawImpressionUploadModelLineRequest {
+        parent = UPLOAD_KEY.toName()
+        rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+          cmmsModelLine = CMMS_MODEL_LINE
+        }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRawImpressionUploadModelLine(request)
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateRawImpressionUploadModelLines throws INVALID_ARGUMENT for missing requestId`() =
+    runBlocking {
+      val request = batchCreateRawImpressionUploadModelLinesRequest {
+        parent = UPLOAD_KEY.toName()
+        requests += createRawImpressionUploadModelLineRequest {
+          rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+            cmmsModelLine = CMMS_MODEL_LINE
+          }
+        }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRawImpressionUploadModelLines(request)
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.0.request_id"
+          }
+        )
+    }
+
+  private suspend fun createModelLineForMark(): RawImpressionUploadModelLine {
+    createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+    return service.createRawImpressionUploadModelLine(
+      createRawImpressionUploadModelLineRequest {
+        parent = UPLOAD_KEY.toName()
+        rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+          cmmsModelLine = CMMS_MODEL_LINE
+        }
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+  }
+
+  private fun assertMissingRequestId(exception: StatusRuntimeException) {
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+        }
+      )
+  }
+
+  @Test
+  fun `markRawImpressionUploadModelLinePoolAssigning throws INVALID_ARGUMENT for missing requestId`() =
+    runBlocking {
+      val created = createModelLineForMark()
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLinePoolAssigning(
+            markRawImpressionUploadModelLinePoolAssigningRequest {
+              name = created.name
+              etag = created.etag
+            }
+          )
+        }
+      assertMissingRequestId(exception)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineRanking throws INVALID_ARGUMENT for missing requestId`() =
+    runBlocking {
+      val created = createModelLineForMark()
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLineRanking(
+            markRawImpressionUploadModelLineRankingRequest {
+              name = created.name
+              etag = created.etag
+            }
+          )
+        }
+      assertMissingRequestId(exception)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineLabeling throws INVALID_ARGUMENT for missing requestId`() =
+    runBlocking {
+      val created = createModelLineForMark()
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLineLabeling(
+            markRawImpressionUploadModelLineLabelingRequest {
+              name = created.name
+              etag = created.etag
+            }
+          )
+        }
+      assertMissingRequestId(exception)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineCompleted throws INVALID_ARGUMENT for missing requestId`() =
+    runBlocking {
+      val created = createModelLineForMark()
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLineCompleted(
+            markRawImpressionUploadModelLineCompletedRequest {
+              name = created.name
+              etag = created.etag
+            }
+          )
+        }
+      assertMissingRequestId(exception)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineFailed throws INVALID_ARGUMENT for missing requestId`() =
+    runBlocking {
+      val created = createModelLineForMark()
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLineFailed(
+            markRawImpressionUploadModelLineFailedRequest {
+              name = created.name
+              etag = created.etag
+              errorMessage = "boom"
+            }
+          )
+        }
+      assertMissingRequestId(exception)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLinePoolAssigning replays idempotently`() = runBlocking {
+    val created = createModelLineForMark()
+    val request = markRawImpressionUploadModelLinePoolAssigningRequest {
+      name = created.name
+      etag = created.etag
+      requestId = UUID.randomUUID().toString()
+    }
+
+    val first = service.markRawImpressionUploadModelLinePoolAssigning(request)
+    val replay = service.markRawImpressionUploadModelLinePoolAssigning(request)
+
+    assertThat(first.state).isEqualTo(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
+    assertThat(replay).isEqualTo(first)
+  }
+
+  @Test
+  fun `markRawImpressionUploadModelLineRanking replays idempotently`() = runBlocking {
+    val created = createModelLineForMark()
+    val poolAssigning =
+      service.markRawImpressionUploadModelLinePoolAssigning(
+        markRawImpressionUploadModelLinePoolAssigningRequest {
+          name = created.name
+          etag = created.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    val request = markRawImpressionUploadModelLineRankingRequest {
+      name = created.name
+      etag = poolAssigning.etag
+      requestId = UUID.randomUUID().toString()
+    }
+
+    val first = service.markRawImpressionUploadModelLineRanking(request)
+    val replay = service.markRawImpressionUploadModelLineRanking(request)
+
+    assertThat(first.state).isEqualTo(RawImpressionUploadModelLine.State.RANKING)
+    assertThat(replay).isEqualTo(first)
+  }
+
+  @Test
+  fun `markRawImpressionUploadModelLineLabeling replays idempotently`() = runBlocking {
+    val created = createModelLineForMark()
+    val request = markRawImpressionUploadModelLineLabelingRequest {
+      name = created.name
+      etag = created.etag
+      requestId = UUID.randomUUID().toString()
+    }
+
+    val first = service.markRawImpressionUploadModelLineLabeling(request)
+    val replay = service.markRawImpressionUploadModelLineLabeling(request)
+
+    assertThat(first.state).isEqualTo(RawImpressionUploadModelLine.State.LABELING)
+    assertThat(replay).isEqualTo(first)
+  }
+
+  @Test
+  fun `markRawImpressionUploadModelLineCompleted replays idempotently`() = runBlocking {
+    val created = createModelLineForMark()
+    val labeling =
+      service.markRawImpressionUploadModelLineLabeling(
+        markRawImpressionUploadModelLineLabelingRequest {
+          name = created.name
+          etag = created.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    val request = markRawImpressionUploadModelLineCompletedRequest {
+      name = created.name
+      etag = labeling.etag
+      requestId = UUID.randomUUID().toString()
+    }
+
+    val first = service.markRawImpressionUploadModelLineCompleted(request)
+    val replay = service.markRawImpressionUploadModelLineCompleted(request)
+
+    assertThat(first.state).isEqualTo(RawImpressionUploadModelLine.State.COMPLETED)
+    assertThat(replay).isEqualTo(first)
+  }
+
+  @Test
+  fun `markRawImpressionUploadModelLineFailed replays idempotently`() = runBlocking {
+    val created = createModelLineForMark()
+    val request = markRawImpressionUploadModelLineFailedRequest {
+      name = created.name
+      etag = created.etag
+      errorMessage = "Something went wrong"
+      requestId = UUID.randomUUID().toString()
+    }
+
+    val first = service.markRawImpressionUploadModelLineFailed(request)
+    val replay = service.markRawImpressionUploadModelLineFailed(request)
+
+    assertThat(first.state).isEqualTo(RawImpressionUploadModelLine.State.FAILED)
+    assertThat(replay).isEqualTo(first)
+  }
 
   @Test
   fun `toPublic surfaces phase-0 last-shard-out outputs`() {
