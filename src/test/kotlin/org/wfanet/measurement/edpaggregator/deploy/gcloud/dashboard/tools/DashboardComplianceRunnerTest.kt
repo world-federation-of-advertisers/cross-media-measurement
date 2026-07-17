@@ -168,4 +168,26 @@ class DashboardComplianceRunnerTest {
       DashboardComplianceRunner.parseDashboardConfig("{not valid json")
     }
   }
+
+  @Test
+  fun `parseDashboardConfig throws when an edp is missing resource_id`() {
+    val exception =
+      assertThrows(IllegalArgumentException::class.java) {
+        DashboardComplianceRunner.parseDashboardConfig(
+          """{"bigquery_region": "us-central1", "edps": [{"name": "meta"}]}"""
+        )
+      }
+    assertThat(exception).hasMessageThat().contains("resource_id")
+  }
+
+  @Test
+  fun `parseDashboardConfig throws when an edp is missing name`() {
+    val exception =
+      assertThrows(IllegalArgumentException::class.java) {
+        DashboardComplianceRunner.parseDashboardConfig(
+          """{"bigquery_region": "us-central1", "edps": [{"resource_id": "abc"}]}"""
+        )
+      }
+    assertThat(exception).hasMessageThat().contains("name")
+  }
 }
