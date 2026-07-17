@@ -684,6 +684,9 @@ class SpannerPoolAssignmentJobService(
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=markPoolAssignmentJobFailed"))
 
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4250): Consolidate the
+    // inline AIP-155 replay logic in the Mark* RPCs onto a shared request-id helper, as in
+    // SpannerRawImpressionUploadModelLineService.transitionState.
     data class TransactionResult(val job: PoolAssignmentJob, val isReplay: Boolean = false)
 
     val txnResult: TransactionResult =
