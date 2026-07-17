@@ -322,7 +322,7 @@ class VidLabelingSink(
         val dbgCount = java.util.concurrent.atomic.AtomicLong(0)
         MesosRecordIoStorageClient(aeadStorageClient)
           .writeBlob(
-            blobKey,
+            SelectedStorageClient.parseBlobUri(outputBlobUri).key,
             channel
               .consumeAsFlow()
               .onStart { logger.info("DEBUG WRITE collectStart blob=" + blobKey) }
@@ -403,7 +403,7 @@ class VidLabelingSink(
           storageConfig.rootDirectory,
           storageConfig.projectId,
         )
-        .writeBlob(metadataKey, details.toByteString())
+        .writeBlob(SelectedStorageClient.parseBlobUri(metadataUri).key, details.toByteString())
     }
   }
 
