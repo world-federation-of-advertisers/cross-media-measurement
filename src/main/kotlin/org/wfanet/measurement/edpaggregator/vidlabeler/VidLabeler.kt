@@ -19,7 +19,9 @@ package org.wfanet.measurement.edpaggregator.vidlabeler
 import com.google.crypto.tink.KmsClient
 import java.time.LocalDate
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 import java.util.logging.Logger
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
@@ -99,6 +101,15 @@ class VidLabeler(
     // KMS rate limits.
     val encryptionKeySemaphore = Semaphore(VidLabelingSink.DEFAULT_ENCRYPTION_KEY_PARALLELISM)
 
+    // Dedicated thread pool for the per-group blob writers, SEPARATE from the reader's
+    // Dispatchers.IO. The reader (RawImpressionSource) does blocking Parquet reads and the writers
+    // do blocking GCS writes that drain the labeling channels; if they share one pool the readers
+    // can occupy every thread and starve the writers, so the bounded channels never drain and
+    // labeling suspends forever. That deadlocks any WorkItem that fans out >=2 writers per file
+    // (the non-memoized multi-model-line path) once there is enough data to fill the channels.
+    // One pool per WorkItem (one label() call), shut down in the finally below.
+    val writerDispatcher = Executors.newCachedThreadPool().asCoroutineDispatcher()
+
     // Distinct event dates seen across this WorkItem's files, read from their footers as they
     // stream. streamBlobs reads files in parallel, so this must be a concurrent set.
     val observedEventDates: MutableSet<LocalDate> = ConcurrentHashMap.newKeySet()
@@ -106,25 +117,32 @@ class VidLabeler(
     // TODO(world-federation-of-advertisers/cross-media-measurement#4010): Switch to file-batching
     // contract. RawImpressionSource currently shards by fingerprint; once VidLabelerApp is wired
     // up, pass VidLabelingJob.raw_impression_upload_files directly and remove fingerprint sharding.
-    rawImpressionSource.streamBlobs { blobUri, footerMetadata ->
-      // The file's plaintext Parquet footer carries the event date; read it here and hand it to
-      // the file's sink. Entity keys are NOT in the footer — they are read per impression from
-      // dedicated columns by the converter (EntityKeyMapper).
-      val fileMetadata = RawImpressionFileMetadata.fromFooterMetadata(footerMetadata)
-      observedEventDates.add(fileMetadata.eventDate)
-      VidLabelingSink(
-        inputBlobUri = blobUri,
-        modelLineContexts = contexts,
-        impressionConverter = impressionConverter,
-        fileMetadata = fileMetadata,
-        encryptKmsClient = encryptKmsClient,
-        encryptKekUri = encryptKekUri,
-        outputStorageParams = outputStorageParams,
-        storageConfig = storageConfig,
-        dataProvider = dataProvider,
-        metrics = metrics,
-        encryptionKeySemaphore = encryptionKeySemaphore,
-      )
+    try {
+      rawImpressionSource.streamBlobs { blobUri, footerMetadata ->
+        // The file's plaintext Parquet footer carries the event date; read it here and hand it to
+        // the file's sink. Entity keys are NOT in the footer — they are read per impression from
+        // dedicated columns by the converter (EntityKeyMapper).
+        val fileMetadata = RawImpressionFileMetadata.fromFooterMetadata(footerMetadata)
+        observedEventDates.add(fileMetadata.eventDate)
+        VidLabelingSink(
+          inputBlobUri = blobUri,
+          modelLineContexts = contexts,
+          impressionConverter = impressionConverter,
+          fileMetadata = fileMetadata,
+          encryptKmsClient = encryptKmsClient,
+          encryptKekUri = encryptKekUri,
+          outputStorageParams = outputStorageParams,
+          storageConfig = storageConfig,
+          dataProvider = dataProvider,
+          metrics = metrics,
+          encryptionKeySemaphore = encryptionKeySemaphore,
+          writerDispatcher = writerDispatcher,
+        )
+      }
+    } finally {
+      // All per-file sinks have committed/closed by the time streamBlobs returns (or thrown), so
+      // no writer coroutine is still using this dispatcher; shut it down to release its threads.
+      writerDispatcher.close()
     }
     // TODO(world-federation-of-advertisers/cross-media-measurement#4010): Call
     //   markVidLabelingJobSucceeded with the vid_labeling_job from VidLabelerParams. The service's
