@@ -74,29 +74,23 @@ MeasurementSystem \
 The resource ID is the last segment of the `DataProvider` resource name
 (e.g., for `dataProviders/AbCdEf_12345`, the ID is `AbCdEf_12345`).
 
-### Step 2: Add the EDP to Terraform Variables
+### Step 2: Add the EDP to the Dashboard Config
 
-Add the EDP to `data_provider_resource_ids` in your environment's `.tfvars`
-file:
+Add the EDP to the `edps` array of the `DASHBOARD_CONFIG_CONTENT` GitHub
+environment variable — the single source of truth. The CI workflow regenerates
+the Terraform `data_provider_resource_ids` map from it:
 
-```hcl
-data_provider_resource_ids = {
-  edp1 = "AbCdEf_12345"
-  edp2 = "GhIjKl_67890"
-  edp3 = "MnOpQr_24680"
-  edp4    = "StUvWx_13579"   # Add new EDP here
-}
+```json
+{"name": "edp4", "resource_id": "StUvWx_13579"}
 ```
 
-The key (e.g., `edp4`) is a short name used for:
+The `name` (e.g., `edp4`) is a short label used for:
 
 *   The service account name: `edp-edp4-dashboard@PROJECT.iam.gserviceaccount.com`
 *   Row access policy IDs: `edp4_filter`
 *   CI test matrix entries
 
-### Step 3: Update GitHub Actions Environment
-
-Add the new EDP to the `DASHBOARD_EDP_CONFIG` GitHub environment variable:
+The full `edps` array then looks like:
 
 ```json
 [
@@ -107,29 +101,26 @@ Add the new EDP to the `DASHBOARD_EDP_CONFIG` GitHub environment variable:
 ]
 ```
 
-**Critical: `DASHBOARD_EDP_CONFIG` and `data_provider_resource_ids` MUST
-match** on both keys AND resource IDs. Terraform's `for_each` over
-`data_provider_resource_ids` creates the `edp-<key>-dashboard@` SAs and row
-access policies (filtered by resource ID). The compliance and isolation tools
-iterate `DASHBOARD_EDP_CONFIG` to decide which `edp-<name>-dashboard@` SA to
-impersonate and which resource ID's data to expect. If the two disagree you
-get one of two failure modes:
+### Step 3: Verify Resource IDs
 
-*   **Keys don't match** &rarr; tool tries to impersonate an SA terraform
-    never created &rarr; `404 Not Found; Gaia id not found for email
-    edp-<name>-dashboard@PROJECT.iam.gserviceaccount.com`.
-*   **Resource IDs don't match** &rarr; SA authenticates fine but its row
-    access policy filters everything out &rarr; the compliance check reports
-    `returns other EDPs' data` (false-positive leak) or `empty` (false
-    negative).
-
-The common failure mode is a copy-paste from another environment's
-`data_provider_resource_ids` &mdash; the keys look right but the resource IDs
-are wrong for the target environment. Cross-check against the environment's
-`EDPA_EDPS_CONFIG` (the proto that drives the actual EDPA pipeline) as the
-source of truth for resource IDs.
+Because `DASHBOARD_CONFIG_CONTENT` is the single source of truth, the same
+`edps` entry drives both the Terraform resources (Terraform's `for_each` over
+the generated `data_provider_resource_ids` creates the `edp-<name>-dashboard@`
+SAs and row access policies) and the compliance/isolation tools (which
+impersonate `edp-<name>-dashboard@` and expect that `resource_id`'s data). Make
+sure each `resource_id` is the **bare** ID correct for the target environment —
+cross-check against the environment's `EDPA_EDPS_CONFIG` (the proto that drives
+the actual EDPA pipeline). A wrong `resource_id` makes the row access policy
+filter everything out, so the compliance check reports `returns other EDPs'
+data` (false-positive leak) or `empty` (false negative).
 
 ### Step 4: Apply Terraform
+
+Re-run the `Update CMMS` deploy workflow. The "Write dashboard tfvars" step regenerates
+`data_provider_resource_ids` from `DASHBOARD_CONFIG_CONTENT`, then `terraform
+apply` runs. For a **manual** apply against a local `.tfvars` — which is *not*
+regenerated from `DASHBOARD_CONFIG_CONTENT` — add the EDP to
+`data_provider_resource_ids` in that file as well before applying:
 
 ```shell
 terraform plan -var-file=my-env.tfvars
@@ -217,12 +208,10 @@ tested permissions):
 bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard/tools:DashboardComplianceCheck -- \
   --impersonate-service-account=dashboard-compliance@MY_PROJECT.iam.gserviceaccount.com \
   --project=MY_PROJECT \
-  --region=<REGION> \
-  --edp=edp1:AbCdEf_12345 \
-  --edp=edp2:GhIjKl_67890 \
-  --edp=edp3:MnOpQr_24680 \
-  --edp=edp4:StUvWx_13579
+  --dashboard-config=/path/to/dashboard-config.json
 ```
+
+where `dashboard-config.json` holds the environment's `DASHBOARD_CONFIG_CONTENT`.
 
 To impersonate, your account needs `roles/iam.serviceAccountTokenCreator` on
 the `dashboard-compliance` SA. The dashboard Terraform grants this to every
@@ -457,10 +446,10 @@ Once the policy is updated:
 
 ## Operator Steps: Offboarding an EDP
 
-1.  Remove the EDP from `data_provider_resource_ids` in `.tfvars` and from
-    `DASHBOARD_EDP_CONFIG` in the GitHub environment.
-2.  Run `terraform apply`. This destroys the EDP's service account, row access
-    policies, and table-level IAM grants.
+1.  Remove the EDP from the `edps` array in `DASHBOARD_CONFIG_CONTENT`.
+2.  Re-run the `Update CMMS` deploy workflow (or `terraform apply` for a manual deploy, after
+    also removing the EDP from your local `.tfvars`). This destroys the EDP's
+    service account, row access policies, and table-level IAM grants.
 3.  The EDP's historical data remains in the tables but is inaccessible (no
     row access policy grants visibility, no service account to authenticate).
 4.  Run the compliance check to verify the EDP no longer has access.
