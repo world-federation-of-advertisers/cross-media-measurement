@@ -340,8 +340,28 @@ Ensure the GitHub environment has the required variables (`DASHBOARD_EDP_CONFIG`
 *   **Stale data**: The compliance check's staleness threshold is 3 hours. If
     data is older, investigate scheduled query logs.
 *   **Row access policy drift**: The compliance check verifies policies exist
-    on every run. Automated daily runs via Cloud Scheduler are tracked in
-    #3930.
+    on every run.
+
+### Scheduled compliance check
+
+Beyond the post-`terraform apply` CI check, a Cloud Function
+(`dashboard-compliance-check`) runs the same checks daily at 06:00 UTC,
+triggered by Cloud Scheduler over OIDC. It runs independently against the
+*live* state to catch drift between deploys (manual IAM changes, Terraform
+state drift) that a redeploy would silently re-reconcile.
+
+Failures surface three ways: each failed check is logged at `SEVERE` with an
+`ALERT:` prefix in the `dashboard-compliance-check` Cloud Function logs; the
+number of failed checks is recorded to the
+`edpa.dashboard_compliance.failed_checks` Cloud Monitoring metric; and the
+"Dashboard Compliance Check Failures" alert policy fires when that metric is
+greater than 0. Attach Slack/PagerDuty channels via the
+`dashboard_alert_notification_channels` Terraform variable — empty creates the
+policy without notifications, so no one is paged until a channel is attached.
+
+The scheduled deploy is gated on `dashboard_compliance_uber_jar_path`: when
+that variable is unset, the Cloud Function, scheduler, and alert policy are not
+created.
 
 ## Troubleshooting
 
