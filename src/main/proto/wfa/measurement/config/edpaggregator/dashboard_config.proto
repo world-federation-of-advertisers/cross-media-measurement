@@ -46,7 +46,10 @@ message DashboardConfig {
     // Short EDP name used for per-EDP resource naming (e.g. "meta").
     string name = 1;
 
-    // The `DataProvider` resource ID (e.g. "J3-pzhqS9Lo").
+    // The bare `DataProvider` resource ID (final path segment only, e.g.
+    // "J3-pzhqS9Lo"), NOT the full resource name — do not include the
+    // "dataProviders/" prefix. Must match the DataProviderResourceId value
+    // stored in Spanner and used by the row access policy filters.
     string resource_id = 2;
   }
 }
