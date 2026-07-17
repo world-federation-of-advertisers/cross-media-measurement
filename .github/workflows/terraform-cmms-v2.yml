@@ -261,7 +261,7 @@ jobs:
       run: |
         set -euo pipefail
         # Dashboard config (EDPs, operators, deletion protection) is consolidated
-        # into the single DASHBOARD_CONFIG_CONTENT JSON var (#4124). Terraform reads
+        # into the single DASHBOARD_CONFIG_CONTENT JSON var. Terraform reads
         # it natively as *.tfvars.json.
         # Fail loudly if any required key is missing rather than silently emitting
         # null (which Terraform would treat as unset, falling back to defaults).
