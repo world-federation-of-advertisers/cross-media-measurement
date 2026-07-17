@@ -36,6 +36,9 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.consumeAsFlow
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -316,14 +319,29 @@ class VidLabelingSink(
       try {
         // TODO(world-federation-of-advertisers/cross-media-measurement#3999): Add ifGenerationMatch
         // (write-if-absent) to prevent overwrite races on Pub/Sub redelivery.
+        val dbgCount = java.util.concurrent.atomic.AtomicLong(0)
         MesosRecordIoStorageClient(aeadStorageClient)
           .writeBlob(
             blobKey,
-            channel.consumeAsFlow().map { impression ->
-              updateAggregates(impression)
-              impression.toByteString()
-            },
+            channel
+              .consumeAsFlow()
+              .onStart { logger.info("DEBUG WRITE collectStart blob=" + blobKey) }
+              .map { impression ->
+                updateAggregates(impression)
+                impression.toByteString()
+              }
+              .onEach {
+                val n = dbgCount.incrementAndGet()
+                if (n == 1L || n % 200L == 0L)
+                  logger.info("DEBUG WRITE element n=" + n + " blob=" + blobKey)
+              }
+              .onCompletion { cause ->
+                logger.info(
+                  "DEBUG WRITE collectComplete blob=" + blobKey + " count=" + dbgCount.get() + " cause=" + cause
+                )
+              },
           )
+        logger.info("DEBUG WRITE writeBlob RETURNED blob=" + blobKey)
       } catch (e: CancellationException) {
         // Writer scope cancelled (e.g. via close() on the failure path); not a labeling error.
         throw e
