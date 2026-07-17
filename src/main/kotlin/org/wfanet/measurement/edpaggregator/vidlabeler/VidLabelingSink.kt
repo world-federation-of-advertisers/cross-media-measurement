@@ -27,9 +27,9 @@ import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -113,14 +113,6 @@ import org.wfanet.virtualpeople.common.copy
  *   the per-WorkItem instance (one `VidLabeler.label()` call per WorkItem) and passes it to every
  *   sink; the permit covers only the short key-setup phase, never the long streaming write, so it
  *   can never stall a started blob stream.
- * @param writerDispatcher dispatcher for the per-group blob-writer coroutines. It MUST be a
- *   dedicated pool, separate from the reader's ([RawImpressionSource]'s) `Dispatchers.IO`. Both the
- *   reader (blocking Parquet reads) and the writers (blocking GCS writes that drain the labeling
- *   channels) do blocking I/O; if they share one pool, the readers can occupy every thread and
- *   starve the writers, so the bounded per-group channels never drain and `processBatch`'s `send`
- *   suspends forever — a hang that only surfaces once a WorkItem fans out >=2 writers per file (the
- *   non-memoized multi-model-line path) with enough data to fill the channels. [VidLabeler] owns
- *   one such pool per WorkItem and shuts it down after the shard is labeled.
  */
 class VidLabelingSink(
   private val inputBlobUri: String,
@@ -134,7 +126,6 @@ class VidLabelingSink(
   private val dataProvider: String,
   private val metrics: VidLabelerMetrics,
   private val encryptionKeySemaphore: Semaphore,
-  private val writerDispatcher: CoroutineDispatcher,
 ) : RawImpressionSource.BlobSink {
 
   /**
@@ -145,7 +136,7 @@ class VidLabelingSink(
    * group's write failure from cancelling its siblings before [commit] can observe it via
    * [awaitAll].
    */
-  private val writerScope = CoroutineScope(writerDispatcher + SupervisorJob())
+  private val writerScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
   /** One streaming writer per model-line output group, created on the group's first record. */
   private val writers = ConcurrentHashMap<OutputGroupKey, GroupWriter>()

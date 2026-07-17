@@ -33,7 +33,6 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Semaphore
@@ -104,7 +103,6 @@ class VidLabelingSinkTest {
       dataProvider = DATA_PROVIDER,
       metrics = testMetrics,
       encryptionKeySemaphore = encryptionKeySemaphore,
-      writerDispatcher = Dispatchers.IO,
     )
 
   /** Sum of a long counter's points matching [attributes] exactly. */
