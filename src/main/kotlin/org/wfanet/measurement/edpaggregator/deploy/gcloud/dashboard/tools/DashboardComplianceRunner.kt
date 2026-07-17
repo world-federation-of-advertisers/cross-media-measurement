@@ -142,6 +142,12 @@ object DashboardComplianceRunner {
     require(config.edpsList.isNotEmpty()) {
       "dashboard config must contain at least one entry in 'edps'"
     }
+    for (edp in config.edpsList) {
+      require(edp.name.isNotEmpty()) { "dashboard config edp is missing 'name'" }
+      require(edp.resourceId.isNotEmpty()) {
+        "dashboard config edp '${edp.name}' is missing 'resource_id'"
+      }
+    }
     require(config.bigqueryRegion.isNotEmpty()) { "dashboard config must set 'bigquery_region'" }
     return ResolvedConfig(
       config.edpsList.map { EdpConfig(it.name, it.resourceId) },
