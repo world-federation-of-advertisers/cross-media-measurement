@@ -30,7 +30,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.DashboardIso
  *
  * Shared by both entry points so there is a single source of truth for the checks:
  * - [DashboardComplianceCheck] — the interactive CLI.
- * - [DashboardComplianceCheckFunction] — the scheduled Cloud Function (issue #3930).
+ * - [DashboardComplianceCheckFunction] — the scheduled Cloud Function.
  *
  * This class performs no printing and never calls [System.exit]; callers decide how to present the
  * result.
@@ -139,6 +139,9 @@ object DashboardComplianceRunner {
     project: String,
     edp: EdpConfig,
   ): BigQuery {
+    // Must match the SA created in dashboard.tf (account_id = "edp-<name>-dashboard"), which
+    // is canonical. The same convention is duplicated in dashboard-isolation-test.yml; keep
+    // all three in sync or impersonation silently 404s.
     val saEmail = "edp-${edp.name}-dashboard@$project.iam.gserviceaccount.com"
     val impersonated = ImpersonatedCredentials.create(credentials, saEmail, null, SCOPES, 300)
     impersonated.refreshIfExpired()

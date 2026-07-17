@@ -987,7 +987,7 @@ resource "google_service_account_iam_member" "dashboard_compliance_terraform_tok
 }
 
 
-# --- Scheduled compliance check (#3930) --------------------------------------
+# --- Scheduled compliance check --------------------------------------
 # Packages DashboardComplianceCheck as an HTTP Cloud Function and runs it daily
 # via Cloud Scheduler (OIDC), independently of the post-deploy CI check, to
 # detect drift against the live state between deploys. Failed checks are logged
@@ -1022,12 +1022,22 @@ module "dashboard_compliance_cloud_function" {
   entry_point                              = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.tools.DashboardComplianceCheckFunction"
   uber_jar_path                            = var.dashboard_compliance_uber_jar_path
   secret_mappings                          = ""
+  # One run does ~12 sequential BigQuery jobs per EDP plus REST calls; 60s (the gen2
+  # default) is too short. max_instances = 1 prevents a scheduler retry or manual trigger
+  # from overlapping the daily run (matches the RequisitionFetcher function).
+  timeout_seconds = 600
+  max_instances   = 1
   extra_env_vars = join(",", [
     "GOOGLE_CLOUD_PROJECT=${data.google_client_config.default.project}",
     "BIGQUERY_REGION=${data.google_client_config.default.region}",
     "DASHBOARD_DATASET=${google_bigquery_dataset.dashboard.dataset_id}",
     "IMPERSONATE_SERVICE_ACCOUNT=${google_service_account.dashboard_compliance.email}",
     "DASHBOARD_EDPS=${local.dashboard_edps_env}",
+    "OTEL_SERVICE_NAME=edpa.dashboard_compliance",
+    "OTEL_METRICS_EXPORTER=google_cloud_monitoring",
+    "OTEL_TRACES_EXPORTER=google_cloud_trace",
+    "OTEL_LOGS_EXPORTER=logging",
+    "OTEL_METRIC_EXPORT_INTERVAL=60000",
   ])
 }
 
@@ -1038,6 +1048,14 @@ resource "google_service_account_iam_member" "dashboard_compliance_function_toke
   service_account_id = google_service_account.dashboard_compliance.name
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "serviceAccount:${module.dashboard_compliance_cloud_function[0].cloud_function_service_account.email}"
+}
+
+# The function's runtime SA exports the failed-check metric to Cloud Monitoring.
+resource "google_project_iam_member" "dashboard_compliance_function_metric_writer" {
+  count   = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  project = data.google_client_config.default.project
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${module.dashboard_compliance_cloud_function[0].cloud_function_service_account.email}"
 }
 
 module "dashboard_compliance_cloud_scheduler" {
@@ -1051,24 +1069,47 @@ module "dashboard_compliance_cloud_scheduler" {
     function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/${local.dashboard_compliance_function_name}"
     scheduler_sa_display_name = "Dashboard Compliance Scheduler"
     scheduler_sa_description  = "Service account for Cloud Scheduler to trigger the dashboard compliance check"
-    scheduler_job_description = "Daily DashboardComplianceCheck run to detect drift between deploys (#3930)"
+    scheduler_job_description = "Daily DashboardComplianceCheck run to detect drift between deploys"
     scheduler_job_name        = local.dashboard_compliance_function_name
   }
   depends_on = [module.dashboard_compliance_cloud_function]
 }
 
-# Log-based alert policy: the function logs SEVERE (Cloud Logging ERROR) on any
-# failed check or execution error. Notifies the configured channels (Slack /
-# PagerDuty). With no channels configured, the policy still records incidents.
+# Metric-based alert policy. The function records failed-check counts per section to the
+# edpa.dashboard_compliance.failed_checks gauge and increments edpa.dashboard_compliance.errors
+# on a genuine crash; this policy fires on either. A separate dead-man's-switch policy below
+# catches total crashes that emit no metric. Channels are attached out-of-band (as with the
+# gcs-bucket DLQ alert); with none configured the policy still records incidents but pages no one.
 resource "google_monitoring_alert_policy" "dashboard_compliance_failures" {
   count        = local.deploy_dashboard_compliance_scheduler ? 1 : 0
   display_name = "Dashboard Compliance Check Failures"
   combiner     = "OR"
 
   conditions {
-    display_name = "DashboardComplianceCheck reported failures"
-    condition_matched_log {
-      filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${local.dashboard_compliance_function_name}\" AND severity>=ERROR"
+    display_name = "DashboardComplianceCheck reported failed checks"
+    condition_threshold {
+      filter          = "metric.type=\"workload.googleapis.com/edpa.dashboard_compliance.failed_checks\" AND resource.type=\"generic_task\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+      duration        = "0s"
+      aggregations {
+        alignment_period   = "600s"
+        per_series_aligner = "ALIGN_MAX"
+      }
+    }
+  }
+
+  conditions {
+    display_name = "DashboardComplianceCheckFunction execution errors"
+    condition_threshold {
+      filter          = "metric.type=\"workload.googleapis.com/edpa.dashboard_compliance.errors\" AND resource.type=\"generic_task\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+      duration        = "0s"
+      aggregations {
+        alignment_period   = "600s"
+        per_series_aligner = "ALIGN_DELTA"
+      }
     }
   }
 
@@ -1082,6 +1123,33 @@ resource "google_monitoring_alert_policy" "dashboard_compliance_failures" {
   }
 
   documentation {
-    content = "The scheduled DashboardComplianceCheck (#3930) reported one or more failed checks or errored. Inspect the dashboard-compliance-check Cloud Function logs for entries prefixed with 'ALERT:'."
+    content = "The scheduled DashboardComplianceCheck reported one or more failed checks (edpa.dashboard_compliance.failed_checks > 0). Inspect the dashboard-compliance-check Cloud Function logs for SEVERE 'ALERT:' entries. Notification channels attach out-of-band via dashboard_alert_notification_channels; none are paged until one is set."
+  }
+}
+
+# Dead-man's-switch: fires if the daily run stops emitting the failed_checks metric entirely
+# (a total crash before any metric, a broken scheduler, or an undeployed function). The 26h
+# absence window tolerates the daily cadence plus slack.
+resource "google_monitoring_alert_policy" "dashboard_compliance_stale" {
+  count        = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  display_name = "Dashboard Compliance Check Not Running"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "No dashboard compliance run in 26h"
+    condition_absent {
+      filter   = "metric.type=\"workload.googleapis.com/edpa.dashboard_compliance.failed_checks\" AND resource.type=\"generic_task\""
+      duration = "93600s"
+      aggregations {
+        alignment_period   = "600s"
+        per_series_aligner = "ALIGN_MAX"
+      }
+    }
+  }
+
+  notification_channels = var.dashboard_alert_notification_channels
+
+  documentation {
+    content = "The scheduled DashboardComplianceCheck has not emitted edpa.dashboard_compliance.failed_checks for over 26h — the daily run is likely failing to start (a crash before any metric, a broken Cloud Scheduler job, or an undeployed function). Check the dashboard-compliance-check Cloud Function and its scheduler job."
   }
 }
