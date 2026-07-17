@@ -16,7 +16,7 @@ package org.wfanet.virtualpeople.core.labeler
 
 import com.google.protobuf.TextFormat
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -240,15 +240,23 @@ class RankedLabelingIntegrationTest {
     assertTrue(vid < 900uL, "VID $vid should be in ranked range for pool 500")
   }
 
+  /**
+   * Regression test for world-federation-of-advertisers/cross-media-measurement#4073.
+   *
+   * When this leaf's pool_offset matches no entry in rank_assignments, the leaf must fall back to
+   * the hash path instead of failing the job. The dominant case is Phase-1 overflow: when this
+   * subpool reached ranked_size and this fingerprint was one of the unranked surplus, the subpool
+   * has no rank for it (per design § Retention Rule, overflow-fps-fall-back-to-unranked-path).
+   */
   @Test
-  fun `rank for non-existent pool throws`() {
+  fun `rank for non-existent pool falls back to hash`() {
     val labeler =
       buildLabeler(
         """
       name: "TestRankedNode"
       ranked_population_node {
         pools { population_offset: 100 total_population: 500 }
-        random_seed: "wrong-pool-seed"
+        random_seed: "overflow-fallback-seed"
         ranked_size: 200
         unranked_mode: DISJOINT
       }
@@ -260,13 +268,80 @@ class RankedLabelingIntegrationTest {
         publisher = "test"
         id = "wrong-pool-event"
       }
+      // Rank assignments only carry entries for OTHER pools — none for pool_offset=100.
       rankAssignments += rankAssignment {
-        poolOffset = 9999
+        poolOffset = 9000
         localRank = 5
+      }
+      rankAssignments += rankAssignment {
+        poolOffset = 99999
+        localRank = 17
       }
     }
 
-    assertFailsWith<IllegalStateException> { labeler.label(input) }
+    val output = labeler.label(input)
+    assertEquals(1, output.peopleCount)
+    val activity = output.peopleList[0]
+    val vid = activity.virtualPersonId.toULong()
+    // DISJOINT mode: VID lands in the unranked sub-range
+    // [pool_offset + ranked_size, pool_offset + pool_size) = [300, 600).
+    assertTrue(vid >= 300uL, "VID $vid below unranked range")
+    assertTrue(vid < 600uL, "VID $vid above pool")
+    // The whole point of this path is to surface that the leaf had to hash-fall-back.
+    assertTrue(activity.memoizedRankFallback)
+  }
+
+  /**
+   * The non-matching-rank_assignments path must produce the same VID as the empty-rank_assignments
+   * path — both represent the same semantic state (no rank for this fingerprint in this subpool,
+   * hash-fall-back), so same input must yield the same VID. Locks in that the fix didn't
+   * accidentally introduce a different hash seed for the two no-rank cases.
+   */
+  @Test
+  fun `non-matching rank assignment produces same VID as empty rank assignments`() {
+    val labeler =
+      buildLabeler(
+        """
+      name: "TestRankedNode"
+      ranked_population_node {
+        pools { population_offset: 100 total_population: 500 }
+        random_seed: "overflow-fallback-seed"
+        ranked_size: 200
+        unranked_mode: DISJOINT
+      }
+    """
+      )
+
+    val baseInput = labelerInput {
+      eventId = eventId {
+        publisher = "test"
+        id = "shared-id"
+      }
+    }
+
+    // Input A: no rank_assignments at all.
+    val activityA = labeler.label(baseInput).peopleList[0]
+    val vidA = activityA.virtualPersonId
+    // No rank_assignments at all => caller did not attempt memoization, so the
+    // fallback signal MUST NOT fire.
+    assertFalse(activityA.memoizedRankFallback)
+
+    // Input B: same event id, rank_assignments only for OTHER pools.
+    val inputB =
+      baseInput.copy {
+        rankAssignments += rankAssignment {
+          poolOffset = 9000
+          localRank = 5
+        }
+      }
+    val activityB = labeler.label(inputB).peopleList[0]
+    val vidB = activityB.virtualPersonId
+    // Non-matching assignments => caller did attempt memoization but the leaf
+    // hash-fell-back, so the signal MUST fire.
+    assertTrue(activityB.memoizedRankFallback)
+
+    // Both must produce the same VID — non-matching assignments behave exactly like empty.
+    assertEquals(vidA, vidB)
   }
 
   @Test
@@ -346,7 +421,7 @@ class RankedLabelingIntegrationTest {
     assertEquals(
       0,
       output.poolAssignmentsCount,
-      "Pass-1 PopulationNode should emit no pool assignment"
+      "Pass-1 PopulationNode should emit no pool assignment",
     )
   }
 

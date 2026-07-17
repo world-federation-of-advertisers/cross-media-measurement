@@ -335,11 +335,15 @@ TEST(RankedPopulationNodeImplTest, BoundaryRankEqualsRankedSizeFallsBack) {
   ra->set_local_rank(500);
 
   EXPECT_THAT(node->Apply(event), IsOk());
-  uint64_t vid = event.virtual_person_activities(0).virtual_person_id();
+  const auto& activity = event.virtual_person_activities(0);
+  uint64_t vid = activity.virtual_person_id();
   // DISJOINT unranked range: [pool_offset + ranked_size, pool_offset +
   // pool_size).
   EXPECT_GE(vid, 600);
   EXPECT_LT(vid, 1100);
+  // Caller attempted memoization (rank_assignments non-empty) but we fell back
+  // to hash because local_rank >= ranked_size — surface the signal.
+  EXPECT_TRUE(activity.memoized_rank_fallback());
 }
 
 TEST(RankedPopulationNodeImplTest, MultipleRankAssignmentsResolvesCorrectPool) {
@@ -381,7 +385,12 @@ TEST(RankedPopulationNodeImplTest, MultipleRankAssignmentsResolvesCorrectPool) {
   EXPECT_LT(vid, 900);
 }
 
-TEST(RankedPopulationNodeImplTest, RankForNonExistentPoolReturnsError) {
+// When this leaf's pool_offset matches no entry in rank_assignments, the leaf
+// must fall back to the hash path instead of failing the job. The dominant
+// case is Phase-1 overflow: when this subpool reached ranked_size and this
+// fingerprint was one of the unranked surplus, the subpool has no rank for it
+// (per design § Retention Rule, overflow-fps-fall-back-to-unranked-path).
+TEST(RankedPopulationNodeImplTest, NoMatchingRankAssignmentFallsBackToHash) {
   CompiledNode config;
   ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(
       R"pb(
@@ -389,7 +398,7 @@ TEST(RankedPopulationNodeImplTest, RankForNonExistentPoolReturnsError) {
         index: 1
         ranked_population_node {
           pools { population_offset: 100 total_population: 500 }
-          random_seed: "wrong-pool-seed"
+          random_seed: "overflow-fallback-seed"
           ranked_size: 200
           unranked_mode: DISJOINT
         }
@@ -399,15 +408,82 @@ TEST(RankedPopulationNodeImplTest, RankForNonExistentPoolReturnsError) {
   ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModelNode> node,
                        ModelNode::Build(config));
 
-  // Rank assignment for pool_offset=9999 doesn't match pool_offset=100.
+  // Rank assignments only carry entries for OTHER pools (9000, 99999) — none
+  // for this leaf's pool_offset=100. This mirrors the multi-subpool case where
+  // the fingerprint holds ranks in other subpools but not this one.
   LabelerEvent event;
   event.set_acting_fingerprint(42);
-  auto* ra = event.mutable_labeler_input()->add_rank_assignments();
-  ra->set_pool_offset(9999);
-  ra->set_local_rank(5);
+  auto* labeler_input = event.mutable_labeler_input();
+  auto* ra1 = labeler_input->add_rank_assignments();
+  ra1->set_pool_offset(9000);
+  ra1->set_local_rank(5);
+  auto* ra2 = labeler_input->add_rank_assignments();
+  ra2->set_pool_offset(99999);
+  ra2->set_local_rank(17);
 
-  EXPECT_THAT(node->Apply(event),
-              StatusIs(absl::StatusCode::kInvalidArgument, ""));
+  EXPECT_THAT(node->Apply(event), IsOk());
+  const auto& activity = event.virtual_person_activities(0);
+  uint64_t vid = activity.virtual_person_id();
+  // Must land in the unranked sub-range [pool_offset + ranked_size,
+  // pool_offset + pool_size) = [300, 600) under DISJOINT mode.
+  EXPECT_GE(vid, 300);
+  EXPECT_LT(vid, 600);
+  // The whole point of this path is to surface that the leaf had to
+  // hash-fall-back.
+  EXPECT_TRUE(activity.memoized_rank_fallback());
+}
+
+// The non-matching-rank_assignments path must produce the same VID as the
+// empty-rank_assignments path — both represent the same semantic state
+// (no rank for this fingerprint in this subpool, hash-fall-back), so same
+// input must yield the same VID. Locks in that the fix didn't accidentally
+// introduce a different hash seed for the two no-rank cases.
+TEST(RankedPopulationNodeImplTest,
+     NoMatchingRankAssignmentMatchesEmptyAssignmentsVid) {
+  CompiledNode config;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(
+      R"pb(
+        name: "TestRankedNode"
+        index: 1
+        ranked_population_node {
+          pools { population_offset: 100 total_population: 500 }
+          random_seed: "overflow-fallback-seed"
+          ranked_size: 200
+          unranked_mode: DISJOINT
+        }
+      )pb",
+      &config));
+
+  ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModelNode> node,
+                       ModelNode::Build(config));
+
+  // Event A: no rank_assignments at all.
+  LabelerEvent event_a;
+  event_a.set_acting_fingerprint(42);
+  event_a.mutable_labeler_input();
+  EXPECT_THAT(node->Apply(event_a), IsOk());
+  const auto& activity_a = event_a.virtual_person_activities(0);
+  uint64_t vid_a = activity_a.virtual_person_id();
+  // No rank_assignments at all => caller did not attempt memoization, so the
+  // fallback signal MUST NOT fire.
+  EXPECT_FALSE(activity_a.memoized_rank_fallback());
+
+  // Event B: same fingerprint, rank_assignments only for other pools.
+  LabelerEvent event_b;
+  event_b.set_acting_fingerprint(42);
+  auto* ra = event_b.mutable_labeler_input()->add_rank_assignments();
+  ra->set_pool_offset(9000);
+  ra->set_local_rank(5);
+  EXPECT_THAT(node->Apply(event_b), IsOk());
+  const auto& activity_b = event_b.virtual_person_activities(0);
+  uint64_t vid_b = activity_b.virtual_person_id();
+  // Non-matching assignments => caller did attempt memoization but the leaf
+  // hash-fell-back, so the signal MUST fire.
+  EXPECT_TRUE(activity_b.memoized_rank_fallback());
+
+  // Both must produce the same VID — non-matching assignments behave exactly
+  // like empty assignments.
+  EXPECT_EQ(vid_a, vid_b);
 }
 
 TEST(RankedPopulationNodeImplTest, InvalidMultiplePools) {

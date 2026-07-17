@@ -60,20 +60,34 @@ private constructor(
 
     val activity = VirtualPersonActivity.newBuilder()
 
-    val rankAssignments =
-      if (event.hasLabelerInput()) event.labelerInput.rankAssignmentsList else emptyList()
-    val rankAssignment = rankAssignments.firstOrNull { it.poolOffset.toULong() == poolOffset }
+    // Look up pre-computed rank from LabelerInput.rank_assignments. The caller (memoized Phase-2
+    // sink) attaches a RankAssignment for every subpool the fingerprint is currently ranked in
+    // across this (DataProvider, ModelLine); this leaf scans the list for the entry matching its
+    // own pool_offset. If none matches, fall back to the hash path — same behavior as if no rank
+    // assignments were provided at all. The primary case for this fallback is overflow: when this
+    // subpool reached ranked_size in Phase 1 and this fingerprint was one of the unranked surplus,
+    // the subpool has no rank for it (per the design's overflow-fps-fall-back-to-unranked-path
+    // contract). Also defensively covers operator scenarios like heal-rank-index after partial
+    // data loss or a model-version mismatch between Phase 0 and Phase 2.
+    val hadRankAssignments =
+      event.hasLabelerInput() && event.labelerInput.rankAssignmentsList.isNotEmpty()
+    val rankAssignment =
+      if (event.hasLabelerInput())
+        event.labelerInput.rankAssignmentsList.firstOrNull { it.poolOffset.toULong() == poolOffset }
+      else null
+    val usedRankedPath = rankAssignment != null && rankAssignment.localRank.toULong() < rankedSize
 
-    if (rankAssignments.isNotEmpty() && rankAssignment == null) {
-      error(
-        "RankAssignment provided but none match pool_offset=$poolOffset. " +
-          "Available: ${rankAssignments.map { it.poolOffset }}."
-      )
+    // Memoized-rank fallback signal: stamped iff the caller attempted memoization
+    // (rank_assignments non-empty) but we end up on the hash path. The consumer aggregates this
+    // into an OpenTelemetry counter to alarm on rising memoized-fallback rates per
+    // (data provider, model line, pool offset).
+    if (hadRankAssignments && !usedRankedPath) {
+      activity.memoizedRankFallback = true
     }
 
     val virtualPersonId =
-      if (rankAssignment != null && rankAssignment.localRank.toULong() < rankedSize) {
-        poolOffset + Feistel.permute(rankAssignment.localRank.toULong(), rankedSize, randomSeed)
+      if (usedRankedPath) {
+        poolOffset + Feistel.permute(rankAssignment!!.localRank.toULong(), rankedSize, randomSeed)
       } else {
         val seed = PopulationNodeHelper.computeVidSeed(randomSeed, event.actingFingerprint)
         when (unrankedMode) {

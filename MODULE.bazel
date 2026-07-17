@@ -33,7 +33,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "virtual-people-common",
-    version = "0.7.0",
+    version = "0.8.0",
     repo_name = "wfa_virtual_people_common",
 )
 
