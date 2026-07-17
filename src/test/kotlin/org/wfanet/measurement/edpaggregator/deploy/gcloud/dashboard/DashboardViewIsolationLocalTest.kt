@@ -90,9 +90,6 @@ class DashboardViewIsolationLocalTest {
 
   @Test
   fun entityColumnsAreEdpOnly() {
-    // Entity columns are EDP-specific and must appear only in the EDP variant,
-    // never in the platform variant (per PR #3755 review: entity keys are
-    // EDP-specific data).
     run {
       val sql = readSqlFile("report_detail.sql")
       assertThat(render(sql, platformEnabled = false)).contains("AS EntityTypes")

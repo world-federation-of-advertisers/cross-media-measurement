@@ -31,12 +31,18 @@ java_binary(
 
 kt_jvm_library(
     name = "dashboard_compliance_check_function",
-    srcs = ["DashboardComplianceCheckFunction.kt"],
+    srcs = [
+        "DashboardComplianceCheckFunction.kt",
+        "DashboardComplianceMetrics.kt",
+    ],
     deps = [
         ":dashboard_compliance_runner",
         "//src/main/kotlin/org/wfanet/measurement/common:env_vars",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard:dashboard_isolation_checks",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
