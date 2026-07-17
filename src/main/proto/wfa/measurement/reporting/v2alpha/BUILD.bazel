@@ -306,6 +306,7 @@ proto_library(
         "@com_google_googleapis//google/api:field_info_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:timestamp_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/type:future_disposition_proto",
     ],
 )
 
@@ -464,6 +465,7 @@ GO_DEPS = [
     "@org_golang_google_genproto//googleapis/type/interval",
     "@org_golang_google_genproto_googleapis_api//annotations",
     "@com_google_cloud_go_longrunning//autogen/longrunningpb",
+    "//src/main/proto/wfa/measurement/type:typepb_go_proto",
 ]
 
 go_proto_library(

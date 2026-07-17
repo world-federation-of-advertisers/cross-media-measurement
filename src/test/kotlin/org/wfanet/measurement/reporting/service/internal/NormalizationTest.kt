@@ -30,10 +30,15 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingUnit
+import org.wfanet.measurement.internal.reporting.v2.ReportingUnitKt
 import org.wfanet.measurement.internal.reporting.v2.copy
+import org.wfanet.measurement.internal.reporting.v2.dataProviderKey
 import org.wfanet.measurement.internal.reporting.v2.eventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
+import org.wfanet.measurement.internal.reporting.v2.reportingSetKey
+import org.wfanet.measurement.internal.reporting.v2.reportingUnit
 
 @RunWith(JUnit4::class)
 class NormalizationTest {
@@ -226,6 +231,61 @@ class NormalizationTest {
 
     assertThat(Normalization.computeFingerprint(filters))
       .isNotEqualTo(Normalization.computeFingerprint(otherFilters))
+  }
+
+  @Test
+  fun `normalizeReportingUnit sorts dataProviderKeys by cmmsDataProviderId`() {
+    val reportingUnit = reportingUnit {
+      dataProviderKeys =
+        ReportingUnitKt.dataProviderKeys {
+          dataProviderKeys += dataProviderKey { cmmsDataProviderId = "edp_zebra" }
+          dataProviderKeys += dataProviderKey { cmmsDataProviderId = "edp_alpha" }
+          dataProviderKeys += dataProviderKey { cmmsDataProviderId = "edp_mango" }
+        }
+    }
+
+    val normalized = Normalization.normalizeReportingUnit(reportingUnit)
+
+    assertThat(normalized.dataProviderKeys.dataProviderKeysList.map { it.cmmsDataProviderId })
+      .containsExactly("edp_alpha", "edp_mango", "edp_zebra")
+      .inOrder()
+  }
+
+  @Test
+  fun `normalizeReportingUnit is no-op when components oneof is unset`() {
+    val reportingUnit = reportingUnit {}
+
+    val normalized = Normalization.normalizeReportingUnit(reportingUnit)
+
+    assertThat(normalized).isEqualTo(reportingUnit)
+    assertThat(normalized.componentsCase).isEqualTo(ReportingUnit.ComponentsCase.COMPONENTS_NOT_SET)
+  }
+
+  @Test
+  fun `normalizeReportingUnit sorts reportingSetKeys by externalReportingSetId`() {
+    val reportingUnit = reportingUnit {
+      reportingSetKeys =
+        ReportingUnitKt.reportingSetKeys {
+          reportingSetKeys += reportingSetKey {
+            cmmsMeasurementConsumerId = "mc-1"
+            externalReportingSetId = "rs_zebra"
+          }
+          reportingSetKeys += reportingSetKey {
+            cmmsMeasurementConsumerId = "mc-1"
+            externalReportingSetId = "rs_alpha"
+          }
+          reportingSetKeys += reportingSetKey {
+            cmmsMeasurementConsumerId = "mc-1"
+            externalReportingSetId = "rs_mango"
+          }
+        }
+    }
+
+    val normalized = Normalization.normalizeReportingUnit(reportingUnit)
+
+    assertThat(normalized.reportingSetKeys.reportingSetKeysList.map { it.externalReportingSetId })
+      .containsExactly("rs_alpha", "rs_mango", "rs_zebra")
+      .inOrder()
   }
 
   init {

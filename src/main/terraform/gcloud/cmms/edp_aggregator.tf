@@ -126,10 +126,14 @@ locals {
       single_instance_assignment    = 1
       min_replicas                  = 0
       max_replicas                  = 10
-      machine_type                  = "c4d-standard-32"
-      java_tool_options             = "-Xmx96G"
+      # Using n2d for better Confidential VM availability.
+      # Large production workloads may require c4d-standard-32 (124 GB)
+      # with hyperdisk-balanced disk (provisioned_iops=5000,
+      # provisioned_throughput=1250) and -Xmx96G.
+      machine_type                  = "n2d-standard-8"
+      java_tool_options             = "-Xmx24G"
       docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
-      mig_distribution_policy_zones = ["us-central1-a"]
+      mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
       app_flags                     = [
                                           "--edpa-tls-cert-secret-id", "edpa-tee-app-tls-pem",
                                           "--edpa-tls-cert-file-path", "/tmp/edpa_certs/edpa_tee_app_tls.pem",
@@ -279,6 +283,160 @@ locals {
       secret_mappings     = ""
       uber_jar_path       = var.data_availability_monitor_uber_jar_path
     }
+    vid_labeling_dispatcher = {
+      function_name       = "vid-labeling-dispatcher"
+      entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingDispatcherFunction"
+      extra_env_vars      = "${var.vid_labeling_dispatcher_env_var},CONFIG_BLOB_KEY=${local.vid_labeling_dispatcher_config.destination},EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}"
+      secret_mappings     = var.vid_labeling_dispatcher_secret_mapping
+      uber_jar_path       = var.vid_labeling_dispatcher_uber_jar_path
+    }
+    vid_labeling_monitor = {
+      function_name       = "vid-labeling-monitor"
+      entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingMonitorFunction"
+      extra_env_vars      = "${var.vid_labeling_monitor_env_var},CONFIG_BLOB_KEY=${local.vid_labeling_monitor_config.destination},EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}"
+      secret_mappings     = var.vid_labeling_monitor_secret_mapping
+      uber_jar_path       = var.vid_labeling_monitor_uber_jar_path
+    }
+  }
+
+  vid_labeling_dispatcher_config = {
+    local_path  = var.vid_labeling_dispatcher_config_file_path
+    destination = "vid-labeling-dispatcher-config.textproto"
+  }
+
+  vid_labeling_monitor_config = {
+    local_path  = var.vid_labeling_monitor_config_file_path
+    destination = "vid-labeling-monitor-config.textproto"
+  }
+
+  # Health cadence: staleness alerting, stuck-phase recovery, and data-quality
+  # checks (VidLabelingMonitor.runHealth, selected by ?mode=health). Runs once
+  # daily, matching the DataAvailabilityMonitor, so recovery attempts are spaced
+  # a day apart and never race an in-flight last-out (see staleness_threshold's
+  # 24h floor). Health is duration-based, so a faster cadence buys nothing.
+  vid_labeling_monitor_scheduler_config = {
+    schedule                  = "0 6 * * *" # Daily at 06:00
+    time_zone                 = "UTC"
+    name                      = "vid-labeling-monitor-scheduler"
+    function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/vid-labeling-monitor?mode=health"
+    scheduler_sa_display_name = "VID Labeling Monitor Health Scheduler"
+    scheduler_sa_description  = "Service account for Cloud Scheduler to trigger VID labeling monitor health checks"
+    scheduler_job_description = "Daily job running VID labeling staleness, stuck-phase recovery, and data-quality checks"
+    scheduler_job_name        = "vid-labeling-monitor"
+  }
+
+  # Dispatch cadence: publish WorkItems for newly-registered uploads
+  # (VidLabelingMonitor.runDispatch, selected by ?mode=dispatch). Runs every 6h
+  # so new uploads start promptly; dispatch is user-visible latency, so it wants
+  # a fast clock independent of the slow health cadence.
+  vid_labeling_dispatch_scheduler_config = {
+    schedule                  = "0 */6 * * *" # Every 6 hours
+    time_zone                 = "UTC"
+    name                      = "vid-labeling-dispatch-sched"
+    function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/vid-labeling-monitor?mode=dispatch"
+    scheduler_sa_display_name = "VID Labeling Dispatch Scheduler"
+    scheduler_sa_description  = "Service account for Cloud Scheduler to trigger VID labeling dispatch"
+    scheduler_job_description = "Six-hourly job dispatching VID labeling WorkItems for newly-registered uploads"
+    scheduler_job_name        = "vid-labeling-dispatcher"
+  }
+
+  # Shared TEE-app flags (from BaseTeeAppRunner) reused by the three VID Labeling
+  # workers. Per-app flags (subscription id, downstream queue) are appended in
+  # vid_labeling_workers below.
+  vid_labeling_common_app_flags = [
+    "--edpa-tls-cert-secret-id", "edpa-tee-app-tls-pem",
+    "--edpa-tls-cert-file-path", "/tmp/edpa_certs/edpa_tee_app_tls.pem",
+    "--edpa-tls-key-secret-id", "edpa-tee-app-tls-key",
+    "--edpa-tls-key-file-path", "/tmp/edpa_certs/edpa_tee_app_tls.key",
+    "--secure-computation-cert-collection-secret-id", "securecomputation-root-ca",
+    "--secure-computation-cert-collection-file-path", "/tmp/edpa_certs/secure_computation_root.pem",
+    "--metadata-storage-cert-collection-secret-id", "edpaggregator-root-ca",
+    "--metadata-storage-cert-collection-file-path", "/tmp/edpa_certs/edp_aggregator_root.pem",
+    "--secure-computation-public-api-target", var.secure_computation_public_api_target,
+    "--metadata-storage-public-api-target", var.metadata_storage_public_api_target,
+    "--google-project-id", data.google_client_config.default.project,
+  ]
+
+  # Phase 0/1/2 TEE applications. Queue resource ids match queues_config.textproto
+  # and each app's --*-queue / --subscription-id flags.
+  vid_labeling_workers = {
+    subpool_assigner = {
+      queue = {
+        topic_name            = "subpool-assigner-queue"
+        subscription_name     = "subpool-assigner-subscription"
+        ack_deadline_seconds  = 600
+        max_delivery_attempts = 5
+      }
+      worker = {
+        instance_template_name        = "subpool-assigner-template"
+        base_instance_name            = "subpool-assigner"
+        managed_instance_group_name   = "subpool-assigner-mig"
+        mig_service_account_name      = "subpool-assigner-sa"
+        single_instance_assignment    = 1
+        min_replicas                  = 0
+        max_replicas                  = 8
+        machine_type                  = "n2d-highmem-16"
+        java_tool_options             = "-Xmx96G -Djdk.util.jar.enableMultiRelease=false"
+        docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/subpool_assigner:${var.image_tag}"
+        tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/subpool_assigner"
+        mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
+        app_flags = concat(local.vid_labeling_common_app_flags, [
+          "--subscription-id", "subpool-assigner-subscription",
+          "--vid-rank-builder-queue", "vid-rank-builder-queue",
+        ])
+      }
+    }
+    vid_rank_builder = {
+      queue = {
+        topic_name            = "vid-rank-builder-queue"
+        subscription_name     = "vid-rank-builder-subscription"
+        ack_deadline_seconds  = 600
+        max_delivery_attempts = 5
+      }
+      worker = {
+        instance_template_name        = "vid-rank-builder-template"
+        base_instance_name            = "vid-rank-builder"
+        managed_instance_group_name   = "vid-rank-builder-mig"
+        mig_service_account_name      = "vid-rank-builder-sa"
+        single_instance_assignment    = 1
+        min_replicas                  = 0
+        max_replicas                  = 8
+        machine_type                  = "n2d-highmem-16"
+        java_tool_options             = "-Xmx96G -Djdk.util.jar.enableMultiRelease=false"
+        docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_rank_builder:${var.image_tag}"
+        tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_rank_builder"
+        mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
+        app_flags = concat(local.vid_labeling_common_app_flags, [
+          "--subscription-id", "vid-rank-builder-subscription",
+          "--vid-labeler-queue", "vid-labeler-queue",
+        ])
+      }
+    }
+    vid_labeler = {
+      queue = {
+        topic_name            = "vid-labeler-queue"
+        subscription_name     = "vid-labeler-subscription"
+        ack_deadline_seconds  = 600
+        max_delivery_attempts = 5
+      }
+      worker = {
+        instance_template_name        = "vid-labeler-template"
+        base_instance_name            = "vid-labeler"
+        managed_instance_group_name   = "vid-labeler-mig"
+        mig_service_account_name      = "vid-labeler-sa"
+        single_instance_assignment    = 1
+        min_replicas                  = 0
+        max_replicas                  = 8
+        machine_type                  = "n2d-highmem-16"
+        java_tool_options             = "-Xmx96G -Djdk.util.jar.enableMultiRelease=false"
+        docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_labeler:${var.image_tag}"
+        tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/vid_labeler"
+        mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
+        app_flags = concat(local.vid_labeling_common_app_flags, [
+          "--subscription-id", "vid-labeler-subscription",
+        ])
+      }
+    }
   }
 
 }
@@ -290,6 +448,7 @@ module "edp_aggregator" {
   pubsub_iam_service_account_member             = module.secure_computation.secure_computation_internal_iam_service_account_member
   edp_aggregator_bucket_name                    = var.secure_computation_storage_bucket_name
   config_files_bucket_name                      = var.edpa_config_files_bucket_name
+  vid_models_bucket_name                        = var.vid_models_storage_bucket_name
   edp_aggregator_buckets_location               = local.storage_bucket_location
   data_watcher_service_account_name             = "edpa-data-watcher"
   data_watcher_trigger_service_account_name     = "edpa-data-watcher-trigger"
@@ -331,5 +490,12 @@ module "edp_aggregator" {
   data_availability_monitor_service_account_name = "edpa-data-avail-monitor"
   data_availability_monitor_config                = local.data_availability_monitor_config
   data_availability_monitor_scheduler_config      = local.data_availability_monitor_scheduler_config
+  vid_labeling_workers                            = local.vid_labeling_workers
+  vid_labeling_dispatcher_service_account_name    = "edpa-vid-labeling-dispatcher"
+  vid_labeling_monitor_service_account_name       = "edpa-vid-labeling-monitor"
+  vid_labeling_dispatcher_config                  = local.vid_labeling_dispatcher_config
+  vid_labeling_monitor_config                     = local.vid_labeling_monitor_config
+  vid_labeling_monitor_scheduler_config           = local.vid_labeling_monitor_scheduler_config
+  vid_labeling_dispatch_scheduler_config          = local.vid_labeling_dispatch_scheduler_config
   spanner_instance                              = google_spanner_instance.spanner_instance
 }

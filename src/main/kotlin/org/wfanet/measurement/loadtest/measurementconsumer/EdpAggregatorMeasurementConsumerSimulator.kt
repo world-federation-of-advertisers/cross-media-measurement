@@ -34,10 +34,10 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
@@ -46,6 +46,7 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
+import org.wfanet.measurement.integration.common.EventGroupConfig
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 
 /** Implementation of MeasurementConsumerSimulator for use with the EDP Aggregator. */
@@ -60,8 +61,8 @@ class EdpAggregatorMeasurementConsumerSimulator(
   trustedCertificates: Map<ByteString, X509Certificate>,
   private val messageInstance: Message,
   expectedDirectNoiseMechanism: NoiseMechanism,
-  private val syntheticPopulationSpec: SyntheticPopulationSpec,
-  private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
+  private val populationSpec: PopulationSpec,
+  private val syntheticEventGroupMap: Map<String, EventGroupConfig>,
   reportName: String,
   modelLineName: String,
   private val filterExpression: String = DEFAULT_FILTER_EXPRESSION,
@@ -100,33 +101,54 @@ class EdpAggregatorMeasurementConsumerSimulator(
     measurementInfo: MeasurementInfo,
     targetDataProviderId: String? = null,
   ): Sequence<Long> {
-    val eventGroupSpecs: Sequence<Triple<SyntheticEventGroupSpec, String, Interval>> =
-      measurementInfo.requisitions.asSequence().flatMap { requisitionInfo ->
-        requisitionInfo.eventGroups
-          .zip(requisitionInfo.requisitionSpec.events.eventGroupsList)
-          .filter { (eventGroup, _) ->
-            targetDataProviderId == null ||
-              targetDataProviderId ==
+    data class EventGroupRefInfo(
+      val config: EventGroupConfig,
+      val expression: String,
+      val collectionInterval: Interval,
+    )
+
+    val eventGroupsByRefId: Map<String, EventGroupRefInfo> = buildMap {
+      for (requisitionInfo in measurementInfo.requisitions) {
+        for ((eventGroup, eventGroupEntry) in
+          requisitionInfo.eventGroups.zip(requisitionInfo.requisitionSpec.events.eventGroupsList)) {
+          if (
+            targetDataProviderId != null &&
+              targetDataProviderId !=
                 requireNotNull(EventGroupKey.fromName(eventGroup.name)).dataProviderId
+          ) {
+            continue
           }
-          .map { (eventGroup, eventGroupEntry) ->
-            Triple(
-              syntheticEventGroupMap.getValue(eventGroup.eventGroupReferenceId),
+          val refId = eventGroup.eventGroupReferenceId
+          if (refId in this) continue
+          putIfAbsent(
+            refId,
+            EventGroupRefInfo(
+              syntheticEventGroupMap.getValue(refId),
               eventGroupEntry.value.filter.expression,
               eventGroupEntry.value.collectionInterval,
-            )
-          }
+            ),
+          )
+        }
       }
-    return eventGroupSpecs
-      .flatMap { (syntheticEventGroupSpec, expression, collectionInterval) ->
+    }
+    return eventGroupsByRefId.values
+      .asSequence()
+      .flatMap { (config, expression, collectionInterval) ->
         val program: Program =
           EventFilters.compileProgram(messageInstance.descriptorForType, expression)
-        SyntheticDataGeneration.generateEvents(
-            messageInstance,
-            syntheticPopulationSpec,
-            syntheticEventGroupSpec,
-          )
-          .flatMap { it.labeledEvents }
+        val specs: List<SyntheticEventGroupSpec> =
+          when (config) {
+            is EventGroupConfig.LegacySpec -> listOf(config.spec)
+            is EventGroupConfig.MultiEntityKey -> config.entityKeySpecs.map { it.spec }
+          }
+        specs
+          .asSequence()
+          .flatMap { spec ->
+            SyntheticDataGeneration.generateEvents(messageInstance, populationSpec, spec).flatMap {
+              shard ->
+              shard.labeledEvents
+            }
+          }
           .filter { impression -> EventFilters.matches(impression.message, program) }
           .filter { impression ->
             targetDataProviderId != null ||
@@ -156,9 +178,9 @@ class EdpAggregatorMeasurementConsumerSimulator(
     percentage: Double,
   ): RequisitionInfo {
     val requisitionSpec = requisitionSpec {
-      for (eventGroup in eventGroups) {
-        events =
-          RequisitionSpecKt.events {
+      events =
+        RequisitionSpecKt.events {
+          for (eventGroup in eventGroups) {
             this.eventGroups +=
               RequisitionSpecKt.eventGroupEntry {
                 key = eventGroup.name
@@ -184,7 +206,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
                   }
               }
           }
-      }
+        }
       measurementPublicKey = measurementConsumer.publicKey.message
       this.nonce = nonce
     }

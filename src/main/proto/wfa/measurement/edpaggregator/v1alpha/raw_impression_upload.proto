@@ -1,0 +1,72 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RawImpressionUploadProto";
+
+// An upload of raw impression files by a DataProvider.
+//
+// This is the top-level parent resource for the VID labeling pipeline.
+// One RawImpressionUpload is created per EDP impression-upload event.
+message RawImpressionUpload {
+  option (google.api.resource) = {
+    type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    pattern: "dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}"
+    singular: "rawImpressionUpload"
+    plural: "rawImpressionUploads"
+  };
+
+  // Denormalized pipeline state, rolled up from child model line states.
+  enum State {
+    // Default, unspecified state. Should not be used.
+    STATE_UNSPECIFIED = 0;
+    // The upload was created but model lines are not processing yet.
+    CREATED = 1;
+    // At least one model line is still processing.
+    ACTIVE = 2;
+    // All model lines completed successfully.
+    COMPLETED = 3;
+    // At least one model line failed.
+    FAILED = 4;
+  }
+
+  // Resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // Denormalized pipeline state, rolled up from child model line states.
+  State state = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Cloud Storage URI of the "done" blob that triggered this upload.
+  string done_blob_uri = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // The timestamp when this upload was created.
+  google.protobuf.Timestamp create_time = 4
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The timestamp when this upload was last updated.
+  google.protobuf.Timestamp update_time = 5
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+}

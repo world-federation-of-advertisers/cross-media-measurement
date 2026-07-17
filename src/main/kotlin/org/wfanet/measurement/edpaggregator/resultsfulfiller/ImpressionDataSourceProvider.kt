@@ -45,7 +45,6 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  */
 data class ImpressionDataSource(
   val modelLine: String,
-  val eventGroupReferenceId: String,
   val interval: Interval,
   val blobDetails: BlobDetails,
 )
@@ -62,9 +61,10 @@ class ImpressionDataSourceProvider(
 ) {
 
   /**
-   * Lists impression data sources for an event group within a period.
+   * Lists impression data sources for a given selector within a period.
    *
-   * @param eventGroupReferenceId event group reference identifier.
+   * @param modelLine the model line to query.
+   * @param selector determines whether to query by entity key or event group reference ID.
    * @param period closed-open time interval in UTC.
    * @return sources covering the requested period; empty if the period maps to no dates.
    * @throws ImpressionReadException if a required metadata blob does not exist.
@@ -73,20 +73,15 @@ class ImpressionDataSourceProvider(
    */
   suspend fun listImpressionDataSources(
     modelLine: String,
-    eventGroupReferenceId: String,
+    selector: ImpressionQuerySelector,
     period: Interval,
   ): List<ImpressionDataSource> {
-    logger.info("Listing impression Data Sources...")
-    val impressionMetadata: Flow<ImpressionMetadata> =
-      getImpressionsMetadata(modelLine, eventGroupReferenceId, period)
-    return impressionMetadata
+    return getImpressionsMetadata(modelLine, selector, period)
       .map { metadata ->
         logger.info("Processing impression metadata: $metadata")
         val blobDetails = readBlobDetails(metadata.blobUri)
-
         ImpressionDataSource(
           modelLine = modelLine,
-          eventGroupReferenceId = eventGroupReferenceId,
           interval = metadata.interval,
           blobDetails = blobDetails,
         )
@@ -95,20 +90,19 @@ class ImpressionDataSourceProvider(
   }
 
   /**
-   * Resolve a path to a blob details protobuf record.
+   * Queries impression metadata using the given [selector] strategy.
    *
    * @param reportModelLine the model line
-   * @param date the of the event data
-   * @param egReferenceId referenced event group
+   * @param selector determines whether to query by entity key or event group reference ID.
+   * @param period the time period to filter by
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  fun getImpressionsMetadata(
+  private fun getImpressionsMetadata(
     reportModelLine: String,
-    egReferenceId: String,
+    selector: ImpressionQuerySelector,
     period: Interval,
   ): Flow<ImpressionMetadata> {
-
-    logger.info("Resolving path for impression metadata: $reportModelLine, $egReferenceId, $period")
+    logger.info("Resolving path for impression metadata: $reportModelLine, $selector, $period")
     return impressionMetadataStub
       .listResources { pageToken: String ->
         val response =
@@ -119,14 +113,23 @@ class ImpressionDataSourceProvider(
                 filter =
                   ListImpressionMetadataRequestKt.filter {
                     modelLine = reportModelLine
-                    eventGroupReferenceId = egReferenceId
+                    when (selector) {
+                      is ImpressionQuerySelector.ByEventGroupReferenceId ->
+                        eventGroupReferenceId = selector.refId
+                      is ImpressionQuerySelector.ByEntityKey ->
+                        this.entityKeys += selector.entityKey
+                    }
                     intervalOverlaps = period
                   }
                 this.pageToken = pageToken
               }
             )
           } catch (e: StatusException) {
-            throw Exception("Error listing EventGroups", e)
+            throw Exception(
+              "Error listing ImpressionMetadata for dataProvider=$dataProvider, " +
+                "modelLine=$reportModelLine, selector=$selector, period=$period: ${e.status}",
+              e,
+            )
           }
         ResourceList(response.impressionMetadataList, response.nextPageToken)
       }

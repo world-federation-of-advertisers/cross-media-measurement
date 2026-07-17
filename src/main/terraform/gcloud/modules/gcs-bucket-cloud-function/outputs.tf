@@ -15,3 +15,13 @@
 output "cloud_function_service_account" {
   value = google_service_account.cloud_function_service_account
 }
+
+output "dead_letter_topic" {
+  description = "The Pub/Sub dead letter topic for undeliverable GCS event notifications."
+  value       = google_pubsub_topic.dead_letter_topic
+}
+
+output "dead_letter_subscription" {
+  description = "The subscription on the dead letter topic for inspecting and replaying failed messages."
+  value       = google_pubsub_subscription.dead_letter_subscription
+}

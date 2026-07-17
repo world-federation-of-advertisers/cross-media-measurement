@@ -14,6 +14,11 @@
 
 name: "Configure Reporting V2"
 
+run-name: >-
+  Configure Reporting V2 [${{ inputs.environment }}] |
+  apply=${{ inputs.apply }},
+  image-tag=${{ inputs.existing-image-tag }}
+
 on:
   workflow_call:
     inputs:
@@ -28,6 +33,12 @@ on:
         description: "Apply the new configuration"
         type: boolean
         required: true
+      mcp_host:
+        description: "Public hostname for the MCP server Ingress (blank skips external exposure)"
+        type: string
+      oauth_issuer:
+        description: "OAuth issuer URL for the MCP server (blank uses the environment's OPEN_ID_PROVIDER_ISSUER)"
+        type: string
   workflow_dispatch:
     inputs:
       environment:
@@ -46,6 +57,12 @@ on:
         description: "Apply the new configuration"
         type: boolean
         default: false
+      mcp_host:
+        description: "Public hostname for the MCP server Ingress (blank skips external exposure)"
+        type: string
+      oauth_issuer:
+        description: "OAuth issuer URL for the MCP server (blank uses the environment's OPEN_ID_PROVIDER_ISSUER)"
+        type: string
 
 permissions:
   contents: read
@@ -62,12 +79,12 @@ jobs:
       id-token: write
     environment: ${{ inputs.environment }}
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
     # Authenticate to Google Cloud. This will export some environment
     # variables, including GCLOUD_PROJECT.
     - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
       with:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
@@ -88,6 +105,8 @@ jobs:
         GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         PDP_NAME: ${{ vars.PDP_NAME }}
+        MCP_HOST: ${{ inputs.mcp_host || vars.MCP_HOST }}
+        OPEN_ID_PROVIDER_ISSUER: ${{ inputs.oauth_issuer || vars.OPEN_ID_PROVIDER_ISSUER }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -101,15 +120,18 @@ jobs:
         build --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         build --define reporting_public_api_address_name=reporting-v2alpha
         build --define basic_reports_enabled=true
+        build --define reporting_set_reporting_unit_components_enabled=true
         build --define 'event_message_type_url=type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent'
         build --define "pdp_name=$PDP_NAME"
+        build --define "mcp_host=$MCP_HOST"
+        build --define "oauth_issuer=$OPEN_ID_PROVIDER_ISSUER"
         EOF
 
     - name: Export BAZEL_BIN
       run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 
     - name: Get GKE cluster credentials
-      uses: google-github-actions/get-gke-credentials@64bc7249bbcf78056bb92f14d3cedc2da193946c # v2.3.5
+      uses: google-github-actions/get-gke-credentials@3da1e46a907576cefaa90c484278bb5b259dd395 # v3.0.0
       with:
         cluster_name: reporting-v2
         location: ${{ vars.GCLOUD_ZONE }}
@@ -198,7 +220,7 @@ jobs:
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_secrets/kustomization.yaml"
 
     - name: Upload Kustomization artifact
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       continue-on-error: true
       with:
         name: reporting-kustomization
@@ -220,6 +242,6 @@ jobs:
     - name: Wait for rollout
       if: ${{ inputs.apply }}
       run: |
-        for deployment in $(kubectl get deployments -o name); do
+        for deployment in $(kubectl get deployments -l app.kubernetes.io/component=reporting -o name); do
           kubectl rollout status "$deployment" --timeout=5m
         done

@@ -40,10 +40,10 @@ jobs:
       CLUSTER_LOGS_PATH: cluster-logs
     steps:
       - name: Check out revision
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Bazel
-        uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
+        uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
 
       - uses: ./.github/actions/free-disk-space
 
@@ -94,6 +94,7 @@ jobs:
           build --define google_cloud_project_number=12345
           build --define key_ring_location=us-central1
           build --define basic_reports_enabled=true
+          build --define reporting_set_reporting_unit_components_enabled=true
           EOF
 
       # Reduce chance of disconnection from the Build Event Service.
@@ -158,7 +159,7 @@ jobs:
 
       - name: Upload cluster logs artifact
         if: failure() && steps.export-cluster-logs.outcome == 'success'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         continue-on-error: true
         with:
           name: cluster-logs
@@ -166,5 +167,5 @@ jobs:
 
       - name: Upload Bazel testlogs
         continue-on-error: true
-        uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
+        uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
         if: failure() && (steps.run-tests.outcome == 'failure' || steps.run-correctness-test.outcome == 'failure' || steps.run-panelmatch-correctness-test.outcome == 'failure')

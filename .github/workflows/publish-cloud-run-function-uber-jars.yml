@@ -14,6 +14,8 @@
 
 name: Build and push uber jar to Github packages
 
+run-name: Build and push uber jar to Github packages | package-version=${{ inputs.package-version }}
+
 on:
   workflow_call:
     inputs:
@@ -39,10 +41,10 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Bazel
-        uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
+        uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
 
       - name: Write auth.bazelrc
         env:
@@ -64,7 +66,7 @@ jobs:
         run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
 
       - name: Set up Java & Maven
-        uses: actions/setup-java@17f84c3641ba7b8f6deff6309fc4c864478f5d62 # v3.14.1
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
         with:
           distribution: zulu
           java-version: '17'
@@ -139,3 +141,25 @@ jobs:
           artifact-id: data-availability-monitor
           artifact-group-id: org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability
           bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:DataAvailabilityMonitorFunction_deploy.jar
+
+      - name: Build and Deploy VID Labeling Dispatcher
+        env:
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        uses: ./.github/actions/build-and-push-uber-jar
+        with:
+          package-version: ${{ steps.get-artifact-version.outputs.artifact-version }}
+          artifact-id: vid-labeling-dispatcher
+          artifact-group-id: org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
+          bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:VidLabelingDispatcherFunction_deploy.jar
+
+      - name: Build and Deploy VID Labeling Monitor
+        env:
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        uses: ./.github/actions/build-and-push-uber-jar
+        with:
+          package-version: ${{ steps.get-artifact-version.outputs.artifact-version }}
+          artifact-id: vid-labeling-monitor
+          artifact-group-id: org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
+          bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:VidLabelingMonitorFunction_deploy.jar

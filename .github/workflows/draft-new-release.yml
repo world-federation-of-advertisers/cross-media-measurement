@@ -14,6 +14,12 @@
 
 name: Draft new release
 
+run-name: >-
+  Draft new release |
+  release=${{ inputs.existing-release-tag }},
+  milestone=${{ inputs.milestone-name }},
+  notes-start=${{ inputs.notes-start-commitish }}
+
 on:
   workflow_dispatch:
     inputs:
@@ -37,7 +43,7 @@ jobs:
       tag: ${{ steps.compute-tag.outputs.tag }}
     steps:
       - name: Checkout (full history)
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -61,7 +67,7 @@ jobs:
     steps:
       - name: compute notes start commitish
         id: compute-notes-start-commitish
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           NOTES_START_COMMITISH: ${{ inputs.notes-start-commitish }}
         with:
@@ -119,7 +125,7 @@ jobs:
       sha: ${{ steps.compute-release-target.outputs.sha }}
     steps:
       - name: Checkout (full history)
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -153,7 +159,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout (full history)
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Draft release
         shell: bash

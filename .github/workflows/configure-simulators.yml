@@ -14,6 +14,11 @@
 
 name: "Configure EDP simulators"
 
+run-name: >-
+  Configure EDP simulators [${{ inputs.environment }}] |
+  apply=${{ inputs.apply }},
+  image-tag=${{ inputs.existing-image-tag }}
+
 on:
   workflow_call:
     inputs:
@@ -62,18 +67,18 @@ jobs:
       id-token: write
     environment: ${{ inputs.environment }}
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
     # Authenticate to Google Cloud. This will export some environment
     # variables, including GCLOUD_PROJECT.
     - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
       with:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
 
     - name: Install gcloud
-      uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
+      uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
     - name: Export GCLOUD_PROJECT_NUMBER
       run: echo "GCLOUD_PROJECT_NUMBER=$(gcloud projects describe $GCLOUD_PROJECT --format="value(projectNumber)")" >> $GITHUB_ENV
@@ -86,6 +91,22 @@ jobs:
         build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
         EOF
 
+    - name: Read simulator EDP config
+      id: simulator-edps
+      env:
+        CONFIG_PATH: .github/env-configs/${{ inputs.environment }}/simulator_edps.json
+      run: |
+        for key in edp1_name edp1_cert_name edp2_name edp2_cert_name \
+                   edp3_name edp3_cert_name edp4_name edp4_cert_name \
+                   edp5_name edp5_cert_name edp6_name edp6_cert_name; do
+          value=$(jq -r --arg k "$key" '.[$k]' "$CONFIG_PATH")
+          if [ -z "$value" ] || [ "$value" = "null" ]; then
+            echo "Missing key '$key' in $CONFIG_PATH" >&2
+            exit 1
+          fi
+          echo "${key}=${value}" >> "$GITHUB_OUTPUT"
+        done
+
     - name: Write ~/.bazelrc
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
@@ -94,18 +115,18 @@ jobs:
         WORKER2_PUBLIC_API_TARGET: ${{ vars.WORKER2_PUBLIC_API_TARGET }}
         AGGREGATOR_PUBLIC_API_TARGET: ${{ vars.AGGREGATOR_PUBLIC_API_TARGET }}
         MC_NAME: ${{ vars.MC_NAME }}
-        EDP1_NAME: ${{ vars.EDP1_NAME }}
-        EDP1_CERT_NAME: ${{ vars.EDP1_CERT_NAME }}
-        EDP2_NAME: ${{ vars.EDP2_NAME }}
-        EDP2_CERT_NAME: ${{ vars.EDP2_CERT_NAME }}
-        EDP3_NAME: ${{ vars.EDP3_NAME }}
-        EDP3_CERT_NAME: ${{ vars.EDP3_CERT_NAME }}
-        EDP4_NAME: ${{ vars.EDP4_NAME }}
-        EDP4_CERT_NAME: ${{ vars.EDP4_CERT_NAME }}
-        EDP5_NAME: ${{ vars.EDP5_NAME }}
-        EDP5_CERT_NAME: ${{ vars.EDP5_CERT_NAME }}
-        EDP6_NAME: ${{ vars.EDP6_NAME }}
-        EDP6_CERT_NAME: ${{ vars.EDP6_CERT_NAME }}
+        EDP1_NAME: ${{ steps.simulator-edps.outputs.edp1_name }}
+        EDP1_CERT_NAME: ${{ steps.simulator-edps.outputs.edp1_cert_name }}
+        EDP2_NAME: ${{ steps.simulator-edps.outputs.edp2_name }}
+        EDP2_CERT_NAME: ${{ steps.simulator-edps.outputs.edp2_cert_name }}
+        EDP3_NAME: ${{ steps.simulator-edps.outputs.edp3_name }}
+        EDP3_CERT_NAME: ${{ steps.simulator-edps.outputs.edp3_cert_name }}
+        EDP4_NAME: ${{ steps.simulator-edps.outputs.edp4_name }}
+        EDP4_CERT_NAME: ${{ steps.simulator-edps.outputs.edp4_cert_name }}
+        EDP5_NAME: ${{ steps.simulator-edps.outputs.edp5_name }}
+        EDP5_CERT_NAME: ${{ steps.simulator-edps.outputs.edp5_cert_name }}
+        EDP6_NAME: ${{ steps.simulator-edps.outputs.edp6_name }}
+        EDP6_CERT_NAME: ${{ steps.simulator-edps.outputs.edp6_cert_name }}
         GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
       run: |
         cat << EOF > ~/.bazelrc
@@ -142,7 +163,7 @@ jobs:
       run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 
     - name: Get GKE cluster credentials
-      uses: google-github-actions/get-gke-credentials@64bc7249bbcf78056bb92f14d3cedc2da193946c # v2.3.5
+      uses: google-github-actions/get-gke-credentials@3da1e46a907576cefaa90c484278bb5b259dd395 # v3.0.0
       with:
         cluster_name: simulators
         location: ${{ vars.GCLOUD_ZONE }}
@@ -185,6 +206,6 @@ jobs:
     - name: Wait for rollout
       if: ${{ inputs.apply }}
       run: |
-        for deployment in $(kubectl get deployments -o name); do
+        for deployment in $(kubectl get deployments -l app.kubernetes.io/component=simulator -o name); do
           kubectl rollout status "$deployment" --timeout=5m
         done

@@ -1,0 +1,67 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/edpaggregator/encrypted_dek.proto";
+import "wfa/measurement/internal/edpaggregator/pool_assignment_state.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "PoolAssignmentJobProto";
+
+// Internal representation of a Phase-0 pool assignment job.
+// One row per (upload, model line, shard), pre-created by the
+// dispatcher. The "last shard out" of a (upload, model line) flips
+// the parent RawImpressionUploadModelLine state from POOL_ASSIGNING
+// to RANKING and triggers Phase 1.
+message PoolAssignmentJob {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // Resource ID of this job.
+  string pool_assignment_job_resource_id = 3;
+
+  // The CMMS model line resource name.
+  string cmms_model_line = 4;
+
+  // The shard index assigned to this job.
+  int32 shard_index = 5;
+
+  // The processing state of this job.
+  PoolAssignmentState state = 6;
+
+  // The timestamp when this record was created.
+  google.protobuf.Timestamp create_time = 7;
+
+  // The timestamp when this record was last updated.
+  google.protobuf.Timestamp update_time = 8;
+
+  // Detail about the failure, set when state is FAILED.
+  string error_message = 9;
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 10;
+
+  // The DEK used to encrypt every per-(shard, subpool) SubpoolFingerprints
+  // blob written by this shard's VM. Populated when the job is marked
+  // SUCCEEDED; read by the last-shard-out to decrypt this shard's blobs.
+  EncryptedDek encrypted_dek = 11;
+}

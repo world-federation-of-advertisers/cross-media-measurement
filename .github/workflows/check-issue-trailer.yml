@@ -1,0 +1,68 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Check PR body has Issue trailer
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+      - ready_for_review
+    branches:
+      - main
+      - 'releases/**'
+
+permissions:
+  contents: read
+
+jobs:
+  check-issue-trailer:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check Issue trailer
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+
+          trailers="$(printf '\n%s\n' "${PR_BODY:-}" | git interpret-trailers --parse)"
+
+          issue_trailers="$(printf '%s\n' "$trailers" | grep -E '^Issue: ' || true)"
+
+          if [ -z "$issue_trailers" ]; then
+            echo "::error::PR body must end with a Git trailer block separated from the rest of the body by at least one blank line."
+            echo "::error::The trailer block must include at least one Issue trailer: 'Issue: #<number>' or 'Issue: NA'."
+            echo "::error::Examples:"
+            echo "::error::Issue: #123"
+            echo "::error::Issue: NA"
+            exit 1
+          fi
+
+          invalid_issue_trailers="$(printf '%s\n' "$issue_trailers" | grep -Ev '^Issue: (#[0-9]+|NA)$' || true)"
+
+          if [ -n "$invalid_issue_trailers" ]; then
+            echo "::error::Invalid Issue trailer(s). Each Issue trailer must be exactly 'Issue: #<number>' or 'Issue: NA'."
+            echo "::error::Invalid trailer(s):"
+            printf '%s\n' "$invalid_issue_trailers" | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit 1
+          fi
+
+          echo "Found valid Issue trailer(s):"
+          printf '%s\n' "$issue_trailers"

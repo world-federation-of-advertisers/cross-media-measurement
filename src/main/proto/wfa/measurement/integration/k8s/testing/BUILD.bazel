@@ -35,3 +35,24 @@ kt_jvm_proto_library(
     name = "edpa_correctness_test_config_kt_jvm_proto",
     deps = [":edpa_correctness_test_config_proto"],
 )
+
+proto_library(
+    name = "impression_test_data_config_proto",
+    srcs = ["impression_test_data_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:struct_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "impression_test_data_config_kt_jvm_proto",
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:__pkg__",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/integration/common:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:__pkg__",
+    ],
+    deps = [":impression_test_data_config_proto"],
+)

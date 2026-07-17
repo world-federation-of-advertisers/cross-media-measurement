@@ -1,0 +1,71 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+import "wfa/measurement/internal/edpaggregator/encrypted_dek.proto";
+import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line_state.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "RawImpressionUploadModelLineProto";
+
+// Internal representation of a per-model-line pipeline state for an upload.
+// One row per (upload, model line), pre-created by the dispatcher once it
+// resolves which model lines apply to this upload.
+message RawImpressionUploadModelLine {
+  // Resource ID of the DataProvider that owns this record.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // Resource ID of this record (server-generated).
+  string raw_impression_upload_model_line_resource_id = 3;
+
+  // The CMMS model line resource name this record tracks.
+  string cmms_model_line = 4;
+
+  // The pipeline state for this model line.
+  RawImpressionUploadModelLineState state = 5;
+
+  // The timestamp when this record was created.
+  google.protobuf.Timestamp create_time = 6;
+
+  // The timestamp when this record was last updated.
+  google.protobuf.Timestamp update_time = 7;
+
+  // Detail about the failure, set when state is FAILED.
+  string error_message = 8;
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 9;
+
+  // Union of subpool offsets discovered across all shards during Phase 0;
+  // populated on last-shard-out.
+  repeated int64 pool_offsets = 10;
+
+  // Maximum event date (UTC) across all impressions discovered during Phase 0;
+  // populated on last-shard-out alongside `pool_offsets`.
+  google.type.Date max_event_date = 11;
+
+  // DEK that encrypts the merged per-subpool SubpoolFingerprints blobs; the
+  // last shard's encrypted_dek, promoted on last-shard-out so a retrying
+  // SubpoolAssigner reuses it.
+  EncryptedDek encrypted_merged_dek = 12;
+}

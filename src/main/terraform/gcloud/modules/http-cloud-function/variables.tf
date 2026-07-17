@@ -59,3 +59,24 @@ variable "secrets_to_access" {
   type        = list(string)
   default     = []
 }
+
+variable "config_path" {
+  description = "The path to the config file the Cloud Function uses."
+  type        = string
+  nullable    = true
+  default     = null
+}
+
+variable "timeout_seconds" {
+  description = "Function request timeout in seconds. A single invocation is force-terminated after this. Null uses the gcloud default (60s for gen2)."
+  type        = number
+  nullable    = true
+  default     = null
+}
+
+variable "max_instances" {
+  description = "Maximum number of concurrent function instances. Set to 1 to prevent overlapping invocations. Null uses the gcloud default."
+  type        = number
+  nullable    = true
+  default     = null
+}

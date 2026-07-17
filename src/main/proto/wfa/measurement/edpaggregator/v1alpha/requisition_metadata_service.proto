@@ -22,6 +22,7 @@ import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
 import "wfa/measurement/edpaggregator/v1alpha/requisition_metadata.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -203,16 +204,28 @@ message ListRequisitionMetadataRequest {
 
   // Filtering criteria for the list request.
   message Filter {
-    // Filter by the state of the requisition.
+    // Filter to resources whose state is in this set. Empty matches all states.
     // (-- api-linter: core::0216::state-field-output-only=disabled
     //     aip.dev/not-precedent: The state field is used for filtering input.
     //     --)
-    RequisitionMetadata.State state = 1
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: `_in` is the established repo convention
+    //     for set-membership filter fields. --)
+    repeated RequisitionMetadata.State state_in = 1
         [(google.api.field_behavior) = OPTIONAL];
     // Filter by the group ID of the requisition.
     string group_id = 2 [(google.api.field_behavior) = OPTIONAL];
     // Filter by the report resource name of the requisition.
     string report = 3 [(google.api.field_behavior) = OPTIONAL];
+    // Filter for resources whose create_time is in the given interval.
+    // Start and end are both optional: omitting start_time matches
+    // resources created before end_time; omitting end_time matches
+    // resources created at or after start_time.
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: `_in` is the established repo convention
+    //     for set-membership filter fields. --)
+    google.type.Interval create_time_in = 4
+        [(google.api.field_behavior) = OPTIONAL];
   }
   // The filter to apply to the list. All filter fields are optional.
   // (-- api-linter: core::0132::request-field-types=disabled

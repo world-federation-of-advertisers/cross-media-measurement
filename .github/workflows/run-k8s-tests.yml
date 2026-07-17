@@ -14,6 +14,8 @@
 
 name: Run Kubernetes tests
 
+run-name: Run Kubernetes tests [${{ inputs.environment }}]
+
 on:
   workflow_call:
     inputs:
@@ -39,7 +41,7 @@ jobs:
     runs-on: ubuntu-24.04
     environment: ${{ inputs.environment }}
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
     - name: Write auth.bazelrc
       env:
@@ -48,6 +50,20 @@ jobs:
         cat << EOF > auth.bazelrc
         build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
         EOF
+
+    - name: Read simulator EDP config
+      id: simulator-edps
+      env:
+        CONFIG_PATH: .github/env-configs/${{ inputs.environment }}/simulator_edps.json
+      run: |
+        for key in edp1_name edp2_name edp3_name edp4_name edp5_name edp6_name; do
+          value=$(jq -r --arg k "$key" '.[$k]' "$CONFIG_PATH")
+          if [ -z "$value" ] || [ "$value" = "null" ]; then
+            echo "Missing key '$key' in $CONFIG_PATH" >&2
+            exit 1
+          fi
+          echo "${key}=${value}" >> "$GITHUB_OUTPUT"
+        done
 
     - name: Write ~/.bazelrc
       env:
@@ -60,12 +76,12 @@ jobs:
         ACCESS_PUBLIC_API_TARGET: ${{ vars.ACCESS_PUBLIC_API_TARGET }}
         REPORTING_TOKEN_AUDIENCE: ${{ vars.REPORTING_TOKEN_AUDIENCE }}
 
-        EDP1_NAME: ${{ vars.EDP1_NAME }}
-        EDP2_NAME: ${{ vars.EDP2_NAME }}
-        EDP3_NAME: ${{ vars.EDP3_NAME }}
-        EDP4_NAME: ${{ vars.EDP4_NAME }}
-        EDP5_NAME: ${{ vars.EDP5_NAME }}
-        EDP6_NAME: ${{ vars.EDP6_NAME }}
+        EDP1_NAME: ${{ steps.simulator-edps.outputs.edp1_name }}
+        EDP2_NAME: ${{ steps.simulator-edps.outputs.edp2_name }}
+        EDP3_NAME: ${{ steps.simulator-edps.outputs.edp3_name }}
+        EDP4_NAME: ${{ steps.simulator-edps.outputs.edp4_name }}
+        EDP5_NAME: ${{ steps.simulator-edps.outputs.edp5_name }}
+        EDP6_NAME: ${{ steps.simulator-edps.outputs.edp6_name }}
         PDP_NAME: ${{ vars.PDP_NAME }}
         MP_NAME: ${{ vars.MP_NAME }}
         MODEL_LINE_NAME: ${{ vars.MODEL_LINE_NAME }}
@@ -103,8 +119,8 @@ jobs:
       run: >
         bazelisk test
         //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
-        
+
     - name: Upload Bazel testlogs
       continue-on-error: true
-      uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
+      uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
       if: failure() && steps.run-tests.outcome == 'failure'

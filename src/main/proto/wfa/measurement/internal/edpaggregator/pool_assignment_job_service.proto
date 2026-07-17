@@ -1,0 +1,223 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+import "google/type/interval.proto";
+import "wfa/measurement/internal/edpaggregator/encrypted_dek.proto";
+import "wfa/measurement/internal/edpaggregator/pool_assignment_job.proto";
+import "wfa/measurement/internal/edpaggregator/pool_assignment_state.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "PoolAssignmentJobServiceProto";
+
+// Service for managing `PoolAssignmentJob` resources.
+service PoolAssignmentJobService {
+  // Creates a new `PoolAssignmentJob`.
+  rpc CreatePoolAssignmentJob(CreatePoolAssignmentJobRequest)
+      returns (PoolAssignmentJob);
+
+  // Creates multiple `PoolAssignmentJob` resources in a single
+  // request.
+  rpc BatchCreatePoolAssignmentJobs(BatchCreatePoolAssignmentJobsRequest)
+      returns (BatchCreatePoolAssignmentJobsResponse);
+
+  // Retrieves a specific `PoolAssignmentJob`.
+  rpc GetPoolAssignmentJob(GetPoolAssignmentJobRequest)
+      returns (PoolAssignmentJob);
+
+  // Lists `PoolAssignmentJob` resources.
+  rpc ListPoolAssignmentJobs(ListPoolAssignmentJobsRequest)
+      returns (ListPoolAssignmentJobsResponse);
+
+  // Marks a `PoolAssignmentJob` as `SUCCEEDED`. Throws
+  // FAILED_PRECONDITION if state is not CREATED or FAILED.
+  // Throws ABORTED if etag does not match (AIP-154).
+  // A retry with the same `request_id` returns the original
+  // response without modifying state (AIP-155).
+  rpc MarkPoolAssignmentJobSucceeded(MarkPoolAssignmentJobSucceededRequest)
+      returns (MarkPoolAssignmentJobSucceededResponse);
+
+  // Marks a `PoolAssignmentJob` as `FAILED`.
+  rpc MarkPoolAssignmentJobFailed(MarkPoolAssignmentJobFailedRequest)
+      returns (PoolAssignmentJob);
+}
+
+// Request message for CreatePoolAssignmentJob.
+message CreatePoolAssignmentJobRequest {
+  // The PoolAssignmentJob to create.
+  PoolAssignmentJob pool_assignment_job = 1;
+
+  // A request ID provided by the client to ensure idempotency.
+  string request_id = 2;
+}
+
+// Request message for BatchCreatePoolAssignmentJobs.
+message BatchCreatePoolAssignmentJobsRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // Individual create requests. Maximum 50 per batch.
+  repeated CreatePoolAssignmentJobRequest requests = 3;
+}
+
+// Response message for BatchCreatePoolAssignmentJobs.
+message BatchCreatePoolAssignmentJobsResponse {
+  repeated PoolAssignmentJob pool_assignment_jobs = 1;
+}
+
+// Request message for GetPoolAssignmentJob.
+message GetPoolAssignmentJobRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // Resource ID of this job.
+  string pool_assignment_job_resource_id = 3;
+}
+
+// Request message for ListPoolAssignmentJobs.
+message ListPoolAssignmentJobsRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // The maximum number of results to return.
+  //
+  // If unspecified, at most 50 results will be returned.
+  // The maximum value is 100; values above this will be
+  // coerced to the maximum value.
+  int32 page_size = 3;
+
+  // Page token from a previous list call.
+  ListPoolAssignmentJobsPageToken page_token = 4;
+
+  // Filter for narrowing results.
+  message Filter {
+    // Filter to resources whose state is in this set. Empty matches all states.
+    repeated PoolAssignmentState state_in = 1;
+
+    // Filter for resources whose create_time falls within this
+    // interval. Start and end are both optional: omitting start
+    // returns resources created before end, omitting end returns
+    // resources created after start.
+    google.type.Interval create_time_in = 2;
+
+    // Filter by CMMS model line resource name.
+    string cmms_model_line = 3;
+  }
+  Filter filter = 5;
+}
+
+// Response message for ListPoolAssignmentJobs.
+message ListPoolAssignmentJobsResponse {
+  repeated PoolAssignmentJob pool_assignment_jobs = 1;
+
+  // A token to retrieve the next page of results.
+  ListPoolAssignmentJobsPageToken next_page_token = 2;
+}
+
+// Page token for ListPoolAssignmentJobs.
+message ListPoolAssignmentJobsPageToken {
+  message After {
+    google.protobuf.Timestamp create_time = 1;
+    string pool_assignment_job_resource_id = 2;
+  }
+  After after = 1;
+}
+
+// Request message for MarkPoolAssignmentJobSucceeded.
+message MarkPoolAssignmentJobSucceededRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // Resource ID of this job.
+  string pool_assignment_job_resource_id = 3;
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 4;
+
+  // A request ID provided by the client to ensure idempotency.
+  string request_id = 5;
+
+  // DEK that encrypts this shard's SubpoolFingerprints blobs; persisted on the
+  // job.
+  EncryptedDek encrypted_dek = 6;
+
+  // Subpool offsets discovered by this shard during Phase 0; unioned across
+  // shards by the service.
+  repeated int64 pool_offsets = 7;
+
+  // Latest event date (UTC) among the impressions this shard wrote; reduced to
+  // a maximum across shards by the service. Unset for a shard that wrote no
+  // impressions.
+  google.type.Date max_event_date = 8;
+}
+
+// Response message for MarkPoolAssignmentJobSucceeded.
+message MarkPoolAssignmentJobSucceededResponse {
+  // The updated PoolAssignmentJob.
+  PoolAssignmentJob pool_assignment_job = 1;
+
+  // Present when this is the last shard to complete for the
+  // (upload, model line). Contains the pool offsets discovered
+  // during Phase 0, used to create RankerJob rows and trigger
+  // Phase 1.
+  LastShardResult last_shard_result = 2;
+
+  // Result of the last shard completing. Present only when the
+  // last-shard mark resulted in non-empty cross-shard work; omitted
+  // if no shard wrote impressions.
+  message LastShardResult {
+    // The pool offsets discovered during Phase 0.
+    repeated int64 pool_offsets = 1;
+
+    // The maximum event date (UTC) across all shards. Always set on the
+    // last-shard result.
+    google.type.Date max_event_date = 2;
+  }
+}
+
+// Request message for MarkPoolAssignmentJobFailed.
+message MarkPoolAssignmentJobFailedRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // Resource ID of this job.
+  string pool_assignment_job_resource_id = 3;
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 4;
+
+  // Human-readable detail about the failure.
+  string error_message = 5;
+}

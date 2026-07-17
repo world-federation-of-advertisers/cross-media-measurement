@@ -1,0 +1,226 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
+import "google/api/resource.proto";
+import "google/type/date.proto";
+import "wfa/measurement/edpaggregator/v1alpha/rank_index_blob.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RankIndexBlobServiceProto";
+
+// Service for managing `RankIndexBlob` resources.
+service RankIndexBlobService {
+  // Creates a new `RankIndexBlob`.
+  rpc CreateRankIndexBlob(CreateRankIndexBlobRequest) returns (RankIndexBlob) {}
+
+  // Creates multiple `RankIndexBlob` resources in a single
+  // request.
+  rpc BatchCreateRankIndexBlobs(BatchCreateRankIndexBlobsRequest)
+      returns (BatchCreateRankIndexBlobsResponse) {}
+
+  // Retrieves a specific `RankIndexBlob`.
+  rpc GetRankIndexBlob(GetRankIndexBlobRequest) returns (RankIndexBlob) {}
+
+  // Lists `RankIndexBlob` resources for an upload.
+  rpc ListRankIndexBlobs(ListRankIndexBlobsRequest)
+      returns (ListRankIndexBlobsResponse) {}
+
+  // Soft-deletes a `RankIndexBlob`.
+  rpc DeleteRankIndexBlob(DeleteRankIndexBlobRequest) returns (RankIndexBlob) {}
+
+  // Soft-deletes multiple `RankIndexBlob` resources.
+  rpc BatchDeleteRankIndexBlobs(BatchDeleteRankIndexBlobsRequest)
+      returns (BatchDeleteRankIndexBlobsResponse) {}
+}
+
+// Request message for the `CreateRankIndexBlob` method.
+message CreateRankIndexBlobRequest {
+  // The parent upload resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RankIndexBlob"
+    }
+  ];
+
+  // The `RankIndexBlob` to create.
+  // The `name` and output-only fields are ignored.
+  RankIndexBlob rank_index_blob = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure idempotency.
+  //
+  // This field is REQUIRED, deviating from AIP-155 (which recommends request_id
+  // be optional): the blob's resource name is assigned by the server, so the
+  // client has no other idempotency key. Without it, a retry after a lost
+  // response would create a second, orphaned blob. Must be a UUID4 (RFC 4122)
+  // string.
+  // (-- api-linter: core::0133::request-required-fields=disabled
+  //     aip.dev/not-precedent: request_id is intentionally REQUIRED so the
+  //     server can deduplicate retries of this server-named resource. --)
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for the
+// `BatchCreateRankIndexBlobs` method.
+message BatchCreateRankIndexBlobsRequest {
+  // The parent upload resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RankIndexBlob"
+    }
+  ];
+
+  // Individual create requests. Maximum 50 per batch.
+  repeated CreateRankIndexBlobRequest requests = 2
+      [(google.api.field_behavior) = REQUIRED];
+}
+
+// Response message for the
+// `BatchCreateRankIndexBlobs` method.
+message BatchCreateRankIndexBlobsResponse {
+  // The created rank index blobs.
+  repeated RankIndexBlob rank_index_blobs = 1;
+}
+
+// Request message for the `GetRankIndexBlob` method.
+message GetRankIndexBlobRequest {
+  // The resource name of the blob to retrieve.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/rankIndexBlobs/{rank_index_blob}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RankIndexBlob"
+    }
+  ];
+}
+
+// Request message for the `ListRankIndexBlobs` method.
+// (-- api-linter: core::0132::request-field-types=disabled
+//     aip.dev/not-precedent: Using a customized message for the
+//     filter. --)
+message ListRankIndexBlobsRequest {
+  // The parent upload resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  //
+  // The upload segment may be the wildcard `-` to list
+  // blobs across all uploads for a data provider. See
+  // AIP-159.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RankIndexBlob"
+    }
+  ];
+
+  // The maximum number of results to return.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // A page token, received from a previous call.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Structured filter for narrowing results.
+  message Filter {
+    // Filter by blob type.
+    // (-- api-linter: core::0216::state-field-output-only=disabled
+    //     aip.dev/not-precedent: This is a filter input field, not
+    //     a resource state field. --)
+    RankIndexBlob.BlobType blob_type = 1
+        [(google.api.field_behavior) = OPTIONAL];
+
+    // Filter by CMMS model line resource name.
+    string cmms_model_line = 2 [
+      (google.api.field_behavior) = OPTIONAL,
+      (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+    ];
+
+    // Filter by pool offset. Optional because 0 is a valid pool offset.
+    optional int64 pool_offset = 3 [(google.api.field_behavior) = OPTIONAL];
+
+    // Filter for blobs with max_event_date on or before
+    // this value. Used for retention policy queries.
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: Explicit semantics for
+    //     date comparison filter. --)
+    google.type.Date max_event_date_on_or_before = 4
+        [(google.api.field_behavior) = OPTIONAL];
+  }
+
+  // A filter to apply to the results.
+  Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
+
+  // Whether to include soft-deleted entries.
+  bool show_deleted = 5 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Response message for the `ListRankIndexBlobs` method.
+message ListRankIndexBlobsResponse {
+  // The list of rank index blobs matching the request.
+  repeated RankIndexBlob rank_index_blobs = 1;
+
+  // A token to retrieve the next page of results.
+  string next_page_token = 2;
+}
+
+// Request message for the `DeleteRankIndexBlob` method.
+message DeleteRankIndexBlobRequest {
+  // The resource name of the blob to delete.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/rankIndexBlobs/{rank_index_blob}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RankIndexBlob"
+    }
+  ];
+}
+
+// Request message for the `BatchDeleteRankIndexBlobs` method.
+message BatchDeleteRankIndexBlobsRequest {
+  // The parent upload resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RankIndexBlob"
+    }
+  ];
+
+  // Individual delete requests. Maximum 1000 per batch.
+  repeated DeleteRankIndexBlobRequest requests = 2
+      [(google.api.field_behavior) = REQUIRED];
+}
+
+// Response message for the `BatchDeleteRankIndexBlobs` method.
+message BatchDeleteRankIndexBlobsResponse {
+  // The deleted rank index blobs.
+  repeated RankIndexBlob rank_index_blobs = 1;
+}

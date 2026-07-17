@@ -19,15 +19,16 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 import com.google.protobuf.timestamp
 import com.google.type.Interval
 import com.google.type.interval
-import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
+import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeParseException
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
@@ -75,6 +76,7 @@ class DataAvailabilityMonitor(
   private val activeModelLines: Set<ModelLineKey>,
   private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub?,
   private val dataProviderName: String?,
+  private val clock: () -> Instant = { Instant.now() },
 ) {
   init {
     require(!edpImpressionPath.startsWith("/")) { "edpImpressionPath cannot start with a slash" }
@@ -91,6 +93,10 @@ class DataAvailabilityMonitor(
    *   or `null` when staleness was not checked (e.g., gap-only mode or no uploaded dates found).
    * @property latestDate The most recent date with a completed upload ("done" blob). Set to the
    *   current date when no uploads are found (staleness mode) or [LocalDate.MIN] in gap-only mode.
+   * @property earliestDate The earliest date with a completed upload ("done" blob), or `null` when
+   *   no uploaded dates were found. Together with [latestDate] this bounds the finalized range used
+   *   to decide whether an unfinalized date (one in [datesWithoutDoneBlob]) falls inside the
+   *   already-published window.
    * @property gapDates Dates missing between the earliest and latest uploaded dates, or `null` when
    *   no uploaded dates were found.
    * @property staleDays Number of days between today and [latestDate], or `null` when staleness was
@@ -100,6 +106,10 @@ class DataAvailabilityMonitor(
    * @property datesWithoutDoneBlob Date folders that exist but have no "done" blob.
    * @property lateArrivingDates Dates where data files were updated after the "done" blob, or
    *   `null` when no uploaded dates were found.
+   * @property unprocessedDoneDates Dates where the "done" blob exists but lacks the
+   *   `synced-by=data-availability-sync` marker and is older than `unprocessedDoneThreshold`,
+   *   indicating `DataAvailabilitySync` did not complete for this date. `null` when no uploaded
+   *   dates were found.
    * @property healthyDates Dates with a "done" blob, data files, and no late arrivals, or `null`
    *   when no uploaded dates were found.
    * @property spuriousDeletionCount Number of deleted ImpressionMetadata entries whose blob still
@@ -111,11 +121,13 @@ class DataAvailabilityMonitor(
     val modelLineKey: ModelLineKey,
     val isStale: Boolean?,
     val latestDate: LocalDate,
+    val earliestDate: LocalDate?,
     val gapDates: List<LocalDate>?,
     val staleDays: Int?,
     val zeroImpressionDates: List<LocalDate>?,
     val datesWithoutDoneBlob: List<LocalDate>?,
     val lateArrivingDates: List<LocalDate>?,
+    val unprocessedDoneDates: List<LocalDate>?,
     val healthyDates: List<LocalDate>?,
     val spuriousDeletionCount: Int?,
     val legitimateDeletionCount: Int?,
@@ -146,6 +158,7 @@ class DataAvailabilityMonitor(
   suspend fun checkFullStatus(
     maxStaleDays: Int,
     timeZone: ZoneId,
+    unprocessedDoneThreshold: Duration,
     clock: () -> LocalDate = { LocalDate.now(timeZone) },
     spuriousDeletionLookbackDays: Int?,
   ): MonitorResult {
@@ -175,7 +188,8 @@ class DataAvailabilityMonitor(
 
     val statuses =
       activeModelLines.map { modelLineKey ->
-        val dateInfo = getDateInfoForModelLine(modelLineKey, spuriousDeletionInterval)
+        val dateInfo =
+          getDateInfoForModelLine(modelLineKey, spuriousDeletionInterval, unprocessedDoneThreshold)
         buildFullStatus(modelLineKey, dateInfo, today, maxStaleDays)
       }
     statuses.forEach { recordMetrics(it) }
@@ -191,10 +205,10 @@ class DataAvailabilityMonitor(
    * @return A [MonitorResult] with one [ModelLineStatus] per model line in [activeModelLines], in
    *   the same iteration order.
    */
-  suspend fun checkGaps(): MonitorResult {
+  suspend fun checkGaps(unprocessedDoneThreshold: Duration): MonitorResult {
     val statuses =
       activeModelLines.map { modelLineKey ->
-        val dateInfo = getDateInfoForModelLine(modelLineKey, null)
+        val dateInfo = getDateInfoForModelLine(modelLineKey, null, unprocessedDoneThreshold)
         buildGapStatus(modelLineKey, dateInfo)
       }
     statuses.forEach { recordMetrics(it) }
@@ -215,11 +229,13 @@ class DataAvailabilityMonitor(
         modelLineKey = modelLineKey,
         isStale = null,
         latestDate = today,
+        earliestDate = null,
         gapDates = null,
         staleDays = null,
         zeroImpressionDates = null,
         datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
         lateArrivingDates = null,
+        unprocessedDoneDates = null,
         healthyDates = null,
         spuriousDeletionCount = dateInfo.spuriousDeletionCount,
         legitimateDeletionCount = dateInfo.legitimateDeletionCount,
@@ -230,7 +246,8 @@ class DataAvailabilityMonitor(
     val latestDate = sortedDates.last()
     val staleDays = (today.toEpochDay() - latestDate.toEpochDay()).toInt()
     val isStale = staleDays > maxStaleDays
-    val gapDates = findGaps(sortedDates)
+    val gapDates =
+      DataAvailabilityBlobs.findGaps(dateInfo.datesWithDoneBlob + dateInfo.datesWithoutDoneBlob)
 
     logger.log(
       Level.INFO,
@@ -251,11 +268,13 @@ class DataAvailabilityMonitor(
       modelLineKey = modelLineKey,
       isStale = isStale,
       latestDate = latestDate,
+      earliestDate = sortedDates.first(),
       gapDates = gapDates,
       staleDays = staleDays,
       zeroImpressionDates = dateInfo.zeroImpressionDates,
       datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
       lateArrivingDates = dateInfo.lateArrivingDates,
+      unprocessedDoneDates = dateInfo.unprocessedDoneDates,
       healthyDates = dateInfo.healthyDates,
       spuriousDeletionCount = dateInfo.spuriousDeletionCount,
       legitimateDeletionCount = dateInfo.legitimateDeletionCount,
@@ -271,11 +290,13 @@ class DataAvailabilityMonitor(
         modelLineKey = modelLineKey,
         isStale = null,
         latestDate = LocalDate.MIN,
+        earliestDate = null,
         gapDates = null,
         staleDays = null,
         zeroImpressionDates = null,
         datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
         lateArrivingDates = null,
+        unprocessedDoneDates = null,
         healthyDates = null,
         spuriousDeletionCount = dateInfo.spuriousDeletionCount,
         legitimateDeletionCount = dateInfo.legitimateDeletionCount,
@@ -283,7 +304,8 @@ class DataAvailabilityMonitor(
     }
 
     val sortedDates = uploadedDates.sorted()
-    val gapDates = findGaps(sortedDates)
+    val gapDates =
+      DataAvailabilityBlobs.findGaps(dateInfo.datesWithDoneBlob + dateInfo.datesWithoutDoneBlob)
 
     logger.log(
       Level.INFO,
@@ -298,11 +320,13 @@ class DataAvailabilityMonitor(
       modelLineKey = modelLineKey,
       isStale = null,
       latestDate = sortedDates.last(),
+      earliestDate = sortedDates.first(),
       gapDates = gapDates,
       staleDays = null,
       zeroImpressionDates = dateInfo.zeroImpressionDates,
       datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
       lateArrivingDates = dateInfo.lateArrivingDates,
+      unprocessedDoneDates = dateInfo.unprocessedDoneDates,
       healthyDates = dateInfo.healthyDates,
       spuriousDeletionCount = dateInfo.spuriousDeletionCount,
       legitimateDeletionCount = dateInfo.legitimateDeletionCount,
@@ -337,6 +361,13 @@ class DataAvailabilityMonitor(
           "${dateInfo.lateArrivingDates}",
       )
     }
+    if (dateInfo.unprocessedDoneDates.isNotEmpty()) {
+      logger.log(
+        Level.WARNING,
+        "Model line $modelLineName has unprocessed done blobs (DataAvailabilitySync did not " +
+          "complete): ${dateInfo.unprocessedDoneDates}",
+      )
+    }
   }
 
   /** Info about uploaded dates for a model line. */
@@ -345,6 +376,7 @@ class DataAvailabilityMonitor(
     val zeroImpressionDates: List<LocalDate>,
     val datesWithoutDoneBlob: List<LocalDate>,
     val lateArrivingDates: List<LocalDate>,
+    val unprocessedDoneDates: List<LocalDate>,
     val healthyDates: List<LocalDate>,
     val spuriousDeletionCount: Int?,
     val legitimateDeletionCount: Int?,
@@ -354,12 +386,13 @@ class DataAvailabilityMonitor(
   private suspend fun getDateInfoForModelLine(
     modelLineKey: ModelLineKey,
     spuriousDeletionInterval: Interval?,
+    unprocessedDoneThreshold: Duration,
   ): DateInfo {
     val modelLineId = modelLineKey.modelLineId
     val prefix =
       if (edpImpressionPath.isEmpty()) "model-line/$modelLineId/"
       else "$edpImpressionPath/model-line/$modelLineId/"
-    val baseInfo = getDateInfo(prefix)
+    val baseInfo = getDateInfo(prefix, unprocessedDoneThreshold)
 
     val spuriousInterval = spuriousDeletionInterval ?: return baseInfo
 
@@ -424,94 +457,85 @@ class DataAvailabilityMonitor(
   }
 
   /**
-   * Discovers date folders under the given prefix using delimiter-based listing, then checks each
-   * date folder for a "done" blob and at least one data file.
-   *
-   * This avoids enumerating all blobs in every date folder, which can be slow when folders contain
-   * thousands of files. Instead, it:
-   * 1. Lists date-level prefixes using [StorageClient.listBlobKeysAndPrefixes].
-   * 2. For each date, checks for the "done" blob via [StorageClient.getBlob].
-   * 3. For dates with a done blob, checks for at least one data file via [StorageClient.listBlobs].
-   *
-   * Expected path format: `{prefix}{date}/done` and `{prefix}{date}/other_files`
+   * Layers Monitor-specific classification (zero-impression, late-arrival, unprocessed-done,
+   * healthy) on top of [DataAvailabilityBlobs.enumerateDateInfo]'s storage-level classification.
    */
-  private suspend fun getDateInfo(prefix: String): DateInfo {
-    val datesWithDone = mutableSetOf<LocalDate>()
+  private suspend fun getDateInfo(prefix: String, unprocessedDoneThreshold: Duration): DateInfo {
+    val enumerated = DataAvailabilityBlobs.enumerateDateInfo(storageClient, prefix)
     val zeroImpressionDatesList = mutableListOf<LocalDate>()
-    val datesWithoutDoneBlobList = mutableListOf<LocalDate>()
     val lateArrivingDatesList = mutableListOf<LocalDate>()
+    val unprocessedDoneDatesList = mutableListOf<LocalDate>()
     val healthyDatesList = mutableListOf<LocalDate>()
 
-    val datePrefixes = storageClient.listBlobKeysAndPrefixes(prefix).toList()
+    val now = clock()
+    for ((date, doneBlob) in enumerated.datesWithDoneBlob) {
+      val dateString = date.toString()
 
-    for (datePrefix in datePrefixes) {
-      val dateString = datePrefix.removePrefix(prefix).trimEnd('/')
-      val date =
-        try {
-          LocalDate.parse(dateString)
-        } catch (e: DateTimeParseException) {
-          logger.warning("Skipping non-date folder: $dateString")
-          continue
+      // Check if there is at least one non-done file with content
+      val hasData =
+        storageClient.listBlobs("${prefix}$dateString/").take(2).toList().any {
+          !it.blobKey.endsWith("/done") && it.size > 0
         }
+      if (!hasData) {
+        zeroImpressionDatesList.add(date)
+      }
 
-      val doneBlob = storageClient.getBlob("${prefix}$dateString/done")
-      if (doneBlob != null) {
-        datesWithDone.add(date)
+      // Two distinct alert categories share the marker:
+      //   - Sync stamps `synced-by=data-availability-sync` on the `done` blob after it
+      //     successfully processes the date. Absent marker => Sync did not (yet) complete.
+      //   - Sync stamps the same marker on each metadata blob it processes. An unmarked
+      //     metadata blob in a date Sync DID complete for represents late-arriving or
+      //     rewritten data (the EDP overwrote a metadata blob after Sync ran; fresh GCS
+      //     uploads replace prior user-set custom metadata).
+      val doneSynced = DataAvailabilityBlobs.isSynced(doneBlob)
+      val hasLateArrivals =
+        if (doneSynced) {
+          storageClient.listBlobs("${prefix}$dateString/").firstOrNull { isUnsynced(it) } != null
+        } else false
+      if (hasLateArrivals) {
+        lateArrivingDatesList.add(date)
+      }
 
-        // Check if there is at least one non-done file with content
-        val hasData =
-          storageClient.listBlobs("${prefix}$dateString/").take(2).toList().any {
-            !it.blobKey.endsWith("/done") && it.size > 0
-          }
-        if (!hasData) {
-          zeroImpressionDatesList.add(date)
-        }
+      // Done blob exists but lacks the marker. If it has been there long enough that Sync
+      // should reasonably have processed it, flag the date as having an unprocessed done.
+      val doneAge = Duration.between(doneBlob.createTime, now)
+      val isUnprocessedDone = !doneSynced && doneAge >= unprocessedDoneThreshold
+      if (isUnprocessedDone) {
+        unprocessedDoneDatesList.add(date)
+      }
 
-        // Check if any file was updated after the done blob, indicating late-arriving data.
-        val hasLateArrivals =
-          storageClient
-            .listBlobsUpdatedAfter("${prefix}$dateString/", doneBlob.updateTime)
-            .take(2)
-            .toList()
-            .any { !it.blobKey.endsWith("/done") && it.size > 0 }
-        if (hasLateArrivals) {
-          lateArrivingDatesList.add(date)
-        }
-
-        if (hasData && !hasLateArrivals) {
-          healthyDatesList.add(date)
-        }
-      } else {
-        datesWithoutDoneBlobList.add(date)
+      if (hasData && !hasLateArrivals && !isUnprocessedDone) {
+        healthyDatesList.add(date)
       }
     }
 
     return DateInfo(
-      datesWithDoneBlob = datesWithDone,
+      datesWithDoneBlob = enumerated.datesWithDoneBlob.keys,
       zeroImpressionDates = zeroImpressionDatesList.sorted(),
-      datesWithoutDoneBlob = datesWithoutDoneBlobList.sorted(),
+      datesWithoutDoneBlob = enumerated.datesWithoutDoneBlob,
       lateArrivingDates = lateArrivingDatesList.sorted(),
+      unprocessedDoneDates = unprocessedDoneDatesList.sorted(),
       healthyDates = healthyDatesList.sorted(),
       spuriousDeletionCount = null,
       legitimateDeletionCount = null,
     )
   }
 
-  /** Finds dates that are missing in the sequence between the first and last date. */
-  private fun findGaps(sortedDates: List<LocalDate>): List<LocalDate> {
-    if (sortedDates.size <= 1) return emptyList()
-
-    val dateSet = sortedDates.toSet()
-    return generateSequence(sortedDates.first().plusDays(1)) { it.plusDays(1) }
-      .takeWhile { it.isBefore(sortedDates.last()) }
-      .filter { it !in dateSet }
-      .toList()
-  }
+  /** Returns true if [blob] is a metadata file that has not been marked as synced. */
+  private fun isUnsynced(blob: StorageClient.Blob): Boolean =
+    DataAvailabilityBlobs.isMetadataBlob(blob) && !DataAvailabilityBlobs.isSynced(blob)
 
   private fun recordMetrics(status: ModelLineStatus) {
     val modelLineName = status.modelLineKey.toName()
     val baseAttrs =
-      Attributes.of(MODEL_LINE_ATTR, modelLineName, EDP_IMPRESSION_PATH_ATTR, edpImpressionPath)
+      Attributes.of(
+        DataAvailabilityMonitorMetrics.MODEL_LINE_ATTR,
+        modelLineName,
+        DataAvailabilityMonitorMetrics.EDP_IMPRESSION_PATH_ATTR,
+        edpImpressionPath,
+        DataAvailabilityMonitorMetrics.SOURCE_ATTR,
+        DataAvailabilityMonitorMetrics.SOURCE_MONITOR,
+      )
 
     if (status.staleDays != null) {
       DataAvailabilityMonitorMetrics.staleDaysGauge.set(status.staleDays.toLong(), baseAttrs)
@@ -541,6 +565,10 @@ class DataAvailabilityMonitor(
       status.lateArrivingDates?.size ?: 0,
       DataAvailabilityMonitorMetrics.STATUS_LATE_ARRIVING,
     )
+    addDateCount(
+      status.unprocessedDoneDates?.size ?: 0,
+      DataAvailabilityMonitorMetrics.STATUS_UNPROCESSED_DONE,
+    )
     addDateCount(status.healthyDates?.size ?: 0, DataAvailabilityMonitorMetrics.STATUS_HEALTHY)
     addDateCount(
       status.spuriousDeletionCount ?: 0,
@@ -559,10 +587,5 @@ class DataAvailabilityMonitor(
      * checked on Monday) plus one day of buffer for processing delays.
      */
     const val DEFAULT_MAX_STALE_DAYS = 3
-
-    val MODEL_LINE_ATTR: AttributeKey<String> =
-      AttributeKey.stringKey("edpa.data_availability_monitor.model_line")
-    val EDP_IMPRESSION_PATH_ATTR: AttributeKey<String> =
-      AttributeKey.stringKey("edpa.data_availability_monitor.edp_impression_path")
   }
 }

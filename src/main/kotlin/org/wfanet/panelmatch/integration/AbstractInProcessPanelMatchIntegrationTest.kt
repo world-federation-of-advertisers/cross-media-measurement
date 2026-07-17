@@ -116,7 +116,12 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
 
   private val kingdomDataServicesProvider = KingdomDataServicesProviderRule(spannerEmulator)
   private val inProcessKingdom =
-    InProcessKingdom({ kingdomDataServicesProvider.value }, REDIRECT_URI)
+    InProcessKingdom(
+      { kingdomDataServicesProvider.value },
+      REDIRECT_URI,
+      hmssEnabled = false,
+      trusTeeEnabled = false,
+    )
   private val resourceSetup by lazy { inProcessKingdom.panelMatchResourceSetup }
 
   private lateinit var exchangesClient: ExchangesCoroutineStub

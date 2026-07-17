@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
 
+import com.google.common.truth.Truth.assertThat as standardAssertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.DayOfWeek
 import com.google.type.copy
@@ -45,6 +46,7 @@ import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
+import org.wfanet.measurement.internal.reporting.v2.reportingSetKey
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.reportingUnit
 import org.wfanet.measurement.internal.reporting.v2.resultGroup
@@ -236,6 +238,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -246,6 +249,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_2_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -302,6 +306,260 @@ class BasicReportProcessedResultsTransformationTest {
                         ResultGroupKt.MetricSetKt.componentMetricSet {
                           cumulative =
                             ResultGroupKt.MetricSetKt.basicMetricSet { impressions = 200 }
+                          cumulativeUnique =
+                            ResultGroupKt.MetricSetKt.uniqueMetricSet {
+                              reach = 15 // 25 - 10
+                            }
+                        }
+                    }
+                }
+            }
+        }
+      )
+
+    assertThat(resultGroups)
+      .ignoringRepeatedFieldOrder()
+      .containsExactlyElementsIn(expectedResultGroups)
+  }
+
+  @Test
+  fun `buildResultGroups creates ReportingSet components for a ReportingSet reporting unit`() {
+    val componentReportingSet1Id = "component-reporting-set-1"
+    val componentReportingSet2Id = "component-reporting-set-2"
+    val unionReportingSetId = "union-reporting-set"
+
+    val basicReport = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      details = basicReportDetails {
+        impressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        effectiveImpressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        reportingInterval = REPORTING_INTERVAL
+        resultGroupSpecs += resultGroupSpec {
+          title = "result-group-1"
+          reportingUnit = reportingUnit {
+            reportingSetKeys =
+              ReportingUnitKt.reportingSetKeys {
+                reportingSetKeys += reportingSetKey {
+                  externalReportingSetId = componentReportingSet1Id
+                }
+                reportingSetKeys += reportingSetKey {
+                  externalReportingSetId = componentReportingSet2Id
+                }
+              }
+          }
+          metricFrequency = metricFrequencySpec { total = true }
+          dimensionSpec = dimensionSpec {
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.age_group" }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                stackedIncrementalReach = true
+              }
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                cumulative =
+                  ResultGroupMetricSpecKt.basicMetricSetSpec {
+                    reach = true
+                    impressions = true
+                  }
+                cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+              }
+          }
+        }
+      }
+    }
+
+    val reportingSetResults =
+      listOf(
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 1
+          dimension =
+            ReportingSetResultKt.dimension {
+              externalReportingSetId = componentReportingSet1Id
+              externalImpressionQualificationFilterId =
+                IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
+              metricFrequencySpec = metricFrequencySpec { total = true }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
+            }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  processedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 10
+                          impressions = 100
+                        }
+                    }
+                }
+            }
+        },
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 2
+          dimension =
+            ReportingSetResultKt.dimension {
+              externalReportingSetId = componentReportingSet2Id
+              externalImpressionQualificationFilterId =
+                IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
+              metricFrequencySpec = metricFrequencySpec { total = true }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
+            }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  processedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 20
+                          impressions = 200
+                        }
+                    }
+                }
+            }
+        },
+        // Result for the union composite over the two component ReportingSets (the create side
+        // mints this).
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 3
+          dimension =
+            ReportingSetResultKt.dimension {
+              externalReportingSetId = unionReportingSetId
+              externalImpressionQualificationFilterId =
+                IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
+              metricFrequencySpec = metricFrequencySpec { total = true }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
+            }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  processedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
+                    }
+                }
+            }
+        },
+      )
+
+    val compositeReportingSetIdBySetExpression =
+      mapOf(
+        buildUnionSetExpression(listOf(componentReportingSet1Id, componentReportingSet2Id)) to
+          unionReportingSetId
+      )
+
+    val resultGroups =
+      buildResultGroups(
+        basicReport,
+        reportingSetResults,
+        emptyMap(),
+        compositeReportingSetIdBySetExpression,
+      )
+
+    val expectedResultGroups =
+      listOf(
+        resultGroup {
+          title = "result-group-1"
+          results +=
+            ResultGroupKt.result {
+              metadata =
+                ResultGroupKt.metricMetadata {
+                  reportingUnitSummary =
+                    ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
+                      reportingUnitComponentSummary +=
+                        ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
+                          externalReportingSetId = componentReportingSet1Id
+                        }
+                      reportingUnitComponentSummary +=
+                        ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
+                          externalReportingSetId = componentReportingSet2Id
+                        }
+                    }
+                  cumulativeMetricStartTime = REPORTING_INTERVAL.effectiveReportStart.toTimestamp()
+                  metricEndTime =
+                    REPORTING_INTERVAL.effectiveReportStart
+                      .copy {
+                        year = REPORTING_INTERVAL.reportEnd.year
+                        month = REPORTING_INTERVAL.reportEnd.month
+                        day = REPORTING_INTERVAL.reportEnd.day
+                      }
+                      .toTimestamp()
+                  metricFrequencySpec = metricFrequencySpec { total = true }
+                  dimensionSpecSummary =
+                    ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
+                      groupings += eventTemplateField {
+                        path = "person.age_group"
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                      }
+                    }
+                  filter = IMPRESSION_QUALIFICATION_FILTER_1
+                }
+              metricSet =
+                ResultGroupKt.metricSet {
+                  populationSize = 100
+                  reportingUnit =
+                    ResultGroupKt.MetricSetKt.reportingUnitMetricSet {
+                      cumulative = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
+                      stackedIncrementalReach += 10
+                      stackedIncrementalReach += 15 // 25 - 10
+                    }
+                  reportingSetComponents +=
+                    ResultGroupKt.MetricSetKt.reportingSetComponentMetricSetMapEntry {
+                      externalReportingSetId = componentReportingSet1Id
+                      value =
+                        ResultGroupKt.MetricSetKt.componentMetricSet {
+                          cumulative =
+                            ResultGroupKt.MetricSetKt.basicMetricSet {
+                              reach = 10
+                              impressions = 100
+                            }
+                          cumulativeUnique =
+                            ResultGroupKt.MetricSetKt.uniqueMetricSet {
+                              reach = 5 // 25 - 20
+                            }
+                        }
+                    }
+                  reportingSetComponents +=
+                    ResultGroupKt.MetricSetKt.reportingSetComponentMetricSetMapEntry {
+                      externalReportingSetId = componentReportingSet2Id
+                      value =
+                        ResultGroupKt.MetricSetKt.componentMetricSet {
+                          cumulative =
+                            ResultGroupKt.MetricSetKt.basicMetricSet {
+                              reach = 20
+                              impressions = 200
+                            }
                           cumulativeUnique =
                             ResultGroupKt.MetricSetKt.uniqueMetricSet {
                               reach = 15 // 25 - 10
@@ -526,6 +784,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -536,6 +795,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_2_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -612,6 +872,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -783,6 +1044,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -793,6 +1055,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_2_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -940,6 +1203,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -1100,6 +1364,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -1353,6 +1618,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -1363,6 +1629,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_2_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -1439,6 +1706,448 @@ class BasicReportProcessedResultsTransformationTest {
     assertThat(resultGroups)
       .ignoringRepeatedFieldOrder()
       .containsExactlyElementsIn(expectedResultGroups)
+  }
+
+  @Test
+  fun `buildResultGroups handles weekly cumulative union alongside per-EDP non-cumulative`() {
+    // Regression for issue #4132.
+    //
+    // Under a weekly cadence with `reporting_unit.cumulative` requested but no
+    // `reporting_unit.non_cumulative`, the union composite ReportingSetResult is written as a
+    // single
+    // whole-report bucket keyed by `end=report_end` with NO `non_cumulative_start`. The
+    // per-primitive `component.non_cumulative` RSRs are written per-week and DO have
+    // `non_cumulative_start`. Those go to distinct window keys in the read map (one
+    // key per `nonCumulativeWindowStartDate`), so the composite union isn't in the
+    // per-week window's map and the per-primitives aren't in the union's window map.
+    //
+    // Pre-fix: `buildResults` unconditionally called `buildReportingUnitMetricSet` and
+    // `buildComponentMetricSet` for every window, causing
+    // `Map.getValue(...)` to throw `NoSuchElementException` -> `INTERNAL` from
+    // `GetBasicReport`. Post-fix: the read skips a component / reporting_unit metric
+    // set when the required ReportingSetResult isn't in that window.
+    val basicReport = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      details = basicReportDetails {
+        impressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        effectiveImpressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        reportingInterval = REPORTING_INTERVAL
+        resultGroupSpecs += resultGroupSpec {
+          title = "weekly-cross-media"
+          reportingUnit = reportingUnit {
+            dataProviderKeys =
+              ReportingUnitKt.dataProviderKeys {
+                dataProviderKeys += dataProviderKey { cmmsDataProviderId = DATA_PROVIDER_1_ID }
+                dataProviderKeys += dataProviderKey { cmmsDataProviderId = DATA_PROVIDER_2_ID }
+              }
+          }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+          dimensionSpec = dimensionSpec {}
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                // reporting_unit.cumulative under weekly = whole-report cumulative
+                // union reach; produces a single union ReportingSetResult with no
+                // `non_cumulative_start`.
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              }
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                // Per-primitive weekly non-cumulative; produces one ReportingSetResult per
+                // primitive
+                // with `non_cumulative_start=Monday, end=Monday`.
+                nonCumulative =
+                  ResultGroupMetricSpecKt.basicMetricSetSpec {
+                    reach = true
+                    impressions = true
+                  }
+              }
+          }
+        }
+      }
+    }
+
+    val weeklyStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
+    val reportingSetResults =
+      listOf(
+        // Primitive 1: weekly non-cumulative bucket.
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 1
+          dimension =
+            ReportingSetResultKt.dimension {
+              externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
+              externalImpressionQualificationFilterId =
+                IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
+              metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+              grouping = ReportingSetResultKt.DimensionKt.grouping {}
+            }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart = weeklyStart
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  processedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      nonCumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 10
+                          impressions = 100
+                        }
+                    }
+                }
+            }
+        },
+        // Primitive 2: weekly non-cumulative bucket.
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 2
+          dimension =
+            ReportingSetResultKt.dimension {
+              externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
+              externalImpressionQualificationFilterId =
+                IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
+              metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+              grouping = ReportingSetResultKt.DimensionKt.grouping {}
+            }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart = weeklyStart
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  processedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      nonCumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 20
+                          impressions = 200
+                        }
+                    }
+                }
+            }
+        },
+        // Composite (union): whole-report cumulative bucket with NO nonCumulativeStart.
+        // This is the ReportingSetResult shape that pre-fix caused the crash.
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 3
+          dimension =
+            ReportingSetResultKt.dimension {
+              externalReportingSetId = COMPOSITE_REPORTING_SET_1_2_ID
+              externalImpressionQualificationFilterId =
+                IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
+              metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+              grouping = ReportingSetResultKt.DimensionKt.grouping {}
+            }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  // No nonCumulativeStart -- whole-report cumulative.
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  processedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
+                    }
+                }
+            }
+        },
+      )
+
+    val primitiveInfoByDataProviderId =
+      mapOf(
+        DATA_PROVIDER_1_ID to
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+          ),
+        DATA_PROVIDER_2_ID to
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+          ),
+      )
+    val compositeReportingSetIdBySetExpression =
+      mapOf(
+        buildUnionSetExpression(
+          listOf(PRIMITIVE_REPORTING_SET_1_ID, PRIMITIVE_REPORTING_SET_2_ID)
+        ) to COMPOSITE_REPORTING_SET_1_2_ID
+      )
+
+    // The main assertion: this call must NOT throw NoSuchElementException.
+    val resultGroups =
+      BasicReportProcessedResultsTransformation.buildResultGroups(
+        basicReport,
+        reportingSetResults,
+        primitiveInfoByDataProviderId,
+        compositeReportingSetIdBySetExpression,
+      )
+
+    val allResults = resultGroups.flatMap { it.resultsList }
+
+    // The whole-report cumulative union bucket produces one Result carrying
+    // reporting_unit.cumulative and no per-component metrics.
+    val unionResult =
+      allResults.single {
+        it.metricSet.reportingUnit.hasCumulative() && it.metricSet.componentsList.isEmpty()
+      }
+    standardAssertThat(unionResult.metricSet.reportingUnit.cumulative.reach).isEqualTo(25L)
+
+    // The per-week non-cumulative bucket produces one Result carrying per-primitive
+    // component metrics for BOTH primitives with their exact reach + impressions.
+    val perWeekResult =
+      allResults.single {
+        it.metricSet.componentsList.isNotEmpty() && !it.metricSet.reportingUnit.hasCumulative()
+      }
+    val componentByDpId = perWeekResult.metricSet.componentsList.associateBy { it.key }
+    standardAssertThat(componentByDpId.keys).containsExactly(DATA_PROVIDER_1_ID, DATA_PROVIDER_2_ID)
+    standardAssertThat(componentByDpId.getValue(DATA_PROVIDER_1_ID).value.nonCumulative.reach)
+      .isEqualTo(10L)
+    standardAssertThat(componentByDpId.getValue(DATA_PROVIDER_1_ID).value.nonCumulative.impressions)
+      .isEqualTo(100L)
+    standardAssertThat(componentByDpId.getValue(DATA_PROVIDER_2_ID).value.nonCumulative.reach)
+      .isEqualTo(20L)
+    standardAssertThat(componentByDpId.getValue(DATA_PROVIDER_2_ID).value.nonCumulative.impressions)
+      .isEqualTo(200L)
+  }
+
+  @Test
+  fun `buildResultGroups skips per-primitive component metrics when a primitive's window bucket is absent`() {
+    // Regression for the DATA_PROVIDER-keyed `continue` in buildResults. Under a weekly
+    // cadence with `component.non_cumulative` requested, per-EDP RSRs live in per-week
+    // buckets keyed by `(non_cumulative_start=Monday, end=Monday)`. If one primitive's
+    // ReportingSetResult is missing from a given window's map (legitimate coverage gap: nothing was
+    // computed for that primitive in that window), the read must skip that primitive's
+    // metric slice rather than throw NoSuchElementException.
+    val basicReport = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      details = basicReportDetails {
+        impressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        effectiveImpressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        reportingInterval = REPORTING_INTERVAL
+        resultGroupSpecs += resultGroupSpec {
+          title = "component-only-partial-coverage"
+          reportingUnit = reportingUnit {
+            dataProviderKeys =
+              ReportingUnitKt.dataProviderKeys {
+                dataProviderKeys += dataProviderKey { cmmsDataProviderId = DATA_PROVIDER_1_ID }
+                dataProviderKeys += dataProviderKey { cmmsDataProviderId = DATA_PROVIDER_2_ID }
+              }
+          }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+          dimensionSpec = dimensionSpec {}
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                nonCumulative =
+                  ResultGroupMetricSpecKt.basicMetricSetSpec {
+                    reach = true
+                    impressions = true
+                  }
+              }
+          }
+        }
+      }
+    }
+
+    val weeklyStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
+    val reportingSetResults =
+      listOf(
+        // Only primitive 1 has data for this week. Primitive 2's ReportingSetResult is
+        // intentionally absent.
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 1
+          dimension =
+            ReportingSetResultKt.dimension {
+              externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
+              externalImpressionQualificationFilterId =
+                IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
+              metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+              grouping = ReportingSetResultKt.DimensionKt.grouping {}
+            }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart = weeklyStart
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  processedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      nonCumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 10
+                          impressions = 100
+                        }
+                    }
+                }
+            }
+        }
+      )
+
+    val primitiveInfoByDataProviderId =
+      mapOf(
+        DATA_PROVIDER_1_ID to
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+          ),
+        DATA_PROVIDER_2_ID to
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+          ),
+      )
+
+    // Must not throw NoSuchElementException: Key <PRIMITIVE_REPORTING_SET_2_ID> is missing.
+    val resultGroups =
+      BasicReportProcessedResultsTransformation.buildResultGroups(
+        basicReport,
+        reportingSetResults,
+        primitiveInfoByDataProviderId,
+        compositeReportingSetIdBySetExpression = emptyMap(),
+      )
+
+    val perWeekResult = resultGroups.single().resultsList.single()
+    val componentByDpId = perWeekResult.metricSet.componentsList.associateBy { it.key }
+    // Only the primitive with data appears; the missing one is silently skipped.
+    standardAssertThat(componentByDpId.keys).containsExactly(DATA_PROVIDER_1_ID)
+    standardAssertThat(componentByDpId.getValue(DATA_PROVIDER_1_ID).value.nonCumulative.reach)
+      .isEqualTo(10L)
+    standardAssertThat(componentByDpId.getValue(DATA_PROVIDER_1_ID).value.nonCumulative.impressions)
+      .isEqualTo(100L)
+  }
+
+  @Test
+  fun `buildResultGroups skips per-composite component metrics when a composite's window bucket is absent`() {
+    // Regression for the REPORTING_SET-keyed `continue` in buildResults (mirror of the
+    // DATA_PROVIDER-branch test above). Under a weekly cadence with `component.non_cumulative`
+    // requested on a ReportingSet-keyed reporting_unit, per-composite RSRs live in per-week
+    // buckets keyed by `(non_cumulative_start=Monday, end=Monday)`. If one composite's
+    // ReportingSetResult is
+    // missing from a given window's map (legitimate coverage gap: nothing was computed for
+    // that composite in that window), the read must skip that composite's metric slice rather
+    // than throw NoSuchElementException.
+    val componentReportingSet1Id = "component-reporting-set-1"
+    val componentReportingSet2Id = "component-reporting-set-2"
+
+    val basicReport = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      details = basicReportDetails {
+        impressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        effectiveImpressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        reportingInterval = REPORTING_INTERVAL
+        resultGroupSpecs += resultGroupSpec {
+          title = "reporting-set-component-partial-coverage"
+          reportingUnit = reportingUnit {
+            reportingSetKeys =
+              ReportingUnitKt.reportingSetKeys {
+                reportingSetKeys += reportingSetKey {
+                  externalReportingSetId = componentReportingSet1Id
+                }
+                reportingSetKeys += reportingSetKey {
+                  externalReportingSetId = componentReportingSet2Id
+                }
+              }
+          }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+          dimensionSpec = dimensionSpec {}
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                nonCumulative =
+                  ResultGroupMetricSpecKt.basicMetricSetSpec {
+                    reach = true
+                    impressions = true
+                  }
+              }
+          }
+        }
+      }
+    }
+
+    val weeklyStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
+    val reportingSetResults =
+      listOf(
+        // Only component 1 has data for this week. Component 2's ReportingSetResult is
+        // intentionally absent.
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 1
+          dimension =
+            ReportingSetResultKt.dimension {
+              externalReportingSetId = componentReportingSet1Id
+              externalImpressionQualificationFilterId =
+                IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
+              metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+              grouping = ReportingSetResultKt.DimensionKt.grouping {}
+            }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart = weeklyStart
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  processedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      nonCumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 10
+                          impressions = 100
+                        }
+                    }
+                }
+            }
+        }
+      )
+
+    // Must not throw NoSuchElementException: Key <componentReportingSet2Id> is missing.
+    val resultGroups =
+      BasicReportProcessedResultsTransformation.buildResultGroups(
+        basicReport,
+        reportingSetResults,
+        primitiveInfoByDataProviderId = emptyMap(),
+        compositeReportingSetIdBySetExpression = emptyMap(),
+      )
+
+    val perWeekResult = resultGroups.single().resultsList.single()
+    val componentByRsId =
+      perWeekResult.metricSet.reportingSetComponentsList.associateBy { it.externalReportingSetId }
+    // Only the composite with data appears; the missing one is silently skipped.
+    standardAssertThat(componentByRsId.keys).containsExactly(componentReportingSet1Id)
+    standardAssertThat(componentByRsId.getValue(componentReportingSet1Id).value.nonCumulative.reach)
+      .isEqualTo(10L)
+    standardAssertThat(
+        componentByRsId.getValue(componentReportingSet1Id).value.nonCumulative.impressions
+      )
+      .isEqualTo(100L)
   }
 
   @Test
@@ -1793,6 +2502,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -1803,6 +2513,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_2_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -1813,6 +2524,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_3_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_3_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -2100,6 +2812,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -2110,6 +2823,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_2_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -2169,6 +2883,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -2179,6 +2894,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_2_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -2485,6 +3201,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -2495,6 +3212,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_2_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -2552,6 +3270,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -2562,6 +3281,7 @@ class BasicReportProcessedResultsTransformationTest {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = DATA_PROVIDER_2_ID
+                          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
                           eventGroupSummaries +=
                             ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {

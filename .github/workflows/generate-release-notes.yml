@@ -61,7 +61,7 @@ jobs:
       summary: ${{ steps.generate-release-notes.outputs.summary }}
     steps:
       - name: Checkout (full history)
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -100,9 +100,9 @@ jobs:
           git rev-parse --verify "${NOTES_START_COMMITISH}"
           git rev-parse --verify "${NOTES_END_COMMITISH}"
 
-      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: '3.13'
+          python-version: '3.14'
 
       - name: Fetch PRs data
         id: fetch-prs-data
@@ -154,7 +154,7 @@ jobs:
           }
 
           print_summary() {
-            echo "See the [corresponding milestone](${MILESTONE_URL}) for this release."
+            echo "See the [corresponding milestone](${MILESTONE_URL}?closed=1) for this release."
             print_section "Highlights" "${HIGHLIGHTS}"
             print_section "Issues Addressed" "${ISSUES_ADDRESSED}"
             print_section "Potentially Requiring Action" "${POTENTIALLY_REQUIRING_ACTION}"

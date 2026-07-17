@@ -21,8 +21,13 @@ import org.wfanet.measurement.internal.reporting.postprocessing.reportPostProces
  * returns the same [Report] without any modifications.
  */
 class NoOpReportProcessor : ReportProcessor {
+
   /** Returns the input [report] without any modifications. */
-  override fun processReportJson(report: String, verbose: Boolean): String {
+  override fun processReportJson(
+    report: String,
+    amiMrcExemptedList: List<String>,
+    verbose: Boolean,
+  ): String {
     return report
   }
 
@@ -42,6 +47,30 @@ class NoOpReportProcessor : ReportProcessor {
     report: String,
     projectId: String,
     bucketName: String,
+    verbose: Boolean,
+  ): ReportProcessingOutput {
+    return ReportProcessingOutput(report, reportPostProcessorLog {})
+  }
+
+  /**
+   * Returns the input [report] without any modifications, together with an empty report post
+   * processor log.
+   *
+   * @param report The JSON [String] containing the report data to be processed.
+   * @param projectId The GCS Project ID.
+   * @param bucketName The GCS bucket name.
+   * @param amiMrcExemptedList A list of Event Data Provider (EDP) IDs for which the `ami >= mrc`
+   *   constraint should be exempted.
+   * @param verbose If true, enables verbose logging from the underlying report processor library.
+   *   Default value is false.
+   * @return A [ReportProcessingOutput] that contains the corrected serialized [Report] in JSON
+   *   format that is identical to the input [report] and a default [ReportPostProcessorLog] object.
+   */
+  override suspend fun processReportJsonAndLogResult(
+    report: String,
+    projectId: String,
+    bucketName: String,
+    amiMrcExemptedList: List<String>,
     verbose: Boolean,
   ): ReportProcessingOutput {
     return ReportProcessingOutput(report, reportPostProcessorLog {})

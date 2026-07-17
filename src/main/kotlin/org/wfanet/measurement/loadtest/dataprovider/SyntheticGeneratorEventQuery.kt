@@ -18,39 +18,26 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
-import com.google.protobuf.TypeRegistry
 import java.time.ZoneId
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
-import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
-/** [EventQuery] that uses [SyntheticDataGeneration]. */
+/**
+ * [EventQuery] backed by [SyntheticDataGeneration] over a v2alpha [PopulationSpec].
+ *
+ * The event message type is supplied separately as [eventMessageDescriptor] (as opposed to being
+ * declared on the population spec): v2alpha [PopulationSpec] is event-message-agnostic and carries
+ * its template attributes as packed [com.google.protobuf.Any]s instead.
+ */
 abstract class SyntheticGeneratorEventQuery(
-  val populationSpec: SyntheticPopulationSpec,
+  val populationSpec: PopulationSpec,
   private val eventMessageDescriptor: Descriptors.Descriptor,
   val timeZone: ZoneId,
 ) : EventQuery<DynamicMessage> {
-  init {
-    require(
-      populationSpec.eventMessageTypeUrl == ProtoReflection.getTypeUrl(eventMessageDescriptor)
-    ) {
-      "Incorrect event message descriptor for population spec"
-    }
-  }
-
-  constructor(
-    populationSpec: SyntheticPopulationSpec,
-    typeRegistry: TypeRegistry,
-    timeZone: ZoneId,
-  ) : this(
-    populationSpec,
-    typeRegistry.getDescriptorForTypeUrl(populationSpec.eventMessageTypeUrl),
-    timeZone,
-  )
 
   /** Returns the synthetic data spec for [eventGroup]. */
   protected abstract fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec
@@ -73,9 +60,20 @@ abstract class SyntheticGeneratorEventQuery(
       .filter { EventFilters.matches(it.message, program) }
   }
 
-  override fun getUserVirtualIdUniverse(): Sequence<Long> {
-    // TODO(@kungfucraig): Use EDP support library to retrieve the universe.
-    val vidRange = populationSpec.vidRange
-    return (vidRange.start until vidRange.endExclusive).asSequence()
+  /**
+   * Returns the universe of VIDs across all sub-populations of [populationSpec].
+   *
+   * VIDs are emitted as the union of [PopulationSpec.SubPopulation.vidRangesList], iterating each
+   * range from `startVid` through `endVidInclusive` inclusive. Ranges across sub-populations are
+   * required by [PopulationSpec] to be disjoint.
+   */
+  override fun getUserVirtualIdUniverse(): Sequence<Long> = sequence {
+    for (subpopulation in populationSpec.subpopulationsList) {
+      for (range in subpopulation.vidRangesList) {
+        for (vid in range.startVid..range.endVidInclusive) {
+          yield(vid)
+        }
+      }
+    }
   }
 }

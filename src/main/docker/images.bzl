@@ -141,6 +141,11 @@ COMMON_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/tools:update_schema_image",
         repository = _PREFIX + "/edp-aggregator/update-schema",
     ),
+    struct(
+        name = "sync_event_group_activities_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:sync_event_group_activities_image",
+        repository = _PREFIX + "/edp-aggregator/sync-event-group-activities",
+    ),
 ]
 
 # List of specs for all Docker containers to push to a container registry.
@@ -313,6 +318,11 @@ REPORTING_V2_COMMON_IMAGES = [
         repository = _PREFIX + "/reporting/grpc-gateway",
         image = "//src/main/go/reporting:grpc_gateway_image",
     ),
+    struct(
+        name = "reporting_mcp_server_image",
+        repository = _PREFIX + "/reporting/mcp/server",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/mcp:reporting_mcp_server_daemon_image",
+    ),
 ]
 
 REPORTING_V2_LOCAL_IMAGES = [
@@ -367,6 +377,21 @@ SECURE_COMPUTATION_TEE_APP_IMAGES = [
         name = "gcloud_results_fulfiller_app",
         image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller_image",
         repository = _PREFIX + "/edp-aggregator/results_fulfiller",
+    ),
+    struct(
+        name = "gcloud_subpool_assigner_app",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/subpoolassigner:subpool_assigner_image",
+        repository = _PREFIX + "/edp-aggregator/subpool_assigner",
+    ),
+    struct(
+        name = "gcloud_vid_rank_builder_app",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:vid_rank_builder_image",
+        repository = _PREFIX + "/edp-aggregator/vid_rank_builder",
+    ),
+    struct(
+        name = "gcloud_vid_labeler_app",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeler_image",
+        repository = _PREFIX + "/edp-aggregator/vid_labeler",
     ),
 ]
 

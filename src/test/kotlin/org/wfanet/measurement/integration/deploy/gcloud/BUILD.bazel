@@ -21,43 +21,22 @@ spanner_emulator_test(
 )
 
 kt_jvm_library(
-    name = "gcloud_spanner_in_process_life_of_a_measurement_integration_test",
-    srcs = ["GCloudSpannerInProcessLifeOfAMeasurementIntegrationTest.kt"],
+    name = "gcloud_spanner_in_process_hmss_measurement_integration_test",
+    srcs = ["GCloudSpannerInProcessHmssMeasurementIntegrationTest.kt"],
     data = ["@cloud_spanner_emulator//:emulator"],
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_life_of_a_measurement_integration_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/common/postgres:postgres_duchy_dependency_provider_rule",
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
     ],
 )
 
-# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
-    name = "GCloudSpannerInProcessLifeOfAMeasurementIntegrationTest",
-    size = "large",
-    tags = [
-        "cpu:2",
-        "no-remote-exec",
-    ],
-    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudSpannerInProcessLifeOfAMeasurementIntegrationTest",
-    runtime_deps = [":gcloud_spanner_in_process_life_of_a_measurement_integration_test"],
-)
-
-kt_jvm_library(
-    name = "gcloud_postgres_in_process_life_of_a_measurement_integration_test",
-    srcs = ["GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest.kt"],
-    data = ["@cloud_spanner_emulator//:emulator"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing",
-        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_life_of_a_measurement_integration_test",
-        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/common/postgres:postgres_duchy_dependency_provider_rule",
-        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
-    ],
-)
-
-# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
-java_test(
-    name = "GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest",
+    name = "GCloudSpannerInProcessHmssMeasurementIntegrationTest",
     size = "large",
     # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
     flaky = True,
@@ -65,31 +44,84 @@ java_test(
         "cpu:2",
         "no-remote-exec",
     ],
-    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudPostgresInProcessLifeOfAMeasurementIntegrationTest",
-    runtime_deps = [":gcloud_postgres_in_process_life_of_a_measurement_integration_test"],
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudSpannerInProcessHmssMeasurementIntegrationTest",
+    runtime_deps = [":gcloud_spanner_in_process_hmss_measurement_integration_test"],
 )
 
 kt_jvm_library(
-    name = "gcloud_in_process_life_of_a_report_v2_integration_test",
-    srcs = ["GCloudInProcessLifeOfAReportV2IntegrationTest.kt"],
+    name = "gcloud_spanner_in_process_direct_measurement_integration_test",
+    srcs = ["GCloudSpannerInProcessDirectMeasurementIntegrationTest.kt"],
     data = ["@cloud_spanner_emulator//:emulator"],
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
     ],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing",
-        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_duchy",
-        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_life_of_a_report_integration_test",
-        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/common/postgres:postgres_duchy_dependency_provider_rule",
-        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_life_of_a_measurement_integration_test",
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
-        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/service:services",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/testing",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
     ],
+)
+
+java_test(
+    name = "GCloudSpannerInProcessDirectMeasurementIntegrationTest",
+    size = "large",
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudSpannerInProcessDirectMeasurementIntegrationTest",
+    runtime_deps = [":gcloud_spanner_in_process_direct_measurement_integration_test"],
+)
+
+kt_jvm_library(
+    name = "gcloud_postgres_in_process_direct_measurement_integration_test",
+    srcs = ["GCloudPostgresInProcessDirectMeasurementIntegrationTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_life_of_a_measurement_integration_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/common/postgres:postgres_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "GCloudPostgresInProcessDirectMeasurementIntegrationTest",
+    size = "large",
+    # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
+    flaky = True,
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudPostgresInProcessDirectMeasurementIntegrationTest",
+    runtime_deps = [":gcloud_postgres_in_process_direct_measurement_integration_test"],
+)
+
+kt_jvm_library(
+    name = "gcloud_postgres_in_process_hmss_measurement_integration_test",
+    srcs = ["GCloudPostgresInProcessHmssMeasurementIntegrationTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_life_of_a_measurement_integration_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/common/postgres:postgres_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+    ],
+)
+
+java_test(
+    name = "GCloudPostgresInProcessHmssMeasurementIntegrationTest",
+    size = "large",
+    # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
+    flaky = True,
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudPostgresInProcessHmssMeasurementIntegrationTest",
+    runtime_deps = [":gcloud_postgres_in_process_hmss_measurement_integration_test"],
 )
 
 kt_jvm_test(
@@ -118,9 +150,106 @@ kt_jvm_test(
     ],
 )
 
+kt_jvm_library(
+    name = "gcloud_in_process_direct_only_report_integration_test",
+    srcs = ["GCloudInProcessDirectOnlyReportIntegrationTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_duchy",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_life_of_a_report_integration_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/common/postgres:postgres_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/service:services",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)
+
 # TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
-    name = "GCloudInProcessLifeOfAReportV2IntegrationTest",
+    name = "GCloudInProcessDirectOnlyReportIntegrationTest",
+    size = "large",
+    timeout = "long",
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudInProcessDirectOnlyReportIntegrationTest",
+    runtime_deps = [":gcloud_in_process_direct_only_report_integration_test"],
+)
+
+kt_jvm_library(
+    name = "gcloud_in_process_direct_multiple_report_integration_test",
+    srcs = ["GCloudInProcessDirectMultipleReportIntegrationTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_duchy",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_life_of_a_report_integration_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/common/postgres:postgres_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/service:services",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "GCloudInProcessDirectMultipleReportIntegrationTest",
+    size = "large",
+    timeout = "long",
+    # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
+    flaky = True,
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudInProcessDirectMultipleReportIntegrationTest",
+    runtime_deps = [":gcloud_in_process_direct_multiple_report_integration_test"],
+)
+
+kt_jvm_library(
+    name = "gcloud_in_process_hmss_multi_edp_report_integration_test",
+    srcs = ["GCloudInProcessHmssMultiEdpReportIntegrationTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_duchy",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_life_of_a_report_integration_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/common/postgres:postgres_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/service:services",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "GCloudInProcessHmssMultiEdpReportIntegrationTest",
     size = "large",
     # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
     flaky = True,
@@ -128,8 +257,45 @@ java_test(
         "cpu:2",
         "no-remote-exec",
     ],
-    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudInProcessLifeOfAReportV2IntegrationTest",
-    runtime_deps = [":gcloud_in_process_life_of_a_report_v2_integration_test"],
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudInProcessHmssMultiEdpReportIntegrationTest",
+    runtime_deps = [":gcloud_in_process_hmss_multi_edp_report_integration_test"],
+)
+
+kt_jvm_library(
+    name = "gcloud_in_process_trustee_multi_edp_report_integration_test",
+    srcs = ["GCloudInProcessTrusTeeMultiEdpReportIntegrationTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/postgres/testing",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_duchy",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_life_of_a_report_integration_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/common/postgres:postgres_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/service:services",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "GCloudInProcessTrusTeeMultiEdpReportIntegrationTest",
+    size = "large",
+    # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
+    flaky = True,
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudInProcessTrusTeeMultiEdpReportIntegrationTest",
+    runtime_deps = [":gcloud_in_process_trustee_multi_edp_report_integration_test"],
 )
 
 kt_jvm_library(
@@ -204,8 +370,8 @@ java_test(
 )
 
 kt_jvm_library(
-    name = "gcloud_edp_aggregator_life_of_a_measurement_integration_test",
-    srcs = ["GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest.kt"],
+    name = "gcloud_edp_aggregator_direct_measurement_test",
+    srcs = ["GCloudEdpAggregatorDirectMeasurementTest.kt"],
     data = ["@cloud_spanner_emulator//:emulator"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_edp_aggregator_life_of_a_measurement_integration_test",
@@ -225,16 +391,70 @@ kt_jvm_library(
 
 # TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
-    name = "GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest",
+    name = "GCloudEdpAggregatorDirectMeasurementTest",
     size = "large",
     timeout = "long",
     tags = [
         "cpu:2",
         "no-remote-exec",
     ],
-    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudEdpAggregatorLifeOfAMeasurementIntegrationTest",
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudEdpAggregatorDirectMeasurementTest",
     runtime_deps = [
-        ":gcloud_edp_aggregator_life_of_a_measurement_integration_test",
+        ":gcloud_edp_aggregator_direct_measurement_test",
+        "//imports/java/org/slf4j:simple",
+    ],
+)
+
+kt_jvm_library(
+    name = "gcloud_edp_aggregator_hmss_measurement_test",
+    srcs = ["GCloudEdpAggregatorHmssMeasurementTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_edp_aggregator_life_of_a_measurement_integration_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+    ],
+)
+
+java_test(
+    name = "GCloudEdpAggregatorHmssMeasurementTest",
+    size = "large",
+    timeout = "long",
+    # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
+    flaky = True,
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudEdpAggregatorHmssMeasurementTest",
+    runtime_deps = [
+        ":gcloud_edp_aggregator_hmss_measurement_test",
+        "//imports/java/org/slf4j:simple",
+    ],
+)
+
+kt_jvm_library(
+    name = "gcloud_edp_aggregator_trustee_measurement_test",
+    srcs = ["GCloudEdpAggregatorTrusteeMeasurementTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_edp_aggregator_life_of_a_measurement_integration_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+    ],
+)
+
+java_test(
+    name = "GCloudEdpAggregatorTrusteeMeasurementTest",
+    size = "large",
+    timeout = "long",
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.deploy.gcloud.GCloudEdpAggregatorTrusteeMeasurementTest",
+    runtime_deps = [
+        ":gcloud_edp_aggregator_trustee_measurement_test",
         "//imports/java/org/slf4j:simple",
     ],
 )

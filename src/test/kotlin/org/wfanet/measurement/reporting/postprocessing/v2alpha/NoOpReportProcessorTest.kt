@@ -26,7 +26,7 @@ class NoOpReportProcessorTest {
   @Test
   fun `The default report processor successfully processes a report`() {
     val reportProcessor = NoOpReportProcessor()
-    val processedReport = reportProcessor.processReportJson(SAMPLE_REPORT)
+    val processedReport = reportProcessor.processReportJson(SAMPLE_REPORT, emptyList())
     assertThat(processedReport).isEqualTo(SAMPLE_REPORT)
   }
 
@@ -35,6 +35,28 @@ class NoOpReportProcessorTest {
     val reportProcessor = NoOpReportProcessor()
     val reportProcessingOutput: ReportProcessingOutput = runBlocking {
       reportProcessor.processReportJsonAndLogResult(SAMPLE_REPORT, "projectId", "bucketName")
+    }
+
+    assertThat(reportProcessingOutput.updatedReportJson).isEqualTo(SAMPLE_REPORT)
+  }
+
+  @Test
+  fun `The default report processor successfully processes a report with exemptions`() {
+    val reportProcessor = NoOpReportProcessor()
+    val processedReport = reportProcessor.processReportJson(SAMPLE_REPORT, listOf("edp1"))
+    assertThat(processedReport).isEqualTo(SAMPLE_REPORT)
+  }
+
+  @Test
+  fun `The default report processor successfully processes a report and log result with exemptions`() {
+    val reportProcessor = NoOpReportProcessor()
+    val reportProcessingOutput: ReportProcessingOutput = runBlocking {
+      reportProcessor.processReportJsonAndLogResult(
+        SAMPLE_REPORT,
+        "projectId",
+        "bucketName",
+        listOf("edp1"),
+      )
     }
 
     assertThat(reportProcessingOutput.updatedReportJson).isEqualTo(SAMPLE_REPORT)

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    "abandonments:recommended"
+  ],
+  "assignees": ["laureanobrs"],
+  "vulnerabilityAlerts": {
+    "enabled": false
+  },  
+  "packageRules": [
+    {
+      "groupName": "GitHub Actions",
+      "matchManagers": ["github-actions"],
+      "recreateWhen": "never"
+    },
+    {
+      "groupName": "Bazel rules_oci image digests",
+      "description": "Group Bazel rules_oci image digest updates",
+      "groupSlug": "bazel-rules-oci-image-digests",
+      "matchFileNames": ["MODULE.bazel"],
+      "matchDepNames": [
+        "go_image_base",
+        "java_image_base_root",
+        "py_image_base"
+      ],
+      "matchUpdateTypes": ["digest"],
+      "recreateWhen": "never"
+    },
+    {
+      "groupName": "Python requirements",
+      "groupSlug": "python-requirements",
+      "matchManagers": ["pip_requirements"],
+      "matchFileNames": ["requirements_lock.txt"],
+      "matchPackageNames": ["!grpcio", "!protobuf"],      
+      "recreateWhen": "never"
+    },
+    {
+      "description": "Group grpc updates across Poetry, Bazel module, and pip requirements",
+      "groupName": "grpc",
+      "groupSlug": "grpc",
+      "matchManagers": ["poetry", "bazel-module", "pip_requirements"],
+      "matchFileNames": [
+        "pyproject.toml",
+        "MODULE.bazel",
+        "requirements_lock.txt"
+      ],
+      "matchPackageNames": ["grpcio", "grpc"],
+      "prBodyTemplate": "{{{header}}}{{{notes}}}{{{table}}}{{{warnings}}}{{{changelogs}}}{{{configDescription}}}{{{controls}}}{{{footer}}}",
+      "prHeader": ":warning: This PR should also include the gRPC update in `rules_kotlin_jvm` and `common-jvm`. :warning:",
+      "prBodyNotes": [
+        "See example PRs:",
+        "- **CMM**: world-federation-of-advertisers/cross-media-measurement#2947",
+        "- **rules_kotlin_jvm**: world-federation-of-advertisers/rules_kotlin_jvm#16",
+        "- **common-jvm**: world-federation-of-advertisers/common-jvm#341",
+        "---"
+      ]
+    }
+  ]
+}

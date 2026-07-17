@@ -60,7 +60,7 @@ class DirectMeasurementResultFactoryTest {
           measurementSpec = measurementSpec,
           frequencyData = frequencyData,
           maxPopulation = null,
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = null,
           totalUncappedImpressions = 0L,
         )
@@ -103,7 +103,7 @@ class DirectMeasurementResultFactoryTest {
         measurementSpec = measurementSpec,
         frequencyData = frequencyData,
         maxPopulation = null,
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         impressionMaxFrequencyPerUser = null,
         totalUncappedImpressions = 0L,
       )
@@ -142,7 +142,7 @@ class DirectMeasurementResultFactoryTest {
           measurementSpec = measurementSpec,
           frequencyData = frequencyData,
           maxPopulation = null,
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = null,
           totalUncappedImpressions = 110L,
         )

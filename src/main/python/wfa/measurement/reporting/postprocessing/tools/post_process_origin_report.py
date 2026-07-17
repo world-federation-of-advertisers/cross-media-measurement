@@ -46,6 +46,11 @@ FLAGS = flags.FLAGS
 flags.DEFINE_boolean("debug", False, "Enable debug mode.")
 flags.DEFINE_string("output_file", None, "The output file path.")
 flags.DEFINE_string("input_file", None, "The input file path.")
+flags.DEFINE_list(
+    "ami_mrc_exempted_edps",
+    [],
+    "List of EDPs exempted from AMI >= MRC constraint.",
+)
 
 ami = "ami"
 mrc = "mrc"
@@ -74,13 +79,20 @@ class ReportSummaryProcessor:
                            reach(A U B U C) - reach(B U C).
   """
 
-  def __init__(self, report_summary: report_summary_pb2.ReportSummary()):
+  def __init__(
+      self,
+      report_summary: report_summary_pb2.ReportSummary(),
+      ami_mrc_exempted_edps: list[str],
+  ):
     """Initializes ReportSummaryProcessor with a ReportSummary.
 
     Args:
       report_summary: The ReportSummary proto to process.
+      ami_mrc_exempted_edps: This is a comma-separated list of DataProvider
+        resource names that are exempted from the AMI >= MRC constraints.
     """
     self._report_summary = report_summary
+    self._ami_mrc_exempted_edps = ami_mrc_exempted_edps or []
     self._weekly_cumulative_reaches: dict[MeasurementPolicy, dict[EdpCombination,
                                                   list[Measurement]]] = {}
     self._whole_campaign_reaches: dict[MeasurementPolicy,
@@ -150,9 +162,13 @@ class ReportSummaryProcessor:
     # Builds the report based on the extracted primitive measurements.
     report = Report(
         metric_reports,
-        metric_subsets_by_parent={
-            ami: children_metric} if "ami" in all_policies and children_metric else {},
+        metric_subsets_by_parent=(
+            {ami: children_metric}
+            if "ami" in all_policies and children_metric
+            else {}
+        ),
         cumulative_inconsistency_allowed_edp_combinations={},
+        ami_mrc_exempted_edps=self._ami_mrc_exempted_edps,
         population_size=self._report_summary.population,
     )
 
@@ -480,7 +496,8 @@ def main(argv):
 
   logging.info("Processing the report summary.")
   report_post_processor_result = ReportSummaryProcessor(
-      report_summary).process()
+      report_summary, ami_mrc_exempted_edps=FLAGS.ami_mrc_exempted_edps
+  ).process()
 
   logging.info(
     "Writing the report post processor result to the output file %s.",

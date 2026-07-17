@@ -20,6 +20,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.struct
 import com.google.protobuf.timestamp
 import com.google.protobuf.value
@@ -39,7 +40,6 @@ import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
-import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -57,22 +57,25 @@ import org.wfanet.measurement.access.v1alpha.createRoleRequest
 import org.wfanet.measurement.access.v1alpha.policy
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.access.v1alpha.role
-import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig as PublicProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
@@ -90,15 +93,18 @@ import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.metricSpecConfig
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey as edpaEntityKey
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup as EdpaEventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
+import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
-import org.wfanet.measurement.integration.common.EventGroupEntityOverride
+import org.wfanet.measurement.integration.common.EntityKeySpec
+import org.wfanet.measurement.integration.common.EventGroupConfig
 import org.wfanet.measurement.integration.common.FULFILLER_TOPIC_ID
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
@@ -114,6 +120,7 @@ import org.wfanet.measurement.internal.kingdom.hmssProtocolConfigConfig
 import org.wfanet.measurement.internal.kingdom.trusTeeProtocolConfigConfig
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.job.BasicReportsReportsJob
@@ -131,6 +138,7 @@ import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilterKt
+import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as ReportingReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub as ReportingReportsCoroutineStub
@@ -142,7 +150,6 @@ import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.eventFilter
 import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
-import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
@@ -162,7 +169,20 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
   private val accessServicesFactory: AccessServicesFactory,
   private val reportingDataServicesProviderRule: ProviderRule<Services>,
+  private val duchyNames: List<String> = ALL_DUCHY_NAMES,
+  private val hmssEnabled: Boolean,
+  private val trusTeeEnabled: Boolean,
+  private val multiEdpDisplayNames: Set<String> = emptySet(),
 ) {
+
+  protected val expectedProtocol: PublicProtocolConfig.Protocol.ProtocolCase =
+    when {
+      hmssEnabled && trusTeeEnabled ->
+        error("hmssEnabled and trusTeeEnabled are mutually exclusive")
+      hmssEnabled -> PublicProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE
+      trusTeeEnabled -> PublicProtocolConfig.Protocol.ProtocolCase.TRUS_TEE
+      else -> PublicProtocolConfig.Protocol.ProtocolCase.DIRECT
+    }
 
   private val pubSubClient: GooglePubSubEmulatorClient by lazy {
     GooglePubSubEmulatorClient(
@@ -184,6 +204,9 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       kingdomDataServicesRule,
       duchyDependenciesRule,
       useEdpSimulators = false,
+      duchyNames = duchyNames,
+      hmssEnabled = hmssEnabled,
+      trusTeeEnabled = trusTeeEnabled,
       trusTeeKmsClient = sharedKmsClient,
     )
 
@@ -195,48 +218,112 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     tempDirectory.root.toPath()
   }
 
-  private val syntheticEventGroupMapByEdp =
+  // Each event group config combines the synthetic data spec with entity key configuration.
+  //   - edp1-eg-ref-1: no entity key (legacy; Kingdom defaults entity_type="campaign").
+  //   - edp1-eg-creative-1: entity_type="creative-id".
+  //   - edp1-eg-multi-creative: two creative-id entity keys in the same blob.
+  //   - edp2-eg-ref-1, edp3-eg-ref-1: entity_type="campaign" + entity_id.
+  //   - edp2-eg-creative-1: entity_type="creative-id".
+  //   - edp4-eg-ref-1: entity_type="ad_group" (non-default type round-trip).
+  // listReportingEventGroups() filters entity_type_in=["campaign", "ad_group", "creative-id"]
+  // so all event groups are visible.
+  protected val eventGroupConfigsByEdp: Map<String, Map<String, EventGroupConfig>> =
     mapOf(
-      "edp1" to mapOf("edp1-eg-ref-1" to syntheticEventGroupSpec2),
-      "edp2" to mapOf("edp2-eg-ref-1" to syntheticEventGroupSpec1),
-      "edp3" to mapOf("edp3-eg-ref-1" to syntheticEventGroupSpec2),
-      "edp4" to mapOf("edp4-eg-ref-1" to syntheticEventGroupSpec1),
+      "edp1" to
+        mapOf(
+          "edp1-eg-ref-1" to EventGroupConfig.LegacySpec(syntheticEventGroupSpec2),
+          EDP1_CREATIVE_EVENT_GROUP_REF_ID to
+            EventGroupConfig.MultiEntityKey(
+              entityKeySpecs =
+                listOf(
+                  EntityKeySpec(
+                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_CREATIVE_EVENT_GROUP_REF_ID),
+                    syntheticEventGroupSpec2,
+                    ENTITY_METADATA,
+                  )
+                )
+            ),
+          "multi-creative" to
+            EventGroupConfig.MultiEntityKey(
+              entityKeySpecs =
+                listOf(
+                  EntityKeySpec(
+                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_MULTI_CREATIVE_A_ID),
+                    syntheticEventGroupSpec2,
+                    ENTITY_METADATA,
+                  ),
+                  EntityKeySpec(
+                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP1_MULTI_CREATIVE_B_ID),
+                    syntheticEventGroupSpec2,
+                    ENTITY_METADATA,
+                  ),
+                )
+            ),
+        ),
+      "edp2" to
+        mapOf(
+          "campaign/edp2-eg-ref-1" to
+            EventGroupConfig.MultiEntityKey(
+              entityKeySpecs =
+                listOf(
+                  EntityKeySpec(
+                    EntityKey("campaign", "edp2-eg-ref-1"),
+                    syntheticEventGroupSpec1,
+                    ENTITY_METADATA,
+                  )
+                )
+            ),
+          EDP2_CREATIVE_EVENT_GROUP_REF_ID to
+            EventGroupConfig.MultiEntityKey(
+              entityKeySpecs =
+                listOf(
+                  EntityKeySpec(
+                    EntityKey(CREATIVE_ID_ENTITY_TYPE, EDP2_CREATIVE_EVENT_GROUP_REF_ID),
+                    syntheticEventGroupSpec1,
+                    ENTITY_METADATA,
+                  )
+                )
+            ),
+        ),
+      "edp3" to
+        mapOf(
+          "campaign/edp3-eg-ref-1" to
+            EventGroupConfig.MultiEntityKey(
+              entityKeySpecs =
+                listOf(
+                  EntityKeySpec(
+                    EntityKey("campaign", "edp3-eg-ref-1"),
+                    syntheticEventGroupSpec2,
+                    ENTITY_METADATA,
+                  )
+                )
+            )
+        ),
+      AD_GROUP_EDP_DISPLAY_NAME to
+        mapOf(
+          AD_GROUP_EDP_EVENT_GROUP_REF_ID to
+            EventGroupConfig.MultiEntityKey(
+              entityKeySpecs =
+                listOf(
+                  EntityKeySpec(
+                    EntityKey("ad_group", AD_GROUP_EDP_EVENT_GROUP_REF_ID),
+                    syntheticEventGroupSpec1,
+                    ENTITY_METADATA,
+                  )
+                )
+            )
+        ),
     )
-
-  // Mix of entity_key shapes so the test exercises every path the workstream cares about:
-  //   - edp1: no override (legacy path; Kingdom defaults entity_type="campaign", entity_id NULL).
-  //   - edp2, edp3: overridden with entity_type="campaign" + entity_id + metadata.
-  //   - edp4: overridden with entity_type="ad_group" (non-default type round-trip).
-  // listReportingEventGroups() filters entity_type_in=["campaign", "ad_group"] so edp4 stays
-  // visible to the HMSS/TrusTee correctness tests despite its non-default entity_type.
-  private val entityOverridesByEdp: Map<String, Map<String, EventGroupEntityOverride>> =
-    syntheticEventGroupMapByEdp
-      .filterKeys { it != EDP_NO_ENTITY_KEY_DISPLAY_NAME }
-      .mapValues { (edpDisplayName, edpRefs) ->
-        edpRefs.keys.associateWith { refId ->
-          val entityType =
-            if (edpDisplayName == AD_GROUP_EDP_DISPLAY_NAME) "ad_group" else "campaign"
-          EventGroupEntityOverride(
-            entityKey =
-              edpaEntityKey {
-                this.entityType = entityType
-                this.entityId = refId
-              },
-            entityMetadata = ENTITY_METADATA,
-          )
-        }
-      }
 
   private val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents =
     InProcessEdpAggregatorComponents(
       secureComputationDatabaseAdmin = secureComputationDatabaseAdmin,
       storagePath = tempPath,
       pubSubClient = pubSubClient,
-      syntheticEventGroupMapByEdp = syntheticEventGroupMapByEdp,
-      syntheticPopulationSpec = syntheticPopulationSpec,
+      eventGroupConfigsByEdp = eventGroupConfigsByEdp,
+      populationSpec = populationSpec,
       modelLineInfoMap = modelLineInfoMap,
       externalKmsClient = sharedKmsClient,
-      entityOverridesByEdp = entityOverridesByEdp,
     )
 
   private val daemonsStartup = TestRule { base, _ ->
@@ -261,23 +348,23 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           mapOf(
             "edp1" to
               DataProviderKt.capabilities {
-                honestMajorityShareShuffleSupported = true
-                trusTeeSupported = false
+                honestMajorityShareShuffleSupported = hmssEnabled
+                trusTeeSupported = trusTeeEnabled
               },
             "edp2" to
               DataProviderKt.capabilities {
-                honestMajorityShareShuffleSupported = true
-                trusTeeSupported = true
+                honestMajorityShareShuffleSupported = hmssEnabled
+                trusTeeSupported = trusTeeEnabled
               },
             "edp3" to
               DataProviderKt.capabilities {
-                honestMajorityShareShuffleSupported = false
-                trusTeeSupported = true
+                honestMajorityShareShuffleSupported = hmssEnabled
+                trusTeeSupported = trusTeeEnabled
               },
             "edp4" to
               DataProviderKt.capabilities {
-                honestMajorityShareShuffleSupported = true
-                trusTeeSupported = true
+                honestMajorityShareShuffleSupported = hmssEnabled
+                trusTeeSupported = trusTeeEnabled
               },
           ),
           duchyMap,
@@ -397,14 +484,14 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private val reportingDataProvidersClient by lazy {
     DataProvidersCoroutineStub(reportingServer.publicApiChannel)
   }
-  private val reportingBasicReportsClient by lazy {
+  protected val reportingBasicReportsClient by lazy {
     ReportingBasicReportsCoroutineStub(reportingServer.publicApiChannel)
   }
   private val reportingReportsClient by lazy {
     ReportingReportsCoroutineStub(reportingServer.publicApiChannel)
   }
 
-  private lateinit var credentials: TrustedPrincipalAuthInterceptor.Credentials
+  protected lateinit var credentials: TrustedPrincipalAuthInterceptor.Credentials
 
   @Before
   fun setup() {
@@ -490,221 +577,11 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     credentials = TrustedPrincipalAuthInterceptor.Credentials(principal, setOf("reporting.*"))
   }
 
-  @Test
-  fun `HMSS no noise basic report has the expected result`() = runBlocking {
-    val hmssEventGroups = getHmssEventGroups()
-    check(hmssEventGroups.size > 1)
-
-    val createBasicReportRequest =
-      buildCreateBasicReportRequest(
-        hmssEventGroups,
-        "hmss-campaign",
-        "hmss-basicreport",
-        includeIqfFilter = false,
-      )
-
-    val createdBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .createBasicReport(createBasicReportRequest)
-
-    val retrievedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertRunningBasicReport(createBasicReportRequest, createdBasicReport, retrievedBasicReport)
-
-    executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
-
-    val completedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
-
-    val measurements = listMeasurements()
-    val hmssProtocolMeasurements =
-      measurements.filter { measurement ->
-        measurement.protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }
-      }
-    assertWithMessage("at least one measurement used HMSS protocol")
-      .that(hmssProtocolMeasurements)
-      .isNotEmpty()
-
-    assertStructuralResults(completedBasicReport)
-    assertNoNoiseResults(
-      completedBasicReport,
-      expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
-      expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
-      expectedKPlusReach = EXPECTED_K_PLUS_REACH,
-      expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
-      expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
-    )
-  }
-
-  @Test
-  fun `TrusTee no noise basic report has the expected result`() = runBlocking {
-    val trusTeeEventGroups = getTrusTeeEventGroups()
-    check(trusTeeEventGroups.size > 1)
-
-    val createBasicReportRequest =
-      buildCreateBasicReportRequest(
-        trusTeeEventGroups,
-        "trustee-campaign",
-        "trustee-basicreport",
-        includeIqfFilter = false,
-      )
-
-    val createdBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .createBasicReport(createBasicReportRequest)
-
-    val retrievedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertRunningBasicReport(createBasicReportRequest, createdBasicReport, retrievedBasicReport)
-
-    executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
-
-    val completedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
-
-    val measurements = listMeasurements()
-    val trusTeeProtocolMeasurements =
-      measurements.filter { measurement ->
-        measurement.protocolConfig.protocolsList.any { it.hasTrusTee() }
-      }
-    assertWithMessage("at least one measurement used TrusTee protocol")
-      .that(trusTeeProtocolMeasurements)
-      .isNotEmpty()
-
-    assertStructuralResults(completedBasicReport)
-    assertNoNoiseResults(
-      completedBasicReport,
-      expectedCrossPublisherReach = EXPECTED_CROSS_PUBLISHER_REACH,
-      expectedCrossPublisherImpressions = EXPECTED_CROSS_PUBLISHER_IMPRESSIONS,
-      expectedKPlusReach = EXPECTED_K_PLUS_REACH,
-      expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
-      expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
-    )
-  }
-
-  @Test
-  fun `HMSS no noise basic report fails when EDP requires Gaussian noise`() = runBlocking {
-    val hmssEventGroups = getHmssEventGroupsIncludingRestrictedEdp()
-    check(hmssEventGroups.size > 1)
-
-    val createBasicReportRequest =
-      buildCreateBasicReportRequest(
-        hmssEventGroups,
-        "hmss-gaussian-campaign",
-        "hmss-gaussian-basicreport",
-        includeIqfFilter = false,
-      )
-
-    val createdBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .createBasicReport(createBasicReportRequest)
-
-    executeBasicReportsReportsJob(createdBasicReport.name)
-
-    val completedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
-  }
-
-  @Test
-  fun `TrusTee no noise basic report fails when EDP requires Gaussian noise`() = runBlocking {
-    val trusTeeEventGroups = getTrusTeeEventGroupsIncludingRestrictedEdp()
-    check(trusTeeEventGroups.size > 1)
-
-    val createBasicReportRequest =
-      buildCreateBasicReportRequest(
-        trusTeeEventGroups,
-        "trustee-gaussian-campaign",
-        "trustee-gaussian-basicreport",
-        includeIqfFilter = false,
-      )
-
-    val createdBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .createBasicReport(createBasicReportRequest)
-
-    executeBasicReportsReportsJob(createdBasicReport.name)
-
-    val completedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
-  }
-
-  @Test
-  fun `EDPA EventGroups with explicit entity_key round-trip to the Reporting API`() = runBlocking {
-    val byRefId: Map<String, EventGroup> =
-      listReportingEventGroups().associateBy { it.eventGroupReferenceId }
-
-    for ((_, refOverrides) in entityOverridesByEdp) {
-      for ((refId, override) in refOverrides) {
-        val eventGroup = byRefId.getValue(refId)
-        assertWithMessage("entity_key.entity_type for $refId")
-          .that(eventGroup.entityKey.entityType)
-          .isEqualTo(override.entityKey!!.entityType)
-        assertWithMessage("entity_key.entity_id for $refId")
-          .that(eventGroup.entityKey.entityId)
-          .isEqualTo(override.entityKey!!.entityId)
-        assertWithMessage("entity_metadata for $refId")
-          .that(eventGroup.eventGroupMetadata.entityMetadata)
-          .isEqualTo(override.entityMetadata)
-      }
-    }
-  }
-
-  @Test
-  fun `EDPA EventGroups without entity_key default to campaign with no entity_id or metadata`() =
-    runBlocking {
-      val byRefId: Map<String, EventGroup> =
-        listReportingEventGroups().associateBy { it.eventGroupReferenceId }
-
-      val legacy: EventGroup = byRefId.getValue(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID)
-      assertThat(legacy.entityKey.entityType).isEqualTo("campaign")
-      assertThat(legacy.entityKey.entityId).isEmpty()
-      assertThat(legacy.eventGroupMetadata.hasEntityMetadata()).isFalse()
-    }
-
-  @Test
-  fun `EDPA EventGroups with non-default entity_type round-trip through Reporting`() = runBlocking {
-    val byRefId: Map<String, EventGroup> =
-      listReportingEventGroups().associateBy { it.eventGroupReferenceId }
-
-    val adGroupEventGroup = byRefId.getValue(AD_GROUP_EDP_EVENT_GROUP_REF_ID)
-    assertThat(adGroupEventGroup.entityKey.entityType).isEqualTo("ad_group")
-    assertThat(adGroupEventGroup.entityKey.entityId).isEqualTo(AD_GROUP_EDP_EVENT_GROUP_REF_ID)
-    assertThat(adGroupEventGroup.eventGroupMetadata.entityMetadata).isEqualTo(ENTITY_METADATA)
-  }
-
   /**
    * Checks structural invariants on basic report results: all metrics are positive, k+ reach is
    * monotonically non-increasing, and component-level metrics are present.
    */
-  private fun assertStructuralResults(basicReport: BasicReport) {
+  protected fun assertStructuralResults(basicReport: BasicReport) {
     basicReport.resultGroupsList.forEach { resultGroup ->
       val totalResults =
         resultGroup.resultsList.filter {
@@ -778,7 +655,9 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
    * ranges) so that the cross-publisher reach (union of VIDs) is strictly greater than any
    * individual EDP's reach.
    */
-  private fun assertNoNoiseResults(
+  // Protected so subclasses can call this from their assertTrusTeeMetricResults overrides
+  // with different expected values (e.g. after fold-down changes k+ reach).
+  protected fun assertNoNoiseResults(
     basicReport: BasicReport,
     expectedCrossPublisherReach: Long,
     expectedCrossPublisherImpressions: Long,
@@ -875,10 +754,57 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .isLessThan(componentReaches.sum())
   }
 
-  private fun assertRunningBasicReport(
+  protected fun assertSingleEdpNoNoiseResults(
+    basicReport: BasicReport,
+    expectedReach: Long,
+    expectedImpressions: Long,
+    expectedKPlusReach: List<Long>,
+  ) {
+    assertWithMessage("result groups").that(basicReport.resultGroupsList).hasSize(1)
+
+    val resultGroup = basicReport.resultGroupsList.single()
+    val totalResults =
+      resultGroup.resultsList.filter {
+        it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
+      }
+    assertWithMessage("total results").that(totalResults).hasSize(1)
+
+    val result = totalResults.single()
+    val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
+
+    assertWithMessage("population size").that(result.metricSet.populationSize).isGreaterThan(0)
+
+    assertWithMessage("reach").that(reportingUnitCumulative.reach).isEqualTo(expectedReach)
+
+    assertWithMessage("impressions")
+      .that(reportingUnitCumulative.impressions)
+      .isEqualTo(expectedImpressions)
+
+    assertWithMessage("k+ reach")
+      .that(reportingUnitCumulative.kPlusReachList)
+      .containsExactlyElementsIn(expectedKPlusReach)
+      .inOrder()
+
+    assertWithMessage("number of components").that(result.metricSet.componentsCount).isEqualTo(1)
+
+    val component = result.metricSet.componentsList.single()
+    val componentCumulative = component.value.cumulative
+
+    assertWithMessage("component reach").that(componentCumulative.reach).isEqualTo(expectedReach)
+
+    assertWithMessage("component impressions")
+      .that(componentCumulative.impressions)
+      .isEqualTo(expectedImpressions)
+  }
+
+  protected fun assertRunningBasicReport(
     createBasicReportRequest: CreateBasicReportRequest,
     createdBasicReport: BasicReport,
     retrievedBasicReport: BasicReport,
+    // Defaults to the caller-supplied campaign_group (the DataProvider-component case, where it
+    // equals effective_campaign_group). For ReportingSet components campaign_group is empty and the
+    // server synthesizes one, so callers pass the synthesized effective_campaign_group explicitly.
+    expectedEffectiveCampaignGroup: String = createBasicReportRequest.basicReport.campaignGroup,
   ) {
     assertThat(retrievedBasicReport)
       .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
@@ -889,6 +815,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           this.effectiveImpressionQualificationFilters +=
             retrievedBasicReport.impressionQualificationFiltersList
           this.effectiveModelLine = inProcessCmmsComponents.modelLineResourceName
+          this.effectiveCampaignGroup = expectedEffectiveCampaignGroup
           this.reportingInterval =
             this.reportingInterval.copy {
               this.effectiveReportStart =
@@ -899,33 +826,39 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     assertThat(retrievedBasicReport.createTime).isEqualTo(createdBasicReport.createTime)
   }
 
-  private suspend fun buildCreateBasicReportRequest(
+  protected suspend fun buildCreateBasicReportRequest(
     eventGroups: List<EventGroup>,
-    campaignGroupId: String,
+    campaignGroupId: String?,
     basicReportId: String,
     includeIqfFilter: Boolean = true,
   ): CreateBasicReportRequest {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val measurementConsumerKey = MeasurementConsumerKey.fromName(measurementConsumerData.name)!!
 
-    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, campaignGroupId)
-    val campaignGroup =
-      reportingReportingSetsClient
-        .withCallCredentials(credentials)
-        .createReportingSet(
-          createReportingSetRequest {
-            parent = measurementConsumerData.name
-            reportingSet = reportingSet {
-              displayName = "campaign group"
-              campaignGroup = campaignGroupKey.toName()
-              primitive =
-                ReportingSetKt.primitive {
-                  cmmsEventGroups += eventGroups.take(2).map { it.cmmsEventGroup }
-                }
+    // A null campaignGroupId means the caller omits campaign_group so the server synthesizes one,
+    // which is required for ReportingSet-component reporting units.
+    val campaignGroup: ReportingSet? =
+      if (campaignGroupId == null) {
+        null
+      } else {
+        val campaignGroupKey = ReportingSetKey(measurementConsumerKey, campaignGroupId)
+        reportingReportingSetsClient
+          .withCallCredentials(credentials)
+          .createReportingSet(
+            createReportingSetRequest {
+              parent = measurementConsumerData.name
+              reportingSet = reportingSet {
+                displayName = "campaign group"
+                campaignGroup = campaignGroupKey.toName()
+                primitive =
+                  ReportingSetKt.primitive {
+                    cmmsEventGroups += eventGroups.take(2).map { it.cmmsEventGroup }
+                  }
+              }
+              reportingSetId = campaignGroupKey.reportingSetId
             }
-            reportingSetId = campaignGroupKey.reportingSetId
-          }
-        )
+          )
+      }
 
     val basicReportKey =
       BasicReportKey(
@@ -938,8 +871,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       this.basicReportId = basicReportKey.basicReportId
       basicReport = basicReport {
         title = "title"
-        this.campaignGroup = campaignGroup.name
-        campaignGroupDisplayName = campaignGroup.displayName
+        if (campaignGroup != null) {
+          this.campaignGroup = campaignGroup.name
+          campaignGroupDisplayName = campaignGroup.displayName
+        }
         modelLine = inProcessCmmsComponents.modelLineResourceName
         reportingInterval = reportingInterval {
           reportStart = dateTime {
@@ -961,7 +896,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         resultGroupSpecs += resultGroupSpec {
           title = "title"
           reportingUnit = reportingUnit {
-            components += eventGroups.take(2).map { it.cmmsDataProvider }
+            components += eventGroups.map { it.cmmsDataProvider }.distinct()
           }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {}
@@ -1000,7 +935,35 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
-  private suspend fun listMeasurements(): List<Measurement> {
+  /**
+   * Creates a primitive [ReportingSet] spanning [cmmsEventGroups], for use as a [ReportingUnit]
+   * component.
+   *
+   * The `campaign_group` field is intentionally left empty: a ReportingSet component does not
+   * reference the campaign group, which the server synthesizes when `campaign_group` is not
+   * specified on the [CreateBasicReportRequest].
+   */
+  protected suspend fun createPrimitiveReportingSet(
+    reportingSetId: String,
+    displayName: String,
+    cmmsEventGroups: List<String>,
+  ): ReportingSet {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    return reportingReportingSetsClient
+      .withCallCredentials(credentials)
+      .createReportingSet(
+        createReportingSetRequest {
+          parent = measurementConsumerData.name
+          reportingSet = reportingSet {
+            this.displayName = displayName
+            primitive = ReportingSetKt.primitive { this.cmmsEventGroups += cmmsEventGroups }
+          }
+          this.reportingSetId = reportingSetId
+        }
+      )
+  }
+
+  protected suspend fun listMeasurements(): List<Measurement> {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     return publicMeasurementsClient
       .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
@@ -1008,7 +971,71 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .measurementsList
   }
 
-  private suspend fun listReportingEventGroups(): List<EventGroup> {
+  protected suspend fun getMeasurementsForBasicReport(basicReportName: String): List<Measurement> {
+    val basicReportKey = BasicReportKey.fromName(basicReportName)!!
+    val internalBasicReport =
+      reportingServer.internalBasicReportsClient.getBasicReport(
+        internalGetBasicReportRequest {
+          cmmsMeasurementConsumerId = basicReportKey.cmmsMeasurementConsumerId
+          externalBasicReportId = basicReportKey.basicReportId
+        }
+      )
+    val reportName =
+      ReportKey(internalBasicReport.cmmsMeasurementConsumerId, internalBasicReport.externalReportId)
+        .toName()
+    return listMeasurements().filter {
+      it.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.report == reportName
+    }
+  }
+
+  protected fun assertExpectedProtocolUsed(measurements: List<Measurement>) {
+    assertWithMessage("measurements").that(measurements).isNotEmpty()
+    var expectedProtocolFound = false
+    for (measurement in measurements) {
+      val protocol = measurement.protocolConfig.protocolsList.single()
+      assertWithMessage("protocol for ${measurement.name}")
+        .that(protocol.protocolCase)
+        .isAnyOf(PublicProtocolConfig.Protocol.ProtocolCase.DIRECT, expectedProtocol)
+      if (protocol.protocolCase == expectedProtocol) expectedProtocolFound = true
+    }
+    assertWithMessage("at least one $expectedProtocol measurement")
+      .that(expectedProtocolFound)
+      .isTrue()
+  }
+
+  /** Resource name of the single MeasurementConsumer used by these tests. */
+  protected fun measurementConsumerName(): String =
+    inProcessCmmsComponents.getMeasurementConsumerData().name
+
+  /**
+   * Re-runs [EventGroupSync] for a single EDP against the running in-process Kingdom. Test-only
+   * seam for driving repeated migration syncs after daemon startup.
+   */
+  protected fun syncEventGroups(
+    edpAggregatorShortName: String,
+    sources: List<EdpaEventGroup>,
+    entityKeyTypes: List<String> = emptyList(),
+  ): List<MappedEventGroup> =
+    inProcessEdpAggregatorComponents.syncEventGroups(
+      edpAggregatorShortName,
+      sources,
+      entityKeyTypes,
+    )
+
+  /**
+   * Lists the raw CMMS [CmmsEventGroup]s an EDP owns on the Kingdom (bypassing the Reporting API),
+   * filtered to [entityTypes]. Used to assert the exact Kingdom row count and resource-name set,
+   * proving no EventGroup explosion / duplicate rows during migration. [entityTypes] must include
+   * every entity type the caller may have created, since the Kingdom hides non-`campaign` rows
+   * unless their type is listed.
+   */
+  protected fun listCmmsEventGroups(
+    edpAggregatorShortName: String,
+    entityTypes: List<String>,
+  ): List<CmmsEventGroup> =
+    inProcessEdpAggregatorComponents.listCmmsEventGroups(edpAggregatorShortName, entityTypes)
+
+  protected suspend fun listReportingEventGroups(): List<EventGroup> {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     return reportingEventGroupsClient
       .withCallCredentials(credentials)
@@ -1022,6 +1049,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
             ListEventGroupsRequestKt.filter {
               entityTypeIn += "campaign"
               entityTypeIn += "ad_group"
+              entityTypeIn += CREATIVE_ID_ENTITY_TYPE
             }
         }
       )
@@ -1045,7 +1073,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
-  private suspend fun executeBasicReportsReportsJob(basicReportName: String) {
+  protected suspend fun executeBasicReportsReportsJob(basicReportName: String) {
     val basicReportKey = BasicReportKey.fromName(basicReportName)!!
     val internalBasicReport =
       reportingServer.internalBasicReportsClient.getBasicReport(
@@ -1070,7 +1098,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       .execute()
   }
 
-  private fun executeReportProcessorJob() {
+  protected fun executeReportProcessorJob() {
     val processBuilder =
       ProcessBuilder("python3", POST_PROCESS_REPORT_RESULT_FILE.toPath().toString())
     processBuilder
@@ -1127,13 +1155,16 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
-  private suspend fun getEventGroupsByCapability(
-    isCapable: (DataProvider.Capabilities) -> Boolean,
-    excludeEdpDisplayNames: Set<String>,
+  private suspend fun getEventGroupsByEdp(
+    includeEdpDisplayNames: Set<String>,
+    excludeEdpDisplayNames: Set<String> = emptySet(),
   ): List<EventGroup> {
     return buildList {
       val includedDataProviders = mutableSetOf<String>()
-      val eventGroups = listReportingEventGroups()
+      val eventGroups =
+        listReportingEventGroups().filter {
+          it.eventGroupReferenceId !in EDP1_ALL_ENTITY_KEY_REF_IDS
+        }
       eventGroups.forEach { eventGroup ->
         val dataProvider =
           reportingDataProvidersClient
@@ -1142,9 +1173,9 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         val displayName =
           inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(dataProvider.name)
         if (
-          isCapable(dataProvider.capabilities) &&
-            !includedDataProviders.contains(dataProvider.name) &&
-            displayName !in excludeEdpDisplayNames
+          !includedDataProviders.contains(dataProvider.name) &&
+            displayName !in excludeEdpDisplayNames &&
+            (includeEdpDisplayNames.isEmpty() || displayName in includeEdpDisplayNames)
         ) {
           includedDataProviders.add(dataProvider.name)
           add(eventGroup)
@@ -1153,23 +1184,11 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
-  private suspend fun getHmssEventGroups(): List<EventGroup> =
-    getEventGroupsByCapability(
-      { it.honestMajorityShareShuffleSupported },
-      setOf(RESTRICTED_EDP_DISPLAY_NAME),
-    )
+  protected suspend fun getMultiEdpEventGroups(): List<EventGroup> =
+    getEventGroupsByEdp(multiEdpDisplayNames)
 
-  private suspend fun getTrusTeeEventGroups(): List<EventGroup> =
-    getEventGroupsByCapability({ it.trusTeeSupported }, setOf(RESTRICTED_EDP_DISPLAY_NAME))
-
-  /**
-   * Returns capable event groups that include exactly one restricted EDP (one whose multi-party
-   * noise config requires CONTINUOUS_GAUSSIAN) and one unrestricted EDP.
-   */
-  private suspend fun getEventGroupsIncludingRestrictedEdp(
-    capabilityFilter: (DataProvider.Capabilities) -> Boolean
-  ): List<EventGroup> {
-    val allGroups = getEventGroupsByCapability(capabilityFilter, emptySet())
+  protected suspend fun getMultiEdpEventGroupsIncludingRestrictedEdp(): List<EventGroup> {
+    val allGroups = getEventGroupsByEdp(emptySet())
     var restrictedGroup: EventGroup? = null
     var unrestrictedGroup: EventGroup? = null
     for (eventGroup in allGroups) {
@@ -1193,26 +1212,49 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     return listOf(unrestrictedGroup, restrictedGroup)
   }
 
-  private suspend fun getHmssEventGroupsIncludingRestrictedEdp(): List<EventGroup> =
-    getEventGroupsIncludingRestrictedEdp {
-      it.honestMajorityShareShuffleSupported
+  protected suspend fun getCreativeIdOnlyEventGroups(): List<EventGroup> {
+    return listReportingEventGroups().filter {
+      it.entityKey.entityType == CREATIVE_ID_ENTITY_TYPE &&
+        it.eventGroupReferenceId !in EDP1_MULTI_ENTITY_KEY_REF_IDS
     }
+  }
 
-  private suspend fun getTrusTeeEventGroupsIncludingRestrictedEdp(): List<EventGroup> =
-    getEventGroupsIncludingRestrictedEdp {
-      it.trusTeeSupported
-    }
+  protected suspend fun getReferenceIdOnlyEventGroups(): List<EventGroup> {
+    return listReportingEventGroups().filter { it.entityKey.entityId.isEmpty() }
+  }
+
+  protected suspend fun getMixedEntityKeyEventGroups(): List<EventGroup> {
+    val allEventGroups = listReportingEventGroups()
+    val edp1RefIdOnly =
+      allEventGroups.first { it.eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID }
+    val edp1CreativeId =
+      allEventGroups.first {
+        it.eventGroupReferenceId == "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_EVENT_GROUP_REF_ID"
+      }
+    return listOf(edp1RefIdOnly, edp1CreativeId)
+  }
 
   companion object {
     // edp1 has no entity_key/entity_metadata override (legacy path).
     // edp4 is configured with multi-party noise CONTINUOUS_GAUSSIAN, so it's the "restricted"
     // EDP for the no-noise failure path tests; the same EDP also carries the non-default
     // entity_type ("ad_group") in this fixture.
-    private const val EDP_NO_ENTITY_KEY_DISPLAY_NAME = "edp1"
-    private const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edp1-eg-ref-1"
-    private const val AD_GROUP_EDP_DISPLAY_NAME = "edp4"
-    private const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "edp4-eg-ref-1"
+    internal const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edp1-eg-ref-1"
+    internal const val AD_GROUP_EDP_DISPLAY_NAME = "edp4"
+    internal const val AD_GROUP_EDP_EVENT_GROUP_REF_ID = "ad_group/edp4-eg-ref-1"
     private const val RESTRICTED_EDP_DISPLAY_NAME = AD_GROUP_EDP_DISPLAY_NAME
+    internal const val CREATIVE_ID_ENTITY_TYPE = "creative-id"
+    internal const val EDP1_MULTI_CREATIVE_A_ID = "multi-creative-A"
+    internal const val EDP1_MULTI_CREATIVE_B_ID = "multi-creative-B"
+    internal val EDP1_CREATIVE_EVENT_GROUP_REF_ID = "$CREATIVE_ID_ENTITY_TYPE/edp1-eg-creative-1"
+    private val EDP2_CREATIVE_EVENT_GROUP_REF_ID = "$CREATIVE_ID_ENTITY_TYPE/edp2-eg-creative-1"
+    internal val EDP1_MULTI_ENTITY_KEY_REF_IDS =
+      setOf(
+        "$CREATIVE_ID_ENTITY_TYPE/$EDP1_MULTI_CREATIVE_A_ID",
+        "$CREATIVE_ID_ENTITY_TYPE/$EDP1_MULTI_CREATIVE_B_ID",
+      )
+    private val EDP1_ALL_ENTITY_KEY_REF_IDS =
+      EDP1_MULTI_ENTITY_KEY_REF_IDS + "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_EVENT_GROUP_REF_ID"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val SECRETS_DIR: File =
       getRuntimePath(
@@ -1270,10 +1312,15 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       )
     private val TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH =
       getRuntimePath(TEST_RESULTS_FULFILLER_DATA_PATH)!!
-    val syntheticPopulationSpec: SyntheticPopulationSpec =
+
+    private val POPULATION_SPEC_TYPE_REGISTRY: TypeRegistry =
+      TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
+
+    val populationSpec: PopulationSpec =
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
-        SyntheticPopulationSpec.getDefaultInstance(),
+        PopulationSpec.getDefaultInstance(),
+        POPULATION_SPEC_TYPE_REGISTRY,
       )
     val syntheticEventGroupSpec1: SyntheticEventGroupSpec =
       parseTextProto(
@@ -1284,12 +1331,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve("small_data_spec_2.textproto").toFile(),
         SyntheticEventGroupSpec.getDefaultInstance(),
-      )
-    val populationSpec: PopulationSpec =
-      parseTextProto(
-        TEST_RESULTS_FULFILLER_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto")
-          .toFile(),
-        PopulationSpec.getDefaultInstance(),
       )
     private val MODEL_LINE_INFO =
       ModelLineInfo(
@@ -1324,11 +1365,18 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
     // All computation methods (HMSS, TrusTee, etc.) are expected to produce exactly the same
     // results when using the same input data and no noise.
-    private const val EXPECTED_CROSS_PUBLISHER_REACH = 5330L
-    private const val EXPECTED_CROSS_PUBLISHER_IMPRESSIONS = 8860L
-    private val EXPECTED_K_PLUS_REACH = listOf(5330L, 2572L, 647L, 311L, 0L)
-    private const val EXPECTED_EDP_SPEC1_REACH = 3937L
-    private const val EXPECTED_EDP_SPEC2_REACH = 3638L
+    internal const val EXPECTED_CROSS_PUBLISHER_REACH = 5330L
+    internal const val EXPECTED_CROSS_PUBLISHER_IMPRESSIONS = 8860L
+    internal val EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH = listOf(5330L, 2572L, 647L, 311L, 0L)
+    internal const val EXPECTED_EDP_SPEC1_REACH = 3937L
+    internal const val EXPECTED_EDP_SPEC2_REACH = 3638L
+
+    internal const val EXPECTED_SINGLE_EDP_SPEC2_REACH = 3638L
+    internal const val EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS = 4276L
+    internal val EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH = listOf(3638L, 638L, 0L, 0L, 0L)
+
+    internal const val EXPECTED_TWO_ENTITY_KEY_IMPRESSIONS = 8552L
+    internal val EXPECTED_TWO_ENTITY_KEY_K_PLUS_REACH = listOf(3638L, 3638L, 638L, 638L, 0L)
 
     // Placeholder values required by the MeasurementSpec. Unused since NoiseMechanism is NONE.
     private val NO_NOISE_PRIVACY_PARAMS =
@@ -1445,7 +1493,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
 
     @get:ClassRule @JvmStatic val pubSubEmulatorProvider = GooglePubSubEmulatorProvider()
 
-    private val ENTITY_METADATA = struct {
+    internal val ENTITY_METADATA = struct {
       fields["placement"] = value { stringValue = "homepage_top" }
       fields["objective"] = value { stringValue = "awareness" }
     }

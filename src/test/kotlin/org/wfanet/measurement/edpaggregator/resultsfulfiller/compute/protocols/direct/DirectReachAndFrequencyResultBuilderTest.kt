@@ -46,7 +46,7 @@ class DirectReachAndFrequencyResultBuilderTest {
           directNoiseMechanism = DirectNoiseMechanism.NONE,
           frequencyData = frequencyData,
           maxPopulation = null,
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
         )
 
       val result = directReachAndFrequencyResultBuilder.buildMeasurementResult()
@@ -82,7 +82,7 @@ class DirectReachAndFrequencyResultBuilderTest {
           directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
           frequencyData = frequencyData,
           maxPopulation = null,
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
         )
 
       val result = directReachAndFrequencyResultBuilder.buildMeasurementResult()
@@ -116,7 +116,7 @@ class DirectReachAndFrequencyResultBuilderTest {
             directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
             frequencyData = frequencyData,
             maxPopulation = null,
-            kAnonymityParams = null,
+            resultMinimumThresholds = null,
           )
 
         val result = directReachAndFrequencyResultBuilder.buildMeasurementResult()

@@ -120,7 +120,8 @@ abstract class BaseTeeApplication(
             return
           }
         }
-        logger.log(Level.WARNING, e) { "Error creating a WorkItemAttempt" }
+        logger.log(Level.WARNING, e) { "Error creating a WorkItemAttempt. Nacking message." }
+        queueMessage.nack()
         return
       }
 

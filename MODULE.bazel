@@ -14,7 +14,7 @@ BORINGSSL_VERSION = "0.20241209.0"
 # * https://docs.aws.amazon.com/kinesisanalytics/latest/java/earlier.html
 APACHE_BEAM_VERSION = "2.45.0"
 
-K8S_CLIENT_VERSION = "25.0.0"
+K8S_CLIENT_VERSION = "26.0.1"
 
 PYTHON_VERSION = "3.11"
 
@@ -24,7 +24,7 @@ PYTHON_VERSION = "3.11"
 # See https://github.com/bazelbuild/bazel/discussions/23075.
 bazel_dep(
     name = "rules_kotlin_jvm",
-    version = "0.12.0",
+    version = "0.14.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
 bazel_dep(
@@ -39,7 +39,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.141.0",
+    version = "0.147.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -49,7 +49,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.92.0",
+    version = "0.95.0",
     repo_name = "wfa_measurement_proto",
 )
 bazel_dep(
@@ -83,9 +83,15 @@ bazel_dep(
     repo_name = "wfa_virtual_people_common",
 )
 bazel_dep(
+    name = "virtual-people-core-serving",
+    version = "0.4.0",
+    repo_name = "wfa_virtual_people_core_serving",
+)
+bazel_dep(
     name = "grpc_ecosystem_grpc_gateway",
     version = "2.26.0.bzlmod.1",
 )
+
 # Must also be updated in src/main/k8s/local/BUILD.bazel
 bazel_dep(
     name = "cloud-spanner-emulator-bin",
@@ -100,11 +106,6 @@ bazel_dep(
 
 # --- Bazel Central Registry modules. ---
 
-# TODO(bazelbuild/bazel-worker-api#10): Remove this once rules_kotlin stops using version 0.0.4
-bazel_dep(
-    name = "bazel_worker_java",
-    version = "0.0.5",
-)
 bazel_dep(
     name = "platforms",
     version = "1.0.0",
@@ -127,7 +128,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_go",
-    version = "0.53.0",
+    version = "0.61.1",
     repo_name = "io_bazel_rules_go",
 )
 bazel_dep(
@@ -221,6 +222,18 @@ maven.artifact(
     ],
     group = "org.apache.beam",
 )
+maven.artifact(
+    testonly = True,
+    artifact = "kotlin-sdk-client-jvm",
+    group = "io.modelcontextprotocol",
+    version = "0.12.0",
+)
+maven.artifact(
+    testonly = True,
+    artifact = "kotlin-sdk-testing-jvm",
+    group = "io.modelcontextprotocol",
+    version = "0.12.0",
+)
 maven.install(
     artifacts = [
         "com.google.crypto.tink:tink-awskms:1.11.0",
@@ -287,9 +300,22 @@ maven.install(
 
         # Avoid https://github.com/FasterXML/jackson-databind/issues/3637 from testcontainers.
         "com.fasterxml.jackson.core:jackson-annotations:2.20",
+
+        # MCP (Model Context Protocol) SDK. The client and testing modules are
+        # test-only and declared as testonly maven.artifact()s above.
+        "io.modelcontextprotocol:kotlin-sdk-server-jvm:0.12.0",
+        "io.modelcontextprotocol:kotlin-sdk-core-jvm:0.12.0",
+
+        # Ktor HTTP server (required by MCP SDK). Versions come from io.ktor:ktor-bom.
+        "io.ktor:ktor-server-cio-jvm",
+        "io.ktor:ktor-server-content-negotiation-jvm",
+        "io.ktor:ktor-server-cors-jvm",
+        "io.ktor:ktor-server-sse-jvm",
+        "io.ktor:ktor-serialization-kotlinx-json-jvm",
     ],
     boms = [
         "com.squareup.okhttp3:okhttp-bom:4.12.0",
+        "io.ktor:ktor-bom:3.3.3",
         "org.apache.beam:beam-sdks-java-bom:" + APACHE_BEAM_VERSION,
         "org.projectnessie.cel:cel-bom:0.5.0",
         "org.apache.commons:commons-numbers-bom:1.2",
@@ -320,7 +346,7 @@ go_sdk = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.download(
     goarch = "amd64",
     goos = "linux",
-    version = "1.24.13",
+    version = "1.26.4",
 )
 
 GO_GENPROTO_VERSION = "v0.0.0-20251124214823-79d6a2a48846"
@@ -348,8 +374,8 @@ go_deps.module(
 )
 go_deps.module(
     path = "google.golang.org/grpc",
-    sum = "h1:MF5TftSMkd8GLw/m0KM6V8CMOCY6NZ1NQDPGFgbTt4A=",
-    version = "v1.69.4",
+    sum = "h1:kF77BGdPTQ4/JZWMlb9VpJ5pa25aqvVqogsxNHHdeBg=",
+    version = "v1.71.0",
 )
 go_deps.module(
     path = "cloud.google.com/go/longrunning",
@@ -389,26 +415,29 @@ use_repo(pip, "pip")
 oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
 oci.pull(
     name = "go_image_base",
-    # Digest of `nonroot` tag.
-    digest = "sha256:fb282f8ed3057f71dbfe3ea0f5fa7e961415dafe4761c23948a9d4628c6166fe",
+    digest = "sha256:a557d784ac275c287d2bdf3172f47bece8d2a0ef3c0fdefb712e95084a04a562",
     image = "gcr.io/distroless/base-debian13",
     platforms = ["linux/amd64"],
+    reproducible = True,
+    tag = "nonroot",
 )
 oci.pull(
     name = "py_image_base",
-    # Digest of `nonroot` tag.
-    digest = "sha256:51b1acc177d535f20fa30a175a657079ee7dce6e326541cfd83a474d9928e123",
+    digest = "sha256:7ea4b893a73b30ebe0d666f94bbda151a5e15ee093bda10497986a12a65a7e53",
     image = "gcr.io/distroless/python3-debian13",
     platforms = ["linux/amd64"],
+    reproducible = True,
+    tag = "nonroot",
 )
 
 # TODO(world-federation-of-advertisers/cross-media-measurement#2729): Remove root Java image when Confidential Spaces properly supports nonroot images.
 oci.pull(
     name = "java_image_base_root",
-    # Digest of `latest` tag.
-    digest = "sha256:44774ae0ebcab067d8479c4325d37b29151408f03f8d1d200fd71fc435eaa51a",
+    digest = "sha256:3c89b72dcd8b9c3b6fc9ae42785fc5ccf58b7d540504944ee5376c91a81f0af9",
     image = "gcr.io/distroless/java17-debian13",
     platforms = ["linux/amd64"],
+    reproducible = True,
+    tag = "latest",
 )
 use_repo(
     oci,

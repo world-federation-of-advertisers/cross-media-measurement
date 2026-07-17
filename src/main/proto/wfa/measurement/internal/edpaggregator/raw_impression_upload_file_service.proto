@@ -1,0 +1,178 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
+import "wfa/measurement/internal/edpaggregator/raw_impression_upload_file.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "RawImpressionUploadFileServiceProto";
+
+// Service for managing RawImpressionUploadFile resources.
+service RawImpressionUploadFileService {
+  // Creates a new RawImpressionUploadFile.
+  rpc CreateRawImpressionUploadFile(CreateRawImpressionUploadFileRequest)
+      returns (RawImpressionUploadFile);
+
+  // Creates multiple RawImpressionUploadFiles in a single request.
+  rpc BatchCreateRawImpressionUploadFiles(
+      BatchCreateRawImpressionUploadFilesRequest)
+      returns (BatchCreateRawImpressionUploadFilesResponse);
+
+  // Retrieves a specific RawImpressionUploadFile.
+  rpc GetRawImpressionUploadFile(GetRawImpressionUploadFileRequest)
+      returns (RawImpressionUploadFile);
+
+  // Lists RawImpressionUploadFiles for an upload.
+  rpc ListRawImpressionUploadFiles(ListRawImpressionUploadFilesRequest)
+      returns (ListRawImpressionUploadFilesResponse);
+
+  // Soft-deletes a RawImpressionUploadFile.
+  rpc DeleteRawImpressionUploadFile(DeleteRawImpressionUploadFileRequest)
+      returns (RawImpressionUploadFile);
+
+  // Soft-deletes multiple RawImpressionUploadFiles in a single request.
+  rpc BatchDeleteRawImpressionUploadFiles(
+      BatchDeleteRawImpressionUploadFilesRequest)
+      returns (BatchDeleteRawImpressionUploadFilesResponse);
+}
+
+// Request message for CreateRawImpressionUploadFile.
+message CreateRawImpressionUploadFileRequest {
+  // The RawImpressionUploadFile to create.
+  RawImpressionUploadFile raw_impression_upload_file = 1;
+
+  // A request ID provided by the client to ensure idempotency.
+  //
+  // Required (a deliberate deviation from AIP-155's "request IDs should be
+  // optional"): the file's resource name is server-assigned, so the request ID
+  // is the only idempotency key. Must be a non-empty UUID4 string; the service
+  // uses it to deduplicate retries so a single logical file is never created
+  // twice.
+  string request_id = 2;
+}
+
+// Request message for BatchCreateRawImpressionUploadFiles.
+message BatchCreateRawImpressionUploadFilesRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // Individual create requests. Maximum 100 per batch.
+  repeated CreateRawImpressionUploadFileRequest requests = 3;
+}
+
+// Response message for BatchCreateRawImpressionUploadFiles.
+message BatchCreateRawImpressionUploadFilesResponse {
+  repeated RawImpressionUploadFile raw_impression_upload_files = 1;
+}
+
+// Request message for GetRawImpressionUploadFile.
+message GetRawImpressionUploadFileRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // Resource ID of the file.
+  string file_resource_id = 3;
+}
+
+// Request message for ListRawImpressionUploadFiles.
+message ListRawImpressionUploadFilesRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // The maximum number of results to return.
+  //
+  // If unspecified, at most 50 results will be returned.
+  // The maximum value is 100; values above this will be
+  // coerced to the maximum value.
+  int32 page_size = 3;
+
+  // Page token from a previous list call.
+  ListRawImpressionUploadFilesPageToken page_token = 4;
+
+  // Filter for narrowing results.
+  message Filter {
+    // Filter by blob URIs.
+    repeated string blob_uri_in = 1;
+
+    // Filter for resources whose create_time is in the given interval. At least
+    // one of `start_time` or `end_time` must be set.
+    google.type.Interval create_time_in = 2;
+  }
+  Filter filter = 5;
+
+  // Whether to include soft-deleted entries.
+  bool show_deleted = 6;
+}
+
+// Response message for ListRawImpressionUploadFiles.
+message ListRawImpressionUploadFilesResponse {
+  repeated RawImpressionUploadFile raw_impression_upload_files = 1;
+
+  // A token to retrieve the next page of results.
+  ListRawImpressionUploadFilesPageToken next_page_token = 2;
+}
+
+// Page token for ListRawImpressionUploadFiles.
+message ListRawImpressionUploadFilesPageToken {
+  message After {
+    google.protobuf.Timestamp create_time = 1;
+    string raw_impression_upload_resource_id = 2;
+    string file_resource_id = 3;
+  }
+  After after = 1;
+}
+
+// Request message for DeleteRawImpressionUploadFile.
+message DeleteRawImpressionUploadFileRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // Resource ID of the file.
+  string file_resource_id = 3;
+}
+
+// Request message for BatchDeleteRawImpressionUploadFiles.
+message BatchDeleteRawImpressionUploadFilesRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // Individual delete requests.
+  repeated DeleteRawImpressionUploadFileRequest requests = 3;
+}
+
+// Response message for BatchDeleteRawImpressionUploadFiles.
+message BatchDeleteRawImpressionUploadFilesResponse {
+  repeated RawImpressionUploadFile raw_impression_upload_files = 1;
+}

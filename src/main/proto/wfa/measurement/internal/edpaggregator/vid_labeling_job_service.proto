@@ -1,0 +1,214 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
+import "wfa/measurement/internal/edpaggregator/vid_labeling_job.proto";
+import "wfa/measurement/internal/edpaggregator/vid_labeling_state.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "VidLabelingJobServiceProto";
+
+// Service for managing `VidLabelingJob` resources, which track
+// per-job processing state for Phase 2 (VID labeling) of
+// a raw impression upload.
+service VidLabelingJobService {
+  // Creates a new `VidLabelingJob`.
+  rpc CreateVidLabelingJob(CreateVidLabelingJobRequest)
+      returns (VidLabelingJob);
+
+  // Creates multiple `VidLabelingJob` resources in a single
+  // request.
+  rpc BatchCreateVidLabelingJobs(BatchCreateVidLabelingJobsRequest)
+      returns (BatchCreateVidLabelingJobsResponse);
+
+  // Retrieves a specific `VidLabelingJob`.
+  rpc GetVidLabelingJob(GetVidLabelingJobRequest) returns (VidLabelingJob);
+
+  // Lists `VidLabelingJob` resources.
+  rpc ListVidLabelingJobs(ListVidLabelingJobsRequest)
+      returns (ListVidLabelingJobsResponse);
+
+  // Marks a `VidLabelingJob` as `SUCCEEDED`. Throws
+  // ABORTED if etag does not match (AIP-154). Throws
+  // FAILED_PRECONDITION if state is not CREATED or
+  // FAILED. A retry with the same request_id returns
+  // the original response (AIP-155).
+  rpc MarkVidLabelingJobSucceeded(MarkVidLabelingJobSucceededRequest)
+      returns (MarkVidLabelingJobSucceededResponse);
+
+  // Marks a `VidLabelingJob` as `FAILED`. Throws
+  // ABORTED if etag does not match. Throws
+  // FAILED_PRECONDITION if state is not CREATED or
+  // FAILED. A retry with the same request_id returns
+  // the original response.
+  rpc MarkVidLabelingJobFailed(MarkVidLabelingJobFailedRequest)
+      returns (VidLabelingJob);
+}
+
+// Request message for CreateVidLabelingJob.
+message CreateVidLabelingJobRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // The VidLabelingJob to create.
+  VidLabelingJob vid_labeling_job = 3;
+
+  // A request ID provided by the client to ensure idempotency.
+  string request_id = 4;
+}
+
+// Request message for BatchCreateVidLabelingJobs.
+message BatchCreateVidLabelingJobsRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // Individual create requests. Maximum 50 per batch.
+  repeated CreateVidLabelingJobRequest requests = 3;
+}
+
+// Response message for BatchCreateVidLabelingJobs.
+message BatchCreateVidLabelingJobsResponse {
+  // The created labeling jobs.
+  repeated VidLabelingJob vid_labeling_jobs = 1;
+}
+
+// Request message for GetVidLabelingJob.
+message GetVidLabelingJobRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // Resource ID of this job.
+  string vid_labeling_job_resource_id = 3;
+}
+
+// Request message for ListVidLabelingJobs.
+message ListVidLabelingJobsRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // The maximum number of results to return.
+  //
+  // If unspecified, at most 50 results will be returned.
+  // The maximum value is 100; values above this will be
+  // coerced to the maximum value.
+  int32 page_size = 3;
+
+  // Page token from a previous list call.
+  ListVidLabelingJobsPageToken page_token = 4;
+
+  // Filter for narrowing results.
+  message Filter {
+    // Filter by processing state.
+    VidLabelingState state = 1;
+
+    // Filter for resources whose create_time falls within
+    // this interval.
+    google.type.Interval create_time_interval = 2;
+
+    // Filter by CMMS model line resource name.
+    string cmms_model_line = 3;
+  }
+  Filter filter = 5;
+}
+
+// Response message for ListVidLabelingJobs.
+message ListVidLabelingJobsResponse {
+  // The list of labeling jobs matching the request.
+  repeated VidLabelingJob vid_labeling_jobs = 1;
+
+  // A token to retrieve the next page of results.
+  ListVidLabelingJobsPageToken next_page_token = 2;
+}
+
+// Page token for ListVidLabelingJobs.
+message ListVidLabelingJobsPageToken {
+  message After {
+    google.protobuf.Timestamp create_time = 1;
+    string vid_labeling_job_resource_id = 2;
+  }
+  After after = 1;
+}
+
+// Request message for MarkVidLabelingJobSucceeded.
+message MarkVidLabelingJobSucceededRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // Resource ID of this job.
+  string vid_labeling_job_resource_id = 3;
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 4;
+
+  // A request ID for retry idempotency.
+  string request_id = 5;
+}
+
+// Response message for MarkVidLabelingJobSucceeded.
+message MarkVidLabelingJobSucceededResponse {
+  // The updated VidLabelingJob.
+  VidLabelingJob vid_labeling_job = 1;
+
+  // Present when this VidLabelingJob's completion was the
+  // last for one or more of its model lines.
+  LastVidLabelingJobResult last_vid_labeling_job_result = 2;
+
+  // Result when one or more model lines complete.
+  message LastVidLabelingJobResult {
+    // The model lines whose last job just completed.
+    repeated string completed_model_lines = 1;
+  }
+}
+
+// Request message for MarkVidLabelingJobFailed.
+message MarkVidLabelingJobFailedRequest {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // Resource ID of this job.
+  string vid_labeling_job_resource_id = 3;
+
+  // Human-readable detail about the failure.
+  string error_message = 4;
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 5;
+
+  // A request ID for retry idempotency.
+  string request_id = 6;
+}

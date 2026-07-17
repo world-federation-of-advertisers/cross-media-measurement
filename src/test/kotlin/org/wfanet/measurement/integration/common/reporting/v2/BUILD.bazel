@@ -4,8 +4,8 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 package(default_testonly = True)
 
 kt_jvm_library(
-    name = "gcloud_edp_aggregator_life_of_a_report_test",
-    srcs = ["GCloudEdpAggregatorLifeOfAReportTest.kt"],
+    name = "gcloud_edp_aggregator_life_of_an_event_group_test",
+    srcs = ["GCloudEdpAggregatorLifeOfAnEventGroupTest.kt"],
     data = ["@cloud_spanner_emulator//:emulator"],
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
@@ -23,16 +23,390 @@ kt_jvm_library(
 
 # TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
 java_test(
-    name = "GCloudEdpAggregatorLifeOfAReportTest",
+    name = "GCloudEdpAggregatorLifeOfAnEventGroupTest",
     size = "large",
     timeout = "long",
     tags = [
         "cpu:2",
         "no-remote-exec",
     ],
-    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportTest",
+    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAnEventGroupTest",
     runtime_deps = [
-        ":gcloud_edp_aggregator_life_of_a_report_test",
+        ":gcloud_edp_aggregator_life_of_an_event_group_test",
+        "//imports/java/org/slf4j:simple",
+    ],
+)
+
+kt_jvm_library(
+    name = "gcloud_edp_aggregator_direct_only_report_test",
+    srcs = ["GCloudEdpAggregatorDirectOnlyReportTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_edp_aggregator_life_of_a_report_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "GCloudEdpAggregatorDirectOnlyReportTest",
+    size = "large",
+    timeout = "long",
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorDirectOnlyReportTest",
+    runtime_deps = [
+        ":gcloud_edp_aggregator_direct_only_report_test",
+        "//imports/java/org/slf4j:simple",
+    ],
+)
+
+kt_jvm_library(
+    name = "gcloud_edp_aggregator_hmss_report_test",
+    srcs = ["GCloudEdpAggregatorHmssReportTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_edp_aggregator_life_of_a_report_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "GCloudEdpAggregatorHmssReportTest",
+    size = "large",
+    timeout = "long",
+    flaky = True,
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorHmssReportTest",
+    runtime_deps = [
+        ":gcloud_edp_aggregator_hmss_report_test",
+        "//imports/java/org/slf4j:simple",
+    ],
+)
+
+kt_jvm_library(
+    name = "gcloud_edp_aggregator_trustee_report_test",
+    srcs = ["GCloudEdpAggregatorTrusTeeReportTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_edp_aggregator_life_of_a_report_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "GCloudEdpAggregatorTrusTeeReportTest",
+    size = "large",
+    timeout = "long",
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorTrusTeeReportTest",
+    runtime_deps = [
+        ":gcloud_edp_aggregator_trustee_report_test",
+        "//imports/java/org/slf4j:simple",
+    ],
+)
+
+kt_jvm_library(
+    name = "gcloud_edp_aggregator_life_of_a_report_noise_no_thresholds_test",
+    srcs = ["GCloudEdpAggregatorLifeOfAReportNoiseNoThresholdsTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_cmms_components",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_edp_aggregator_life_of_a_report_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "GCloudEdpAggregatorLifeOfAReportNoiseNoThresholdsTest",
+    size = "large",
+    timeout = "long",
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportNoiseNoThresholdsTest",
+    runtime_deps = [
+        ":gcloud_edp_aggregator_life_of_a_report_noise_no_thresholds_test",
+        "//imports/java/org/slf4j:simple",
+    ],
+)
+
+kt_jvm_library(
+    name = "gcloud_edp_aggregator_life_of_a_report_noise_thresholds_test",
+    srcs = ["GCloudEdpAggregatorLifeOfAReportNoiseThresholdsTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_cmms_components",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_edp_aggregator_life_of_a_report_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "GCloudEdpAggregatorLifeOfAReportNoiseThresholdsTest",
+    size = "large",
+    timeout = "long",
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportNoiseThresholdsTest",
+    runtime_deps = [
+        ":gcloud_edp_aggregator_life_of_a_report_noise_thresholds_test",
+        "//imports/java/org/slf4j:simple",
+    ],
+)
+
+kt_jvm_library(
+    name = "gcloud_edp_aggregator_life_of_a_report_noise_thresholds_high_test",
+    srcs = ["GCloudEdpAggregatorLifeOfAReportNoiseThresholdsHighTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_cmms_components",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_edp_aggregator_life_of_a_report_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "GCloudEdpAggregatorLifeOfAReportNoiseThresholdsHighTest",
+    size = "large",
+    timeout = "long",
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportNoiseThresholdsHighTest",
+    runtime_deps = [
+        ":gcloud_edp_aggregator_life_of_a_report_noise_thresholds_high_test",
+        "//imports/java/org/slf4j:simple",
+    ],
+)
+
+kt_jvm_library(
+    name = "gcloud_edp_aggregator_life_of_a_report_noise_thresholds_low_test",
+    srcs = ["GCloudEdpAggregatorLifeOfAReportNoiseThresholdsLowTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_cmms_components",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_edp_aggregator_life_of_a_report_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "GCloudEdpAggregatorLifeOfAReportNoiseThresholdsLowTest",
+    size = "large",
+    timeout = "long",
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportNoiseThresholdsLowTest",
+    runtime_deps = [
+        ":gcloud_edp_aggregator_life_of_a_report_noise_thresholds_low_test",
+        "//imports/java/org/slf4j:simple",
+    ],
+)
+
+kt_jvm_library(
+    name = "gcloud_edp_aggregator_life_of_a_report_thresholds_no_noise_test",
+    srcs = ["GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_cmms_components",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_edp_aggregator_life_of_a_report_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseTest",
+    size = "large",
+    timeout = "long",
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseTest",
+    runtime_deps = [
+        ":gcloud_edp_aggregator_life_of_a_report_thresholds_no_noise_test",
+        "//imports/java/org/slf4j:simple",
+    ],
+)
+
+kt_jvm_library(
+    name = "gcloud_edp_aggregator_life_of_a_report_thresholds_no_noise_high_test",
+    srcs = ["GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseHighTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_cmms_components",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_edp_aggregator_life_of_a_report_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseHighTest",
+    size = "large",
+    timeout = "long",
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseHighTest",
+    runtime_deps = [
+        ":gcloud_edp_aggregator_life_of_a_report_thresholds_no_noise_high_test",
+        "//imports/java/org/slf4j:simple",
+    ],
+)
+
+kt_jvm_library(
+    name = "gcloud_edp_aggregator_life_of_a_report_no_noise_no_thresholds_test",
+    srcs = ["GCloudEdpAggregatorLifeOfAReportNoNoiseNoThresholdsTest.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_cmms_components",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:in_process_edp_aggregator_life_of_a_report_test",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:internal_reporting_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:kingdom_data_services_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_access_services_factory",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:spanner_duchy_dependency_provider_rule",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
+    ],
+)
+
+# TODO(bazelbuild/rules_kotlin#1088): Use kt_jvm_test when fixed.
+java_test(
+    name = "GCloudEdpAggregatorLifeOfAReportNoNoiseNoThresholdsTest",
+    size = "large",
+    timeout = "long",
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.common.reporting.v2.GCloudEdpAggregatorLifeOfAReportNoNoiseNoThresholdsTest",
+    runtime_deps = [
+        ":gcloud_edp_aggregator_life_of_a_report_no_noise_no_thresholds_test",
         "//imports/java/org/slf4j:simple",
     ],
 )

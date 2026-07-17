@@ -61,7 +61,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.computation.KAnonymityParams
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.testing.Requisitions.TRUSTEE_REQUISITION
@@ -201,7 +201,7 @@ class TrusTeeMeasurementFulfillerTest {
   }
 
   @Test
-  fun `fulfillRequisition with non-empty frequency vector with sufficient k-anonymity`() {
+  fun `fulfillRequisition with non-empty frequency vector with sufficient thresholds`() {
     runBlocking {
       val requisitionNonce = Random.Default.nextLong()
       val frequencyVectorBuilder =
@@ -214,7 +214,7 @@ class TrusTeeMeasurementFulfillerTest {
       listOf(4, 5, 6).forEach { frequencyVectorBuilder.increment(it) }
       val requisition = TRUSTEE_REQUISITION.copy { this.nonce = requisitionNonce }
       val fulfiller =
-        TrusTeeMeasurementFulfiller.buildKAnonymized(
+        TrusTeeMeasurementFulfiller.buildThresholded(
           requisition,
           requisitionNonce,
           MEASUREMENT_SPEC,
@@ -225,7 +225,9 @@ class TrusTeeMeasurementFulfillerTest {
               "duchies/worker1" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
             ),
           requisitionsStub = unfulfilledRequisitionsStub,
-          KAnonymityParams(minImpressions = 1, minUsers = 1),
+          ResultMinimumThresholds(minImpressions = 1, minUsers = 1),
+          protocolMinUsers = 0,
+          protocolMinImpressions = 0,
           maxPopulation = null,
           encryptionParams = null,
         )
@@ -251,7 +253,7 @@ class TrusTeeMeasurementFulfillerTest {
   }
 
   @Test
-  fun `fulfillRequisition with empty frequency vector with insufficient k-anonymity`() {
+  fun `fulfillRequisition with empty frequency vector with insufficient thresholds`() {
     runBlocking {
       val requisitionNonce = Random.Default.nextLong()
       val frequencyVectorBuilder =
@@ -264,7 +266,7 @@ class TrusTeeMeasurementFulfillerTest {
       listOf(4, 5, 6).forEach { frequencyVectorBuilder.increment(it) }
       val requisition = TRUSTEE_REQUISITION.copy { this.nonce = requisitionNonce }
       val fulfiller =
-        TrusTeeMeasurementFulfiller.buildKAnonymized(
+        TrusTeeMeasurementFulfiller.buildThresholded(
           requisition,
           requisitionNonce,
           MEASUREMENT_SPEC,
@@ -275,7 +277,9 @@ class TrusTeeMeasurementFulfillerTest {
               "duchies/worker1" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
             ),
           requisitionsStub = unfulfilledRequisitionsStub,
-          KAnonymityParams(minImpressions = 1000, minUsers = 1000),
+          ResultMinimumThresholds(minImpressions = 1000, minUsers = 1000),
+          protocolMinUsers = 0,
+          protocolMinImpressions = 0,
           maxPopulation = null,
           encryptionParams = null,
         )

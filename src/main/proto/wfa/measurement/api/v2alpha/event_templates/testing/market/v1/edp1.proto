@@ -1,0 +1,52 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// EDP-specific event fields for the test-only `MarketEvent`.
+//
+// `Edp1` mimics the shape of an EDP-specific message that real market
+// templates wrap inside a `oneof edp_specific` on their `Common` template
+// (see, e.g., the Aquila US `Meta` message in
+// world-federation-of-advertisers/local-market-configuration). It carries a
+// single discriminator-style enum so the synthetic data tooling can be
+// exercised against an EDP-specific oneof arm. This proto is NOT kept in sync
+// with any external EDP definition.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha.event_templates.testing.market.v1;
+
+import "wfa/measurement/api/v2alpha/event_annotations.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1";
+option java_multiple_files = true;
+
+message Edp1 {
+  // Placement on an Edp1 surface. Modeled after how a real EDP-specific
+  // message exposes a per-event placement enum.
+  enum Placement {
+    PLACEMENT_UNSPECIFIED = 0;
+    HOMEPAGE = 1;
+    FEED = 2;
+    STORIES = 3;
+    SEARCH_RESULTS = 4;
+    OTHER = 5;
+  }
+
+  Placement placement = 1 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "Edp1 Placement"
+    reporting_features: FILTERABLE
+    reporting_features: GROUPABLE
+    version_added: 1
+  }];
+}

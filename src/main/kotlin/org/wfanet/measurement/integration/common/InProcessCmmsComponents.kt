@@ -45,8 +45,6 @@ import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelRollout
@@ -71,7 +69,6 @@ import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.TrusTeeProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
-import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.PopulationData
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
@@ -84,12 +81,14 @@ class InProcessCmmsComponents(
   private val kingdomDataServicesRule: ProviderRule<DataServices>,
   private val duchyDependenciesRule:
     ProviderRule<(String, ComputationLogEntriesCoroutineStub) -> InProcessDuchy.DuchyDependencies>,
-  private val syntheticPopulationSpec: SyntheticPopulationSpec =
-    SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
-  private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
-    SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL,
   private val useEdpSimulators: Boolean,
   private val trusTeeKmsClient: KmsClient,
+  private val hmssEnabled: Boolean,
+  private val trusTeeEnabled: Boolean,
+  private val populationSpec: PopulationSpec = SyntheticGenerationSpecs.POPULATION_SPEC_SMALL,
+  private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
+    SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL,
+  private val duchyNames: List<String> = ALL_DUCHY_NAMES,
 ) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value
@@ -99,18 +98,20 @@ class InProcessCmmsComponents(
       dataServicesProvider = { kingdomDataServices },
       REDIRECT_URI,
       verboseGrpcLogging = false,
+      hmssEnabled = hmssEnabled,
+      trusTeeEnabled = trusTeeEnabled,
     )
 
   val eventQuery by lazy {
     EventQuery(
-      syntheticPopulationSpec,
+      populationSpec,
       syntheticEventGroupSpecs,
       edpDisplayNameToResourceMap.values.map { it.name },
     )
   }
 
   val duchies: List<InProcessDuchy> by lazy {
-    ALL_DUCHY_NAMES.map {
+    duchyNames.map {
       InProcessDuchy(
         externalDuchyId = it,
         kingdomSystemApiChannel = kingdom.systemApiChannel,
@@ -149,14 +150,11 @@ class InProcessCmmsComponents(
         certificateKey = certificateKey,
         mcResourceName = mcResourceName,
         kingdomPublicApiChannel = kingdom.publicApiChannel,
-        duchyPublicApiChannelMap =
-          mapOf(
-            duchies[1].externalDuchyId to duchies[1].publicApiChannel,
-            duchies[2].externalDuchyId to duchies[2].publicApiChannel,
-          ),
+        duchyPublicApiChannelMap = duchies.associate { it.externalDuchyId to it.publicApiChannel },
         trustedCertificates = TRUSTED_CERTIFICATES,
         eventGroupOptions = eventGroupOptions,
         eventQuery = eventQuery,
+        trusTeeSupported = trusTeeEnabled,
       )
     }
   }
@@ -421,15 +419,12 @@ class InProcessCmmsComponents(
         checkNotNull(it.subjectKeyIdentifier)
       }
     private val EVENT_GROUP_MEDIA_TYPES = setOf(MediaType.VIDEO, MediaType.DISPLAY)
-    private val POPULATION_SPEC: PopulationSpec =
-      SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE.toPopulationSpec(
-        TestEvent.getDescriptor()
-      )
+    private val POPULATION_SPEC: PopulationSpec = SyntheticGenerationSpecs.POPULATION_SPEC_LARGE
 
     @JvmStatic
     fun initConfig(
-      trusTeeProtocolConfigConfig: TrusTeeProtocolConfigConfig,
-      hmssProtocolConfigConfig: HmssProtocolConfigConfig,
+      trusTeeProtocolConfigConfig: TrusTeeProtocolConfigConfig? = null,
+      hmssProtocolConfigConfig: HmssProtocolConfigConfig? = null,
     ) {
       DuchyIds.setForTest(ALL_DUCHIES)
       Llv2ProtocolConfig.setForTest(
@@ -444,16 +439,20 @@ class InProcessCmmsComponents(
         setOf("aggregator"),
         2,
       )
-      HmssProtocolConfig.setForTest(
-        hmssProtocolConfigConfig.protocolConfig,
-        hmssProtocolConfigConfig.firstNonAggregatorDuchyId,
-        hmssProtocolConfigConfig.secondNonAggregatorDuchyId,
-        hmssProtocolConfigConfig.aggregatorDuchyId,
-      )
-      TrusTeeProtocolConfig.setForTest(
-        trusTeeProtocolConfigConfig.protocolConfig,
-        trusTeeProtocolConfigConfig.duchyId,
-      )
+      if (hmssProtocolConfigConfig != null) {
+        HmssProtocolConfig.setForTest(
+          hmssProtocolConfigConfig.protocolConfig,
+          hmssProtocolConfigConfig.firstNonAggregatorDuchyId,
+          hmssProtocolConfigConfig.secondNonAggregatorDuchyId,
+          hmssProtocolConfigConfig.aggregatorDuchyId,
+        )
+      }
+      if (trusTeeProtocolConfigConfig != null) {
+        TrusTeeProtocolConfig.setForTest(
+          trusTeeProtocolConfigConfig.protocolConfig,
+          trusTeeProtocolConfigConfig.duchyId,
+        )
+      }
       DuchyInfo.initializeFromConfig(
         loadTextProto("duchy_cert_config.textproto", DuchyCertConfig.getDefaultInstance())
       )

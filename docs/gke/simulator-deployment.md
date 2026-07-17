@@ -85,10 +85,15 @@ be repeated for each `EventGroup`.
 
 ### Synthetic Event Data
 
-Events are generated according to
-[simulator synthetic data specifications](../../src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto),
-consisting of a single `SyntheticPopulationSpec` and a `SyntheticEventGroupSpec`
-for each `EventGroup`.
+Events are generated according to a
+[v2alpha `PopulationSpec`](../../src/main/proto/wfa/measurement/api/v2alpha/population_spec.proto)
+together with one
+[`SyntheticEventGroupSpec`](../../src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto)
+per `EventGroup`. The `PopulationSpec` declares each sub-population's VID
+ranges and inline template attributes (e.g. a `Person` message embedded in a
+`google.protobuf.Any`), while the `SyntheticEventGroupSpec` describes the
+per-event-group date ranges, frequencies, sampling parameters, and
+non-population field values.
 
 The extracted Kustomization directory will contain a ConfigMap generator under
 `src/main/k8s/dev/edp_simulator_config_files/` where you can specify your specs
@@ -96,11 +101,13 @@ in protobuf text format. By default, these come with the specs necessary for
 running the K8s correctness test.
 
 If you want to use an event message type other than
-[`TestEvent`](../../src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/test_event.proto)
-in your`SyntheticPopulationSpec`, you will need to specify path to the
-`FileDescriptorSet` using the `--event-message-descriptor-set` option. This can
-be specified multiple times if the dependencies span multiple
-`FileDescriptorSet`s.
+[`TestEvent`](../../src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/test_event.proto),
+set `--event-message-type-url` to the new message's type URL and supply the
+matching `FileDescriptorSet`(s) via `--event-message-descriptor-set`. The flag
+can be repeated when the dependencies span multiple `FileDescriptorSet`s.
+Population fields are automatically discovered from the event message
+descriptor; non-population field paths used in the `SyntheticEventGroupSpec`
+must resolve against that descriptor.
 
 ## Apply K8s Kustomization
 

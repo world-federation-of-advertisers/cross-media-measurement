@@ -56,11 +56,11 @@ import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelRollout
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpc
 import org.wfanet.measurement.api.v2alpha.Population
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.listModelReleasesRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
@@ -86,7 +86,7 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt
  *
  * Assumptions:
  * * The CMMS instance is using the same certificates and keys used to build this test.
- * * The EDP simulators are using [SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE]
+ * * The EDP simulators are using [SyntheticGenerationSpecs.POPULATION_SPEC_LARGE]
  * * There is a Reporting system connected to the CMMS instance.
  * * The CMMS instance supports the TrusTEE protocol.
  * * A strict subset of EDP simulators support the TrusTEE protocol such that it's possible to run
@@ -94,8 +94,7 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt
  */
 class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
   private class RunningMeasurementSystem : MeasurementSystem(), TestRule {
-    override val syntheticPopulationSpec: SyntheticPopulationSpec =
-      SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE
+    override val populationSpec: PopulationSpec = SyntheticGenerationSpecs.POPULATION_SPEC_LARGE
     override val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
       SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_LARGE_2M
     override val populationDataProviderName: String

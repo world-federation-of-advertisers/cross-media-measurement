@@ -131,6 +131,13 @@ message ListBasicReportsRequest {
 message ListBasicReportsResponse {
   repeated BasicReport basic_reports = 1;
   ListBasicReportsPageToken next_page_token = 2;
+
+  // Resource names of `BasicReport`s that matched the filter criteria but
+  // could not be returned in `basic_reports` because the service was unable
+  // to render their results (for example, due to internal data inconsistency).
+  //
+  // See AIP-217.
+  repeated string unreachable = 3;
 }
 
 message FailBasicReportRequest {

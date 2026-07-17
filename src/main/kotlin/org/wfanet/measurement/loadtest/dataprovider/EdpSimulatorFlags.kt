@@ -120,10 +120,33 @@ class EdpSimulatorFlags {
 
   @CommandLine.Option(
     names = ["--population-spec"],
-    description = ["Path to SyntheticPopulationSpec message in text format."],
+    description =
+      [
+        "Path to a v2alpha PopulationSpec " +
+          "(wfa.measurement.api.v2alpha.PopulationSpec) message in text format.",
+        "Each SubPopulation must declare its template attributes inline (e.g. a Person message " +
+          "embedded in a google.protobuf.Any) so that synthetic event generation can populate " +
+          "population fields from the descriptor.",
+      ],
     required = true,
   )
   lateinit var populationSpecFile: File
+    private set
+
+  @CommandLine.Option(
+    names = ["--event-message-type-url"],
+    description =
+      [
+        "Type URL (e.g. type.googleapis.com/<full_name>) of the event message type that the " +
+          "synthetic events carry.",
+        "Defaults to TestEvent ($DEFAULT_EVENT_MESSAGE_TYPE_URL).",
+        "When set to a type other than TestEvent, --event-message-descriptor-set must also be " +
+          "supplied.",
+      ],
+    required = false,
+    defaultValue = DEFAULT_EVENT_MESSAGE_TYPE_URL,
+  )
+  lateinit var eventMessageTypeUrl: String
     private set
 
   lateinit var syntheticDataTimeZone: ZoneId
@@ -177,5 +200,8 @@ class EdpSimulatorFlags {
   companion object {
     const val TEST_EVENT_MESSAGE_TYPE =
       "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+
+    /** Default value of [eventMessageTypeUrl]: the [TEST_EVENT_MESSAGE_TYPE] type URL. */
+    const val DEFAULT_EVENT_MESSAGE_TYPE_URL = "type.googleapis.com/$TEST_EVENT_MESSAGE_TYPE"
   }
 }

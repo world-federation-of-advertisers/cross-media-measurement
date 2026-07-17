@@ -20,29 +20,33 @@ import java.time.ZoneOffset
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 
-/** [SyntheticGeneratorEventQuery] for a test environment with EDP simulators. */
+/**
+ * [SyntheticGeneratorEventQuery] for a test environment with EDP simulators.
+ *
+ * Always uses [TestEvent] as the event message type; integration tests today only exercise
+ * `TestEvent`-based EDP simulators.
+ */
 class EventQuery(
-  syntheticPopulationSpec: SyntheticPopulationSpec,
+  populationSpec: PopulationSpec,
   val eventGroupSpecByDataProvider: Map<DataProviderKey, SyntheticEventGroupSpec>,
-) :
-  SyntheticGeneratorEventQuery(syntheticPopulationSpec, TestEvent.getDescriptor(), ZoneOffset.UTC) {
+) : SyntheticGeneratorEventQuery(populationSpec, TestEvent.getDescriptor(), ZoneOffset.UTC) {
   /**
-   * @param syntheticPopulationSpec Synthetic population spec used by the EDP simulators.
-   * @param syntheticEventGroupSpecs Synthetic event groups specs used by the EDP simulators, in
+   * @param populationSpec v2alpha [PopulationSpec] used by the EDP simulators.
+   * @param syntheticEventGroupSpecs Synthetic event group specs used by the EDP simulators, in
    *   order.
    * @param dataProviderNames DataProvider resource names of the EDP simulators, in order.
    */
   constructor(
-    syntheticPopulationSpec: SyntheticPopulationSpec,
+    populationSpec: PopulationSpec,
     syntheticEventGroupSpecs: List<SyntheticEventGroupSpec>,
     dataProviderNames: Iterable<String>,
   ) : this(
-    syntheticPopulationSpec,
+    populationSpec,
     buildEventGroupSpecsByDataProvider(syntheticEventGroupSpecs, dataProviderNames),
   )
 

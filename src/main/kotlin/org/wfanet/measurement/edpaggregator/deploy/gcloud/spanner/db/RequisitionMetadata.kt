@@ -32,7 +32,6 @@ import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataAlreadyExistsByBlobUriException
 import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataAlreadyExistsByCmmsRequisitionException
 import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataNotFoundByCmmsRequisitionException
 import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataNotFoundException
@@ -254,8 +253,8 @@ fun AsyncDatabaseClient.ReadContext.readRequisitionMetadata(
     val conjuncts = mutableListOf("DataProviderResourceId = @dataProviderResourceId")
 
     if (filter != null) {
-      if (filter.state != State.REQUISITION_METADATA_STATE_UNSPECIFIED) {
-        conjuncts.add("State = @state")
+      if (filter.stateInList.isNotEmpty()) {
+        conjuncts.add("CAST(State AS INT64) IN UNNEST(@state_in)")
       }
       if (filter.groupId.isNotEmpty()) {
         conjuncts.add("GroupId = @groupId")
@@ -285,8 +284,8 @@ fun AsyncDatabaseClient.ReadContext.readRequisitionMetadata(
       bind("dataProviderResourceId").to(dataProviderResourceId)
 
       if (filter != null) {
-        if (filter.state != State.REQUISITION_METADATA_STATE_UNSPECIFIED) {
-          bind("state").to(filter.state.number.toLong())
+        if (filter.stateInList.isNotEmpty()) {
+          bind("state_in").toInt64Array(filter.stateInList.map { it.number.toLong() })
         }
         if (filter.groupId.isNotEmpty()) {
           bind("groupId").to(filter.groupId)
@@ -429,11 +428,11 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchCreateRequisitionMetadat
   val existingRequestIdToRequisitionMetadata: Map<String, RequisitionMetadataResult> =
     getRequisitionMetadataByCreateRequestIds(dataProviderResourceId, requests.map { it.requestId })
 
-  val existingBlobUriToRequisitionMetadata: Map<String, RequisitionMetadataResult> =
-    getRequisitionMetadataByBlobUris(
-      dataProviderResourceId,
-      requests.map { it.requisitionMetadata.blobUri },
-    )
+  // Multiple RequisitionMetadata rows may legitimately share a BlobUri: one grouped requisitions
+  // blob covers every requisition for a (reportId, updateTime) tuple, so every metadata row in
+  // such a batch points at the same blob. The legacy unique index on
+  // (DataProviderResourceId, BlobUri) was dropped by drop-blob-uri-index.sql; the batch path no
+  // longer rejects shared blob_uri.
 
   val existingCmmsRequisitionToRequisitionMetadata: Map<String, RequisitionMetadataResult> =
     getRequisitionMetadataByCmmsRequisitions(
@@ -446,14 +445,6 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchCreateRequisitionMetadat
       .filter { !existingRequestIdToRequisitionMetadata.containsKey(it.requestId) }
       .map { request ->
         val requisitionMetadata = request.requisitionMetadata
-
-        if (existingBlobUriToRequisitionMetadata.containsKey(requisitionMetadata.blobUri)) {
-          throw RequisitionMetadataAlreadyExistsByBlobUriException(
-              requisitionMetadata.dataProviderResourceId,
-              requisitionMetadata.blobUri,
-            )
-            .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-        }
 
         if (
           existingCmmsRequisitionToRequisitionMetadata.containsKey(

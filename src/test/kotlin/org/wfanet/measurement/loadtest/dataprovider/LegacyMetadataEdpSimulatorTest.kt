@@ -372,7 +372,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
     private val eventQuery =
       object :
         SyntheticGeneratorEventQuery(
-          SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
+          SyntheticGenerationSpecs.POPULATION_SPEC_SMALL,
           TestEvent.getDescriptor(),
           SYNTHETIC_DATA_TIME_ZONE,
         ) {

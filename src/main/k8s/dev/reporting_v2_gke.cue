@@ -14,12 +14,16 @@
 
 package k8s
 
-_pdpName:                      string @tag("pdp_name")
-_reportingBasicReportsEnabled: string @tag("basic_reports_enabled")
-_reportingSecretName:          string @tag("secret_name")
-_reportingMcConfigSecretName:  string @tag("mc_config_secret_name")
-_publicApiAddressName:         string @tag("public_api_address_name")
-_accessPublicApiAddressName:   "access-public"
+_pdpName:                                             string       @tag("pdp_name")
+_reportingBasicReportsEnabled:                        string       @tag("basic_reports_enabled")
+_reportingReportingSetReportingUnitComponentsEnabled: string       @tag("reporting_set_reporting_unit_components_enabled")
+_reportingSecretName:                                 string       @tag("secret_name")
+_reportingMcConfigSecretName:                         string       @tag("mc_config_secret_name")
+_publicApiAddressName:                                string       @tag("public_api_address_name")
+_mcpHost:                                             *"" | string @tag("mcp_host")
+_oauthIssuer:                                         *"" | string @tag("oauth_issuer")
+_oauthProtectedResource:                              *"" | string @tag("oauth_protected_resource")
+_accessPublicApiAddressName:                          "access-public"
 
 #KingdomApiTarget: #GrpcTarget & {
 	target: string @tag("kingdom_public_api_target")
@@ -51,6 +55,41 @@ _accessPublicApiAddressName:   "access-public"
 	}
 }
 
+// External exposure for the MCP server (Option B): a GKE Ingress terminates
+// HTTPS with a Google-managed certificate and forwards HTTP to the in-cluster
+// plain-HTTP MCP service, so the server itself stays unchanged.
+_reportingMcpManagedCertificate: {
+	apiVersion: "networking.gke.io/v1"
+	kind:       "ManagedCertificate"
+	metadata: name: "reporting-mcp"
+	spec: domains: [_mcpHost]
+}
+
+_reportingMcpIngress: {
+	apiVersion: "networking.k8s.io/v1"
+	kind:       "Ingress"
+	metadata: {
+		name: "reporting-mcp-ingress"
+		annotations: {
+			"kubernetes.io/ingress.class":                 "gce"
+			"networking.gke.io/managed-certificates":      "reporting-mcp"
+			"kubernetes.io/ingress.global-static-ip-name": "reporting-mcp"
+		}
+		labels: "app.kubernetes.io/part-of": #AppName
+	}
+	spec: rules: [{
+		host: _mcpHost
+		http: paths: [{
+			path:     "/"
+			pathType: "Prefix"
+			backend: service: {
+				name: "reporting-mcp-server"
+				port: number: 8080
+			}
+		}]
+	}]
+}
+
 objectSets: [
 	defaultNetworkPolicies,
 	reporting.serviceAccounts,
@@ -59,13 +98,15 @@ objectSets: [
 	reporting.services,
 	reporting.cronJobs,
 	reporting.networkPolicies,
+	if _mcpHost != "" && _oauthIssuer != "" {[_reportingMcpManagedCertificate, _reportingMcpIngress]},
 ]
 
 reporting: #Reporting & {
-	_populationDataProviderName: _pdpName
-	_basicReportsEnabled:        _reportingBasicReportsEnabled
-	_secretName:                 _reportingSecretName
-	_mcConfigSecretName:         _reportingMcConfigSecretName
+	_populationDataProviderName:                 _pdpName
+	_basicReportsEnabled:                        _reportingBasicReportsEnabled
+	_reportingSetReportingUnitComponentsEnabled: _reportingReportingSetReportingUnitComponentsEnabled
+	_secretName:                                 _reportingSecretName
+	_mcConfigSecretName:                         _reportingMcConfigSecretName
 	_imageSuffixes: {
 		"update-reporting-postgres-schema":   "reporting/v2/gcloud-postgres-update-schema"
 		"postgres-internal-reporting-server": "reporting/v2/gcloud-internal-server"
@@ -105,6 +146,20 @@ reporting: #Reporting & {
 				resources: #PublicServerResourceRequirements
 			}
 		}
+		"reporting-mcp-server": {
+			_container: {
+				_javaOptions: maxHeapSize: #PublicServerMaxHeapSize
+				resources: #PublicServerResourceRequirements
+			}
+			if _mcpHost != "" && _oauthIssuer != "" {
+				_oauthArgs: [
+					// Use oauth_protected_resource if set, otherwise default to https://<mcp_host>.
+					"--oauth-protected-resource=" + [ if _oauthProtectedResource != "" {_oauthProtectedResource}, "https://" + _mcpHost][0],
+					"--oauth-authorization-server=" + _oauthIssuer,
+					"--oauth-scope=reporting.*",
+				]
+			}
+		}
 		"access-internal-api-server": {
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalAccessServerServiceAccount
@@ -116,5 +171,8 @@ reporting: #Reporting & {
 		"reporting-v2alpha-public-api-server": _ipAddressName: _publicApiAddressName
 		"reporting-grpc-gateway": _ipAddressName:              _publicApiAddressName
 		"access-public-api-server": _ipAddressName:            _accessPublicApiAddressName
+		if _mcpHost != "" && _oauthIssuer != "" {
+			"reporting-mcp-server": metadata: annotations: "cloud.google.com/neg": "{\"ingress\": true}"
+		}
 	}
 }

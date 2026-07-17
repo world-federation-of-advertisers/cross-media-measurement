@@ -32,7 +32,7 @@ jobs:
       CLUSTER_LOGS_PATH: cluster-logs
     steps:
     - name: Check out revision
-      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
     - uses: ./.github/actions/free-disk-space
 
@@ -62,5 +62,5 @@ jobs:
 
     - name: Upload Bazel testlogs
       continue-on-error: true
-      uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
+      uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
       if: failure() && (steps.run-tests.outcome == 'failure')

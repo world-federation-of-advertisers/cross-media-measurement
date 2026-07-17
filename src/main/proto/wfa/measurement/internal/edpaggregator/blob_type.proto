@@ -1,0 +1,32 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "BlobTypeProto";
+
+// The type of rank index blob.
+enum BlobType {
+  // Default, unspecified type. Should not be used.
+  BLOB_TYPE_UNSPECIFIED = 0;
+  // Contains only fingerprints seen during this dispatch.
+  BLOB_TYPE_DAY_ONLY = 1;
+  // Contains the full cumulative set of fingerprints with
+  // assigned ranks for this subpool.
+  BLOB_TYPE_SNAPSHOT = 2;
+}

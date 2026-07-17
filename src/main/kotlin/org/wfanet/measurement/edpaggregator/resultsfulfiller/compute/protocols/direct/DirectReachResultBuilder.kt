@@ -27,8 +27,8 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.HistogramComputations
-import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.computation.ReachAndFrequencyComputations
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.MeasurementResultBuilder
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
@@ -42,7 +42,7 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  * @param samplingRate The sampling rate used to sample the events.
  * @param directNoiseMechanism The direct noise mechanism to use.
  * @param maxPopulation The max Population that can be returned. Optional.
- * @param kAnonymityParams The k-anonymity params. Optional.
+ * @param resultMinimumThresholds Optional small-cell suppression parameters.
  */
 class DirectReachResultBuilder(
   private val directProtocolConfig: ProtocolConfig.Direct,
@@ -51,7 +51,7 @@ class DirectReachResultBuilder(
   private val samplingRate: Float,
   private val directNoiseMechanism: DirectNoiseMechanism,
   private val maxPopulation: Int?,
-  private val kAnonymityParams: KAnonymityParams?,
+  private val resultMinimumThresholds: ResultMinimumThresholds?,
 ) : MeasurementResultBuilder {
 
   override suspend fun buildMeasurementResult(): Measurement.Result {
@@ -64,7 +64,7 @@ class DirectReachResultBuilder(
     val histogram: LongArray =
       HistogramComputations.buildHistogram(
         frequencyVector = frequencyData,
-        maxFrequency = kAnonymityParams?.reachMaxFrequencyPerUser ?: 1,
+        maxFrequency = resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1,
       )
 
     val reachValue = getReachValue(histogram)
@@ -104,7 +104,7 @@ class DirectReachResultBuilder(
       dpParams = reachDpParams,
       vidSamplingIntervalWidth = samplingRate.toDouble(),
       vectorSize = maxPopulation,
-      kAnonymityParams = kAnonymityParams,
+      resultMinimumThresholds = resultMinimumThresholds,
     )
   }
 

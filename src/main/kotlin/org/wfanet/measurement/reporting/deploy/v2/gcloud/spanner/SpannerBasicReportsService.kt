@@ -20,11 +20,16 @@ import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Timestamp
 import io.grpc.Status
+import io.opentelemetry.api.metrics.LongCounter
+import java.util.logging.Level
+import java.util.logging.Logger
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.postgres.SerializableErrors.withSerializableErrorRetries
@@ -67,6 +72,7 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readFullRepo
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToFailed
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setExternalReportId
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
+import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.internal.BasicReportAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException
 import org.wfanet.measurement.reporting.service.internal.GroupingDimensions
@@ -212,7 +218,7 @@ class SpannerBasicReportsService(
           mutableMapOf()
 
         basicReports +=
-          basicReportResults.subList(0, minOf(basicReportResults.size, pageSize)).map {
+          basicReportResults.subList(0, minOf(basicReportResults.size, pageSize)).mapNotNull {
             basicReportResult ->
             val campaignGroupExternalKey =
               ReportingSetExternalKey(
@@ -226,23 +232,41 @@ class SpannerBasicReportsService(
                 campaignGroupDisplayName = campaignGroup.displayName
               }
             } else {
-              val campaignGroupReportingSets: List<ReportingSet> =
-                reportingSetsByCampaignGroupExternalKey.getOrPut(campaignGroupExternalKey) {
-                  listReportingSetsByCampaignGroup(
-                      basicReportResult.basicReport.cmmsMeasurementConsumerId,
-                      basicReportResult.basicReport.externalCampaignGroupId,
+              try {
+                val campaignGroupReportingSets: List<ReportingSet> =
+                  reportingSetsByCampaignGroupExternalKey.getOrPut(campaignGroupExternalKey) {
+                    listReportingSetsByCampaignGroup(
+                        basicReportResult.basicReport.cmmsMeasurementConsumerId,
+                        basicReportResult.basicReport.externalCampaignGroupId,
+                      )
+                      .filter { it.filter.isEmpty() }
+                  }
+
+                val reportingSetResults: List<ReportingSetResult> =
+                  txn.getReportingSetResults(basicReportResult)
+
+                basicReportResult.basicReport.withResults(
+                  campaignGroup,
+                  campaignGroupReportingSets,
+                  reportingSetResults,
+                )
+              } catch (e: CancellationException) {
+                throw e
+              } catch (e: Exception) {
+                val basicReportName =
+                  BasicReportKey(
+                      cmmsMeasurementConsumerId =
+                        basicReportResult.basicReport.cmmsMeasurementConsumerId,
+                      basicReportId = basicReportResult.basicReport.externalBasicReportId,
                     )
-                    .filter { it.filter.isEmpty() }
+                    .toName()
+                logger.log(Level.SEVERE, e) {
+                  "Failed to render BasicReport $basicReportName; marking as unreachable"
                 }
-
-              val reportingSetResults: List<ReportingSetResult> =
-                txn.getReportingSetResults(basicReportResult)
-
-              basicReportResult.basicReport.withResults(
-                campaignGroup,
-                campaignGroupReportingSets,
-                reportingSetResults,
-              )
+                unreachableBasicReportCounter.add(1)
+                unreachable += basicReportName
+                null
+              }
             }
           }
 
@@ -765,6 +789,60 @@ class SpannerBasicReportsService(
         .forEach { put((it.key as ReportingSetKey.Composite).setExpression, it.value) }
     }
 
+    // Any ReportingSetResult that references an external_reporting_set_id not in the
+    // BasicReport's expected primitive/composite set is data corruption -- not a
+    // legitimate coverage gap -- and rendering it would drop the corruption silently.
+    // Refuse to render so the caller-side unreachable classifier picks it up.
+    // Legitimate partial coverage (all referenced IDs are expected but some window/IQF
+    // buckets lack data) is handled by per-window containsKey guards in
+    // BasicReportProcessedResultsTransformation.buildResults and still renders.
+    // The `isNotEmpty()` filter on the actual ReportingSetResult set below guards the
+    // ReportingSetResult side, where
+    // `Dimension.external_reporting_set_id` is `Required` in proto3 but not wire-enforced. A
+    // blank field there is a distinct upstream data-quality issue, not ReportingSet
+    // corruption, and must not be misclassified as an unexpected ID. The expected set
+    // itself is built from server-minted DB rows plus the caller's own explicit references,
+    // both of which are guaranteed non-empty upstream, so no matching filter is needed there.
+    //
+    // Two sources of legitimately-expected external_reporting_set_ids:
+    //   1. Children of this BasicReport's campaign group -- covers the classic path (caller-
+    //      supplied campaign group with per-primitive and per-composite children) and the
+    //      synthesized-campaign-group path's server-minted composites over the caller's
+    //      reporting_unit components. Server-minted composites get
+    //      `campaign_group = <this campaign group>` in
+    //      BasicReportTransformations.buildUnionCompositeReportingSet (line 794), so they
+    //      land in listReportingSetsByCampaignGroup's output. If that assignment ever
+    //      changes -- e.g. minted composites start using a different or empty
+    //      campaign_group -- this pre-check needs to add them to (2)'s enumeration too.
+    //   2. The `reporting_unit.reportingSetKeys` references on this BasicReport's own
+    //      resultGroupSpecs. In the custom-groups synthesis path these are user-supplied
+    //      ReportingSets with `campaign_group = ""` (per the design convention), so they are
+    //      NOT children of the synthesized campaign group and would be missing from (1).
+    //      In the classic path they usually coincide with (1) but can also be off-
+    //      recommendation ReportingSets outside this campaign group.
+    val expectedReportingSetIds: Set<String> = buildSet {
+      addAll(campaignGroupReportingSetIdByReportingSetKey.values)
+      for (resultGroupSpec in basicReport.details.resultGroupSpecsList) {
+        for (reportingSetKey in
+          resultGroupSpec.reportingUnit.reportingSetKeys.reportingSetKeysList) {
+          add(reportingSetKey.externalReportingSetId)
+        }
+      }
+    }
+    val unexpectedReportingSetIds: Set<String> =
+      reportingSetResults
+        .map { it.dimension.externalReportingSetId }
+        .filter { it.isNotEmpty() && it !in expectedReportingSetIds }
+        .toSet()
+    if (unexpectedReportingSetIds.isNotEmpty()) {
+      error(
+        "BasicReport ${basicReport.cmmsMeasurementConsumerId}/" +
+          "${basicReport.externalBasicReportId} has ReportingSetResults " +
+          "referencing external_reporting_set_ids not in the campaign group's " +
+          "expected set: $unexpectedReportingSetIds"
+      )
+    }
+
     return buildResultGroups(
       basicReport,
       reportingSetResults,
@@ -776,5 +854,16 @@ class SpannerBasicReportsService(
   companion object {
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25
+
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private val unreachableBasicReportCounter: LongCounter =
+      Instrumentation.meter
+        .counterBuilder("${Instrumentation.ROOT_NAMESPACE}.reporting.unreachable_basic_reports")
+        .setUnit("{basic_report}")
+        .setDescription(
+          "BasicReports that could not be rendered on the read path and were returned as unreachable"
+        )
+        .build()
   }
 }

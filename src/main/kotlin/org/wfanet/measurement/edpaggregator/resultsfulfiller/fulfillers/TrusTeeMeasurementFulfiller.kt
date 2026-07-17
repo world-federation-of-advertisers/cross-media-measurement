@@ -28,8 +28,8 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
-import org.wfanet.measurement.computation.KAnonymityParams
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.KAnonymizer
+import org.wfanet.measurement.computation.ResultMinimumThresholds
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultMinimumThresholder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder
 
@@ -89,8 +89,8 @@ class TrusTeeMeasurementFulfiller(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    /** Constructs a [TrusTeeMeasurementFulfiller] with a k-anonymized FrequencyVector. */
-    fun buildKAnonymized(
+    /** Constructs a [TrusTeeMeasurementFulfiller] with a thresholded FrequencyVector. */
+    fun buildThresholded(
       requisition: Requisition,
       requisitionNonce: Long,
       measurementSpec: MeasurementSpec,
@@ -98,22 +98,26 @@ class TrusTeeMeasurementFulfiller(
       frequencyVectorBuilder: FrequencyVectorBuilder,
       requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
       requisitionsStub: RequisitionsCoroutineStub,
-      kAnonymityParams: KAnonymityParams,
+      resultMinimumThresholds: ResultMinimumThresholds,
+      protocolMinUsers: Int,
+      protocolMinImpressions: Int,
       maxPopulation: Int?,
       encryptionParams: FulfillRequisitionRequestBuilder.EncryptionParams?,
     ): TrusTeeMeasurementFulfiller {
-      val kAnonymizedFrequencyVector =
-        KAnonymizer.kAnonymizeFrequencyVector(
+      val thresholdedFrequencyVector =
+        ResultMinimumThresholder.applyThresholds(
           measurementSpec,
           populationSpec,
           frequencyVectorBuilder,
-          kAnonymityParams,
+          resultMinimumThresholds,
           maxPopulation,
+          protocolMinUsers,
+          protocolMinImpressions,
         )
       return TrusTeeMeasurementFulfiller(
         requisition,
         requisitionNonce,
-        kAnonymizedFrequencyVector,
+        thresholdedFrequencyVector,
         requisitionFulfillmentStubMap,
         requisitionsStub,
         encryptionParams,

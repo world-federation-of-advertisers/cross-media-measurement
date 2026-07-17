@@ -1,0 +1,66 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// (-- api-linter: all=disabled
+//     aip.dev/not-precedent: Internal storage format, not an API resource.
+//     --)
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator;
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "SubpoolFingerprintsProto";
+
+// Output of Phase 0 (Pool Assigner): the set of fingerprints that the
+// labeler's pool-emit pass routed to a single subpool.
+//
+// One blob is written per
+// (DataProvider, ModelLine, RawImpressionUpload, Shard, Subpool) tuple
+// by each Pool Assigner VM. The ranker for that subpool later reads
+// every blob written for it across all shards.
+//
+// Storage layout: fingerprints are packed end-to-end into a single
+// `bytes` field rather than `repeated bytes` to eliminate per-element
+// tag and length-prefix overhead. Concrete sizes:
+//
+//   * `repeated bytes fingerprints`: 14 bytes per entry on the wire
+//     (1 B tag + 1 B length-prefix + 12 B payload) plus one
+//     `ByteString` Java object per entry in memory.
+//   * `bytes fingerprints` (this design): exactly 12 bytes per entry
+//     on the wire, plus one `ByteString` for the entire payload
+//     regardless of entry count. At 1 B entries this saves ~17 % wire
+//     size and ~60 GB of heap object overhead.
+//
+// Read pattern: obtain the `fingerprints` byte buffer and slice it in
+// 12-byte chunks (no per-element allocation needed).
+message SubpoolFingerprints {
+  // Identifier of the subpool this blob is scoped to.
+  // The pool's population_offset from the RankedPopulationNode model
+  // config. Matches PoolAssignment.pool_offset (pass-1) and
+  // RankAssignment.pool_offset (pass-2).
+  int64 pool_offset = 1;
+
+  // Fingerprints packed back-to-back. Length MUST be a multiple of 12;
+  // each contiguous 12-byte run is one fingerprint (the leading 12
+  // bytes of a uniformly-distributed hash such as SHA-256 of the
+  // upstream account identifier).
+  //
+  // Entry count is derivable as `fingerprints.size() / 12`; no
+  // separate count field is stored because it would introduce a
+  // consistency hazard (count vs. actual length drift) without any
+  // size benefit at scale.
+  bytes fingerprints = 2;
+}

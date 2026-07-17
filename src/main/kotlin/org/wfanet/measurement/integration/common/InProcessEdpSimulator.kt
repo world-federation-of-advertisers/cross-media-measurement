@@ -54,7 +54,6 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
-import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpecWithoutAttributes
 
 /** An in process EDP simulator. */
 class InProcessEdpSimulator(
@@ -67,6 +66,7 @@ class InProcessEdpSimulator(
   trustedCertificates: Map<ByteString, X509Certificate>,
   eventGroupOptions: EventGroupOptions,
   eventQuery: SyntheticGeneratorEventQuery,
+  trusTeeSupported: Boolean = false,
   coroutineContext: CoroutineContext = Dispatchers.Default,
 ) : Health {
   data class EventGroupOptions(
@@ -89,8 +89,7 @@ class InProcessEdpSimulator(
   private val delegate: EdpSimulator
 
   init {
-    val populationSpec: PopulationSpec =
-      eventQuery.populationSpec.toPopulationSpecWithoutAttributes()
+    val populationSpec: PopulationSpec = eventQuery.populationSpec
     val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
 
     delegate =
@@ -125,7 +124,7 @@ class InProcessEdpSimulator(
           ),
         trustedCertificates = trustedCertificates,
         vidIndexMap = vidIndexMap,
-        trusTeeSupported = false,
+        trusTeeSupported = trusTeeSupported,
         random = random,
       )
   }

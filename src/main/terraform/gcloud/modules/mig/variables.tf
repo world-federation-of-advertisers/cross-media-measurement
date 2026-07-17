@@ -80,6 +80,13 @@ variable "machine_type" {
   nullable    = false
 }
 
+variable "disk_type" {
+  description = "The boot disk type. Defaults to pd-ssd (n2d-compatible, used fleet-wide since the n2d migration). Override with a hyperdisk-* type only for machine families that support it, or pd-balanced for others."
+  type        = string
+  default     = "pd-ssd"
+  nullable    = false
+}
+
 variable "docker_image" {
   description = "The docker image to be deployed."
   type        = string

@@ -3020,7 +3020,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     private val syntheticGeneratorEventQuery =
       object :
         SyntheticGeneratorEventQuery(
-          SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
+          SyntheticGenerationSpecs.POPULATION_SPEC_SMALL,
           TestEvent.getDescriptor(),
           SYNTHETIC_DATA_TIME_ZONE,
         ) {

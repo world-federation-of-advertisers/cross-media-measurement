@@ -102,6 +102,12 @@ variable "edpa_config_files_bucket_name" {
   nullable    = false
 }
 
+variable "vid_models_storage_bucket_name" {
+  description = "Name of Google Cloud Storage bucket for the VID Labeling pipeline's compiled VID model blobs."
+  type        = string
+  nullable    = false
+}
+
 variable "terraform_service_account" {
   description = "Service account used by terraform that needs to attach the MIG service account to the VM."
   type        = string
@@ -353,5 +359,99 @@ variable "data_availability_monitor_env_var" {
 
 variable "data_availability_monitor_uber_jar_path" {
   description = "Path to DataAvailabilityMonitor uber jar."
+  type        = string
+}
+
+variable "data_provider_resource_ids" {
+  type        = map(string)
+  nullable    = false
+  description = "Map of EDP name to DataProviderResourceId"
+}
+
+variable "dashboard_operators" {
+  type        = list(string)
+  nullable    = false
+  description = "Users/groups granted platform access to dashboard tables and EDP SA impersonation for testing"
+}
+
+variable "dashboard_deletion_protection" {
+  type        = bool
+  default     = true
+  description = "Enable deletion protection on dashboard BigQuery tables. Set to false for dev."
+}
+
+variable "edp_aggregator_spanner_project" {
+  type        = string
+  nullable    = false
+  description = "GCP project containing the EDP Aggregator Spanner instance"
+}
+
+variable "edp_aggregator_spanner_instance" {
+  type        = string
+  nullable    = false
+  description = "EDP Aggregator Spanner instance name"
+}
+
+variable "kingdom_spanner_project" {
+  type        = string
+  nullable    = false
+  description = "GCP project containing the Kingdom Spanner instance"
+}
+
+variable "kingdom_spanner_instance" {
+  type        = string
+  nullable    = false
+  description = "Kingdom Spanner instance name"
+}
+
+variable "reporting_spanner_project" {
+  type        = string
+  nullable    = false
+  description = "GCP project containing the Reporting Spanner instance"
+}
+
+variable "reporting_spanner_instance" {
+  type        = string
+  nullable    = false
+  description = "Reporting Spanner instance name"
+}
+
+variable "vid_labeling_dispatcher_env_var" {
+  description = "VidLabelingDispatcher extra env variables"
+  type        = string
+}
+
+variable "vid_labeling_dispatcher_secret_mapping" {
+  description = "VidLabelingDispatcher secret mapping"
+  type        = string
+}
+
+variable "vid_labeling_dispatcher_uber_jar_path" {
+  description = "Path to VidLabelingDispatcher uber jar."
+  type        = string
+}
+
+variable "vid_labeling_dispatcher_config_file_path" {
+  description = "Path to VidLabelingDispatcher config file."
+  type        = string
+}
+
+variable "vid_labeling_monitor_env_var" {
+  description = "VidLabelingMonitor extra env variables"
+  type        = string
+}
+
+variable "vid_labeling_monitor_secret_mapping" {
+  description = "VidLabelingMonitor secret mapping"
+  type        = string
+}
+
+variable "vid_labeling_monitor_uber_jar_path" {
+  description = "Path to VidLabelingMonitor uber jar."
+  type        = string
+}
+
+variable "vid_labeling_monitor_config_file_path" {
+  description = "Path to VidLabelingMonitor config file."
   type        = string
 }

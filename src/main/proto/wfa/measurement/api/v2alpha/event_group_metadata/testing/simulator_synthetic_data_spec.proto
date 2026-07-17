@@ -45,55 +45,15 @@ message FieldValue {
   }
 }
 
-// The specification of a population for synthetic event generation.
-message SyntheticPopulationSpec {
-  // The overall range of VIDs for the synthetic population.
-  VidRange vid_range = 1;
-
-  // Type URL of the event message type.
-  //
-  // This is the message type which `population_fields` and
-  // `non_population_fields` refer to.
-  string event_message_type_url = 5;
-
-  // Set of field paths within a synthetic event that pertain to the population,
-  // with `.` as the traversal operator.
-  //
-  // For example, an `age_group` field within a `person` event template would
-  // have the path `person.age_group`.
-  //
-  // The values of these fields are assigned at the sub-population level.
-  //
-  // TODO(@SanjayVas): Consider determining this set from protobuf options on
-  // event template definitions.
-  repeated string population_fields = 2;
-
-  // Set of field paths within a synthetic event that do not pertain to the
-  // population, with `.` as the traversal operator.
-  //
-  // For example, a `viewed_fraction` field within a `video_ad` event template
-  // would have the path `video_ad.viewed_fraction`.
-  //
-  // The values of these fields are assigned at the event level.
-  repeated string non_population_fields = 3;
-
-  // A subset of the synthetic population.
-  message SubPopulation {
-    VidRange vid_sub_range = 1;
-
-    // A map of `population_fields` to their values for each subpopulation.
-    map<string, FieldValue> population_fields_values = 2;
-  }
-
-  // Subpopulations should describe non-overlapping VID ranges. The combinations
-  // of population field values should be unique across subpopulations.
-  repeated SubPopulation sub_populations = 4;
-}
-
 // The specification of an `EventGroup` for synthetic event generation.
 //
-// Each `SyntheticEventGroupSpec` implicitly references a single
-// `SyntheticPopulationSpec`.
+// Each `SyntheticEventGroupSpec` is paired with a v2alpha
+// `wfa.measurement.api.v2alpha.PopulationSpec`. Each `SubPopulation` of that
+// `PopulationSpec` declares its template attributes inline (e.g. a
+// `Person` event template message embedded in a `google.protobuf.Any`), and
+// the population fields are derived at runtime from the event message
+// descriptor. Non-population fields are referenced by string path against the
+// same descriptor.
 message SyntheticEventGroupSpec {
   string description = 1;
 
@@ -107,8 +67,8 @@ message SyntheticEventGroupSpec {
       // A range of VIDs within a single `SubPopulation`.
       VidRange vid_range = 1;
 
-      // A map of `non_population_fields` from `SyntheticPopulationSpec` to
-      // their values.
+      // A map of non-population field paths (resolved against the event message
+      // descriptor) to their values.
       map<string, FieldValue> non_population_field_values = 2;
 
       // Rate in the range (0, 1] at which VIDs sampled from `vid_range`.

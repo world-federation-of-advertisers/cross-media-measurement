@@ -18,9 +18,8 @@ package org.wfanet.measurement.integration.k8s
 
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
-import com.google.protobuf.struct
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.timestamp
-import com.google.protobuf.value
 import com.google.type.interval
 import io.grpc.ManagedChannel
 import java.net.URI
@@ -46,6 +45,7 @@ import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.measurement.integration.k8s.testing.EdpaCorrectnessTestConfig
+import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
@@ -53,10 +53,12 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
@@ -68,6 +70,9 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.Met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
+import org.wfanet.measurement.integration.common.EventGroupConfig
+import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
+import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
@@ -83,7 +88,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
   override val EVENT_GROUP_FILTERING_LAMBDA_CROSS_PUB: (CmmsEventGroup) -> Boolean = {
     it.eventGroupReferenceId in
-      setOf(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID, AD_GROUP_EDP_EVENT_GROUP_REF_ID)
+      setOf(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID, EDPA_META_EVENT_GROUP_REF_ID)
   }
 
   private class UploadEventGroup : TestRule {
@@ -93,27 +98,30 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set")
     private val storageClient = StorageOptions.getDefaultInstance().service
 
-    /** Per-eventGroupReferenceId storage config so each provider writes to its own directory. */
-    private data class EventGroupStorage(
+    /** Per-EDP storage config. Multiple event groups for the same EDP share one blob. */
+    private data class EdpStorage(
       val objectMapKey: String,
       val objectKey: String,
       val blobUri: String,
+      val eventGroupReferenceIds: Set<String>,
     )
 
-    private val eventGroupStorageMap: Map<String, EventGroupStorage> =
-      mapOf(
-        EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID to
-          EventGroupStorage(
-            objectMapKey = "edp7/event-groups-map/edp7-event-group.binpb",
-            objectKey = "edp7/event-groups/edp7-event-group.binpb",
-            blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.binpb",
-          ),
-        AD_GROUP_EDP_EVENT_GROUP_REF_ID to
-          EventGroupStorage(
-            objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.binpb",
-            objectKey = "edpa_meta/event-groups/edpa_meta-event-group.binpb",
-            blobUri = "gs://$bucket/edpa_meta/event-groups/edpa_meta-event-group.binpb",
-          ),
+    private val edpStorageList: List<EdpStorage> =
+      listOf(
+        EdpStorage(
+          objectMapKey = "edp7/event-groups-map/edp7-event-group.binpb",
+          objectKey = "edp7/event-groups/edp7-event-group.binpb",
+          blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.binpb",
+          eventGroupReferenceIds =
+            setOf(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID, CREATIVE_ID_EVENT_GROUP_REF_ID) +
+              MULTI_CREATIVE_REF_IDS,
+        ),
+        EdpStorage(
+          objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.binpb",
+          objectKey = "edpa_meta/event-groups/edpa_meta-event-group.binpb",
+          blobUri = "gs://$bucket/edpa_meta/event-groups/edpa_meta-event-group.binpb",
+          eventGroupReferenceIds = setOf(EDPA_META_EVENT_GROUP_REF_ID),
+        ),
       )
 
     override fun apply(base: Statement, description: Description): Statement {
@@ -122,17 +130,15 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           runBlocking {
             deleteExistingEventGroupsMaps()
             val allEventGroups = createEventGroups()
-            val eventGroupsByReferenceId: Map<String, List<EventGroup>> =
-              allEventGroups.groupBy { it.eventGroupReferenceId }
 
-            for ((refId, groups) in eventGroupsByReferenceId) {
-              val storage =
-                eventGroupStorageMap[refId]
-                  ?: error("Missing storage mapping for eventGroupReferenceId=$refId")
-
-              uploadEventGroups(storage, groups)
-              waitForEventGroupSyncToComplete(storage)
-              logger.info("Event Group Sync completed for $refId.")
+            for (edpStorage in edpStorageList) {
+              val groups =
+                allEventGroups.filter {
+                  it.eventGroupReferenceId in edpStorage.eventGroupReferenceIds
+                }
+              uploadEventGroups(edpStorage, groups)
+              waitForEventGroupSyncToComplete(edpStorage)
+              logger.info("Event Group Sync completed for ${edpStorage.eventGroupReferenceIds}.")
             }
 
             logger.info("Event Group Sync completed.")
@@ -142,7 +148,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       }
     }
 
-    private suspend fun waitForEventGroupSyncToComplete(storage: EventGroupStorage) {
+    private suspend fun waitForEventGroupSyncToComplete(storage: EdpStorage) {
       withTimeout(EVENT_GROUP_SYNC_TIMEOUT) {
         while (!isEventGroupSyncDone(storage)) {
           logger.info("Waiting on Event Group Sync to complete...")
@@ -151,20 +157,15 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       }
     }
 
-    private fun isEventGroupSyncDone(storage: EventGroupStorage): Boolean {
+    private fun isEventGroupSyncDone(storage: EdpStorage): Boolean {
       return storageClient.get(bucket, storage.objectMapKey) != null
     }
 
     private fun deleteExistingEventGroupsMaps() {
-      eventGroupStorageMap.values.forEach { storage ->
-        storageClient.delete(bucket, storage.objectMapKey)
-      }
+      edpStorageList.forEach { storage -> storageClient.delete(bucket, storage.objectMapKey) }
     }
 
-    private suspend fun uploadEventGroups(
-      storage: EventGroupStorage,
-      eventGroups: List<EventGroup>,
-    ) {
+    private suspend fun uploadEventGroups(storage: EdpStorage, eventGroups: List<EventGroup>) {
       val eventGroupsBlobUri = SelectedStorageClient.parseBlobUri(storage.blobUri)
       MesosRecordIoStorageClient(
           SelectedStorageClient(
@@ -177,62 +178,83 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
 
     private fun createEventGroups(): List<EventGroup> {
-      return syntheticEventGroupMap.flatMap { (eventGroupReferenceId, syntheticEventGroupSpec) ->
-        syntheticEventGroupSpec.dateSpecsList.map { dateSpec ->
-          val dateRange = dateSpec.dateRange
-          val startTime =
-            LocalDate.of(dateRange.start.year, dateRange.start.month, dateRange.start.day)
-              .atStartOfDay(ZONE_ID)
-              .toInstant()
-          val endTime =
-            LocalDate.of(
-                dateRange.endExclusive.year,
-                dateRange.endExclusive.month,
-                dateRange.endExclusive.day - 1,
+      return syntheticEventGroupMap.flatMap { (eventGroupReferenceId, config) ->
+        when (config) {
+          is EventGroupConfig.LegacySpec ->
+            buildEventGroupsFromSpec(
+              eventGroupReferenceId = eventGroupReferenceId,
+              spec = config.spec,
+              dataEntityKey = null,
+              entityMetadata = null,
+            )
+          is EventGroupConfig.MultiEntityKey ->
+            config.entityKeySpecs.flatMap { entityKeySpec ->
+              buildEventGroupsFromSpec(
+                eventGroupReferenceId =
+                  "${entityKeySpec.entityKey.entityType}-${entityKeySpec.entityKey.entityId}",
+                spec = entityKeySpec.spec,
+                dataEntityKey = entityKeySpec.entityKey,
+                entityMetadata = entityKeySpec.entityMetadata,
               )
-              .atTime(23, 59, 59)
-              .atZone(ZONE_ID)
-              .toInstant()
-          // EDP1 is the legacy path: no entity_key supplied → Kingdom schema defaults
-          // entity_type="campaign", leaves entity_id NULL, no entity_metadata.
-          // EDP2 carries a non-default entity_type ("ad_group") so the deployed Kingdom +
-          // Reporting stack exercises both paths end-to-end on cluster.
-          val isLegacyEdp = eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID
-          eventGroup {
-            this.eventGroupReferenceId = eventGroupReferenceId
-            measurementConsumer = TEST_CONFIG.measurementConsumer
-            dataAvailabilityInterval = interval {
-              this.startTime = timestamp { seconds = startTime.epochSecond }
-              this.endTime = timestamp { seconds = endTime.epochSecond }
             }
-            this.eventGroupMetadata = eventGroupMetadata {
-              this.adMetadata = adMetadata {
-                this.campaignMetadata = campaignMetadata {
-                  brand = "some-brand"
-                  campaign = "some-campaign"
-                }
-              }
-              if (!isLegacyEdp) {
-                this.entityMetadata = struct {
-                  fields["placement"] = value { stringValue = "homepage_top" }
-                  fields["objective"] = value { stringValue = "awareness" }
-                }
-              }
-            }
-            if (!isLegacyEdp) {
-              this.entityKey = entityKey {
-                entityType = "ad_group"
-                entityId = eventGroupReferenceId
-              }
-            }
-            mediaTypes += MediaType.valueOf("VIDEO")
+        }
+      }
+    }
+
+    private fun buildEventGroupsFromSpec(
+      eventGroupReferenceId: String,
+      spec: SyntheticEventGroupSpec,
+      dataEntityKey: EntityKey?,
+      entityMetadata: com.google.protobuf.Struct?,
+    ): List<EventGroup> {
+      return spec.dateSpecsList.map { dateSpec ->
+        val dateRange = dateSpec.dateRange
+        val startTime =
+          LocalDate.of(dateRange.start.year, dateRange.start.month, dateRange.start.day)
+            .atStartOfDay(ZONE_ID)
+            .toInstant()
+        val endTime =
+          LocalDate.of(
+              dateRange.endExclusive.year,
+              dateRange.endExclusive.month,
+              dateRange.endExclusive.day - 1,
+            )
+            .atTime(23, 59, 59)
+            .atZone(ZONE_ID)
+            .toInstant()
+        eventGroup {
+          this.eventGroupReferenceId = eventGroupReferenceId
+          measurementConsumer = TEST_CONFIG.measurementConsumer
+          dataAvailabilityInterval = interval {
+            this.startTime = timestamp { seconds = startTime.epochSecond }
+            this.endTime = timestamp { seconds = endTime.epochSecond }
           }
+          this.eventGroupMetadata = eventGroupMetadata {
+            this.adMetadata = adMetadata {
+              this.campaignMetadata = campaignMetadata {
+                brand = "some-brand"
+                campaign = "some-campaign"
+              }
+            }
+            if (entityMetadata != null) {
+              this.entityMetadata = entityMetadata
+            }
+          }
+          if (dataEntityKey != null) {
+            this.entityKey = entityKey {
+              entityType = dataEntityKey.entityType
+              entityId = dataEntityKey.entityId
+            }
+          }
+          mediaTypes += MediaType.valueOf("VIDEO")
         }
       }
     }
 
     companion object {
-      private const val EVENT_GROUP_SYNC_TIMEOUT = 30_000L
+      // 120s to absorb event-group-sync Cloud Function cold starts (JVM boot
+      // can consume the first several seconds after a fresh deploy).
+      private const val EVENT_GROUP_SYNC_TIMEOUT = 120_000L
       private const val EVENT_GROUP_SYNC_POLLING_INTERVAL = 3000L
     }
   }
@@ -402,11 +424,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
         TestEvent.getDefaultInstance(),
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
-        syntheticPopulationSpec,
-        syntheticEventGroupMap,
+        populationSpec,
+        resolvedSyntheticEventGroupMap,
         reportName,
         TEST_CONFIG.modelLine,
-        listEventGroupsEntityTypes = listOf("campaign", "ad_group"),
+        listEventGroupsEntityTypes = listOf("campaign", "creative-id"),
         onMeasurementsCreated = ::triggerRequisitionFetcher,
       )
     }
@@ -453,37 +475,30 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       parseTextProto(configFile, EdpaCorrectnessTestConfig.getDefaultInstance())
     }
 
-    private val TEST_DATA_PATH =
-      Paths.get(
-        "wfa_measurement_system",
-        "src",
-        "main",
-        "proto",
-        "wfa",
-        "measurement",
-        "loadtest",
-        "dataprovider",
-      )
+    private val POPULATION_SPEC_TYPE_REGISTRY: TypeRegistry =
+      TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
 
-    private val TEST_DATA_RUNTIME_PATH =
-      org.wfanet.measurement.common.getRuntimePath(TEST_DATA_PATH)!!
+    private val IMPRESSION_TEST_DATA_CONFIG: ImpressionTestDataConfig by lazy {
+      val configFile =
+        getRuntimePath(CONFIG_PATH.resolve("impression_test_data_config.textproto"))!!.toFile()
+      parseTextProto(configFile, ImpressionTestDataConfig.getDefaultInstance())
+    }
 
-    val syntheticPopulationSpec: SyntheticPopulationSpec =
+    val populationSpec: PopulationSpec by lazy {
       parseTextProto(
-        TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
-        SyntheticPopulationSpec.getDefaultInstance(),
+        ImpressionTestDataConfigs.resolveSpecPath(
+          IMPRESSION_TEST_DATA_CONFIG.populationSpecResourcePath
+        ),
+        PopulationSpec.getDefaultInstance(),
+        POPULATION_SPEC_TYPE_REGISTRY,
       )
-    val syntheticEventGroupSpec: SyntheticEventGroupSpec =
-      parseTextProto(
-        TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
-        SyntheticEventGroupSpec.getDefaultInstance(),
-      )
+    }
 
-    val syntheticEventGroupMap =
-      mapOf(
-        EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
-        AD_GROUP_EDP_EVENT_GROUP_REF_ID to syntheticEventGroupSpec,
-      )
+    val syntheticEventGroupMap: Map<String, EventGroupConfig> =
+      ImpressionTestDataConfigs.toEventGroupMap(IMPRESSION_TEST_DATA_CONFIG)
+
+    val resolvedSyntheticEventGroupMap: Map<String, EventGroupConfig> =
+      ImpressionTestDataConfigs.toFlatEventGroupMap(IMPRESSION_TEST_DATA_CONFIG)
 
     private val ZONE_ID = ZoneId.of("UTC")
 

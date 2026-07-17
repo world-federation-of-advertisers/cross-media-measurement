@@ -1,0 +1,396 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
+import "google/api/resource.proto";
+import "google/type/interval.proto";
+import "wfa/measurement/edpaggregator/v1alpha/raw_impression_upload_model_line.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RawImpressionUploadModelLineServiceProto";
+
+// Service for managing `RawImpressionUploadModelLine` resources,
+// which track per-model-line processing state for a raw
+// impression upload.
+service RawImpressionUploadModelLineService {
+  // Creates a new `RawImpressionUploadModelLine`.
+  rpc CreateRawImpressionUploadModelLine(
+      CreateRawImpressionUploadModelLineRequest)
+      returns (RawImpressionUploadModelLine) {}
+
+  // Creates multiple `RawImpressionUploadModelLine` resources
+  // in a single request.
+  rpc BatchCreateRawImpressionUploadModelLines(
+      BatchCreateRawImpressionUploadModelLinesRequest)
+      returns (BatchCreateRawImpressionUploadModelLinesResponse) {}
+
+  // Retrieves a specific `RawImpressionUploadModelLine`.
+  rpc GetRawImpressionUploadModelLine(GetRawImpressionUploadModelLineRequest)
+      returns (RawImpressionUploadModelLine) {}
+
+  // Lists `RawImpressionUploadModelLine` resources for an upload.
+  rpc ListRawImpressionUploadModelLines(
+      ListRawImpressionUploadModelLinesRequest)
+      returns (ListRawImpressionUploadModelLinesResponse) {}
+
+  // Marks a `RawImpressionUploadModelLine` as `POOL_ASSIGNING`. Throws
+  // `ABORTED` if `etag` does not match (AIP-154). Throws
+  // `FAILED_PRECONDITION` if the prior state does not allow this transition.
+  rpc MarkRawImpressionUploadModelLinePoolAssigning(
+      MarkRawImpressionUploadModelLinePoolAssigningRequest)
+      returns (RawImpressionUploadModelLine) {}
+
+  // Marks a `RawImpressionUploadModelLine` as `RANKING`. Throws
+  // `ABORTED` if `etag` does not match (AIP-154). Throws
+  // `FAILED_PRECONDITION` if the prior state does not allow this transition.
+  rpc MarkRawImpressionUploadModelLineRanking(
+      MarkRawImpressionUploadModelLineRankingRequest)
+      returns (RawImpressionUploadModelLine) {}
+
+  // Marks a `RawImpressionUploadModelLine` as `LABELING`. Throws
+  // `ABORTED` if `etag` does not match (AIP-154). Throws
+  // `FAILED_PRECONDITION` if the prior state does not allow this transition.
+  rpc MarkRawImpressionUploadModelLineLabeling(
+      MarkRawImpressionUploadModelLineLabelingRequest)
+      returns (RawImpressionUploadModelLine) {}
+
+  // Marks a `RawImpressionUploadModelLine` as `COMPLETED`. Throws
+  // `ABORTED` if `etag` does not match (AIP-154). Throws
+  // `FAILED_PRECONDITION` if the prior state does not allow this transition.
+  rpc MarkRawImpressionUploadModelLineCompleted(
+      MarkRawImpressionUploadModelLineCompletedRequest)
+      returns (RawImpressionUploadModelLine) {}
+
+  // Marks a `RawImpressionUploadModelLine` as `FAILED`. Throws
+  // `ABORTED` if `etag` does not match (AIP-154). Throws
+  // `FAILED_PRECONDITION` if the prior state does not allow this transition.
+  rpc MarkRawImpressionUploadModelLineFailed(
+      MarkRawImpressionUploadModelLineFailedRequest)
+      returns (RawImpressionUploadModelLine) {}
+}
+
+// Request message for the
+// `CreateRawImpressionUploadModelLine` method.
+message CreateRawImpressionUploadModelLineRequest {
+  // The parent upload resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
+    }
+  ];
+
+  // The `RawImpressionUploadModelLine` to create.
+  // The `name` and output-only fields are ignored.
+  RawImpressionUploadModelLine raw_impression_upload_model_line = 2
+      [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure idempotency.
+  //
+  // This field is REQUIRED, deviating from AIP-155 (which recommends request_id
+  // be optional): the model line's resource name is assigned by the server, so
+  // the client has no other idempotency key. Without it, a retry after a lost
+  // response would create a second, orphaned model line. Must be a UUID4 (RFC
+  // 4122) string.
+  // (-- api-linter: core::0133::request-required-fields=disabled
+  //     aip.dev/not-precedent: request_id is intentionally REQUIRED so the
+  //     server can deduplicate retries of this server-named resource. --)
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for the
+// `BatchCreateRawImpressionUploadModelLines` method.
+message BatchCreateRawImpressionUploadModelLinesRequest {
+  // The parent upload resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
+    }
+  ];
+
+  // Individual create requests. Maximum 50 per batch.
+  repeated CreateRawImpressionUploadModelLineRequest requests = 2
+      [(google.api.field_behavior) = REQUIRED];
+}
+
+// Response message for the
+// `BatchCreateRawImpressionUploadModelLines` method.
+message BatchCreateRawImpressionUploadModelLinesResponse {
+  // The created model line records.
+  repeated RawImpressionUploadModelLine raw_impression_upload_model_lines = 1;
+}
+
+// Request message for the
+// `GetRawImpressionUploadModelLine` method.
+message GetRawImpressionUploadModelLineRequest {
+  // The resource name of the model line to retrieve.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/rawImpressionUploadModelLines/{raw_impression_upload_model_line}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
+    }
+  ];
+}
+
+// Request message for the
+// `ListRawImpressionUploadModelLines` method.
+// (-- api-linter: core::0132::request-field-types=disabled
+//     aip.dev/not-precedent: Using a customized message for the
+//     filter. --)
+message ListRawImpressionUploadModelLinesRequest {
+  // The parent upload resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  //
+  // The upload segment may be the wildcard `-` to list
+  // model lines across all uploads for a data provider.
+  // See AIP-159.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
+    }
+  ];
+
+  // The maximum number of results to return.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // A page token, received from a previous call.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Structured filter for narrowing results.
+  message Filter {
+    // Filter to resources whose state is in this set. Empty matches all states.
+    // (-- api-linter: core::0216::state-field-output-only=disabled
+    //     aip.dev/not-precedent: This is a filter input field, not
+    //     a resource state field. --)
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: `_in` is the established repo convention
+    //     for set-membership filter fields. --)
+    repeated RawImpressionUploadModelLine.State state_in = 1
+        [(google.api.field_behavior) = OPTIONAL];
+
+    // Filter for resources whose create_time is in the given interval.
+    // Start and end are both optional: omitting start_time matches
+    // resources created before end_time; omitting end_time matches
+    // resources created at or after start_time.
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: `_in` is the established repo convention
+    //     for set-membership filter fields. --)
+    google.type.Interval create_time_in = 2
+        [(google.api.field_behavior) = OPTIONAL];
+
+    // Filter by CMMS model line resource name.
+    string cmms_model_line = 3 [
+      (google.api.field_behavior) = OPTIONAL,
+      (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+    ];
+  }
+
+  // Optional. A filter to apply to the results.
+  Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Response message for the
+// `ListRawImpressionUploadModelLines` method.
+message ListRawImpressionUploadModelLinesResponse {
+  // The list of model line records matching the request.
+  repeated RawImpressionUploadModelLine raw_impression_upload_model_lines = 1;
+
+  // A token to retrieve the next page of results.
+  string next_page_token = 2;
+}
+
+// Request message for the
+// `MarkRawImpressionUploadModelLinePoolAssigning` method.
+message MarkRawImpressionUploadModelLinePoolAssigningRequest {
+  // The resource name of the model line.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
+    }
+  ];
+
+  // The etag of the `RawImpressionUploadModelLine` for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure idempotency on retry. A retry
+  // with the same `request_id` returns the original response without
+  // re-transitioning the resource.
+  //
+  // To survive retries (network blips, redeliveries, process restarts), derive
+  // this deterministically from the resource being marked -- e.g. a UUID
+  // computed from its `name` and the operation -- so that every attempt for the
+  // same logical mark uses the same `request_id` and shares one idempotent
+  // result. Generating a fresh UUID per attempt defeats AIP-155 and surfaces as
+  // FAILED_PRECONDITION on retry against an already-transitioned row.
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for the
+// `MarkRawImpressionUploadModelLineRanking` method.
+message MarkRawImpressionUploadModelLineRankingRequest {
+  // The resource name of the model line.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
+    }
+  ];
+
+  // The etag of the `RawImpressionUploadModelLine` for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure idempotency on retry. A retry
+  // with the same `request_id` returns the original response without
+  // re-transitioning the resource.
+  //
+  // To survive retries (network blips, redeliveries, process restarts), derive
+  // this deterministically from the resource being marked -- e.g. a UUID
+  // computed from its `name` and the operation -- so that every attempt for the
+  // same logical mark uses the same `request_id` and shares one idempotent
+  // result. Generating a fresh UUID per attempt defeats AIP-155 and surfaces as
+  // FAILED_PRECONDITION on retry against an already-transitioned row.
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for the
+// `MarkRawImpressionUploadModelLineLabeling` method.
+message MarkRawImpressionUploadModelLineLabelingRequest {
+  // The resource name of the model line.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
+    }
+  ];
+
+  // The etag of the `RawImpressionUploadModelLine` for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure idempotency on retry. A retry
+  // with the same `request_id` returns the original response without
+  // re-transitioning the resource.
+  //
+  // To survive retries (network blips, redeliveries, process restarts), derive
+  // this deterministically from the resource being marked -- e.g. a UUID
+  // computed from its `name` and the operation -- so that every attempt for the
+  // same logical mark uses the same `request_id` and shares one idempotent
+  // result. Generating a fresh UUID per attempt defeats AIP-155 and surfaces as
+  // FAILED_PRECONDITION on retry against an already-transitioned row.
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for the
+// `MarkRawImpressionUploadModelLineCompleted` method.
+message MarkRawImpressionUploadModelLineCompletedRequest {
+  // The resource name of the model line.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
+    }
+  ];
+
+  // The etag of the `RawImpressionUploadModelLine` for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure idempotency on retry. A retry
+  // with the same `request_id` returns the original response without
+  // re-transitioning the resource.
+  //
+  // To survive retries (network blips, redeliveries, process restarts), derive
+  // this deterministically from the resource being marked -- e.g. a UUID
+  // computed from its `name` and the operation -- so that every attempt for the
+  // same logical mark uses the same `request_id` and shares one idempotent
+  // result. Generating a fresh UUID per attempt defeats AIP-155 and surfaces as
+  // FAILED_PRECONDITION on retry against an already-transitioned row.
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for the
+// `MarkRawImpressionUploadModelLineFailed` method.
+message MarkRawImpressionUploadModelLineFailedRequest {
+  // The resource name of the model line.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
+    }
+  ];
+
+  // Human-readable detail about the failure.
+  string error_message = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // The etag of the `RawImpressionUploadModelLine` for optimistic locking.
+  string etag = 3 [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure idempotency on retry. A retry
+  // with the same `request_id` returns the original response without
+  // re-transitioning the resource.
+  //
+  // To survive retries (network blips, redeliveries, process restarts), derive
+  // this deterministically from the resource being marked -- e.g. a UUID
+  // computed from its `name` and the operation -- so that every attempt for the
+  // same logical mark uses the same `request_id` and shares one idempotent
+  // result. Generating a fresh UUID per attempt defeats AIP-155 and surfaces as
+  // FAILED_PRECONDITION on retry against an already-transitioned row.
+  //
+  // Note: on a same-`request_id` retry, the row is returned with the
+  // `error_message` from the first successful mark; a differing `error_message`
+  // in the retry is ignored (AIP-155: the first response is returned as-is).
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}

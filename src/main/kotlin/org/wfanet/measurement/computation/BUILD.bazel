@@ -45,14 +45,14 @@ kt_jvm_library(
     srcs = ["ImpressionComputations.kt"],
     deps = [
         ":differential_privacy_params",
-        ":k_anonymity_params",
+        ":result_minimum_thresholds",
         "//imports/java/com/google/privacy:differential_privacy",
     ],
 )
 
 kt_jvm_library(
-    name = "k_anonymity_params",
-    srcs = ["KAnonymityParams.kt"],
+    name = "result_minimum_thresholds",
+    srcs = ["ResultMinimumThresholds.kt"],
     deps = [
         ":computation_params",
     ],
@@ -68,7 +68,7 @@ kt_jvm_library(
     srcs = ["ReachAndFrequencyComputations.kt"],
     deps = [
         ":differential_privacy_params",
-        ":k_anonymity_params",
+        ":result_minimum_thresholds",
         "//imports/java/com/google/privacy:differential_privacy",
     ],
 )

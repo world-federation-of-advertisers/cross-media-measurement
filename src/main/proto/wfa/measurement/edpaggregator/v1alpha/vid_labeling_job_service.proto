@@ -1,0 +1,275 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
+import "google/api/resource.proto";
+import "google/type/interval.proto";
+import "wfa/measurement/edpaggregator/v1alpha/vid_labeling_job.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "VidLabelingJobServiceProto";
+
+// Service for managing `VidLabelingJob` resources, which track
+// per-job processing state for Phase 2 (VID labeling) of
+// a raw impression upload.
+service VidLabelingJobService {
+  // Creates a new `VidLabelingJob`.
+  rpc CreateVidLabelingJob(CreateVidLabelingJobRequest)
+      returns (VidLabelingJob) {}
+
+  // Creates multiple `VidLabelingJob` resources in a single
+  // request.
+  rpc BatchCreateVidLabelingJobs(BatchCreateVidLabelingJobsRequest)
+      returns (BatchCreateVidLabelingJobsResponse) {}
+
+  // Retrieves a specific `VidLabelingJob`.
+  rpc GetVidLabelingJob(GetVidLabelingJobRequest) returns (VidLabelingJob) {}
+
+  // Lists `VidLabelingJob` resources for an upload.
+  rpc ListVidLabelingJobs(ListVidLabelingJobsRequest)
+      returns (ListVidLabelingJobsResponse) {}
+
+  // Marks a `VidLabelingJob` as `SUCCEEDED`. Atomically
+  // checks if this is the last job for one or more model
+  // lines and returns the signal to the caller. Throws
+  // ABORTED if etag does not match the current resource
+  // version (AIP-154). Throws FAILED_PRECONDITION if
+  // state is not CREATED or FAILED. A retry with the
+  // same `request_id` returns the original response
+  // without modifying state (AIP-155).
+  rpc MarkVidLabelingJobSucceeded(MarkVidLabelingJobSucceededRequest)
+      returns (MarkVidLabelingJobSucceededResponse) {}
+
+  // Marks a `VidLabelingJob` as `FAILED`. Throws ABORTED
+  // if etag does not match (AIP-154). Throws
+  // FAILED_PRECONDITION if state is not CREATED or
+  // FAILED. A retry with the same `request_id` returns
+  // the original response (AIP-155).
+  rpc MarkVidLabelingJobFailed(MarkVidLabelingJobFailedRequest)
+      returns (VidLabelingJob) {}
+}
+
+// Request message for the `CreateVidLabelingJob` method.
+message CreateVidLabelingJobRequest {
+  // The parent upload resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/VidLabelingJob"
+    }
+  ];
+
+  // The `VidLabelingJob` to create.
+  // The `name` and output-only fields are ignored.
+  VidLabelingJob vid_labeling_job = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure idempotency.
+  //
+  // This field is REQUIRED, deviating from AIP-155 (which recommends request_id
+  // be optional): the job's resource name is assigned by the server, so the
+  // client has no other idempotency key. Without it, a retry after a lost
+  // response would create a second, orphaned job. Must be a UUID4 (RFC 4122)
+  // string.
+  // (-- api-linter: core::0133::request-required-fields=disabled
+  //     aip.dev/not-precedent: request_id is intentionally REQUIRED so the
+  //     server can deduplicate retries of this server-named resource. --)
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for the
+// `BatchCreateVidLabelingJobs` method.
+message BatchCreateVidLabelingJobsRequest {
+  // The parent upload resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/VidLabelingJob"
+    }
+  ];
+
+  // Individual create requests. Maximum 50 per batch.
+  repeated CreateVidLabelingJobRequest requests = 2
+      [(google.api.field_behavior) = REQUIRED];
+}
+
+// Response message for the
+// `BatchCreateVidLabelingJobs` method.
+message BatchCreateVidLabelingJobsResponse {
+  // The created labeling jobs.
+  repeated VidLabelingJob vid_labeling_jobs = 1;
+}
+
+// Request message for the `GetVidLabelingJob` method.
+message GetVidLabelingJobRequest {
+  // The resource name of the job to retrieve.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/vidLabelingJobs/{vid_labeling_job}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/VidLabelingJob"
+    }
+  ];
+}
+
+// Request message for the `ListVidLabelingJobs` method.
+// (-- api-linter: core::0132::request-field-types=disabled
+//     aip.dev/not-precedent: Using a customized message for the
+//     filter. --)
+message ListVidLabelingJobsRequest {
+  // The parent upload resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  //
+  // The upload segment may be the wildcard `-` to list
+  // jobs across all uploads for a data provider. See
+  // AIP-159.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/VidLabelingJob"
+    }
+  ];
+
+  // The maximum number of results to return.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // A page token, received from a previous call.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Structured filter for narrowing results.
+  message Filter {
+    // Filter by processing state.
+    // (-- api-linter: core::0216::state-field-output-only=disabled
+    //     aip.dev/not-precedent: This is a filter input field,
+    //     not a resource state field. --)
+    VidLabelingJob.State state = 1 [(google.api.field_behavior) = OPTIONAL];
+
+    // Filter for resources whose create_time falls within
+    // this interval.
+    google.type.Interval create_time_interval = 2
+        [(google.api.field_behavior) = OPTIONAL];
+
+    // Filter by CMMS model line resource name.
+    string cmms_model_line = 3 [
+      (google.api.field_behavior) = OPTIONAL,
+      (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+    ];
+  }
+
+  // A filter to apply to the results.
+  Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Response message for the `ListVidLabelingJobs` method.
+message ListVidLabelingJobsResponse {
+  // The list of labeling jobs matching the request.
+  repeated VidLabelingJob vid_labeling_jobs = 1;
+
+  // A token to retrieve the next page of results.
+  string next_page_token = 2;
+}
+
+// Request message for the
+// `MarkVidLabelingJobSucceeded` method.
+message MarkVidLabelingJobSucceededRequest {
+  // The resource name of the job.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/vidLabelingJobs/{vid_labeling_job}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/VidLabelingJob"
+    }
+  ];
+
+  // The etag of the VidLabelingJob for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure
+  // idempotency on retry. A retry with the same
+  // `request_id` returns the original response without
+  // re-transitioning the resource.
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Response message for the
+// `MarkVidLabelingJobSucceeded` method.
+message MarkVidLabelingJobSucceededResponse {
+  // The updated VidLabelingJob.
+  VidLabelingJob vid_labeling_job = 1;
+
+  // Present when this VidLabelingJob's completion was the
+  // last for one or more of its model lines. Contains the
+  // model lines that just completed. Absent when no model
+  // line completed as a result of this call.
+  LastVidLabelingJobResult last_vid_labeling_job_result = 2;
+
+  // Result when one or more model lines complete.
+  message LastVidLabelingJobResult {
+    // The model lines whose last job just completed.
+    repeated string completed_model_lines = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+    ];
+  }
+}
+
+// Request message for the `MarkVidLabelingJobFailed` method.
+message MarkVidLabelingJobFailedRequest {
+  // The resource name of the job.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/vidLabelingJobs/{vid_labeling_job}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/VidLabelingJob"
+    }
+  ];
+
+  // Human-readable detail about the failure.
+  string error_message = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // The etag of the VidLabelingJob for optimistic locking.
+  string etag = 3 [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure
+  // idempotency on retry. A retry with the same
+  // `request_id` returns the original response without
+  // re-transitioning the resource.
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}

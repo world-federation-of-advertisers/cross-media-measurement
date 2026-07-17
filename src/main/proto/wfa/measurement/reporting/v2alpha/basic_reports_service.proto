@@ -23,6 +23,7 @@ import "google/api/field_info.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/reporting/v2alpha/basic_report.proto";
+import "wfa/measurement/type/future_disposition.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
@@ -70,6 +71,19 @@ message GetBasicReportRequest {
       type: "reporting.halo-cmm.org/BasicReport"
     }
   ];
+
+  // Whether to exclude the deprecated
+  // `ResultGroup.MetricMetadata.ReportingUnitComponentSummary.event_group_summaries`
+  // field from the response. When unset, the field is still populated; use the
+  // `reporting_set` reference instead.
+  //
+  // This is a temporary opt-out to drop the deprecated field early during the
+  // EventGroup-to-ReportingSet migration. It will be removed in a future
+  // release.
+  bool exclude_deprecated_event_group_summaries = 2 [
+    (google.api.field_behavior) = OPTIONAL,
+    (type.future_disposition) = DEPRECATED
+  ];
 }
 
 // Request message for `ListBasicReport` method
@@ -111,6 +125,19 @@ message ListBasicReportsRequest {
   // When paginating, all other parameters provided to `ListBasicReports` must
   // match the call that provided the page token.
   string page_token = 4 [(google.api.field_behavior) = OPTIONAL];
+
+  // Whether to exclude the deprecated
+  // `ResultGroup.MetricMetadata.ReportingUnitComponentSummary.event_group_summaries`
+  // field from each returned `BasicReport`. When unset, the field is still
+  // populated; use the `reporting_set` reference instead.
+  //
+  // This is a temporary opt-out to drop the deprecated field early during the
+  // EventGroup-to-ReportingSet migration. It will be removed in a future
+  // release.
+  bool exclude_deprecated_event_group_summaries = 5 [
+    (google.api.field_behavior) = OPTIONAL,
+    (type.future_disposition) = DEPRECATED
+  ];
 }
 
 // Response message for `ListBasicReports` method.
@@ -122,6 +149,16 @@ message ListBasicReportsResponse {
   // A token, which can be sent as `page_token` to retrieve the next page.
   // If this field is omitted, there are no subsequent pages.
   string next_page_token = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // Resource names of `BasicReport`s that matched the filter criteria but
+  // could not be returned in `basic_reports` because the service was unable
+  // to render their results (for example, due to internal data inconsistency).
+  //
+  // The `BasicReport` resources themselves still exist.
+  //
+  // See AIP-217.
+  repeated string unreachable = 3
+      [(google.api.field_behavior) = UNORDERED_LIST];
 }
 
 // Request message for `CreateBasicReport` method

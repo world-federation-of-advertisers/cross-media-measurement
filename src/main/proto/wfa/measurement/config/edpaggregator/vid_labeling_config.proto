@@ -18,8 +18,10 @@ package wfa.measurement.config.edpaggregator;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/protobuf/duration.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
+import "wfa/measurement/edpaggregator/v1alpha/labeler_input_field_mapping.proto";
 
 option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
@@ -48,31 +50,119 @@ message VidLabelingConfig {
 
   // Message representing the configuration for a model line.
   message ModelLineConfig {
-    // Mapping from labeler input field names to their corresponding values.
-    map<string, string> labeler_input_field_mapping = 1;
+    // How each LabelerInput field is sourced from the raw-impression row (plain
+    // column, enum lookup, age-range decode, or identity fallback).
+    repeated wfa.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+        labeler_input_field_mapping = 1;
 
     // Mapping from event template field names to their corresponding values.
     map<string, string> event_template_field_mapping = 2;
+
+    // Config-storage blob URI of the FileDescriptorSet for the EventTemplate
+    // types. Copied onto VidLabelerParams.ModelLineConfig so the Phase-2 runner
+    // can resolve the event descriptor used to build the labeled-output event.
+    string event_template_descriptor_blob_uri = 3;
+
+    // Full proto name of the event message within that FileDescriptorSet that
+    // event_template_field_mapping targets.
+    string event_template_type = 4;
+
+    // Mapping from entity_type (the DataProvider's taxonomy label, which
+    // becomes LabeledImpression.EntityKey.entity_type) to the raw-impression
+    // Parquet column holding that entity's id. One string column per
+    // entity_type. Every impression MUST have a non-null, non-empty value in
+    // each of these columns. Copied onto VidLabelerParams.ModelLineConfig; read
+    // per row by the TEE.
+    map<string, string> required_entity_key_field_mapping = 5;
+
+    // Like required_entity_key_field_mapping, but an impression MAY omit these:
+    // a NULL/empty cell means the impression is not associated with that
+    // entity_type. Keys MUST be disjoint from
+    // required_entity_key_field_mapping.
+    map<string, string> optional_entity_key_field_mapping = 6;
   }
 
   // Map from model line resource name to its configuration.
   map<string, ModelLineConfig> model_line_configs = 5
       [(google.api.field_behavior) = REQUIRED];
 
-  // Optional; if provided, indicates what model lines to use.
-  repeated string override_model_lines = 6 [
-    (google.api.field_behavior) = OPTIONAL,
-    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
-  ];
-
   // Cloud Function TLS connection params for the RawImpressionMetadata
   // storage service.
-  TransportLayerSecurityParams raw_impression_metadata_storage_connection = 7
+  TransportLayerSecurityParams raw_impression_metadata_storage_connection = 6
       [(google.api.field_behavior) = REQUIRED];
 
-  // Maximum batch size in bytes for partitioning raw impression files.
-  // If unset, defaults to 10 GB (10000000000 bytes).
-  int64 max_batch_size_bytes = 8 [(google.api.field_behavior) = OPTIONAL];
+  // Number of static shards for dispatching work items.
+  int32 number_of_shards = 7 [(google.api.field_behavior) = REQUIRED];
+
+  // TLS connection params for the VID Repository ModelLines service.
+  TransportLayerSecurityParams model_lines_connection = 8
+      [(google.api.field_behavior) = REQUIRED];
+
+  // TLS connection params for the VID Repository ModelShards service.
+  TransportLayerSecurityParams model_shards_connection = 9
+      [(google.api.field_behavior) = REQUIRED];
+
+  // TLS connection params for the VID Repository ModelRollouts service.
+  TransportLayerSecurityParams model_rollouts_connection = 10
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Resource name of the model suite. Used as parent for ListModelLines.
+  string model_suite = 11 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelSuite"
+  ];
+
+  // TLS connection params for the Secure Computation control plane
+  // (WorkItemsService). Distinct from the RawImpressionMetadata storage
+  // connection.
+  TransportLayerSecurityParams control_plane_connection = 12
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Duration a non-terminal upload may remain before it is flagged as stuck
+  // for alerting.
+  google.protobuf.Duration staleness_threshold = 13
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Storage from which the Phase-1 VidRankBuilder reads prior cumulative
+  // rank-index blobs and to which it writes the new day-only + cumulative
+  // rank-index blobs. Passed through to the Phase-0 SubpoolAssigner WorkItem
+  // for memoized model lines.
+  //
+  // Optional because it is only consumed by the memoized (Phase-0/Phase-1)
+  // path: it is required only for EDPs that have at least one model line with
+  // memoized VID assignment enabled. An EDP whose model lines are all
+  // non-memoized may omit it.
+  StorageParams vid_rank_map_storage_params = 14
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Storage to which the Phase-0 SubpoolAssigner writes per-(shard, subpool)
+  // SubpoolFingerprints blobs. Passed through to the SubpoolAssigner WorkItem
+  // for memoized model lines.
+  //
+  // Optional because it is only consumed by the memoized (Phase-0) path: it is
+  // required only for EDPs that have at least one model line with memoized VID
+  // assignment enabled. An EDP whose model lines are all non-memoized may omit
+  // it.
+  StorageParams subpool_map_storage_params = 15
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Storage holding the compiled VID model blobs for this EDP. The compiled
+  // model lives in its own Cloud Storage project, separate from the
+  // impression/map storage above. Passed through to the SubpoolAssigner
+  // WorkItem for memoized model lines.
+  //
+  // Optional because it is only consumed by the memoized (Phase-0) path: it is
+  // required only for EDPs that have at least one model line with memoized VID
+  // assignment enabled. An EDP whose model lines are all non-memoized may omit
+  // it.
+  StorageParams model_storage_params = 16
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Maximum total `RawImpressionUploadFile.size_bytes` packed into a single
+  // non-memoized Phase-2 `VidLabelingJob` (the bin-packing threshold). OPTIONAL
+  // here like the memoized-only storage params above; the dispatcher enforces
+  // it (`> 0`) at the first non-memoized dispatch.
+  int64 max_file_batch_size_bytes = 17 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Wrapper containing VID Labeling configurations for all EDPs.

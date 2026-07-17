@@ -1,0 +1,71 @@
+# proto-file: src/main/proto/wfa/measurement/integration/k8s/testing/impression_test_data_config.proto
+# proto-message: wfa.measurement.integration.k8s.testing.ImpressionTestDataConfig
+
+population_spec_resource_path: "small_population_spec.textproto"
+
+# Legacy event group with no entity keys (edp7).
+event_groups {
+  event_group_reference_id: "edpa-eg-reference-id-1"
+  data_spec_resource_path: "small_data_spec.textproto"
+  edp_name: "edp7"
+  output_base_path: "edp/edp7"
+}
+
+# Single creative-id entity key event group (edp7).
+event_groups {
+  event_group_reference_id: "creative-id-edpa-eg-creative-id-1"
+  edp_name: "edp7"
+  output_key: "creative"
+  output_base_path: "edp/edp7"
+  entity_key_specs {
+    entity_type: "creative-id"
+    entity_id: "edpa-eg-creative-id-1"
+    data_spec_resource_path: "small_data_spec.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "placement"
+      value { string_value: "homepage_top" }
+    }
+    fields {
+      key: "objective"
+      value { string_value: "awareness" }
+    }
+  }
+}
+
+# Multi-creative entity key event group with two sub-specs (edp7).
+event_groups {
+  event_group_reference_id: "multi-creative"
+  edp_name: "edp7"
+  output_key: "multi-creative"
+  output_base_path: "edp/edp7"
+  entity_key_specs {
+    entity_type: "creative-id"
+    entity_id: "edpa-eg-multi-creative-1"
+    data_spec_resource_path: "small_data_spec.textproto"
+  }
+  entity_key_specs {
+    entity_type: "creative-id"
+    entity_id: "edpa-eg-multi-creative-2"
+    data_spec_resource_path: "small_data_spec_2.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "placement"
+      value { string_value: "homepage_top" }
+    }
+    fields {
+      key: "objective"
+      value { string_value: "awareness" }
+    }
+  }
+}
+
+# Legacy event group for edpa_meta EDP.
+event_groups {
+  event_group_reference_id: "edpa-eg-reference-id-2"
+  data_spec_resource_path: "small_data_spec.textproto"
+  edp_name: "edpa_meta"
+  output_base_path: "edp/edpa_meta"
+}

@@ -1,0 +1,21 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "cio",
+    actual = "@maven//:io_ktor_ktor_server_cio_jvm",
+)
+
+alias(
+    name = "content-negotiation",
+    actual = "@maven//:io_ktor_ktor_server_content_negotiation_jvm",
+)
+
+alias(
+    name = "cors",
+    actual = "@maven//:io_ktor_ktor_server_cors_jvm",
+)
+
+alias(
+    name = "sse",
+    actual = "@maven//:io_ktor_ktor_server_sse_jvm",
+)

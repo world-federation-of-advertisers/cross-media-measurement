@@ -48,6 +48,8 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/reporting/v2:event_template_field_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_frequency_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_unit_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:result_group_spec_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common:guava",
     ],
 )
@@ -66,11 +68,23 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "cel_value_encoding",
+    srcs = ["CelValueEncoding.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_message_descriptor",
+        "//src/main/kotlin/org/wfanet/measurement/common/cel:cel_value_encoding",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:event_template_field_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
     name = "impression_qualification_filter_mapping",
     srcs = ["ImpressionQualificationFilterMapping.kt"],
     deps = [
+        ":cel_value_encoding",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_message_descriptor",
         "//src/main/kotlin/org/wfanet/measurement/common/api:resource_ids",
+        "//src/main/kotlin/org/wfanet/measurement/common/cel:cel_predicates",
         "//src/main/proto/wfa/measurement/api/v2alpha:media_type_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/reporting:impression_qualification_filter_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:impression_qualification_filter_kt_jvm_proto",

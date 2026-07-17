@@ -35,6 +35,45 @@ class InvalidCollectionIntervalException :
   IllegalArgumentException("collectionInterval startTime must be before endTime")
 
 /**
+ * Thrown by [FilterSpec.ByEntityKeys.matchBatch] when the batch carries
+ * [EventGroupIdentifier.ByEntityKeys] with an empty entity keys list.
+ */
+class MissingBatchEntityKeysException :
+  IllegalStateException("Batch EventGroupIdentifier.ByEntityKeys has an empty entity keys list")
+
+/**
+ * Thrown by [FilterSpec.matchBatch] when the [EventGroupIdentifier] variant does not match the
+ * [FilterSpec] variant.
+ */
+class MismatchedBatchIdentifierException(message: String) : IllegalStateException(message)
+
+/**
+ * Result of [FilterSpec.matchBatch].
+ *
+ * @see FilterSpec.matchBatch
+ */
+sealed class BatchMatchResult {
+  /** The batch does not match this filter. */
+  object NoMatch : BatchMatchResult()
+
+  /**
+   * All events in the batch match the filter; no per-event entity-key filtering needed.
+   *
+   * Returned when matching by reference ID, or when the batch's entity keys are fully contained
+   * within the filter's entity keys.
+   */
+  object MatchedAllEvents : BatchMatchResult()
+
+  /**
+   * The batch partially overlaps the filter's entity keys; per-event filtering is required.
+   *
+   * @property entityKeyFilter The set of entity keys to filter individual events against.
+   */
+  data class MatchedByEntityKeys(val entityKeyFilter: Set<LabeledImpression.EntityKey>) :
+    BatchMatchResult()
+}
+
+/**
  * Immutable specification for event filtering.
  *
  * This sealed type serves two purposes:
@@ -52,6 +91,18 @@ sealed class FilterSpec {
 
   /** The time interval for event collection. */
   abstract val collectionInterval: Interval
+
+  /**
+   * Checks whether [identifier] matches this filter's batch-level selector.
+   *
+   * @return [BatchMatchResult.NoMatch] if the batch should be skipped,
+   *   [BatchMatchResult.MatchedAllEvents] or [BatchMatchResult.MatchedByEntityKeys] if it passed.
+   * @throws MismatchedBatchIdentifierException when [identifier]'s variant does not match this
+   *   [FilterSpec] variant.
+   * @throws MissingBatchEntityKeysException when this is [ByEntityKeys] and [identifier] is
+   *   [EventGroupIdentifier.ByEntityKeys] with an empty entity keys list.
+   */
+  abstract fun matchBatch(identifier: EventGroupIdentifier): BatchMatchResult
 
   protected fun requireValidCollectionInterval(interval: Interval) {
     if (!interval.startTime.toInstant().isBefore(interval.endTime.toInstant())) {
@@ -74,6 +125,22 @@ sealed class FilterSpec {
       if (eventGroupReferenceIds.isEmpty()) throw EmptyEventGroupReferenceIdsException()
       requireValidCollectionInterval(collectionInterval)
     }
+
+    override fun matchBatch(identifier: EventGroupIdentifier): BatchMatchResult {
+      when (identifier) {
+        is EventGroupIdentifier.ByEntityKeys ->
+          throw MismatchedBatchIdentifierException(
+            "ByEventGroupReferenceIds filter requires EventGroupIdentifier.ByReferenceId"
+          )
+        is EventGroupIdentifier.ByReferenceId -> {
+          return if (eventGroupReferenceIds.contains(identifier.refId)) {
+            BatchMatchResult.MatchedAllEvents
+          } else {
+            BatchMatchResult.NoMatch
+          }
+        }
+      }
+    }
   }
 
   /**
@@ -92,6 +159,33 @@ sealed class FilterSpec {
     init {
       if (entityKeys.isEmpty()) throw EmptyEntityKeysException()
       requireValidCollectionInterval(collectionInterval)
+    }
+
+    private val filterKeyPairs: Set<Pair<String, String>> =
+      entityKeys.map { Pair(it.entityType, it.entityId) }.toSet()
+
+    override fun matchBatch(identifier: EventGroupIdentifier): BatchMatchResult {
+      when (identifier) {
+        is EventGroupIdentifier.ByReferenceId ->
+          throw MismatchedBatchIdentifierException(
+            "ByEntityKeys filter requires EventGroupIdentifier.ByEntityKeys"
+          )
+        is EventGroupIdentifier.ByEntityKeys -> {
+          if (identifier.entityKeys.isEmpty()) throw MissingBatchEntityKeysException()
+          val batchKeyPairs: Set<Pair<String, String>> =
+            identifier.entityKeys
+              .flatMap { g -> g.entityIdsList.map { id -> Pair(g.entityType, id) } }
+              .toSet()
+          if (filterKeyPairs.none { it in batchKeyPairs }) {
+            return BatchMatchResult.NoMatch
+          }
+          return if (batchKeyPairs.all { it in filterKeyPairs }) {
+            BatchMatchResult.MatchedAllEvents
+          } else {
+            BatchMatchResult.MatchedByEntityKeys(entityKeyFilter = entityKeys)
+          }
+        }
+      }
     }
   }
 }

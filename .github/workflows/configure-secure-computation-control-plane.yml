@@ -14,6 +14,11 @@
 
 name: "Configure Control Plane for Secure Computation"
 
+run-name: >-
+  Configure Control Plane for Secure Computation [${{ inputs.environment }}] |
+  apply=${{ inputs.apply }},
+  image-tag=${{ inputs.existing-image-tag }}
+
 on:
   workflow_call:
     inputs:
@@ -62,10 +67,10 @@ jobs:
       id-token: write
     environment: ${{ inputs.environment }}
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
     - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
       with:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
@@ -97,7 +102,7 @@ jobs:
       run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 
     - name: Get GKE cluster credentials
-      uses: google-github-actions/get-gke-credentials@64bc7249bbcf78056bb92f14d3cedc2da193946c # v2.3.5
+      uses: google-github-actions/get-gke-credentials@3da1e46a907576cefaa90c484278bb5b259dd395 # v3.0.0
       with:
         cluster_name: kingdom
         location: ${{ vars.GCLOUD_ZONE }}
@@ -140,6 +145,6 @@ jobs:
     - name: Wait for rollout
       if: ${{ inputs.apply }}
       run: |
-        for deployment in $(kubectl get deployments -o name); do
+        for deployment in $(kubectl get deployments -l app.kubernetes.io/component=secure-computation -o name); do
           kubectl rollout status "$deployment" --timeout=5m
         done

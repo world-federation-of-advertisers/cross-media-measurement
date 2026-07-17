@@ -17,17 +17,21 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.Descriptors
+import org.projectnessie.cel.Env
 import org.wfanet.measurement.api.v2alpha.DataProvider
-import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
+import org.wfanet.measurement.common.cel.CelPredicates
+import org.wfanet.measurement.common.cel.CelValidationException
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField as InternalEventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
+import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.internal.Normalization
+import org.wfanet.measurement.reporting.service.internal.toCelValue
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.EventFilter
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateField
@@ -35,7 +39,6 @@ import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilterSpe
 import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.Report
-import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingUnit
@@ -44,6 +47,42 @@ import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpec.ComponentM
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpec.ReportingUnitMetricSetSpec
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupSpec
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
+
+/**
+ * Origin of a list of [ImpressionQualificationFilterSpec]s.
+ *
+ * Used by [buildReportingSetMetricCalculationSpecDetailsMap] to route CEL-validation failures back
+ * to a meaningful error site:
+ * - [Custom] failures are user input; the validator surfaces them as `INVALID_ARGUMENT` with the
+ *   field path pointing at the offending entry in the request.
+ * - [Base] and [Named] failures are server-controlled (a configured or registry-resolved IQF
+ *   generated invalid CEL); they surface as an [IllegalStateException] indicating a broken server
+ *   invariant.
+ */
+sealed interface ImpressionQualificationFilterSpecsSource {
+  /** [ImpressionQualificationFilterSpec]s from a base (server-configured) IQF. */
+  data class Base(val externalImpressionQualificationFilterId: String) :
+    ImpressionQualificationFilterSpecsSource
+
+  /**
+   * [ImpressionQualificationFilterSpec]s from a request-supplied named IQF. [requestIndex] is the
+   * entry's position in `basic_report.impression_qualification_filters`.
+   */
+  data class Named(val requestIndex: Int, val impressionQualificationFilterName: String) :
+    ImpressionQualificationFilterSpecsSource
+
+  /**
+   * [ImpressionQualificationFilterSpec]s from a request-supplied custom IQF. [requestIndex] is the
+   * entry's position in `basic_report.impression_qualification_filters`.
+   */
+  data class Custom(val requestIndex: Int) : ImpressionQualificationFilterSpecsSource
+}
+
+/** [ImpressionQualificationFilterSpec]s tagged with their [source]. */
+data class SourcedImpressionQualificationFilterSpecs(
+  val specs: List<ImpressionQualificationFilterSpec>,
+  val source: ImpressionQualificationFilterSpecsSource,
+)
 
 /** [MetricCalculationSpec] fields for equality check */
 private data class MetricCalculationSpecInfoKey(
@@ -66,26 +105,50 @@ private data class MetricCalculationSpecInfo(
  * This assumes that all parameters have already been validated.
  *
  * @param campaignGroupName resource name of [ReportingSet] that is a campaign group
- * @param impressionQualificationFilterSpecsLists List of List of
- *   [ImpressionQualificationFilterSpec] for each [ReportingImpressionQualificationFilter]
- * @param dataProviderPrimitiveReportingSetMap Map of [DataProvider] resource name to primitive
- *   [ReportingSet] containing associated [EventGroup] resource names
+ * @param impressionQualificationFilterSpecs List of [SourcedImpressionQualificationFilterSpecs] --
+ *   one entry per effective IQF, tagged with its provenance so CEL-validation failures can be
+ *   routed back to a meaningful error site (see [ImpressionQualificationFilterSpecsSource])
+ * @param dataProviderPrimitiveReportingSetMap Map of reporting_unit component resource name to the
+ *   primitive [ReportingSet] used for it. The key is a [DataProvider] resource name when the
+ *   component is a DataProvider, or a [ReportingSet] resource name when it is a ReportingSet.
  * @param resultGroupSpecs List of [ResultGroupSpec] to transform
  * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for parsing [EventTemplateField]
+ * @param env CEL [Env] used to compile-check each generated CEL string. The [Env] must declare the
+ *   same Event message that [eventTemplateFieldsByPath] was built from.
  * @return Map of [ReportingSet] to [MetricCalculationSpec.Details]
+ * @throws org.wfanet.measurement.reporting.service.api.InvalidFieldValueException when a generated
+ *   CEL string fails to compile or does not evaluate to a boolean AND the source is user input
+ *   ([ImpressionQualificationFilterSpecsSource.Custom] or a [ResultGroupSpec]'s dimension_spec).
+ * @throws [IllegalStateException] when a generated CEL string fails to compile or does not evaluate
+ *   to a boolean AND the source is server-controlled
+ *   ([ImpressionQualificationFilterSpecsSource.Base] or
+ *   [ImpressionQualificationFilterSpecsSource.Named]) -- indicates a broken server invariant.
  */
 fun buildReportingSetMetricCalculationSpecDetailsMap(
   campaignGroupName: String,
-  impressionQualificationFilterSpecsLists: List<List<ImpressionQualificationFilterSpec>>,
+  impressionQualificationFilterSpecs: List<SourcedImpressionQualificationFilterSpecs>,
   dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet>,
   resultGroupSpecs: List<ResultGroupSpec>,
   eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
+  env: Env,
+  emitCelNullGuardsForNestedMembers: Boolean = false,
 ): Map<ReportingSet, List<MetricCalculationSpec.Details>> {
+  // An empty CEL expression represents a match-all ImpressionQualificationFilter (e.g. AMI,
+  // which has no impression-level predicate). It must be retained so a match-all
+  // MetricCalculationSpec is still created for it. Dropping empty expressions here caused such an
+  // IQF to be silently omitted whenever it was combined with another non-empty IQF (issue #4109).
   val impressionQualificationFilterSpecsFilters: List<String> =
-    impressionQualificationFilterSpecsLists
-      .map { buildCelExpression(it, eventTemplateFieldsByPath) }
-      .filter { it.isNotEmpty() }
+    impressionQualificationFilterSpecs.map { sourced ->
+      val expr =
+        buildCelExpression(
+          sourced.specs,
+          eventTemplateFieldsByPath,
+          emitCelNullGuardsForNestedMembers,
+        )
+      validateImpressionQualificationFilterCel(env, expr, sourced.source)
+      expr
+    }
 
   // This intermediate map is for reducing the number of MetricCalculationSpecs created for a given
   // ReportingSet. Without this map, MetricCalculationSpecs with everything identical except for
@@ -94,23 +157,60 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
   val reportingSetMetricCalculationSpecInfoMap:
     Map<ReportingSet, MutableMap<MetricCalculationSpecInfoKey, MetricCalculationSpecInfo>> =
     buildMap {
-      for (resultGroupSpec in resultGroupSpecs) {
+      for ((specIndex, resultGroupSpec) in resultGroupSpecs.withIndex()) {
         val groupings: Set<MetricCalculationSpec.Grouping> =
           if (resultGroupSpec.dimensionSpec.hasGrouping()) {
             resultGroupSpec.dimensionSpec.grouping
-              .toMetricCalculationSpecGroupings(eventTemplateFieldsByPath)
+              .toMetricCalculationSpecGroupings(
+                eventTemplateFieldsByPath,
+                emitCelNullGuardsForNestedMembers,
+              )
               .toSet()
           } else {
             emptySet()
           }
 
+        val dimensionSpecFieldPath =
+          "basic_report.result_group_specs[$specIndex].dimension_spec.filters"
         val dimensionSpecFilter: String =
-          buildCelExpression(resultGroupSpec.dimensionSpec.filtersList, eventTemplateFieldsByPath)
+          buildCelExpression(
+            resultGroupSpec.dimensionSpec.filtersList,
+            eventTemplateFieldsByPath,
+            emitCelNullGuardsForNestedMembers,
+          )
+        try {
+          CelPredicates.validate(env, dimensionSpecFilter)
+        } catch (e: CelValidationException) {
+          throw InvalidFieldValueException(dimensionSpecFieldPath) { "$it is ${e.message}" }
+        }
 
         // List of filters to be used in creating the MetricCalculationSpecs given the
-        // DimensionSpec
+        // DimensionSpec. [buildCelExpressions] only emits three shapes today: the IQF expression
+        // alone, the DimensionSpec expression alone, or `(iqf) && (dim)` -- each piece was
+        // compile-checked above and `&&` of two bool expressions is bool, so the combined string
+        // is valid by construction on the current shapes. The third pass below re-validates the
+        // combined output as belt + suspenders: if a future edit introduces a fourth shape
+        // (wrapping in a CEL function call, a third operand, a distinct combinator) without
+        // preserving bool-of-bools, this catches it at CreateBasicReport time rather than at
+        // EDP fulfillment.
         val metricCalculationSpecFilters: List<String> =
           buildCelExpressions(impressionQualificationFilterSpecsFilters, dimensionSpecFilter)
+
+        // Composition failure is a server-side invariant violation (both pieces passed but
+        // their composition did not), so we surface as IllegalStateException routed to
+        // Status.INTERNAL by the catch-all handler in BasicReportsService.
+        for ((filterIndex, combinedFilter) in metricCalculationSpecFilters.withIndex()) {
+          try {
+            CelPredicates.validate(env, combinedFilter)
+          } catch (e: CelValidationException) {
+            error(
+              "Combined CEL filter at spec index $specIndex, filter index " +
+                "$filterIndex failed post-composition validation: ${e.message}. This indicates " +
+                "buildCelExpressions produced a shape not covered by the upstream per-piece " +
+                "validators."
+            )
+          }
+        }
 
         // The Primitive ReportingSets for the ReportingUnit
         val primitiveReportingSets: List<ReportingSet> =
@@ -166,6 +266,7 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
 fun buildCelExpression(
   impressionQualificationFilterSpecs: Iterable<ImpressionQualificationFilterSpec>,
   eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
+  emitCelNullGuardsForNestedMembers: Boolean = false,
 ): String {
   val disjuncts =
     impressionQualificationFilterSpecs
@@ -193,7 +294,7 @@ fun buildCelExpression(
               )) {
               val term: InternalEventTemplateField = eventFilter.termsList.single()
               val termValue = term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path))
-              add("${term.path} == $termValue")
+              add(buildCelTerm(term.path, termValue, emitCelNullGuardsForNestedMembers))
             }
           }
           .joinToString(" && ")
@@ -224,16 +325,50 @@ private fun MediaType.toCmmsMediaType(): CmmsMediaType {
   }
 }
 
-private fun InternalEventTemplateField.FieldValue.toCelValue(
-  fieldInfo: EventMessageDescriptor.EventTemplateFieldInfo
-): String {
-  return when (selectorCase) {
-    InternalEventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> stringValue
-    InternalEventTemplateField.FieldValue.SelectorCase.ENUM_VALUE ->
-      checkNotNull(fieldInfo.enumType?.findValueByName(enumValue)).number.toString()
-    InternalEventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> boolValue.toString()
-    InternalEventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> floatValue.toString()
-    InternalEventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> error("No field value")
+/**
+ * Compile-checks the CEL generated for an IQF and routes failures based on [source]:
+ * - [ImpressionQualificationFilterSpecsSource.Custom] -> [InvalidFieldValueException] anchored at
+ *   the offending request entry. Surfaced to the user as `INVALID_ARGUMENT`.
+ * - [ImpressionQualificationFilterSpecsSource.Base] / [Named] -> [IllegalStateException]. The CEL
+ *   was generated from server-controlled inputs; a failure here indicates a broken server invariant
+ *   (server startup should have refused to boot -- see
+ *   [org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping]). This
+ *   backstop exists so a code path that bypasses startup validation still fails loudly rather than
+ *   silently emitting malformed CEL to downstream persistence.
+ *
+ * Public so tests can drive the routing logic directly without having to construct an IQF spec list
+ * that would trigger a CEL compile failure via the spec-to-CEL builder. Not a stable API -- lives
+ * in this file because it is the implementation detail of
+ * [buildReportingSetMetricCalculationSpecDetailsMap]'s IQF-validation pass.
+ */
+fun validateImpressionQualificationFilterCel(
+  env: Env,
+  filter: String,
+  source: ImpressionQualificationFilterSpecsSource,
+) {
+  try {
+    CelPredicates.validate(env, filter)
+  } catch (e: CelValidationException) {
+    val issue: String = e.message ?: "validation failed"
+    when (source) {
+      is ImpressionQualificationFilterSpecsSource.Custom ->
+        throw InvalidFieldValueException(
+          "basic_report.impression_qualification_filters[${source.requestIndex}].custom"
+        ) {
+          "$it is $issue"
+        }
+      is ImpressionQualificationFilterSpecsSource.Base ->
+        error(
+          "ImpressionQualificationFilter (base) ${source.externalImpressionQualificationFilterId} " +
+            "generated invalid CEL: $issue"
+        )
+      is ImpressionQualificationFilterSpecsSource.Named ->
+        error(
+          "ImpressionQualificationFilter ${source.impressionQualificationFilterName} " +
+            "(basic_report.impression_qualification_filters[${source.requestIndex}]" +
+            ".impression_qualification_filter) generated invalid CEL: $issue"
+        )
+    }
   }
 }
 
@@ -245,7 +380,8 @@ private fun InternalEventTemplateField.FieldValue.toCelValue(
  * @return List of [MetricCalculationSpec.Grouping]
  */
 private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
-  eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>
+  eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
+  emitCelNullGuardsForNestedMembers: Boolean,
 ): List<MetricCalculationSpec.Grouping> {
   if (eventTemplateFieldsList.isEmpty()) {
     return emptyList()
@@ -262,7 +398,9 @@ private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
     val fieldInfo = eventTemplateFieldsByPath.getValue(field)
     val fieldInfoEnumType = fieldInfo.enumType as Descriptors.EnumDescriptor
     val predicatesList =
-      fieldInfoEnumType.values.filter { it.number > 0 }.map { "$field == ${it.number}" }
+      fieldInfoEnumType.values
+        .filter { it.number > 0 }
+        .map { buildCelTerm(field, it.number.toString(), emitCelNullGuardsForNestedMembers) }
     MetricCalculationSpecKt.grouping { predicates += predicatesList }
   }
 }
@@ -306,6 +444,7 @@ private fun MutableMap.MutableEntry<MetricCalculationSpecInfoKey, MetricCalculat
 fun buildCelExpression(
   dimensionSpecFilters: List<EventFilter>,
   eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
+  emitCelNullGuardsForNestedMembers: Boolean = false,
 ): String {
   return if (dimensionSpecFilters.isEmpty()) {
     ""
@@ -319,9 +458,42 @@ fun buildCelExpression(
           InternalEventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
       )
       val termValue = term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path))
-      "${term.path} == $termValue"
+      buildCelTerm(term.path, termValue, emitCelNullGuardsForNestedMembers)
     }
   }
+}
+
+/**
+ * Emits `<path> == <valueLiteral>`, or, for a 3-segment nested-oneof-member path with
+ * [emitNullGuardForNestedMembers] enabled, prepends `<template>.<member> != null && ...`.
+ *
+ * Nested-oneof-member paths without a null guard return proto defaults for the unset members, which
+ * can silently match the wrong bucket in certain IQF shapes. The guard is opt-in because at least
+ * one EDP implementation currently fails to evaluate CEL filters containing `!= null` clauses (see
+ * `--emit-cel-null-guards-for-nested-members`).
+ *
+ * The IQF-side [buildCelExpression] adds a separate `<template> != null` clause covering the
+ * template-inclusion semantics; the DimensionSpec-side path emits no template-level guard, only the
+ * nested-member guard emitted here.
+ */
+private fun buildCelTerm(
+  path: String,
+  valueLiteral: String,
+  emitNullGuardForNestedMembers: Boolean,
+): String {
+  val segments = path.split('.')
+  // EventMessageDescriptor is the sole source of paths and only emits
+  // <template>.<field> (2 segments) or <template>.<member>.<field> (3 segments).
+  // Fail loudly on any other shape so hand-assembled paths from a future
+  // caller don't silently trip the wrong guard placement.
+  require(segments.size in 2..3) {
+    "Unexpected template field path shape: '$path' (expected 2 or 3 segments)"
+  }
+  if (segments.size == 2 || !emitNullGuardForNestedMembers) {
+    return "$path == $valueLiteral"
+  }
+  val memberPath = "${segments[0]}.${segments[1]}"
+  return "$memberPath != null && $path == $valueLiteral"
 }
 
 /**
@@ -339,7 +511,14 @@ fun buildCelExpressions(
     if (impressionQualificationFilterSpecExpressions.isNotEmpty()) {
       if (dimensionSpecExpression.isNotEmpty()) {
         for (impressionQualificationSpecsFilter in impressionQualificationFilterSpecExpressions) {
-          add("($impressionQualificationSpecsFilter) && ($dimensionSpecExpression)")
+          if (impressionQualificationSpecsFilter.isEmpty()) {
+            // A match-all ImpressionQualificationFilter (empty expression, e.g. AMI) combined
+            // with a DimensionSpec filter is just the DimensionSpec filter. Emitting it directly
+            // avoids a malformed "() && (...)" expression (issue #4109).
+            add(dimensionSpecExpression)
+          } else {
+            add("($impressionQualificationSpecsFilter) && ($dimensionSpecExpression)")
+          }
         }
       } else {
         for (impressionQualificationSpecsFilter in impressionQualificationFilterSpecExpressions) {

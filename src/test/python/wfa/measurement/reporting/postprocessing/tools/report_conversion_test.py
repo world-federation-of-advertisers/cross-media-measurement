@@ -47,11 +47,24 @@ class ReportConversionTest(unittest.TestCase):
         )
 
         self.edp_combinations = {
-            'edp1': ['edp1'],
-            'edp2': ['edp2'],
-            'edp3': ['edp3'],
-            'edp1_edp2': ['edp1', 'edp2'],
-            'edp1_edp2_edp3': ['edp1', 'edp2', 'edp3'],
+            'reporting_set_id_edp1': [
+                'dataProviders/edp1',
+            ],
+            'reporting_set_id_edp2': [
+                'dataProviders/edp2',
+            ],
+            'reporting_set_id_edp3': [
+                'dataProviders/edp3',
+            ],
+            'reporting_set_id_edp1_edp2': [
+                'dataProviders/edp1',
+                'dataProviders/edp2',
+            ],
+            'reporting_set_id_edp1_edp2_edp3': [
+                'dataProviders/edp1',
+                'dataProviders/edp2',
+                'dataProviders/edp3',
+            ],
         }
 
     def test_create_report_summary_for_group_with_empty_results_raises_error(
@@ -79,10 +92,10 @@ class ReportConversionTest(unittest.TestCase):
     def test_report_result_missing_edp_combination_key_raises_error(self):
         """Tests that a ValueError is raised for a missing key in edp_combinations."""
         invalid_edp_combinations = self.edp_combinations.copy()
-        del invalid_edp_combinations['edp1']
+        del invalid_edp_combinations['reporting_set_id_edp1']
         with self.assertRaisesRegex(
                 ValueError,
-                'Cannot find the data providers for reporting set edp1'):
+                'Cannot find the data providers for reporting set reporting_set_id_edp1'):
             report_summaries_from_reporting_set_results(
                 self.reporting_set_results, invalid_edp_combinations
             )
@@ -196,7 +209,7 @@ class ReportConversionTest(unittest.TestCase):
               external_report_result_id: 123
               external_reporting_set_result_id: 1
               dimension {
-                external_reporting_set_id: "edp1"
+                external_reporting_set_id: "reporting_set_id_edp1"
                 venn_diagram_region_type: UNION
                 external_impression_qualification_filter_id: "ami"
                 metric_frequency_spec { total: true }
@@ -221,7 +234,7 @@ class ReportConversionTest(unittest.TestCase):
               external_report_result_id: 123
               external_reporting_set_result_id: 2
               dimension {
-                external_reporting_set_id: "edp2"
+                external_reporting_set_id: "reporting_set_id_edp2"
                 venn_diagram_region_type: UNION
                 external_impression_qualification_filter_id: "ami"
                 metric_frequency_spec { total: true }
@@ -265,7 +278,7 @@ class ReportConversionTest(unittest.TestCase):
               cmms_measurement_consumer_id: "abcd"
               external_report_result_id: 123
               dimension {
-                external_reporting_set_id: "edp1"
+                external_reporting_set_id: "reporting_set_id_edp1"
                 venn_diagram_region_type: UNION
                 external_impression_qualification_filter_id: "ami"
                 metric_frequency_spec { total: true }
@@ -332,7 +345,7 @@ class ReportConversionTest(unittest.TestCase):
               external_report_result_id: 123
               external_reporting_set_result_id: 1
               dimension {
-                external_reporting_set_id: "edp1"
+                external_reporting_set_id: "reporting_set_id_edp1"
                 venn_diagram_region_type: UNION
                 external_impression_qualification_filter_id: "ami"
                 metric_frequency_spec { total: true }
@@ -401,7 +414,7 @@ class ReportConversionTest(unittest.TestCase):
             external_reporting_set_result_id: 1
             impression_filter: "ami"
             set_operation: "union"
-            data_providers: "edp1"
+            data_providers: "dataProviders/edp1"
             metric_frequency_spec { total: true }
             whole_campaign_result {
               key {
@@ -449,7 +462,7 @@ class ReportConversionTest(unittest.TestCase):
               external_report_result_id: 123
               external_reporting_set_result_id: 1
               dimension {
-                external_reporting_set_id: "edp1"
+                external_reporting_set_id: "reporting_set_id_edp1"
                 venn_diagram_region_type: UNION
                 custom: true
                 metric_frequency_spec { total: true }
@@ -486,7 +499,7 @@ class ReportConversionTest(unittest.TestCase):
             external_reporting_set_result_id: 1
             impression_filter: "custom"
             set_operation: "union"
-            data_providers: "edp1"
+            data_providers: "dataProviders/edp1"
             metric_frequency_spec { total: true }
             whole_campaign_result {
               key {
@@ -535,7 +548,7 @@ class ReportConversionTest(unittest.TestCase):
               external_report_result_id: 123
               external_reporting_set_result_id: 1
               dimension {
-                external_reporting_set_id: "edp1"
+                external_reporting_set_id: "reporting_set_id_edp1"
                 venn_diagram_region_type: UNION
                 external_impression_qualification_filter_id: "ami"
                 metric_frequency_spec { weekly: MONDAY }
@@ -589,7 +602,7 @@ class ReportConversionTest(unittest.TestCase):
             external_reporting_set_result_id: 1
             impression_filter: "ami"
             set_operation: "union"
-            data_providers: "edp1"
+            data_providers: "dataProviders/edp1"
             metric_frequency_spec { weekly: MONDAY }
             non_cumulative_results {
               key {
@@ -658,7 +671,7 @@ class ReportConversionTest(unittest.TestCase):
               external_report_result_id: 123
               external_reporting_set_result_id: 1
               dimension {
-                external_reporting_set_id: "edp1"
+                external_reporting_set_id: "reporting_set_id_edp1"
                 venn_diagram_region_type: UNION
                 custom: true
                 metric_frequency_spec { weekly: MONDAY }
@@ -744,7 +757,7 @@ class ReportConversionTest(unittest.TestCase):
             external_reporting_set_result_id: 1
             impression_filter: "custom"
             set_operation: "union"
-            data_providers: "edp1"
+            data_providers: "dataProviders/edp1"
             metric_frequency_spec { weekly: MONDAY }
             non_cumulative_results {
               key {
@@ -813,7 +826,7 @@ class ReportConversionTest(unittest.TestCase):
               external_report_result_id: 123
               external_reporting_set_result_id: 1
               dimension {
-                external_reporting_set_id: "edp1"
+                external_reporting_set_id: "reporting_set_id_edp1"
                 venn_diagram_region_type: UNION
                 external_impression_qualification_filter_id: "ami"
                 metric_frequency_spec { weekly: MONDAY }
@@ -859,7 +872,7 @@ class ReportConversionTest(unittest.TestCase):
             external_reporting_set_result_id: 1
             impression_filter: "ami"
             set_operation: "union"
-            data_providers: "edp1"
+            data_providers: "dataProviders/edp1"
             metric_frequency_spec { weekly: MONDAY }
             cumulative_results {
               key {
@@ -905,7 +918,7 @@ class ReportConversionTest(unittest.TestCase):
               external_report_result_id: 123
               external_reporting_set_result_id: 1
               dimension {
-                external_reporting_set_id: "edp1"
+                external_reporting_set_id: "reporting_set_id_edp1"
                 venn_diagram_region_type: UNION
                 custom: true
                 metric_frequency_spec { weekly: MONDAY }
@@ -951,7 +964,7 @@ class ReportConversionTest(unittest.TestCase):
             external_reporting_set_result_id: 1
             impression_filter: "custom"
             set_operation: "union"
-            data_providers: "edp1"
+            data_providers: "dataProviders/edp1"
             metric_frequency_spec { weekly: MONDAY }
             cumulative_results {
               key {
@@ -1019,9 +1032,9 @@ class ReportConversionTest(unittest.TestCase):
         self.assertIsNotNone(report_summary_18_34)
         self.assertIsNotNone(report_summary_35_54)
 
-        # Verifies that there are 17 results for the 18-34 age group.
+        # Verifies that there are 12 results for the 18-34 age group.
         self.assertEqual(len(report_summary_18_34.report_summary_set_results),
-                         17)
+                         12)
         # Verifies that there are 8 results for the 35-54 age group.
         self.assertEqual(len(report_summary_35_54.report_summary_set_results),
                          8)
@@ -1055,9 +1068,9 @@ class ReportConversionTest(unittest.TestCase):
             external_reporting_set_result_id: 25
             impression_filter: "custom"
             set_operation: "union"
-            data_providers: "edp1"
-            data_providers: "edp2"
-            data_providers: "edp3"
+            data_providers: "dataProviders/edp1"
+            data_providers: "dataProviders/edp2"
+            data_providers: "dataProviders/edp3"
             metric_frequency_spec { total: true }
             whole_campaign_result {
               key {
@@ -1096,7 +1109,7 @@ class ReportConversionTest(unittest.TestCase):
             external_reporting_set_result_id: 1
             impression_filter: "ami"
             set_operation: "union"
-            data_providers: "edp1"
+            data_providers: "dataProviders/edp1"
             metric_frequency_spec { weekly: MONDAY }
             cumulative_results {
               key {

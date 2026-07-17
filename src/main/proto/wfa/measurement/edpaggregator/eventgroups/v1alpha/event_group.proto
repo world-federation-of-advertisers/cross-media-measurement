@@ -85,7 +85,15 @@ message EventGroup {
   // synchronize their metadata with the EventGroupsService. See
   // `Metadata` which provides a set of identifiers with better
   // defined semantics.
-  string event_group_reference_id = 1 [(google.api.field_behavior) = REQUIRED];
+  //
+  // Optional: superseded by [entity_key] as the query key. Planned for
+  // deprecation in a future release; see
+  // https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/4175.
+  // At least one of `event_group_reference_id` or `entity_key` must be set.
+  string event_group_reference_id = 1 [
+    (google.api.field_behavior) = OPTIONAL,
+    (type.future_disposition) = DEPRECATED
+  ];
 
   // Metadata that describes the events entailed by the EventGroup.
   Metadata event_group_metadata = 2 [(google.api.field_behavior) = REQUIRED];

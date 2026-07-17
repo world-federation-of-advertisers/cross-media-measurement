@@ -1,0 +1,58 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("//src/main/docker:macros.bzl", "java_image")
+
+kt_jvm_library(
+    name = "reporting_mcp_server",
+    srcs = ["ReportingMcpServer.kt"],
+    visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/reporting/mcp:__subpackages__",
+    ],
+    runtime_deps = [
+        # Installed at runtime by the MCP SDK's mcpStatelessStreamableHttp helper.
+        "//imports/java/io/ktor/serialization/kotlinx/json",
+        "//imports/java/io/ktor/server:content-negotiation",
+        "//imports/java/io/ktor/server:sse",
+    ],
+    deps = [
+        "//imports/java/io/ktor/server:cors",
+        "//imports/java/io/modelcontextprotocol/kotlin/sdk:server",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/prompts:reporting_prompts",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/tools:basic_report_tools",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/tools:event_group_tools",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/tools:iqf_tools",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/tools:reporting_set_tools",
+    ],
+)
+
+kt_jvm_library(
+    name = "reporting_mcp_server_daemon",
+    srcs = ["ReportingMcpServerDaemon.kt"],
+    deps = [
+        ":reporting_mcp_server",
+        "//imports/java/io/ktor/server:cio",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/mcp/grpc:reporting_public_api_client",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_reports_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:impression_qualification_filters_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_sets_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+java_binary(
+    name = "ReportingMcpServerDaemon",
+    main_class = "org.wfanet.measurement.reporting.mcp.ReportingMcpServerDaemonKt",
+    runtime_deps = [":reporting_mcp_server_daemon"],
+)
+
+java_image(
+    name = "reporting_mcp_server_daemon_image",
+    binary = ":ReportingMcpServerDaemon",
+    main_class = "org.wfanet.measurement.reporting.mcp.ReportingMcpServerDaemonKt",
+    visibility = ["//src:docker_image_deployment"],
+)

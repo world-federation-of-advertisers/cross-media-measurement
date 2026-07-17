@@ -1,0 +1,50 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+import "google/protobuf/timestamp.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "RawImpressionUploadFileProto";
+
+// Internal representation of a raw impression file belonging to an upload.
+message RawImpressionUploadFile {
+  // Resource ID of the DataProvider that owns this file.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // Resource ID of this file.
+  string file_resource_id = 3;
+
+  // Cloud Storage URI of the raw impression file.
+  string blob_uri = 4;
+
+  // The timestamp when this file was created.
+  google.protobuf.Timestamp create_time = 5;
+
+  // The timestamp when this file was last updated.
+  google.protobuf.Timestamp update_time = 6;
+
+  // The timestamp when this file was soft-deleted.
+  google.protobuf.Timestamp delete_time = 7;
+
+  // Size of the raw impression file in bytes.
+  int64 size_bytes = 8;
+}

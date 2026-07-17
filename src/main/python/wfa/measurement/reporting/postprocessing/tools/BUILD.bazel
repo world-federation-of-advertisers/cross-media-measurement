@@ -1,4 +1,5 @@
 load("@pip//:requirements.bzl", "requirement")
+load("@rules_java//java:defs.bzl", "java_library")
 load("@rules_python//python:defs.bzl", "py_library")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 
@@ -10,6 +11,15 @@ filegroup(
         "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_origin_report",
     ],
     output_group = "python_zip_file",
+)
+
+# Wraps the python zip in a JAR with a stable resource path, stripping the
+# bazel-out/<config>/bin/ prefix that varies between local and CI builds.
+# See https://github.com/bazel-contrib/rules_kotlin/issues/1605
+java_library(
+    name = "post_process_origin_report_resources",
+    resource_strip_prefix = "src/main/python/wfa/measurement/reporting/postprocessing/tools",
+    resources = [":post_process_origin_report_pyzip"],
 )
 
 filegroup(

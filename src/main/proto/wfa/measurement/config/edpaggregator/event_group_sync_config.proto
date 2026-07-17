@@ -41,6 +41,11 @@ message EventGroupSyncConfig {
   StorageParams event_group_storage = 5;
   // Where the event group map is stored
   StorageParams event_group_map_storage = 6;
+  // Entity key types to include when listing event groups from the CMMS.
+  // When specified, these types are passed in the ListEventGroups filter to
+  // ensure all event groups with matching entity types are visible to sync.
+  // When empty, the API default behavior applies (only "campaign" type).
+  repeated string entity_key_types = 7;
 }
 
 // Wrapper containing Event Group Sync configurations for all EDPs.

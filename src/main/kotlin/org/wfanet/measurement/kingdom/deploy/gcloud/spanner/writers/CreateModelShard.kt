@@ -78,6 +78,7 @@ class CreateModelShard(private val modelShard: ModelShard) :
       set("ModelSuiteId" to modelReleaseIds.getLong("ModelSuiteId"))
       set("ModelReleaseId" to modelReleaseIds.getLong("ModelReleaseId"))
       set("ModelBlobPath" to modelShard.modelBlobPath)
+      set("MemoizedVidAssignmentEnabled" to modelShard.memoizedVidAssignmentEnabled)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
 

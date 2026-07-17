@@ -68,36 +68,139 @@ sections of this when reviewing others’ code.
 *   Follow the
     [Google Android Kotlin style guide](https://developer.android.com/kotlin/style-guide).
     *   Exception: Use two spaces instead of four for indentation.
-*   Use the [Truth](https://truth.dev/) library for test assertions, importing
-    `assertThat`.
-    *   Make sure to import the [ProtoTruth](https://truth.dev/protobufs)
-        version of `assertThat` as well if you have protobuf message subjects.
-    *   Exception: Use the `kotlin.test` package for expected exceptions,
-        e.g.[`assertFailsWith`](https://kotlinlang.org/api/latest/kotlin.test/kotlin.test/assert-fails-with.html).
+*   See the
+    [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html)
+    when neither this document nor the style guide offer an opinion.
+
+#### Immutability & Declarations
+
+*   Use `val` over `var` whenever the variable is never reassigned.
+*   Use `const val` for compile-time constants (primitives and String literals
+    in companion objects or at the top level).
+*   Prefer computed properties via `get()` over backing fields when the value
+    is directly derivable from another field.
+*   Use the `Duration` type for durations. Never pass raw `Int` or `Long`
+    values to represent time.
+*   Prefer immutable `ByteString` over mutable `ByteArray` for bytes. Be
+    careful to avoid unnecessary copying, such as unnecessary conversions
+    between `ByteArray` and `ByteString`.
+*   Limit the scope of mutability using
+    [Kotlin scope functions](https://kotlinlang.org/docs/scope-functions.html)
+    such as `apply`, and factory functions for building read-only collections
+    such as
+    [`buildList`](https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/build-list.html).
+
+#### Protobuf & Builders
+
 *   Prefer using Kotlin DSL builders for protocol buffers. See
     [Kotlin Generated Code](https://developers.google.com/protocol-buffers/docs/reference/kotlin-generated)
-    in the Protocol Buffers Developer Guide.
+    in the Protocol Buffers Developer Guide. Use `copy {}` instead of
+    `toBuilder()`.
+*   For non-protobuf builders, use `Foo.newBuilder().apply { ... }.build()`.
+*   Use `isNotEmpty()` over `isNotBlank()` for protobuf string fields, which
+    are either a valid value or empty string (the default/unset value).
+
+#### Type Safety & Expressions
+
 *   Specify types explicitly except when they are obvious.
     *   For example, assignments from constructors or factory functions.
     *   "Superfluous" explicit types are fine except in cases where they clearly
         hurt readability or safety.
+*   Use exhaustive `when` on enums (no `else` branch) so that adding a new
+    enum value forces a compilation error.
+*   Prefer `if` over `?.let` when not chaining or not using the result.
+*   Extract a variable for repeated non-null assertions (`!!`) to avoid
+    asserting multiple times.
+*   Prefer named data classes over `Pair` and `Triple` unless the generic
+    structure is required by the API (e.g. `zip`, `mapOf`).
+*   Use `kotlin.text.Regex` instead of `java.util.regex.Pattern`.
+
+#### Namespacing & Imports
+
+*   Wildcard imports are not allowed.
 *   Use (companion) objects for constants and static properties.
     *   This avoids polluting the global namespace.
-    *   This is a light recommendation, as much code has already been written in
-        this repository that does not follow this.
+*   Do not define top-level non-extension functions. Wrap them in a class or
+    object instead.
 *   Avoid defining extensions on common types when it may appear that they could
     work on all instances of that type.
     *   For example, `String.toFoo()` where the String must be a specific
-        serialization of a `Foo` to work. This is version of the "stringly
+        serialization of a `Foo` to work. This is a version of the "stringly
         typed" anti-pattern.
+
+#### Error Handling
+
+*   Either log or throw, never both. If you throw an exception, the caller
+    decides whether and how to log.
+*   Use the correct precondition function for the exception type:
+    *   `require` / `requireNotNull` → `IllegalArgumentException` (argument
+        validation)
+    *   `check` / `checkNotNull` → `IllegalStateException` (state validation)
+    *   `error` → `IllegalStateException` (illegal/impossible state)
 *   Catch `StatusException` from RPCs immediately at the call site.
     *   This prevents gRPC statuses from being incorrectly propagated from gRPC
         servers that are also gRPC clients.
     *   If you need to re-throw the exception to be handled at a higher level,
         wrap it in another exception type.
-*   See the
-    [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html)
-    when neither this document nor the style guide offer an opinion.
+*   When logging exceptions, use logging methods that accept the exception
+    object so the full stack trace is captured.
+
+#### Coroutines & Concurrency
+
+*   `runBlocking` is restricted to tests and `main` entry points. It must not
+    appear in library code, service implementations, or flow collectors.
+*   Use `SendChannel.trySendBlocking` instead of wrapping `SendChannel.send`
+    in `runBlocking`.
+*   Use `Flow.produceIn` to get flow elements into a Channel.
+*   Do not run blocking code in a non-blocking context. Any calls to blocking
+    code from within a coroutine must use a dispatcher suited for blocking
+    code (e.g. a `CoroutineContext` annotated with `@BlockingExecutor`). The
+    `@Blocking` annotation can be used to flag blocking code.
+*   Suspend functions should suspend until all work is completed, not leaving
+    any coroutines running after the function returns. If the function needs
+    to leave a coroutine running after it returns, it should not also suspend.
+*   Do not use `GlobalScope`. If a function needs to leave a coroutine
+    running after it returns, it needs to happen in a `CoroutineScope` that
+    has a clearly-defined lifecycle that matches that of the call-site.
+*   Avoid using `CoroutineScope`s at API boundaries. Public functions should
+    not have `CoroutineScope` receivers or arguments.
+
+#### Idioms
+
+*   Use `getOrPut` for map caching patterns.
+*   Specify argument names when passing literals for clarity.
+*   Use trailing commas on multiline structures to reduce merge conflicts.
+*   Use a regular for-each loop when not chaining a set of operations.
+
+#### Function Parameters
+
+*   Use default parameter values judiciously, applying the same judgment you
+    would for method overloading (see Effective Java 3rd Edition, Item 52).
+    Default values are syntactic sugar for overloads and carry the same risks:
+    they can obscure which variant a call site invokes and make refactoring
+    error-prone.
+*   When default parameter values are used, place parameters with defaults
+    after all required parameters. A trailing lambda parameter should still be
+    last, even after parameters with defaults, to support trailing lambda
+    syntax.
+
+#### CLI Flags
+
+*   For Picocli flags, use `lateinit var` with the `defaultValue` annotation
+    parameter instead of assigning Kotlin default values. This lets the
+    framework handle defaults.
+
+#### Testing
+
+*   Use the [Truth](https://truth.dev/) library for test assertions, importing
+    `assertThat`.
+    *   Make sure to import the [ProtoTruth](https://truth.dev/protobufs)
+        version of `assertThat` as well if you have protobuf message subjects.
+    *   Exception: Use the `kotlin.test` package for expected exceptions,
+        e.g.
+        [`assertFailsWith`](https://kotlinlang.org/api/latest/kotlin.test/kotlin.test/assert-fails-with.html).
+*   See the [Testing Standards](testing-standards.md) for additional guidance
+    on test structure and conventions.
 
 ### C++
 

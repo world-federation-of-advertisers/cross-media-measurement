@@ -82,3 +82,28 @@ variable "trigger_event_type" {
     error_message = "trigger_event_type must be either 'finalized' or 'deleted'."
   }
 }
+
+variable "max_delivery_attempts" {
+  description = "Maximum number of delivery attempts before a message is sent to the dead letter topic."
+  type        = number
+  default     = 10
+}
+
+variable "message_retention_duration" {
+  description = "How long unacknowledged messages are retained in the Eventarc subscription."
+  type        = string
+  default     = "604800s" # 7 days
+}
+
+variable "alert_notification_channels" {
+  description = "List of Cloud Monitoring notification channel IDs for DLQ alerts. If empty, the alert fires but no notification is sent."
+  type        = list(string)
+  default     = []
+}
+
+variable "uploaded_config_generation" {
+  description = "The GCS generation of the uploaded config file. Changes only when file is re-uploaded."
+  type        = string
+  nullable    = true
+  default     = null
+}

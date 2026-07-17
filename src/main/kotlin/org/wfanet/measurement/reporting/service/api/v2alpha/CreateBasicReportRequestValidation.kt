@@ -32,11 +32,14 @@ import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.mediatype.toEventAnnotationMediaType
 import org.wfanet.measurement.common.toTimestamp
+import org.wfanet.measurement.internal.reporting.v2.DimensionSpec as InternalDimensionSpec
+import org.wfanet.measurement.internal.reporting.v2.ReportingUnit as InternalReportingUnit
 import org.wfanet.measurement.reporting.service.api.DataProviderNotFoundForCampaignGroupException
 import org.wfanet.measurement.reporting.service.api.EventTemplateFieldInvalidException
 import org.wfanet.measurement.reporting.service.api.FieldUnimplementedException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
+import org.wfanet.measurement.reporting.service.internal.Normalization
 import org.wfanet.measurement.reporting.v2alpha.CreateBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateField
@@ -52,6 +55,12 @@ import org.wfanet.measurement.reporting.v2alpha.ResultGroupSpec
 
 object CreateBasicReportRequestValidation {
   private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
+
+  /**
+   * Maximum number of components allowed in a single `reporting_unit`. Guards against accidentally
+   * large requests; can be tightened later without back-compat concerns.
+   */
+  private const val MAX_REPORTING_UNIT_COMPONENTS = 25
 
   data class ParsedFields(
     val parentKey: MeasurementConsumerKey,
@@ -79,6 +88,10 @@ object CreateBasicReportRequestValidation {
    * [request.basicReport.campaignGroup][org.wfanet.measurement.reporting.v2alpha.BasicReport.campaignGroup]
    * field.
    *
+   * @param campaignGroup the caller-supplied Campaign Group [ReportingSet], or `null` when
+   *   `campaign_group` was not specified and the Campaign Group is server-synthesized after
+   *   validation. When it was specified, every `reporting_unit` component must be a DataProvider
+   *   within the Campaign Group; when it was not, every component must be a ReportingSet.
    * @throws InvalidFieldValueException
    * @throws RequiredFieldNotSetException
    * @throws DataProviderNotFoundForCampaignGroupException
@@ -87,7 +100,7 @@ object CreateBasicReportRequestValidation {
    */
   fun validateRequest(
     request: CreateBasicReportRequest,
-    campaignGroup: ReportingSet,
+    campaignGroup: ReportingSet?,
     hasDefaultReportStartHour: Boolean,
     eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
   ): ParsedFields {
@@ -140,7 +153,7 @@ object CreateBasicReportRequestValidation {
     validateResultGroupSpecs(
       request.basicReport.resultGroupSpecsList,
       eventTemplateFieldsByPath,
-      CampaignGroupInfo(campaignGroup),
+      if (campaignGroup != null) CampaignGroupInfo(campaignGroup) else null,
     )
 
     return ParsedFields(parentKey, impressionQualificationFilterKeyByName)
@@ -152,6 +165,8 @@ object CreateBasicReportRequestValidation {
    * @param resultGroupSpecs [List] of [ResultGroupSpec] to validate
    * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message
    *   to info for the field. Used for validating [EventTemplateField]
+   * @param campaignGroupInfo information about the supplied Campaign Group, or `null` when
+   *   `campaign_group` was not specified (ReportingUnit components must then be ReportingSets)
    * @throws [RequiredFieldNotSetException] when validation fails
    * @throws [InvalidFieldValueException] when validation fails
    * @throws FieldUnimplementedException
@@ -159,7 +174,7 @@ object CreateBasicReportRequestValidation {
   private fun validateResultGroupSpecs(
     resultGroupSpecs: List<ResultGroupSpec>,
     eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
-    campaignGroupInfo: CampaignGroupInfo,
+    campaignGroupInfo: CampaignGroupInfo?,
   ) {
     val fieldPath = "basic_report.result_group_specs"
     if (resultGroupSpecs.isEmpty()) {
@@ -205,31 +220,136 @@ object CreateBasicReportRequestValidation {
         throw RequiredFieldNotSetException("$resultGroupSpecFieldPath.result_group_metric_spec")
       }
     }
+
+    // Two result_group_specs that share (reporting_unit, dimension_spec,
+    // metric_frequency selector kind) but differ in their full
+    // metric_frequency value (e.g. one weekly=MONDAY and one weekly=TUESDAY
+    // for the same slice) produce two distinct ReportingSetResult rows that
+    // the post-processor would collapse into a single dim and silently
+    // overwrite. Reject up front -- supporting multiple cadences for the
+    // same slice would require deeper changes in the post-processor and
+    // solver. Specs that share the full metric_frequency value are fine:
+    // the job-level dedup merges them into a single RSR before the
+    // post-processor sees them.
+    val frequencyByDimKey =
+      mutableMapOf<ResultGroupSpecCollisionKey, IndexedResultGroupSpecFrequency>()
+    resultGroupSpecs.forEachIndexed { index, resultGroupSpec ->
+      // Convert to internal + normalize before keying so that order-only
+      // differences (e.g. `filters` permuted, `reportingUnit.components`
+      // permuted, `grouping.event_template_fields` permuted) -- which the
+      // downstream pipeline treats as equivalent when generating RSRs --
+      // are recognized as the same dim. Without normalization a colliding
+      // pair with any of those order-only differences would slip through.
+      val key =
+        ResultGroupSpecCollisionKey(
+          reportingUnit =
+            Normalization.normalizeReportingUnit(resultGroupSpec.reportingUnit.toInternal()),
+          dimensionSpec =
+            Normalization.normalizeDimensionSpec(resultGroupSpec.dimensionSpec.toInternal()),
+          selectorCase = resultGroupSpec.metricFrequency.selectorCase,
+        )
+      val frequency = resultGroupSpec.metricFrequency
+      val existing = frequencyByDimKey[key]
+      if (existing != null && existing.frequency != frequency) {
+        throw InvalidFieldValueException("$fieldPath[$index].metric_frequency") { fieldPath ->
+          "$fieldPath collides with result_group_specs[${existing.index}]" +
+            ".metric_frequency on " +
+            "(reporting_unit, dimension_spec, metric_frequency selector kind) " +
+            "but specifies a different metric_frequency value; multiple " +
+            "cadences for the same slice are not supported."
+        }
+      }
+      frequencyByDimKey[key] = IndexedResultGroupSpecFrequency(index, frequency)
+    }
   }
+
+  /**
+   * Hashable identity key used to detect duplicate [ResultGroupSpec]s that would collapse to the
+   * same dimension in the post-processor.
+   *
+   * Protobuf-generated [equals]/[hashCode] are stable within a single JVM, which is all this map
+   * needs (built and discarded inside [validateResultGroupSpecs]).
+   *
+   * Both [reportingUnit] and [dimensionSpec] must be normalized before being used as key fields; an
+   * un-normalized value would not collide with its normalized counterpart and would silently bypass
+   * dedup. Normalization is order-canonicalization across three axes that the downstream pipeline
+   * treats as equivalent:
+   * - `reportingUnit.dataProviderKeys.dataProviderKeysList` sorted by `cmmsDataProviderId`
+   *   ([Normalization.normalizeReportingUnit]).
+   * - `dimensionSpec.filtersList` sorted with each filter's `termsList` sorted by `(path, value)`
+   *   ([Normalization.normalizeEventFilters], invoked by [Normalization.normalizeDimensionSpec]).
+   * - `dimensionSpec.grouping.eventTemplateFieldsList` sorted lexicographically
+   *   ([Normalization.normalizeDimensionSpec]).
+   */
+  private data class ResultGroupSpecCollisionKey(
+    /** Normalized via [Normalization.normalizeReportingUnit]. */
+    val reportingUnit: InternalReportingUnit,
+    /** Normalized via [Normalization.normalizeDimensionSpec]. */
+    val dimensionSpec: InternalDimensionSpec,
+    val selectorCase: MetricFrequencySpec.SelectorCase,
+  )
+
+  /**
+   * Tracks the index of the first [ResultGroupSpec] seen for a given [ResultGroupSpecCollisionKey],
+   * along with its full metric_frequency value. The index lets the collision error name both
+   * colliding entries, not just the second one.
+   */
+  private data class IndexedResultGroupSpecFrequency(
+    val index: Int,
+    val frequency: MetricFrequencySpec,
+  )
 
   /**
    * Validates [reportingUnit] within the context of a [CreateBasicReportRequest].
    *
+   * The component type is selected by whether `campaign_group` was specified on the request:
+   * - When it was ([campaignGroupInfo] non-null): every component must be a DataProvider resource
+   *   name belonging to the Campaign Group.
+   * - When it was not ([campaignGroupInfo] `null`): every component must be a ReportingSet resource
+   *   name. The referenced ReportingSets are resolved and further validated (primitive, Measurement
+   *   Consumer-owned) server-side in `BasicReportsService`, where they are fetched for Campaign
+   *   Group synthesis.
+   *
    * @param fieldPath Path of [reportingUnit] relative to the request message
-   * @param campaignGroupInfo Information about the Campaign Group for the BasicReport
+   * @param campaignGroupInfo Information about the supplied Campaign Group, or `null` when
+   *   `campaign_group` was not specified
    */
   private fun validateReportingUnit(
     reportingUnit: ReportingUnit,
     fieldPath: String,
-    campaignGroupInfo: CampaignGroupInfo,
+    campaignGroupInfo: CampaignGroupInfo?,
   ) {
-    if (reportingUnit.componentsList.isEmpty()) {
+    val components = reportingUnit.componentsList
+    if (components.isEmpty()) {
       throw InvalidFieldValueException("$fieldPath.components")
     }
+    if (components.size > MAX_REPORTING_UNIT_COMPONENTS) {
+      throw InvalidFieldValueException("$fieldPath.components") { fieldPath ->
+        "$fieldPath must not contain more than $MAX_REPORTING_UNIT_COMPONENTS components"
+      }
+    }
 
-    reportingUnit.componentsList.forEachIndexed { index, component ->
-      DataProviderKey.fromName(component)
-        ?: throw InvalidFieldValueException("$fieldPath.components[$index]") { fieldPath ->
-          "$fieldPath is not a valid data provider name"
+    if (campaignGroupInfo == null) {
+      // When campaign_group is not specified, every component must be a ReportingSet.
+      components.forEachIndexed { index, component ->
+        ReportingSetKey.fromName(component)
+          ?: throw InvalidFieldValueException("$fieldPath.components[$index]") { fieldPath ->
+            "$fieldPath is not a valid ReportingSet resource name; when campaign_group is not " +
+              "specified, all ReportingUnit components must be ReportingSets"
+          }
+      }
+    } else {
+      // When campaign_group is specified, every component must be a DataProvider within it.
+      components.forEachIndexed { index, component ->
+        DataProviderKey.fromName(component)
+          ?: throw InvalidFieldValueException("$fieldPath.components[$index]") { fieldPath ->
+            "$fieldPath is not a valid DataProvider resource name; when campaign_group is " +
+              "specified, all ReportingUnit components must be DataProviders"
+          }
+
+        if (!campaignGroupInfo.dataProviderNames.contains(component)) {
+          throw DataProviderNotFoundForCampaignGroupException(component, campaignGroupInfo.name)
         }
-
-      if (!campaignGroupInfo.dataProviderNames.contains(component)) {
-        throw DataProviderNotFoundForCampaignGroupException(component, campaignGroupInfo.name)
       }
     }
   }

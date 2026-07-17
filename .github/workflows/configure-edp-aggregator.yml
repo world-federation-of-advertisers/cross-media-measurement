@@ -14,6 +14,11 @@
 
 name: "Configure Edp Aggregator Services"
 
+run-name: >-
+  Configure Edp Aggregator Services [${{ inputs.environment }}] |
+  apply=${{ inputs.apply }},
+  image-tag=${{ inputs.image-tag }}
+
 on:
   workflow_call:
     inputs:
@@ -62,10 +67,10 @@ jobs:
       id-token: write
     environment: ${{ inputs.environment }}
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
     - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
       with:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
@@ -94,13 +99,13 @@ jobs:
         EOF
 
     - name: Set up Bazel
-      uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
+      uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
 
     - name: Export BAZEL_BIN
       run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 
     - name: Get GKE cluster credentials
-      uses: google-github-actions/get-gke-credentials@64bc7249bbcf78056bb92f14d3cedc2da193946c # v2.3.5
+      uses: google-github-actions/get-gke-credentials@3da1e46a907576cefaa90c484278bb5b259dd395 # v3.0.0
       with:
         cluster_name: kingdom
         location: ${{ vars.GCLOUD_ZONE }}
@@ -110,6 +115,7 @@ jobs:
         bazelisk build
         //src/main/k8s/dev:edp_aggregator.tar
         //src/main/k8s/testing/secretfiles:edp_aggregator_tls_files.tar
+        //src/main/k8s/testing/secretfiles:edp7_tls_files.tar
         //src/main/k8s/testing/secretfiles:edp_aggregator_trusted_certs.pem
 
     - name: Make Kustomization dir
@@ -125,10 +131,31 @@ jobs:
         tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/edp_aggregator_tls_files.tar"
         -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_tls"
 
+    - name: Extract edp7 tls files archive
+      run: >
+        tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/edp7_tls_files.tar"
+        -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp7_tls"
+
     - name: Copy trusted certs
       run: >
         cp "$BAZEL_BIN/src/main/k8s/testing/secretfiles/edp_aggregator_trusted_certs.pem"
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_config/trusted_certs.pem"
+
+    - name: Copy kingdom root cert
+      run: >
+        cp src/main/k8s/testing/secretfiles/kingdom_root.pem
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_config/kingdom_root.pem"
+
+    - name: Write sync-event-group-activities config (edp7)
+      env:
+        EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT: ${{ vars.EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT }}
+      run: |
+        if [ -z "$EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT" ]; then
+          echo "vars.EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT is empty for environment ${{ inputs.environment }}" >&2
+          exit 1
+        fi
+        printf '%s' "$EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT" > \
+          "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_config/event-group-activity-sync-config-edp7.textproto"
 
     - name: Export KUSTOMIZE_PATH
       run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator" >> $GITHUB_ENV
@@ -144,6 +171,6 @@ jobs:
     - name: Wait for rollout
       if: ${{ inputs.apply }}
       run: |
-        for deployment in $(kubectl get deployments -o name); do
+        for deployment in $(kubectl get deployments -l app.kubernetes.io/component=edp-aggregator -o name); do
           kubectl rollout status "$deployment" --timeout=5m
         done

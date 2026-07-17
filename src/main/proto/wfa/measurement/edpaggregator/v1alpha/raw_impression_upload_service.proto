@@ -1,0 +1,144 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
+import "google/api/resource.proto";
+import "google/type/interval.proto";
+import "wfa/measurement/edpaggregator/v1alpha/raw_impression_upload.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RawImpressionUploadServiceProto";
+
+// Service for managing RawImpressionUpload resources.
+service RawImpressionUploadService {
+  // Creates a new RawImpressionUpload.
+  rpc CreateRawImpressionUpload(CreateRawImpressionUploadRequest)
+      returns (RawImpressionUpload) {}
+
+  // Retrieves a specific RawImpressionUpload.
+  rpc GetRawImpressionUpload(GetRawImpressionUploadRequest)
+      returns (RawImpressionUpload) {}
+
+  // Lists RawImpressionUpload resources for a data provider.
+  rpc ListRawImpressionUploads(ListRawImpressionUploadsRequest)
+      returns (ListRawImpressionUploadsResponse) {}
+}
+
+// Request message for the `CreateRawImpressionUpload` method.
+message CreateRawImpressionUploadRequest {
+  // The parent data provider resource name.
+  // Format: `dataProviders/{data_provider}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // The RawImpressionUpload to create.
+  // The `name` and output-only fields are ignored.
+  RawImpressionUpload raw_impression_upload = 2
+      [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure idempotency.
+  //
+  // This field is REQUIRED, deviating from AIP-155 (which recommends request_id
+  // be optional): the upload's resource name is assigned by the server, so the
+  // client has no other idempotency key. Without it, a retry after a lost
+  // response would create a second, orphaned upload. Must be a UUID4 (RFC 4122)
+  // string.
+  // (-- api-linter: core::0133::request-required-fields=disabled
+  //     aip.dev/not-precedent: request_id is intentionally REQUIRED so the
+  //     server can deduplicate retries of this server-named resource. --)
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for the `GetRawImpressionUpload` method.
+message GetRawImpressionUploadRequest {
+  // The resource name of the RawImpressionUpload to retrieve.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+}
+
+// Request message for the `ListRawImpressionUploads` method.
+// (-- api-linter: core::0132::request-field-types=disabled
+//     aip.dev/not-precedent: Using a customized message for the filter. --)
+message ListRawImpressionUploadsRequest {
+  // The parent data provider resource name.
+  // Format: `dataProviders/{data_provider}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // The maximum number of results to return.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // A page token, received from a previous call.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Structured filter for narrowing results.
+  // All fields are combined with `AND` logic.
+  message Filter {
+    // Filter to resources whose state is in this set. Empty matches all states.
+    // (-- api-linter: core::0216::state-field-output-only=disabled
+    //     aip.dev/not-precedent: This is a filter input field, not a
+    //     resource state field. --)
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: `_in` is the established repo convention
+    //     for set-membership filter fields. --)
+    repeated RawImpressionUpload.State state_in = 1
+        [(google.api.field_behavior) = OPTIONAL];
+
+    // Filter for resources whose create_time is in the given interval.
+    // Start and end are both optional: omitting start_time matches
+    // resources created before end_time; omitting end_time matches
+    // resources created at or after start_time.
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: `_in` is the established repo convention
+    //     for set-membership filter fields. --)
+    google.type.Interval create_time_in = 2
+        [(google.api.field_behavior) = OPTIONAL];
+  }
+
+  // Optional. A filter to apply to the results.
+  Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Response message for the `ListRawImpressionUploads` method.
+message ListRawImpressionUploadsResponse {
+  // A list of `RawImpressionUpload` entries matching the request.
+  repeated RawImpressionUpload raw_impression_uploads = 1;
+
+  // A token to retrieve the next page of results.
+  // If this field is omitted, there are no subsequent pages.
+  string next_page_token = 2;
+}

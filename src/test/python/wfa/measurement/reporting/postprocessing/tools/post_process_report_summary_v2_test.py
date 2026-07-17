@@ -75,7 +75,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             report_summary_v2_pb2.ReportSummaryV2(),
         )
 
-        result = ReportSummaryV2Processor(report_summary).process()
+        result = ReportSummaryV2Processor(report_summary, []).process()
 
         self.assertEqual(
             result.status.status_code,
@@ -90,7 +90,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         report_summary = get_report_summary_v2(
             'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_v2.textproto'
         )
-        reportSummaryProcessor = ReportSummaryV2Processor(report_summary)
+        reportSummaryProcessor = ReportSummaryV2Processor(report_summary, [])
 
         reportSummaryProcessor._process_union_results()
 
@@ -629,7 +629,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         report_summary = get_report_summary_v2(
             'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_v2.textproto'
         )
-        reportSummaryProcessor = ReportSummaryV2Processor(report_summary)
+        reportSummaryProcessor = ReportSummaryV2Processor(report_summary, [])
 
         edp1 = frozenset({'EDP_ONE'})
         edp2 = frozenset({'EDP_TWO'})
@@ -1547,7 +1547,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             "src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_v2.textproto"
         )
         report_post_processor_result = ReportSummaryV2Processor(
-            report_summary_v2).process()
+            report_summary_v2, []).process()
 
         self.assertEqual(
             report_post_processor_result.pre_correction_report_summary_v2,
@@ -1562,6 +1562,432 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             NOISE_CORRECTION_TOLERANCE)
         self.assertEqual(len(report_post_processor_result.updated_measurements),
                          278)
+
+    def test_ami_mrc_exempted_edps_skips_consistency_check(self):
+        # A report summary with AMI reach (100) < MRC reach (200), which
+        # would normally trigger a correction.
+        report_summary_textproto = """
+            cmms_measurement_consumer_id: "NsQ4CS3K1to"
+            external_report_result_id: 123
+            population: 1000
+            report_summary_set_results {
+                external_reporting_set_result_id: 1
+                impression_filter: "ami"
+                set_operation: "union"
+                data_providers: "reporting_set_id_edp1"
+                whole_campaign_result {
+                    reach {
+                        value: 100
+                        standard_deviation: 10000
+                        metric: "ami_reach"
+                    }
+                }
+            }
+            report_summary_set_results {
+                external_reporting_set_result_id: 2
+                impression_filter: "mrc"
+                set_operation: "union"
+                data_providers: "reporting_set_id_edp1"
+                whole_campaign_result {
+                    reach {
+                        value: 200
+                        standard_deviation: 0
+                        metric: "mrc_reach"
+                    }
+                }
+            }
+        """
+
+        report_summary = text_format.Parse(
+            report_summary_textproto,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        # Case 1: No exemption. AMI should be corrected to 200.
+        result_no_exemption = ReportSummaryV2Processor(report_summary, []).process()
+        self.assertEqual(result_no_exemption.updated_measurements["ami_reach"],
+                            200)
+
+        # Case 2: Exemption for edp1. AMI reach remains 100.
+        result_with_exemption = ReportSummaryV2Processor(
+            report_summary,
+            ami_mrc_exempted_reporting_set_ids=["reporting_set_id_edp1"]
+        ).process()
+        self.assertEqual(result_with_exemption.updated_measurements["ami_reach"],
+                            100)
+
+
+    def test_duplicate_edp_combination_metric_names_propagated(self):
+        # Two ReportSummarySetResults with identical (impression_filter,
+        # frozenset(data_providers)) but different metric names -- the shape
+        # produced by two composite ReportingSets whose set-expressions
+        # permute the same DataProvider list (two-anchor
+        # stackedIncrementalReach). The solver sees one bucket (correct),
+        # but the response builder still looks each ReportSummarySetResult
+        # up by its own metric name, so both metric names must appear in
+        # updated_measurements.
+        report_summary_textproto = """
+            cmms_measurement_consumer_id: "NsQ4CS3K1to"
+            external_report_result_id: 456
+            population: 1000
+            report_summary_set_results {
+                external_reporting_set_result_id: 1
+                impression_filter: "ami"
+                set_operation: "union"
+                data_providers: "edp1"
+                data_providers: "edp2"
+                whole_campaign_result {
+                    reach {
+                        value: 500
+                        standard_deviation: 0
+                        metric: "anchor_dp1_reach"
+                    }
+                }
+            }
+            report_summary_set_results {
+                external_reporting_set_result_id: 2
+                impression_filter: "ami"
+                set_operation: "union"
+                data_providers: "edp2"
+                data_providers: "edp1"
+                whole_campaign_result {
+                    reach {
+                        value: 500
+                        standard_deviation: 0
+                        metric: "anchor_dp2_reach"
+                    }
+                }
+            }
+        """
+        report_summary = text_format.Parse(
+            report_summary_textproto,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(report_summary, []).process()
+
+        # Both metric names present, both equal to the solver's single
+        # per-bucket solved value. Without alias propagation, only the
+        # canonical name (whichever proto-message ordering the dict-overwrite
+        # settled on) would be present and the other lookup would KeyError.
+        self.assertIn("anchor_dp1_reach", result.updated_measurements)
+        self.assertIn("anchor_dp2_reach", result.updated_measurements)
+        self.assertEqual(
+            result.updated_measurements["anchor_dp1_reach"],
+            result.updated_measurements["anchor_dp2_reach"],
+        )
+        self.assertEqual(result.updated_measurements["anchor_dp1_reach"], 500)
+
+    def test_three_composites_collapse_all_names_propagated(self):
+        # Three ReportSummarySetResults with identical (impression_filter,
+        # edp_combination). Exercises the alias-chain resolution: results
+        # 1 and 2 get aliased to result 3 in turn. At record time, result 1's
+        # alias must chain through to result 3 rather than pointing at
+        # result 2's metric-name (which is itself no longer in
+        # updated_measurements after the solver runs). Without _add_alias
+        # resolving through the chain, the single-hop propagation loop would
+        # skip result 1 whenever dict iteration puts the (result 1 -> result 2)
+        # entry before the (result 2 -> result 3) entry.
+        report_summary_textproto = """
+            cmms_measurement_consumer_id: "NsQ4CS3K1to"
+            external_report_result_id: 456
+            population: 1000
+            report_summary_set_results {
+                external_reporting_set_result_id: 1
+                impression_filter: "ami"
+                set_operation: "union"
+                data_providers: "edp1"
+                data_providers: "edp2"
+                whole_campaign_result {
+                    reach {
+                        value: 500
+                        standard_deviation: 0
+                        metric: "anchor_dp1_reach"
+                    }
+                }
+            }
+            report_summary_set_results {
+                external_reporting_set_result_id: 2
+                impression_filter: "ami"
+                set_operation: "union"
+                data_providers: "edp2"
+                data_providers: "edp1"
+                whole_campaign_result {
+                    reach {
+                        value: 500
+                        standard_deviation: 0
+                        metric: "anchor_dp2_reach"
+                    }
+                }
+            }
+            report_summary_set_results {
+                external_reporting_set_result_id: 3
+                impression_filter: "ami"
+                set_operation: "union"
+                data_providers: "edp1"
+                data_providers: "edp2"
+                whole_campaign_result {
+                    reach {
+                        value: 500
+                        standard_deviation: 0
+                        metric: "anchor_dp3_reach"
+                    }
+                }
+            }
+        """
+        report_summary = text_format.Parse(
+            report_summary_textproto,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(report_summary, []).process()
+
+        for name in ("anchor_dp1_reach", "anchor_dp2_reach",
+                     "anchor_dp3_reach"):
+            self.assertIn(name, result.updated_measurements)
+            self.assertEqual(result.updated_measurements[name], 500)
+
+
+
+    def test_full_shape_collapsing_results_all_alias_paths_propagated(self):
+        # Coverage for the alias code paths not exercised by the simpler
+        # whole_campaign-reach tests: two ReportSummarySetResults share
+        # (impression_filter, frozenset(data_providers)) via permuted
+        # data_providers ordering. Each carries cumulative_results (drives
+        # _record_measurement_list_aliases, a list-of-reach path),
+        # non_cumulative_results with frequency bins (drives the strict=True
+        # zip through _record_measurement_set_aliases -- covering k_reach-bin
+        # aliasing on multiple bins per week), and whole_campaign_result with
+        # frequency bins (drives the whole_campaign
+        # _record_measurement_set_aliases branch, including its own k_reach).
+        # Impression aliasing is not exercised here because on this branch
+        # the pre-#4141 cross-publisher-total-equals-sum-of-per-EDP-totals
+        # constraint has an empty sum without per-EDP primitives and leaves
+        # the solver with no solution; #4141 tightens that guard so a
+        # follow-up expansion of this test to add impression_count can
+        # land there.
+        proto = ('cmms_measurement_consumer_id: "MC1"\n'
+                 'external_report_result_id: 456\n'
+                 'population: 34288880\n'
+                 'report_summary_set_results {\n'
+                 '    external_reporting_set_result_id: 1\n'
+                 '    impression_filter: "ami"\n'
+                 '    set_operation: "union"\n'
+                 '    data_providers: "edp1"\n'
+                 '    data_providers: "edp2"\n'
+                 '    metric_frequency_spec { weekly: MONDAY }\n'
+                 '    cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 14 }\n'
+                 '            end { year: 2021 month: 3 day: 15 }\n'
+                 '        }\n'
+                 '        reach { value: 1000 standard_deviation: 0 metric: "a_cum_w1_reach" }\n'
+                 '    }\n'
+                 '    cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 15 }\n'
+                 '            end { year: 2021 month: 3 day: 22 }\n'
+                 '        }\n'
+                 '        reach { value: 2500 standard_deviation: 0 metric: "a_cum_w2_reach" }\n'
+                 '    }\n'
+                 '    non_cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 14 }\n'
+                 '            end { year: 2021 month: 3 day: 15 }\n'
+                 '        }\n'
+                 '        reach { value: 1000 standard_deviation: 0 metric: "a_nc_w1_reach" }\n'
+                 '        frequency {\n'
+                 '            metric: "a_nc_w1_freq"\n'
+                 '            bins { key: 1 value { value: 600 standard_deviation: 0 } }\n'
+                 '            bins { key: 2 value { value: 400 standard_deviation: 0 } }\n'
+                 '        }\n'
+                 '    }\n'
+                 '    non_cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 15 }\n'
+                 '            end { year: 2021 month: 3 day: 22 }\n'
+                 '        }\n'
+                 '        reach { value: 1500 standard_deviation: 0 metric: "a_nc_w2_reach" }\n'
+                 '        frequency {\n'
+                 '            metric: "a_nc_w2_freq"\n'
+                 '            bins { key: 1 value { value: 900 standard_deviation: 0 } }\n'
+                 '            bins { key: 2 value { value: 600 standard_deviation: 0 } }\n'
+                 '        }\n'
+                 '    }\n'
+                 '    whole_campaign_result {\n'
+                 '        reach { value: 2500 standard_deviation: 0 metric: "a_wc_reach" }\n'
+                 '        frequency {\n'
+                 '            metric: "a_wc_freq"\n'
+                 '            bins { key: 1 value { value: 1500 standard_deviation: 0 } }\n'
+                 '            bins { key: 2 value { value: 1000 standard_deviation: 0 } }\n'
+                 '        }\n'
+                 '    }\n'
+                 '}\n'
+                 'report_summary_set_results {\n'
+                 '    external_reporting_set_result_id: 2\n'
+                 '    impression_filter: "ami"\n'
+                 '    set_operation: "union"\n'
+                 '    data_providers: "edp2"\n'
+                 '    data_providers: "edp1"\n'
+                 '    metric_frequency_spec { weekly: MONDAY }\n'
+                 '    cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 14 }\n'
+                 '            end { year: 2021 month: 3 day: 15 }\n'
+                 '        }\n'
+                 '        reach { value: 1000 standard_deviation: 0 metric: "b_cum_w1_reach" }\n'
+                 '    }\n'
+                 '    cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 15 }\n'
+                 '            end { year: 2021 month: 3 day: 22 }\n'
+                 '        }\n'
+                 '        reach { value: 2500 standard_deviation: 0 metric: "b_cum_w2_reach" }\n'
+                 '    }\n'
+                 '    non_cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 14 }\n'
+                 '            end { year: 2021 month: 3 day: 15 }\n'
+                 '        }\n'
+                 '        reach { value: 1000 standard_deviation: 0 metric: "b_nc_w1_reach" }\n'
+                 '        frequency {\n'
+                 '            metric: "b_nc_w1_freq"\n'
+                 '            bins { key: 1 value { value: 600 standard_deviation: 0 } }\n'
+                 '            bins { key: 2 value { value: 400 standard_deviation: 0 } }\n'
+                 '        }\n'
+                 '    }\n'
+                 '    non_cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 15 }\n'
+                 '            end { year: 2021 month: 3 day: 22 }\n'
+                 '        }\n'
+                 '        reach { value: 1500 standard_deviation: 0 metric: "b_nc_w2_reach" }\n'
+                 '        frequency {\n'
+                 '            metric: "b_nc_w2_freq"\n'
+                 '            bins { key: 1 value { value: 900 standard_deviation: 0 } }\n'
+                 '            bins { key: 2 value { value: 600 standard_deviation: 0 } }\n'
+                 '        }\n'
+                 '    }\n'
+                 '    whole_campaign_result {\n'
+                 '        reach { value: 2500 standard_deviation: 0 metric: "b_wc_reach" }\n'
+                 '        frequency {\n'
+                 '            metric: "b_wc_freq"\n'
+                 '            bins { key: 1 value { value: 1500 standard_deviation: 0 } }\n'
+                 '            bins { key: 2 value { value: 1000 standard_deviation: 0 } }\n'
+                 '        }\n'
+                 '    }\n'
+                 '}\n')
+        report_summary = text_format.Parse(
+            proto, report_summary_v2_pb2.ReportSummaryV2()
+        )
+        result = ReportSummaryV2Processor(report_summary, []).process()
+
+        # Cumulative reach: exercises _record_measurement_list_aliases. Both
+        # a_* and b_* names must be present with equal values.
+        for a_name, b_name, expected in [
+            ("a_cum_w1_reach", "b_cum_w1_reach", 1000),
+            ("a_cum_w2_reach", "b_cum_w2_reach", 2500),
+        ]:
+            self.assertIn(a_name, result.updated_measurements)
+            self.assertIn(b_name, result.updated_measurements)
+            self.assertEqual(
+                result.updated_measurements[a_name],
+                result.updated_measurements[b_name])
+            self.assertEqual(result.updated_measurements[a_name], expected)
+
+        # Non-cumulative reach: exercises the strict=True zip through
+        # _record_measurement_set_aliases (the reach arm of MeasurementSet).
+        for a_name, b_name in [
+            ("a_nc_w1_reach", "b_nc_w1_reach"),
+            ("a_nc_w2_reach", "b_nc_w2_reach"),
+        ]:
+            self.assertIn(a_name, result.updated_measurements)
+            self.assertIn(b_name, result.updated_measurements)
+            self.assertEqual(
+                result.updated_measurements[a_name],
+                result.updated_measurements[b_name])
+
+        # Non-cumulative frequency-bin aliasing (k_reach-bin path).
+        for a_prefix, b_prefix in [("a_nc_w1_freq", "b_nc_w1_freq"),
+                                   ("a_nc_w2_freq", "b_nc_w2_freq")]:
+            for bin_label in (1, 2):
+                a_name = f"{a_prefix}-bin-{bin_label}"
+                b_name = f"{b_prefix}-bin-{bin_label}"
+                self.assertIn(a_name, result.updated_measurements)
+                self.assertIn(b_name, result.updated_measurements)
+                self.assertEqual(
+                    result.updated_measurements[a_name],
+                    result.updated_measurements[b_name])
+
+        # Whole-campaign reach + frequency bins.
+        self.assertIn("a_wc_reach", result.updated_measurements)
+        self.assertIn("b_wc_reach", result.updated_measurements)
+        self.assertEqual(
+            result.updated_measurements["a_wc_reach"],
+            result.updated_measurements["b_wc_reach"])
+        for bin_label in (1, 2):
+            a_name = f"a_wc_freq-bin-{bin_label}"
+            b_name = f"b_wc_freq-bin-{bin_label}"
+            self.assertIn(a_name, result.updated_measurements)
+            self.assertIn(b_name, result.updated_measurements)
+            self.assertEqual(
+                result.updated_measurements[a_name],
+                result.updated_measurements[b_name])
+
+    def test_cadence_length_mismatch_between_collapsing_results_raises(self):
+        # Two ReportSummarySetResults share (impression_filter,
+        # frozenset(data_providers)) but disagree on cadence length: one
+        # carries 2 weekly cumulative_results, the other carries 1. This is an
+        # upstream contract violation -- _record_measurement_list_aliases must
+        # raise ValueError rather than silently truncating and leaving the
+        # extra metric-name unaliased (which would reintroduce the KeyError
+        # this alias machinery prevents).
+        proto = ('cmms_measurement_consumer_id: "MC1"\n'
+                 'external_report_result_id: 456\n'
+                 'population: 1000\n'
+                 'report_summary_set_results {\n'
+                 '    external_reporting_set_result_id: 1\n'
+                 '    impression_filter: "ami"\n'
+                 '    set_operation: "union"\n'
+                 '    data_providers: "edp1"\n'
+                 '    data_providers: "edp2"\n'
+                 '    metric_frequency_spec { weekly: MONDAY }\n'
+                 '    cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 14 }\n'
+                 '            end { year: 2021 month: 3 day: 15 }\n'
+                 '        }\n'
+                 '        reach { value: 100 standard_deviation: 0 metric: "a_w1_reach" }\n'
+                 '    }\n'
+                 '    cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 15 }\n'
+                 '            end { year: 2021 month: 3 day: 22 }\n'
+                 '        }\n'
+                 '        reach { value: 250 standard_deviation: 0 metric: "a_w2_reach" }\n'
+                 '    }\n'
+                 '}\n'
+                 'report_summary_set_results {\n'
+                 '    external_reporting_set_result_id: 2\n'
+                 '    impression_filter: "ami"\n'
+                 '    set_operation: "union"\n'
+                 '    data_providers: "edp2"\n'
+                 '    data_providers: "edp1"\n'
+                 '    metric_frequency_spec { weekly: MONDAY }\n'
+                 '    cumulative_results {\n'
+                 '        key {\n'
+                 '            non_cumulative_start { year: 2021 month: 3 day: 14 }\n'
+                 '            end { year: 2021 month: 3 day: 15 }\n'
+                 '        }\n'
+                 '        reach { value: 100 standard_deviation: 0 metric: "b_w1_reach" }\n'
+                 '    }\n'
+                 '}\n')
+        report_summary = text_format.Parse(
+            proto, report_summary_v2_pb2.ReportSummaryV2()
+        )
+        with self.assertRaises(ValueError) as ctx:
+            ReportSummaryV2Processor(report_summary, []).process()
+        self.assertIn("must agree on cadence length", str(ctx.exception))
 
 
 def read_file_to_string(filename: str) -> str:

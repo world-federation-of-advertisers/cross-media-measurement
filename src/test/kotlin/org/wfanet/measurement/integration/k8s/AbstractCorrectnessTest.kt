@@ -54,12 +54,12 @@ import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.access.v1alpha.role
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.Population
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpc
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.population
@@ -72,7 +72,6 @@ import org.wfanet.measurement.integration.common.EventQuery
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadSigningKey
-import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.PopulationData
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
@@ -145,11 +144,11 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     protected abstract val populationDataProviderName: String
 
     /**
-     * Synthetic population spec.
+     * v2alpha [PopulationSpec].
      *
      * This must match the spec used by EDP simulators.
      */
-    abstract val syntheticPopulationSpec: SyntheticPopulationSpec
+    abstract val populationSpec: PopulationSpec
 
     /**
      * Synthetic event group specs.
@@ -162,10 +161,9 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     abstract val modelLineName: String
 
     fun buildEventQuery(dataProviderNames: Iterable<String>) =
-      EventQuery(syntheticPopulationSpec, syntheticEventGroupSpecs, dataProviderNames)
+      EventQuery(populationSpec, syntheticEventGroupSpecs, dataProviderNames)
 
     fun getPopulationData(): PopulationData {
-      val populationSpec = syntheticPopulationSpec.toPopulationSpec(TestEvent.getDescriptor())
       return PopulationData(populationDataProviderName, populationSpec)
     }
 

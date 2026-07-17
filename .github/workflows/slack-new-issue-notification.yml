@@ -1,0 +1,103 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Send new issue slack notification
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          client-id: ${{ vars.GH_APP_ISSUE_NOTIFICATION_ID }}
+          private-key: ${{ secrets.GH_APP_ISSUE_NOTIFICATION_PRIVATE_KEY }}
+          owner: world-federation-of-advertisers
+          permission-members: read
+
+      - name: Check team membership
+        id: team-membership
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            try {
+              await github.rest.teams.getMembershipForUserInOrg({
+                org: "world-federation-of-advertisers",
+                team_slug: "haloengineering",
+                username: context.payload.issue.user.login,
+              });
+              return true;
+            } catch (error) {
+              if (error.status === 404) {
+                return false;
+              }
+              throw new Error(
+                `Could not check team membership. Status: ${error.status}. Message: ${error.message}`
+              );
+            }
+
+      - name: Print result
+        run: echo "Is member of target team? ${{ steps.team-membership.outputs.result }}"
+
+      - name: Post message to the Slack channel
+        if: steps.team-membership.outputs.result == 'false'
+        uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+        with:
+          method: chat.postMessage
+          error: true
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            channel: ${{ vars.SLACK_ISSUE_NOTIFICATION_CHANNEL }}
+            text: "A new issue was filed by a user outside the Halo team."
+            blocks: [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": ":card_file_box: A new issue was filed by a user outside the Halo team:"
+                }
+              },
+              {
+                "type": "section",
+                "fields": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Issue:* <${{ github.event.issue.html_url }}|Issue #${{ github.event.issue.number }}>"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*User:* ${{ github.event.issue.user.login }}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Type:* ${{ github.event.issue.type.name }}"
+                  }
+                ]
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "plain_text",
+                  "text": ${{ toJSON(github.event.issue.title) }}
+                }
+              }
+            ]

@@ -19,7 +19,7 @@ import org.wfanet.frequencycount.frequencyVector
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator.validateVidRangesList
-import org.wfanet.measurement.computation.KAnonymityParams
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 
 /**
  * Get the number of VIDs represented by a PopulationSpec
@@ -53,15 +53,15 @@ val PopulationSpec.size: Long
  * @param strict If false the various increment methods ignore indexes that are out of bounds. If
  *   true, an out of bounds index will result in an exception being thrown. It is normal for indexes
  *   to be out of bounds of a given vid interval.
- * @param kAnonymityParams the kAnonymityParams used for maximimumFrequencyPerUser for reach
- *   calculations.
+ * @param resultMinimumThresholds the resultMinimumThresholds used for maximimumFrequencyPerUser for
+ *   reach calculations.
  * @constructor Create a [FrequencyVectorBuilder]
  */
 class FrequencyVectorBuilder(
   val populationSpec: PopulationSpec,
   val measurementSpec: MeasurementSpec,
   val strict: Boolean = true,
-  val kAnonymityParams: KAnonymityParams? = null,
+  val resultMinimumThresholds: ResultMinimumThresholds? = null,
   overrideImpressionMaxFrequencyPerUser: Int?,
 ) {
 
@@ -82,9 +82,9 @@ class FrequencyVectorBuilder(
       }
     }
 
-    if (measurementSpec.hasReach() && kAnonymityParams != null) {
-      require(kAnonymityParams.reachMaxFrequencyPerUser >= 1) {
-        "kAnonymityParams.maxFrequencyPerUser must be >= 1 for reach measurements with kAnonymity"
+    if (measurementSpec.hasReach() && resultMinimumThresholds != null) {
+      require(resultMinimumThresholds.reachMaxFrequencyPerUser >= 1) {
+        "resultMinimumThresholds.maxFrequencyPerUser must be >= 1 for reach measurements with small-cell suppression"
       }
     }
 
@@ -108,7 +108,7 @@ class FrequencyVectorBuilder(
       } else if (measurementSpec.hasImpression()) {
         measurementSpec.impression.maximumFrequencyPerUser
       } else if (measurementSpec.hasReach()) {
-        kAnonymityParams?.reachMaxFrequencyPerUser ?: 1
+        resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1
       } else {
         1
       }
@@ -187,12 +187,12 @@ class FrequencyVectorBuilder(
     frequencyVector: FrequencyVector,
     overrideImpressionMaxFrequencyPerUser: Int?,
     strict: Boolean = true,
-    kAnonymityParams: KAnonymityParams? = null,
+    resultMinimumThresholds: ResultMinimumThresholds? = null,
   ) : this(
     populationSpec,
     measurementSpec,
     strict,
-    kAnonymityParams,
+    resultMinimumThresholds,
     overrideImpressionMaxFrequencyPerUser,
   ) {
     require(frequencyVector.dataCount == frequencyData.size) {
@@ -217,7 +217,7 @@ class FrequencyVectorBuilder(
    * @param measurementSpec a [MeasurementSpec] that specifies a Reach or ReachAndFrequency
    * @param frequencyDataBytes byte array where each byte is an unsigned frequency value
    * @param strict If false the constructor ignores indexes that are out of bounds
-   * @param kAnonymityParams the kAnonymityParams used for maximumFrequencyPerUser
+   * @param resultMinimumThresholds the resultMinimumThresholds used for maximumFrequencyPerUser
    * @throws IllegalArgumentException if the frequencyDataBytes size doesn't match population size
    */
   constructor(
@@ -226,12 +226,12 @@ class FrequencyVectorBuilder(
     frequencyDataBytes: ByteArray,
     overrideImpressionMaxFrequencyPerUser: Int?,
     strict: Boolean = true,
-    kAnonymityParams: KAnonymityParams? = null,
+    resultMinimumThresholds: ResultMinimumThresholds? = null,
   ) : this(
     populationSpec,
     measurementSpec,
     strict,
-    kAnonymityParams,
+    resultMinimumThresholds,
     overrideImpressionMaxFrequencyPerUser,
   ) {
     // Batch copy primary range

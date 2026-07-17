@@ -530,4 +530,92 @@ class ImpressionQualificationFilterMappingTest {
 
     assertThat(exception.message).contains("Duplicate MediaType")
   }
+
+  @Test
+  fun `processing config accepts finite float IQF value`() {
+    val iqf = impressionQualificationFilter {
+      externalImpressionQualificationFilterId = "float-finite"
+      impressionQualificationFilterId = 42
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.OTHER
+        filters +=
+          ImpressionQualificationFilterConfigKt.eventFilter {
+            terms +=
+              ImpressionQualificationFilterConfigKt.eventTemplateField {
+                path = "testing_only.testing_float"
+                value =
+                  ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
+                    floatValue = 0.5f
+                  }
+              }
+          }
+      }
+    }
+
+    val impressionQualificationFilterConfig = impressionQualificationFilterConfig {
+      impressionQualificationFilters += iqf
+    }
+
+    // Must not throw.
+    ImpressionQualificationFilterMapping(
+      impressionQualificationFilterConfig,
+      TestEvent.getDescriptor(),
+    )
+  }
+
+  @Test
+  fun `processing config fails when float IQF value is NaN`() {
+    assertMappingRejectsNonFiniteFloat(Float.NaN)
+  }
+
+  @Test
+  fun `processing config fails when float IQF value is positive Infinity`() {
+    assertMappingRejectsNonFiniteFloat(Float.POSITIVE_INFINITY)
+  }
+
+  @Test
+  fun `processing config fails when float IQF value is negative Infinity`() {
+    assertMappingRejectsNonFiniteFloat(Float.NEGATIVE_INFINITY)
+  }
+
+  /**
+   * Builds a base IQF with a single FLOAT term whose value is [nonFiniteValue] on
+   * `testing_only.testing_float` (the FLOAT IMPRESSION_QUALIFICATION field on the test-only
+   * TestingOnly template), and asserts that constructing the mapping throws
+   * `IllegalArgumentException` naming the offending spec. See #4148.
+   */
+  private fun assertMappingRejectsNonFiniteFloat(nonFiniteValue: Float) {
+    val iqf = impressionQualificationFilter {
+      externalImpressionQualificationFilterId = "float-non-finite"
+      impressionQualificationFilterId = 42
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.OTHER
+        filters +=
+          ImpressionQualificationFilterConfigKt.eventFilter {
+            terms +=
+              ImpressionQualificationFilterConfigKt.eventTemplateField {
+                path = "testing_only.testing_float"
+                value =
+                  ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
+                    floatValue = nonFiniteValue
+                  }
+              }
+          }
+      }
+    }
+
+    val impressionQualificationFilterConfig = impressionQualificationFilterConfig {
+      impressionQualificationFilters += iqf
+    }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ImpressionQualificationFilterMapping(
+          impressionQualificationFilterConfig,
+          TestEvent.getDescriptor(),
+        )
+      }
+
+    assertThat(exception.message).contains("Invalid impression qualification filter spec")
+  }
 }

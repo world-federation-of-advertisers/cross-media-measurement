@@ -359,7 +359,8 @@ def _add_report_summary_set_result_metadata(
             f" {dimension.venn_diagram_region_type}."
         )
 
-    # Get data providers
+    # Get data providers. Note that the data providers are keyed by their
+    # external reporting set IDs in `primitive_reporting_sets_by_reporting_set_id`.
     reporting_set_id = str(dimension.external_reporting_set_id)
     report_summary_set_result.data_providers.extend(
         sorted(primitive_reporting_sets_by_reporting_set_id[reporting_set_id]))

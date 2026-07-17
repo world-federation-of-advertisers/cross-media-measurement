@@ -68,6 +68,34 @@ resource "google_secret_manager_secret_iam_member" "secret_accessor" {
   member    = "serviceAccount:${google_service_account.cloud_function_service_account.email}"
 }
 
+# Dead letter topic for undeliverable GCS event notifications.
+resource "google_pubsub_topic" "dead_letter_topic" {
+  name = "${var.function_name}-dlq"
+}
+
+resource "google_pubsub_subscription" "dead_letter_subscription" {
+  name  = "${var.function_name}-dlq-sub"
+  topic = google_pubsub_topic.dead_letter_topic.id
+
+  message_retention_duration = "604800s" # 7 days
+  ack_deadline_seconds       = 30
+}
+
+# Allow the Pub/Sub service agent to publish to the DLQ topic.
+resource "google_pubsub_topic_iam_member" "dead_letter_publisher" {
+  topic  = google_pubsub_topic.dead_letter_topic.name
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
+# Allow the Pub/Sub service agent to ack messages on the Eventarc-managed
+# subscription (required for dead-letter forwarding).
+resource "google_project_iam_member" "pubsub_subscriber" {
+  project = data.google_project.project.id
+  role    = "roles/pubsub.subscriber"
+  member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
 resource "terraform_data" "deploy_gcs_cloud_function" {
 
   depends_on = [
@@ -82,7 +110,12 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
     google_secret_manager_secret_iam_member.secret_accessor,
   ]
 
-  triggers_replace = [var.uber_jar_path]
+  triggers_replace = [
+    var.uber_jar_path,
+    var.extra_env_vars,
+    var.secret_mappings,
+    var.uploaded_config_generation,
+  ]
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
@@ -127,5 +160,85 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
 
       gcloud "$${args[@]}"
     EOT
+  }
+}
+
+# Attach the DLQ to the Eventarc-managed Pub/Sub subscription after
+# deployment. Eventarc creates the subscription implicitly; this step
+# patches it with a dead-letter policy so undeliverable messages are
+# preserved instead of silently dropped.
+resource "terraform_data" "attach_dead_letter_policy" {
+  depends_on = [
+    terraform_data.deploy_gcs_cloud_function,
+    google_pubsub_topic.dead_letter_topic,
+    google_pubsub_topic_iam_member.dead_letter_publisher,
+    google_project_iam_member.pubsub_subscriber,
+  ]
+
+  triggers_replace = [
+    var.uber_jar_path,
+    var.extra_env_vars,
+    var.secret_mappings,
+    var.uploaded_config_generation,
+  ]
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    environment = {
+      FUNCTION_NAME    = var.function_name
+      CLOUD_REGION     = data.google_client_config.default.region
+      DLQ_TOPIC        = google_pubsub_topic.dead_letter_topic.id
+      MAX_DELIVERY_ATTEMPTS = tostring(var.max_delivery_attempts)
+      MESSAGE_RETENTION     = var.message_retention_duration
+    }
+    command = <<-EOT
+      #!/bin/bash
+      set -euo pipefail
+
+      # Find the Eventarc-managed subscription for this function.
+      SUB=$(gcloud pubsub subscriptions list \
+        --filter="name~eventarc.*-$FUNCTION_NAME-" \
+        --format="value(name)" \
+        --limit=1)
+
+      if [[ -z "$SUB" ]]; then
+        echo "WARNING: No Eventarc subscription found for $FUNCTION_NAME. Skipping DLQ attachment."
+        exit 0
+      fi
+
+      echo "Attaching DLQ to subscription: $SUB"
+      gcloud pubsub subscriptions update "$SUB" \
+        --dead-letter-topic="$DLQ_TOPIC" \
+        --max-delivery-attempts="$MAX_DELIVERY_ATTEMPTS" \
+        --message-retention-duration="$MESSAGE_RETENTION"
+    EOT
+  }
+}
+
+# Alert when messages land in the dead letter queue.
+resource "google_monitoring_alert_policy" "dlq_alert" {
+  display_name = "${var.function_name} DLQ messages"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Undelivered DLQ messages"
+
+    condition_threshold {
+      filter          = "resource.type = \"pubsub_subscription\" AND resource.labels.subscription_id = \"${google_pubsub_subscription.dead_letter_subscription.name}\" AND metric.type = \"pubsub.googleapis.com/subscription/num_undelivered_messages\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+      duration        = "60s"
+
+      aggregations {
+        alignment_period   = "60s"
+        per_series_aligner = "ALIGN_MAX"
+      }
+    }
+  }
+
+  notification_channels = var.alert_notification_channels
+
+  documentation {
+    content = "Messages are landing in the dead letter queue for ${var.function_name}. This means GCS event notifications failed delivery to the Cloud Function after ${var.max_delivery_attempts} attempts. Inspect the DLQ subscription (${var.function_name}-dlq-sub) and replay the messages."
   }
 }

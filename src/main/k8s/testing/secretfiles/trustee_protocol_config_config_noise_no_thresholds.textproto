@@ -1,0 +1,6 @@
+# proto-file: src/main/proto/wfa/measurement/internal/kingdom/protocol_config_config.proto
+# proto-message: TrusTeeProtocolConfigConfig
+protocol_config {
+  noise_mechanism: CONTINUOUS_GAUSSIAN
+}
+duchy_id: "aggregator"

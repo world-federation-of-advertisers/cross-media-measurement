@@ -1,0 +1,23 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "server",
+    actual = "@maven//:io_modelcontextprotocol_kotlin_sdk_server_jvm",
+)
+
+alias(
+    name = "client",
+    testonly = True,
+    actual = "@maven//:io_modelcontextprotocol_kotlin_sdk_client_jvm",
+)
+
+alias(
+    name = "core",
+    actual = "@maven//:io_modelcontextprotocol_kotlin_sdk_core_jvm",
+)
+
+alias(
+    name = "testing",
+    testonly = True,
+    actual = "@maven//:io_modelcontextprotocol_kotlin_sdk_testing_jvm",
+)

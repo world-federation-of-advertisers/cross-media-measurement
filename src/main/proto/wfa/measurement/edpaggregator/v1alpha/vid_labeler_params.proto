@@ -18,6 +18,9 @@ package wfa.measurement.edpaggregator.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/edpaggregator/v1alpha/labeled_impression.proto";
+import "wfa/measurement/edpaggregator/v1alpha/labeler_input_field_mapping.proto";
 import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -52,17 +55,60 @@ message VidLabelerParams {
   StorageParams vid_labeled_impressions_storage_params = 3
       [(google.api.field_behavior) = REQUIRED];
 
-  // Connection used by TEE App to access the VID Repo.
+  // TLS connection for a remote VID Repo service.
+  //
+  // Currently UNUSED by the labeler: both the non-memoized and memoized
+  // configurations load the compiled model from [model_blob_paths] and label
+  // locally inside the TEE, which never contacts a VID Repo. (An overflow /
+  // unseen fingerprint falls back to the locally-computed hash path, not the
+  // VID Repo.) OPTIONAL; leave unset.
   TransportLayerSecurityParams vid_repo_connection = 4
-      [(google.api.field_behavior) = REQUIRED];
+      [(google.api.field_behavior) = OPTIONAL];
 
   // Message representing the configuration for a model line.
   message ModelLineConfig {
-    // Mapping from labeler input field names to their corresponding values.
-    map<string, string> labeler_input_field_mapping = 1;
+    // How each LabelerInput field is sourced from the raw-impression row.
+    repeated LabelerInputFieldMapping labeler_input_field_mapping = 1;
 
     // Mapping from event template field names to their corresponding values.
     map<string, string> event_template_field_mapping = 2;
+
+    // Inclusive start of the model line's active window. Impressions whose
+    // event timestamp is before this point are dropped before labeling.
+    // Mirrors `ModelLine.active_start_time` from the public API.
+    google.protobuf.Timestamp active_start_time = 3
+        [(google.api.field_behavior) = OPTIONAL];
+
+    // Exclusive end of the model line's active window. Impressions whose
+    // event timestamp is at or after this point are dropped before labeling.
+    // Unset means no upper bound. Mirrors `ModelLine.active_end_time` from
+    // the public API.
+    google.protobuf.Timestamp active_end_time = 4
+        [(google.api.field_behavior) = OPTIONAL];
+
+    // Config-storage blob URI of the FileDescriptorSet for the EventTemplate
+    // types (mirrors ResultsFulfiller's event-template descriptor). Required to
+    // build the labeled-output event.
+    string event_template_descriptor_blob_uri = 5
+        [(google.api.field_behavior) = OPTIONAL];
+
+    // Full proto name of the event message within that FileDescriptorSet that
+    // event_template_field_mapping targets.
+    string event_template_type = 6 [(google.api.field_behavior) = OPTIONAL];
+
+    // Mapping from entity_type (the DataProvider's taxonomy label, which
+    // becomes LabeledImpression.EntityKey.entity_type) to the raw-impression
+    // Parquet column holding that entity's id. One string column per
+    // entity_type. Every impression MUST have a non-null, non-empty value in
+    // each of these columns. Read per row by the TEE; entity keys are not
+    // carried in the file footer.
+    map<string, string> required_entity_key_field_mapping = 7;
+
+    // Like required_entity_key_field_mapping, but an impression MAY omit these:
+    // a NULL/empty cell means the impression is not associated with that
+    // entity_type. Keys MUST be disjoint from
+    // required_entity_key_field_mapping.
+    map<string, string> optional_entity_key_field_mapping = 8;
   }
 
   // Map from model line resource name to its configuration.
@@ -75,10 +121,65 @@ message VidLabelerParams {
     (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
   ];
 
-  // Resource name of the RawImpressionMetadataBatch for this batch.
-  string raw_impression_metadata_batch = 7 [
+  // Fully qualified resource name of the `RawImpressionUpload` this WorkItem is
+  // processing. Used by the TEE app to interact with the gRPC API.
+  string raw_impression_upload = 7 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference).type =
-        "edpaggregator.halo-cmm.org/RawImpressionMetadataBatch"
+        "edpaggregator.halo-cmm.org/RawImpressionUpload"
   ];
+
+  // Cloud Storage for the compiled VID model blobs named by [model_blob_paths].
+  // The compiled model lives in its own Cloud Storage project, separate from
+  // the impression storage, so it carries a dedicated project. Set on both
+  // paths (reuses field 8, freed by the removed static-sharding `shard_index`).
+  StorageParams model_storage_params = 8
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // The `VidLabelingJob` this WorkItem fulfils: the bin-packed file batch plus
+  // the model lines it covers. The TEE marks it `SUCCEEDED`/`FAILED`; the
+  // last-job-out flips each covered model line to `COMPLETED`. Set on both
+  // paths (reuses field 9, freed by the removed static-sharding
+  // `total_shards`).
+  string vid_labeling_job = 9 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference).type =
+        "edpaggregator.halo-cmm.org/VidLabelingJob"
+  ];
+
+  // Map from model line resource name to its model blob path. Resolved by the
+  // dispatcher from ModelShard so the TEE app does not need to interact with
+  // the VID Repository API.
+  map<string, string> model_blob_paths = 10
+      [(google.api.field_behavior) = REQUIRED];
+
+  // The `ModelLine`s this WorkItem labels: exactly one on the memoized path,
+  // the bundled set on the non-memoized path. Distinct from
+  // [override_model_lines], which is the operator-header override applied on
+  // top. Set on both paths.
+  repeated string model_lines = 12 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+  ];
+
+  // Parameters for the memoized rank-index Phase-2 path.
+  //
+  // Its presence selects the memoized path: the TEE resolves the per-subpool
+  // rank-index blobs from the `RankIndexBlobService` (gRPC) for the upload and
+  // derives each VID from its memoized rank, instead of the non-memoized
+  // hash-only path. The shared payload (`raw_impression_upload`,
+  // `vid_labeling_job`, `model_lines`, `model_blob_paths`,
+  // `model_storage_params`) lives at the top level for both paths —
+  // `raw_impression_upload` is still set (it is REQUIRED) and scopes the
+  // rank-index lookup; this message carries only the memoized-specific storage.
+  MemoizedParams memoized_params = 11 [(google.api.field_behavior) = OPTIONAL];
+
+  // Parameters specific to the memoized rank-index Phase-2 path.
+  message MemoizedParams {
+    // Storage holding the rank-index blobs. The TEE resolves the individual
+    // blob URIs from the `RankIndexBlobService`; this supplies the project +
+    // blob prefix needed to read their bytes.
+    StorageParams vid_rank_map_storage_params = 1
+        [(google.api.field_behavior) = REQUIRED];
+  }
 }

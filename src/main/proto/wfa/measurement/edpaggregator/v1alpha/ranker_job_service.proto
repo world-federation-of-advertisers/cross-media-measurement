@@ -1,0 +1,277 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
+import "google/api/resource.proto";
+import "google/type/interval.proto";
+import "wfa/measurement/edpaggregator/v1alpha/ranker_job.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RankerJobServiceProto";
+
+// Service for managing `RankerJob` resources.
+service RankerJobService {
+  // Creates a new `RankerJob`.
+  rpc CreateRankerJob(CreateRankerJobRequest) returns (RankerJob) {}
+
+  // Creates multiple `RankerJob` resources in a single request.
+  rpc BatchCreateRankerJobs(BatchCreateRankerJobsRequest)
+      returns (BatchCreateRankerJobsResponse) {}
+
+  // Retrieves a specific `RankerJob`.
+  rpc GetRankerJob(GetRankerJobRequest) returns (RankerJob) {}
+
+  // Lists `RankerJob` resources for an upload.
+  rpc ListRankerJobs(ListRankerJobsRequest) returns (ListRankerJobsResponse) {}
+
+  // Marks a `RankerJob` as `SUCCEEDED`. Atomically checks if
+  // this is the last job for the (upload, model line) and
+  // returns the signal to the caller. Throws
+  // FAILED_PRECONDITION if state is not CREATED or FAILED.
+  // Throws ABORTED if etag does not match the current resource
+  // version (AIP-154).
+  rpc MarkRankerJobSucceeded(MarkRankerJobSucceededRequest)
+      returns (MarkRankerJobSucceededResponse) {}
+
+  // Marks a `RankerJob` as `FAILED`. Throws FAILED_PRECONDITION
+  // if state is not CREATED or FAILED. Throws ABORTED if etag
+  // does not match the current resource version (AIP-154).
+  rpc MarkRankerJobFailed(MarkRankerJobFailedRequest) returns (RankerJob) {}
+}
+
+// Request message for the `CreateRankerJob` method.
+message CreateRankerJobRequest {
+  // The parent upload resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RankerJob"
+    }
+  ];
+
+  // The `RankerJob` to create.
+  // The `name` and output-only fields are ignored.
+  RankerJob ranker_job = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure idempotency.
+  //
+  // This field is REQUIRED, deviating from AIP-155 (which recommends request_id
+  // be optional): the job's resource name is assigned by the server, so the
+  // client has no other idempotency key. Without it, a retry after a lost
+  // response would create a second, orphaned job. Must be a UUID4 (RFC 4122)
+  // string.
+  // (-- api-linter: core::0133::request-required-fields=disabled
+  //     aip.dev/not-precedent: request_id is intentionally REQUIRED so the
+  //     server can deduplicate retries of this server-named resource. --)
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for the `BatchCreateRankerJobs` method.
+message BatchCreateRankerJobsRequest {
+  // The parent upload resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RankerJob"
+    }
+  ];
+
+  // Individual create requests. Maximum 50 per batch.
+  repeated CreateRankerJobRequest requests = 2
+      [(google.api.field_behavior) = REQUIRED];
+}
+
+// Response message for the `BatchCreateRankerJobs` method.
+message BatchCreateRankerJobsResponse {
+  // The created ranker jobs.
+  repeated RankerJob ranker_jobs = 1;
+}
+
+// Request message for the `GetRankerJob` method.
+message GetRankerJobRequest {
+  // The resource name of the job to retrieve.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/rankerJobs/{ranker_job}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RankerJob"
+    }
+  ];
+}
+
+// Request message for the `ListRankerJobs` method.
+// (-- api-linter: core::0132::request-field-types=disabled
+//     aip.dev/not-precedent: Using a customized message for the
+//     filter. --)
+message ListRankerJobsRequest {
+  // The parent upload resource name.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`
+  //
+  // The upload segment may be the wildcard `-` to list
+  // jobs across all uploads for a data provider. See
+  // AIP-159.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RankerJob"
+    }
+  ];
+
+  // The maximum number of results to return.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // A page token, received from a previous call.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Structured filter for narrowing results.
+  message Filter {
+    // Filter to resources whose state is in this set. Empty matches all states.
+    // (-- api-linter: core::0216::state-field-output-only=disabled
+    //     aip.dev/not-precedent: This is a filter input field, not
+    //     a resource state field. --)
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: `_in` is the established repo convention
+    //     for set-membership filter fields. --)
+    repeated RankerJob.State state_in = 1
+        [(google.api.field_behavior) = OPTIONAL];
+
+    // Filter for resources whose create_time is in the given interval.
+    // Start and end are both optional: omitting start_time matches
+    // resources created before end_time; omitting end_time matches
+    // resources created at or after start_time.
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: `_in` is the established repo convention
+    //     for set-membership filter fields. --)
+    google.type.Interval create_time_in = 2
+        [(google.api.field_behavior) = OPTIONAL];
+
+    // Filter by CMMS model line resource name.
+    string cmms_model_line = 3 [
+      (google.api.field_behavior) = OPTIONAL,
+      (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+    ];
+  }
+
+  // Optional. A filter to apply to the results.
+  Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Response message for the `ListRankerJobs` method.
+message ListRankerJobsResponse {
+  // The list of ranker jobs matching the request.
+  repeated RankerJob ranker_jobs = 1;
+
+  // A token to retrieve the next page of results.
+  string next_page_token = 2;
+
+  // The total number of ranker jobs matching the request, irrespective of
+  // pagination.
+  int32 total_size = 3;
+}
+
+// Request message for the `MarkRankerJobSucceeded` method.
+message MarkRankerJobSucceededRequest {
+  // The resource name of the job.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/rankerJobs/{ranker_job}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RankerJob"
+    }
+  ];
+
+  // The etag of the RankerJob for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure idempotency on
+  // retry. A retry with the same `request_id` returns the original
+  // response without re-transitioning the resource.
+  //
+  // To survive retries (network blips, redeliveries, process
+  // restarts), derive this deterministically from the resource being
+  // marked — e.g. a UUID computed from its `name` and the operation —
+  // so that every attempt for the same logical mark uses the same
+  // `request_id` and shares one idempotent result. Generating a fresh
+  // UUID per attempt defeats AIP-155 and surfaces as
+  // FAILED_PRECONDITION on retry against an already-transitioned row.
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Response message for the `MarkRankerJobSucceeded` method.
+message MarkRankerJobSucceededResponse {
+  // The updated RankerJob.
+  RankerJob ranker_job = 1;
+
+  // Whether this was the last ranker job to complete for the
+  // (upload, model line).
+  bool is_last_job = 2;
+}
+
+// Request message for the `MarkRankerJobFailed` method.
+message MarkRankerJobFailedRequest {
+  // The resource name of the job.
+  // Format:
+  // `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/rankerJobs/{ranker_job}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RankerJob"
+    }
+  ];
+
+  // The etag of the RankerJob for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // Human-readable detail about the failure.
+  string error_message = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // A request ID provided by the client to ensure idempotency on
+  // retry. A retry with the same `request_id` returns the original
+  // response without re-transitioning the resource.
+  //
+  // To survive retries (network blips, redeliveries, process
+  // restarts), derive this deterministically from the resource being
+  // marked — e.g. a UUID computed from its `name` and the operation —
+  // so that every attempt for the same logical mark uses the same
+  // `request_id` and shares one idempotent result. Generating a fresh
+  // UUID per attempt defeats AIP-155 and surfaces as
+  // FAILED_PRECONDITION on retry against an already-transitioned row.
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}

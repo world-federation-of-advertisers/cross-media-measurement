@@ -68,10 +68,23 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  * - `KINGDOM_TARGET`: Required. The gRPC target address for the Kingdom services.
  * - `KINGDOM_CERT_HOST`: Optional. The server name to verify in the Kingdom service's TLS
  *   certificate. Useful when the hostname in the certificate does not match the `KINGDOM_TARGET`.
- * - `GRPC_THROTTLER`: Required. A numeric value (in milliseconds) that defines the minimum interval
- *   between gRPC calls to Kingdom to avoid overwhelming the service.
- * - `PAGE_SIZE`: Optional. Overrides the default number of requisitions fetched per page from the
- *   backend.
+ * - `GRPC_REQUEST_INTERVAL`: Optional. Minimum interval between Kingdom mutation RPCs (e.g.
+ *   `refuseRequisition`). Default `1s`.
+ * - `KINGDOM_EVENT_GROUP_REQUEST_INTERVAL`: Optional. Minimum interval between Kingdom
+ *   `getEventGroup` RPCs. Default `50ms`.
+ * - `METADATA_REQUEST_INTERVAL`: Optional. Minimum interval between Requisition Metadata Service
+ *   RPCs. Default `100ms`.
+ * - `FLUSH_INTERVAL`: Optional. Wall-clock period between forced drains of every open report
+ *   buffer; the primary dispatch trigger. Default `5m`.
+ * - `MAX_TOTAL_BUFFERED_BYTES`: Optional. Global upper bound on the serialized byte total across
+ *   all open report buffers; a memory backstop that flushes every buffer immediately when reached.
+ *   Default `268435456` (256 MiB). Bytes-based rather than count-based because per-requisition size
+ *   varies widely.
+ * - `MAX_REQUISITIONS_PER_GROUP`: Optional. Maximum requisitions per grouped-requisitions blob and
+ *   its metadata batch; a report with more is written across multiple groups. Default `1000`.
+ * - `PAGE_SIZE`: Optional. Starting page size for `listRequisitions`. If a page exceeds the gRPC
+ *   inbound message size limit (gRPC `RESOURCE_EXHAUSTED`), the page size is halved and the page is
+ *   retried, down to a floor of 1.
  */
 class RequisitionFetcherFunction : HttpFunction {
 
@@ -82,7 +95,6 @@ class RequisitionFetcherFunction : HttpFunction {
     try {
       val errors = mutableListOf<String>()
       for (dataProviderConfig in requisitionFetcherConfig.configsList) {
-        // Keep per-provider failures as Result so we can process every config before responding.
         val result: Result<Unit> = processDataProvider(dataProviderConfig)
         val failure = result.exceptionOrNull()
         if (failure != null) {
@@ -166,7 +178,6 @@ class RequisitionFetcherFunction : HttpFunction {
   ): RequisitionFetcher {
     val storageClient = createStorageClient(dataProviderConfig)
     val requisitionBlobPrefix = createRequisitionBlobPrefix(dataProviderConfig)
-    // Create instrumented gRPC channels with mutual TLS and OpenTelemetry tracing
     val instrumentedCmmsChannel =
       createInstrumentedChannel(dataProviderConfig.cmmsConnection, kingdomTarget, kingdomCertHost)
     val instrumentedMetadataChannel =
@@ -184,27 +195,34 @@ class RequisitionFetcherFunction : HttpFunction {
 
     val requisitionsValidator = RequisitionsValidator(loadPrivateKey(edpPrivateKey))
 
+    val kingdomMutationThrottler = MinimumIntervalThrottler(Clock.systemUTC(), grpcRequestInterval)
+    val kingdomEventGroupThrottler =
+      MinimumIntervalThrottler(Clock.systemUTC(), kingdomEventGroupRequestInterval)
+    val metadataThrottler = MinimumIntervalThrottler(Clock.systemUTC(), metadataRequestInterval)
+
     val requisitionGrouper =
       RequisitionGrouperByReportId(
-        requisitionsValidator,
-        dataProviderConfig.dataProvider,
-        requisitionBlobPrefix,
-        requisitionMetadataStub,
-        storageClient,
-        pageSize,
-        dataProviderConfig.storagePathPrefix,
-        MinimumIntervalThrottler(Clock.systemUTC(), grpcRequestInterval),
-        eventGroupsStub,
-        requisitionsStub,
+        requisitionValidator = requisitionsValidator,
+        requisitionsClient = requisitionsStub,
+        eventGroupsClient = eventGroupsStub,
+        kingdomMutationThrottler = kingdomMutationThrottler,
+        kingdomEventGroupThrottler = kingdomEventGroupThrottler,
       )
 
     return RequisitionFetcher(
       requisitionsStub = requisitionsStub,
+      requisitionMetadataStub = requisitionMetadataStub,
       storageClient = storageClient,
       dataProviderName = dataProviderConfig.dataProvider,
       storagePathPrefix = dataProviderConfig.storagePathPrefix,
+      blobUriPrefix = requisitionBlobPrefix,
+      requisitionValidator = requisitionsValidator,
       requisitionGrouper = requisitionGrouper,
+      metadataThrottler = metadataThrottler,
       responsePageSize = pageSize,
+      flushInterval = flushInterval,
+      maxTotalBufferedBytes = maxTotalBufferedBytes,
+      maxRequisitionsPerGroup = maxRequisitionsPerGroup,
     )
   }
 
@@ -215,8 +233,6 @@ class RequisitionFetcherFunction : HttpFunction {
    * @param dataProviderConfig The configuration object for a `DataProvider`.
    * @return A [StorageClient] instance, either for local file system access or GCS access.
    */
-  // @TODO(@marcopremier): This function may share the logic of
-  // `ResultsFulfillerAppImpl.createStorageClient` method.
   private fun createStorageClient(
     dataProviderConfig: DataProviderRequisitionConfig
   ): StorageClient {
@@ -284,9 +300,32 @@ class RequisitionFetcherFunction : HttpFunction {
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
     private val metadataStorageCertHost: String? = System.getenv("METADATA_STORAGE_CERT_HOST")
     private val fileSystemPath: String? = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
-    private const val DEFAULT_GRCP_INTERVAL = "1s"
+
+    private const val DEFAULT_GRPC_REQUEST_INTERVAL = "1s"
+    private const val DEFAULT_KINGDOM_EVENT_GROUP_REQUEST_INTERVAL = "50ms"
+    private const val DEFAULT_METADATA_REQUEST_INTERVAL = "100ms"
+    private const val DEFAULT_FLUSH_INTERVAL = "5m"
+
     private val grpcRequestInterval: Duration =
-      (System.getenv("GRPC_REQUEST_INTERVAL") ?: DEFAULT_GRCP_INTERVAL).toDuration()
+      (System.getenv("GRPC_REQUEST_INTERVAL") ?: DEFAULT_GRPC_REQUEST_INTERVAL).toDuration()
+    private val kingdomEventGroupRequestInterval: Duration =
+      (System.getenv("KINGDOM_EVENT_GROUP_REQUEST_INTERVAL")
+          ?: DEFAULT_KINGDOM_EVENT_GROUP_REQUEST_INTERVAL)
+        .toDuration()
+    private val metadataRequestInterval: Duration =
+      (System.getenv("METADATA_REQUEST_INTERVAL") ?: DEFAULT_METADATA_REQUEST_INTERVAL).toDuration()
+
+    private val flushInterval: Duration =
+      (System.getenv("FLUSH_INTERVAL") ?: DEFAULT_FLUSH_INTERVAL).toDuration()
+
+    private val maxTotalBufferedBytes: Long =
+      System.getenv("MAX_TOTAL_BUFFERED_BYTES")?.toLongOrNull()
+        ?: RequisitionFetcher.DEFAULT_MAX_TOTAL_BUFFERED_BYTES
+
+    private val maxRequisitionsPerGroup: Int =
+      System.getenv("MAX_REQUISITIONS_PER_GROUP")?.toIntOrNull()
+        ?: RequisitionFetcher.DEFAULT_MAX_REQUISITIONS_PER_GROUP
+
     private const val DEFAULT_PAGE_SIZE = 50
 
     init {

@@ -1,0 +1,92 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "PoolAssignmentJobProto";
+
+// A Phase-0 pool assignment job for a RawImpressionUpload.
+// One record per (upload, model line, shard), pre-created by the
+// dispatcher. The "last shard out" of a (upload, model line) flips
+// the parent RawImpressionUploadModelLine state from POOL_ASSIGNING
+// to RANKING and triggers Phase 1.
+message PoolAssignmentJob {
+  option (google.api.resource) = {
+    type: "edpaggregator.halo-cmm.org/PoolAssignmentJob"
+    pattern: "dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/poolAssignmentJobs/{pool_assignment_job}"
+    singular: "poolAssignmentJob"
+    plural: "poolAssignmentJobs"
+  };
+
+  // Processing state for a PoolAssignmentJob.
+  enum State {
+    // Default, unspecified state. Should not be used.
+    STATE_UNSPECIFIED = 0;
+    // The job has been created and is awaiting processing.
+    CREATED = 1;
+    // The job completed successfully. Terminal state.
+    SUCCEEDED = 2;
+    // The job failed. Not terminal — operator can retry after
+    // fixing the root cause.
+    FAILED = 3;
+  }
+
+  // Resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // The processing state of this job.
+  State state = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The CMMS model line resource name that this job processes.
+  string cmms_model_line = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+  ];
+
+  // The shard index assigned to this job.
+  int32 shard_index = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // The timestamp when this record was created.
+  google.protobuf.Timestamp create_time = 5
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The timestamp when this record was last updated.
+  google.protobuf.Timestamp update_time = 6
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Detail about the failure, set when state is FAILED.
+  string error_message = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The DEK used to encrypt every per-(shard, subpool) `SubpoolFingerprints`
+  // blob written by this shard's VM. Populated when the job is marked
+  // `SUCCEEDED`; read by the last-shard-out to decrypt this shard's blobs.
+  wfa.measurement.securecomputation.impressions.EncryptedDek encrypted_dek = 9
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+}

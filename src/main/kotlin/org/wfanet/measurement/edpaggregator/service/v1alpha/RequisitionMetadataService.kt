@@ -143,6 +143,12 @@ class RequisitionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
@@ -153,6 +159,18 @@ class RequisitionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
+          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
+          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -173,7 +191,6 @@ class RequisitionMetadataService(
         ?: throw InvalidFieldValueException("parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    val blobUriSet = mutableSetOf<String>()
     val cmmsRequisitionSet = mutableSetOf<String>()
     val requestIdSet = mutableSetOf<String>()
 
@@ -184,13 +201,11 @@ class RequisitionMetadataService(
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
-        val blobUri = it.requisitionMetadata.blobUri
-        if (!blobUriSet.add(blobUri)) {
-          throw InvalidFieldValueException("requests.$index.requisition_metadata.blob_uri") {
-              "blob uri $blobUri is duplicate in the batch of requests"
-            }
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
+        // Multiple RequisitionMetadata rows may share a blob_uri: one GroupedRequisitions blob
+        // covers every requisition for a (reportId, updateTime) tuple, so every metadata row in
+        // such a batch points at the same blob. The legacy unique index on
+        // (DataProviderResourceId, BlobUri) was dropped by drop-blob-uri-index.sql; the batch
+        // path no longer dedups blob_uri across the batch.
 
         val cmmsRequisition = it.requisitionMetadata.cmmsRequisition
         if (!cmmsRequisitionSet.add(cmmsRequisition)) {
@@ -255,6 +270,12 @@ class RequisitionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
@@ -262,6 +283,18 @@ class RequisitionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
+          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
+          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -299,6 +332,12 @@ class RequisitionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
@@ -309,6 +348,18 @@ class RequisitionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
+          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
+          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -354,7 +405,7 @@ class RequisitionMetadataService(
     val internalFilter: InternalListRequisitionMetadataFilter =
       internalListRequisitionMetadataRequestFilter {
         if (request.hasFilter()) {
-          state = request.filter.state.toInternalState()
+          stateIn += request.filter.stateInList.map { it.toInternalState() }
           if (request.filter.groupId.isNotEmpty()) {
             groupId = request.filter.groupId
           }
@@ -388,6 +439,12 @@ class RequisitionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.ETAG_MISMATCH,
@@ -396,6 +453,18 @@ class RequisitionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
+          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
+          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -445,6 +514,12 @@ class RequisitionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
@@ -455,6 +530,18 @@ class RequisitionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
+          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
+          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -485,6 +572,12 @@ class RequisitionMetadataService(
         InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
         InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
         InternalErrors.Reason.ETAG_MISMATCH,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+        InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
+        InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
+        InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
         InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
         InternalErrors.Reason.INVALID_FIELD_VALUE,
         InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
@@ -495,6 +588,18 @@ class RequisitionMetadataService(
         InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
         InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
         InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+        InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
+        InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
+        InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
+        InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+        InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+        InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
+        InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+        InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }
@@ -528,6 +633,9 @@ class RequisitionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND ->
             RequisitionMetadataNotFoundException(key.dataProviderId, key.requisitionMetadataId)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH ->
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
@@ -537,6 +645,12 @@ class RequisitionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
@@ -547,6 +661,18 @@ class RequisitionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
+          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
+          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -578,6 +704,9 @@ class RequisitionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND ->
             RequisitionMetadataNotFoundException(key.dataProviderId, key.requisitionMetadataId)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH ->
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
@@ -587,6 +716,12 @@ class RequisitionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
@@ -597,6 +732,18 @@ class RequisitionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
+          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
+          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -628,6 +775,9 @@ class RequisitionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND ->
             RequisitionMetadataNotFoundException(key.dataProviderId, key.requisitionMetadataId)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH ->
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
@@ -637,6 +787,12 @@ class RequisitionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
@@ -647,6 +803,18 @@ class RequisitionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
+          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
+          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -683,6 +851,9 @@ class RequisitionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND ->
             RequisitionMetadataNotFoundException(key.dataProviderId, key.requisitionMetadataId)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH ->
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
@@ -692,6 +863,12 @@ class RequisitionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
@@ -702,6 +879,18 @@ class RequisitionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
+          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
+          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -733,6 +922,9 @@ class RequisitionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND ->
             RequisitionMetadataNotFoundException(key.dataProviderId, key.requisitionMetadataId)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH ->
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
@@ -742,6 +934,12 @@ class RequisitionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
+          InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
@@ -752,6 +950,18 @@ class RequisitionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+          InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
+          InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
+          InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+          InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
+          InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+          InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }

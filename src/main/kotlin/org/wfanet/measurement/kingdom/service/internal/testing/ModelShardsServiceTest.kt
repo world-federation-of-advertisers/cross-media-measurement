@@ -123,6 +123,7 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
 
     val createdModelShard = modelShardsService.createModelShard(modelShard)
 
+    assertThat(createdModelShard.memoizedVidAssignmentEnabled).isFalse()
     assertThat(createdModelShard)
       .ignoringFields(ModelShard.CREATE_TIME_FIELD_NUMBER)
       .isEqualTo(
@@ -135,6 +136,36 @@ abstract class ModelShardsServiceTest<T : ModelShardsCoroutineImplBase> {
           modelBlobPath = "modelBlobPath"
         }
       )
+  }
+
+  @Test
+  fun `createModelShard with memoized VID assignment enabled succeeds`() = runBlocking {
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
+    val modelRelease =
+      population.createModelRelease(
+        modelSuite {
+          externalModelProviderId = modelSuite.externalModelProviderId
+          externalModelSuiteId = modelSuite.externalModelSuiteId
+        },
+        createdPopulation,
+        modelReleasesService,
+      )
+
+    val modelShard = modelShard {
+      externalDataProviderId = dataProvider.externalDataProviderId
+      externalModelProviderId = modelRelease.externalModelProviderId
+      externalModelSuiteId = modelRelease.externalModelSuiteId
+      externalModelReleaseId = modelRelease.externalModelReleaseId
+      modelBlobPath = "modelBlobPath"
+      memoizedVidAssignmentEnabled = true
+    }
+
+    val createdModelShard = modelShardsService.createModelShard(modelShard)
+
+    assertThat(createdModelShard.memoizedVidAssignmentEnabled).isTrue()
   }
 
   @Test

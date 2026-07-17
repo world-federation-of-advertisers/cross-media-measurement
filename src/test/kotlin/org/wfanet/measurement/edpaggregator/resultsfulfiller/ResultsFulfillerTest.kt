@@ -63,6 +63,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
@@ -134,7 +135,7 @@ import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
-import org.wfanet.measurement.computation.KAnonymityParams
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.*
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
@@ -150,6 +151,10 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffl
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.TrusTeeMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
@@ -160,6 +165,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
@@ -383,7 +389,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -524,7 +530,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
       )
@@ -636,7 +642,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = NoNoiserSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -768,7 +774,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = 2,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -911,7 +917,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = 3,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -1042,7 +1048,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = -1, // Uncapped
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -1170,7 +1176,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -1210,6 +1216,111 @@ class ResultsFulfillerTest {
       startProcessingRequisitionMetadata(any())
     }
     verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
+  }
+
+  @Test
+  fun `runWork nacks blob with no metadata for retry and counts it`() = runBlocking {
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressions =
+      List(130) {
+        LABELED_IMPRESSION.copy {
+          vid = it.toLong() + 1
+          eventTime = TIME_RANGE.start.toProtoTime()
+        }
+      }
+
+    val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+    val impressionMetadataList = createImpressionMetadataList(dates, EVENT_GROUP_NAME)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    // Orphan blob: the RequisitionFetcher wrote the grouped-requisitions blob but has not (yet)
+    // created any RequisitionMetadata for it. ResultsFulfiller must throw to nack for retry.
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(listRequisitionMetadataResponse {})
+
+    // Set up KMS
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    createData(
+      kmsClient,
+      kekUri,
+      impressionsTmpPath,
+      metadataTmpPath,
+      requisitionsTmpPath,
+      impressions,
+      listOf(DIRECT_RNF_REQUISITION),
+    )
+    val impressionsMetadataService =
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
+        impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+      )
+
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        resultMinimumThresholds = null,
+        overrideImpressionMaxFrequencyPerUser = null,
+        supportedMultiPartyNoiseMechanisms = emptySet(),
+        trusTeeConfig =
+          TrusTeeConfig(
+            kmsClient = kmsClient,
+            workloadIdentityProvider = "test-wip",
+            impersonatedServiceAccount = "test-sa@example.com",
+            awsKmsParams = null,
+          ),
+        kekUriToKeyNameMap = emptyMap(),
+      )
+
+    val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+
+    val resultsFulfiller =
+      ResultsFulfiller(
+        dataProvider = EDP_NAME,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
+        groupedRequisitions = groupedRequisitions,
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionDataSourceProvider = impressionsMetadataService,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
+      )
+
+    // Empty metadata is treated as transient: throw so the work item nacks and retries once the
+    // fetcher's metadata write commits, rather than acking and abandoning fulfillable requisitions.
+    assertFailsWith<IllegalStateException> { resultsFulfiller.fulfillRequisitions() }
+
+    // Nothing fulfilled or processed while metadata is absent.
+    verifyBlocking(requisitionsServiceMock, times(0)) { fulfillDirectRequisition(any()) }
+    verifyBlocking(requisitionMetadataServiceMock, times(0)) {
+      startProcessingRequisitionMetadata(any())
+    }
+    verifyBlocking(requisitionMetadataServiceMock, times(0)) { fulfillRequisitionMetadata(any()) }
+
+    // The retry is counted, tagged with the blob's group id.
+    val metricsByName = collectMetrics().associateBy { it.name }
+    val retryPoints =
+      metricsByName.getValue("edpa.results_fulfiller.empty_metadata_retries").longSumData.points
+    assertThat(retryPoints).hasSize(1)
+    val retryPoint = retryPoints.single()
+    assertThat(retryPoint.value).isEqualTo(1)
+    val groupIdKey = AttributeKey.stringKey("edpa.results_fulfiller.group_id")
+    assertThat(retryPoint.attributes.get(groupIdKey)).isEqualTo(groupedRequisitions.groupId)
   }
 
   @Test
@@ -1277,7 +1388,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -1386,7 +1497,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -1493,7 +1604,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -1607,7 +1718,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
@@ -1718,7 +1829,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
@@ -1829,7 +1940,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
         )
@@ -1927,7 +2038,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -2031,7 +2142,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = KAnonymityParams(100, 100),
+          resultMinimumThresholds = ResultMinimumThresholds(100, 100),
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -2156,7 +2267,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = KAnonymityParams(100, 1000),
+          resultMinimumThresholds = ResultMinimumThresholds(100, 1000),
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -2280,7 +2391,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -2457,7 +2568,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -2577,7 +2688,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
@@ -2693,7 +2804,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = ContinuousGaussianNoiseSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeConfig =
@@ -2752,6 +2863,216 @@ class ResultsFulfillerTest {
       }
       verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
     }
+
+  @Test
+  fun `runWork queries impression metadata by entity key when entity key is present`() =
+    runBlocking {
+      val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+      val metadataTmpPath = Files.createTempDirectory(null).toFile()
+
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse {})
+
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+        .thenReturn(
+          listRequisitionMetadataResponse {
+            requisitionMetadata += requisitionMetadata {
+              state = RequisitionMetadata.State.STORED
+              cmmsCreateTime = timestamp { seconds = 12345 }
+              cmmsRequisition = REQUISITION_NAME
+              blobUri = "some-prefix"
+              blobTypeUrl = "some-blob-type-url"
+              groupId = "an-existing-group-id"
+              report = "report-name"
+            }
+          }
+        )
+      whenever(requisitionsServiceMock.getRequisition(any()))
+        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+
+      val kmsClient = FakeKmsClient()
+      val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+      val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+      kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+
+      val impressionsMetadataService =
+        ImpressionDataSourceProvider(
+          impressionMetadataStub = impressionMetadataStub,
+          dataProvider = "dataProviders/123",
+          impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+        )
+
+      val fulfillerSelector =
+        DefaultFulfillerSelector(
+          requisitionsStub = requisitionsStub,
+          requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
+          dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+          dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+          noiserSelector = ContinuousGaussianNoiseSelector(),
+          resultMinimumThresholds = null,
+          overrideImpressionMaxFrequencyPerUser = null,
+          supportedMultiPartyNoiseMechanisms = emptySet(),
+          trusTeeConfig =
+            TrusTeeConfig(
+              kmsClient = kmsClient,
+              workloadIdentityProvider = "test-wip",
+              impersonatedServiceAccount = "test-sa@example.com",
+              awsKmsParams = null,
+            ),
+          kekUriToKeyNameMap = emptyMap(),
+        )
+
+      val groupedReqs = groupedRequisitions {
+        modelLine = "some-model-line"
+        groupId = "entity-key-group"
+        eventGroupMap += eventGroupMapEntry {
+          eventGroup = EVENT_GROUP_NAME
+          details = eventGroupDetails {
+            eventGroupReferenceId = "creative-id/creative-a"
+            collectionIntervals += interval {
+              startTime = TIME_RANGE.start.toProtoTime()
+              endTime = TIME_RANGE.endExclusive.toProtoTime()
+            }
+            entityKey =
+              GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
+                entityType = "creative-id"
+                entityId = "creative-a"
+              }
+          }
+        }
+        requisitions += requisitionEntry { requisition = Any.pack(DIRECT_RNF_REQUISITION) }
+      }
+
+      val resultsFulfiller =
+        ResultsFulfiller(
+          dataProvider = EDP_NAME,
+          privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+          requisitionMetadataStub = requisitionMetadataStub,
+          requisitionsStub = requisitionsStub,
+          groupedRequisitions = groupedReqs,
+          modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+          pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+          impressionDataSourceProvider = impressionsMetadataService,
+          impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+          kmsClient = kmsClient,
+          fulfillerSelector = fulfillerSelector,
+          metrics = metrics,
+        )
+
+      resultsFulfiller.fulfillRequisitions()
+
+      val captor = argumentCaptor<ListImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock) { listImpressionMetadata(captor.capture()) }
+      val request = captor.firstValue
+      assertThat(request.filter.entityKeysList).hasSize(1)
+      assertThat(request.filter.entityKeysList[0].entityType).isEqualTo("creative-id")
+      assertThat(request.filter.entityKeysList[0].entityId).isEqualTo("creative-a")
+      assertThat(request.filter.eventGroupReferenceId).isEmpty()
+    }
+
+  @Test
+  fun `runWork queries by entity key when eventGroupReferenceId is empty`() = runBlocking {
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse {})
+
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some-prefix"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
+        }
+      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+
+    val impressionsMetadataService =
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
+        impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+      )
+
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        resultMinimumThresholds = null,
+        overrideImpressionMaxFrequencyPerUser = null,
+        supportedMultiPartyNoiseMechanisms = emptySet(),
+        trusTeeConfig =
+          TrusTeeConfig(
+            kmsClient = kmsClient,
+            workloadIdentityProvider = "test-wip",
+            impersonatedServiceAccount = "test-sa@example.com",
+            awsKmsParams = null,
+          ),
+        kekUriToKeyNameMap = emptyMap(),
+      )
+
+    val groupedReqs = groupedRequisitions {
+      modelLine = "some-model-line"
+      groupId = "entity-key-no-ref-id-group"
+      eventGroupMap += eventGroupMapEntry {
+        eventGroup = EVENT_GROUP_NAME
+        details = eventGroupDetails {
+          collectionIntervals += interval {
+            startTime = TIME_RANGE.start.toProtoTime()
+            endTime = TIME_RANGE.endExclusive.toProtoTime()
+          }
+          entityKey =
+            GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
+              entityType = "placement-id"
+              entityId = "placement-99"
+            }
+        }
+      }
+      requisitions += requisitionEntry { requisition = Any.pack(DIRECT_RNF_REQUISITION) }
+    }
+
+    val resultsFulfiller =
+      ResultsFulfiller(
+        dataProvider = EDP_NAME,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
+        groupedRequisitions = groupedReqs,
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionDataSourceProvider = impressionsMetadataService,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
+      )
+
+    resultsFulfiller.fulfillRequisitions()
+
+    val captor = argumentCaptor<ListImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock) { listImpressionMetadata(captor.capture()) }
+    val request = captor.firstValue
+    assertThat(request.filter.entityKeysList).hasSize(1)
+    assertThat(request.filter.entityKeysList[0].entityType).isEqualTo("placement-id")
+    assertThat(request.filter.entityKeysList[0].entityId).isEqualTo("placement-99")
+    assertThat(request.filter.eventGroupReferenceId).isEmpty()
+  }
 
   private suspend fun createData(
     kmsClient: KmsClient,
@@ -2998,7 +3319,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = NoNoiserSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         kekUriToKeyNameMap = mapOf("uri" to "invalid/key/name"),
@@ -3018,7 +3339,7 @@ class ResultsFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = NoNoiserSelector(),
-        kAnonymityParams = null,
+        resultMinimumThresholds = null,
         overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         kekUriToKeyNameMap = mapOf("uri" to longKeyName),
@@ -3040,7 +3361,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
@@ -3071,7 +3392,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
@@ -3102,7 +3423,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
@@ -3135,7 +3456,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(
@@ -3171,7 +3492,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = ContinuousGaussianNoiseSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms =
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
@@ -3204,7 +3525,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
         )
@@ -3232,7 +3553,7 @@ class ResultsFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
-          kAnonymityParams = null,
+          resultMinimumThresholds = null,
           overrideImpressionMaxFrequencyPerUser = null,
           supportedMultiPartyNoiseMechanisms = emptySet(),
         )

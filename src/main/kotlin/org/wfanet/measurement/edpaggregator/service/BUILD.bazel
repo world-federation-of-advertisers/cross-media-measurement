@@ -4,6 +4,8 @@ package(
     default_visibility = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator/service:__subpackages__",
     ],
@@ -14,8 +16,14 @@ kt_jvm_library(
     srcs = [
         "IdVariable.kt",
         "ImpressionMetadataKey.kt",
+        "PoolAssignmentJobKey.kt",
+        "RankIndexBlobKey.kt",
+        "RankerJobKey.kt",
         "RawImpressionMetadataKey.kt",
+        "RawImpressionUploadKey.kt",
+        "RawImpressionUploadModelLineKey.kt",
         "RequisitionMetadataKey.kt",
+        "VidLabelingJobKey.kt",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",

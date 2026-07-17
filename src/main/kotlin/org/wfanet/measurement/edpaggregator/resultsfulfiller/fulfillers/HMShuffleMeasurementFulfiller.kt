@@ -31,8 +31,8 @@ import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.Requisiti
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.computation.KAnonymityParams
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.KAnonymizer
+import org.wfanet.measurement.computation.ResultMinimumThresholds
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultMinimumThresholder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.FulfillRequisitionRequestBuilder
 
@@ -90,8 +90,8 @@ class HMShuffleMeasurementFulfiller(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    /** Constructs a [HMShuffleMeasurementFulfiller] with a k-anonymized FrequencyVector. */
-    fun buildKAnonymized(
+    /** Constructs a [HMShuffleMeasurementFulfiller] with a thresholded FrequencyVector. */
+    fun buildThresholded(
       requisition: Requisition,
       requisitionNonce: Long,
       measurementSpec: MeasurementSpec,
@@ -101,23 +101,25 @@ class HMShuffleMeasurementFulfiller(
       dataProviderCertificateKey: DataProviderCertificateKey,
       requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
       requisitionsStub: RequisitionsCoroutineStub,
-      kAnonymityParams: KAnonymityParams,
+      resultMinimumThresholds: ResultMinimumThresholds,
       maxPopulation: Int?,
       generateSecretShares: (ByteArray) -> (ByteArray) =
         SecretShareGeneratorAdapter::generateSecretShares,
     ): HMShuffleMeasurementFulfiller {
-      val kAnonymizedFrequencyVector =
-        KAnonymizer.kAnonymizeFrequencyVector(
+      val thresholdedFrequencyVector =
+        ResultMinimumThresholder.applyThresholds(
           measurementSpec,
           populationSpec,
           frequencyVectorBuilder,
-          kAnonymityParams,
+          resultMinimumThresholds,
           maxPopulation,
+          protocolMinUsers = 0,
+          protocolMinImpressions = 0,
         )
       return HMShuffleMeasurementFulfiller(
         requisition,
         requisitionNonce,
-        kAnonymizedFrequencyVector,
+        thresholdedFrequencyVector,
         dataProviderSigningKeyHandle,
         dataProviderCertificateKey,
         requisitionFulfillmentStubMap,

@@ -65,6 +65,8 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
       duchyDependenciesRule,
       useEdpSimulators = true,
       trusTeeKmsClient = ThrowingKmsClient,
+      hmssEnabled = false,
+      trusTeeEnabled = false,
     )
 
   private val publicMeasurementsClient by lazy {
@@ -217,7 +219,7 @@ abstract class InProcessMeasurementSystemProberIntegrationTest(
     @JvmStatic
     fun initConfig() {
       InProcessCmmsComponents.initConfig(
-        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG,
+        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_NO_THRESHOLDS,
         hmssProtocolConfigConfig = HMSS_PROTOCOL_CONFIG_CONFIG,
       )
     }

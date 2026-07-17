@@ -28,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.populationSpec
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 
 @RunWith(JUnit4::class)
 class FrequencyVectorBuilderTest {
@@ -569,13 +570,9 @@ class FrequencyVectorBuilderTest {
   }
 
   @Test
-  fun `ByteArray constructor with kAnonymityParams for reach measurement`() {
-    val kAnonymityParams =
-      org.wfanet.measurement.computation.KAnonymityParams(
-        minUsers = 10,
-        minImpressions = 10,
-        reachMaxFrequencyPerUser = 3,
-      )
+  fun `ByteArray constructor with resultMinimumThresholds for reach measurement`() {
+    val resultMinimumThresholds =
+      ResultMinimumThresholds(minUsers = 10, minImpressions = 10, reachMaxFrequencyPerUser = 3)
 
     val reachMeasurementSpec = measurementSpec {
       vidSamplingInterval = FULL_SAMPLING_INTERVAL
@@ -592,7 +589,7 @@ class FrequencyVectorBuilderTest {
         frequencyDataBytes = frequencyDataBytes,
         strict = false,
         overrideImpressionMaxFrequencyPerUser = null,
-        kAnonymityParams = kAnonymityParams,
+        resultMinimumThresholds = resultMinimumThresholds,
       )
 
     // For reach with k-anonymity, frequencies should be capped at reachMaxFrequencyPerUser (3)

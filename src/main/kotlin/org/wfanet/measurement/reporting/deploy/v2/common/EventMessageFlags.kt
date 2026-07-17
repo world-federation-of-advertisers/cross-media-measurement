@@ -31,8 +31,7 @@ class EventMessageFlags {
   @CommandLine.Option(
     names = ["--event-message-type-url"],
     description = ["Fully qualified name of the event message type."],
-    required = false,
-    defaultValue = "",
+    required = true,
   )
   lateinit var eventMessageTypeUrl: String
     private set
@@ -45,28 +44,21 @@ class EventMessageFlags {
           "dependencies.",
         "This can be specified multiple times.",
       ],
-    required = false,
+    required = true,
   )
   var eventMessageDescriptorSetFiles: List<File> = emptyList()
     private set
 
-  val eventDescriptor: EventMessageDescriptor? by lazy {
-    // TODO(@tristanvuong2021): Flags will be required once BasicReports Phase 2 is completed.
-    // When the flags are required, this will be moved to a common location that covers
-    // PopulationRequisitionFulfillerDaemon as well.
-    if (eventMessageTypeUrl.isNotEmpty() && eventMessageDescriptorSetFiles.isNotEmpty()) {
-      val eventDescriptor: Descriptors.Descriptor =
-        checkNotNull(
-          buildTypeRegistry(eventMessageDescriptorSetFiles)
-            .getDescriptorForTypeUrl(eventMessageTypeUrl)
-        ) {
-          "--event-message-type-url is invalid"
-        }
+  val eventDescriptor: EventMessageDescriptor by lazy {
+    val eventDescriptor: Descriptors.Descriptor =
+      checkNotNull(
+        buildTypeRegistry(eventMessageDescriptorSetFiles)
+          .getDescriptorForTypeUrl(eventMessageTypeUrl)
+      ) {
+        "--event-message-type-url is invalid"
+      }
 
-      EventMessageDescriptor(eventDescriptor)
-    } else {
-      null
-    }
+    EventMessageDescriptor(eventDescriptor)
   }
 
   private fun buildTypeRegistry(descriptorSetFiles: List<File>): TypeRegistry {

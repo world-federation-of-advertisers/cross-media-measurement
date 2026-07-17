@@ -79,6 +79,8 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurement
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.EventGroupDetailsKt.entityKey
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 
 @RunWith(JUnit4::class)
@@ -154,6 +156,121 @@ class RequisitionsValidatorTest {
       )
     assertFailsWith<InvalidRequisitionException> {
       requisitionValidator.validateModelLines(groupedRequisitionsList, "some-report-id")
+    }
+  }
+
+  @Test
+  fun `validateEventGroupSelectors passes when all event groups have meaningful entity keys`() {
+    val eventGroupMap =
+      mapOf(
+        "eg1" to
+          eventGroupDetails {
+            eventGroupReferenceId = "ref-1"
+            entityKey = entityKey {
+              entityType = "creative-id"
+              entityId = "creative-123"
+            }
+          },
+        "eg2" to
+          eventGroupDetails {
+            eventGroupReferenceId = "ref-2"
+            entityKey = entityKey {
+              entityType = "creative-id"
+              entityId = "creative-456"
+            }
+          },
+      )
+    requisitionValidator.validateEventGroupSelectors(eventGroupMap)
+  }
+
+  @Test
+  fun `validateEventGroupSelectors passes when no event groups have meaningful entity keys`() {
+    val eventGroupMap =
+      mapOf(
+        "eg1" to eventGroupDetails { eventGroupReferenceId = "ref-1" },
+        "eg2" to eventGroupDetails { eventGroupReferenceId = "ref-2" },
+      )
+    requisitionValidator.validateEventGroupSelectors(eventGroupMap)
+  }
+
+  @Test
+  fun `validateEventGroupSelectors passes when all have default entity key with empty entity id`() {
+    val eventGroupMap =
+      mapOf(
+        "eg1" to
+          eventGroupDetails {
+            eventGroupReferenceId = "ref-1"
+            entityKey = entityKey {
+              entityType = "campaign"
+              entityId = ""
+            }
+          },
+        "eg2" to
+          eventGroupDetails {
+            eventGroupReferenceId = "ref-2"
+            entityKey = entityKey {
+              entityType = "campaign"
+              entityId = ""
+            }
+          },
+      )
+    requisitionValidator.validateEventGroupSelectors(eventGroupMap)
+  }
+
+  @Test
+  fun `validateEventGroupSelectors throws when mixing meaningful entity keys with empty entity id`() {
+    val eventGroupMap =
+      mapOf(
+        "eg1" to
+          eventGroupDetails {
+            eventGroupReferenceId = "ref-1"
+            entityKey = entityKey {
+              entityType = "campaign"
+              entityId = ""
+            }
+          },
+        "eg2" to
+          eventGroupDetails {
+            eventGroupReferenceId = "ref-2"
+            entityKey = entityKey {
+              entityType = "creative-id"
+              entityId = "creative-123"
+            }
+          },
+      )
+    assertFailsWith<InconsistentEventGroupSelectorsException> {
+      requisitionValidator.validateEventGroupSelectors(eventGroupMap)
+    }
+  }
+
+  @Test
+  fun `validateEventGroupSelectors throws when mixing entity key present with entity key absent`() {
+    val eventGroupMap =
+      mapOf(
+        "eg1" to eventGroupDetails { eventGroupReferenceId = "ref-1" },
+        "eg2" to
+          eventGroupDetails {
+            eventGroupReferenceId = "ref-2"
+            entityKey = entityKey {
+              entityType = "creative-id"
+              entityId = "creative-456"
+            }
+          },
+      )
+    assertFailsWith<InconsistentEventGroupSelectorsException> {
+      requisitionValidator.validateEventGroupSelectors(eventGroupMap)
+    }
+  }
+
+  @Test
+  fun `validateEventGroupSelectors throws when event group missing reference id and no entity key`() {
+    val eventGroupMap =
+      mapOf(
+        "eg1" to eventGroupDetails { eventGroupReferenceId = "ref-1" },
+        "eg2" to eventGroupDetails { eventGroupReferenceId = "" },
+      )
+    assertFailsWith<InconsistentEventGroupSelectorsException> {
+      requisitionValidator.validateEventGroupSelectors(eventGroupMap)
     }
   }
 

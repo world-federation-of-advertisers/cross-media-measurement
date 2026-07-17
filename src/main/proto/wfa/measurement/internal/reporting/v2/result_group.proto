@@ -53,7 +53,17 @@ message ResultGroup {
         string cmms_event_group_id = 2;
       }
       // A summary of each EventGroup entailed by the component.
-      repeated EventGroupSummary event_group_summaries = 3;
+      //
+      // Deprecated in favor of `external_reporting_set_id`, which identifies a
+      // ReportingSet whose membership enumerates the same EventGroups.
+      // TODO(world-federation-of-advertisers/cross-media-measurement#3919):
+      // Remove this field once consumers have migrated to the ReportingSet
+      // reference.
+      repeated EventGroupSummary event_group_summaries = 3 [deprecated = true];
+
+      // `ReportingSet` ID from the Reporting internal API for the ReportingSet
+      // whose membership enumerates the EventGroups entailed by this component.
+      string external_reporting_set_id = 4;
     }
 
     // A summary of each component of the reporting_unit reported on
@@ -181,6 +191,23 @@ message ResultGroup {
     // The metrics for the requested intersections
     repeated DataProviderComponentIntersectionMetricSet
         component_intersections = 4;
+
+    // Entry for `ReportingSet` components map.
+    //
+    // Used when reporting_unit components are user-defined ReportingSets
+    // (custom groups) instead of `DataProvider`s.
+    message ReportingSetComponentMetricSetMapEntry {
+      // Map entry key.
+      //
+      // `ReportingSet` ID from the Reporting internal API.
+      string external_reporting_set_id = 1;
+
+      // Map entry value.
+      ComponentMetricSet value = 2;
+    }
+    // Map of `ReportingSet` to `ComponentMetricSet`.
+    repeated ReportingSetComponentMetricSetMapEntry reporting_set_components =
+        5;
   }
 
   // The metadata and metrics.

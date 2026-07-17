@@ -1,0 +1,113 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RawImpressionUploadModelLineProto";
+
+// Per-model-line pipeline state for a RawImpressionUpload.
+// One record per (upload, model line), pre-created by the dispatcher
+// once it resolves which model lines apply to this upload.
+message RawImpressionUploadModelLine {
+  option (google.api.resource) = {
+    type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
+    pattern: "dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}/rawImpressionUploadModelLines/{raw_impression_upload_model_line}"
+    singular: "rawImpressionUploadModelLine"
+    plural: "rawImpressionUploadModelLines"
+  };
+
+  // Per-model-line pipeline state.
+  enum State {
+    // Default, unspecified state. Should not be used.
+    STATE_UNSPECIFIED = 0;
+    // The model line record has been created.
+    CREATED = 1;
+    // Pool assignment (Phase 0) is in progress.
+    POOL_ASSIGNING = 2;
+    // Ranking (Phase 1) is in progress.
+    RANKING = 3;
+    // VID labeling (Phase 2) is in progress.
+    LABELING = 4;
+    // All phases completed successfully. Terminal state.
+    COMPLETED = 5;
+    // Processing failed. Not terminal — operator can retry after
+    // fixing the root cause.
+    FAILED = 6;
+  }
+
+  // Resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // The pipeline state for this model line.
+  State state = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The CMMS model line resource name that this record tracks.
+  string cmms_model_line = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+  ];
+
+  // The timestamp when this record was created.
+  google.protobuf.Timestamp create_time = 4
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The timestamp when this record was last updated.
+  google.protobuf.Timestamp update_time = 5
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Detail about the failure, set when state is FAILED.
+  string error_message = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Entity tag for optimistic concurrency control. Required on
+  // `Mark*` requests (AIP-154); a mismatch returns `ABORTED`.
+  string etag = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Union of subpool offsets discovered across all shards during Phase 0.
+  // Populated atomically by the service when the last `PoolAssignmentJob` for
+  // this (upload, model line) is marked `SUCCEEDED`; read by a retrying
+  // SubpoolAssigner to recover the last-shard-out merge input list, and by the
+  // control-plane fan-out to bin-pack `RankerJob`s.
+  repeated int64 pool_offsets = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Maximum event date (UTC) across all impressions discovered during Phase 0,
+  // reduced from every shard's reported max. Populated atomically with
+  // `pool_offsets` on last-shard-out; stamped onto each Phase-1
+  // `VidRankBuilderParams.max_event_date` and read by a retrying
+  // SubpoolAssigner to recover the value for the fan-out.
+  google.type.Date max_event_date = 9
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // DEK that encrypts the merged per-subpool `SubpoolFingerprints` blobs. On
+  // last-shard-out the service promotes the marking
+  // `PoolAssignmentJob.encrypted_dek` (the last shard's own DEK, which it also
+  // used for the merge) onto this field, atomically with
+  // `pool_offsets`/`max_event_date`. A retrying SubpoolAssigner reuses it so a
+  // re-run's merge — and every published
+  // `VidRankBuilderParams.encrypted_subpool_maps_dek` — stays consistent with
+  // the already-written merged blobs instead of diverging on a freshly
+  // generated DEK.
+  wfa.measurement.securecomputation.impressions.EncryptedDek
+      encrypted_merged_dek = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+}

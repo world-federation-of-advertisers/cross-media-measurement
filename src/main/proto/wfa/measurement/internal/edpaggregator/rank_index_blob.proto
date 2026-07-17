@@ -1,0 +1,71 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+import "wfa/measurement/internal/edpaggregator/blob_type.proto";
+import "wfa/measurement/internal/edpaggregator/encrypted_dek.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "RankIndexBlobProto";
+
+// Internal representation of a rank index blob pointer.
+// Two rows per (upload, model line, subpool): one DAY_ONLY and one
+// SNAPSHOT. Snapshots are replaced each upload; day-only blobs
+// persist until aged out by the retention policy.
+message RankIndexBlob {
+  // Resource ID of the DataProvider.
+  string data_provider_resource_id = 1;
+
+  // Resource ID of the parent upload.
+  string raw_impression_upload_resource_id = 2;
+
+  // Resource ID of this blob.
+  string rank_index_blob_resource_id = 3;
+
+  // The CMMS model line resource name.
+  string cmms_model_line = 4;
+
+  // The type of rank index blob.
+  BlobType blob_type = 5;
+
+  // The pool offset this blob belongs to.
+  int64 pool_offset = 6;
+
+  // Cloud Storage URI of the rank index blob.
+  string blob_uri = 7;
+
+  // SHA-256 checksum of the plaintext blob payload. Used to
+  // detect corruption after decryption.
+  bytes blob_checksum = 8;
+
+  // The encrypted data encryption key (DEK) for this blob.
+  EncryptedDek encrypted_dek = 9;
+
+  // The newest event date represented in the blob. Set for both blob types:
+  // DAY_ONLY uses it for retention; SNAPSHOT carries it (inherited from the
+  // prior snapshot on backfill) as the backfill 'old snapshot' selection key.
+  google.type.Date max_event_date = 10;
+
+  // The timestamp when this record was created.
+  google.protobuf.Timestamp create_time = 11;
+
+  // The timestamp when this blob was soft-deleted.
+  google.protobuf.Timestamp delete_time = 12;
+}

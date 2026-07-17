@@ -55,8 +55,7 @@ class FrequencyVectorSinkTest {
         events = events,
         minTime = testInstant,
         maxTime = testInstant,
-        eventGroupReferenceId = "test-group",
-        entityKeys = emptyList(),
+        eventGroupIdentifier = EventGroupIdentifier.ByReferenceId("test-group"),
       )
     }
 

@@ -1119,8 +1119,7 @@ class EventProcessingIntegrationTest {
                   eventList,
                   minTime,
                   maxTime,
-                  eventGroupReferenceId = eventGroupReferenceId,
-                  entityKeys = emptyList(),
+                  eventGroupIdentifier = EventGroupIdentifier.ByReferenceId(eventGroupReferenceId),
                 )
               )
             }
@@ -1153,8 +1152,7 @@ class EventProcessingIntegrationTest {
                 eventList,
                 minTime,
                 maxTime,
-                eventGroupReferenceId = eventGroupReferenceId,
-                entityKeys = emptyList(),
+                eventGroupIdentifier = EventGroupIdentifier.ByReferenceId(eventGroupReferenceId),
               )
             )
           }
@@ -1725,8 +1723,7 @@ class EventProcessingIntegrationTest {
               labeledEvents,
               minTime,
               maxTime,
-              eventGroupReferenceId = eventGroupReferenceId,
-              entityKeys = groupedBatchEntityKeys,
+              eventGroupIdentifier = EventGroupIdentifier.ByEntityKeys(groupedBatchEntityKeys),
             )
           )
         }
