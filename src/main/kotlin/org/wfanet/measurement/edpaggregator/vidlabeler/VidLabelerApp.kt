@@ -790,6 +790,13 @@ object LabelerDebug {
 
   fun ensureStarted() {
     if (!started.compareAndSet(false, true)) return
+    try {
+      kotlinx.coroutines.debug.DebugProbes.enableCreationStackTraces = true
+      kotlinx.coroutines.debug.DebugProbes.install()
+      logger.info("DEBUG DebugProbes installed")
+    } catch (e: Throwable) {
+      logger.info("DEBUG DebugProbes install FAILED: " + e)
+    }
     val thread =
       Thread {
         var n = 0
@@ -807,11 +814,19 @@ object LabelerDebug {
             for (frame in frames) sb.appendLine("    at " + frame)
           }
           logger.info(sb.toString())
+          try {
+            val out = java.io.ByteArrayOutputStream()
+            kotlinx.coroutines.debug.DebugProbes.dumpCoroutines(java.io.PrintStream(out, true, "UTF-8"))
+            logger.info("DEBUG COROUTINEDUMP #" + n)
+            logger.info(out.toString("UTF-8"))
+          } catch (e: Throwable) {
+            logger.info("DEBUG coroutine dump FAILED: " + e)
+          }
         }
       }
     thread.isDaemon = true
-    thread.name = "labeler-debug-threaddump"
+    thread.name = "labeler-debug-dump"
     thread.start()
-    logger.info("DEBUG threaddump daemon started")
+    logger.info("DEBUG threaddump+coroutinedump daemon started")
   }
 }
