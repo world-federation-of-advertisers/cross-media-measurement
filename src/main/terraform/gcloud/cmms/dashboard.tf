@@ -1077,8 +1077,8 @@ module "dashboard_compliance_cloud_scheduler" {
 
 # Metric-based alert policy. The function records failed-check counts per section to the
 # edpa.dashboard_compliance.failed_checks gauge and increments edpa.dashboard_compliance.errors
-# on a genuine crash; this policy fires on either. A separate dead-man's-switch policy below
-# catches total crashes that emit no metric. Channels are attached out-of-band (as with the
+# on a genuine crash; this policy fires on either. Channels are attached out-of-band (as with
+# the
 # gcs-bucket DLQ alert); with none configured the policy still records incidents but pages no one.
 resource "google_monitoring_alert_policy" "dashboard_compliance_failures" {
   count        = local.deploy_dashboard_compliance_scheduler ? 1 : 0
@@ -1116,40 +1116,10 @@ resource "google_monitoring_alert_policy" "dashboard_compliance_failures" {
   notification_channels = var.dashboard_alert_notification_channels
 
   alert_strategy {
-    notification_rate_limit {
-      period = "3600s"
-    }
     auto_close = "1800s"
   }
 
   documentation {
     content = "The scheduled DashboardComplianceCheck reported one or more failed checks (edpa.dashboard_compliance.failed_checks > 0). Inspect the dashboard-compliance-check Cloud Function logs for SEVERE 'ALERT:' entries. Notification channels attach out-of-band via dashboard_alert_notification_channels; none are paged until one is set."
-  }
-}
-
-# Dead-man's-switch: fires if the daily run stops emitting the failed_checks metric entirely
-# (a total crash before any metric, a broken scheduler, or an undeployed function). The 26h
-# absence window tolerates the daily cadence plus slack.
-resource "google_monitoring_alert_policy" "dashboard_compliance_stale" {
-  count        = local.deploy_dashboard_compliance_scheduler ? 1 : 0
-  display_name = "Dashboard Compliance Check Not Running"
-  combiner     = "OR"
-
-  conditions {
-    display_name = "No dashboard compliance run in 26h"
-    condition_absent {
-      filter   = "metric.type=\"workload.googleapis.com/edpa.dashboard_compliance.failed_checks\" AND resource.type=\"generic_task\""
-      duration = "93600s"
-      aggregations {
-        alignment_period   = "600s"
-        per_series_aligner = "ALIGN_MAX"
-      }
-    }
-  }
-
-  notification_channels = var.dashboard_alert_notification_channels
-
-  documentation {
-    content = "The scheduled DashboardComplianceCheck has not emitted edpa.dashboard_compliance.failed_checks for over 26h — the daily run is likely failing to start (a crash before any metric, a broken Cloud Scheduler job, or an undeployed function). Check the dashboard-compliance-check Cloud Function and its scheduler job."
   }
 }

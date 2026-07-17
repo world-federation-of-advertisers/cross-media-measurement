@@ -30,8 +30,7 @@ object DashboardComplianceMetrics {
    * Recorded once per section per run (0 when a section is clean), exported to Cloud Monitoring. A
    * value > 0 for any section indicates that area's per-EDP isolation / IAM / drift posture has
    * regressed against live state; a metric-based alert policy fires on it and the [SECTION_ATTR]
-   * label identifies where. Because every section is written each run, absence of the metric beyond
-   * the daily cadence indicates the scheduled run itself has stopped (a dead-man's-switch).
+   * label identifies where.
    */
   val failedChecksGauge: LongGauge
     get() =

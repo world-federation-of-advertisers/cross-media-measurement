@@ -44,8 +44,6 @@ import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
  * - `edpa.dashboard_compliance.errors`: incremented on a genuine execution error so an alert fires
  *   on crashes without relying on HTTP 500.
  *
- * Because `failed_checks` is written for every section each run, absence of the metric beyond the
- * daily cadence backs a dead-man's-switch alert for total crashes before any metric is emitted.
  * Each failed check is also logged once at [Level.SEVERE] with an `ALERT:` prefix for triage
  * detail.
  *
