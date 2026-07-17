@@ -347,6 +347,11 @@ class VidLabelingSink(
         throw e
       } catch (e: Exception) {
         metrics.labelingErrorsCounter.add(1, labelAttributes(key.modelLine))
+        logger.log(
+          java.util.logging.Level.SEVERE,
+          "DEBUG WRITE writer FAILED group=" + key.modelLine + " blob=" + blobKey,
+          e,
+        )
         throw e
       }
       metrics.blobsWrittenCounter.add(1, labelAttributes(key.modelLine))
