@@ -157,6 +157,7 @@ class VidLabelerApp(
    * (see the class-level failure model).
    */
   override suspend fun runWork(message: Any) {
+    LabelerDebug.ensureStarted()
     val workItemParams = message.unpack(WorkItemParams::class.java)
     val params = workItemParams.appParams.unpack(VidLabelerParams::class.java)
 
@@ -774,5 +775,43 @@ class VidLabelerApp(
 
     /** Nanoseconds per second, for converting [System.nanoTime] deltas to seconds. */
     private const val NANOS_PER_SECOND = 1_000_000_000.0
+  }
+}
+
+
+/**
+ * THROWAWAY DIAGNOSTIC - remove before merge. Periodically dumps every JVM thread stack so a
+ * production hang shows the exact blocked frame (GCS socket read, Cloud KMS RPC, OAuth/attestation
+ * token refresh). Started once per process from [VidLabelerApp.runWork].
+ */
+object LabelerDebug {
+  private val logger = Logger.getLogger("LabelerDebug")
+  private val started = java.util.concurrent.atomic.AtomicBoolean(false)
+
+  fun ensureStarted() {
+    if (!started.compareAndSet(false, true)) return
+    val thread =
+      Thread {
+        var n = 0
+        while (true) {
+          try {
+            Thread.sleep(15_000)
+          } catch (e: InterruptedException) {
+            return@Thread
+          }
+          n++
+          val sb = StringBuilder()
+          sb.appendLine("DEBUG THREADDUMP #" + n)
+          for ((t, frames) in Thread.getAllStackTraces()) {
+            sb.appendLine(t.name + " " + t.state)
+            for (frame in frames) sb.appendLine("    at " + frame)
+          }
+          logger.info(sb.toString())
+        }
+      }
+    thread.isDaemon = true
+    thread.name = "labeler-debug-threaddump"
+    thread.start()
+    logger.info("DEBUG threaddump daemon started")
   }
 }

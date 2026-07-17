@@ -290,6 +290,7 @@ class VidLabelingSink(
       // client under [encryptionKeySemaphore] so the WorkItem's group fan-out cannot burst the
       // shared KEK past Cloud KMS rate limits. The permit guards only this short setup, not the
       // streaming write below, so holding it can never stall another group's blob stream.
+      logger.info("DEBUG KMS-WRAP start group=${key.modelLine} blob=$blobKey")
       val aeadStorageClient =
         encryptionKeySemaphore.withPermit {
           val serializedEncryptionKey =
@@ -311,6 +312,7 @@ class VidLabelingSink(
             )
             .withEnvelopeEncryption(encryptKmsClient, encryptKekUri, serializedEncryptionKey)
         }
+      logger.info("DEBUG KMS-WRAP done group=${key.modelLine} blob=$blobKey; GCS-WRITE start")
       try {
         // TODO(world-federation-of-advertisers/cross-media-measurement#3999): Add ifGenerationMatch
         // (write-if-absent) to prevent overwrite races on Pub/Sub redelivery.
