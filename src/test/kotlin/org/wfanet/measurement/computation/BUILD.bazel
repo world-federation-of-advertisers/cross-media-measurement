@@ -14,6 +14,36 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "DeterministicUniformSamplerTest",
+    srcs = ["DeterministicUniformSamplerTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_uniform_sampler",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+    ],
+)
+
+kt_jvm_test(
+    name = "TruncatedLaplaceNoiseDistributionTest",
+    srcs = ["TruncatedLaplaceNoiseDistributionTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:truncated_laplace_noise_distribution",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "DeterministicTruncatedLaplaceNoiseSamplerTest",
+    srcs = ["DeterministicTruncatedLaplaceNoiseSamplerTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_truncated_laplace_noise_sampler",
+        "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_uniform_sampler",
+        "//src/main/kotlin/org/wfanet/measurement/computation:truncated_laplace_noise_distribution",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+    ],
+)
+
+kt_jvm_test(
     name = "HistogramComputationsTest",
     srcs = ["HistogramComputationsTest.kt"],
     deps = [

@@ -22,6 +22,25 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "truncated_laplace_noise_distribution",
+    srcs = ["TruncatedLaplaceNoiseDistribution.kt"],
+)
+
+kt_jvm_library(
+    name = "deterministic_uniform_sampler",
+    srcs = ["DeterministicUniformSampler.kt"],
+)
+
+kt_jvm_library(
+    name = "deterministic_truncated_laplace_noise_sampler",
+    srcs = ["DeterministicTruncatedLaplaceNoiseSampler.kt"],
+    deps = [
+        ":deterministic_uniform_sampler",
+        ":truncated_laplace_noise_distribution",
+    ],
+)
+
+kt_jvm_library(
     name = "impression_computations",
     srcs = ["ImpressionComputations.kt"],
     deps = [
