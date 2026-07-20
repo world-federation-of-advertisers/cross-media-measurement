@@ -200,7 +200,8 @@ reference, and optional entity keys:
 ### 3.3 Impression format and encryption wrapper
 
 * **Protobuf:** `LabeledImpression` messages separated by **RecordIO**. Encrypted
-  files use the extension `.enc.recordio`.
+  files conventionally use the extension `.enc.recordio` (a naming convention, not
+  enforced by the pipeline).
 * Every impression file is encrypted with a **daily DEK**. The DEK is itself
   encrypted with your **KEK** and stored alongside the data as an `EncryptedDek` in
   the day's metadata file.
@@ -224,11 +225,11 @@ key fields are:
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `event_group_metadata` | `Metadata` | Required. `ad_metadata.campaign_metadata.{brand, campaign}` plus optional `entity_metadata`. |
+| `event_group_metadata` | `Metadata` | Required. `ad_metadata.campaign_metadata.{brand, campaign}` plus `entity_metadata` (a `Struct`, `future_disposition = REQUIRED` — populate it). |
 | `data_availability_interval` | `Interval` | Required — the publisher's data-availability window. |
 | `media_types` | `repeated MediaType` | Required — `VIDEO` / `DISPLAY` / `OTHER` / `NATIVE`. |
 | `measurement_consumer` | `string` | Required **unless** `client_account_reference_id` is set. |
-| `client_account_reference_id` | `string` | Reference to a client account in your ecosystem (≤ 36 chars). Required **unless** `measurement_consumer` is set. |
+| `client_account_reference_id` | `string` | Reference to a client account in your ecosystem (the proto documents a 36-character guideline). Required **unless** `measurement_consumer` is set. |
 | `event_group_reference_id` | `string` | Optional; superseded by `entity_key` and planned for deprecation. At least one of `event_group_reference_id` / `entity_key` must be set. |
 | `entity_key` | `EntityKey` | `{ entity_type, entity_id }` — the entity this event group represents. |
 

@@ -299,7 +299,8 @@ Lifecycle rules on `EDPA_STORAGE_BUCKET` automatically delete objects per a rete
 policy, so impression data does not accumulate indefinitely. Rules are configured
 per **prefix**, so each EDP can have its own retention period.
 
-The `storage-bucket` module accepts a `lifecycle_rules` list. Each entry supports:
+The underlying `storage-bucket` module accepts a `lifecycle_rules` list. Each entry
+supports:
 
 | Field | Description | Default |
 | --- | --- | --- |
@@ -309,7 +310,18 @@ The `storage-bucket` module accepts a `lifecycle_rules` list. Each entry support
 | `enable_fallback` | Add an age-based safety-net delete rule | `true` |
 | `fallback_retention_days` | Days after **upload** before the fallback deletes | `3650` (10y) |
 
+The module emits two rules per entry: a **Custom-Time** delete
+(`days_since_custom_time = retention_days`) and, when `enable_fallback` is true, an
+**age-based** delete (`age = fallback_retention_days`) as a safety net.
+
+> **Current limitation.** The `edp-aggregator` module does **not** yet expose
+> `lifecycle_rules` as an input variable — it sets `versioning_enabled = true` and the
+> per-prefix `lifecycle_rules` **inside the module source** (its `edp_aggregator_bucket`
+> block). Today, changing retention therefore means editing the module source rather
+> than passing a variable. The rule shape below is what the module sets internally:
+
 ```hcl
+# Set inside the edp-aggregator module's storage-bucket invocation
 lifecycle_rules = [
   {
     name           = "edp-a"
@@ -324,9 +336,9 @@ lifecycle_rules = [
 ]
 ```
 
-The module emits two rules per entry: a **Custom-Time** delete
-(`days_since_custom_time = retention_days`) and, when `enable_fallback` is true, an
-**age-based** delete (`age = fallback_retention_days`) as a safety net.
+Consider extending the `edp-aggregator` module to surface `lifecycle_rules` (and
+`versioning_enabled`) as variables so operators can tune retention without editing
+module source.
 
 > GCS lifecycle actions run asynchronously — there is no timing guarantee. Google's
 > guidance is not to rely on lifecycle actions occurring within any fixed window; in
@@ -410,14 +422,16 @@ module "edp_aggregator" {
 
   edp_aggregator_bucket_name      = "EDPA_STORAGE_BUCKET"
   config_files_bucket_name        = "EDPA_CONFIG_BUCKET"
-  vid_models_bucket_name          = "VID_MODELS_BUCKET"   # required by the module; only read when VID Labeling is enabled
+  vid_models_bucket_name          = "VID_MODELS_BUCKET"   # required by the module (see the VID Labeling note)
   edp_aggregator_buckets_location = "REGION"
   # ... (continued below)
 }
 ```
 
-Versioning and lifecycle rules for `EDPA_STORAGE_BUCKET` are set inside the module as
-described in [Object Lifecycle Management](#object-lifecycle-management).
+Versioning (`versioning_enabled = true`) and the per-prefix lifecycle rules for
+`EDPA_STORAGE_BUCKET` are currently set **inside the module source**, not via an input
+variable — see the limitation noted under
+[Object Lifecycle Management](#object-lifecycle-management).
 
 ### Secrets
 
@@ -480,7 +494,7 @@ the standard OpenTelemetry variables `OTEL_SERVICE_NAME`, `OTEL_METRICS_EXPORTER
 | `requisition_fetcher` | `KINGDOM_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `GOOGLE_PROJECT_ID`, `GRPC_REQUEST_INTERVAL`, `METADATA_STORAGE_TARGET` |
 | `event_group_sync` | `KINGDOM_TARGET` |
 | `data_availability_sync` | `KINGDOM_TARGET`, `IMPRESSION_METADATA_TARGET` |
-| `data_availability_cleanup` | `IMPRESSION_METADATA_TARGET` |
+| `data_availability_cleanup` | `KINGDOM_TARGET`, `IMPRESSION_METADATA_TARGET` |
 | `data_availability_monitor` | `IMPRESSION_METADATA_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `GOOGLE_PROJECT_ID`, `CONFIG_BLOB_KEY` |
 
 **`secret_mappings` — path/secret consistency is critical.** Each mounted path must
@@ -598,17 +612,35 @@ One variable per function/worker service account:
 (used to attach MIG service accounts to VMs) and `pubsub_iam_service_account_member`
 (the Secure Computation control-plane SA granted publisher on the queues).
 
+The module also requires the deployed **function names** for the functions the
+DataWatcher / DataWatcherDelete invoke over HTTP (used to grant `run.invoker`):
+`event_group_sync_function_name`, `data_availability_sync_function_name`, and
+`data_availability_cleanup_function_name`. These must equal the corresponding
+`cloud_function_configs.*.function_name` values.
+
 ### Optional: VID Labeling pipeline
 
 The module can additionally deploy the memoized VID Labeling pipeline (Phase 0
 SubpoolAssigner, Phase 1 VidRankBuilder, Phase 2 VidLabeler) as Confidential Space
-TEE apps, plus a VidLabelingDispatcher and VidLabelingMonitor. **This is disabled by
-default** — the `vid_labeling_workers` variable defaults to `{}`. VID labeling within
-the aggregator is out of scope for the baseline (Phase 1) R&F deployment; leave
-`vid_labeling_workers` empty unless your market has adopted it. When enabled it uses
-`VID_MODELS_BUCKET`, the `vid_labeling_*` service-account / config / scheduler
-variables, and adds `vid_labeling_dispatcher` / `vid_labeling_monitor` entries to
-`cloud_function_configs`.
+TEE apps, plus a VidLabelingDispatcher and VidLabelingMonitor. VID labeling within
+the aggregator is out of scope for the baseline (Phase 1) R&F deployment.
+
+**Important:** only the **Phase 0/1/2 TEE MIGs and their Pub/Sub queues** are gated by
+the `vid_labeling_workers` map (which defaults to `{}`). Setting an empty map does
+**not** fully disable the pipeline — the **VidLabelingDispatcher** and
+**VidLabelingMonitor** Cloud Functions, their **two schedulers** (dispatch and
+health cadence), and the **`VID_MODELS_BUCKET`** deploy **unconditionally**, and
+their inputs are **required**. Even for a baseline R&F deployment you must therefore
+supply:
+
+* `vid_models_bucket_name`;
+* the `vid_labeling_dispatcher_*` and `vid_labeling_monitor_*` service-account,
+  config, and scheduler variables; and
+* `vid_labeling_dispatcher` / `vid_labeling_monitor` entries in
+  `cloud_function_configs`.
+
+Leave `vid_labeling_workers = {}` to skip the phase workers/queues; provide worker
+entries only once your market has adopted VID labeling.
 
 ---
 
@@ -810,9 +842,11 @@ event_data_provider_config {
 }
 ```
 
-For an AWS-KMS EDP, set `kms_type: AWS` and the `aws_role_arn`,
-`aws_role_session_name`, `aws_region`, and `aws_audience` fields instead of the
-GCP-only fields — the full walkthrough is in the [AWS KMS Setup Guide](aws-kms-setup.md).
+For an AWS-KMS EDP, set `kms_type: AWS` and add the `aws_role_arn`,
+`aws_role_session_name`, `aws_region`, and `aws_audience` fields **in addition to**
+`kms_audience` and `service_account` — the latter two are still required because the
+Confidential VM uses a GCP-WIF hop before assuming the AWS role. The full walkthrough
+is in the [AWS KMS Setup Guide](aws-kms-setup.md).
 
 ### ResultsFulfiller parameters
 
@@ -831,7 +865,7 @@ above, it supports:
   lookup.
 * `trustee_params.kek_uri_to_key_name` — required for TrusTEE support; maps an input
   KEK URI to the re-encryption key name on the same key ring (see the EDP-side
-  [TrusTEE section](edp-onboarding.md#enabling-trustee-optional)).
+  [TrusTEE section](edp-onboarding.md#6-enabling-trustee-optional)).
 * `multi_party_config.supported_noise_types` — restricts accepted noise mechanisms
   for HMSS / TrusTEE requisitions.
 
@@ -842,9 +876,11 @@ above, it supports:
 ### Prerequisites
 
 * A GCP project with billing, and the GKE, Spanner, Cloud Functions, Cloud Run,
-  Eventarc, Pub/Sub, Secret Manager, Confidential Computing, and Cloud Scheduler
-  APIs enabled.
+  Eventarc, Pub/Sub, Secret Manager, Confidential Computing, Cloud KMS, and Cloud
+  Scheduler APIs enabled.
 * An existing Spanner instance.
+* A deployed Kingdom cluster (the EDPA services authenticate against the Kingdom
+  public API).
 * Container images for the Secure Computation API, the EDP Aggregator (Metadata
   Storage) API, and the ResultsFulfiller TEE app, published to your registry.
 * All shared and per-EDP secrets created in Secret Manager.
@@ -879,18 +915,112 @@ terraform plan
 terraform apply
 ```
 
+Both GKE services are populated by applying a K8s **Kustomization** generated from
+[CUE](https://cuelang.org/) via Bazel. The `src/main/k8s/dev` configuration is a
+usable base — substitute your own values. The steps below are one valid path; adjust
+region, names, and sizing to your environment.
+
 ### Step 3 — Deploy the Secure Computation API on GKE
 
-Build and push the container image, generate the Kubernetes Kustomization, customize
-the secrets (TLS keypair signed by `securecomputation-root-ca`) and the ConfigMap,
-then apply. This service must be reachable from the DataWatcher.
+This service must be reachable from the DataWatcher. It assumes a Kingdom cluster is
+already deployed (see [`docs/gke/kingdom-deployment.md`](../gke/kingdom-deployment.md)).
+
+1. **Build and push the container images** (see
+   [Build and push the container images](../gke/kingdom-deployment.md#build-and-push-the-container-images-optional)).
+2. **Generate the Kustomization** (substitute your values):
+
+   ```bash
+   bazel build //src/main/k8s/dev:secure_computation.tar \
+     --define google_cloud_project=PROJECT_ID \
+     --define spanner_instance=SPANNER_INSTANCE \
+     --define kingdom_public_api_address_name=kingdom-v2alpha \
+     --define kingdom_system_api_address_name=kingdom-system-v1alpha \
+     --define container_registry=ghcr.io \
+     --define image_repo_prefix=IMAGE_REPO_PREFIX \
+     --define image_tag=IMAGE_TAG
+   ```
+
+   Extract the archive to a secure, persistent directory (you add secrets to it next).
+3. **Customize the K8s secrets.** Place these files in
+   `src/main/k8s/dev/secure_computation_secrets/`:
+   * `all_root_certs.pem` — the trusted root CA store: the concatenation of the root
+     CAs of every entity the server talks to (Measurement Consumers, result
+     producers, and the Kingdom). If your root certs end in `_root.pem` and each
+     ends with a newline: `cat *_root.pem > all_root_certs.pem`.
+   * `secure_computation_root.pem`, `secure_computation_tls.pem`,
+     `secure_computation_tls.key` — the server's root CA and TLS keypair.
+   * `data_watcher_tls.pem` / `data_watcher_tls.key` — the DataWatcher's TLS keypair
+     (signed by `securecomputation-root-ca`).
+   * `edpa_tee_app_tls.pem` / `edpa_tee_app_tls.key` — the ResultsFulfiller TEE app's
+     TLS keypair.
+
+   > Repo [testing keys](https://github.com/world-federation-of-advertisers/cross-media-measurement/tree/main/src/main/k8s/testing/secretfiles)
+   > exist for test environments only — never use them in production.
+4. **Customize the ConfigMap (`config-files`).** Place `queues_config.textproto`
+   (message `QueuesConfig`, proto
+   `wfa/measurement/config/securecomputation/queues_config.proto`) in
+   `src/main/k8s/dev/secure_computation_config_files/`. **This file is required** —
+   the server is started with `--queue-config=.../config-files/queues_config.textproto`
+   and will not start without it. It declares each work queue and the WorkItem params
+   type it accepts. At minimum it must include the ResultsFulfiller queue; add the VID
+   Labeling queues only if that pipeline is enabled:
+
+   ```textproto
+   # proto-message: wfa.measurement.config.securecomputation.QueuesConfig
+   queueInfos {
+     queue_resource_id: "results-fulfiller-queue"
+     app_params_type_url: "type.googleapis.com/wfa.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams"
+   }
+   ```
+
+   Every `queue_resource_id` here must match the `control_plane_queue_sink.queue`
+   values in the DataWatcher config and the Pub/Sub topics created by Terraform.
+5. **Apply** and verify:
+
+   ```bash
+   kubectl apply -k src/main/k8s/dev/secure_computation
+   kubectl get deployments
+   kubectl get services
+   ```
 
 ### Step 4 — Deploy the EDP Aggregator (Metadata Storage) API on GKE
 
-Build and push the container image, generate the Kustomization, customize the secrets
-(TLS keypair signed by the Metadata Storage root CA), then apply. The service uses
-the Spanner database created in Step 2 and the internal service account bound via
-Workload Identity.
+Backed by the Spanner database created in Step 2, with the internal service account
+bound via Workload Identity.
+
+1. **Build and push the container images.**
+2. **Generate the Kustomization:**
+
+   ```bash
+   bazel build //src/main/k8s/dev:edp_aggregator.tar \
+     --define google_cloud_project=PROJECT_ID \
+     --define spanner_instance=SPANNER_INSTANCE \
+     --define kingdom_public_api_address_name=kingdom-v2alpha \
+     --define kingdom_system_api_address_name=kingdom-system-v1alpha \
+     --define container_registry=ghcr.io \
+     --define image_repo_prefix=IMAGE_REPO_PREFIX \
+     --define image_tag=IMAGE_TAG
+   ```
+3. **Customize the K8s secrets.** Place these in
+   `src/main/k8s/dev/edp_aggregator_secrets/`:
+   * `all_root_certs.pem` — as in Step 3 (`cat *_root.pem > all_root_certs.pem`).
+   * `metadata_storage_root.pem` — the Metadata Storage server's root CA.
+   * `secure_computation_root.pem` — the Secure Computation server's root CA.
+   * `edp_aggregator_tls.pem` / `edp_aggregator_tls.key` — the Metadata Storage
+     server's TLS keypair.
+   * `requisition_fetcher_tls.pem` / `requisition_fetcher_tls.key` — the
+     RequisitionFetcher's TLS keypair.
+   * `edpa_tee_app_tls.pem` / `edpa_tee_app_tls.key` — the ResultsFulfiller TEE app's
+     TLS keypair.
+   * `data_availability_tls.pem` / `data_availability_tls.key` — the
+     DataAvailabilitySync's TLS keypair.
+4. **Apply** and verify:
+
+   ```bash
+   kubectl apply -k src/main/k8s/dev/edp_aggregator
+   kubectl get deployments
+   kubectl get services
+   ```
 
 ---
 
@@ -900,10 +1030,53 @@ An end-to-end cloud test simulates a single-publisher R&F measurement and exerci
 the full pipeline: event-group sync → requisition fetch → impression upload →
 data-availability → ResultsFulfiller → result returned to the CMMS.
 
-To run it you need a data provider registered in the Kingdom, the EDP's KMS key and
-Workload Identity Provider configured (see the [EDP Onboarding Guide](edp-onboarding.md)),
-and the config files uploaded to `EDPA_CONFIG_BUCKET`. Confirm the run produces the
-expected reach & frequency for the simulated publisher.
+### Prerequisites
+
+1. **Register a `DataProvider`** in the Kingdom (see the Kingdom deploy tools).
+2. **Set up the data provider's KMS + Workload Identity Provider** (see the
+   [EDP Onboarding Guide](edp-onboarding.md), or [AWS KMS Setup](aws-kms-setup.md)).
+3. **Upload the config files** to `EDPA_CONFIG_BUCKET`.
+4. **Generate and encrypt synthetic data** with the data provider's KMS using the
+   `GenerateSyntheticData` CLI, e.g. (generic values):
+
+   ```bash
+   bazel --host_jvm_args=-Xmx20g run \
+     //src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:GenerateSyntheticData -- \
+     --event-group-reference-id=event-group-reference-id/EG_REF_ID \
+     --output-bucket=EDPA_STORAGE_BUCKET \
+     --scheme=gs:// \
+     --kms-type=GCP \
+     --kek-uri=gcp-kms://projects/EDP_PROJECT/locations/global/keyRings/RING/cryptoKeys/KEY \
+     --population-spec-resource-path=small_population_spec.textproto \
+     --data-spec-resource-path=small_data_spec.textproto
+   ```
+
+   `--event-group-reference-id` must follow the `event-group-reference-id/<value>`
+   pattern; `--kek-uri` is the data provider's KEK.
+
+### Cloud test steps
+
+The test walks through: (1) event-group creation, (2) upload of the event group to
+the bucket, (3) creating a measurement request, (4) triggering the RequisitionFetcher
+to pull the new requisitions, (5) storing requisitions in the bucket — the DataWatcher
+detects them and creates a WorkItem via the Secure Computation API, (6) the Secure
+Computation API persists the WorkItem in Spanner and publishes to Pub/Sub, (7) the
+ResultsFulfiller (a Pub/Sub subscriber) processes the WorkItem and fulfills the
+requisitions against the Kingdom, and (8) evaluating the results. Confirm the run
+produces the expected reach & frequency for the simulated publisher.
+
+### Confidential Space debugging
+
+The production SEV Confidential Space image type does **not** support container
+logging. For troubleshooting an EDP's attestation/decryption, use a debug image:
+
+1. Set the disk image family to `confidential-space-debug` (via
+   `results_fulfiller_disk_image_family`) instead of `confidential-space`.
+2. Add the MIG instance metadata `tee-container-log-redirect = "true"`.
+
+The debug image also requires the EDP's Workload Identity Provider to **omit** the
+`'STABLE' in assertion.submods.confidential_space.support_attributes` clause (a debug
+image is not `STABLE`). Never use a debug image in production.
 
 ---
 
