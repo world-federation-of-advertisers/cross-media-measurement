@@ -171,6 +171,18 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
   )
   private var pipelineWorkers: Int = 0
 
+  @CommandLine.Option(
+    names = ["--pipeline-read-concurrency"],
+    description =
+      [
+        "Maximum number of impression blobs read and DEK-decrypted concurrently. Bounds the " +
+          "outbound Cloud Storage and Cloud KMS fan-out so a work item cannot exhaust Cloud NAT " +
+          "ports or overwhelm KMS."
+      ],
+    defaultValue = "8",
+  )
+  private var pipelineReadConcurrency: Int = 8
+
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)
   }
@@ -219,6 +231,7 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
         channelCapacity = pipelineChannelCapacity,
         threadPoolSize = if (pipelineThreadPoolSize > 0) pipelineThreadPoolSize else cpuCount,
         workers = if (pipelineWorkers > 0) pipelineWorkers else cpuCount,
+        readConcurrency = pipelineReadConcurrency,
       )
     pipelineConfiguration.validate()
 
