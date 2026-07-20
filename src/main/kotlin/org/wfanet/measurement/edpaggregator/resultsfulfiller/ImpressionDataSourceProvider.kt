@@ -26,6 +26,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResourcesWithAdaptivePageSize
@@ -54,11 +55,17 @@ data class ImpressionDataSource(
  * @param impressionMetadataStub used to sync impressions with the ImpressionsMetadataStorage
  * @param dataProvider The DataProvider resource name
  * @param impressionsMetadataStorageConfig configuration for metadata storage
+ * @param listMaxAttempts maximum total attempts for each `ListImpressionMetadata` page before
+ *   giving up. Transient gRPC failures (`UNAVAILABLE` / `DEADLINE_EXCEEDED`, e.g. a server-side
+ *   rate limit or an overloaded metadata service) are retried so they do not fail the whole report.
+ * @param listRetryBackoff exponential backoff applied between transient list retries.
  */
 class ImpressionDataSourceProvider(
   private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
   private val dataProvider: String,
   private val impressionsMetadataStorageConfig: StorageConfig,
+  private val listMaxAttempts: Int = DEFAULT_LIST_MAX_ATTEMPTS,
+  private val listRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) {
 
   /**
@@ -115,40 +122,50 @@ class ImpressionDataSourceProvider(
           )
         },
       ) { pageToken: String, pageSize: Int ->
-        val response =
-          try {
-            impressionMetadataStub.listImpressionMetadata(
-              listImpressionMetadataRequest {
-                parent = dataProvider
-                filter =
-                  ListImpressionMetadataRequestKt.filter {
-                    modelLine = reportModelLine
-                    when (selector) {
-                      is ImpressionQuerySelector.ByEventGroupReferenceId ->
-                        eventGroupReferenceId = selector.refId
-                      is ImpressionQuerySelector.ByEventGroupReferenceIds ->
-                        eventGroupReferenceIds += selector.refIds
-                      is ImpressionQuerySelector.ByEntityKey ->
-                        this.entityKeys += selector.entityKey
+        // Retry each page on transient gRPC failures (UNAVAILABLE / DEADLINE_EXCEEDED) so a
+        // server-side rate limit or an overloaded metadata service self-heals instead of failing
+        // the whole report. RESOURCE_EXHAUSTED is NOT transient here (isTransientGrpcFailure
+        // ignores
+        // it), so it still propagates to listResourcesWithAdaptivePageSize to halve the page size.
+        retryTransient(listMaxAttempts, listRetryBackoff, ::isTransientGrpcFailure) {
+          val response =
+            try {
+              impressionMetadataStub.listImpressionMetadata(
+                listImpressionMetadataRequest {
+                  parent = dataProvider
+                  filter =
+                    ListImpressionMetadataRequestKt.filter {
+                      modelLine = reportModelLine
+                      when (selector) {
+                        is ImpressionQuerySelector.ByEventGroupReferenceId ->
+                          eventGroupReferenceId = selector.refId
+                        is ImpressionQuerySelector.ByEventGroupReferenceIds ->
+                          eventGroupReferenceIds += selector.refIds
+                        is ImpressionQuerySelector.ByEntityKey ->
+                          this.entityKeys += selector.entityKey
+                      }
+                      intervalOverlaps = period
                     }
-                    intervalOverlaps = period
-                  }
-                this.pageSize = pageSize
-                this.pageToken = pageToken
-              }
-            )
-          } catch (e: StatusException) {
-            // RESOURCE_EXHAUSTED is the adaptive page-size signal (typically the gRPC inbound
-            // message-size limit): propagate it raw so listResourcesWithAdaptivePageSize can halve
-            // and retry. Wrap anything else with context.
-            if (e.status.code == Status.Code.RESOURCE_EXHAUSTED) throw e
-            throw Exception(
-              "Error listing ImpressionMetadata for dataProvider=$dataProvider, " +
-                "modelLine=$reportModelLine, selector=$selector, period=$period: ${e.status}",
-              e,
-            )
-          }
-        ResourceList(response.impressionMetadataList, response.nextPageToken)
+                  this.pageSize = pageSize
+                  this.pageToken = pageToken
+                }
+              )
+            } catch (e: StatusException) {
+              // RESOURCE_EXHAUSTED is the adaptive page-size signal (typically the gRPC inbound
+              // message-size limit): propagate it raw so listResourcesWithAdaptivePageSize can
+              // halve
+              // and retry. Wrap anything else with context (the cause chain keeps the
+              // StatusException
+              // so retryTransient can still detect a transient status).
+              if (e.status.code == Status.Code.RESOURCE_EXHAUSTED) throw e
+              throw Exception(
+                "Error listing ImpressionMetadata for dataProvider=$dataProvider, " +
+                  "modelLine=$reportModelLine, selector=$selector, period=$period: ${e.status}",
+                e,
+              )
+            }
+          ResourceList(response.impressionMetadataList, response.nextPageToken)
+        }
       }
       .flattenConcat()
   }
@@ -205,5 +222,8 @@ class ImpressionDataSourceProvider(
 
     /** Floor for the adaptive page size. */
     private const val MIN_LIST_IMPRESSION_METADATA_PAGE_SIZE = 1
+
+    /** Default maximum total attempts (first attempt + retries) per ListImpressionMetadata page. */
+    private const val DEFAULT_LIST_MAX_ATTEMPTS = 4
   }
 }

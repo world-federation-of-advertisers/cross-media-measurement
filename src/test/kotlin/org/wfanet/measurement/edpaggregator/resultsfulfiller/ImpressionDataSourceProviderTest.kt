@@ -19,9 +19,13 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.timestamp
 import com.google.type.interval
+import io.grpc.Status
+import io.grpc.StatusException
 import java.io.File
+import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -32,6 +36,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toProtoTime
@@ -478,4 +483,74 @@ class ImpressionDataSourceProviderTest {
       assertThat(request.filter.modelLine).isEqualTo(modelLine)
       assertThat(request.filter.hasIntervalOverlaps()).isTrue()
     }
+
+  @Test
+  fun `listImpressionDataSources retries a transient UNAVAILABLE from the metadata service`():
+    Unit = runBlocking {
+    val bucketName = "meta-bucket"
+    val bucketDir = File(tmp.root, bucketName)
+    bucketDir.mkdirs()
+
+    val date = LocalDate.of(2025, 1, 15)
+    val eventGroupRef = "eg-retry"
+    val key = "ds/$date/model-line/$modelLine/event-group-reference-id/$eventGroupRef/metadata"
+    val blobDetailsBytes =
+      blobDetails {
+          blobUri = "file:///impressions/$date/$eventGroupRef"
+          encryptedDek = EncryptedDek.getDefaultInstance()
+        }
+        .toByteString()
+    FileSystemStorageClient(bucketDir).writeBlob(key, blobDetailsBytes)
+
+    val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
+    val end = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant()
+    val period = interval {
+      startTime = timestamp {
+        seconds = start.epochSecond
+        nanos = start.nano
+      }
+      endTime = timestamp {
+        seconds = end.epochSecond
+        nanos = end.nano
+      }
+    }
+
+    // Fail transiently on the first two attempts, then succeed.
+    val attempts = AtomicInteger(0)
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any())).thenAnswer {
+      if (attempts.incrementAndGet() < 3) {
+        throw StatusException(Status.UNAVAILABLE)
+      }
+      listImpressionMetadataResponse {
+        impressionMetadata += impressionMetadata {
+          state = ImpressionMetadata.State.ACTIVE
+          blobUri = "file:///$bucketName/$key"
+          interval = period
+        }
+      }
+    }
+
+    val svc =
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
+        impressionsMetadataStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        listRetryBackoff =
+          ExponentialBackoff(
+            initialDelay = Duration.ofMillis(1),
+            multiplier = 1.0,
+            randomnessFactor = 0.0,
+          ),
+      )
+
+    val sources =
+      svc.listImpressionDataSources(
+        modelLine = modelLine,
+        selector = ImpressionQuerySelector.ByEventGroupReferenceIds(listOf(eventGroupRef)),
+        period = period,
+      )
+
+    assertThat(sources).hasSize(1)
+    assertThat(attempts.get()).isEqualTo(3)
+  }
 }

@@ -291,6 +291,7 @@ kt_jvm_library(
     deps = [
         ":impression_query_selector",
         ":impression_read_exception",
+        ":retries",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
@@ -298,6 +299,8 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
     ],
 )
