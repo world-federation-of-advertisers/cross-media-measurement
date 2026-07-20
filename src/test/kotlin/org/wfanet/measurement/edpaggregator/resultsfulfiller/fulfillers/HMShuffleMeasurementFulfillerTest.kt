@@ -27,6 +27,7 @@ import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 import kotlin.test.assertFails
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -184,6 +185,22 @@ class HMShuffleMeasurementFulfillerTest {
           requisitionsStub = unfulfilledRequisitionsStub,
         )
       assertFails { fulfiller.fulfillRequisition() }
+    }
+  }
+
+  @Test
+  fun `construction rejects non-positive retryMaxAttempts`() {
+    assertFailsWith<IllegalArgumentException> {
+      HMShuffleMeasurementFulfiller(
+        requisition = HMSS_REQUISITION,
+        requisitionNonce = 1L,
+        sampledFrequencyVector = frequencyVector { data += listOf(1) },
+        dataProviderSigningKeyHandle = EDP_SIGNING_KEY,
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        requisitionFulfillmentStubMap = emptyMap(),
+        requisitionsStub = unfulfilledRequisitionsStub,
+        retryMaxAttempts = 0,
+      )
     }
   }
 
