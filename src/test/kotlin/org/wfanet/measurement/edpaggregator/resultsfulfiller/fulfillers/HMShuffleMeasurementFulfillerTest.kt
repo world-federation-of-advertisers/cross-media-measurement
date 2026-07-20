@@ -23,6 +23,8 @@ import io.grpc.StatusException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.SecureRandom
+import java.time.Duration
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 import kotlin.test.assertFails
 import kotlinx.coroutines.flow.Flow
@@ -58,6 +60,7 @@ import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.requisition
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
@@ -181,6 +184,136 @@ class HMShuffleMeasurementFulfillerTest {
           requisitionsStub = unfulfilledRequisitionsStub,
         )
       assertFails { fulfiller.fulfillRequisition() }
+    }
+  }
+
+  @Test
+  fun `fulfillRequisition retries a transient UNAVAILABLE then succeeds`() {
+    runBlocking {
+      val requisitionNonce = Random.Default.nextLong()
+      val sampledFrequencyVector = frequencyVector { data += listOf(4, 5, 6) }
+      val stub: RequisitionFulfillmentCoroutineStub = mock()
+      val attempts = AtomicInteger(0)
+      whenever(stub.fulfillRequisition(any(), any())).thenAnswer {
+        if (attempts.incrementAndGet() < 3) {
+          throw StatusException(Status.UNAVAILABLE)
+        }
+        FulfillRequisitionResponse.getDefaultInstance()
+      }
+
+      val requisition = HMSS_REQUISITION.copy { this.nonce = requisitionNonce }
+      val fulfiller =
+        HMShuffleMeasurementFulfiller(
+          requisition = requisition,
+          requisitionNonce = requisitionNonce,
+          sampledFrequencyVector = sampledFrequencyVector,
+          dataProviderSigningKeyHandle = EDP_SIGNING_KEY,
+          dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+          requisitionFulfillmentStubMap = mapOf("duchies/worker2" to stub),
+          requisitionsStub = unfulfilledRequisitionsStub,
+          retryMaxAttempts = 3,
+          retryBackoff = FAST_BACKOFF,
+        )
+
+      fulfiller.fulfillRequisition()
+
+      assertThat(attempts.get()).isEqualTo(3)
+    }
+  }
+
+  @Test
+  fun `fulfillRequisition retries a transient DEADLINE_EXCEEDED then succeeds`() {
+    runBlocking {
+      val requisitionNonce = Random.Default.nextLong()
+      val sampledFrequencyVector = frequencyVector { data += listOf(4, 5, 6) }
+      val stub: RequisitionFulfillmentCoroutineStub = mock()
+      val attempts = AtomicInteger(0)
+      whenever(stub.fulfillRequisition(any(), any())).thenAnswer {
+        if (attempts.incrementAndGet() < 2) {
+          throw StatusException(Status.DEADLINE_EXCEEDED)
+        }
+        FulfillRequisitionResponse.getDefaultInstance()
+      }
+
+      val requisition = HMSS_REQUISITION.copy { this.nonce = requisitionNonce }
+      val fulfiller =
+        HMShuffleMeasurementFulfiller(
+          requisition = requisition,
+          requisitionNonce = requisitionNonce,
+          sampledFrequencyVector = sampledFrequencyVector,
+          dataProviderSigningKeyHandle = EDP_SIGNING_KEY,
+          dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+          requisitionFulfillmentStubMap = mapOf("duchies/worker2" to stub),
+          requisitionsStub = unfulfilledRequisitionsStub,
+          retryMaxAttempts = 3,
+          retryBackoff = FAST_BACKOFF,
+        )
+
+      fulfiller.fulfillRequisition()
+
+      assertThat(attempts.get()).isEqualTo(2)
+    }
+  }
+
+  @Test
+  fun `fulfillRequisition rethrows after exhausting retries on persistent UNAVAILABLE`() {
+    runBlocking {
+      val requisitionNonce = Random.Default.nextLong()
+      val sampledFrequencyVector = frequencyVector { data += listOf(4, 5, 6) }
+      val stub: RequisitionFulfillmentCoroutineStub = mock()
+      val attempts = AtomicInteger(0)
+      whenever(stub.fulfillRequisition(any(), any())).thenAnswer {
+        attempts.incrementAndGet()
+        throw StatusException(Status.UNAVAILABLE)
+      }
+
+      val requisition = HMSS_REQUISITION.copy { this.nonce = requisitionNonce }
+      val fulfiller =
+        HMShuffleMeasurementFulfiller(
+          requisition = requisition,
+          requisitionNonce = requisitionNonce,
+          sampledFrequencyVector = sampledFrequencyVector,
+          dataProviderSigningKeyHandle = EDP_SIGNING_KEY,
+          dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+          requisitionFulfillmentStubMap = mapOf("duchies/worker2" to stub),
+          requisitionsStub = unfulfilledRequisitionsStub,
+          retryMaxAttempts = 3,
+          retryBackoff = FAST_BACKOFF,
+        )
+
+      assertFails { fulfiller.fulfillRequisition() }
+      assertThat(attempts.get()).isEqualTo(3)
+    }
+  }
+
+  @Test
+  fun `fulfillRequisition does not retry a non-transient error`() {
+    runBlocking {
+      val requisitionNonce = Random.Default.nextLong()
+      val sampledFrequencyVector = frequencyVector { data += listOf(4, 5, 6) }
+      val stub: RequisitionFulfillmentCoroutineStub = mock()
+      val attempts = AtomicInteger(0)
+      whenever(stub.fulfillRequisition(any(), any())).thenAnswer {
+        attempts.incrementAndGet()
+        throw StatusException(Status.INTERNAL)
+      }
+
+      val requisition = HMSS_REQUISITION.copy { this.nonce = requisitionNonce }
+      val fulfiller =
+        HMShuffleMeasurementFulfiller(
+          requisition = requisition,
+          requisitionNonce = requisitionNonce,
+          sampledFrequencyVector = sampledFrequencyVector,
+          dataProviderSigningKeyHandle = EDP_SIGNING_KEY,
+          dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+          requisitionFulfillmentStubMap = mapOf("duchies/worker2" to stub),
+          requisitionsStub = unfulfilledRequisitionsStub,
+          retryMaxAttempts = 4,
+          retryBackoff = FAST_BACKOFF,
+        )
+
+      assertFails { fulfiller.fulfillRequisition() }
+      assertThat(attempts.get()).isEqualTo(1)
     }
   }
 
@@ -316,6 +449,12 @@ class HMShuffleMeasurementFulfillerTest {
   }
 
   companion object {
+    private val FAST_BACKOFF =
+      ExponentialBackoff(
+        initialDelay = Duration.ofMillis(1),
+        multiplier = 1.0,
+        randomnessFactor = 0.0,
+      )
     private const val EDP_ID = "someDataProvider"
     private const val EDP_NAME = "dataProviders/$EDP_ID"
     private const val EDP_DISPLAY_NAME = "edp1"
