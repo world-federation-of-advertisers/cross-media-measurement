@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.protobuf.ByteString
 import com.google.protobuf.util.JsonFormat
 import com.google.type.Interval
+import io.grpc.Status
 import io.grpc.StatusException
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -27,7 +28,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
-import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.common.api.grpc.listResourcesWithAdaptivePageSize
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
@@ -104,7 +105,16 @@ class ImpressionDataSourceProvider(
   ): Flow<ImpressionMetadata> {
     logger.info("Resolving path for impression metadata: $reportModelLine, $selector, $period")
     return impressionMetadataStub
-      .listResources { pageToken: String ->
+      .listResourcesWithAdaptivePageSize(
+        startingPageSize = LIST_IMPRESSION_METADATA_STARTING_PAGE_SIZE,
+        minPageSize = MIN_LIST_IMPRESSION_METADATA_PAGE_SIZE,
+        onPageSizeReduced = { oldSize, newSize ->
+          logger.warning(
+            "ListImpressionMetadata returned RESOURCE_EXHAUSTED at page_size=$oldSize for " +
+              "dataProvider=$dataProvider; halving to $newSize and retrying"
+          )
+        },
+      ) { pageToken: String, pageSize: Int ->
         val response =
           try {
             impressionMetadataStub.listImpressionMetadata(
@@ -123,10 +133,15 @@ class ImpressionDataSourceProvider(
                     }
                     intervalOverlaps = period
                   }
+                this.pageSize = pageSize
                 this.pageToken = pageToken
               }
             )
           } catch (e: StatusException) {
+            // RESOURCE_EXHAUSTED is the adaptive page-size signal (typically the gRPC inbound
+            // message-size limit): propagate it raw so listResourcesWithAdaptivePageSize can halve
+            // and retry. Wrap anything else with context.
+            if (e.status.code == Status.Code.RESOURCE_EXHAUSTED) throw e
             throw Exception(
               "Error listing ImpressionMetadata for dataProvider=$dataProvider, " +
                 "modelLine=$reportModelLine, selector=$selector, period=$period: ${e.status}",
@@ -179,5 +194,16 @@ class ImpressionDataSourceProvider(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    /**
+     * Page size to request for `ListImpressionMetadata`. Large so a whole interval's metadata is
+     * fetched in a handful of RPCs instead of hundreds; `listResourcesWithAdaptivePageSize` halves
+     * it toward [MIN_LIST_IMPRESSION_METADATA_PAGE_SIZE] if a page ever exceeds the gRPC message
+     * limit. Must be <= the services' MAX_PAGE_SIZE or the server clamps it back down.
+     */
+    private const val LIST_IMPRESSION_METADATA_STARTING_PAGE_SIZE = 1000
+
+    /** Floor for the adaptive page size. */
+    private const val MIN_LIST_IMPRESSION_METADATA_PAGE_SIZE = 1
   }
 }

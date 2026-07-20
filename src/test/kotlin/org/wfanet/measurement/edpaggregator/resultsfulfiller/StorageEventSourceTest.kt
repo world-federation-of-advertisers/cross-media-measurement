@@ -51,6 +51,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.Mockito.reset
+import org.mockito.Mockito.times
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.verify
@@ -1353,6 +1354,63 @@ class StorageEventSourceTest {
       // 3 event groups x 1 date x 5 events per file.
       assertThat(batches.flatMap { it.events }).hasSize(15)
     }
+
+  @Test
+  fun `generateEventBatches issues one batched call per distinct interval`(): Unit = runBlocking {
+    // Two event groups on two different intervals -> one batched request per interval.
+    val dateA = LocalDate.of(2025, 1, 1)
+    val dateB = LocalDate.of(2025, 1, 2)
+    val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
+    val impressionsTmpPath = tmp.newFolder("impressions-multi-interval")
+    val metadataTmpPath = tmp.newFolder("metadata-multi-interval")
+    createImpressionFilesForDate(
+      impressionsTmpPath,
+      metadataTmpPath,
+      dateA,
+      "iv-a",
+      kmsClient,
+      kekUri,
+      serializedEncryptionKey,
+    )
+    createImpressionFilesForDate(
+      impressionsTmpPath,
+      metadataTmpPath,
+      dateB,
+      "iv-b",
+      kmsClient,
+      kekUri,
+      serializedEncryptionKey,
+    )
+    val metadataList =
+      createImpressionMetadataList(listOf(dateA), "iv-a", "meta-bucket", modelLine) +
+        createImpressionMetadataList(listOf(dateB), "iv-b", "meta-bucket", modelLine)
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += metadataList })
+
+    val eventGroupDetailsList =
+      listOf(
+        createEventGroupDetails("iv-a", dateA, dateA.plusDays(1), ZoneId.of("UTC")),
+        createEventGroupDetails("iv-b", dateB, dateB.plusDays(1), ZoneId.of("UTC")),
+      )
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+        eventGroupDetailsList = eventGroupDetailsList,
+        modelLine = modelLine,
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    eventSource.generateEventBatches().toList()
+
+    // Exactly two requests, one per distinct interval, each carrying only its interval's ref id.
+    val captor = argumentCaptor<ListImpressionMetadataRequest>()
+    verify(impressionMetadataServiceMock, times(2)).listImpressionMetadata(captor.capture())
+    val byRefIds = captor.allValues.map { it.filter.eventGroupReferenceIdsList.toList() }.toSet()
+    assertThat(byRefIds).containsExactly(listOf("iv-a"), listOf("iv-b"))
+  }
 
   @Test
   fun `generateEventBatches queries by eventGroupReferenceId when entity key has empty entityId`():
