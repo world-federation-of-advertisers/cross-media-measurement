@@ -16,6 +16,10 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.cloud.spanner.DatabaseId
+import com.google.cloud.spanner.Spanner
+import com.google.cloud.spanner.SpannerOptions
+import com.google.cloud.spanner.Statement as SpannerStatement
 import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
@@ -114,6 +118,7 @@ class SeedRawImpressionsRule(
     val rootPath = Path(localRoot.toURI())
 
     deleteExistingRawImpressions(storage)
+    deleteExistingRawImpressionUploads()
 
     val datesWritten = sortedSetOf<String>()
     for ((refId, config) in eventGroupConfigs) {
@@ -242,6 +247,57 @@ class SeedRawImpressionsRule(
       .forEach { blob -> storage.delete(RAW_IMPRESSIONS_BUCKET, blob.name) }
   }
 
+  /**
+   * Hard-deletes this test's own `RawImpressionUpload` rows before seeding, so a re-run does not
+   * collide on the `RawImpressionUploadFileByBlobUri` unique index. Via `ON DELETE CASCADE` this
+   * also removes every interleaved child (files, model lines, pool-assignment / ranker / rank-index
+   * / labeling jobs).
+   *
+   * That `(DataProviderResourceId, BlobUri)` index is the only cross-run collider; every other
+   * unique index is upload-scoped (includes `RawImpressionUploadId`) or per-attempt, so deleting
+   * the parent upload clears them all.
+   *
+   * Scoped precisely to this test's footprint: `DoneBlobUri` starting with
+   * `gs://<[RAW_IMPRESSIONS_BUCKET]>/<[RAW_IMPRESSIONS_PREFIX]>/<date>/` for each [PIPELINED_DATES]
+   * date. A colleague's rows for a different EDP (different prefix / `DataProviderResourceId`), a
+   * different date range (different `/<date>/` segment), or a different bucket are left untouched.
+   * Mirrors the GCS-side prefix cleanup in [deleteExistingRawImpressions].
+   *
+   * A no-op (with a warning) unless [SPANNER_INSTANCE] resolves, so runs without DB access are
+   * unaffected. The CI runner authenticates as the Terraform service account, which holds
+   * `roles/spanner.admin` (data-plane DML included).
+   */
+  private fun deleteExistingRawImpressionUploads() {
+    if (SPANNER_INSTANCE.isEmpty() || PROJECT_ID.isEmpty()) {
+      logger.warning(
+        "SPANNER_INSTANCE/GOOGLE_CLOUD_PROJECT unresolved; skipping RawImpressionUpload cleanup " +
+          "(a re-run may collide on RawImpressionUploadFileByBlobUri)."
+      )
+      return
+    }
+    val spanner: Spanner = SpannerOptions.newBuilder().setProjectId(PROJECT_ID).build().service
+    try {
+      val databaseClient =
+        spanner.getDatabaseClient(DatabaseId.of(PROJECT_ID, SPANNER_INSTANCE, SPANNER_DATABASE))
+      for (date in PIPELINED_DATES) {
+        val donePrefix = "gs://$RAW_IMPRESSIONS_BUCKET/$RAW_IMPRESSIONS_PREFIX/$date/"
+        // Partitioned DML deletes the parent rows (idempotent, no mutation limit); Spanner cascades
+        // to the interleaved children. STARTS_WITH keeps the scope to this test's exact prefix.
+        val statement =
+          SpannerStatement.newBuilder(
+              "DELETE FROM RawImpressionUpload WHERE STARTS_WITH(DoneBlobUri, @donePrefix)"
+            )
+            .bind("donePrefix")
+            .to(donePrefix)
+            .build()
+        val deleted = databaseClient.executePartitionedUpdate(statement)
+        logger.info("Deleted $deleted RawImpressionUpload row(s) (cascaded) under $donePrefix")
+      }
+    } finally {
+      spanner.close()
+    }
+  }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
@@ -279,5 +335,12 @@ class SeedRawImpressionsRule(
     private val RAW_IMPRESSIONS_BUCKET: String = env("RAW_IMPRESSIONS_BUCKET")
     private val RAW_IMPRESSIONS_PREFIX: String =
       env("RAW_IMPRESSIONS_PREFIX").ifEmpty { "raw-impressions/edp/edp7" }.trimEnd('/')
+
+    // EDP Aggregator Spanner coordinates for the pre-run cleanup. The instance is the deployed
+    // Spanner instance (GitHub var SPANNER_INSTANCE, forwarded by the cloud-test workflow); the
+    // database name is the fixed convention used across the Terraform (e.g. dashboard.tf). Both are
+    // overridable via env.
+    private val SPANNER_INSTANCE: String = env("SPANNER_INSTANCE")
+    private val SPANNER_DATABASE: String = env("SPANNER_DATABASE").ifEmpty { "edp-aggregator" }
   }
 }
