@@ -16,7 +16,8 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.common.server
 
-import io.grpc.BindableService
+import io.grpc.ServerServiceDefinition
+import java.io.File
 import java.time.Duration
 import kotlin.properties.Delegates
 import kotlinx.coroutines.CoroutineDispatcher
@@ -26,8 +27,11 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withInterceptor
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.grpc.withVerboseLogging
+import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.config.RateLimitConfig
 import org.wfanet.measurement.edpaggregator.service.v1alpha.Services
 import picocli.CommandLine
 
@@ -71,6 +75,27 @@ class SystemApiServer : Runnable {
   )
   private lateinit var channelShutdownTimeout: Duration
 
+  @CommandLine.Option(
+    names = ["--rate-limit-config-file"],
+    description =
+      [
+        "File path to a RateLimitConfig protobuf message in text format.",
+        "If unset, expensive List methods are bounded by a conservative default and all other " +
+          "methods are unlimited.",
+      ],
+    required = false,
+  )
+  private var rateLimitConfigFile: File? = null
+
+  private val rateLimitConfig: RateLimitConfig by lazy {
+    val configFile = rateLimitConfigFile
+    if (configFile == null) {
+      EdpaApiRateLimiting.defaultConfig(EdpaApiRateLimiting.PUBLIC_API_EXPENSIVE_METHODS)
+    } else {
+      parseTextProto(configFile, RateLimitConfig.getDefaultInstance())
+    }
+  }
+
   override fun run() {
     val clientCerts =
       SigningCerts.fromPemFiles(
@@ -84,8 +109,11 @@ class SystemApiServer : Runnable {
         .withVerboseLogging(debugVerboseGrpcClientLogging)
     val serviceDispatcher: CoroutineDispatcher = serviceFlags.executor.asCoroutineDispatcher()
 
-    val services: List<BindableService> =
-      Services.build(internalApiChannel, serviceDispatcher).toList()
+    val rateLimitingInterceptor = EdpaApiRateLimiting.interceptor(rateLimitConfig)
+    val services: List<ServerServiceDefinition> =
+      Services.build(internalApiChannel, serviceDispatcher).toList().map {
+        it.withInterceptor(rateLimitingInterceptor)
+      }
 
     val server: CommonServer = CommonServer.fromFlags(serverFlags, SERVER_NAME, services)
     server.start().blockUntilShutdown()

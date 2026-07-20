@@ -16,12 +16,17 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
-import io.grpc.BindableService
+import io.grpc.ServerServiceDefinition
+import java.io.File
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.ServiceFlags
+import org.wfanet.measurement.common.grpc.withInterceptor
+import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.config.RateLimitConfig
+import org.wfanet.measurement.edpaggregator.deploy.common.server.EdpaApiRateLimiting
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
@@ -35,13 +40,36 @@ class InternalApiServer : Runnable {
   @CommandLine.Mixin private lateinit var serviceFlags: ServiceFlags
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
+  @CommandLine.Option(
+    names = ["--rate-limit-config-file"],
+    description =
+      [
+        "File path to a RateLimitConfig protobuf message in text format.",
+        "If unset, expensive List methods are bounded by a conservative default and all other " +
+          "methods are unlimited.",
+      ],
+    required = false,
+  )
+  private var rateLimitConfigFile: File? = null
+
+  private val rateLimitConfig: RateLimitConfig by lazy {
+    val configFile = rateLimitConfigFile
+    if (configFile == null) {
+      EdpaApiRateLimiting.defaultConfig(EdpaApiRateLimiting.INTERNAL_API_EXPENSIVE_METHODS)
+    } else {
+      parseTextProto(configFile, RateLimitConfig.getDefaultInstance())
+    }
+  }
+
   override fun run() {
     runBlocking {
       spannerFlags.usingSpanner { spanner ->
         val databaseClient: AsyncDatabaseClient = spanner.databaseClient
-        val services: List<BindableService> =
+        val rateLimitingInterceptor = EdpaApiRateLimiting.interceptor(rateLimitConfig)
+        val services: List<ServerServiceDefinition> =
           InternalApiServices.build(databaseClient, serviceFlags.executor.asCoroutineDispatcher())
             .toList()
+            .map { it.withInterceptor(rateLimitingInterceptor) }
         val server = CommonServer.fromFlags(serverFlags, SERVER_NAME, services)
 
         server.start().blockUntilShutdown()
