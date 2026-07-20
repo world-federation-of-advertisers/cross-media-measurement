@@ -27,8 +27,10 @@ import org.wfanet.measurement.config.rateLimitConfig
  *
  * The public (system) and internal metadata services stayed responsive for cheap RPCs but were
  * overwhelmed (OOM, bare `INTERNAL`) by large `List*` calls. This bounds those expensive methods so
- * the servers shed load cleanly (rejecting with `UNAVAILABLE`, which the fulfiller's per-op retry
- * absorbs) instead of falling over.
+ * the servers shed load cleanly by rejecting with `UNAVAILABLE`. The fulfiller absorbs that: its
+ * `ListImpressionMetadata` calls retry transient statuses (see
+ * `ImpressionDataSourceProvider.getImpressionsMetadata`), so a rejection backs off and self-heals
+ * instead of failing the report.
  *
  * CAVEAT: [org.wfanet.measurement.common.ratelimit.TokenBucket] is a *rate* limiter (requests/sec +
  * burst), not a *concurrency* limiter. For OOM specifically — too many simultaneous large-response
@@ -39,12 +41,14 @@ import org.wfanet.measurement.config.rateLimitConfig
 object EdpaApiRateLimiting {
   /**
    * Default burst (max in-flight token count) allowed for an expensive `List*` method before it
-   * starts rejecting. Deliberately conservative; tune via `--rate-limit-config-file`.
+   * starts rejecting. Sized above a single report's own steady-state pagination (a large report
+   * resolves metadata in a handful of paginated calls) so legitimate traffic is not throttled; the
+   * limit exists to shed genuine overload. Tune via `--rate-limit-config-file`.
    */
-  const val DEFAULT_EXPENSIVE_METHOD_MAX_REQUEST_COUNT = 20
+  const val DEFAULT_EXPENSIVE_METHOD_MAX_REQUEST_COUNT = 200
 
   /** Default sustained request rate (requests/second) for an expensive `List*` method. */
-  const val DEFAULT_EXPENSIVE_METHOD_AVERAGE_REQUEST_RATE = 10.0
+  const val DEFAULT_EXPENSIVE_METHOD_AVERAGE_REQUEST_RATE = 100.0
 
   /**
    * gRPC full method names (`<package>.<Service>/<Method>`) of the expensive public v1alpha
@@ -76,8 +80,10 @@ object EdpaApiRateLimiting {
       RateLimitConfigKt.rateLimit {
         defaultRateLimit =
           RateLimitConfigKt.methodRateLimit {
-            this.maximumRequestCount = -1 // Unlimited: cheap RPCs are not throttled.
-            this.averageRequestRate = 1.0
+            // Unlimited: cheap RPCs are not throttled. maximumRequestCount < 0 short-circuits to
+            // RateLimiter.Unlimited before any TokenBucket is built, so averageRequestRate would be
+            // inert here and is intentionally left unset.
+            this.maximumRequestCount = -1
           }
         val boundedRateLimit =
           RateLimitConfigKt.methodRateLimit {
