@@ -111,6 +111,28 @@ class VidLabelerModelResourcesRule(
   var memoizedModelLine: String? = null
     private set
 
+  /**
+   * Resource name of the first non-memoized (hash-only) cloudtest model line, populated by
+   * [provision]. The cloud test points its measurements at this line: its VID assignment is a pure
+   * function of the impression (static model + hash), so it is deterministically reproducible
+   * offline, unlike the memoized line. Null if provisioning was skipped.
+   */
+  var nonMemoizedModelLine: String? = null
+    private set
+
+  /** GCS URI of the non-memoized (hash-only) compiled model blob the pipeline labels with. */
+  val nonMemoizedModelBlobUri: String
+    get() = NON_MEMOIZED_MODEL_BLOB_URI
+
+  /**
+   * The `labeler_input_field_mapping` the deployed pipeline uses to build a `LabelerInput` from the
+   * raw-impression columns. Exposed so the test can run the same labeler offline over the
+   * out-of-band days and reproduce the pipeline's VID assignment.
+   */
+  val labelerInputFieldMapping: List<LabelerInputFieldMapping> by lazy {
+    buildModelLineConfig().labelerInputFieldMappingList
+  }
+
   private data class LineSpec(
     val displayName: String,
     val memoized: Boolean,
@@ -156,6 +178,7 @@ class VidLabelerModelResourcesRule(
         getOrCreateModelShard(modelShardsStub, releaseName, spec.modelBlobUri, spec.memoized)
         modelLineNames.add(line.name)
         if (spec.memoized) memoizedModelLine = line.name
+        else if (nonMemoizedModelLine == null) nonMemoizedModelLine = line.name
         logger.info("Provisioned model line ${line.name} (memoized=${spec.memoized}).")
       }
 
