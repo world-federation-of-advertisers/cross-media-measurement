@@ -362,7 +362,13 @@ class VidRankBuilder(
       )
     } catch (e: StatusException) {
       if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
-      logger.info("WorkItem $workItemId already exists; skipping (idempotent re-run)")
+      logger.warning(
+        "WorkItem " +
+          workItemId +
+          " already exists (ALREADY_EXISTS); skipping as idempotent " +
+          "re-run; verify this request_id is upload-scoped, else a cross-run collision would be " +
+          "silently skipped here (same shape as the dispatcher ALREADY_EXISTS/BlobUri bug)"
+      )
     }
   }
 
