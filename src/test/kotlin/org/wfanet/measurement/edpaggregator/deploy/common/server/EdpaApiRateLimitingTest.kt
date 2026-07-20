@@ -18,14 +18,50 @@ package org.wfanet.measurement.edpaggregator.deploy.common.server
 
 import com.google.common.truth.Truth.assertThat
 import io.grpc.Context
+import io.grpc.Status
+import io.grpc.StatusException
+import kotlin.test.assertFailsWith
 import kotlin.time.TestTimeSource
+import kotlinx.coroutines.runBlocking
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
 import org.wfanet.measurement.common.grpc.RateLimiterProvider
+import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.grpc.withInterceptor
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 
 @RunWith(JUnit4::class)
 class EdpaApiRateLimitingTest {
+  private val impressionMetadataServiceMock =
+    mockService<ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase> {
+      onBlocking { listImpressionMetadata(any()) } doReturn
+        ListImpressionMetadataResponse.getDefaultInstance()
+    }
+
+  // Server wires the real interceptor + default config (bounding ListImpressionMetadata to a burst
+  // of 2) exactly as the API servers do, so an over-limit call is exercised end-to-end.
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(
+      impressionMetadataServiceMock.withInterceptor(
+        EdpaApiRateLimiting.interceptor(
+          EdpaApiRateLimiting.defaultConfig(
+            EdpaApiRateLimiting.PUBLIC_API_EXPENSIVE_METHODS,
+            maximumRequestCount = 2,
+            averageRequestRate = 1.0,
+          )
+        )
+      )
+    )
+  }
+
   @Test
   fun `defaultConfig bounds each expensive public method`() {
     val config =
@@ -77,11 +113,19 @@ class EdpaApiRateLimitingTest {
   }
 
   @Test
-  fun `interceptor is built from config`() {
-    val interceptor =
-      EdpaApiRateLimiting.interceptor(
-        EdpaApiRateLimiting.defaultConfig(EdpaApiRateLimiting.PUBLIC_API_EXPENSIVE_METHODS)
-      )
-    assertThat(interceptor).isNotNull()
-  }
+  fun `interceptor rejects an expensive method over the limit with UNAVAILABLE`(): Unit =
+    runBlocking {
+      val stub =
+        ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(
+          grpcTestServerRule.channel
+        )
+      val request = listImpressionMetadataRequest { parent = "dataProviders/123" }
+
+      // A burst of 2 is allowed; the third call trips the global per-method limit.
+      stub.listImpressionMetadata(request)
+      stub.listImpressionMetadata(request)
+      val exception = assertFailsWith<StatusException> { stub.listImpressionMetadata(request) }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    }
 }
