@@ -286,11 +286,12 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       // The pipeline (and WriteReusedLabeledImpressionsRule) write under
       // `<edp_impression_path>/model-line/<modelLineId>/<date>/`, so the `done` markers that
       // trigger the DataAvailabilitySync must sit in that same per-model-line folder. Use the
-      // memoized model line the pre-labeled data is stamped with.
-      val modelLine = provisionModelResources.memoizedModelLine ?: TEST_CONFIG.modelLine
+      // non-memoized model line the pre-labeled data is stamped with (the line the measurements
+      // use).
+      val modelLine = provisionModelResources.nonMemoizedModelLine ?: TEST_CONFIG.modelLine
       val modelLineId =
         requireNotNull(ModelLineKey.fromName(modelLine)) {
-            "memoized model line must be a full ModelLine resource name: $modelLine"
+            "non-memoized model line must be a full ModelLine resource name: $modelLine"
           }
           .modelLineId
       buildPaths(modelLineId).forEach { path ->
@@ -458,9 +459,20 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         populationSpec,
         resolvedSyntheticEventGroupMap,
         reportName,
-        provisionModelResources.memoizedModelLine ?: TEST_CONFIG.modelLine,
+        provisionModelResources.nonMemoizedModelLine ?: TEST_CONFIG.modelLine,
         listEventGroupsEntityTypes = listOf("campaign", "creative-id"),
         onMeasurementsCreated = ::triggerRequisitionFetcher,
+        // Compute the expected reach/frequency from the VIDs the deployed non-memoized model
+        // assigns (not the raw synthetic VIDs), matching the pre-staged and pipelined labeled data.
+        vidLabeler = { impression ->
+          val event = impression.message as TestEvent
+          nonMemoizedVidLabeler.assignVid(
+            impression.vid,
+            event.person.gender.name,
+            event.person.ageGroup.name,
+            impression.timestamp,
+          )
+        },
       )
     }
 
@@ -555,19 +567,38 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         TEST_CONFIG.kingdomPublicApiTarget,
         TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
       )
+
+    /**
+     * The deployed non-memoized (hash-only) labeler, loaded once (lazily, after
+     * [provisionModelResources] runs) so the out-of-band pre-staged impressions and the expected
+     * results carry the same VID the pipeline assigns on the pipelined day. See
+     * [NonMemoizedVidLabeler].
+     */
+    private val nonMemoizedVidLabeler: NonMemoizedVidLabeler by lazy {
+      runBlocking {
+        NonMemoizedVidLabeler.create(
+          modelBlobUri = provisionModelResources.nonMemoizedModelBlobUri,
+          gcsProjectId =
+            System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set"),
+          labelerInputFieldMapping = provisionModelResources.labelerInputFieldMapping,
+        )
+      }
+    }
     private val uploadEventGroup = UploadEventGroup()
     private val seedRawImpressions = SeedRawImpressionsRule(populationSpec, edp7EventGroupConfigs)
     private val awaitVidLabeling = AwaitVidLabelingRule()
-    // Writes pre-labeled impressions stamped with the memoized model line for the dates the
+    // Writes pre-labeled impressions stamped with the non-memoized model line for the dates the
     // pipeline does not produce, so the `done` blobs dropped by createDoneBlobs register them under
-    // the memoized line. Must run after provisionModelResources (needs memoizedModelLine) and
-    // uploadEventGroup, and before createDoneBlobs.
+    // that line. Each impression is relabeled with the non-memoized labeler so its VID matches what
+    // the pipeline assigns on the pipelined day. Must run after provisionModelResources (needs
+    // nonMemoizedModelLine) and uploadEventGroup, and before createDoneBlobs.
     private val writeReusedLabeledImpressions =
       WriteReusedLabeledImpressionsRule(
         config = IMPRESSION_TEST_DATA_CONFIG,
         populationSpec = populationSpec,
         bucket = TEST_CONFIG.storageBucket,
-        memoizedModelLineProvider = { provisionModelResources.memoizedModelLine },
+        modelLineProvider = { provisionModelResources.nonMemoizedModelLine },
+        vidLabelerProvider = { nonMemoizedVidLabeler },
       )
     private val createDoneBlobs = CreateDoneBlobs()
     private val measurementSystem = RunningMeasurementSystem()

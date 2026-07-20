@@ -45,11 +45,10 @@ import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
  * model line** for the dates the deployed VID Labeling pipeline does not produce, so the
  * DataWatcher / DataAvailabilitySync register `ImpressionMetadata` for those dates under it.
  *
- * The correctness test measures the memoized model line
- * ([VidLabelerModelResourcesRule.memoizedModelLine]), but the pre-staged out-of-band impressions
- * under `edp/edp7/<date>/` and `edp/edpa_meta/<date>/` were stamped with the *default* line.
- * Without this rule the results-fulfiller finds no impressions for the memoized line on the
- * non-pipelined dates.
+ * The correctness test measures the memoized model line ([VidLabelerModelResourcesRule.modelLine]),
+ * but the pre-staged out-of-band impressions under `edp/edp7/<date>/` and `edp/edpa_meta/<date>/`
+ * were stamped with the *default* line. Without this rule the results-fulfiller finds no
+ * impressions for the memoized line on the non-pipelined dates.
  *
  * Both EDPs' impressions are regenerated and re-encrypted (impressions blob + metadata sidecar via
  * [ImpressionsWriter]), stamped with the memoized line, matching the flat-folder layout the
@@ -62,9 +61,9 @@ import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
  *   ([AwsKmsClientFactory] + [AwsWebIdentityCredentials]). The deployed results-fulfiller decrypts
  *   the same bytes with the same AWS KEK, so AWS KMS is exercised end to end.
  *
- * It must run **after** [VidLabelerModelResourcesRule] (needs `memoizedModelLine`) and the event
- * group upload, and **before** `CreateDoneBlobs` so the `done` markers dropped there trigger
- * registration of this data.
+ * It must run **after** [VidLabelerModelResourcesRule] (needs `modelLine`) and the event group
+ * upload, and **before** `CreateDoneBlobs` so the `done` markers dropped there trigger registration
+ * of this data.
  *
  * Dates handled:
  * * **edp7** — every non-pipelined date in [START_DATE]`..`[END_DATE] (i.e. excluding
@@ -80,33 +79,34 @@ import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
  * @property populationSpec the synthetic population, shared with the direct path so both EDPs draw
  *   from the same universe.
  * @property bucket the storage bucket the results-fulfiller / DataAvailabilitySync read from.
- * @property memoizedModelLineProvider yields the memoized model line resource name to stamp; when
- *   it returns null (provisioning skipped) the rule is a no-op.
+ * @property modelLineProvider yields the memoized model line resource name to stamp; when it
+ *   returns null (provisioning skipped) the rule is a no-op.
  */
 class WriteReusedLabeledImpressionsRule(
   private val config: ImpressionTestDataConfig,
   private val populationSpec: PopulationSpec,
   private val bucket: String,
-  private val memoizedModelLineProvider: () -> String?,
+  private val modelLineProvider: () -> String?,
+  private val vidLabelerProvider: () -> NonMemoizedVidLabeler,
 ) : TestRule {
 
   override fun apply(base: Statement, description: Description): Statement {
     return object : Statement() {
       override fun evaluate() {
-        val memoizedModelLine = memoizedModelLineProvider()
-        if (memoizedModelLine == null) {
+        val modelLine = modelLineProvider()
+        if (modelLine == null) {
           logger.warning(
             "No memoized model line provisioned; skipping memoized labeled-impression setup."
           )
         } else {
-          runBlocking { write(memoizedModelLine) }
+          runBlocking { write(modelLine) }
         }
         base.evaluate()
       }
     }
   }
 
-  private suspend fun write(memoizedModelLine: String) {
+  private suspend fun write(modelLine: String) {
     // ImpressionsWriter / EncryptedStorage generate a per-blob StreamingAEAD DEK
     // (AES128_GCM_HKDF_1MB) wrapped by the KMS AEAD KEK, so both Tink configs must be registered
     // first. register() is idempotent; mirrors InProcessEdpAggregatorComponents.
@@ -116,16 +116,16 @@ class WriteReusedLabeledImpressionsRule(
     // with its Google Cloud KMS KEK, edpa_meta with its AWS KMS KEK (assumed via web-identity
     // federation). Generating rather than re-stamping lets each event group carry its real entity
     // key, which is how the results-fulfiller matches impressions to event groups.
-    regenerateEdp7Impressions(memoizedModelLine)
-    regenerateEdpaMetaImpressions(memoizedModelLine)
+    regenerateEdp7Impressions(modelLine)
+    regenerateEdpaMetaImpressions(modelLine)
   }
 
   /**
    * Regenerates edp7's impressions (impressions blob + metadata sidecar) via [ImpressionsWriter],
-   * stamped with [memoizedModelLine], for every non-pipelined date. No-op when [edp7KekUri] is
-   * unresolved so unrelated runs are unaffected.
+   * stamped with [modelLine], for every non-pipelined date. No-op when [edp7KekUri] is unresolved
+   * so unrelated runs are unaffected.
    */
-  private suspend fun regenerateEdp7Impressions(memoizedModelLine: String) {
+  private suspend fun regenerateEdp7Impressions(modelLine: String) {
     if (edp7KekUri.isEmpty()) {
       logger.warning("edp7 storage KEK URI unresolved; skipping edp7 memoized-impression write.")
       return
@@ -134,7 +134,7 @@ class WriteReusedLabeledImpressionsRule(
     val datesToWrite: Set<LocalDate> = ALL_DATES - EDP7_PIPELINED_DATES
     for (eventGroup in config.eventGroupsList) {
       if (eventGroup.edpName != EDP7_NAME) continue
-      writeEventGroup(eventGroup, datesToWrite, memoizedModelLine, kmsClient, edp7KekUri)
+      writeEventGroup(eventGroup, datesToWrite, modelLine, kmsClient, edp7KekUri)
     }
   }
 
@@ -143,12 +143,12 @@ class WriteReusedLabeledImpressionsRule(
    * a single [event group][ImpressionTestDataConfig.SyntheticEventGroup], under the canonical
    * per-EDP, per-model-line layout `<output_base_path>/model-line/<modelLineId>/<date>/` that the
    * deployed VidLabeler produces, so the pre-labeled data lands in the same folder the
-   * DataAvailabilitySync crawls. Restricted to [datesToWrite] and stamped with [memoizedModelLine].
+   * DataAvailabilitySync crawls. Restricted to [datesToWrite] and stamped with [modelLine].
    */
   private suspend fun writeEventGroup(
     eventGroup: ImpressionTestDataConfig.SyntheticEventGroup,
     datesToWrite: Set<LocalDate>,
-    memoizedModelLine: String,
+    modelLine: String,
     kmsClient: KmsClient,
     kekUri: String,
   ) {
@@ -164,11 +164,38 @@ class WriteReusedLabeledImpressionsRule(
         schema = GCS_SCHEME,
         outputKey = eventGroup.outputKey,
       )
+    val vidLabeler = vidLabelerProvider()
     val shards: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
-      generateShards(eventGroup).filter { it.localDate in datesToWrite }
+      generateShards(eventGroup)
+        .filter { it.localDate in datesToWrite }
+        .map { shard ->
+          // Replace each event's synthetic VID with the VID the deployed non-memoized model
+          // assigns,
+          // so these out-of-band days carry the SAME VID the pipeline produces for 2021-03-21 (same
+          // person -> same VID across all days and both publishers). See [NonMemoizedVidLabeler].
+          shard.copy(
+            entityKeysWithLabeledEvents =
+              shard.entityKeysWithLabeledEvents.map { group ->
+                group.copy(
+                  labeledEvents =
+                    group.labeledEvents.map { event ->
+                      event.copy(
+                        vid =
+                          vidLabeler.assignVid(
+                            event.vid,
+                            event.message.person.gender.name,
+                            event.message.person.ageGroup.name,
+                            event.timestamp,
+                          )
+                      )
+                    }
+                )
+              }
+          )
+        }
     impressionWriter.writeLabeledImpressionData(
       shards,
-      memoizedModelLine,
+      modelLine,
       modelLineOutputBasePath = eventGroup.outputBasePath,
     )
     logger.info(
@@ -181,15 +208,15 @@ class WriteReusedLabeledImpressionsRule(
   /**
    * Regenerates edpa_meta's impressions (impressions blob + metadata sidecar) via
    * [ImpressionsWriter] for **every** date in the window (edpa_meta is never pipelined, so the test
-   * produces all of its dates out-of-band), stamped with [memoizedModelLine] and each event group's
-   * real entity key.
+   * produces all of its dates out-of-band), stamped with [modelLine] and each event group's real
+   * entity key.
    *
    * Encrypts with edpa_meta's **AWS KMS** KEK, assumed via web-identity federation
    * ([AwsKmsClientFactory] + [AwsWebIdentityCredentials]), so the deployed results-fulfiller
    * decrypts the same bytes with the same AWS KEK. No-op when the edpa_meta AWS settings are
    * unresolved so unrelated runs are unaffected.
    */
-  private suspend fun regenerateEdpaMetaImpressions(memoizedModelLine: String) {
+  private suspend fun regenerateEdpaMetaImpressions(modelLine: String) {
     if (
       EDPA_META_KEK_URI.isEmpty() ||
         EDPA_META_AWS_ROLE_ARN.isEmpty() ||
@@ -213,7 +240,7 @@ class WriteReusedLabeledImpressionsRule(
         )
     for (eventGroup in config.eventGroupsList) {
       if (eventGroup.edpName != EDPA_META_NAME) continue
-      writeEventGroup(eventGroup, ALL_DATES, memoizedModelLine, kmsClient, EDPA_META_KEK_URI)
+      writeEventGroup(eventGroup, ALL_DATES, modelLine, kmsClient, EDPA_META_KEK_URI)
     }
   }
 

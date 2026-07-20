@@ -200,6 +200,7 @@ kt_jvm_library(
     srcs = [
         "AwaitVidLabelingRule.kt",
         "EdpAggregatorCorrectnessTest.kt",
+        "NonMemoizedVidLabeler.kt",
         "SeedRawImpressionsRule.kt",
         "VidLabelerModelResourcesRule.kt",
         "WriteReusedLabeledImpressionsRule.kt",
@@ -211,6 +212,8 @@ kt_jvm_library(
     deps = [
         ":abstract_edp_aggregator_correctness_test",
         "//imports/java/com/google/crypto/tink/integration/gcpkms",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:labeler_input_mapper",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_assigner",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:event_group_config",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:impression_test_data_configs",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeled_event",
@@ -258,6 +261,7 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
         "@wfa_common_jvm//src/main/proto/wfa/measurement/storage:parquet_row_kt_jvm_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_kt_jvm_proto",
     ],
 )
 
