@@ -754,6 +754,9 @@ class ImpressionMetadataService(
         if (request.filter.eventGroupReferenceId.isNotEmpty()) {
           eventGroupReferenceId = request.filter.eventGroupReferenceId
         }
+        if (request.filter.eventGroupReferenceIdsList.isNotEmpty()) {
+          eventGroupReferenceIds += request.filter.eventGroupReferenceIdsList
+        }
         if (request.filter.hasIntervalOverlaps()) {
           intervalOverlaps = request.filter.intervalOverlaps
         }

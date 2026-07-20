@@ -1148,6 +1148,28 @@ class ImpressionMetadataServiceTest {
     }
 
   @Test
+  fun `listImpressionMetadata with event group reference ids filter returns ImpressionMetadata`() =
+    runBlocking {
+      val created = createImpressionMetadata(IMPRESSION_METADATA, IMPRESSION_METADATA_2)
+
+      // The batched filter forwards both reference ids to the internal service.
+      val response =
+        service.listImpressionMetadata(
+          listImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            filter =
+              ListImpressionMetadataRequestKt.filter {
+                eventGroupReferenceIds +=
+                  listOf(created[0].eventGroupReferenceId, created[1].eventGroupReferenceId)
+              }
+          }
+        )
+
+      assertThat(response)
+        .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created })
+    }
+
+  @Test
   fun `listImpressionMetadata with interval overlaps filter returns ImpressionMetadata`() =
     runBlocking {
       val created = createImpressionMetadata(IMPRESSION_METADATA, IMPRESSION_METADATA_2)

@@ -116,6 +116,8 @@ class ImpressionDataSourceProvider(
                     when (selector) {
                       is ImpressionQuerySelector.ByEventGroupReferenceId ->
                         eventGroupReferenceId = selector.refId
+                      is ImpressionQuerySelector.ByEventGroupReferenceIds ->
+                        eventGroupReferenceIds += selector.refIds
                       is ImpressionQuerySelector.ByEntityKey ->
                         this.entityKeys += selector.entityKey
                     }
