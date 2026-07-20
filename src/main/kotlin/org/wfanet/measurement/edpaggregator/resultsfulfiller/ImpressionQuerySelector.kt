@@ -28,7 +28,13 @@ sealed class ImpressionQuerySelector {
   /** Query impression metadata by entity key. */
   data class ByEntityKey(val entityKey: EntityKey) : ImpressionQuerySelector()
 
-  /** Query impression metadata by event group reference ID. */
+  /**
+   * Query impression metadata by a single event group reference ID.
+   *
+   * Retained for symmetry with the singular `event_group_reference_id` filter field (kept for
+   * back-compat) even though the results-fulfiller now batches via [ByEventGroupReferenceIds];
+   * still used by tests and available to any single-event-group caller.
+   */
   data class ByEventGroupReferenceId(val refId: String) : ImpressionQuerySelector()
 
   /**
