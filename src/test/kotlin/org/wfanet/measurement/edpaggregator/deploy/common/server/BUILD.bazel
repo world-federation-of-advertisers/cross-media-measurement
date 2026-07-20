@@ -1,0 +1,15 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "EdpaApiRateLimitingTest",
+    srcs = ["EdpaApiRateLimitingTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.deploy.common.server.EdpaApiRateLimitingTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:rate_limiter_provider",
+        "//src/main/kotlin/org/wfanet/measurement/common/ratelimit:rate_limiter",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/common/server:api_rate_limiting",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
