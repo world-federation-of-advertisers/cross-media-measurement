@@ -26,6 +26,7 @@ import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.Empty
+import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Message
 import com.google.protobuf.timestamp
 import com.google.type.interval
@@ -370,6 +371,97 @@ class StorageEventSourceTest {
         )
       }
     assertThat(exception.message).isEqualTo("eventGroupDetailsList must not be empty")
+  }
+
+  @Test
+  fun `construction rejects non-positive readConcurrency`() {
+    val impressionService = createImpressionDataSourceProvider(tmp.root)
+    val (kmsClient, _, _) = createKmsSetup()
+
+    assertFailsWith<IllegalArgumentException> {
+      StorageEventSource(
+        impressionDataSourceProvider = impressionService,
+        eventGroupDetailsList =
+          listOf(
+            createEventGroupDetails(
+              "g",
+              LocalDate.of(2025, 1, 1),
+              LocalDate.of(2025, 1, 2),
+              ZoneId.of("UTC"),
+            )
+          ),
+        modelLine = modelLine,
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+        readConcurrency = 0,
+      )
+    }
+  }
+
+  @Test
+  fun `construction rejects non-positive readMaxAttempts`() {
+    val impressionService = createImpressionDataSourceProvider(tmp.root)
+    val (kmsClient, _, _) = createKmsSetup()
+
+    assertFailsWith<IllegalArgumentException> {
+      StorageEventSource(
+        impressionDataSourceProvider = impressionService,
+        eventGroupDetailsList =
+          listOf(
+            createEventGroupDetails(
+              "g",
+              LocalDate.of(2025, 1, 1),
+              LocalDate.of(2025, 1, 2),
+              ZoneId.of("UTC"),
+            )
+          ),
+        modelLine = modelLine,
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+        readMaxAttempts = 0,
+      )
+    }
+  }
+
+  @Test
+  fun `generateEventBatches fails fast on a corrupt blob without retrying`(): Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    val metadataTmpPath = tmp.newFolder("metadata-corrupt")
+    seedMetadataSources(metadataTmpPath, date, listOf("corrupt-group"))
+
+    val attempts = AtomicInteger(0)
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+        eventGroupDetailsList =
+          listOf(
+            createEventGroupDetails("corrupt-group", date, date.plusDays(1), ZoneId.of("UTC"))
+          ),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+        readMaxAttempts = 3,
+        readRetryBackoff = FAST_BACKOFF,
+        eventReaderFactory = { _ ->
+          object : EventReader<Message> {
+            override suspend fun readEvents(): Flow<List<LabeledEvent<Message>>> = flow {
+              // A malformed blob surfaces as InvalidProtocolBufferException (an IOException); it
+              // must fail fast, not be retried.
+              attempts.incrementAndGet()
+              throw InvalidProtocolBufferException("corrupt blob")
+            }
+          }
+        },
+      )
+
+    assertFailsWith<InvalidProtocolBufferException> { eventSource.generateEventBatches().toList() }
+    assertThat(attempts.get()).isEqualTo(1)
   }
 
   @Test

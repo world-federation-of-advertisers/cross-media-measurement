@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
@@ -53,9 +54,8 @@ suspend fun <T> retryTransient(
     attempt++
     try {
       return block()
-    } catch (e: CancellationException) {
-      throw e
-    } catch (e: Throwable) {
+    } catch (e: Exception) {
+      if (e is CancellationException) throw e
       if (attempt >= maxAttempts || !isTransient(e)) {
         throw e
       }
@@ -76,11 +76,18 @@ suspend fun <T> retryTransient(
  * host terminated the handshake"), and a KMS `GeneralSecurityException` ("decryption failed") wraps
  * an `IOException` ("Error requesting access token") from the token endpoint. Transient gRPC
  * statuses ([Status.Code.UNAVAILABLE] / [Status.Code.DEADLINE_EXCEEDED]) are also treated as
- * transient. Non-transient failures (e.g. a missing blob or malformed data) are not matched, so
- * they fail fast rather than burning the retry budget.
+ * transient.
+ *
+ * [InvalidProtocolBufferException] is explicitly excluded even though it is an [IOException]: a
+ * blob that fails to parse is permanently corrupt data, not a transient blip, so it must fail fast
+ * rather than burn the retry budget. Other non-transient failures (e.g. a missing blob) are simply
+ * not matched.
  */
 fun isTransientStorageFailure(t: Throwable): Boolean {
-  return t.causalChain().any { cause -> cause is IOException || cause.isTransientGrpcStatus() }
+  return t.causalChain().any { cause ->
+    (cause is IOException && cause !is InvalidProtocolBufferException) ||
+      cause.isTransientGrpcStatus()
+  }
 }
 
 /**

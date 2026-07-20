@@ -179,9 +179,11 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
           "outbound Cloud Storage and Cloud KMS fan-out so a work item cannot exhaust Cloud NAT " +
           "ports or overwhelm KMS."
       ],
+    // Keep in sync with PipelineConfiguration.DEFAULT_READ_CONCURRENCY (picocli requires a
+    // literal).
     defaultValue = "8",
   )
-  private var pipelineReadConcurrency: Int = 8
+  private var pipelineReadConcurrency: Int = PipelineConfiguration.DEFAULT_READ_CONCURRENCY
 
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)

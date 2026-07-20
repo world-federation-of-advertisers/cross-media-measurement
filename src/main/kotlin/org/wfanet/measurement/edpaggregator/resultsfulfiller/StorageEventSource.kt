@@ -136,7 +136,7 @@ class StorageEventSource(
   private val impressionsStorageConfig: StorageConfig,
   private val descriptor: Descriptors.Descriptor,
   private val batchSize: Int,
-  private val readConcurrency: Int = DEFAULT_READ_CONCURRENCY,
+  private val readConcurrency: Int = PipelineConfiguration.DEFAULT_READ_CONCURRENCY,
   private val readMaxAttempts: Int = DEFAULT_READ_MAX_ATTEMPTS,
   private val readRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
   private val eventReaderFactory: (BlobDetails) -> EventReader<Message> = { blobDetails ->
@@ -380,9 +380,6 @@ class StorageEventSource(
 
   companion object {
     private val logger = Logger.getLogger(StorageEventSource::class.java.name)
-
-    /** Default bound on concurrent per-blob storage read + DEK decrypt operations. */
-    const val DEFAULT_READ_CONCURRENCY = 8
 
     /** Default maximum total attempts for reading a single blob (first attempt + retries). */
     const val DEFAULT_READ_MAX_ATTEMPTS = 4
