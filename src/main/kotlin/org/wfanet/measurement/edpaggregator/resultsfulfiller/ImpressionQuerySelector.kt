@@ -30,4 +30,12 @@ sealed class ImpressionQuerySelector {
 
   /** Query impression metadata by event group reference ID. */
   data class ByEventGroupReferenceId(val refId: String) : ImpressionQuerySelector()
+
+  /**
+   * Query impression metadata by a set of event group reference IDs in a single request.
+   *
+   * Lets the caller batch many event groups that share a collection interval into one paginated
+   * `ListImpressionMetadata` call instead of one call per event group.
+   */
+  data class ByEventGroupReferenceIds(val refIds: List<String>) : ImpressionQuerySelector()
 }

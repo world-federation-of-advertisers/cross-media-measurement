@@ -116,6 +116,10 @@ message ListImpressionMetadataRequest {
   message Filter {
     string cmms_model_line = 1;
     string event_group_reference_id = 2;
+    // The event group reference IDs to filter by. An `ImpressionMetadata`
+    // matches if its `event_group_reference_id` is any of these. If both this
+    // and `event_group_reference_id` are set, results must match both.
+    repeated string event_group_reference_ids = 8;
     google.type.Interval interval_overlaps = 3;
     ImpressionMetadataState state = 4;
     // The blob URI prefix to filter by.

@@ -419,6 +419,10 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
       conjuncts.add("ImpressionMetadata.EventGroupReferenceId = @eventGroupReferenceId")
     }
 
+    if (filter.eventGroupReferenceIdsList.isNotEmpty()) {
+      conjuncts.add("ImpressionMetadata.EventGroupReferenceId IN UNNEST(@eventGroupReferenceIds)")
+    }
+
     if (filter.hasIntervalOverlaps()) {
       conjuncts.add(
         "ImpressionMetadata.IntervalStartTime < @intervalOverlapsEndTime AND ImpressionMetadata.IntervalEndTime > @intervalOverlapsStartTime"
@@ -478,6 +482,10 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
 
       if (filter.eventGroupReferenceId.isNotEmpty()) {
         bind("eventGroupReferenceId").to(filter.eventGroupReferenceId)
+      }
+
+      if (filter.eventGroupReferenceIdsList.isNotEmpty()) {
+        bind("eventGroupReferenceIds").toStringArray(filter.eventGroupReferenceIdsList)
       }
 
       if (filter.hasIntervalOverlaps()) {

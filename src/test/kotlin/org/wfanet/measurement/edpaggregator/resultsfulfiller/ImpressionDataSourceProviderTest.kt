@@ -437,4 +437,45 @@ class ImpressionDataSourceProviderTest {
     assertThat(request.filter.modelLine).isEqualTo(modelLine)
     assertThat(request.filter.hasIntervalOverlaps()).isTrue()
   }
+
+  @Test
+  fun `listImpressionDataSources by event group reference ids builds correct filter`(): Unit =
+    runBlocking {
+      val svc = createService()
+
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse {})
+
+      val date = LocalDate.of(2025, 4, 10)
+      val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
+      val end = date.plusDays(5).atStartOfDay(ZoneId.of("UTC")).toInstant()
+      val period = interval {
+        startTime = timestamp {
+          seconds = start.epochSecond
+          nanos = start.nano
+        }
+        endTime = timestamp {
+          seconds = end.epochSecond
+          nanos = end.nano
+        }
+      }
+
+      val results =
+        svc.listImpressionDataSources(
+          modelLine,
+          ImpressionQuerySelector.ByEventGroupReferenceIds(listOf("eg-1", "eg-2", "eg-3")),
+          period,
+        )
+
+      assertThat(results).isEmpty()
+
+      val captor = argumentCaptor<ListImpressionMetadataRequest>()
+      verify(impressionMetadataServiceMock).listImpressionMetadata(captor.capture())
+      val request = captor.firstValue
+      assertThat(request.filter.eventGroupReferenceIdsList).containsExactly("eg-1", "eg-2", "eg-3")
+      assertThat(request.filter.eventGroupReferenceId).isEmpty()
+      assertThat(request.filter.entityKeysList).isEmpty()
+      assertThat(request.filter.modelLine).isEqualTo(modelLine)
+      assertThat(request.filter.hasIntervalOverlaps()).isTrue()
+    }
 }
