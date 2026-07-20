@@ -317,7 +317,7 @@ class VidLabelingSink(
         // (write-if-absent) to prevent overwrite races on Pub/Sub redelivery.
         MesosRecordIoStorageClient(aeadStorageClient)
           .writeBlob(
-            blobKey,
+            SelectedStorageClient.parseBlobUri(outputBlobUri).key,
             channel.consumeAsFlow().map { impression ->
               updateAggregates(impression)
               impression.toByteString()
@@ -328,6 +328,11 @@ class VidLabelingSink(
         throw e
       } catch (e: Exception) {
         metrics.labelingErrorsCounter.add(1, labelAttributes(key.modelLine))
+        logger.log(
+          java.util.logging.Level.SEVERE,
+          "Labeled-output writer failed for model line " + key.modelLine + " at " + outputBlobUri,
+          e,
+        )
         throw e
       }
       metrics.blobsWrittenCounter.add(1, labelAttributes(key.modelLine))
@@ -379,7 +384,7 @@ class VidLabelingSink(
           storageConfig.rootDirectory,
           storageConfig.projectId,
         )
-        .writeBlob(metadataKey, details.toByteString())
+        .writeBlob(SelectedStorageClient.parseBlobUri(metadataUri).key, details.toByteString())
     }
   }
 
