@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
@@ -136,6 +137,17 @@ class RetriesTest {
     assertThat(isTransientStorageFailure(IllegalArgumentException("bad blob"))).isFalse()
     // A genuine crypto failure with no IO cause must not be retried.
     assertThat(isTransientStorageFailure(GeneralSecurityException("decryption failed"))).isFalse()
+  }
+
+  @Test
+  fun `isTransientStorageFailure treats protobuf parse failures as non-transient`() {
+    // InvalidProtocolBufferException is an IOException, but a corrupt/unparseable blob is
+    // permanently bad data and must fail fast, not be retried.
+    assertThat(isTransientStorageFailure(InvalidProtocolBufferException("corrupt"))).isFalse()
+    assertThat(
+        isTransientStorageFailure(RuntimeException(InvalidProtocolBufferException("corrupt")))
+      )
+      .isFalse()
   }
 
   @Test
