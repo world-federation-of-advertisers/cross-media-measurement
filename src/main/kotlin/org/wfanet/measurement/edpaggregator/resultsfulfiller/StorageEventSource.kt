@@ -26,6 +26,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Descriptors
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Message
+import com.google.type.Interval
 import java.io.IOException
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
@@ -236,22 +237,42 @@ class StorageEventSource(
     }
 
     val allSources =
-      eventGroupDetailsList.flatMap { details ->
-        logger.info("EventGroup details: $details")
-        val selector =
-          if (useEntityKeyStrategy) {
+      if (useEntityKeyStrategy) {
+        eventGroupDetailsList.flatMap { details ->
+          logger.info("EventGroup details: $details")
+          val selector =
             ImpressionQuerySelector.ByEntityKey(
               entityKey {
                 entityType = details.entityKey.entityType
                 entityId = details.entityKey.entityId
               }
             )
-          } else {
-            ImpressionQuerySelector.ByEventGroupReferenceId(details.eventGroupReferenceId)
+          details.collectionIntervalsList.flatMap { interval ->
+            logger.info("EventGroup collection interval: $interval")
+            impressionDataSourceProvider.listImpressionDataSources(modelLine, selector, interval)
           }
-        details.collectionIntervalsList.flatMap { interval ->
-          logger.info("EventGroup collection interval: $interval")
-          impressionDataSourceProvider.listImpressionDataSources(modelLine, selector, interval)
+        }
+      } else {
+        // Batch every event-group reference ID that shares a collection interval into ONE paginated
+        // ListImpressionMetadata call (an IN UNNEST query) instead of one call per event group.
+        // This collapses hundreds of metadata RPCs per report into a handful.
+        val referenceIdsByInterval = LinkedHashMap<Interval, MutableSet<String>>()
+        for (details in eventGroupDetailsList) {
+          for (interval in details.collectionIntervalsList) {
+            referenceIdsByInterval
+              .getOrPut(interval) { linkedSetOf() }
+              .add(details.eventGroupReferenceId)
+          }
+        }
+        referenceIdsByInterval.flatMap { (interval, referenceIds) ->
+          logger.info(
+            "Batching ${referenceIds.size} event-group reference IDs for interval: $interval"
+          )
+          impressionDataSourceProvider.listImpressionDataSources(
+            modelLine,
+            ImpressionQuerySelector.ByEventGroupReferenceIds(referenceIds.toList()),
+            interval,
+          )
         }
       }
     val result = allSources.distinctBy { it.blobDetails.blobUri }

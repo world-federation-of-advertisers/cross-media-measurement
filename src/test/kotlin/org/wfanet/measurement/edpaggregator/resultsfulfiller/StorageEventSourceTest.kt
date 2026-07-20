@@ -1295,12 +1295,63 @@ class StorageEventSourceTest {
       assertThat(batches).isNotEmpty()
       assertThat(batches.flatMap { it.events }).hasSize(5)
 
-      // Verify the request used eventGroupReferenceId filter, not entity_keys
+      // Verify the request batched the reference id into event_group_reference_ids, not entity_keys
       val captor = argumentCaptor<ListImpressionMetadataRequest>()
       verify(impressionMetadataServiceMock).listImpressionMetadata(captor.capture())
       val request = captor.firstValue
-      assertThat(request.filter.eventGroupReferenceId).isEqualTo(eventGroupRef)
+      assertThat(request.filter.eventGroupReferenceIdsList).containsExactly(eventGroupRef)
+      assertThat(request.filter.eventGroupReferenceId).isEmpty()
       assertThat(request.filter.entityKeysList).isEmpty()
+    }
+
+  @Test
+  fun `generateEventBatches batches event groups sharing an interval into one request`(): Unit =
+    runBlocking {
+      val date = LocalDate.of(2025, 1, 1)
+      val refIds = listOf("batch-a", "batch-b", "batch-c")
+      val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
+      val impressionsTmpPath = tmp.newFolder("impressions-batch")
+      val metadataTmpPath = tmp.newFolder("metadata-batch")
+      for (refId in refIds) {
+        createImpressionFilesForDate(
+          impressionsTmpPath,
+          metadataTmpPath,
+          date,
+          refId,
+          kmsClient,
+          kekUri,
+          serializedEncryptionKey,
+        )
+      }
+      val metadataList =
+        refIds.flatMap { createImpressionMetadataList(listOf(date), it, "meta-bucket", modelLine) }
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse { impressionMetadata += metadataList })
+
+      val eventGroupDetailsList =
+        refIds.map { createEventGroupDetails(it, date, date.plusDays(1), ZoneId.of("UTC")) }
+      val eventSource =
+        StorageEventSource(
+          impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+          eventGroupDetailsList = eventGroupDetailsList,
+          modelLine = modelLine,
+          kmsClient = kmsClient,
+          impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+          descriptor = TestEvent.getDescriptor(),
+          batchSize = 1000,
+        )
+
+      val batches = eventSource.generateEventBatches().toList()
+
+      // The three event groups share the interval, so exactly one paginated request covers them
+      // all.
+      val captor = argumentCaptor<ListImpressionMetadataRequest>()
+      verify(impressionMetadataServiceMock).listImpressionMetadata(captor.capture())
+      assertThat(captor.firstValue.filter.eventGroupReferenceIdsList)
+        .containsExactly("batch-a", "batch-b", "batch-c")
+      assertThat(captor.firstValue.filter.eventGroupReferenceId).isEmpty()
+      // 3 event groups x 1 date x 5 events per file.
+      assertThat(batches.flatMap { it.events }).hasSize(15)
     }
 
   @Test
@@ -1364,11 +1415,12 @@ class StorageEventSourceTest {
     assertThat(batches).isNotEmpty()
     assertThat(batches.flatMap { it.events }).hasSize(5)
 
-    // Verify the request used eventGroupReferenceId filter, not entity_keys
+    // Verify the request batched the reference id into event_group_reference_ids, not entity_keys
     val captor = argumentCaptor<ListImpressionMetadataRequest>()
     verify(impressionMetadataServiceMock).listImpressionMetadata(captor.capture())
     val request = captor.firstValue
-    assertThat(request.filter.eventGroupReferenceId).isEqualTo(eventGroupRef)
+    assertThat(request.filter.eventGroupReferenceIdsList).containsExactly(eventGroupRef)
+    assertThat(request.filter.eventGroupReferenceId).isEmpty()
     assertThat(request.filter.entityKeysList).isEmpty()
   }
 

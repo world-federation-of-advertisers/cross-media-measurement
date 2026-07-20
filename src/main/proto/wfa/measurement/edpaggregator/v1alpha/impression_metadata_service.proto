@@ -230,6 +230,14 @@ message ListImpressionMetadataRequest {
     string event_group_reference_id = 2
         [(google.api.field_behavior) = OPTIONAL];
 
+    // The event group reference IDs to filter by. An `ImpressionMetadata`
+    // matches if its `event_group_reference_id` is any of these. Lets a caller
+    // fetch metadata for many event groups in one request instead of one
+    // request per event group. If both this and `event_group_reference_id` are
+    // set, results must match both.
+    repeated string event_group_reference_ids = 7
+        [(google.api.field_behavior) = OPTIONAL];
+
     // The time interval to filter by. The `ImpressionMetadata` time range must
     // overlap with this interval.
     google.type.Interval interval_overlaps = 3
