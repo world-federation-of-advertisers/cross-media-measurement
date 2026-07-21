@@ -299,16 +299,18 @@ class VidLabelingMonitorFunction : HttpFunction {
         dataProviderName = config.dataProvider,
         stalenessThreshold = config.stalenessThreshold.toDuration(),
         rawImpressionUploadFileStub = rawImpressionUploadFileStub,
-        rawImpressionsStorageClient =
+        rawImpressionsStorageClientProvider = {
           createStorageClient(
             config.rawImpressionsStorageParams.gcs.bucketName,
             config.rawImpressionsStorageParams.gcs.projectId,
-          ),
-        vidLabeledImpressionsStorageClient =
+          )
+        },
+        vidLabeledImpressionsStorageClientProvider = {
           createStorageClient(
             config.vidLabeledImpressionsStorageParams.gcs.bucketName,
             config.vidLabeledImpressionsStorageParams.gcs.projectId,
-          ),
+          )
+        },
         rankerJobStub = rankerJobStub,
         vidLabelingJobStub = vidLabelingJobStub,
         workItemsStub = workItemsStub,

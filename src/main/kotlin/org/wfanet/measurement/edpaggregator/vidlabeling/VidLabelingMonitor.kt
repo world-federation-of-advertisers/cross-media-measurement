@@ -92,16 +92,23 @@ class VidLabelingMonitor(
   private val dispatchSequencer: VidLabelingDispatchSequencer,
   private val dataProviderName: String,
   private val stalenessThreshold: Duration,
-  private val rawImpressionsStorageClient: StorageClient,
+  rawImpressionsStorageClientProvider: () -> StorageClient,
   private val rawImpressionUploadFileStub:
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub,
-  private val vidLabeledImpressionsStorageClient: StorageClient,
+  vidLabeledImpressionsStorageClientProvider: () -> StorageClient,
   private val rankerJobStub: RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub,
   private val vidLabelingJobStub: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub,
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   private val clock: Clock = Clock.systemUTC(),
   private val metrics: VidLabelingMonitorMetrics = VidLabelingMonitorMetrics(),
 ) {
+
+  // Built lazily so the fast `dispatch` cadence never resolves GCS credentials it does not
+  // use; only the `health` data-quality crawl forces these.
+  private val rawImpressionsStorageClient: StorageClient by
+    lazy(rawImpressionsStorageClientProvider)
+  private val vidLabeledImpressionsStorageClient: StorageClient by
+    lazy(vidLabeledImpressionsStorageClientProvider)
 
   /** Outcome of a dispatch-only monitor run (the fast cadence) for a DataProvider. */
   data class DispatchOnlyResult(
