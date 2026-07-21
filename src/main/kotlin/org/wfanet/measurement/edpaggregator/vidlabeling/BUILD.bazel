@@ -8,6 +8,12 @@ package(default_visibility = [
 kt_jvm_library(
     name = "request_ids",
     srcs = ["RequestIds.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/deadletter:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/deadletter:__pkg__",
+    ],
 )
 
 kt_jvm_library(
