@@ -847,8 +847,7 @@ class VidLabelingMonitorTest {
       .isEqualTo(1)
     val createCaptor = argumentCaptor<CreateWorkItemRequest>()
     verifyBlocking(workItemsService) { createWorkItem(createCaptor.capture()) }
-    assertThat(createCaptor.firstValue.workItemId)
-      .isEqualTo("$RANKER_WORK_ITEM-monitor-recovery-1")
+    assertThat(createCaptor.firstValue.workItemId).isEqualTo("$RANKER_WORK_ITEM-monitor-recovery-1")
     assertThat(createCaptor.firstValue.workItem.queue).isEqualTo("queues/ranker")
     // C3: a successful recovery is not an issue; only exhausted recovery is.
     assertThat(result.hasIssues).isFalse()
@@ -949,7 +948,8 @@ class VidLabelingMonitorTest {
     assertThat(result.recoveredTransitions).isEqualTo(1)
     val createCaptor = argumentCaptor<CreateWorkItemRequest>()
     verifyBlocking(workItemsService) { createWorkItem(createCaptor.capture()) }
-    assertThat(createCaptor.firstValue.workItemId).isEqualTo("$VID_LABELER_WORK_ITEM-monitor-recovery-1")
+    assertThat(createCaptor.firstValue.workItemId)
+      .isEqualTo("$VID_LABELER_WORK_ITEM-monitor-recovery-1")
     assertThat(createCaptor.firstValue.workItem.queue).isEqualTo("queues/labeler")
   }
 

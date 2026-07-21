@@ -189,10 +189,7 @@ class VidLabelingMonitor(
       metrics.uploadsDispatchedCounter.add(1, dataProviderAttributes())
       logger.info("Dispatched ${dispatch.dispatchedUpload}")
     }
-    metrics.uploadsQueuedGauge.set(
-      dispatch.queuedUploads.toLong(),
-      dataProviderAttributes(),
-    )
+    metrics.uploadsQueuedGauge.set(dispatch.queuedUploads.toLong(), dataProviderAttributes())
     return DispatchOnlyResult(
       dispatchedUpload = dispatch.dispatchedUpload,
       queuedUploads = dispatch.queuedUploads,
@@ -253,10 +250,7 @@ class VidLabelingMonitor(
     // uploadsStuckGauge is the alerting signal (alert on > 0 over a duration window, which dedupes
     // naturally). Set unconditionally (including 0) so a recovered DataProvider reads back to 0. No
     // per-tick SEVERE log, which would re-page on every Cloud Scheduler tick until manual recovery.
-    metrics.uploadsStuckGauge.set(
-      stuckUploads.size.toLong(),
-      dataProviderAttributes(),
-    )
+    metrics.uploadsStuckGauge.set(stuckUploads.size.toLong(), dataProviderAttributes())
 
     // Scan CREATED/ACTIVE/FAILED uploads for FAILED model lines: a rolled-up FAILED upload's lines
     // must surface, as must a FAILED line under an otherwise-live upload. Model lines come from the
@@ -278,10 +272,7 @@ class VidLabelingMonitor(
     // alerting signal (alert on > 0 over a duration window, which dedupes naturally); no per-tick
     // SEVERE log, which would re-page on every Cloud Scheduler tick until manual recovery. Set
     // unconditionally (including 0) so a recovered DataProvider reads back to 0.
-    metrics.failedUploadsGauge.set(
-      failedLinesByUpload.size.toLong(),
-      dataProviderAttributes(),
-    )
+    metrics.failedUploadsGauge.set(failedLinesByUpload.size.toLong(), dataProviderAttributes())
 
     return stuckUploads to failedModelLines
   }
@@ -591,10 +582,7 @@ class VidLabelingMonitor(
         when (outcome) {
           RecoveryOutcome.RECOVERED -> {
             recovered++
-            metrics.phaseTransitionsRecoveredCounter.add(
-              1,
-              dataProviderAttributes(),
-            )
+            metrics.phaseTransitionsRecoveredCounter.add(1, dataProviderAttributes())
           }
           RecoveryOutcome.EXHAUSTED -> {
             exhausted++
@@ -616,10 +604,7 @@ class VidLabelingMonitor(
       }
     }
     // Set each run (including 0) so the page signal self-clears once the transition advances.
-    metrics.recoveryExhaustedGauge.set(
-      exhausted.toLong(),
-      dataProviderAttributes(),
-    )
+    metrics.recoveryExhaustedGauge.set(exhausted.toLong(), dataProviderAttributes())
     metrics.recoveryUnrecoverableGauge.set(unrecoverable.toLong(), dataProviderAttributes())
     return RecoverySummary(
       recovered = recovered,
@@ -749,10 +734,7 @@ class VidLabelingMonitor(
           return RecoveryOutcome.UNRECOVERABLE
         }
         logger.warning("Cannot recover: WorkItem $workItemId unavailable (${e.status.code})")
-        metrics.recoveryStepFailuresCounter.add(
-          1,
-          recoveryStepAttributes("get_original"),
-        )
+        metrics.recoveryStepFailuresCounter.add(1, recoveryStepAttributes("get_original"))
         return RecoveryOutcome.NOOP
       }
     for (attempt in 1..MAX_RECOVERY_ATTEMPTS) {
@@ -777,10 +759,7 @@ class VidLabelingMonitor(
           continue
         }
         logger.warning("Recovery publish failed for $recoveryId (${e.status.code})")
-        metrics.recoveryStepFailuresCounter.add(
-          1,
-          recoveryStepAttributes("publish"),
-        )
+        metrics.recoveryStepFailuresCounter.add(1, recoveryStepAttributes("publish"))
         return RecoveryOutcome.NOOP
       }
     }
