@@ -401,8 +401,23 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
 ): Flow<ImpressionMetadataResult> {
   val entityKeyFilter: List<EntityKey> = filter.entityKeysList
 
+  // Force the list-filter index only for the (model line + event group) shape it is designed for
+  // -- the results-fulfiller's batched path -- so a large `IN UNNEST` set is served by index seeks
+  // rather than a base-table scan. Other shapes (blob URI, entity keys, etc.) are left to the
+  // optimizer so they keep using their own more selective indexes.
+  val tableIndexDirective =
+    if (
+      filter.cmmsModelLine.isNotEmpty() &&
+        (filter.eventGroupReferenceId.isNotEmpty() ||
+          filter.eventGroupReferenceIdsList.isNotEmpty())
+    ) {
+      "@{FORCE_INDEX=${ImpressionMetadataEntity.LIST_FILTER_INDEX}}"
+    } else {
+      ""
+    }
+
   val sql = buildString {
-    appendLine(ImpressionMetadataEntity.BASE_SQL)
+    appendLine(ImpressionMetadataEntity.baseSql(tableIndexDirective))
 
     val conjuncts =
       mutableListOf("ImpressionMetadata.DataProviderResourceId = @dataProviderResourceId")
@@ -665,7 +680,19 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchUpdateImpressionMetadata
 }
 
 private object ImpressionMetadataEntity {
-  val BASE_SQL =
+  /** Spanner index that backs the list-filter/pagination read shape. */
+  const val LIST_FILTER_INDEX = "ImpressionMetadataByListFilterAndPagination"
+
+  /**
+   * Builds the base SELECT.
+   *
+   * @param tableIndexDirective optional Spanner index directive (e.g.
+   *   `@{FORCE_INDEX=ImpressionMetadataByListFilterAndPagination}`) placed immediately after the
+   *   `ImpressionMetadata` table reference. Empty by default so the optimizer chooses the index;
+   *   other read shapes (by resource id, by blob URI, by create request id) rely on that to keep
+   *   using their own indexes.
+   */
+  fun baseSql(tableIndexDirective: String = ""): String =
     """
     SELECT
       ImpressionMetadata.DataProviderResourceId,
@@ -692,9 +719,12 @@ private object ImpressionMetadataEntity {
         ORDER BY ImpressionMetadataEntityKeys.EntityType, ImpressionMetadataEntityKeys.EntityId
       ) AS EntityKeys,
     FROM
-      ImpressionMetadata
+      ImpressionMetadata$tableIndexDirective
     """
       .trimIndent()
+
+  /** Base SELECT with no index directive; the optimizer chooses the index. */
+  val BASE_SQL = baseSql()
 
   fun buildImpressionMetadataResult(struct: Struct): ImpressionMetadataResult {
     return ImpressionMetadataResult(
