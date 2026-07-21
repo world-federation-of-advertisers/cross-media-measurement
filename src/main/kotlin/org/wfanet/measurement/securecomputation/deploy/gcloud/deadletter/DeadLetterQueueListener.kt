@@ -19,9 +19,6 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter
 import com.google.protobuf.Parser
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import java.nio.ByteBuffer
-import java.security.MessageDigest
-import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -50,6 +47,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markPoolAssignmentJobFailedR
 import org.wfanet.measurement.edpaggregator.v1alpha.markRankerJobFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobFailedRequest
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest
 import org.wfanet.measurement.queue.QueueSubscriber
@@ -264,11 +262,9 @@ class DeadLetterQueueListener(
           this.name = name
           this.etag = job.etag
           this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
-          // TODO(world-federation-of-advertisers/cross-media-measurement#4078):
-          // MarkPoolAssignmentJobFailedRequest has no `request_id` field on the
-          // current base; #4078 adds it (flipping it OPTIONAL -> REQUIRED). Once it lands, set
-          // requestId = deterministicUuid("MarkPoolAssignmentJobFailed:$name") for AIP-155
-          // idempotency on Pub/Sub redelivery, mirroring MarkVidLabelingJobFailed.
+          // AIP-155 idempotency on Pub/Sub redelivery: derived deterministically from the resource
+          // + operation so every attempt for the same mark shares one idempotent result.
+          requestId = RequestIds.forMarkPoolAssignmentJobFailed(name)
         }
       )
       logger.info("Marked PoolAssignmentJob $name FAILED from dead-letter queue")
@@ -296,9 +292,8 @@ class DeadLetterQueueListener(
           this.etag = job.etag
           this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
           // AIP-155 idempotency on Pub/Sub redelivery: derived deterministically from the resource
-          // + operation so every attempt for the same mark shares one idempotent result (mirrors
-          // MarkVidLabelingJobFailed).
-          requestId = deterministicUuid("MarkRankerJobFailed:$name")
+          // + operation so every attempt for the same mark shares one idempotent result.
+          requestId = RequestIds.forMarkRankerJobFailed(name)
         }
       )
       logger.info("Marked RankerJob $name FAILED from dead-letter queue")
@@ -310,8 +305,8 @@ class DeadLetterQueueListener(
   /**
    * Best-effort `MarkVidLabelingJobFailed`; logs and swallows any failure. `Get`s the job first to
    * obtain its current `etag` (REQUIRED on `MarkVidLabelingJobFailedRequest`) and to skip the mark
-   * when the job is already in a terminal state. Unlike the sibling Mark RPCs this one carries a
-   * `request_id`, set to a deterministic UUID so a redelivery is idempotent.
+   * when the job is already in a terminal state. Sets a deterministic `request_id` (via
+   * `RequestIds`) so a Pub/Sub redelivery is idempotent.
    */
   private suspend fun markVidLabelingJobFailedBestEffort(name: String, errorMessage: String) {
     if (name.isEmpty()) return
@@ -326,7 +321,7 @@ class DeadLetterQueueListener(
           this.name = name
           this.etag = job.etag
           this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
-          requestId = deterministicUuid("MarkVidLabelingJobFailed:$name")
+          requestId = RequestIds.forMarkVidLabelingJobFailed(name)
         }
       )
       logger.info("Marked VidLabelingJob $name FAILED from dead-letter queue")
@@ -373,14 +368,9 @@ class DeadLetterQueueListener(
           // RawImpressionUploadModelLine resource carries it) instead of an extra Get.
           etag = parent.etag
           this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
-          // TODO(world-federation-of-advertisers/cross-media-measurement#4211):
-          // MarkRawImpressionUploadModelLineFailedRequest has no `request_id` field
-          // yet; #4211 (issue #4074) adds it across the 5 RawImpressionUploadModelLine Mark RPCs
-          // and makes it REQUIRED. Once it lands, set requestId via the shared RequestIds helper
-          // (see deterministicUuid's
-          // TODO(world-federation-of-advertisers/cross-media-measurement#4211)) for AIP-155
-          // idempotency on Pub/Sub redelivery;
-          // otherwise this call fails with INVALID_ARGUMENT.
+          // AIP-155 idempotency on Pub/Sub redelivery: derived deterministically from the resource
+          // + operation so every attempt for the same mark shares one idempotent result.
+          requestId = RequestIds.forMarkRawImpressionUploadModelLineFailed(parent.name)
         }
       )
       logger.info(
@@ -449,29 +439,6 @@ class DeadLetterQueueListener(
     private val SUBPOOL_ASSIGNER_PARAMS_TYPE = SubpoolAssignerParams.getDescriptor().fullName
     private val VID_RANK_BUILDER_PARAMS_TYPE = VidRankBuilderParams.getDescriptor().fullName
     private val VID_LABELER_PARAMS_TYPE = VidLabelerParams.getDescriptor().fullName
-
-    /**
-     * Derives a deterministic UUID4 from [seed], stable across redeliveries, for use as an AIP-155
-     * `request_id`. Computed from an MD5 digest of the seed with the RFC-4122 version (4) and
-     * variant bits forced, so it satisfies a field's `format = UUID4`. Copied from
-     * `SubpoolAssigner.deterministicUuid`. Used for the Mark RPC request_ids that carry one
-     * (`MarkVidLabelingJobFailed`, `MarkRankerJobFailed`) so a redelivery is idempotent.
-     *
-     * TODO(world-federation-of-advertisers/cross-media-measurement#4211): this duplicates
-     *   RequestIds.fromKey and will diverge once #4211 lands (that PR switches RequestIds.fromKey
-     *   from MD5 to SHA-256; this copy stays MD5). When #4211 merges, delete this helper and call
-     *   the shared RequestIds.forMark<Op>Failed(...) at each site, adding the missing
-     *   forMark{RankerJob,VidLabelingJob,PoolAssignmentJob}Failed variants to RequestIds.kt and
-     *   aligning the seed casing (`Mark...:` here vs `mark...:` in RequestIds) so ids match across
-     *   all sites.
-     */
-    fun deterministicUuid(seed: String): String {
-      val bytes = MessageDigest.getInstance("MD5").digest(seed.toByteArray(Charsets.UTF_8))
-      bytes[6] = ((bytes[6].toInt() and 0x0f) or 0x40).toByte() // version 4
-      bytes[8] = ((bytes[8].toInt() and 0x3f) or 0x80).toByte() // variant 10xx
-      val buffer = ByteBuffer.wrap(bytes)
-      return UUID(buffer.long, buffer.long).toString()
-    }
 
     /**
      * Checks if a StatusRuntimeException indicates that the work item is already in a FAILED state.
