@@ -855,6 +855,63 @@ class VidLabelingMonitorTest {
   }
 
   @Test
+  fun `escalates as unrecoverable when the original WorkItem is gone`() = runBlocking {
+    stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+    stubModelLines(
+      rawImpressionUploadModelLine {
+        name = "$DATA_PROVIDER/rawImpressionUploads/active-1/modelLines/ml1"
+        cmmsModelLine = MODEL_LINE
+        state = RawImpressionUploadModelLine.State.RANKING
+      }
+    )
+    stubRankerJobs(
+      total = 2,
+      nonSucceeded = 0,
+      succeededJobName = "$DATA_PROVIDER/rawImpressionUploads/active-1/rankerJobs/rj1",
+    )
+    // The original ranker WorkItem is gone (retention-deleted): every getWorkItem 404s.
+    whenever(workItemsService.getWorkItem(any())).thenAnswer {
+      throw Status.NOT_FOUND.asRuntimeException()
+    }
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.unrecoverableRecoveries).isEqualTo(1)
+    assertThat(result.recoveredTransitions).isEqualTo(0)
+    assertThat(result.hasIssues).isTrue()
+    assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.recovery_unrecoverable"))
+      .isEqualTo(1)
+  }
+
+  @Test
+  fun `does not escalate a transient recovery-fetch failure as unrecoverable`() = runBlocking {
+    stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+    stubModelLines(
+      rawImpressionUploadModelLine {
+        name = "$DATA_PROVIDER/rawImpressionUploads/active-1/modelLines/ml1"
+        cmmsModelLine = MODEL_LINE
+        state = RawImpressionUploadModelLine.State.RANKING
+      }
+    )
+    stubRankerJobs(
+      total = 2,
+      nonSucceeded = 0,
+      succeededJobName = "$DATA_PROVIDER/rawImpressionUploads/active-1/rankerJobs/rj1",
+    )
+    // A transient fetch failure (service briefly unavailable): retried next tick, not escalated.
+    whenever(workItemsService.getWorkItem(any())).thenAnswer {
+      throw Status.UNAVAILABLE.asRuntimeException()
+    }
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.unrecoverableRecoveries).isEqualTo(0)
+    assertThat(result.recoveredTransitions).isEqualTo(0)
+    assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.recovery_unrecoverable"))
+      .isEqualTo(0)
+  }
+
+  @Test
   fun `recovers a stuck LABELING model line by re-publishing a WorkItem`() = runBlocking {
     stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
     stubModelLines(

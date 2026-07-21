@@ -142,6 +142,11 @@ class VidLabelingMonitor(
     val recoveredTransitions: Int,
     /** Stuck transitions whose bounded recovery is exhausted (the Monitor has given up; page). */
     val recoveryExhausted: Int,
+    /**
+     * Stuck transitions that cannot be recovered because the original WorkItem is gone (page); the
+     * Monitor stops retrying and a human must intervene.
+     */
+    val unrecoverableRecoveries: Int,
   ) {
     val hasIssues: Boolean
       get() =
@@ -152,7 +157,8 @@ class VidLabelingMonitor(
           missingDoneBlobs > 0 ||
           zeroImpressionDates > 0 ||
           missingRawFiles > 0 ||
-          recoveryExhausted > 0
+          recoveryExhausted > 0 ||
+          unrecoverableRecoveries > 0
   }
 
   // TODO(world-federation-of-advertisers/cross-media-measurement#4044): stuck-POOL_ASSIGNING
@@ -214,6 +220,7 @@ class VidLabelingMonitor(
       missingRawFiles = dataQuality.missingRawFiles,
       recoveredTransitions = recovery.recovered,
       recoveryExhausted = recovery.exhausted,
+      unrecoverableRecoveries = recovery.unrecoverable,
     )
   }
 
@@ -529,12 +536,21 @@ class VidLabelingMonitor(
     RECOVERED,
     /** All [MAX_RECOVERY_ATTEMPTS] recovery WorkItems already exist; the Monitor has given up. */
     EXHAUSTED,
+    /**
+     * The original WorkItem to clone is gone (e.g. retention-deleted); recovery is impossible and a
+     * human must intervene. Distinct from [NOOP]: retrying never resolves it.
+     */
+    UNRECOVERABLE,
     /** Nothing to do (not stuck, precondition unmet, or a transient failure to retry next tick). */
     NOOP,
   }
 
   /** Aggregate recovery outcome for one health run. */
-  private data class RecoverySummary(val recovered: Int, val exhausted: Int)
+  private data class RecoverySummary(
+    val recovered: Int,
+    val exhausted: Int,
+    val unrecoverable: Int,
+  )
 
   /**
    * Re-triggers stuck memoized phase transitions for this DataProvider and returns how many were
@@ -557,6 +573,7 @@ class VidLabelingMonitor(
     val thresholdNanos: Long = stalenessThreshold.toNanos()
     var recovered = 0
     var exhausted = 0
+    var unrecoverable = 0
     for (upload in snapshot.uploads(RawImpressionUpload.State.ACTIVE)) {
       for (modelLine in snapshot.modelLines(upload.name)) {
         if (nowNanos - Timestamps.toNanos(modelLine.updateTime) <= thresholdNanos) {
@@ -587,6 +604,13 @@ class VidLabelingMonitor(
                 "required"
             )
           }
+          RecoveryOutcome.UNRECOVERABLE -> {
+            unrecoverable++
+            logger.severe(
+              "Recovery impossible for ${upload.name} model line ${modelLine.cmmsModelLine} in " +
+                "${modelLine.state}: original WorkItem is gone; manual intervention required"
+            )
+          }
           RecoveryOutcome.NOOP -> {}
         }
       }
@@ -596,7 +620,12 @@ class VidLabelingMonitor(
       exhausted.toLong(),
       dataProviderAttributes(),
     )
-    return RecoverySummary(recovered = recovered, exhausted = exhausted)
+    metrics.recoveryUnrecoverableGauge.set(unrecoverable.toLong(), dataProviderAttributes())
+    return RecoverySummary(
+      recovered = recovered,
+      exhausted = exhausted,
+      unrecoverable = unrecoverable,
+    )
   }
 
   /**
@@ -704,14 +733,21 @@ class VidLabelingMonitor(
    *
    * Returns [RecoveryOutcome.RECOVERED] when it publishes a new recovery WorkItem this tick;
    * [RecoveryOutcome.EXHAUSTED] when all [MAX_RECOVERY_ATTEMPTS] already exist (the Monitor gives
-   * up); [RecoveryOutcome.NOOP] when the original WorkItem is unavailable or a create fails with a
-   * transient error (retried next tick — the attempt is not burned).
+   * up); [RecoveryOutcome.UNRECOVERABLE] when the original WorkItem is gone (NOT_FOUND), so it can
+   * never be cloned and a human must intervene; [RecoveryOutcome.NOOP] when the original fetch or a
+   * create fails with a transient error (retried next tick — the attempt is not burned).
    */
   private suspend fun republishWorkItem(workItemId: String): RecoveryOutcome {
     val existing =
       try {
         workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
       } catch (e: StatusException) {
+        if (e.status.code == Status.Code.NOT_FOUND) {
+          // The original WorkItem is gone (e.g. retention-deleted); cloning it is impossible and
+          // retrying never succeeds, so escalate instead of counting a transient failure.
+          logger.warning("Cannot recover: WorkItem $workItemId is gone (NOT_FOUND)")
+          return RecoveryOutcome.UNRECOVERABLE
+        }
         logger.warning("Cannot recover: WorkItem $workItemId unavailable (${e.status.code})")
         metrics.recoveryStepFailuresCounter.add(
           1,

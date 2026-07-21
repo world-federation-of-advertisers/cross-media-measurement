@@ -226,10 +226,27 @@ class VidLabelingMonitorMetrics(meter: Meter = Instrumentation.meter) {
       .build()
 
   /**
+   * Current number of `(upload, model line)` stuck transitions that cannot be recovered this scan
+   * because the original WorkItem to clone is gone (e.g. retention-deleted). The Monitor stops
+   * retrying these and a human must intervene. Keyed by [DATA_PROVIDER_ATTR]. This gauge is a page
+   * signal.
+   *
+   * A gauge (not a counter): a steady-state observation, set each run (including `0`).
+   */
+  val recoveryUnrecoverableGauge: LongGauge =
+    meter
+      .gaugeBuilder("edpa.vid_labeling_monitor.recovery_unrecoverable")
+      .setDescription("Stuck transitions unrecoverable because the original WorkItem is gone")
+      .setUnit("{transition}")
+      .ofLongs()
+      .build()
+
+  /**
    * Count of Monitor recovery sub-steps that failed with a transient error, keyed by
    * [DATA_PROVIDER_ATTR] and [RECOVERY_STEP_ATTR] (`get_original` = fetching the WorkItem to clone,
-   * `publish` = creating the recovery WorkItem). Diagnostics for why a recovery attempt did not
-   * produce a new WorkItem this tick; independent of the recovery outcome.
+   * `publish` = creating the recovery WorkItem). A gone original WorkItem (NOT_FOUND) is reported
+   * as unrecoverable via [recoveryUnrecoverableGauge], not here. Diagnostics for why a recovery
+   * attempt did not produce a new WorkItem this tick; independent of the recovery outcome.
    */
   val recoveryStepFailuresCounter: LongCounter =
     meter
