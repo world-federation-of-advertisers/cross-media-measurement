@@ -119,7 +119,15 @@ message VidLabelingConfig {
       [(google.api.field_behavior) = REQUIRED];
 
   // Duration a non-terminal upload may remain before it is flagged as stuck
-  // for alerting.
+  // for alerting, and the minimum age at which the Monitor recovers a model
+  // line stuck mid-phase by republishing its WorkItem.
+  //
+  // Must be at least 24 hours (enforced at config load). The Monitor treats a
+  // model line whose updateTime has been static past this threshold as stuck;
+  // too short a value risks racing a legitimate but slow last-out (a large
+  // fan-out can take far longer than a few minutes), making the Monitor
+  // mistake in-flight work for stuck work. A one-day floor keeps recovery
+  // attempts safely spaced.
   google.protobuf.Duration staleness_threshold = 13
       [(google.api.field_behavior) = REQUIRED];
 

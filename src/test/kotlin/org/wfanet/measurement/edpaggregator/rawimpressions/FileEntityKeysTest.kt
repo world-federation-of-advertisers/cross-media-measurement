@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.edpaggregator.vidlabeler
+package org.wfanet.measurement.edpaggregator.rawimpressions
 
 import com.google.common.truth.Truth.assertThat
 import java.time.LocalDate
@@ -62,5 +62,34 @@ class FileEntityKeysTest {
         FileEntityKeys.fromFooterMetadata(mapOf("event_date" to "2026-06-30"))
       }
     assertThat(exception).hasMessageThat().contains("event_group_reference_id")
+  }
+
+  @Test
+  fun `parseEventDate parses the event date`() {
+    assertThat(FileEntityKeys.parseEventDate(mapOf("event_date" to "2026-06-30")))
+      .isEqualTo(LocalDate.of(2026, 6, 30))
+  }
+
+  @Test
+  fun `parseEventDate does not require event_group_reference_id`() {
+    // The date-only path must not couple to reference-id presence.
+    assertThat(FileEntityKeys.parseEventDate(mapOf("event_date" to "2026-06-30")))
+      .isEqualTo(LocalDate.of(2026, 6, 30))
+  }
+
+  @Test
+  fun `parseEventDate throws when event_date is missing`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> { FileEntityKeys.parseEventDate(emptyMap()) }
+    assertThat(exception).hasMessageThat().contains("event_date")
+  }
+
+  @Test
+  fun `parseEventDate throws when event_date is not an ISO date`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        FileEntityKeys.parseEventDate(mapOf("event_date" to "30-06-2026"))
+      }
+    assertThat(exception).hasMessageThat().contains("event_date")
   }
 }

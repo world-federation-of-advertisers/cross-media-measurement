@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 
+import java.time.Duration
+import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 
 /**
@@ -52,5 +54,33 @@ fun requireValidModelLineConfigs(config: VidLabelingConfig) {
       "entity_key_field_mapping (required or optional) must have at least one entry for model " +
         "line $modelLine on ${config.dataProvider}"
     }
+  }
+}
+
+/**
+ * Minimum permitted [VidLabelingConfig.getStalenessThreshold].
+ *
+ * The Monitor treats a model line whose updateTime has been static past the staleness threshold as
+ * stuck and republishes its recovery WorkItem. Too short a value risks racing a legitimate but slow
+ * last-out (a large fan-out can take far longer than a few minutes), making the Monitor mistake
+ * in-flight work for stuck work and run a duplicate last-out. A one-day floor keeps recovery
+ * attempts safely spaced (and makes spacing successive recovery attempts days apart viable).
+ */
+val MINIMUM_STALENESS_THRESHOLD: Duration = Duration.ofHours(24)
+
+/**
+ * Fails fast (at Cloud Function boot / first tick) if [config]'s staleness_threshold is unset or
+ * below [MINIMUM_STALENESS_THRESHOLD], so a misconfiguration surfaces immediately instead of
+ * silently letting the Monitor race an in-flight last-out.
+ */
+fun requireValidStalenessThreshold(config: VidLabelingConfig) {
+  require(config.hasStalenessThreshold()) {
+    "staleness_threshold must be set for data provider: ${config.dataProvider}"
+  }
+  val stalenessThreshold: Duration = config.stalenessThreshold.toDuration()
+  require(stalenessThreshold >= MINIMUM_STALENESS_THRESHOLD) {
+    "staleness_threshold ($stalenessThreshold) must be at least $MINIMUM_STALENESS_THRESHOLD for " +
+      "data provider: ${config.dataProvider}; a shorter threshold risks recovering an in-flight " +
+      "last-out as if it were stuck"
   }
 }

@@ -94,6 +94,10 @@ class SpannerRawImpressionUploadFileService(
       throw RequiredFieldNotSetException("raw_impression_upload_file.blob_uri")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (!file.hasEventDate()) {
+      throw RequiredFieldNotSetException("raw_impression_upload_file.event_date")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val requestId: String = request.requestId
     if (requestId.isEmpty()) {
       throw RequiredFieldNotSetException("request_id")
@@ -136,6 +140,7 @@ class SpannerRawImpressionUploadFileService(
             fileResourceId,
             file.blobUri,
             file.sizeBytes,
+            file.eventDate,
             requestId,
           )
           rawImpressionUploadFile {
@@ -144,6 +149,7 @@ class SpannerRawImpressionUploadFileService(
             this.fileResourceId = fileResourceId
             blobUri = file.blobUri
             sizeBytes = file.sizeBytes
+            eventDate = file.eventDate
           }
         }
       } catch (e: RawImpressionUploadNotFoundException) {
@@ -207,6 +213,10 @@ class SpannerRawImpressionUploadFileService(
         throw RequiredFieldNotSetException("requests.$index.raw_impression_upload_file.blob_uri")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
+      if (!file.hasEventDate()) {
+        throw RequiredFieldNotSetException("requests.$index.raw_impression_upload_file.event_date")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
       val subRequestId: String = subRequest.requestId
       if (subRequestId.isEmpty()) {
         throw RequiredFieldNotSetException("requests.$index.request_id")
@@ -246,6 +256,7 @@ class SpannerRawImpressionUploadFileService(
             }
             val blobUri: String = subRequest.rawImpressionUploadFile.blobUri
             val sizeBytes: Long = subRequest.rawImpressionUploadFile.sizeBytes
+            val fileProto = subRequest.rawImpressionUploadFile
             val fileId: Long =
               idGenerator.generateNewId { id ->
                 txn.rawImpressionUploadFileExists(
@@ -262,6 +273,7 @@ class SpannerRawImpressionUploadFileService(
               fileResourceId,
               blobUri,
               sizeBytes,
+              fileProto.eventDate,
               subRequest.requestId,
             )
             rawImpressionUploadFile {
@@ -270,6 +282,7 @@ class SpannerRawImpressionUploadFileService(
               this.fileResourceId = fileResourceId
               this.blobUri = blobUri
               this.sizeBytes = sizeBytes
+              eventDate = fileProto.eventDate
             }
           }
         }

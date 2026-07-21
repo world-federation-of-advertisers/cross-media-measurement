@@ -57,7 +57,10 @@ service PoolAssignmentJobService {
   rpc MarkPoolAssignmentJobSucceeded(MarkPoolAssignmentJobSucceededRequest)
       returns (MarkPoolAssignmentJobSucceededResponse) {}
 
-  // Marks a `PoolAssignmentJob` as `FAILED`.
+  // Marks a `PoolAssignmentJob` as `FAILED`. Throws ABORTED if
+  // etag does not match the current resource version (AIP-154).
+  // A retry with the same `request_id` returns the original
+  // response without re-transitioning the resource (AIP-155).
   rpc MarkPoolAssignmentJobFailed(MarkPoolAssignmentJobFailedRequest)
       returns (PoolAssignmentJob) {}
 }
@@ -81,9 +84,16 @@ message CreatePoolAssignmentJobRequest {
 
   // A request ID provided by the client to ensure idempotency.
   //
-  // This field must be a UUID4 (RFC 4122) string.
+  // This field is REQUIRED, deviating from AIP-155 (which recommends request_id
+  // be optional): the job's resource name is assigned by the server, so the
+  // client has no other idempotency key. Without it, a retry after a lost
+  // response would create a second, orphaned job. Must be a UUID4 (RFC 4122)
+  // string.
+  // (-- api-linter: core::0133::request-required-fields=disabled
+  //     aip.dev/not-precedent: request_id is intentionally REQUIRED so the
+  //     server can deduplicate retries of this server-named resource. --)
   string request_id = 3 [
-    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = REQUIRED,
     (google.api.field_info).format = UUID4
   ];
 }
@@ -215,7 +225,7 @@ message MarkPoolAssignmentJobSucceededRequest {
   //
   // This field must be a UUID4 (RFC 4122) string.
   string request_id = 3 [
-    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = REQUIRED,
     (google.api.field_info).format = UUID4
   ];
 
@@ -291,4 +301,25 @@ message MarkPoolAssignmentJobFailedRequest {
 
   // Human-readable detail about the failure.
   string error_message = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // A request ID provided by the client to ensure idempotency on retry. A retry
+  // with the same `request_id` returns the original response without
+  // re-transitioning the resource.
+  //
+  // To survive retries (network blips, redeliveries, process restarts), derive
+  // this deterministically from the resource being marked -- e.g. a UUID
+  // computed from its `name` and the operation -- so that every attempt for the
+  // same logical mark uses the same `request_id` and shares one idempotent
+  // result. Generating a fresh UUID per attempt defeats AIP-155 and surfaces as
+  // FAILED_PRECONDITION on retry against an already-transitioned row.
+  //
+  // Note: on a same-`request_id` retry, the row is returned with the
+  // `error_message` from the first successful mark; a differing `error_message`
+  // in the retry is ignored (AIP-155: the first response is returned as-is).
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
 }
