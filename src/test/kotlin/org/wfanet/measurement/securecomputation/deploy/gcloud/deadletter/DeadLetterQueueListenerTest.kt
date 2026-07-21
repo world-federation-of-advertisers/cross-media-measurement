@@ -48,6 +48,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.vidRankBuilderParams
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt
 import org.wfanet.measurement.queue.QueueSubscriber
@@ -740,14 +741,20 @@ class DeadLetterQueueListenerTest {
         .markPoolAssignmentJobFailed(poolCaptor.capture(), any())
       assertEquals(POOL_ASSIGNMENT_JOB, poolCaptor.firstValue.name)
       assertEquals(ETAG, poolCaptor.firstValue.etag)
-      assertTrue(poolCaptor.firstValue.requestId.isNotEmpty())
+      assertEquals(
+        RequestIds.forMarkPoolAssignmentJobFailed(POOL_ASSIGNMENT_JOB),
+        poolCaptor.firstValue.requestId,
+      )
 
       val modelLineCaptor = argumentCaptor<MarkRawImpressionUploadModelLineFailedRequest>()
       verify(mockModelLinesStub, timeout(5000))
         .markRawImpressionUploadModelLineFailed(modelLineCaptor.capture(), any())
       assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
       assertEquals(MODEL_LINE_ETAG, modelLineCaptor.firstValue.etag)
-      assertTrue(modelLineCaptor.firstValue.requestId.isNotEmpty())
+      assertEquals(
+        RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME),
+        modelLineCaptor.firstValue.requestId,
+      )
 
       verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
       verify(mockQueueMessage, timeout(5000)).ack()
@@ -812,14 +819,20 @@ class DeadLetterQueueListenerTest {
         .markVidLabelingJobFailed(vljCaptor.capture(), any())
       assertEquals(VID_LABELING_JOB, vljCaptor.firstValue.name)
       assertEquals(ETAG, vljCaptor.firstValue.etag)
-      assertTrue(vljCaptor.firstValue.requestId.isNotEmpty())
+      assertEquals(
+        RequestIds.forMarkVidLabelingJobFailed(VID_LABELING_JOB),
+        vljCaptor.firstValue.requestId,
+      )
 
       val modelLineCaptor = argumentCaptor<MarkRawImpressionUploadModelLineFailedRequest>()
       verify(mockModelLinesStub, timeout(5000))
         .markRawImpressionUploadModelLineFailed(modelLineCaptor.capture(), any())
       assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
       assertEquals(MODEL_LINE_ETAG, modelLineCaptor.firstValue.etag)
-      assertTrue(modelLineCaptor.firstValue.requestId.isNotEmpty())
+      assertEquals(
+        RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME),
+        modelLineCaptor.firstValue.requestId,
+      )
 
       verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
       verify(mockQueueMessage, timeout(5000)).ack()
@@ -883,14 +896,20 @@ class DeadLetterQueueListenerTest {
         .markVidLabelingJobFailed(vljCaptor.capture(), any())
       assertEquals(VID_LABELING_JOB, vljCaptor.firstValue.name)
       assertEquals(ETAG, vljCaptor.firstValue.etag)
-      assertTrue(vljCaptor.firstValue.requestId.isNotEmpty())
+      assertEquals(
+        RequestIds.forMarkVidLabelingJobFailed(VID_LABELING_JOB),
+        vljCaptor.firstValue.requestId,
+      )
 
       val modelLineCaptor = argumentCaptor<MarkRawImpressionUploadModelLineFailedRequest>()
       verify(mockModelLinesStub, timeout(5000))
         .markRawImpressionUploadModelLineFailed(modelLineCaptor.capture(), any())
       assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
       assertEquals(MODEL_LINE_ETAG, modelLineCaptor.firstValue.etag)
-      assertTrue(modelLineCaptor.firstValue.requestId.isNotEmpty())
+      assertEquals(
+        RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME),
+        modelLineCaptor.firstValue.requestId,
+      )
 
       verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
       verify(mockQueueMessage, timeout(5000)).ack()
@@ -952,14 +971,17 @@ class DeadLetterQueueListenerTest {
     verify(mockRankerJobsStub, timeout(5000)).markRankerJobFailed(rankerCaptor.capture(), any())
     assertEquals(RANKER_JOB, rankerCaptor.firstValue.name)
     assertEquals(ETAG, rankerCaptor.firstValue.etag)
-    assertTrue(rankerCaptor.firstValue.requestId.isNotEmpty())
+    assertEquals(RequestIds.forMarkRankerJobFailed(RANKER_JOB), rankerCaptor.firstValue.requestId)
 
     val modelLineCaptor = argumentCaptor<MarkRawImpressionUploadModelLineFailedRequest>()
     verify(mockModelLinesStub, timeout(5000))
       .markRawImpressionUploadModelLineFailed(modelLineCaptor.capture(), any())
     assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
     assertEquals(MODEL_LINE_ETAG, modelLineCaptor.firstValue.etag)
-    assertTrue(modelLineCaptor.firstValue.requestId.isNotEmpty())
+    assertEquals(
+      RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME),
+      modelLineCaptor.firstValue.requestId,
+    )
 
     verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
     verify(mockQueueMessage, timeout(5000)).ack()

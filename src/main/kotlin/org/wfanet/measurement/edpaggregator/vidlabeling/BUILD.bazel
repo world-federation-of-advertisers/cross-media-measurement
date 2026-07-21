@@ -12,6 +12,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/deadletter:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/deadletter:__pkg__",
     ],
 )
 

@@ -6,6 +6,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter.DeadLetterQueueListenerTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:request_ids",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/deadletter:dead_letter_queue_listener",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:services",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:errors",
