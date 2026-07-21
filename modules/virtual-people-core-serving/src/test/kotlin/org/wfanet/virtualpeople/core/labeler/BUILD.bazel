@@ -5,7 +5,7 @@ kt_jvm_test(
     srcs = ["RankedLabelingIntegrationTest.kt"],
     test_class = "org.wfanet.virtualpeople.core.labeler.RankedLabelingIntegrationTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/virtualpeople/core/labeler",
+        "//modules/virtual-people-core-serving/src/main/kotlin/org/wfanet/virtualpeople/core/labeler",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
@@ -16,7 +16,7 @@ kt_jvm_test(
     srcs = ["LabelerTest.kt"],
     test_class = "org.wfanet.virtualpeople.core.labeler.LabelerTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/virtualpeople/core/labeler",
+        "//modules/virtual-people-core-serving/src/main/kotlin/org/wfanet/virtualpeople/core/labeler",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
@@ -26,11 +26,11 @@ kt_jvm_test(
     name = "LabelerIntegrationTest",
     srcs = ["LabelerIntegrationTest.kt"],
     data = [
-        "//src/main/resources/testing/labeler:labeler_integration_test_data",
+        "//modules/virtual-people-core-serving/src/main/resources/testing/labeler:labeler_integration_test_data",
     ],
     test_class = "org.wfanet.virtualpeople.core.labeler.LabelerIntegrationTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/virtualpeople/core/labeler",
+        "//modules/virtual-people-core-serving/src/main/kotlin/org/wfanet/virtualpeople/core/labeler",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",

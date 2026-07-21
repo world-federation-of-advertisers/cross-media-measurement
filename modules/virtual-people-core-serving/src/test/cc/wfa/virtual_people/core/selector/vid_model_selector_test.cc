@@ -29,7 +29,7 @@ using ::wfa::IsOk;
 using ::wfa::ReadTextProtoFile;
 using ::wfa::StatusIs;
 
-const char kTestDataDir[] = "src/main/resources/testing/selector/";
+const char kTestDataDir[] = "modules/virtual-people-core-serving/src/main/resources/testing/selector/";
 
 TEST(VidModelSelectorTest,
      TestBuildVidSelectorObjectWithoutParamsThrowsException) {

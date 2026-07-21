@@ -2,7 +2,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 
 package(default_visibility = ["//src:__subpackages__"])
 
-_INCLUDE_PREFIX = "/src/main/cc"
+_INCLUDE_PREFIX = "/modules/virtual-people-core-serving/src/main/cc"
 
 cc_library(
     name = "constants",

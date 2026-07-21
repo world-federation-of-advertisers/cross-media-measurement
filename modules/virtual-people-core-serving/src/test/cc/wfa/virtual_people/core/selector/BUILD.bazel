@@ -6,10 +6,10 @@ cc_test(
     name = "vid_model_selector_test",
     srcs = ["vid_model_selector_test.cc"],
     data = [
-        "//src/main/resources/testing/selector:selector_test_data",
+        "//modules/virtual-people-core-serving/src/main/resources/testing/selector:selector_test_data",
     ],
     deps = [
-        "//src/main/cc/wfa/virtual_people/core/selector:vid_model_selector",
+        "//modules/virtual-people-core-serving/src/main/cc/wfa/virtual_people/core/selector:vid_model_selector",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest_main",

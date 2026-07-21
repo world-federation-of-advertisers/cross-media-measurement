@@ -2,7 +2,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 
 package(default_visibility = ["//src:__subpackages__"])
 
-_INCLUDE_PREFIX = "/src/main/cc"
+_INCLUDE_PREFIX = "/modules/virtual-people-core-serving/src/main/cc"
 
 cc_library(
     name = "model_node",
@@ -37,16 +37,16 @@ cc_library(
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
-        "//src/main/cc/wfa/virtual_people/core/model/utils:consistent_hash",
-        "//src/main/cc/wfa/virtual_people/core/model/utils:constants",
-        "//src/main/cc/wfa/virtual_people/core/model/utils:distributed_consistent_hashing",
-        "//src/main/cc/wfa/virtual_people/core/model/utils:feistel",
-        "//src/main/cc/wfa/virtual_people/core/model/utils:field_filters_matcher",
-        "//src/main/cc/wfa/virtual_people/core/model/utils:hash",
-        "//src/main/cc/wfa/virtual_people/core/model/utils:hash_field_mask_matcher",
-        "//src/main/cc/wfa/virtual_people/core/model/utils:population_node_helper",
-        "//src/main/cc/wfa/virtual_people/core/model/utils:update_matrix_helper",
-        "//src/main/cc/wfa/virtual_people/core/model/utils:virtual_person_selector",
+        "//modules/virtual-people-core-serving/src/main/cc/wfa/virtual_people/core/model/utils:consistent_hash",
+        "//modules/virtual-people-core-serving/src/main/cc/wfa/virtual_people/core/model/utils:constants",
+        "//modules/virtual-people-core-serving/src/main/cc/wfa/virtual_people/core/model/utils:distributed_consistent_hashing",
+        "//modules/virtual-people-core-serving/src/main/cc/wfa/virtual_people/core/model/utils:feistel",
+        "//modules/virtual-people-core-serving/src/main/cc/wfa/virtual_people/core/model/utils:field_filters_matcher",
+        "//modules/virtual-people-core-serving/src/main/cc/wfa/virtual_people/core/model/utils:hash",
+        "//modules/virtual-people-core-serving/src/main/cc/wfa/virtual_people/core/model/utils:hash_field_mask_matcher",
+        "//modules/virtual-people-core-serving/src/main/cc/wfa/virtual_people/core/model/utils:population_node_helper",
+        "//modules/virtual-people-core-serving/src/main/cc/wfa/virtual_people/core/model/utils:update_matrix_helper",
+        "//modules/virtual-people-core-serving/src/main/cc/wfa/virtual_people/core/model/utils:virtual_person_selector",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
