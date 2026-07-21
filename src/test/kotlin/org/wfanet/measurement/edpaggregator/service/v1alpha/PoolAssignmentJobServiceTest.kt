@@ -218,6 +218,7 @@ class PoolAssignmentJobServiceTest {
   @Test
   fun `createPoolAssignmentJob throws INVALID_ARGUMENT for empty parent`() = runBlocking {
     val request = createPoolAssignmentJobRequest {
+      this.requestId = UUID.randomUUID().toString()
       poolAssignmentJob = poolAssignmentJob {
         cmmsModelLine = CMMS_MODEL_LINE
         shardIndex = 0
@@ -240,6 +241,7 @@ class PoolAssignmentJobServiceTest {
   @Test
   fun `createPoolAssignmentJob throws INVALID_ARGUMENT for malformed parent`() = runBlocking {
     val request = createPoolAssignmentJobRequest {
+      this.requestId = UUID.randomUUID().toString()
       parent = "invalid-parent"
       poolAssignmentJob = poolAssignmentJob {
         cmmsModelLine = CMMS_MODEL_LINE
@@ -281,6 +283,7 @@ class PoolAssignmentJobServiceTest {
   @Test
   fun `createPoolAssignmentJob throws INVALID_ARGUMENT for empty cmmsModelLine`() = runBlocking {
     val request = createPoolAssignmentJobRequest {
+      this.requestId = UUID.randomUUID().toString()
       parent = UPLOAD_KEY.toName()
       poolAssignmentJob = poolAssignmentJob { shardIndex = 0 }
     }
@@ -323,18 +326,43 @@ class PoolAssignmentJobServiceTest {
   }
 
   @Test
+  fun `createPoolAssignmentJob throws INVALID_ARGUMENT for missing requestId`() = runBlocking {
+    val request = createPoolAssignmentJobRequest {
+      parent = UPLOAD_KEY.toName()
+      poolAssignmentJob = poolAssignmentJob {
+        cmmsModelLine = CMMS_MODEL_LINE
+        shardIndex = 0
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createPoolAssignmentJob(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+        }
+      )
+  }
+
+  @Test
   fun `batchCreatePoolAssignmentJobs returns jobs successfully`() =
     runBlocking<Unit> {
       createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
       val request = batchCreatePoolAssignmentJobsRequest {
         parent = UPLOAD_KEY.toName()
         requests += createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           poolAssignmentJob = poolAssignmentJob {
             cmmsModelLine = CMMS_MODEL_LINE
             shardIndex = 0
           }
         }
         requests += createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           poolAssignmentJob = poolAssignmentJob {
             cmmsModelLine = CMMS_MODEL_LINE
             shardIndex = 1
@@ -353,6 +381,7 @@ class PoolAssignmentJobServiceTest {
   fun `batchCreatePoolAssignmentJobs throws INVALID_ARGUMENT for empty parent`() = runBlocking {
     val request = batchCreatePoolAssignmentJobsRequest {
       requests += createPoolAssignmentJobRequest {
+        this.requestId = UUID.randomUUID().toString()
         poolAssignmentJob = poolAssignmentJob {
           cmmsModelLine = CMMS_MODEL_LINE
           shardIndex = 0
@@ -451,6 +480,7 @@ class PoolAssignmentJobServiceTest {
       val created =
         service.createPoolAssignmentJob(
           createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
             parent = UPLOAD_KEY.toName()
             poolAssignmentJob = poolAssignmentJob {
               cmmsModelLine = CMMS_MODEL_LINE
@@ -477,6 +507,7 @@ class PoolAssignmentJobServiceTest {
       val created1 =
         service.createPoolAssignmentJob(
           createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
             parent = UPLOAD_KEY.toName()
             poolAssignmentJob = poolAssignmentJob {
               cmmsModelLine = CMMS_MODEL_LINE
@@ -487,6 +518,7 @@ class PoolAssignmentJobServiceTest {
       val created2 =
         service.createPoolAssignmentJob(
           createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
             parent = uploadKey2.toName()
             poolAssignmentJob = poolAssignmentJob {
               cmmsModelLine = CMMS_MODEL_LINE
@@ -511,6 +543,7 @@ class PoolAssignmentJobServiceTest {
     val created1 =
       service.createPoolAssignmentJob(
         createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           parent = UPLOAD_KEY.toName()
           poolAssignmentJob = poolAssignmentJob {
             cmmsModelLine = CMMS_MODEL_LINE
@@ -521,6 +554,7 @@ class PoolAssignmentJobServiceTest {
     val created2 =
       service.createPoolAssignmentJob(
         createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           parent = UPLOAD_KEY.toName()
           poolAssignmentJob = poolAssignmentJob {
             cmmsModelLine = CMMS_MODEL_LINE
@@ -662,6 +696,7 @@ class PoolAssignmentJobServiceTest {
     val created =
       service.createPoolAssignmentJob(
         createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           parent = UPLOAD_KEY.toName()
           poolAssignmentJob = poolAssignmentJob {
             cmmsModelLine = CMMS_MODEL_LINE
@@ -673,6 +708,7 @@ class PoolAssignmentJobServiceTest {
     val response =
       service.markPoolAssignmentJobSucceeded(
         markPoolAssignmentJobSucceededRequest {
+          this.requestId = UUID.randomUUID().toString()
           name = created.name
           etag = created.etag
           encryptedDek = ENCRYPTED_DEK
@@ -709,6 +745,7 @@ class PoolAssignmentJobServiceTest {
     val created =
       service.createPoolAssignmentJob(
         createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           parent = UPLOAD_KEY.toName()
           poolAssignmentJob = poolAssignmentJob {
             cmmsModelLine = CMMS_MODEL_LINE
@@ -741,6 +778,7 @@ class PoolAssignmentJobServiceTest {
       val created =
         service.createPoolAssignmentJob(
           createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
             parent = UPLOAD_KEY.toName()
             poolAssignmentJob = poolAssignmentJob {
               cmmsModelLine = CMMS_MODEL_LINE
@@ -753,6 +791,7 @@ class PoolAssignmentJobServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.markPoolAssignmentJobSucceeded(
             markPoolAssignmentJobSucceededRequest {
+              this.requestId = UUID.randomUUID().toString()
               name = created.name
               etag = created.etag
             }
@@ -770,11 +809,49 @@ class PoolAssignmentJobServiceTest {
     }
 
   @Test
+  fun `markPoolAssignmentJobSucceeded throws INVALID_ARGUMENT for missing requestId`() =
+    runBlocking {
+      createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+      val created =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
+            parent = UPLOAD_KEY.toName()
+            poolAssignmentJob = poolAssignmentJob {
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
+          }
+        )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.markPoolAssignmentJobSucceeded(
+            markPoolAssignmentJobSucceededRequest {
+              name = created.name
+              etag = created.etag
+              encryptedDek = ENCRYPTED_DEK
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+          }
+        )
+    }
+
+  @Test
   fun `markPoolAssignmentJobFailed transitions state`() = runBlocking {
     createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
     val created =
       service.createPoolAssignmentJob(
         createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           parent = UPLOAD_KEY.toName()
           poolAssignmentJob = poolAssignmentJob {
             cmmsModelLine = CMMS_MODEL_LINE
@@ -786,6 +863,7 @@ class PoolAssignmentJobServiceTest {
     val failed =
       service.markPoolAssignmentJobFailed(
         markPoolAssignmentJobFailedRequest {
+          this.requestId = UUID.randomUUID().toString()
           name = created.name
           etag = created.etag
           errorMessage = "Something went wrong"
@@ -814,6 +892,7 @@ class PoolAssignmentJobServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.markPoolAssignmentJobFailed(
           markPoolAssignmentJobFailedRequest {
+            this.requestId = UUID.randomUUID().toString()
             name = "invalid-name"
             etag = "some-etag"
           }
@@ -829,6 +908,116 @@ class PoolAssignmentJobServiceTest {
         }
       )
   }
+
+  @Test
+  fun `markPoolAssignmentJobFailed throws INVALID_ARGUMENT for empty etag`() = runBlocking {
+    createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+    val created =
+      service.createPoolAssignmentJob(
+        createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
+          parent = UPLOAD_KEY.toName()
+          poolAssignmentJob = poolAssignmentJob {
+            cmmsModelLine = CMMS_MODEL_LINE
+            shardIndex = 0
+          }
+        }
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.markPoolAssignmentJobFailed(
+          markPoolAssignmentJobFailedRequest {
+            this.requestId = UUID.randomUUID().toString()
+            name = created.name
+            errorMessage = "Something went wrong"
+          }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "etag"
+        }
+      )
+  }
+
+  @Test
+  fun `markPoolAssignmentJobFailed throws INVALID_ARGUMENT for missing requestId`() = runBlocking {
+    createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+    val created =
+      service.createPoolAssignmentJob(
+        createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
+          parent = UPLOAD_KEY.toName()
+          poolAssignmentJob = poolAssignmentJob {
+            cmmsModelLine = CMMS_MODEL_LINE
+            shardIndex = 0
+          }
+        }
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.markPoolAssignmentJobFailed(
+          markPoolAssignmentJobFailedRequest {
+            name = created.name
+            etag = created.etag
+            errorMessage = "Something went wrong"
+          }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+        }
+      )
+  }
+
+  @Test
+  fun `markPoolAssignmentJobFailed throws INVALID_ARGUMENT for malformed requestId`() =
+    runBlocking {
+      createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+      val created =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
+            parent = UPLOAD_KEY.toName()
+            poolAssignmentJob = poolAssignmentJob {
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
+          }
+        )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.markPoolAssignmentJobFailed(
+            markPoolAssignmentJobFailedRequest {
+              requestId = "invalid-request-id"
+              name = created.name
+              etag = created.etag
+              errorMessage = "Something went wrong"
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+          }
+        )
+    }
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
