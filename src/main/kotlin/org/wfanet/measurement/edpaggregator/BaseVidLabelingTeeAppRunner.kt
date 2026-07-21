@@ -133,4 +133,3 @@ abstract class BaseVidLabelingTeeAppRunner(
   protected fun storageConfig(gcsProjectId: String): StorageConfig =
     StorageConfig(projectId = gcsProjectId)
 }
-

@@ -35,8 +35,6 @@ import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
-import org.wfanet.measurement.edpaggregator.rawimpressions.gcsHadoopConfiguration
-import org.wfanet.measurement.edpaggregator.rawimpressions.readEventDateFromFooter
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
@@ -49,6 +47,8 @@ import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams as ConfigTransportLayerSecurityParams
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
+import org.wfanet.measurement.edpaggregator.rawimpressions.gcsHadoopConfiguration
+import org.wfanet.measurement.edpaggregator.rawimpressions.readEventDateFromFooter
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
@@ -554,4 +554,3 @@ class VidLabelingDispatcherFunction : HttpFunction {
     }
   }
 }
-
