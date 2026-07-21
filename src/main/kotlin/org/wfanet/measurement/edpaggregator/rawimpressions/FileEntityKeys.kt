@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.edpaggregator.vidlabeler
+package org.wfanet.measurement.edpaggregator.rawimpressions
 
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
@@ -54,22 +54,32 @@ data class FileEntityKeys(val eventGroupReferenceId: String, val eventDate: Loca
           "raw-impression footer is missing the '$EVENT_GROUP_REFERENCE_ID_KEY' metadata entry; " +
             "the producer must write each file's event group reference id into its plaintext footer"
         }
+      return FileEntityKeys(eventGroupReferenceId, parseEventDate(metadata))
+    }
+
+    /**
+     * Parses just the file's event date from its footer [metadata].
+     *
+     * Split out of [fromFooterMetadata] so callers that only need the date (e.g. the dispatcher's
+     * registration path) do not also couple to event-group-reference-id presence. Fails loudly if
+     * the event date is missing or not an ISO `YYYY-MM-DD` date, since an undated input file is a
+     * producer bug, not a per-row condition.
+     */
+    fun parseEventDate(metadata: Map<String, String>): LocalDate {
       val eventDateString =
         requireNotNull(metadata[EVENT_DATE_KEY]?.takeIf { it.isNotEmpty() }) {
           "raw-impression footer is missing the '$EVENT_DATE_KEY' metadata entry; the producer " +
             "must write each file's event date (ISO YYYY-MM-DD, UTC) into its plaintext footer"
         }
-      val eventDate =
-        try {
-          LocalDate.parse(eventDateString)
-        } catch (e: DateTimeParseException) {
-          throw IllegalArgumentException(
-            "raw-impression footer '$EVENT_DATE_KEY' is not an ISO YYYY-MM-DD date: " +
-              eventDateString,
-            e,
-          )
-        }
-      return FileEntityKeys(eventGroupReferenceId, eventDate)
+      return try {
+        LocalDate.parse(eventDateString)
+      } catch (e: DateTimeParseException) {
+        throw IllegalArgumentException(
+          "raw-impression footer '$EVENT_DATE_KEY' is not an ISO YYYY-MM-DD date: " +
+            eventDateString,
+          e,
+        )
+      }
     }
   }
 }

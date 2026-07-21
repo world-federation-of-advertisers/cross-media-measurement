@@ -30,6 +30,7 @@ import java.nio.file.Paths
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
+import org.apache.hadoop.conf.Configuration
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -75,6 +76,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUplo
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatcherParams
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
+import org.wfanet.measurement.storage.ParquetStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
@@ -218,10 +220,19 @@ class VidLabelingDispatcherFunctionTest {
   fun `upload registers upload files and model lines`() {
     File("${tempFolder.root}/edp/edp_name/timestamp").mkdirs()
     val storageClient = FileSystemStorageClient(tempFolder.root)
+    // Use RawLocalFileSystem so writes don't emit ".crc" checksum sidecars, which the dispatcher's
+    // directory listing would otherwise pick up as bogus raw-impression files.
+    val parquetConf =
+      Configuration().apply { set("fs.file.impl", "org.apache.hadoop.fs.RawLocalFileSystem") }
+    val parquetStorageClient =
+      ParquetStorageClient(parquetConf, org.apache.hadoop.fs.Path(tempFolder.root.path))
+    // The dispatcher reads each raw-impression file's event_date from its plaintext Parquet footer,
+    // so the fixtures must be real Parquet files carrying the FileEntityKeys footer metadata.
+    val footer = mapOf("event_group_reference_id" to "eg-1", "event_date" to "2026-06-01")
     runBlocking {
       storageClient.writeBlob("edp/edp_name/timestamp/done", emptyFlow())
-      storageClient.writeBlob("edp/edp_name/timestamp/impressions_001", emptyFlow())
-      storageClient.writeBlob("edp/edp_name/timestamp/impressions_002", emptyFlow())
+      parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_001", emptyFlow(), footer)
+      parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_002", emptyFlow(), footer)
     }
 
     val port = startFunction()

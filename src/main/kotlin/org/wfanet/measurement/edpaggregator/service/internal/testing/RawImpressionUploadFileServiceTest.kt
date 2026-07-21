@@ -17,6 +17,8 @@ package org.wfanet.measurement.edpaggregator.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Timestamp
 import com.google.rpc.errorInfo
+import com.google.type.Date
+import com.google.type.date
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -65,6 +67,7 @@ abstract class RawImpressionUploadFileServiceTest {
     uploadResourceId: String,
     blobUri: String = BLOB_URI,
     requestId: String = UUID.randomUUID().toString(),
+    eventDate: Date = EVENT_DATE,
   ): RawImpressionUploadFile {
     return fileService.createRawImpressionUploadFile(
       createRawImpressionUploadFileRequest {
@@ -72,6 +75,7 @@ abstract class RawImpressionUploadFileServiceTest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = uploadResourceId
           this.blobUri = blobUri
+          this.eventDate = eventDate
         }
         this.requestId = requestId
       }
@@ -90,6 +94,7 @@ abstract class RawImpressionUploadFileServiceTest {
     assertThat(file.rawImpressionUploadResourceId).isEqualTo(uploadId)
     assertThat(file.fileResourceId).isNotEmpty()
     assertThat(file.blobUri).isEqualTo(BLOB_URI)
+    assertThat(file.eventDate).isEqualTo(EVENT_DATE)
     assertThat(file.createTime.toInstant()).isGreaterThan(startTime)
     assertThat(file.updateTime).isEqualTo(file.createTime)
   }
@@ -225,6 +230,36 @@ abstract class RawImpressionUploadFileServiceTest {
   }
 
   @Test
+  fun `createRawImpressionUploadFile throws INVALID_ARGUMENT if event_date not set`() =
+    runBlocking {
+      val uploadId: String = createUpload()
+
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          fileService.createRawImpressionUploadFile(
+            createRawImpressionUploadFileRequest {
+              rawImpressionUploadFile = rawImpressionUploadFile {
+                dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                rawImpressionUploadResourceId = uploadId
+                blobUri = BLOB_URI
+              }
+              requestId = UUID.randomUUID().toString()
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "raw_impression_upload_file.event_date"
+          }
+        )
+    }
+
+  @Test
   fun `createRawImpressionUploadFile throws INVALID_ARGUMENT for malformed request_id`() =
     runBlocking {
       val uploadId: String = createUpload()
@@ -276,7 +311,10 @@ abstract class RawImpressionUploadFileServiceTest {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = uploadId
               requests += createRawImpressionUploadFileRequest {
-                rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI }
+                rawImpressionUploadFile = rawImpressionUploadFile {
+                  blobUri = BLOB_URI
+                  eventDate = EVENT_DATE
+                }
               }
             }
           )
@@ -294,6 +332,37 @@ abstract class RawImpressionUploadFileServiceTest {
     }
 
   @Test
+  fun `batchCreateRawImpressionUploadFiles throws INVALID_ARGUMENT if event_date not set`() =
+    runBlocking {
+      val uploadId: String = createUpload()
+
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          fileService.batchCreateRawImpressionUploadFiles(
+            batchCreateRawImpressionUploadFilesRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = uploadId
+              requests += createRawImpressionUploadFileRequest {
+                rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI }
+                requestId = UUID.randomUUID().toString()
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "requests.0.raw_impression_upload_file.event_date"
+          }
+        )
+    }
+
+  @Test
   fun `batchCreateRawImpressionUploadFiles creates multiple files`() = runBlocking {
     val uploadId: String = createUpload()
 
@@ -303,11 +372,17 @@ abstract class RawImpressionUploadFileServiceTest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = uploadId
           requests += createRawImpressionUploadFileRequest {
-            rawImpressionUploadFile = rawImpressionUploadFile { blobUri = "gs://bucket/file1" }
+            rawImpressionUploadFile = rawImpressionUploadFile {
+              blobUri = "gs://bucket/file1"
+              eventDate = EVENT_DATE
+            }
             requestId = UUID.randomUUID().toString()
           }
           requests += createRawImpressionUploadFileRequest {
-            rawImpressionUploadFile = rawImpressionUploadFile { blobUri = "gs://bucket/file2" }
+            rawImpressionUploadFile = rawImpressionUploadFile {
+              blobUri = "gs://bucket/file2"
+              eventDate = EVENT_DATE
+            }
             requestId = UUID.randomUUID().toString()
           }
         }
@@ -340,11 +415,17 @@ abstract class RawImpressionUploadFileServiceTest {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = uploadId
               requests += createRawImpressionUploadFileRequest {
-                rawImpressionUploadFile = rawImpressionUploadFile { blobUri = "gs://bucket/file1" }
+                rawImpressionUploadFile = rawImpressionUploadFile {
+                  blobUri = "gs://bucket/file1"
+                  eventDate = EVENT_DATE
+                }
                 this.requestId = requestId
               }
               requests += createRawImpressionUploadFileRequest {
-                rawImpressionUploadFile = rawImpressionUploadFile { blobUri = "gs://bucket/file2" }
+                rawImpressionUploadFile = rawImpressionUploadFile {
+                  blobUri = "gs://bucket/file2"
+                  eventDate = EVENT_DATE
+                }
                 this.requestId = requestId
               }
             }
@@ -375,7 +456,10 @@ abstract class RawImpressionUploadFileServiceTest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = uploadId
           requests += createRawImpressionUploadFileRequest {
-            rawImpressionUploadFile = rawImpressionUploadFile { blobUri = "gs://bucket/other" }
+            rawImpressionUploadFile = rawImpressionUploadFile {
+              blobUri = "gs://bucket/other"
+              eventDate = EVENT_DATE
+            }
             this.requestId = requestId
           }
         }
@@ -401,12 +485,18 @@ abstract class RawImpressionUploadFileServiceTest {
             rawImpressionUploadResourceId = uploadId
             // Reuses an existing request_id: should return the previously created file.
             requests += createRawImpressionUploadFileRequest {
-              rawImpressionUploadFile = rawImpressionUploadFile { blobUri = "gs://bucket/ignored" }
+              rawImpressionUploadFile = rawImpressionUploadFile {
+                blobUri = "gs://bucket/ignored"
+                eventDate = EVENT_DATE
+              }
               this.requestId = existingRequestId
             }
             // New request_id: should create a new file.
             requests += createRawImpressionUploadFileRequest {
-              rawImpressionUploadFile = rawImpressionUploadFile { blobUri = "gs://bucket/new" }
+              rawImpressionUploadFile = rawImpressionUploadFile {
+                blobUri = "gs://bucket/new"
+                eventDate = EVENT_DATE
+              }
               this.requestId = UUID.randomUUID().toString()
             }
           }
@@ -462,7 +552,10 @@ abstract class RawImpressionUploadFileServiceTest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = "nonexistent-upload"
             requests += createRawImpressionUploadFileRequest {
-              rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI }
+              rawImpressionUploadFile = rawImpressionUploadFile {
+                blobUri = BLOB_URI
+                eventDate = EVENT_DATE
+              }
               requestId = UUID.randomUUID().toString()
             }
           }
@@ -903,6 +996,11 @@ abstract class RawImpressionUploadFileServiceTest {
   companion object {
     private const val DATA_PROVIDER_RESOURCE_ID = "data-provider-1"
     private const val BLOB_URI = "gs://bucket/path/to/file"
+    private val EVENT_DATE: Date = date {
+      year = 2026
+      month = 6
+      day = 1
+    }
     private val FAR_FUTURE: Timestamp = Timestamp.newBuilder().setSeconds(4102444800L).build()
   }
 }

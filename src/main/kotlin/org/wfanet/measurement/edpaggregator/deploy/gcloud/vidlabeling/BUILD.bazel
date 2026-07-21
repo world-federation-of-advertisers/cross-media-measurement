@@ -25,6 +25,8 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common:env_vars",
         "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:edp_aggregator_config",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:interceptors",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:gcs_hadoop_configuration",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:raw_impression_footer",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:vid_labeling_dispatch_sequencer",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:vid_labeling_dispatcher",
@@ -45,12 +47,14 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/org/apache/hadoop:hadoop_client_api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:parquet_storage_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
@@ -59,7 +63,12 @@ kt_jvm_library(
 java_binary(
     name = "VidLabelingDispatcherFunction",
     main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingDispatcherFunction",
-    runtime_deps = [":vid_labeling_dispatcher_function"],
+    runtime_deps = [
+        ":vid_labeling_dispatcher_function",
+        # GCS Hadoop FileSystem connector, loaded reflectively by ParquetStorageClient (fs.gs.impl)
+        # for footer reads. Runtime-only.
+        "@wfa_common_jvm//imports/java/com/google/cloud/bigdataoss:gcs_connector",
+    ],
 )
 
 kt_jvm_library(
