@@ -152,7 +152,6 @@ class VidLabelingMonitor(
           missingDoneBlobs > 0 ||
           zeroImpressionDates > 0 ||
           missingRawFiles > 0 ||
-          recoveredTransitions > 0 ||
           recoveryExhausted > 0
   }
 

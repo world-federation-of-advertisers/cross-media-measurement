@@ -850,6 +850,8 @@ class VidLabelingMonitorTest {
     assertThat(createCaptor.firstValue.workItemId)
       .isEqualTo("$RANKER_WORK_ITEM-monitor-recovery-1")
     assertThat(createCaptor.firstValue.workItem.queue).isEqualTo("queues/ranker")
+    // C3: a successful recovery is not an issue; only exhausted recovery is.
+    assertThat(result.hasIssues).isFalse()
   }
 
   @Test

@@ -168,13 +168,16 @@ class VidLabelingMonitorFunction : HttpFunction {
           .any { it }
       }
 
-      if (hasAnyIssues) {
-        response.setStatusCode(500)
-        response.writer.write("VID labeling pipeline issues detected. See logs for details.")
-      } else {
-        response.setStatusCode(200)
-        response.writer.write("All VID labeling uploads healthy.")
-      }
+      // Always return 200 on a completed run. Pipeline issues (stuck/failed uploads, data-quality
+      // signals, exhausted recovery, dispatch errors) are surfaced via OpenTelemetry metrics and
+      // SEVERE logs, not the HTTP status: returning 500 for them makes Cloud Scheduler retry the
+      // whole run (re-dispatch, re-run recovery). HTTP 500 is reserved for a genuine function
+      // failure (the catch below). Mirrors DataAvailabilityMonitorFunction.
+      response.setStatusCode(200)
+      response.writer.write(
+        if (hasAnyIssues) "VID labeling pipeline issues detected. See metrics and logs."
+        else "All VID labeling uploads healthy."
+      )
     } catch (e: Exception) {
       logger.log(Level.SEVERE, "Error in VidLabelingMonitorFunction", e)
       response.setStatusCode(500)
