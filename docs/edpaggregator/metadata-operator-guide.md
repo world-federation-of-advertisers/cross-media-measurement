@@ -179,18 +179,15 @@ data-availability.
 
 ### The Spanner `ImpressionMetadata` table
 
-Columns (16, verified against the live schema after all migrations):
+Columns (14, verified against the live schema after all migrations):
 `DataProviderResourceId`, `ImpressionMetadataId`, `ImpressionMetadataResourceId`,
 `CreateRequestId`, `UpdateRequestId`, `BlobUri`, `BlobTypeUrl`,
 `EventGroupReferenceId`, `CmmsModelLine`, `IntervalStartTime`, `IntervalEndTime`,
-`State`, `CreateTime`, `UpdateTime`, `RawImpressionFileId`,
-`RawImpressionBatchId`. The last two are the foreign key into
-`RawImpressionMetadataBatchFile` (nullable; populated only for the VID-labeling
-raw-impression path, not the impression-blob path this guide focuses on).
+`State`, `CreateTime`, `UpdateTime`.
 
 Indexes:
 
-There are 8 secondary indexes (verified against the live schema):
+There are 6 secondary indexes (verified against the live schema):
 
 | Index | Null-filtered? | Purpose |
 |-------|----------------|---------|
@@ -200,8 +197,6 @@ There are 8 secondary indexes (verified against the live schema):
 | `ImpressionMetadataByBlobUriPrefix` (non-unique) | no | Prefix lookup by blob URI. `BlobUri` is `NOT NULL`, so an entry on every create. |
 | `ImpressionMetadataByUpdateRequestId` (unique) | yes | Idempotency on update. `UpdateRequestId` is NULL on create, so no cost on the create path (only on update). |
 | `ImpressionMetadataByListFilterAndPagination` | no | Backs `ListImpressionMetadata` (model line + event group + interval) and pagination. Entry on every create. |
-| `ImpressionMetadataByRawImpressionAndModelLine` (unique) | yes | Idempotency for the raw-impression FK path. NULL (no cost) unless `RawImpressionBatchId` is set. |
-| FK backing index on `(RawImpressionBatchId, RawImpressionFileId)` | yes | Auto-created for the `RawImpressionMetadataBatchFile` foreign key. NULL (no cost) on the impression-blob path. |
 
 Entity keys live in an interleaved child table, `ImpressionMetadataEntityKeys`
 (`DataProviderResourceId`, `ImpressionMetadataId`, `EntityType`, `EntityId`),

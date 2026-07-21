@@ -33,6 +33,8 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.Path
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
@@ -45,6 +47,8 @@ import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams as ConfigTransportLayerSecurityParams
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
+import org.wfanet.measurement.edpaggregator.rawimpressions.gcsHadoopConfiguration
+import org.wfanet.measurement.edpaggregator.rawimpressions.readEventDateFromFooter
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
@@ -64,6 +68,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSeque
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
+import org.wfanet.measurement.storage.ParquetStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -156,6 +161,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
           )
 
       val storageClient: StorageClient = createStorageClient(doneBlobPath)
+      val parquetStorageClient: ParquetStorageClient = createParquetStorageClient(doneBlobPath)
       val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
 
       val modelLinesStub =
@@ -257,6 +263,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
       val dispatcher =
         VidLabelingDispatcher(
           storageClient = storageClient,
+          readEventDate = { blobKey -> readEventDateFromFooter(parquetStorageClient, blobKey) },
           rawImpressionUploadStub = rawImpressionUploadStub,
           rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
           rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
@@ -331,6 +338,26 @@ class VidLabelingDispatcherFunction : HttpFunction {
     }
 
     private val channelCache = ConcurrentHashMap<ChannelKey, ManagedChannel>()
+
+    /**
+     * Builds a [ParquetStorageClient] over the raw-impression storage for footer-only reads (no
+     * decryption). Mirrors [createStorageClient]'s FileSystem/GCS mode selection.
+     */
+    private fun createParquetStorageClient(doneBlobPath: String): ParquetStorageClient {
+      return if (!fileSystemPath.isNullOrEmpty()) {
+        ParquetStorageClient(
+          Configuration(),
+          Path(EnvVars.checkIsPath("VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH")),
+        )
+      } else {
+        val doneBlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
+        val projectId =
+          requireNotNull(System.getenv(GOOGLE_PROJECT_ID_ENV)?.takeIf { it.isNotEmpty() }) {
+            "$GOOGLE_PROJECT_ID_ENV must be set for GCS footer reads"
+          }
+        ParquetStorageClient(gcsHadoopConfiguration(projectId), Path("gs://${doneBlobUri.bucket}"))
+      }
+    }
 
     private fun createStorageClient(doneBlobPath: String): StorageClient {
       return if (!fileSystemPath.isNullOrEmpty()) {

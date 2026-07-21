@@ -99,6 +99,11 @@ class RawImpressionUploadFileService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    if (!request.rawImpressionUploadFile.hasEventDate()) {
+      throw RequiredFieldNotSetException("raw_impression_upload_file.event_date")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
     if (request.requestId.isEmpty()) {
       throw RequiredFieldNotSetException("request_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -114,6 +119,7 @@ class RawImpressionUploadFileService(
               rawImpressionUploadResourceId = uploadKey.rawImpressionUploadId
               blobUri = request.rawImpressionUploadFile.blobUri
               sizeBytes = request.rawImpressionUploadFile.sizeBytes
+              eventDate = request.rawImpressionUploadFile.eventDate
             }
             requestId = request.requestId
           }
@@ -127,11 +133,6 @@ class RawImpressionUploadFileService(
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
@@ -222,6 +223,14 @@ class RawImpressionUploadFileService(
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
+        if (!childRequest.rawImpressionUploadFile.hasEventDate()) {
+          throw RequiredFieldNotSetException(
+              "requests.$index.raw_impression_upload_file.event_date"
+            )
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+        val eventDate = childRequest.rawImpressionUploadFile.eventDate
+
         val requestId = childRequest.requestId
         if (requestId.isEmpty()) {
           throw RequiredFieldNotSetException("requests.$index.request_id")
@@ -241,6 +250,7 @@ class RawImpressionUploadFileService(
             rawImpressionUploadResourceId = uploadKey.rawImpressionUploadId
             this.blobUri = blobUri
             this.sizeBytes = sizeBytes
+            this.eventDate = eventDate
           }
           this.requestId = requestId
         }
@@ -264,11 +274,6 @@ class RawImpressionUploadFileService(
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
@@ -337,11 +342,6 @@ class RawImpressionUploadFileService(
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
@@ -449,11 +449,6 @@ class RawImpressionUploadFileService(
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
@@ -526,11 +521,6 @@ class RawImpressionUploadFileService(
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
@@ -647,11 +637,6 @@ class RawImpressionUploadFileService(
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
@@ -719,6 +704,7 @@ fun InternalRawImpressionUploadFile.toPublic(): RawImpressionUploadFile {
         .toName()
     blobUri = source.blobUri
     sizeBytes = source.sizeBytes
+    eventDate = source.eventDate
     createTime = source.createTime
     updateTime = source.updateTime
     if (source.hasDeleteTime()) {

@@ -140,6 +140,7 @@ bazel_dep(
     name = "rules_java",
     version = "8.15.2",
 )
+# TODO(world-federation-of-advertisers/cross-media-measurement#4271): Update after upstream issues are fixed.
 bazel_dep(
     name = "rules_jvm_external",
     version = "6.8",
@@ -148,6 +149,7 @@ bazel_dep(
     name = "rules_python",
     version = "1.7.0",
 )
+# TODO(world-federation-of-advertisers/cross-media-measurement#4272): Update after upstream issue is fixed.
 bazel_dep(
     name = "grpc",
     version = "1.74.1",
