@@ -1,0 +1,13 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/virtualpeople/core/selector:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "resource_key",
+    srcs = glob(["*Key.kt"]) + ["IdVariable.kt"],
+    deps = [
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)

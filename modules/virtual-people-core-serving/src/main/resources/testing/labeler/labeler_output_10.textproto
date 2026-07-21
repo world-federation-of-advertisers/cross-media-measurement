@@ -1,0 +1,12 @@
+people {
+  virtual_person_id: 14000193579
+  label {
+    demo {
+      gender: GENDER_MALE
+      age {
+        min_age: 18
+        max_age: 24
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+# Input demo bucket is not recognized by the model.
+# Treat as no input demo. Correct to random demo.
+event_id {
+  publisher: "PUBLISHER_01"
+  id: "EVENT_15"
+}
+timestamp_usec: 1626847100000001
+geo {
+  country_id: 1
+}
+profile_info {
+  email_user_info {
+    user_id: "EMAIL_USER_09"
+    profile_version: "20210701"
+    demo {
+      demo_bucket {
+        gender: GENDER_MALE
+        age {
+          min_age: 23
+          max_age: 56
+        }
+      }
+    }
+    creation_time_usec: 1626847100002001
+  }
+}

@@ -1,0 +1,26 @@
+# Event 17 and 18 have the same user_id and demo.
+# The output should be the same.
+event_id {
+  publisher: "PUBLISHER_01"
+  id: "EVENT_17"
+}
+timestamp_usec: 1626847100000001
+geo {
+  country_id: 1
+}
+profile_info {
+  email_user_info {
+    user_id: "EMAIL_USER_11"
+    profile_version: "20210701"
+    demo {
+      demo_bucket {
+        gender: GENDER_MALE
+        age {
+          min_age: 18
+          max_age: 24
+        }
+      }
+    }
+    creation_time_usec: 1626847100002001
+  }
+}

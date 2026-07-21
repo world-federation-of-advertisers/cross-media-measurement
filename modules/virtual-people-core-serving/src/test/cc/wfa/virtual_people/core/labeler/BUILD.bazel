@@ -1,0 +1,68 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
+package(default_visibility = ["//visibility:private"])
+
+cc_test(
+    name = "labeler_test",
+    srcs = ["labeler_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/virtual_people/core/labeler",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_cc_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:label_cc_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "pass1_mode_test",
+    srcs = ["pass1_mode_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/virtual_people/core/labeler",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_cc_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:label_cc_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "ranked_labeling_integration_test",
+    srcs = ["ranked_labeling_integration_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/virtual_people/core/labeler",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_cc_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:label_cc_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "labeler_integration_test",
+    srcs = ["labeler_integration_test.cc"],
+    data = [
+        "//src/main/resources/testing/labeler:labeler_integration_test_data",
+    ],
+    deps = [
+        "//src/main/cc/wfa/virtual_people/core/labeler",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest_main",
+        "@wfa_common_cpp//src/main/cc/common_cpp/protobuf_util:riegeli_io",
+        "@wfa_common_cpp//src/main/cc/common_cpp/protobuf_util:textproto_io",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:common_matchers",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_cc_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:label_cc_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)

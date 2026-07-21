@@ -1,0 +1,136 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//src:__subpackages__"])
+
+_INCLUDE_PREFIX = "/src/main/cc"
+
+cc_library(
+    name = "constants",
+    hdrs = ["constants.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+)
+
+cc_library(
+    name = "virtual_person_selector",
+    srcs = ["virtual_person_selector.cc"],
+    hdrs = ["virtual_person_selector.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        ":consistent_hash",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_protobuf//:protobuf",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)
+
+cc_library(
+    name = "hash",
+    srcs = ["hash.cc"],
+    hdrs = ["hash.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/strings",
+        "@farmhash",
+    ],
+)
+
+cc_library(
+    name = "feistel",
+    srcs = ["feistel.cc"],
+    hdrs = ["feistel.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/strings",
+        "@farmhash",
+    ],
+)
+
+cc_library(
+    name = "consistent_hash",
+    srcs = ["consistent_hash.cc"],
+    hdrs = ["consistent_hash.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+)
+
+cc_library(
+    name = "distributed_consistent_hashing",
+    srcs = ["distributed_consistent_hashing.cc"],
+    hdrs = ["distributed_consistent_hashing.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        ":hash",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "field_filters_matcher",
+    srcs = ["field_filters_matcher.cc"],
+    hdrs = ["field_filters_matcher.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        ":constants",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_protobuf//:protobuf",
+        "@wfa_common_cpp//src/main/cc/common_cpp/macros",
+        "@wfa_virtual_people_common//src/main/cc/wfa/virtual_people/common/field_filter",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:field_filter_cc_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)
+
+cc_library(
+    name = "hash_field_mask_matcher",
+    srcs = ["hash_field_mask_matcher.cc"],
+    hdrs = ["hash_field_mask_matcher.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        ":constants",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_protobuf//:protobuf",
+        "@farmhash",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)
+
+cc_library(
+    name = "update_matrix_helper",
+    srcs = ["update_matrix_helper.cc"],
+    hdrs = ["update_matrix_helper.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        ":constants",
+        ":distributed_consistent_hashing",
+        ":field_filters_matcher",
+        ":hash_field_mask_matcher",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)
+
+cc_library(
+    name = "population_node_helper",
+    srcs = ["population_node_helper.cc"],
+    hdrs = ["population_node_helper.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        ":distributed_consistent_hashing",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@wfa_common_cpp//src/main/cc/common_cpp/macros",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:label_cc_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)

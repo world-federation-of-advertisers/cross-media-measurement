@@ -1,0 +1,15 @@
+load("@rules_cc//cc:defs.bzl", "cc_proto_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_proto_library(
+    name = "model_line_cc_proto",
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_line_proto"],
+)
+
+cc_proto_library(
+    name = "model_rollout_cc_proto",
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_rollout_proto"],
+)
+
+# TODO(@marcopremier): Move here also related java_proto_library from virtual-people-core-serving/src/main/kotlin/org/wfanet/virtualpeople/core/selector/BUILD.bazel
