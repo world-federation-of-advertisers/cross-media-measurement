@@ -182,6 +182,22 @@ class VidLabelingMonitorMetrics(meter: Meter = Instrumentation.meter) {
       .build()
 
   /**
+   * `1` when the data-quality crawl threw this run and the gauges above hold stale values from a
+   * previous run; `0` when the crawl completed and those gauges are fresh. Keyed by
+   * [DATA_PROVIDER_ATTR].
+   *
+   * A gauge (not a counter): a steady-state observation set each run (including `0`), so it
+   * self-clears once a crawl succeeds. Alert on `> 0`: the data-quality gauges are not trustworthy.
+   */
+  val dataQualityCheckFailedGauge: LongGauge =
+    meter
+      .gaugeBuilder("edpa.vid_labeling_monitor.data_quality_check_failed")
+      .setDescription("1 if the data-quality crawl failed and its gauges are stale, else 0")
+      .setUnit("{status}")
+      .ofLongs()
+      .build()
+
+  /**
    * Number of stuck phase transitions re-triggered by the Monitor over time. Keyed by
    * [DATA_PROVIDER_ATTR]. A counter because each recovery is a discrete event whose cumulative
    * total is meaningful.

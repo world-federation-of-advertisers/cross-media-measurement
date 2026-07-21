@@ -390,7 +390,9 @@ class VidLabelingMonitor(
   /**
    * Runs the alert-only data-quality checks and sets their gauges (every run, including 0, so a
    * recovered DataProvider reads back to 0). These MUST NOT block dispatch or recovery, so any
-   * failure is logged at WARNING and swallowed -- a bad crawl never fails the monitor run.
+   * failure is logged at SEVERE and swallowed -- a bad crawl never fails the monitor run. On a
+   * failure the per-signal gauges keep their prior (stale) values, so the data-quality-check-failed
+   * gauge is set to 1 to mark them untrustworthy this run (and back to 0 once a crawl completes).
    */
   private suspend fun checkDataQuality(snapshot: RunSnapshot): DataQualityResult {
     return try {
@@ -402,6 +404,8 @@ class VidLabelingMonitor(
       metrics.zeroImpressionDatesGauge.set(storage.zeroImpressionDates, attrs)
       metrics.lateArrivingFilesGauge.set(storage.lateArrivingFiles, attrs)
       metrics.missingRawFilesGauge.set(storage.missingRawFiles, attrs)
+      // The crawl completed, so the gauges above are fresh and trustworthy this run.
+      metrics.dataQualityCheckFailedGauge.set(0, attrs)
       DataQualityResult(
         missingLabeledOutputs = missingLabeled,
         lateArrivingFiles = storage.lateArrivingFiles,
@@ -410,9 +414,13 @@ class VidLabelingMonitor(
         missingRawFiles = storage.missingRawFiles,
       )
     } catch (e: Exception) {
+      // Non-blocking: a bad crawl never fails the monitor run. The per-signal gauges above now hold
+      // stale values from a previous run, so raise dataQualityCheckFailed=1 (an alertable signal)
+      // and log at SEVERE so operators know those numbers are not trustworthy this run.
+      metrics.dataQualityCheckFailedGauge.set(1, dataProviderAttributes())
       logger.log(
-        Level.WARNING,
-        "Data-quality checks failed for $dataProviderName (non-blocking)",
+        Level.SEVERE,
+        "Data-quality checks failed for $dataProviderName; gauges may be stale (non-blocking)",
         e,
       )
       DataQualityResult(0L, 0L, 0L, 0L, 0L)

@@ -699,6 +699,33 @@ class VidLabelingMonitorTest {
   }
 
   @Test
+  fun `data-quality check failed gauge is 0 on a healthy run`() = runBlocking {
+    stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+    stubModelLines()
+    stubFiles()
+
+    createMonitor().runHealth()
+
+    assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.data_quality_check_failed"))
+      .isEqualTo(0)
+  }
+
+  @Test
+  fun `flags data-quality check failure and stays non-blocking when the crawl throws`() =
+    runBlocking {
+      stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+      stubModelLines()
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenThrow(StatusRuntimeException(Status.INTERNAL))
+
+      // Non-blocking: the health run completes despite the crawl failure.
+      createMonitor().runHealth()
+
+      assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.data_quality_check_failed"))
+        .isEqualTo(1)
+    }
+
+  @Test
   fun `reports missing raw files for a registered file absent from storage`() = runBlocking {
     // Directional metadata -> storage signal: the file is registered (with an event_date) but its
     // blob is gone from storage (data loss).
