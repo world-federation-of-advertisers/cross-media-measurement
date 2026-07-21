@@ -25,9 +25,9 @@ import org.wfanet.measurement.common.Instrumentation
 /**
  * Encapsulates the OpenTelemetry instruments used by [VidLabelingMonitor].
  *
- * Mirrors the `DataAvailabilityMonitorMetrics` pattern. Only the instruments used by the dispatch
- * sequencing + failure/staleness checks are defined here; phase-transition-recovery and
- * data-quality instruments are added with their respective checks in follow-up PRs.
+ * Mirrors the `DataAvailabilityMonitorMetrics` pattern. Defines the instruments for all monitor
+ * responsibilities: dispatch sequencing, failure/staleness monitoring, phase-transition recovery,
+ * and data-quality checks.
  *
  * @param meter the OpenTelemetry [Meter] used to create instruments.
  */

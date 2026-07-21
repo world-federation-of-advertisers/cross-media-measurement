@@ -86,8 +86,9 @@ private data class ChannelKey(
  * `DataProvider` and runs the selected cadence.
  *
  * Unlike [VidLabelingDispatcherFunction], this function is not triggered by a DataWatcher "done"
- * blob and does not read storage; it lists uploads through the `RawImpressionUploadService`
- * metadata API.
+ * blob. It lists uploads through the `RawImpressionUploadService` metadata API. In `dispatch` mode
+ * it reads no storage; in `health` mode the data-quality checks additionally crawl the
+ * raw-impression and labeled-impression storage buckets to reconcile metadata against storage.
  *
  * ## Environment Variables
  * - `EDPA_CONFIG_STORAGE_BUCKET`: Required. URI prefix for the config storage bucket.
