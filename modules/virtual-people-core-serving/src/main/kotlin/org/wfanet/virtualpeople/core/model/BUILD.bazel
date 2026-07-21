@@ -20,7 +20,7 @@ kt_jvm_library(
         "UpdateTreeImpl.kt",
     ],
     deps = [
-        "//modules/virtual-people-core-serving/src/main/kotlin/org/wfanet/virtualpeople/core/model/utils",
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model/utils",
         "@maven//:com_google_guava_guava",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/com/google/protobuf/util",

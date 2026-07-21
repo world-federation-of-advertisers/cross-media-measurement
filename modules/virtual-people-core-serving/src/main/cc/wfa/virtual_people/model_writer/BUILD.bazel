@@ -6,7 +6,7 @@ cc_binary(
     name = "model_writer_main",
     srcs = ["model_writer_main.cc"],
     deps = [
-        "//modules/virtual-people-core-serving/src/main/cc/wfa/virtual_people/core/model:model_serializer",
+        "//src/main/cc/wfa/virtual_people/core/model:model_serializer",
         "@com_github_google_glog//:glog",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",

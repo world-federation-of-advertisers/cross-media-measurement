@@ -5,7 +5,7 @@ kt_jvm_test(
     srcs = ["UpdateMatrixImplTest.kt"],
     test_class = "org.wfanet.virtualpeople.core.model.UpdateMatrixImplTest",
     deps = [
-        "//modules/virtual-people-core-serving/src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
@@ -16,7 +16,7 @@ kt_jvm_test(
     srcs = ["UpdateTreeImplTest.kt"],
     test_class = "org.wfanet.virtualpeople.core.model.UpdateTreeImplTest",
     deps = [
-        "//modules/virtual-people-core-serving/src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
@@ -28,7 +28,7 @@ kt_jvm_test(
     srcs = ["SparseUpdateMatrixImplTest.kt"],
     test_class = "org.wfanet.virtualpeople.core.model.SparseUpdateMatrixImplTest",
     deps = [
-        "//modules/virtual-people-core-serving/src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
@@ -39,7 +39,7 @@ kt_jvm_test(
     srcs = ["ConditionalAssignmentImplTest.kt"],
     test_class = "org.wfanet.virtualpeople.core.model.ConditionalAssignmentImplTest",
     deps = [
-        "//modules/virtual-people-core-serving/src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
@@ -52,7 +52,7 @@ kt_jvm_test(
     srcs = ["ConditionalMergeImplTest.kt"],
     test_class = "org.wfanet.virtualpeople.core.model.ConditionalMergeImplTest",
     deps = [
-        "//modules/virtual-people-core-serving/src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
@@ -64,7 +64,7 @@ kt_jvm_test(
     srcs = ["MultiplicityImplTest.kt"],
     test_class = "org.wfanet.virtualpeople.core.model.MultiplicityImplTest",
     deps = [
-        "//modules/virtual-people-core-serving/src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
@@ -76,7 +76,7 @@ kt_jvm_test(
     srcs = ["PopulationNodeImplTest.kt"],
     test_class = "org.wfanet.virtualpeople.core.model.PopulationNodeImplTest",
     deps = [
-        "//modules/virtual-people-core-serving/src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
@@ -88,7 +88,7 @@ kt_jvm_test(
     srcs = ["BranchNodeImplTest.kt"],
     test_class = "org.wfanet.virtualpeople.core.model.BranchNodeImplTest",
     deps = [
-        "//modules/virtual-people-core-serving/src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
@@ -100,7 +100,7 @@ kt_jvm_test(
     srcs = ["GeometricShredderImplTest.kt"],
     test_class = "org.wfanet.virtualpeople.core.model.GeometricShredderImplTest",
     deps = [
-        "//modules/virtual-people-core-serving/src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],

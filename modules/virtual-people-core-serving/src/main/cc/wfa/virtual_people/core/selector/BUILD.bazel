@@ -2,7 +2,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 
 package(default_visibility = ["//visibility:public"])
 
-_INCLUDE_PREFIX = "/modules/virtual-people-core-serving/src/main/cc"
+_INCLUDE_PREFIX = "/src/main/cc"
 
 cc_library(
     name = "lru_cache",
@@ -30,8 +30,8 @@ cc_library(
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
         ":lru_cache",
-        "//modules/virtual-people-core-serving/src/main/proto/wfa/measurement/api/v2alpha:model_line_cc_proto",
-        "//modules/virtual-people-core-serving/src/main/proto/wfa/measurement/api/v2alpha:model_rollout_cc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_line_cc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_rollout_cc_proto",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_protobuf//:protobuf",

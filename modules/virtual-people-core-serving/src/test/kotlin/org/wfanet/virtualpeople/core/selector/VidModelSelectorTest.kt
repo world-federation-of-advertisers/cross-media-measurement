@@ -29,7 +29,7 @@ import org.wfanet.virtualpeople.common.labelerInput
 import org.wfanet.virtualpeople.common.profileInfo
 import org.wfanet.virtualpeople.common.userInfo
 
-private const val TEXTPROTO_PATH = "modules/virtual-people-core-serving/src/main/resources/testing/selector/"
+private const val TEXTPROTO_PATH = "src/main/resources/testing/selector/"
 
 @RunWith(JUnit4::class)
 class VidModelSelectorTest {

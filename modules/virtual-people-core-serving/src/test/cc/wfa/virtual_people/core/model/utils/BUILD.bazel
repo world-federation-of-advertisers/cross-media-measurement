@@ -6,7 +6,7 @@ cc_test(
     name = "virtual_person_selector_test",
     srcs = ["virtual_person_selector_test.cc"],
     deps = [
-        "//modules/virtual-people-core-serving/src/main/cc/wfa/virtual_people/core/model/utils:virtual_person_selector",
+        "//src/main/cc/wfa/virtual_people/core/model/utils:virtual_person_selector",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest_main",
@@ -20,7 +20,7 @@ cc_test(
     name = "feistel_test",
     srcs = ["feistel_test.cc"],
     deps = [
-        "//modules/virtual-people-core-serving/src/main/cc/wfa/virtual_people/core/model/utils:feistel",
+        "//src/main/cc/wfa/virtual_people/core/model/utils:feistel",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -29,7 +29,7 @@ cc_test(
     name = "consistent_hash_test",
     srcs = ["consistent_hash_test.cc"],
     deps = [
-        "//modules/virtual-people-core-serving/src/main/cc/wfa/virtual_people/core/model/utils:consistent_hash",
+        "//src/main/cc/wfa/virtual_people/core/model/utils:consistent_hash",
         "@com_google_absl//absl/random",
         "@com_google_googletest//:gtest_main",
     ],
@@ -39,7 +39,7 @@ cc_test(
     name = "distributed_consistent_hashing_test",
     srcs = ["distributed_consistent_hashing_test.cc"],
     deps = [
-        "//modules/virtual-people-core-serving/src/main/cc/wfa/virtual_people/core/model/utils:distributed_consistent_hashing",
+        "//src/main/cc/wfa/virtual_people/core/model/utils:distributed_consistent_hashing",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status:statusor",
@@ -52,7 +52,7 @@ cc_test(
     name = "field_filters_matcher_test",
     srcs = ["field_filters_matcher_test.cc"],
     deps = [
-        "//modules/virtual-people-core-serving/src/main/cc/wfa/virtual_people/core/model/utils:field_filters_matcher",
+        "//src/main/cc/wfa/virtual_people/core/model/utils:field_filters_matcher",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest_main",
         "@com_google_protobuf//:protobuf",
@@ -66,7 +66,7 @@ cc_test(
     name = "hash_field_mask_matcher_test",
     srcs = ["hash_field_mask_matcher_test.cc"],
     deps = [
-        "//modules/virtual-people-core-serving/src/main/cc/wfa/virtual_people/core/model/utils:hash_field_mask_matcher",
+        "//src/main/cc/wfa/virtual_people/core/model/utils:hash_field_mask_matcher",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest_main",
@@ -80,8 +80,8 @@ cc_test(
     name = "update_matrix_helper_test",
     srcs = ["update_matrix_helper_test.cc"],
     deps = [
-        "//modules/virtual-people-core-serving/src/main/cc/wfa/virtual_people/core/model/utils:distributed_consistent_hashing",
-        "//modules/virtual-people-core-serving/src/main/cc/wfa/virtual_people/core/model/utils:update_matrix_helper",
+        "//src/main/cc/wfa/virtual_people/core/model/utils:distributed_consistent_hashing",
+        "//src/main/cc/wfa/virtual_people/core/model/utils:update_matrix_helper",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest_main",

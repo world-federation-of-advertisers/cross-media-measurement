@@ -39,7 +39,7 @@ using ::wfa::IsOk;
 using ::wfa::ReadRiegeliFile;
 using ::wfa::ReadTextProtoFile;
 
-const char kTestDataDir[] = "modules/virtual-people-core-serving/src/main/resources/testing/labeler/";
+const char kTestDataDir[] = "src/main/resources/testing/labeler/";
 
 void ApplyAndValidate(absl::string_view model_path,
                       absl::string_view input_path,
