@@ -1047,6 +1047,7 @@ fun ProtocolConfig.NoiseMechanism.toInternal(): InternalNoiseMechanism {
       InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED
     ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE -> InternalNoiseMechanism.CONTINUOUS_LAPLACE
     ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN -> InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
+    ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
     ProtocolConfig.NoiseMechanism.UNRECOGNIZED -> {
       throw NoiseMechanismUnrecognizedException("Noise mechanism $this is not recognized.")
     }
