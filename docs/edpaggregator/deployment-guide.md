@@ -66,7 +66,9 @@ services:
   config bucket.
 * **Cloud Functions** — the event-driven and scheduled glue: DataWatcher,
   DataWatcherDelete, EventGroupSync, RequisitionFetcher, DataAvailabilitySync,
-  DataAvailabilityCleanup, DataAvailabilityMonitor.
+  DataAvailabilityCleanup, DataAvailabilityMonitor, plus the VidLabelingDispatcher
+  and VidLabelingMonitor (which deploy unconditionally — see
+  [Optional: VID Labeling pipeline](#optional-vid-labeling-pipeline)).
 * **Secret Manager** — TLS keypairs, root CAs, and per-EDP consent/encryption
   material.
 * **Pub/Sub** — work queues that feed the TEE Managed Instance Groups.
@@ -461,7 +463,7 @@ edps_certs = {
 
 ### Cloud Functions
 
-All seven functions are configured through a single `cloud_function_configs` map.
+All nine functions are configured through a single `cloud_function_configs` map.
 Each entry provides:
 
 | Field | Meaning |
@@ -481,8 +483,16 @@ cloud_function_configs = {
   data_availability_sync    = { ... }
   data_availability_cleanup = { ... }
   data_availability_monitor = { ... }
+  # Required even for a baseline R&F deployment (deploy unconditionally):
+  vid_labeling_dispatcher   = { ... }
+  vid_labeling_monitor      = { ... }
 }
 ```
+
+> The last two entries (`vid_labeling_dispatcher`, `vid_labeling_monitor`) are
+> **mandatory** — those functions deploy unconditionally regardless of
+> `vid_labeling_workers`. See
+> [Optional: VID Labeling pipeline](#optional-vid-labeling-pipeline).
 
 **`extra_env_vars` — the meaningful variables per function** (all functions also take
 the standard OpenTelemetry variables `OTEL_SERVICE_NAME`, `OTEL_METRICS_EXPORTER`,
@@ -572,14 +582,18 @@ private DNS zone for `*.googleapis.com` (all configurable, see
 
 ### Schedulers
 
-Two schedulers are configured with a `{ schedule, time_zone, name, function_url,
-scheduler_sa_display_name, scheduler_sa_description, scheduler_job_description }`
-object:
+Four schedulers are configured, each with a `{ schedule, time_zone, name,
+function_url, scheduler_sa_display_name, scheduler_sa_description,
+scheduler_job_description }` object:
 
 * `requisition_fetcher_scheduler_config` — triggers the RequisitionFetcher. Set the
   interval **greater than** the expected drain time (see
   [RequisitionFetcher](#requisitionfetcher)).
 * `data_availability_monitor_scheduler_config` — triggers the DataAvailabilityMonitor.
+* `vid_labeling_monitor_scheduler_config` — triggers the VidLabelingMonitor health
+  cadence. Required (deploys unconditionally).
+* `vid_labeling_dispatch_scheduler_config` — triggers the VidLabelingMonitor dispatch
+  cadence. Required (deploys unconditionally).
 
 ### Networking
 
@@ -933,8 +947,6 @@ already deployed (see [`docs/gke/kingdom-deployment.md`](../gke/kingdom-deployme
    bazel build //src/main/k8s/dev:secure_computation.tar \
      --define google_cloud_project=PROJECT_ID \
      --define spanner_instance=SPANNER_INSTANCE \
-     --define kingdom_public_api_address_name=kingdom-v2alpha \
-     --define kingdom_system_api_address_name=kingdom-system-v1alpha \
      --define container_registry=ghcr.io \
      --define image_repo_prefix=IMAGE_REPO_PREFIX \
      --define image_tag=IMAGE_TAG
@@ -995,8 +1007,6 @@ bound via Workload Identity.
    bazel build //src/main/k8s/dev:edp_aggregator.tar \
      --define google_cloud_project=PROJECT_ID \
      --define spanner_instance=SPANNER_INSTANCE \
-     --define kingdom_public_api_address_name=kingdom-v2alpha \
-     --define kingdom_system_api_address_name=kingdom-system-v1alpha \
      --define container_registry=ghcr.io \
      --define image_repo_prefix=IMAGE_REPO_PREFIX \
      --define image_tag=IMAGE_TAG
@@ -1042,17 +1052,24 @@ data-availability → ResultsFulfiller → result returned to the CMMS.
    ```bash
    bazel --host_jvm_args=-Xmx20g run \
      //src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:GenerateSyntheticData -- \
-     --event-group-reference-id=event-group-reference-id/EG_REF_ID \
-     --output-bucket=EDPA_STORAGE_BUCKET \
-     --scheme=gs:// \
+     --edp-name=<edp-id> \
+     --config-file=impression_test_data_config.textproto \
      --kms-type=GCP \
      --kek-uri=gcp-kms://projects/EDP_PROJECT/locations/global/keyRings/RING/cryptoKeys/KEY \
-     --population-spec-resource-path=small_population_spec.textproto \
-     --data-spec-resource-path=small_data_spec.textproto
+     --output-bucket=EDPA_STORAGE_BUCKET \
+     --scheme=gs:// \
+     --event-message-type-url=type.googleapis.com/<your.event.Message> \
+     --model-line=modelProviders/MP/modelSuites/MS/modelLines/ML \
+     --create-done-blobs
    ```
 
-   `--event-group-reference-id` must follow the `event-group-reference-id/<value>`
-   pattern; `--kek-uri` is the data provider's KEK.
+   `--edp-name`, `--config-file`, `--kek-uri`, and `--model-line` are required.
+   `--kek-uri` is the data provider's KEK. The event-group reference id, population
+   spec, and data spec are **not** CLI flags — they are fields of the
+   `ImpressionTestDataConfig` textproto passed via `--config-file`
+   (`eventGroupReferenceId`, `populationSpecResourcePath`, `dataSpecResourcePath`).
+   `--create-done-blobs` writes the `done` marker in each date directory so the
+   pipeline picks up the data.
 
 ### Cloud test steps
 
