@@ -446,38 +446,30 @@ class VidLabelingMonitor(
           )
         }
 
-    // (data loss) A file registered in metadata whose blob is no longer in storage.
+    // Group registered files by their storage folder. By design every raw impression file for an
+    // event date -- and that date's `done` blob -- lives under the same path segment named for the
+    // date, so a single listing per folder reconciles every file, the `done` blob, and file create
+    // times in one pass (no getBlob per file, no separate getBlob for the `done` blob).
+    val filesByFolder: Map<String, List<DatedFile>> =
+      files.groupBy { it.key.substringBeforeLast('/', "") }
+
     var missingRawFiles = 0L
-    for (file in files) {
-      if (rawImpressionsStorageClient.getBlob(file.key) == null) {
-        missingRawFiles++
-      }
-    }
-
-    // Reconcile each event-date folder. The folder's trailing segment must equal the file's
-    // event_date, so a file stored under a path that disagrees with its footer date is not counted
-    // as a spurious date folder.
-    val dateFolders: Set<String> =
-      files
-        .mapNotNull { file ->
-          val folder = file.key.substringBeforeLast('/', "")
-          if (folder.substringAfterLast('/') == file.eventDate.toString()) folder else null
-        }
-        .toSet()
-
     var missingDoneBlobs = 0L
     var zeroImpressionDates = 0L
     var lateArrivingFiles = 0L
-    for (dateFolder in dateFolders) {
-      val doneBlob = rawImpressionsStorageClient.getBlob("$dateFolder/done")
+    for ((dateFolder, folderFiles) in filesByFolder) {
+      val blobs = rawImpressionsStorageClient.listBlobs("$dateFolder/").toList()
+      val presentKeys: Set<String> = blobs.map { it.blobKey }.toHashSet()
+
+      // (data loss) A file registered in metadata whose blob is absent from the listing.
+      missingRawFiles += folderFiles.count { it.key !in presentKeys }.toLong()
+
+      val doneBlob = blobs.firstOrNull { it.blobKey == "$dateFolder/done" }
       if (doneBlob == null) {
         missingDoneBlobs++
         continue
       }
-      val dataFiles =
-        rawImpressionsStorageClient.listBlobs("$dateFolder/").toList().filterNot {
-          it.blobKey.endsWith("/done")
-        }
+      val dataFiles = blobs.filterNot { it.blobKey.endsWith("/done") }
       if (dataFiles.isEmpty()) {
         zeroImpressionDates++
       }
