@@ -90,16 +90,16 @@ package k8s
 						"--queue-config=/etc/\(#AppName)/config-files/queues_config.textproto",
 						"--google-project-id=" + #GCloudProject,
 
-						// Dead-letter listeners: one per EDP-Aggregator phase DLQ. On Pub/Sub retry
-						// exhaustion each marks the EDPA pipeline resources FAILED via the
-						// metadata-storage public API (mTLS, reusing the secure-computation identity
-						// the EDPA trusted_certs already trusts).
-						"--dead-letter-subscription-id=subpool-assigner-queue-dlq-sub",
-						"--dead-letter-subscription-id=vid-rank-builder-queue-dlq-sub",
-						"--dead-letter-subscription-id=vid-labeler-queue-dlq-sub",
-						"--edpa-tls-cert-file=/var/run/secrets/files/secure_computation_tls.pem",
-						"--edpa-tls-key-file=/var/run/secrets/files/secure_computation_tls.key",
-						"--metadata-storage-cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
+				// Dead-letter listeners: one per EDP-Aggregator phase DLQ. On Pub/Sub retry
+				// exhaustion each marks the EDPA pipeline resources FAILED via the
+				// metadata-storage public API (mTLS, reusing the secure-computation identity
+				// the EDPA trusted_certs already trusts).
+				"--dead-letter-subscription-id=subpool-assigner-queue-dlq-sub",
+				"--dead-letter-subscription-id=vid-rank-builder-queue-dlq-sub",
+				"--dead-letter-subscription-id=vid-labeler-queue-dlq-sub",
+				"--edpa-tls-cert-file=/var/run/secrets/files/secure_computation_tls.pem",
+				"--edpa-tls-key-file=/var/run/secrets/files/secure_computation_tls.key",
+				"--metadata-storage-cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
 			] + _spannerConfig.flags + _edpAggregatorSystemApiTarget.args
 
 			_updateSchemaContainer: Container=#Container & {
