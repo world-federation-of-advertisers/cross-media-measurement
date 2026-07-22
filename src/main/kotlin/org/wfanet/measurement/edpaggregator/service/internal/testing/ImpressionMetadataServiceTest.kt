@@ -1456,42 +1456,6 @@ abstract class ImpressionMetadataServiceTest {
   }
 
   @Test
-  fun `listImpressionMetadata filters by eventGroupReferenceId`() = runBlocking {
-    val created =
-      service
-        .batchCreateImpressionMetadata(
-          batchCreateImpressionMetadataRequest {
-            requests += createImpressionMetadataRequest {
-              impressionMetadata = IMPRESSION_METADATA_2
-            }
-            requests += createImpressionMetadataRequest {
-              impressionMetadata = IMPRESSION_METADATA_3
-            }
-            requests += createImpressionMetadataRequest {
-              impressionMetadata = IMPRESSION_METADATA_4
-            }
-          }
-        )
-        .impressionMetadataList
-
-    val expected =
-      created
-        .filter { it.eventGroupReferenceId == "group-2" }
-        .sortedBy { it.impressionMetadataResourceId }
-
-    val response =
-      service.listImpressionMetadata(
-        listImpressionMetadataRequest {
-          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          filter = ListImpressionMetadataRequestKt.filter { eventGroupReferenceId = "group-2" }
-        }
-      )
-
-    assertThat(response)
-      .isEqualTo(listImpressionMetadataResponse { impressionMetadata += expected })
-  }
-
-  @Test
   fun `listImpressionMetadata filters by eventGroupReferenceIds`() = runBlocking {
     val created =
       service
@@ -1561,49 +1525,6 @@ abstract class ImpressionMetadataServiceTest {
           listImpressionMetadataRequest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             filter = ListImpressionMetadataRequestKt.filter { eventGroupReferenceIds += "group-2" }
-          }
-        )
-
-      assertThat(response)
-        .isEqualTo(listImpressionMetadataResponse { impressionMetadata += expected })
-    }
-
-  @Test
-  fun `listImpressionMetadata matches both eventGroupReferenceId and eventGroupReferenceIds`() =
-    runBlocking {
-      val created =
-        service
-          .batchCreateImpressionMetadata(
-            batchCreateImpressionMetadataRequest {
-              requests += createImpressionMetadataRequest {
-                impressionMetadata = IMPRESSION_METADATA_2
-              }
-              requests += createImpressionMetadataRequest {
-                impressionMetadata = IMPRESSION_METADATA_3
-              }
-              requests += createImpressionMetadataRequest {
-                impressionMetadata = IMPRESSION_METADATA_4
-              }
-            }
-          )
-          .impressionMetadataList
-
-      // Singular restricts to group-1; repeated restricts to {group-1, group-2}; ANDed together the
-      // result is the intersection: group-1 only (METADATA_2).
-      val expected =
-        created
-          .filter { it.eventGroupReferenceId == "group-1" }
-          .sortedBy { it.impressionMetadataResourceId }
-
-      val response =
-        service.listImpressionMetadata(
-          listImpressionMetadataRequest {
-            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-            filter =
-              ListImpressionMetadataRequestKt.filter {
-                eventGroupReferenceId = "group-1"
-                eventGroupReferenceIds += listOf("group-1", "group-2")
-              }
           }
         )
 
