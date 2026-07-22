@@ -17,7 +17,6 @@
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
 import io.grpc.BindableService
-import io.grpc.Channel
 import io.grpc.ManagedChannel
 import io.grpc.Server
 import io.grpc.inprocess.InProcessChannelBuilder
@@ -100,7 +99,7 @@ class InternalApiServer : Runnable {
           "one listener per dead-letter subscription (e.g. one per phase queue)."
       ],
     required = false,
-    arity = "0..*",
+    arity = "1",
   )
   private var deadLetterSubscriptionIds: List<String> = emptyList()
 
@@ -109,40 +108,44 @@ class InternalApiServer : Runnable {
     description =
       [
         "Path to the EDP-Aggregator client TLS certificate (PEM) used for the metadata-storage " +
-          "mTLS channel."
+          "mTLS channel. Required when --dead-letter-subscription-id is set."
       ],
-    required = true,
+    required = false,
   )
-  private lateinit var edpaTlsCertFile: File
+  private var edpaTlsCertFile: File? = null
 
   @CommandLine.Option(
     names = ["--edpa-tls-key-file"],
     description =
       [
         "Path to the EDP-Aggregator client TLS private key (PEM) used for the metadata-storage " +
-          "mTLS channel."
+          "mTLS channel. Required when --dead-letter-subscription-id is set."
       ],
-    required = true,
+    required = false,
   )
-  private lateinit var edpaTlsKeyFile: File
+  private var edpaTlsKeyFile: File? = null
 
   @CommandLine.Option(
     names = ["--metadata-storage-cert-collection-file"],
     description =
       [
         "Path to the trusted root certificate collection (PEM) for the EDP-Aggregator " +
-          "metadata-storage public API."
+          "metadata-storage public API. Required when --dead-letter-subscription-id is set."
       ],
-    required = true,
+    required = false,
   )
-  private lateinit var metadataStorageCertCollectionFile: File
+  private var metadataStorageCertCollectionFile: File? = null
 
   @CommandLine.Option(
     names = ["--metadata-storage-public-api-target"],
-    description = ["gRPC target of the EDP-Aggregator metadata-storage public API server."],
-    required = true,
+    description =
+      [
+        "gRPC target of the EDP-Aggregator metadata-storage public API server. Required when " +
+          "--dead-letter-subscription-id is set."
+      ],
+    required = false,
   )
-  private lateinit var metadataStoragePublicApiTarget: String
+  private var metadataStoragePublicApiTarget: String? = null
 
   @CommandLine.Option(
     names = ["--metadata-storage-public-api-cert-host"],
@@ -166,7 +169,12 @@ class InternalApiServer : Runnable {
   override fun run() {
     val queuesConfig = parseTextProto(queuesConfigFile, QueuesConfig.getDefaultInstance())
     val queueMapping = QueueMapping(queuesConfig)
-    val edpaStubs: EdpaStubs = buildEdpaStubs()
+
+    // The EDP-Aggregator metadata-storage mTLS channel and stubs are only needed when at least one
+    // DLQ listener runs. When no dead-letter subscription is configured the server runs without
+    // them, so the EDPA cert/key/target flags are not required in that case.
+    val edpaConnection: EdpaConnection? =
+      if (deadLetterSubscriptionIds.isEmpty()) null else buildEdpaConnection()
 
     runBlocking {
       spannerFlags.usingSpanner { spanner ->
@@ -208,7 +216,9 @@ class InternalApiServer : Runnable {
                   workItemsStub = workItemsStub,
                   subscriptionId = subscriptionId,
                   queueSubscriber = subscriber,
-                  edpaStubs = edpaStubs,
+                  // Non-null: edpaConnection is built whenever deadLetterSubscriptionIds is
+                  // non-empty, which is exactly when this map iterates.
+                  edpaStubs = checkNotNull(edpaConnection).stubs,
                 )
               async {
                 try {
@@ -223,6 +233,7 @@ class InternalApiServer : Runnable {
         } finally {
           inProcessChannel.shutdown()
           inProcessServer.shutdown()
+          edpaConnection?.channel?.shutdown()
         }
       }
     }
@@ -237,29 +248,53 @@ class InternalApiServer : Runnable {
   )
 
   /**
-   * Builds the [EdpaStubs] from a mutual-TLS channel to the EDP-Aggregator metadata-storage public
-   * API. The TLS cert/key, trusted root collection, and API target are required flags, so the EDPA
-   * resource-marking path is always enabled.
+   * The EDP-Aggregator metadata-storage mutual-TLS [channel] and the [stubs] built on it, held
+   * together so the channel can be shut down when the server stops.
    */
-  private fun buildEdpaStubs(): EdpaStubs {
+  private class EdpaConnection(val stubs: EdpaStubs, val channel: ManagedChannel)
+
+  /**
+   * Builds the [EdpaConnection] (mutual-TLS channel + stubs) to the EDP-Aggregator metadata-storage
+   * public API.
+   *
+   * Only called when at least one DLQ listener is configured; the cert/key, trusted root
+   * collection, and target flags are therefore required in that case and validated here.
+   */
+  private fun buildEdpaConnection(): EdpaConnection {
+    val certificateFile =
+      requireNotNull(edpaTlsCertFile) {
+        "--edpa-tls-cert-file is required when --dead-letter-subscription-id is set"
+      }
+    val privateKeyFile =
+      requireNotNull(edpaTlsKeyFile) {
+        "--edpa-tls-key-file is required when --dead-letter-subscription-id is set"
+      }
+    val trustedCertCollectionFile =
+      requireNotNull(metadataStorageCertCollectionFile) {
+        "--metadata-storage-cert-collection-file is required when --dead-letter-subscription-id is set"
+      }
+    val target =
+      requireNotNull(metadataStoragePublicApiTarget) {
+        "--metadata-storage-public-api-target is required when --dead-letter-subscription-id is set"
+      }
     val clientCerts =
       SigningCerts.fromPemFiles(
-        certificateFile = edpaTlsCertFile,
-        privateKeyFile = edpaTlsKeyFile,
-        trustedCertCollectionFile = metadataStorageCertCollectionFile,
+        certificateFile = certificateFile,
+        privateKeyFile = privateKeyFile,
+        trustedCertCollectionFile = trustedCertCollectionFile,
       )
-    val channel: Channel =
-      buildMutualTlsChannel(
-        metadataStoragePublicApiTarget,
-        clientCerts,
-        metadataStoragePublicApiCertHost,
+    val channel: ManagedChannel =
+      buildMutualTlsChannel(target, clientCerts, metadataStoragePublicApiCertHost)
+        .withShutdownTimeout(channelShutdownTimeout)
+    val stubs =
+      EdpaStubs(
+        poolAssignmentJobsStub = PoolAssignmentJobServiceCoroutineStub(channel),
+        rankerJobsStub = RankerJobServiceCoroutineStub(channel),
+        vidLabelingJobsStub = VidLabelingJobServiceCoroutineStub(channel),
+        rawImpressionUploadModelLinesStub =
+          RawImpressionUploadModelLineServiceCoroutineStub(channel),
       )
-    return EdpaStubs(
-      poolAssignmentJobsStub = PoolAssignmentJobServiceCoroutineStub(channel),
-      rankerJobsStub = RankerJobServiceCoroutineStub(channel),
-      vidLabelingJobsStub = VidLabelingJobServiceCoroutineStub(channel),
-      rawImpressionUploadModelLinesStub = RawImpressionUploadModelLineServiceCoroutineStub(channel),
-    )
+    return EdpaConnection(stubs, channel)
   }
 
   private fun createInProcessServer(

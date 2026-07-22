@@ -19,7 +19,6 @@ package org.wfanet.measurement.edpaggregator.vidlabeler
 import com.google.protobuf.Any
 import com.google.protobuf.Descriptors
 import com.google.protobuf.util.Timestamps
-import org.wfanet.measurement.edpaggregator.rawimpressions.FileEntityKeys
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
@@ -35,8 +34,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
  * * the output `event` is built as a [com.google.protobuf.Any]-packed [eventDescriptor] message
  *   projected via the model line's `event_template_field_mapping` (empty mapping -> empty event);
  * * the `entity_keys` are read per row from the model line's required/optional entity-key column
- *   mappings (see [EntityKeyMapper]), and `event_group_reference_id` is taken from the per-file
- *   [FileEntityKeys] that the reader read from the file's plaintext Parquet footer.
+ *   mappings (see [EntityKeyMapper]).
  *
  * One instance is built per (WorkItem, model line) by the runner factory, so [config] is fixed
  * across the instance's [convert] calls; the per-config [LabelerInputMapper], [EventMessageMapper],
@@ -74,21 +72,18 @@ class ParquetImpressionConverter(private val eventDescriptor: Descriptors.Descri
   override fun convert(
     event: ParquetDigestedEvent,
     config: VidLabelerParams.ModelLineConfig,
-    fileEntityKeys: FileEntityKeys,
   ): ConvertedImpression? {
     val (inputMapper, messageMapper, entityKeyMapper) = mappersFor(config)
 
     val labelerInput = inputMapper.project(event.row)
     val eventTime = Timestamps.fromMicros(labelerInput.timestampUsec)
     val eventMessage = Any.pack(messageMapper.project(event.row))
-    // entity_keys are read per row from the mapped columns; event_group_reference_id comes from the
-    // file's plaintext footer (FileEntityKeys already enforced it is present and non-empty).
+    // entity_keys are read per row from the mapped columns.
     val entityKeys = entityKeyMapper.map(event.row)
 
     return ConvertedImpression(
       labelerInput = labelerInput,
       eventTime = eventTime,
-      eventGroupReferenceId = fileEntityKeys.eventGroupReferenceId,
       event = eventMessage,
       entityKeys = entityKeys,
     )

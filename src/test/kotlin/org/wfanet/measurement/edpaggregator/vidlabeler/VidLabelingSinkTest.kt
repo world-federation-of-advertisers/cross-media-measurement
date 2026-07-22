@@ -46,8 +46,8 @@ import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest
-import org.wfanet.measurement.edpaggregator.rawimpressions.FileEntityKeys
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
+import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
@@ -86,8 +86,8 @@ class VidLabelingSinkTest {
   private fun sink(
     contexts: List<ModelLineContext>,
     converter: ImpressionConverter = FakeImpressionConverter(),
-    fileEntityKeys: FileEntityKeys =
-      FileEntityKeys(eventGroupReferenceId = "eg-ref", eventDate = LocalDate.parse("2026-06-30")),
+    fileMetadata: RawImpressionFileMetadata =
+      RawImpressionFileMetadata(eventDate = LocalDate.parse("2026-06-30")),
     encryptKmsClient: KmsClient = kmsClient,
     encryptionKeySemaphore: Semaphore =
       Semaphore(VidLabelingSink.DEFAULT_ENCRYPTION_KEY_PARALLELISM),
@@ -96,7 +96,7 @@ class VidLabelingSinkTest {
       inputBlobUri = "file:///raw/file-1.parquet",
       modelLineContexts = contexts,
       impressionConverter = converter,
-      fileEntityKeys = fileEntityKeys,
+      fileMetadata = fileMetadata,
       encryptKmsClient = encryptKmsClient,
       encryptKekUri = kekUri,
       outputStorageParams = outputStorageParams,
@@ -149,10 +149,10 @@ class VidLabelingSinkTest {
 
       sink.processBatch(
         listOf(
-          rawEvent(eventTimeMicros = 1_000L, eventGroup = "eg1", idByte = 1), // in [1000, 2000)
-          rawEvent(eventTimeMicros = 1_999L, eventGroup = "eg1", idByte = 2), // in
-          rawEvent(eventTimeMicros = 2_000L, eventGroup = "eg1", idByte = 3), // out (end exclusive)
-          rawEvent(eventTimeMicros = 500L, eventGroup = "eg1", idByte = 4), // out (before start)
+          rawEvent(eventTimeMicros = 1_000L, idByte = 1), // in [1000, 2000)
+          rawEvent(eventTimeMicros = 1_999L, idByte = 2), // in
+          rawEvent(eventTimeMicros = 2_000L, idByte = 3), // out (end exclusive)
+          rawEvent(eventTimeMicros = 500L, idByte = 4), // out (before start)
         )
       )
       sink.commit()
@@ -160,14 +160,12 @@ class VidLabelingSinkTest {
 
       val blobDetails = readSoleBlobDetails()
       assertThat(blobDetails.modelLine).isEqualTo(MODEL_LINE)
-      // The sink records the file's first non-empty event_group_reference_id for
-      // DataAvailabilitySync (TODO(#4175) removes this end-to-end).
-      assertThat(blobDetails.eventGroupReferenceId).isEqualTo("eg1")
+      // The pipeline no longer carries event_group_reference_id; the per-blob entity-key union
+      // identifies the blob for DataAvailabilitySync instead.
 
       val impressions = readImpressions(blobDetails)
       assertThat(impressions).hasSize(2)
       assertThat(impressions.map { it.vid }.toSet()).containsExactly(VID)
-      assertThat(impressions.map { it.eventGroupReferenceId }.toSet()).containsExactly("eg1")
 
       // Each impression carries its source row's entity keys verbatim (idBytes 1 and 2 survive).
       assertThat(impressions.map { it.entityKeysList.toSet() })
@@ -224,8 +222,8 @@ class VidLabelingSinkTest {
 
       sink.processBatch(
         listOf(
-          rawEvent(eventTimeMicros = 1_000L, eventGroup = "eg1", idByte = 1), // hit
-          rawEvent(eventTimeMicros = 1_000L, eventGroup = "eg1", idByte = 2), // miss
+          rawEvent(eventTimeMicros = 1_000L, idByte = 1), // hit
+          rawEvent(eventTimeMicros = 1_000L, idByte = 2), // miss
         )
       )
       sink.commit()
@@ -255,7 +253,7 @@ class VidLabelingSinkTest {
           )
         )
 
-      sink.processBatch(listOf(rawEvent(eventTimeMicros = 1_500L, eventGroup = "eg1", idByte = 1)))
+      sink.processBatch(listOf(rawEvent(eventTimeMicros = 1_500L, idByte = 1)))
       sink.commit()
       sink.close()
 
@@ -273,7 +271,7 @@ class VidLabelingSinkTest {
       tempFolder.root.resolve("labeled").mkdirs()
       val sink = sink(listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L))))
 
-      sink.processBatch(listOf(rawEvent(eventTimeMicros = 1_000L, eventGroup = "eg1", idByte = 1)))
+      sink.processBatch(listOf(rawEvent(eventTimeMicros = 1_000L, idByte = 1)))
       sink.close() // no commit()
 
       val files = tempFolder.root.walkTopDown().filter { it.isFile }.toList()
@@ -292,11 +290,10 @@ class VidLabelingSinkTest {
         sink(
           contexts = listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L))),
           converter =
-            ImpressionConverter { event, _, _ ->
+            ImpressionConverter { event, _ ->
               ConvertedImpression(
                 labelerInput = LabelerInput.getDefaultInstance(),
                 eventTime = Timestamps.fromMicros(event.row.getValue(EVENT_TIME_COLUMN).int64Value),
-                eventGroupReferenceId = event.row.getValue(EVENT_GROUP_COLUMN).stringValue,
                 event = Any.getDefaultInstance(),
                 entityKeys = emptyList(),
               )
@@ -304,9 +301,7 @@ class VidLabelingSinkTest {
         )
 
       assertFailsWith<IllegalArgumentException> {
-        sink.processBatch(
-          listOf(rawEvent(eventTimeMicros = 1_000L, eventGroup = "eg1", idByte = 1))
-        )
+        sink.processBatch(listOf(rawEvent(eventTimeMicros = 1_000L, idByte = 1)))
       }
     }
 
@@ -318,8 +313,8 @@ class VidLabelingSinkTest {
 
       sink.processBatch(
         listOf(
-          rawEvent(eventTimeMicros = 1_500L, eventGroup = "eg1", idByte = 1), // labeled
-          rawEvent(eventTimeMicros = 2_500L, eventGroup = "eg1", idByte = 2), // outside window
+          rawEvent(eventTimeMicros = 1_500L, idByte = 1), // labeled
+          rawEvent(eventTimeMicros = 2_500L, idByte = 2), // outside window
         )
       )
       sink.commit()
@@ -350,7 +345,7 @@ class VidLabelingSinkTest {
           )
         )
 
-      sink.processBatch(listOf(rawEvent(eventTimeMicros = 1_500L, eventGroup = "eg1", idByte = 1)))
+      sink.processBatch(listOf(rawEvent(eventTimeMicros = 1_500L, idByte = 1)))
 
       assertThat(counterValue("edpa.vid_labeler.impressions_labeled", labelAttrs())).isEqualTo(3)
     }
@@ -362,14 +357,14 @@ class VidLabelingSinkTest {
 
       // no_assignment: the assigner returns zero virtual people.
       sink(listOf(context(ActiveWindow(startMicros = 0L, endMicros = 10_000L), MultiVidAssigner())))
-        .processBatch(listOf(rawEvent(eventTimeMicros = 1_500L, eventGroup = "eg1", idByte = 1)))
+        .processBatch(listOf(rawEvent(eventTimeMicros = 1_500L, idByte = 1)))
 
       // converter_skip: the converter returns null for the row.
       sink(
           contexts = listOf(context(ActiveWindow(startMicros = 0L, endMicros = 10_000L))),
-          converter = ImpressionConverter { _, _, _ -> null },
+          converter = ImpressionConverter { _, _ -> null },
         )
-        .processBatch(listOf(rawEvent(eventTimeMicros = 1_500L, eventGroup = "eg1", idByte = 2)))
+        .processBatch(listOf(rawEvent(eventTimeMicros = 1_500L, idByte = 2)))
 
       assertThat(
           counterValue(
@@ -430,7 +425,7 @@ class VidLabelingSinkTest {
           encryptionKeySemaphore = Semaphore(2),
         )
 
-      sink.processBatch(listOf(rawEvent(eventTimeMicros = 1_500L, eventGroup = "eg1", idByte = 1)))
+      sink.processBatch(listOf(rawEvent(eventTimeMicros = 1_500L, idByte = 1)))
       sink.commit()
 
       // Every group wraps its own DEK (8 KMS calls), but the shared semaphore holds concurrency to
@@ -459,20 +454,18 @@ class VidLabelingSinkTest {
   }
 
   /**
-   * Projects the test rows: reads event time + event group from fixed columns, and tags each
-   * impression with a per-row `household` key plus a shared `person` key (so the per-blob union
-   * exercises both multi-type grouping and cross-impression deduplication).
+   * Projects the test rows: reads event time from a fixed column, and tags each impression with a
+   * per-row `household` key plus a shared `person` key (so the per-blob union exercises both
+   * multi-type grouping and cross-impression deduplication).
    */
   private class FakeImpressionConverter : ImpressionConverter {
     override fun convert(
       event: ParquetDigestedEvent,
       config: VidLabelerParams.ModelLineConfig,
-      fileEntityKeys: FileEntityKeys,
     ): ConvertedImpression =
       ConvertedImpression(
         labelerInput = LabelerInput.getDefaultInstance(),
         eventTime = Timestamps.fromMicros(event.row.getValue(EVENT_TIME_COLUMN).int64Value),
-        eventGroupReferenceId = event.row.getValue(EVENT_GROUP_COLUMN).stringValue,
         event = Any.getDefaultInstance(),
         entityKeys =
           listOf(
@@ -522,16 +515,11 @@ class VidLabelingSinkTest {
     }
   }
 
-  private fun rawEvent(
-    eventTimeMicros: Long,
-    eventGroup: String,
-    idByte: Int,
-  ): ParquetDigestedEvent =
+  private fun rawEvent(eventTimeMicros: Long, idByte: Int): ParquetDigestedEvent =
     DigestedEvent(
       row =
         mapOf(
-          EVENT_TIME_COLUMN to ParquetValue.newBuilder().setInt64Value(eventTimeMicros).build(),
-          EVENT_GROUP_COLUMN to ParquetValue.newBuilder().setStringValue(eventGroup).build(),
+          EVENT_TIME_COLUMN to ParquetValue.newBuilder().setInt64Value(eventTimeMicros).build()
         ),
       digest = EventIdDigest(high = idByte.toLong(), low = idByte),
     )
@@ -547,6 +535,5 @@ class VidLabelingSinkTest {
     private const val VID = 42L
     private const val POOL_OFFSET = 10L
     private const val EVENT_TIME_COLUMN = "event_time_micros"
-    private const val EVENT_GROUP_COLUMN = "event_group"
   }
 }

@@ -24,14 +24,13 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
-class FileEntityKeysTest {
+class RawImpressionFileMetadataTest {
   @Test
-  fun `fromFooterMetadata parses event group reference id and event date`() {
-    val metadata = mapOf("event_group_reference_id" to "eg-1", "event_date" to "2026-06-30")
+  fun `fromFooterMetadata parses event date`() {
+    val metadata = mapOf("event_date" to "2026-06-30")
 
-    val fileEntityKeys = FileEntityKeys.fromFooterMetadata(metadata)
+    val fileEntityKeys = RawImpressionFileMetadata.fromFooterMetadata(metadata)
 
-    assertThat(fileEntityKeys.eventGroupReferenceId).isEqualTo("eg-1")
     assertThat(fileEntityKeys.eventDate).isEqualTo(LocalDate.of(2026, 6, 30))
   }
 
@@ -39,7 +38,7 @@ class FileEntityKeysTest {
   fun `fromFooterMetadata throws when event_date is missing`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        FileEntityKeys.fromFooterMetadata(mapOf("event_group_reference_id" to "eg-1"))
+        RawImpressionFileMetadata.fromFooterMetadata(emptyMap())
       }
     assertThat(exception).hasMessageThat().contains("event_date")
   }
@@ -48,39 +47,23 @@ class FileEntityKeysTest {
   fun `fromFooterMetadata throws when event_date is not an ISO date`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        FileEntityKeys.fromFooterMetadata(
-          mapOf("event_group_reference_id" to "eg-1", "event_date" to "30-06-2026")
-        )
+        RawImpressionFileMetadata.fromFooterMetadata(mapOf("event_date" to "30-06-2026"))
       }
     assertThat(exception).hasMessageThat().contains("event_date")
   }
 
   @Test
-  fun `fromFooterMetadata throws when event_group_reference_id is missing`() {
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        FileEntityKeys.fromFooterMetadata(mapOf("event_date" to "2026-06-30"))
-      }
-    assertThat(exception).hasMessageThat().contains("event_group_reference_id")
-  }
-
-  @Test
   fun `parseEventDate parses the event date`() {
-    assertThat(FileEntityKeys.parseEventDate(mapOf("event_date" to "2026-06-30")))
-      .isEqualTo(LocalDate.of(2026, 6, 30))
-  }
-
-  @Test
-  fun `parseEventDate does not require event_group_reference_id`() {
-    // The date-only path must not couple to reference-id presence.
-    assertThat(FileEntityKeys.parseEventDate(mapOf("event_date" to "2026-06-30")))
+    assertThat(RawImpressionFileMetadata.parseEventDate(mapOf("event_date" to "2026-06-30")))
       .isEqualTo(LocalDate.of(2026, 6, 30))
   }
 
   @Test
   fun `parseEventDate throws when event_date is missing`() {
     val exception =
-      assertFailsWith<IllegalArgumentException> { FileEntityKeys.parseEventDate(emptyMap()) }
+      assertFailsWith<IllegalArgumentException> {
+        RawImpressionFileMetadata.parseEventDate(emptyMap())
+      }
     assertThat(exception).hasMessageThat().contains("event_date")
   }
 
@@ -88,7 +71,7 @@ class FileEntityKeysTest {
   fun `parseEventDate throws when event_date is not an ISO date`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        FileEntityKeys.parseEventDate(mapOf("event_date" to "30-06-2026"))
+        RawImpressionFileMetadata.parseEventDate(mapOf("event_date" to "30-06-2026"))
       }
     assertThat(exception).hasMessageThat().contains("event_date")
   }

@@ -570,12 +570,6 @@ class SpannerImpressionMetadataService(
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.blob_type_url")
     }
 
-    if (request.impressionMetadata.eventGroupReferenceId.isEmpty()) {
-      throw RequiredFieldNotSetException(
-        "${fieldPathPrefix}impression_metadata.event_group_reference_id"
-      )
-    }
-
     if (request.impressionMetadata.cmmsModelLine.isEmpty()) {
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.cmms_model_line")
     }
@@ -586,6 +580,15 @@ class SpannerImpressionMetadataService(
 
     request.impressionMetadata.entityKeysList.forEachIndexed { index, entityKey ->
       validateEntityKey(entityKey, "${fieldPathPrefix}impression_metadata.entity_keys.$index")
+    }
+
+    if (
+      request.impressionMetadata.eventGroupReferenceId.isEmpty() &&
+        request.impressionMetadata.entityKeysList.isEmpty()
+    ) {
+      throw RequiredFieldNotSetException(
+        "${fieldPathPrefix}impression_metadata.event_group_reference_id or entity_keys"
+      )
     }
   }
 

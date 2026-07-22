@@ -31,9 +31,9 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigestExtractor
-import org.wfanet.measurement.edpaggregator.rawimpressions.FileEntityKeys
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
+import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.service.VidLabelingJobKey
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
@@ -694,11 +694,11 @@ class VidLabelerApp(
           parquetStorageClient.getBlob(blobUri) ?: error("Raw-impression blob not found: $blobUri")
         val eventDateString =
           requireNotNull(
-            parquetBlob.readKeyValueMetadata()[FileEntityKeys.EVENT_DATE_KEY]?.takeIf {
+            parquetBlob.readKeyValueMetadata()[RawImpressionFileMetadata.EVENT_DATE_KEY]?.takeIf {
               it.isNotEmpty()
             }
           ) {
-            "raw-impression footer is missing the '${FileEntityKeys.EVENT_DATE_KEY}' metadata " +
+            "raw-impression footer is missing the '${RawImpressionFileMetadata.EVENT_DATE_KEY}' metadata " +
               "entry for $blobUri; the producer must write each file's event date (ISO YYYY-MM-DD) " +
               "into its plaintext footer"
           }

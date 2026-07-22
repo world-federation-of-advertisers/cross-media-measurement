@@ -18,7 +18,6 @@ package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.util.Timestamps
-import java.time.LocalDate
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,7 +26,6 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest
-import org.wfanet.measurement.edpaggregator.rawimpressions.FileEntityKeys
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
@@ -59,15 +57,11 @@ class ParquetImpressionConverterTest {
       optionalEntityKeyFieldMapping.put("placement", "pl_col")
     }
 
-  // The footer now carries only the event group reference id and event date.
-  private val fileEntityKeys =
-    FileEntityKeys(eventGroupReferenceId = EVENT_GROUP, eventDate = LocalDate.parse("2026-06-30"))
-
   private fun digestedEvent(row: Map<String, ParquetValue>): ParquetDigestedEvent =
     DigestedEvent(row, EventIdDigest(0L, 0))
 
   @Test
-  fun `convert projects labeler input, event, event group, and entity keys`() {
+  fun `convert projects labeler input, event, and entity keys`() {
     val converter = ParquetImpressionConverter(eventDescriptor)
     val row =
       mapOf(
@@ -79,12 +73,11 @@ class ParquetImpressionConverterTest {
         "pl_col" to parquetValue { stringValue = "p-9" },
       )
 
-    val converted = converter.convert(digestedEvent(row), config, fileEntityKeys)
+    val converted = converter.convert(digestedEvent(row), config)
 
     assertThat(converted).isNotNull()
     assertThat(converted!!.labelerInput.eventId.id).isEqualTo("event-1")
     assertThat(converted.eventTime).isEqualTo(Timestamps.fromMicros(1_700_000_000_000_000L))
-    assertThat(converted.eventGroupReferenceId).isEqualTo(EVENT_GROUP)
 
     val event = converted.event.unpack(TestEvent::class.java)
     assertThat(event.person.gender).isEqualTo(Person.Gender.MALE)
@@ -118,7 +111,7 @@ class ParquetImpressionConverterTest {
         "cr_col" to parquetValue { stringValue = "c-1" },
       )
 
-    val converted = converter.convert(digestedEvent(row), emptyMappingConfig, fileEntityKeys)
+    val converted = converter.convert(digestedEvent(row), emptyMappingConfig)
 
     assertThat(converted).isNotNull()
     val event = converted!!.event.unpack(TestEvent::class.java)
@@ -139,12 +132,6 @@ class ParquetImpressionConverterTest {
         "age" to parquetValue { stringValue = "YEARS_18_TO_34" },
       )
 
-    assertFailsWith<IllegalArgumentException> {
-      converter.convert(digestedEvent(row), config, fileEntityKeys)
-    }
-  }
-
-  companion object {
-    private const val EVENT_GROUP = "event-group-ref-1"
+    assertFailsWith<IllegalArgumentException> { converter.convert(digestedEvent(row), config) }
   }
 }
