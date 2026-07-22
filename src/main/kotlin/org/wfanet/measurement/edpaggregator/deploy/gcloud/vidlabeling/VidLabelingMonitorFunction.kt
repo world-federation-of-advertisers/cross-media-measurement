@@ -345,6 +345,7 @@ class VidLabelingMonitorFunction : HttpFunction {
         VidLabelingConfigs.getDefaultInstance(),
       )
     }
+
     /** Builds a bucket-rooted [StorageClient] for the data-quality crawl. */
     private fun createStorageClient(bucketName: String, projectId: String): StorageClient {
       return GcsStorageClient(
@@ -359,6 +360,5 @@ class VidLabelingMonitorFunction : HttpFunction {
         bucketName,
       )
     }
-
   }
 }

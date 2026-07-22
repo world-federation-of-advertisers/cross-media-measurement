@@ -177,8 +177,8 @@ message VidLabelingConfig {
   // EDP writes to its own folder (e.g. `gs://<bucket>/<edp_impression_path>/
   // model-line/...`). Keeps multiple EDPs that label the same model line in the
   // same bucket from colliding in one folder. REQUIRED, and must match the
-  // `edp_impression_path` in this EDP's `DataAvailabilitySyncConfig` so the writer
-  // and the registrar agree on the location.
+  // `edp_impression_path` in this EDP's `DataAvailabilitySyncConfig` so the
+  // writer and the registrar agree on the location.
   string edp_impression_path = 18 [(google.api.field_behavior) = REQUIRED];
 }
 
