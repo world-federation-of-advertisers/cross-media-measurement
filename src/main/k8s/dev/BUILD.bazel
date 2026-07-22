@@ -502,6 +502,7 @@ cue_dump(
         "pdp_name": PDP_K8S_SETTINGS.pdp_name,
         "mcp_host": REPORTING_K8S_SETTINGS.mcp_host,
         "oauth_issuer": REPORTING_K8S_SETTINGS.oauth_issuer,
+        "oauth_protected_resource": REPORTING_K8S_SETTINGS.oauth_protected_resource,
     },
     tags = ["manual"],
     deps = [
