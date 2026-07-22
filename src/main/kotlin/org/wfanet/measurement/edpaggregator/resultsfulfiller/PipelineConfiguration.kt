@@ -44,7 +44,7 @@ data class PipelineConfiguration(
   val channelCapacity: Int,
   val threadPoolSize: Int,
   val workers: Int,
-  val readConcurrency: Int = DEFAULT_READ_CONCURRENCY,
+  val readConcurrency: Int,
 ) {
 
   /**
@@ -58,16 +58,5 @@ data class PipelineConfiguration(
     require(workers > 0) { "Workers must be positive" }
     require(threadPoolSize > 0) { "Thread pool size must be positive" }
     require(readConcurrency > 0) { "Read concurrency must be positive" }
-  }
-
-  companion object {
-    /**
-     * Default bound on concurrent per-blob storage read + DEK decrypt operations.
-     *
-     * Chosen conservatively: high enough to keep same-region GCS busy, low enough to avoid the
-     * unbounded connection churn (~64-wide) that exhausted Cloud NAT ports and hammered KMS in
-     * production.
-     */
-    const val DEFAULT_READ_CONCURRENCY = 8
   }
 }
