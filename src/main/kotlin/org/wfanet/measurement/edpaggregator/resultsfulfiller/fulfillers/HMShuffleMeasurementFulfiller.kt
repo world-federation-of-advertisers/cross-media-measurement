@@ -16,8 +16,10 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers
 
+import io.grpc.Status
 import io.grpc.StatusException
 import java.util.logging.Logger
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import org.wfanet.frequencycount.FrequencyVector
@@ -34,8 +36,6 @@ import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultMinimumThresholder
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.isTransientGrpcFailure
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.retryTransient
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.FulfillRequisitionRequestBuilder
 
@@ -60,12 +60,14 @@ class HMShuffleMeasurementFulfiller(
     logger.info("Fulfilling requisition ${requisition.name}...")
     val duchyId = getDuchyWithoutPublicKey(requisition)
     val requisitionFulfillmentStub = requisitionFulfillmentStubMap.getValue(duchyId)
-    try {
-      // Retry the worker RPCs on transient failures (UNAVAILABLE / DEADLINE_EXCEEDED). The whole
-      // block is retried, rebuilding the request flow each attempt, so a stalled or dropped
-      // connection self-heals instead of failing the entire report. `getRequisition` re-checks the
-      // state on each attempt, so a requisition fulfilled by a prior attempt is skipped.
-      retryTransient(retryMaxAttempts, retryBackoff, ::isTransientGrpcFailure) {
+    var attempt = 0
+    while (true) {
+      attempt++
+      try {
+        // getRequisition re-checks the state on each attempt, so a requisition already fulfilled by
+        // a prior attempt is skipped; combined with the etag carried into the fulfillment request,
+        // this makes the whole block idempotent, which is what makes retrying DEADLINE_EXCEEDED
+        // (below) safe here.
         val getRequisitionResponse =
           requisitionsStub.getRequisition(getRequisitionRequest { name = requisition.name })
         if (getRequisitionResponse.state === Requisition.State.UNFULFILLED) {
@@ -87,9 +89,24 @@ class HMShuffleMeasurementFulfiller(
             "Cannot fulfill requisition ${requisition.name} with state ${getRequisitionResponse.state}"
           )
         }
+        return
+      } catch (e: StatusException) {
+        // Retry only the worker RPC statuses that are safe to replay here: UNAVAILABLE (the call
+        // did not reach the server, or reached it and is known to have failed) and
+        // DEADLINE_EXCEEDED
+        // (safe because the block is idempotent, see above). Any other status is non-retryable and
+        // fails the fulfillment.
+        val retryable =
+          e.status.code == Status.Code.UNAVAILABLE || e.status.code == Status.Code.DEADLINE_EXCEEDED
+        if (!retryable || attempt >= retryMaxAttempts) {
+          throw Exception("Error fulfilling requisition ${requisition.name}", e)
+        }
+        logger.warning {
+          "Transient failure fulfilling requisition ${requisition.name} on attempt $attempt of " +
+            "$retryMaxAttempts (${e.message}); retrying"
+        }
+        delay(retryBackoff.durationForAttempt(attempt).toMillis())
       }
-    } catch (e: StatusException) {
-      throw Exception("Error fulfilling requisition ${requisition.name}", e)
     }
   }
 

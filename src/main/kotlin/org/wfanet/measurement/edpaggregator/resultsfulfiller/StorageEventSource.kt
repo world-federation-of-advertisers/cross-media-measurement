@@ -24,11 +24,17 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Descriptors
+import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Message
+import java.io.IOException
 import java.util.logging.Logger
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -136,7 +142,7 @@ class StorageEventSource(
   private val impressionsStorageConfig: StorageConfig,
   private val descriptor: Descriptors.Descriptor,
   private val batchSize: Int,
-  private val readConcurrency: Int = PipelineConfiguration.DEFAULT_READ_CONCURRENCY,
+  private val readConcurrency: Int = DEFAULT_READ_CONCURRENCY,
   private val readMaxAttempts: Int = DEFAULT_READ_MAX_ATTEMPTS,
   private val readRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
   private val eventReaderFactory: (BlobDetails) -> EventReader<Message> = { blobDetails ->
@@ -279,25 +285,39 @@ class StorageEventSource(
   ): EventReaderResult {
     logger.fine("Reading events from ${resolvedReader.blobUri}")
 
-    // Read the whole blob (open + DEK decrypt + streaming read) under a bounded retry, buffering
-    // batches locally so a transient failure can safely re-read the blob from scratch. Emitting to
-    // the downstream sinks only after a successful full read keeps a retry from double-counting
-    // (the sinks accumulate). Peak buffered memory is bounded by readConcurrency * one blob.
+    // Wrap the whole blob read (open + DEK decrypt + streaming read) in a single-value flow so
+    // retryWhen restarts the entire read on a retryable failure, never a partial one. Batches are
+    // buffered and emitted downstream only after a full successful read, so a retry cannot
+    // double-count into the accumulating sinks. Peak buffered memory is bounded by
+    // readConcurrency * one blob.
     val batches: List<EventBatch<Message>> =
-      retryTransient(readMaxAttempts, readRetryBackoff, ::isTransientStorageFailure) {
-        val buffered = mutableListOf<EventBatch<Message>>()
-        resolvedReader.reader.readEvents().collect { events ->
-          buffered.add(
-            EventBatch(
-              events = events,
-              minTime = events.minOf { it.timestamp },
-              maxTime = events.maxOf { it.timestamp },
-              eventGroupIdentifier = resolvedReader.eventGroupIdentifier,
+      flow {
+          val buffered = mutableListOf<EventBatch<Message>>()
+          resolvedReader.reader.readEvents().collect { events ->
+            buffered.add(
+              EventBatch(
+                events = events,
+                minTime = events.minOf { it.timestamp },
+                maxTime = events.maxOf { it.timestamp },
+                eventGroupIdentifier = resolvedReader.eventGroupIdentifier,
+              )
             )
-          )
+          }
+          emit(buffered)
         }
-        buffered
-      }
+        .retryWhen { cause, attempt ->
+          if (isRetryableReadFailure(cause) && attempt < readMaxAttempts - 1) {
+            logger.warning {
+              "Transient failure reading ${resolvedReader.blobUri} on attempt ${attempt + 1} of " +
+                "$readMaxAttempts (${cause.message}); retrying"
+            }
+            delay(readRetryBackoff.durationForAttempt((attempt + 1).toInt()).toMillis())
+            true
+          } else {
+            false
+          }
+        }
+        .first()
 
     var eventCount = 0
     for (batch in batches) {
@@ -307,6 +327,39 @@ class StorageEventSource(
 
     logger.fine("Read $eventCount events in ${batches.size} batches for ${resolvedReader.blobUri}")
     return EventReaderResult(batches.size, eventCount)
+  }
+
+  /**
+   * Whether a per-blob read/decrypt failure is safe to retry.
+   *
+   * Reading a blob is a pure, idempotent operation (a re-read cannot double-count because batches
+   * are buffered and emitted only after a full successful read), so this is purely a question of
+   * whether the failure is a transient egress blip.
+   *
+   * The dominant production failures surface as an [IOException] somewhere in the cause chain: a
+   * GCS read wraps a `SocketException` ("Broken pipe") or `SSLHandshakeException` ("Remote host
+   * terminated the handshake"), and a Cloud KMS `GeneralSecurityException` ("decryption failed")
+   * wraps an [IOException] ("Error requesting access token") from the token endpoint.
+   *
+   * [InvalidProtocolBufferException] is excluded even though it is an [IOException]: a blob that
+   * fails to parse is permanently corrupt data, so it must fail fast rather than burn the retry
+   * budget. Other non-transient failures (a missing blob, a malformed URI, a genuine crypto error)
+   * are simply not matched.
+   */
+  private fun isRetryableReadFailure(t: Throwable): Boolean {
+    return causalChain(t).any { cause ->
+      cause is IOException && cause !is InvalidProtocolBufferException
+    }
+  }
+
+  /** Lazily walks [t]'s cause chain (including itself), guarding against cycles. */
+  private fun causalChain(t: Throwable): Sequence<Throwable> = sequence {
+    val seen = mutableSetOf<Throwable>()
+    var current: Throwable? = t
+    while (current != null && seen.add(current)) {
+      yield(current)
+      current = current.cause
+    }
   }
 
   /**
@@ -383,5 +436,14 @@ class StorageEventSource(
 
     /** Default maximum total attempts for reading a single blob (first attempt + retries). */
     const val DEFAULT_READ_MAX_ATTEMPTS = 4
+
+    /**
+     * Default bound on concurrent per-blob storage read + DEK decrypt operations.
+     *
+     * Chosen conservatively: high enough to keep same-region GCS busy, low enough to avoid the
+     * unbounded connection churn (~64-wide) that exhausted Cloud NAT ports and hammered KMS in
+     * production.
+     */
+    const val DEFAULT_READ_CONCURRENCY = 8
   }
 }
