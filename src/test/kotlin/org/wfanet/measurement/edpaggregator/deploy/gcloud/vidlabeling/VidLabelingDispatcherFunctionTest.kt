@@ -324,6 +324,7 @@ class VidLabelingDispatcherFunctionTest {
 
   private fun fileSystemVidLabelingConfig() = vidLabelingConfig {
     dataProvider = DATA_PROVIDER
+    edpImpressionPath = "edp7"
     rawImpressionsStorageParams = storageParams {
       gcs = gcsStorage {
         projectId = "test-project"
