@@ -1246,7 +1246,7 @@ class StorageEventSourceTest {
       assertThat(request.filter.entityKeysList).isNotEmpty()
       assertThat(request.filter.entityKeysList.first().entityType).isEqualTo(entityKeyType)
       assertThat(request.filter.entityKeysList.first().entityId).isEqualTo(entityKeyId)
-      assertThat(request.filter.eventGroupReferenceId).isEmpty()
+      assertThat(request.filter.eventGroupReferenceIdsList).isEmpty()
     }
 
   @Test
@@ -1301,7 +1301,6 @@ class StorageEventSourceTest {
       verify(impressionMetadataServiceMock).listImpressionMetadata(captor.capture())
       val request = captor.firstValue
       assertThat(request.filter.eventGroupReferenceIdsList).containsExactly(eventGroupRef)
-      assertThat(request.filter.eventGroupReferenceId).isEmpty()
       assertThat(request.filter.entityKeysList).isEmpty()
     }
 
@@ -1350,7 +1349,6 @@ class StorageEventSourceTest {
       verify(impressionMetadataServiceMock).listImpressionMetadata(captor.capture())
       assertThat(captor.firstValue.filter.eventGroupReferenceIdsList)
         .containsExactly("batch-a", "batch-b", "batch-c")
-      assertThat(captor.firstValue.filter.eventGroupReferenceId).isEmpty()
       // 3 event groups x 1 date x 5 events per file.
       assertThat(batches.flatMap { it.events }).hasSize(15)
     }
@@ -1478,7 +1476,6 @@ class StorageEventSourceTest {
     verify(impressionMetadataServiceMock).listImpressionMetadata(captor.capture())
     val request = captor.firstValue
     assertThat(request.filter.eventGroupReferenceIdsList).containsExactly(eventGroupRef)
-    assertThat(request.filter.eventGroupReferenceId).isEmpty()
     assertThat(request.filter.entityKeysList).isEmpty()
   }
 

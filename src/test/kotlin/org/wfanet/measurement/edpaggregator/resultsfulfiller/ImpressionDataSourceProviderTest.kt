@@ -261,7 +261,7 @@ class ImpressionDataSourceProviderTest {
     assertThat(request.filter.entityKeysList).hasSize(1)
     assertThat(request.filter.entityKeysList[0].entityType).isEqualTo("creative-id")
     assertThat(request.filter.entityKeysList[0].entityId).isEqualTo("creative-a")
-    assertThat(request.filter.eventGroupReferenceId).isEmpty()
+    assertThat(request.filter.eventGroupReferenceIdsList).isEmpty()
   }
 
   @Test
@@ -354,7 +354,7 @@ class ImpressionDataSourceProviderTest {
       assertThat(request.filter.entityKeysList).hasSize(1)
       assertThat(request.filter.entityKeysList[0].entityType).isEqualTo("campaign-id")
       assertThat(request.filter.entityKeysList[0].entityId).isEqualTo("campaign-123")
-      assertThat(request.filter.eventGroupReferenceId).isEmpty()
+      assertThat(request.filter.eventGroupReferenceIdsList).isEmpty()
     }
 
   @Test
@@ -438,7 +438,7 @@ class ImpressionDataSourceProviderTest {
     assertThat(request.filter.entityKeysList).hasSize(1)
     assertThat(request.filter.entityKeysList[0].entityType).isEqualTo("placement-id")
     assertThat(request.filter.entityKeysList[0].entityId).isEqualTo("placement-42")
-    assertThat(request.filter.eventGroupReferenceId).isEmpty()
+    assertThat(request.filter.eventGroupReferenceIdsList).isEmpty()
     assertThat(request.filter.modelLine).isEqualTo(modelLine)
     assertThat(request.filter.hasIntervalOverlaps()).isTrue()
   }
@@ -478,7 +478,6 @@ class ImpressionDataSourceProviderTest {
       verify(impressionMetadataServiceMock).listImpressionMetadata(captor.capture())
       val request = captor.firstValue
       assertThat(request.filter.eventGroupReferenceIdsList).containsExactly("eg-1", "eg-2", "eg-3")
-      assertThat(request.filter.eventGroupReferenceId).isEmpty()
       assertThat(request.filter.entityKeysList).isEmpty()
       assertThat(request.filter.modelLine).isEqualTo(modelLine)
       assertThat(request.filter.hasIntervalOverlaps()).isTrue()

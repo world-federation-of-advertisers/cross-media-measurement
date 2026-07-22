@@ -716,9 +716,6 @@ class ImpressionMetadataService(
         if (request.filter.modelLine.isNotEmpty()) {
           cmmsModelLine = request.filter.modelLine
         }
-        if (request.filter.eventGroupReferenceId.isNotEmpty()) {
-          eventGroupReferenceId = request.filter.eventGroupReferenceId
-        }
         if (request.filter.eventGroupReferenceIdsList.isNotEmpty()) {
           eventGroupReferenceIds += request.filter.eventGroupReferenceIdsList
         }
