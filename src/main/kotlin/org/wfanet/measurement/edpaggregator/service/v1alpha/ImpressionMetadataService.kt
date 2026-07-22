@@ -914,6 +914,15 @@ class ImpressionMetadataService(
     request.impressionMetadata.entityKeysList.forEachIndexed { index, entityKey ->
       validateEntityKey(entityKey, "${fieldPathPrefix}impression_metadata.entity_keys.$index")
     }
+
+    if (
+      request.impressionMetadata.eventGroupReferenceId.isEmpty() &&
+        request.impressionMetadata.entityKeysList.isEmpty()
+    ) {
+      throw RequiredFieldNotSetException(
+        "${fieldPathPrefix}impression_metadata.event_group_reference_id or entity_keys"
+      )
+    }
   }
 
   /**

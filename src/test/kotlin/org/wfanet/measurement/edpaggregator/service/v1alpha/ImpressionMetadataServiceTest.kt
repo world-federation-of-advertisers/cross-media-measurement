@@ -1483,6 +1483,28 @@ class ImpressionMetadataServiceTest {
   }
 
   @Test
+  fun `createImpressionMetadata throws INVALID_ARGUMENT when neither eventGroupReferenceId nor entity_keys set`() =
+    runBlocking {
+      val request = createImpressionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        impressionMetadata = IMPRESSION_METADATA.copy { clearEventGroupReferenceId() }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "impression_metadata.event_group_reference_id or entity_keys"
+          }
+        )
+    }
+
+  @Test
   fun `createImpressionMetadata succeeds with entity_keys and no eventGroupReferenceId`() =
     runBlocking {
       val response =
