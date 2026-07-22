@@ -100,7 +100,7 @@ class InternalApiServer : Runnable {
           "one listener per dead-letter subscription (e.g. one per phase queue)."
       ],
     required = false,
-    arity = "0..*",
+    arity = "1",
   )
   private var deadLetterSubscriptionIds: List<String> = emptyList()
 
