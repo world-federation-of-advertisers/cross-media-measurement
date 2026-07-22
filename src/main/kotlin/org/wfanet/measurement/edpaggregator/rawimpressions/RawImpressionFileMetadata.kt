@@ -64,7 +64,8 @@ data class RawImpressionFileMetadata(val eventDate: LocalDate) {
         LocalDate.parse(eventDateString)
       } catch (e: DateTimeParseException) {
         throw IllegalArgumentException(
-          "raw-impression footer '$EVENT_DATE_KEY' is not an ISO YYYY-MM-DD date: " + eventDateString,
+          "raw-impression footer '$EVENT_DATE_KEY' is not an ISO YYYY-MM-DD date: " +
+            eventDateString,
           e,
         )
       }

@@ -37,7 +37,9 @@ class RawImpressionFileMetadataTest {
   @Test
   fun `fromFooterMetadata throws when event_date is missing`() {
     val exception =
-      assertFailsWith<IllegalArgumentException> { RawImpressionFileMetadata.fromFooterMetadata(emptyMap()) }
+      assertFailsWith<IllegalArgumentException> {
+        RawImpressionFileMetadata.fromFooterMetadata(emptyMap())
+      }
     assertThat(exception).hasMessageThat().contains("event_date")
   }
 
@@ -59,7 +61,9 @@ class RawImpressionFileMetadataTest {
   @Test
   fun `parseEventDate throws when event_date is missing`() {
     val exception =
-      assertFailsWith<IllegalArgumentException> { RawImpressionFileMetadata.parseEventDate(emptyMap()) }
+      assertFailsWith<IllegalArgumentException> {
+        RawImpressionFileMetadata.parseEventDate(emptyMap())
+      }
     assertThat(exception).hasMessageThat().contains("event_date")
   }
 

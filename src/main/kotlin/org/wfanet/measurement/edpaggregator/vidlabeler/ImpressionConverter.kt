@@ -16,8 +16,8 @@
 
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
-import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
+import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.virtualpeople.common.LabelerInput
 

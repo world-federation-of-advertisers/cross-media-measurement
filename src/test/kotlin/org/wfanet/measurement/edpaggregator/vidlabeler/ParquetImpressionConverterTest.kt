@@ -26,7 +26,6 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest
-import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
@@ -133,8 +132,6 @@ class ParquetImpressionConverterTest {
         "age" to parquetValue { stringValue = "YEARS_18_TO_34" },
       )
 
-    assertFailsWith<IllegalArgumentException> {
-      converter.convert(digestedEvent(row), config)
-    }
+    assertFailsWith<IllegalArgumentException> { converter.convert(digestedEvent(row), config) }
   }
 }
