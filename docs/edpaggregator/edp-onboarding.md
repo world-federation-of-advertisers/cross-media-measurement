@@ -88,7 +88,7 @@ decrypt the daily DEKs that protect your impression data. All steps can be scrip
 with Terraform.
 
 ```bash
-# 1. Key ring (region as agreed with the operator)
+# 1. Key ring (location as agreed with the operator; `global` or a specific region)
 gcloud kms keyrings create edp-keyring --location global
 
 # 2. Symmetric encrypt/decrypt key (this is your KEK)
@@ -181,6 +181,7 @@ them rather than copying inline snippets:
 | --- | --- |
 | Labeled impression | `wfa/measurement/edpaggregator/v1alpha/labeled_impression.proto` |
 | Event group | `wfa/measurement/edpaggregator/eventgroups/v1alpha/event_group.proto` |
+| Blob details (impression **metadata** file) | `wfa/measurement/edpaggregator/v1alpha/blob_details.proto` |
 | Encrypted DEK | `wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto` |
 | Encryption key | `wfa/measurement/edpaggregator/v1alpha/encryption_key.proto` |
 
@@ -197,16 +198,32 @@ reference, and optional entity keys:
 | `event_group_reference_id` | `string` | Required — ties the impression to an event group. |
 | `entity_keys` | `repeated EntityKey` | Optional `{ entity_type, entity_id }` tags (e.g. creative, placement) for downstream filtering. |
 
-### 3.3 Impression format and encryption wrapper
+### 3.3 Impression format, metadata, and encryption wrapper
 
-* **Protobuf:** `LabeledImpression` messages separated by **RecordIO**. Encrypted
-  files conventionally use the extension `.enc.recordio` (a naming convention, not
-  enforced by the pipeline).
-* Every impression file is encrypted with a **daily DEK**. The DEK is itself
-  encrypted with your **KEK** and stored alongside the data as an `EncryptedDek` in
-  the day's metadata file.
+**Impression data** is a stream of `LabeledImpression` messages separated by
+**RecordIO**, envelope-encrypted with a **daily DEK**. (Encrypted files conventionally
+carry an extension such as `.enc.recordio`, but the filename is not enforced — the
+pipeline finds the impressions blob through the metadata's `blob_uri`, below.)
 
-`EncryptedDek` fields:
+**Metadata is a `BlobDetails` message — not a bare `EncryptedDek`.** For each
+impressions blob you write a companion **metadata** file containing a serialized
+`BlobDetails` (`.binpb` or `.json`). The pipeline (DataAvailabilitySync and the
+ResultsFulfiller) parses each metadata file **as `BlobDetails`**; a file that is only
+an `EncryptedDek` will fail to parse. The metadata filename must **contain the
+substring `metadata`** (e.g. `metadata.binpb`, `metadata-<suffix>.binpb`).
+
+`BlobDetails` fields:
+
+| Field | Req. | Notes |
+| --- | --- | --- |
+| `blob_uri` | Required | URI of the **encrypted impressions** blob this metadata describes (may live in a separate directory tree). |
+| `encrypted_dek` | Required | The `EncryptedDek` (see below) — how the pipeline unwraps the daily DEK. |
+| `model_line` | Required | `ModelLine` resource name these impressions belong to. |
+| `interval` | Required | `google.type.Interval` over which the data is available for this model line. |
+| `entity_keys` | Required | `repeated EntityKeyGroup { entity_type, entity_ids[] }` — the entity keys present in the blob. |
+| `event_group_reference_id` | Optional | Legacy; still accepted, but new writers should populate `entity_keys`. At least one of the two must be set. |
+
+The embedded `EncryptedDek`:
 
 | Field | Notes |
 | --- | --- |
@@ -241,8 +258,9 @@ key fields are:
 ## 4. Directory structure & upload paths
 
 The aggregator's DataWatcher relies on **strict path patterns**. Deviating from them
-causes ingestion to be skipped. Below, `{bucket}` is the operator-provided bucket and
-`{edp-id}` is your assigned prefix.
+causes ingestion to be skipped. Below, `{bucket}` is the operator-provided bucket,
+`{edp-id}` is your assigned prefix, and `{edp_impression_path}` is the impression base
+path the operator assigns you (e.g. `edp/{edp-id}/vid-labeled-impressions`).
 
 ### 4.1 Event groups
 
@@ -254,22 +272,42 @@ gs://{bucket}/{edp-id}/event-groups/{filename}.{binpb|json}
 
 ### 4.2 Daily impressions (the `done` marker)
 
-Impression data is uploaded into **date-partitioned** folders. The system does not
-process a day until an empty file named `done` appears. When `done` is written, every
-file in that folder **and its subfolders** is read. Once `done` is written, the
-folder must not change.
+Impressions are organized **per model line and per date** under
+`{edp_impression_path}`. The system does not process a date until an empty file named
+`done` appears in that date's folder. When `done` is written, DataAvailabilitySync
+crawls that folder for **metadata (`BlobDetails`) files** — any object whose name
+contains `metadata` (`.binpb` or `.json`). Once `done` is written, the folder must not
+change.
 
 ```
-gs://{bucket}/edp/{edp-id}/{YYYY-MM-DD}/impressions        # encrypted LabeledImpression files (.enc.recordio)
-gs://{bucket}/edp/{edp-id}/{YYYY-MM-DD}/metadata.binpb     # or metadata.json — contains the EncryptedDek
-gs://{bucket}/edp/{edp-id}/{YYYY-MM-DD}/done               # empty 0-byte file, uploaded LAST
+{edp_impression_path}/model-line/{modelLineId}/{YYYY-MM-DD}/metadata.binpb  # BlobDetails (or metadata.json)
+{edp_impression_path}/model-line/{modelLineId}/{YYYY-MM-DD}/done            # empty 0-byte file, uploaded LAST
 ```
 
-Required per directory:
+Full example object path:
 
-* **Metadata file** — contains the `EncryptedDek` (`.binpb` binary or `.json`).
-* **Data files** — encrypted `LabeledImpression` files.
+```
+gs://{bucket}/edp/{edp-id}/vid-labeled-impressions/model-line/{modelLineId}/{YYYY-MM-DD}/metadata.binpb
+gs://{bucket}/edp/{edp-id}/vid-labeled-impressions/model-line/{modelLineId}/{YYYY-MM-DD}/done
+```
+
+* `{modelLineId}` is the model line ID (the last segment of the `ModelLine` resource
+  name); it must equal the `model_line` recorded inside each `BlobDetails`.
+* `{YYYY-MM-DD}` must be a valid date — the availability service parses it to detect
+  date gaps per model line.
+
+The **encrypted impressions blobs** referenced by `BlobDetails.blob_uri` do **not**
+have to live in this folder — they may sit in a separate directory tree; the metadata
+is the sidecar that ties them together.
+
+Required per date folder:
+
+* **Metadata file(s)** — one or more serialized `BlobDetails` (`.binpb`/`.json`) whose
+  name contains `metadata`; each references its impressions blob via `blob_uri` and
+  carries the `EncryptedDek`, `model_line`, `interval`, and `entity_keys`.
 * **`done`** — an empty 0-byte file, uploaded **last**.
+* **Encrypted `LabeledImpression` blobs** — referenced by `BlobDetails.blob_uri`
+  (co-located or in a separate tree).
 
 ---
 
@@ -286,12 +324,14 @@ Required per directory:
 
 1. **Generate** — extract the day's VID-labeled impressions.
 2. **Create DEK** — generate a fresh AES DEK for this daily batch.
-3. **Encrypt data** — encrypt the impression files with the DEK (RecordIO →
-   `.enc.recordio`).
-4. **Encrypt DEK** — wrap the DEK with your KEK (Section 2.2 / AWS guide).
-5. **Create metadata** — write the metadata file containing the `EncryptedDek`.
-6. **Upload** — upload the encrypted impressions and the metadata file to the
-   date-partitioned path (Section 4.2).
+3. **Encrypt data** — encrypt the impression files with the DEK (RecordIO).
+4. **Encrypt DEK** — wrap the DEK with your KEK (Section 2.2 / AWS guide) to produce
+   the `EncryptedDek`.
+5. **Create metadata** — write a `BlobDetails` metadata file (Section 3.3) that
+   embeds the `EncryptedDek` and sets `blob_uri` (→ the encrypted impressions blob),
+   `model_line`, `interval`, and `entity_keys`.
+6. **Upload** — upload the encrypted impressions blob and the `BlobDetails` metadata
+   file to the model-line/date path (Section 4.2).
 7. **Signal completion** — upload the empty `done` file **last** to trigger
    processing.
 
