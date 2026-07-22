@@ -123,6 +123,7 @@ REPORTING_K8S_SETTINGS = struct(
     event_message_type_url = "$(event_message_type_url)",
     mcp_host = "$(mcp_host)",
     oauth_issuer = "$(oauth_issuer)",
+    oauth_protected_resource = "$(oauth_protected_resource)",
 )
 
 # Settings for Population DataProvider Kubernetes objects.

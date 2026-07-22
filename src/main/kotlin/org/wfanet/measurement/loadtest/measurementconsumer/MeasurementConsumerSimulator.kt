@@ -1428,6 +1428,7 @@ private fun NoiseMechanism.toStatsNoiseMechanism(): StatsNoiseMechanism {
     NoiseMechanism.CONTINUOUS_LAPLACE -> StatsNoiseMechanism.LAPLACE
     NoiseMechanism.DISCRETE_GAUSSIAN,
     NoiseMechanism.CONTINUOUS_GAUSSIAN -> StatsNoiseMechanism.GAUSSIAN
+    NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
     NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
     NoiseMechanism.UNRECOGNIZED -> {
       error("Invalid NoiseMechanism.")

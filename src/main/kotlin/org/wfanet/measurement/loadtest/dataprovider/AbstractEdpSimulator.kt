@@ -1674,6 +1674,7 @@ private fun NoiseMechanism.toDirectNoiseMechanism(): DirectNoiseMechanism? {
     NoiseMechanism.NONE -> DirectNoiseMechanism.NONE
     NoiseMechanism.CONTINUOUS_LAPLACE -> DirectNoiseMechanism.CONTINUOUS_LAPLACE
     NoiseMechanism.CONTINUOUS_GAUSSIAN -> DirectNoiseMechanism.CONTINUOUS_GAUSSIAN
+    NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
     NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
     NoiseMechanism.GEOMETRIC,
     NoiseMechanism.DISCRETE_GAUSSIAN,

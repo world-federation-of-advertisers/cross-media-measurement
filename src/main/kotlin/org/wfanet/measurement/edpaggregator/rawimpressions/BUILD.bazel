@@ -6,6 +6,28 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
+    name = "raw_impression_file_metadata",
+    srcs = ["RawImpressionFileMetadata.kt"],
+)
+
+kt_jvm_library(
+    name = "raw_impression_footer",
+    srcs = ["RawImpressionFooter.kt"],
+    deps = [
+        ":raw_impression_file_metadata",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:parquet_storage_client",
+    ],
+)
+
+kt_jvm_library(
+    name = "gcs_hadoop_configuration",
+    srcs = ["GcsHadoopConfiguration.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/org/apache/hadoop:hadoop_client_api",
+    ],
+)
+
+kt_jvm_library(
     name = "event_id_digest",
     srcs = [
         "DigestedEvent.kt",

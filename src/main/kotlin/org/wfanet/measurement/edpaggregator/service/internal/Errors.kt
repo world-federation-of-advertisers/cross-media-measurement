@@ -25,7 +25,6 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentState
 import org.wfanet.measurement.internal.edpaggregator.RankerState
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionBatchState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingState
@@ -38,11 +37,6 @@ object Errors {
     IMPRESSION_METADATA_NOT_FOUND,
     IMPRESSION_METADATA_ALREADY_EXISTS,
     IMPRESSION_METADATA_STATE_INVALID,
-    RAW_IMPRESSION_METADATA_NOT_FOUND,
-    RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-    RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-    RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-    RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
     RAW_IMPRESSION_UPLOAD_NOT_FOUND,
     RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
     RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
@@ -80,12 +74,10 @@ object Errors {
     CMMS_REQUISITION("cmmsRequisition"),
     BLOB_URI("blobUri"),
     IMPRESSION_METADATA_STATE("impressionMetadataState"),
-    RAW_IMPRESSION_BATCH_STATE("rawImpressionBatchState"),
     REQUISITION_METADATA_STATE("requisitionMetadataState"),
     EXPECTED_REQUISITION_METADATA_STATES("expectedRequisitionMetadataStates"),
     REQUEST_ETAG("requestEtag"),
     ETAG("etag"),
-    BATCH_RESOURCE_ID("batchResourceId"),
     RAW_IMPRESSION_UPLOAD_RESOURCE_ID("rawImpressionUploadResourceId"),
     CMMS_MODEL_LINE("cmmsModelLine"),
     RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE("rawImpressionUploadModelLineState"),
@@ -212,85 +204,6 @@ class ImpressionMetadataStateInvalidException(
       Errors.Metadata.IMPRESSION_METADATA_RESOURCE_ID to impressionMetadataResourceId,
       Errors.Metadata.IMPRESSION_METADATA_STATE to actualState.name,
     ),
-    cause,
-  )
-
-class RawImpressionMetadataNotFoundException(
-  dataProviderResourceId: String,
-  batchResourceId: String,
-  fileResourceId: String,
-  cause: Throwable? = null,
-) :
-  ServiceException(
-    Errors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-    "RawImpressionMetadata with batch $batchResourceId" +
-      " file $fileResourceId for DataProvider $dataProviderResourceId not found",
-    mapOf(
-      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
-      Errors.Metadata.BATCH_RESOURCE_ID to batchResourceId,
-      Errors.Metadata.FILE_RESOURCE_ID to fileResourceId,
-    ),
-    cause,
-  )
-
-class RawImpressionMetadataBatchNotFoundException(
-  dataProviderResourceId: String,
-  batchResourceId: String,
-  cause: Throwable? = null,
-) :
-  ServiceException(
-    Errors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-    "RawImpressionMetadataBatch with resource ID $batchResourceId for DataProvider $dataProviderResourceId not found",
-    mapOf(
-      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
-      Errors.Metadata.BATCH_RESOURCE_ID to batchResourceId,
-    ),
-    cause,
-  )
-
-class RawImpressionMetadataBatchStateInvalidException(
-  dataProviderResourceId: String,
-  batchResourceId: String,
-  actualState: RawImpressionBatchState,
-  expectedStates: Set<RawImpressionBatchState>,
-  cause: Throwable? = null,
-) :
-  ServiceException(
-    Errors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-    "RawImpressionMetadataBatch is in state $actualState, expected one of $expectedStates",
-    mapOf(
-      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
-      Errors.Metadata.BATCH_RESOURCE_ID to batchResourceId,
-      Errors.Metadata.RAW_IMPRESSION_BATCH_STATE to actualState.name,
-    ),
-    cause,
-  )
-
-class RawImpressionMetadataBatchFileNotFoundException(
-  dataProviderResourceId: String,
-  batchResourceId: String,
-  fileResourceId: String,
-  cause: Throwable? = null,
-) :
-  ServiceException(
-    Errors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-    "RawImpressionMetadataBatchFile with file $fileResourceId in batch $batchResourceId for DataProvider $dataProviderResourceId not found",
-    mapOf(
-      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
-      Errors.Metadata.BATCH_RESOURCE_ID to batchResourceId,
-      Errors.Metadata.FILE_RESOURCE_ID to fileResourceId,
-    ),
-    cause,
-  )
-
-class RawImpressionMetadataBatchFileAlreadyExistsException(
-  blobUri: String,
-  cause: Throwable? = null,
-) :
-  ServiceException(
-    Errors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
-    "RawImpressionMetadataBatchFile with blob URI already exists",
-    mapOf(Errors.Metadata.BLOB_URI to blobUri),
     cause,
   )
 

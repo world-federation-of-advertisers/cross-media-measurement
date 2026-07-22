@@ -300,6 +300,7 @@ fun NoiseMechanism.toInternal(): InternalNoiseMechanism {
     NoiseMechanism.NONE -> InternalNoiseMechanism.NONE
     NoiseMechanism.CONTINUOUS_LAPLACE -> InternalNoiseMechanism.CONTINUOUS_LAPLACE
     NoiseMechanism.CONTINUOUS_GAUSSIAN -> InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
+    NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
     NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
     NoiseMechanism.UNRECOGNIZED -> error("invalid internal noise mechanism.")
   }

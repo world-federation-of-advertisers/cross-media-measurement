@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.util.Durations
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -70,6 +71,42 @@ class VidLabelingConfigValidationTest {
       assertFailsWith<IllegalArgumentException> { requireValidModelLineConfigs(config) }
     assertThat(exception).hasMessageThat().contains("entity_key_field_mapping")
   }
+
+  @Test
+  fun `staleness passes at the minimum threshold`() {
+    requireValidStalenessThreshold(configWithStaleness(Durations.fromHours(24)))
+  }
+
+  @Test
+  fun `staleness passes above the minimum threshold`() {
+    requireValidStalenessThreshold(configWithStaleness(Durations.fromDays(2)))
+  }
+
+  @Test
+  fun `staleness throws when not set`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        requireValidStalenessThreshold(vidLabelingConfig { dataProvider = DATA_PROVIDER })
+      }
+    assertThat(exception).hasMessageThat().contains("staleness_threshold must be set")
+    assertThat(exception).hasMessageThat().contains(DATA_PROVIDER)
+  }
+
+  @Test
+  fun `staleness throws below the minimum threshold`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        requireValidStalenessThreshold(configWithStaleness(Durations.fromHours(23)))
+      }
+    assertThat(exception).hasMessageThat().contains("at least")
+    assertThat(exception).hasMessageThat().contains(DATA_PROVIDER)
+  }
+
+  private fun configWithStaleness(threshold: com.google.protobuf.Duration): VidLabelingConfig =
+    vidLabelingConfig {
+      dataProvider = DATA_PROVIDER
+      stalenessThreshold = threshold
+    }
 
   private fun configWith(modelLineConfig: VidLabelingConfig.ModelLineConfig): VidLabelingConfig =
     vidLabelingConfig {

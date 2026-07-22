@@ -19,13 +19,8 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
-import io.grpc.Channel
-import io.grpc.ClientInterceptors
-import io.grpc.ManagedChannel
+import com.google.cloud.storage.StorageOptions
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
-import java.io.File
-import java.time.Duration
-import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
@@ -34,50 +29,42 @@ import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
-import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
-import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.toDuration
-import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams as ConfigTransportLayerSecurityParams
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParamsKt
-import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
-import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingMonitor
+import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
-
-/** Channel cache key using TLS params, target, and optional hostname override. */
-private data class ChannelKey(
-  val tls: ConfigTransportLayerSecurityParams,
-  val target: String,
-  val hostName: String?,
-)
+import org.wfanet.measurement.storage.StorageClient
 
 /**
  * Cloud Function that drives VID labeling dispatch sequencing and monitors pipeline health.
  *
- * Designed to be invoked on a schedule (e.g., every 30 minutes via Cloud Scheduler). For each
- * configured [VidLabelingConfig] it builds one [VidLabelingMonitor] keyed on the config's
- * `DataProvider` and runs it. Per DataProvider the monitor dispatches at most one `CREATED` upload
- * when none are `ACTIVE`, and logs uploads stuck past the staleness SLA and model lines in `FAILED`
- * at `SEVERE` for Cloud Monitoring alerting.
+ * Invoked by two Cloud Scheduler jobs against this one endpoint, selected by the `mode` query
+ * parameter (anything else is rejected with HTTP 400):
+ * - `?mode=dispatch` on a fast cadence (~6h) runs [VidLabelingMonitor.runDispatch] only, so a
+ *   newly-registered upload starts promptly.
+ * - `?mode=health` on a slow cadence (~daily, matching the DataAvailabilityMonitor) runs
+ *   [VidLabelingMonitor.runHealth] only: staleness/failure monitoring, stuck-phase recovery, and
+ *   data-quality checks. Recovery wants a slow, well-spaced clock so it never races an in-flight
+ *   last-out.
+ *
+ * For each configured [VidLabelingConfig] it builds one [VidLabelingMonitor] keyed on the config's
+ * `DataProvider` and runs the selected cadence.
  *
  * Unlike [VidLabelingDispatcherFunction], this function is not triggered by a DataWatcher "done"
- * blob and does not read storage; it lists uploads through the `RawImpressionUploadService`
- * metadata API.
+ * blob. It lists uploads through the `RawImpressionUploadService` metadata API. In `dispatch` mode
+ * it reads no storage; in `health` mode the data-quality checks additionally crawl the
+ * raw-impression and labeled-impression storage buckets to reconcile metadata against storage.
  *
  * ## Environment Variables
  * - `EDPA_CONFIG_STORAGE_BUCKET`: Required. URI prefix for the config storage bucket.
@@ -107,6 +94,23 @@ private data class ChannelKey(
  * Configuration is loaded eagerly at class initialization via [runBlocking]. If the config blob is
  * unavailable at startup, the Cloud Function class will fail to load (fail-fast).
  */
+/** Cadence the [VidLabelingMonitorFunction] runs, selected by the `mode` query parameter. */
+enum class MonitorMode {
+  DISPATCH,
+  HEALTH,
+}
+
+/**
+ * Maps the `mode` query parameter to a [MonitorMode], or null if it is missing or unrecognized (the
+ * function rejects that with HTTP 400).
+ */
+fun parseMonitorMode(rawMode: String?): MonitorMode? =
+  when (rawMode) {
+    "dispatch" -> MonitorMode.DISPATCH
+    "health" -> MonitorMode.HEALTH
+    else -> null
+  }
+
 class VidLabelingMonitorFunction : HttpFunction {
   init {
     EdpaTelemetry.ensureInitialized()
@@ -114,7 +118,14 @@ class VidLabelingMonitorFunction : HttpFunction {
 
   override fun service(request: HttpRequest, response: HttpResponse) {
     try {
-      logger.info("Starting VidLabelingMonitorFunction")
+      val mode: MonitorMode? = parseMonitorMode(request.getFirstQueryParameter("mode").orElse(null))
+      if (mode == null) {
+        logger.warning("Rejecting request with missing or invalid 'mode' query parameter")
+        response.setStatusCode(400)
+        response.writer.write("Query parameter 'mode' must be 'dispatch' or 'health'.")
+        return
+      }
+      logger.info("Starting VidLabelingMonitorFunction in $mode mode")
 
       // HttpFunction.service is synchronous; runBlocking bridges to suspend functions.
       // Each config is isolated: one DataProvider's failure (e.g. a config that fails the
@@ -124,7 +135,7 @@ class VidLabelingMonitorFunction : HttpFunction {
         monitorConfigs.configsList
           .map { config ->
             try {
-              runMonitorForConfig(config)
+              runMonitorForConfig(config, mode)
             } catch (e: Exception) {
               logger.log(Level.SEVERE, "Monitor failed for ${config.dataProvider}", e)
               true
@@ -133,13 +144,16 @@ class VidLabelingMonitorFunction : HttpFunction {
           .any { it }
       }
 
-      if (hasAnyIssues) {
-        response.setStatusCode(500)
-        response.writer.write("VID labeling pipeline issues detected. See logs for details.")
-      } else {
-        response.setStatusCode(200)
-        response.writer.write("All VID labeling uploads healthy.")
-      }
+      // Always return 200 on a completed run. Pipeline issues (stuck/failed uploads, data-quality
+      // signals, exhausted recovery, dispatch errors) are surfaced via OpenTelemetry metrics and
+      // SEVERE logs, not the HTTP status: returning 500 for them makes Cloud Scheduler retry the
+      // whole run (re-dispatch, re-run recovery). HTTP 500 is reserved for a genuine function
+      // failure (the catch below). Mirrors DataAvailabilityMonitorFunction.
+      response.setStatusCode(200)
+      response.writer.write(
+        if (hasAnyIssues) "VID labeling pipeline issues detected. See metrics and logs."
+        else "All VID labeling uploads healthy."
+      )
     } catch (e: Exception) {
       logger.log(Level.SEVERE, "Error in VidLabelingMonitorFunction", e)
       response.setStatusCode(500)
@@ -150,17 +164,16 @@ class VidLabelingMonitorFunction : HttpFunction {
   }
 
   /**
-   * Builds and runs a [VidLabelingMonitor] for a single [config]'s DataProvider.
+   * Builds a [VidLabelingMonitor] for a single [config]'s DataProvider and runs the [mode] cadence.
    *
-   * @return `true` if the monitor reported stuck uploads or failed model lines for this config.
+   * @return `true` if this config had an issue: a dispatch failure in [MonitorMode.DISPATCH], or
+   *   any health issue in [MonitorMode.HEALTH].
    */
-  private suspend fun runMonitorForConfig(config: VidLabelingConfig): Boolean {
+  private suspend fun runMonitorForConfig(config: VidLabelingConfig, mode: MonitorMode): Boolean {
     require(config.numberOfShards > 0) {
       "number_of_shards must be positive for data provider: ${config.dataProvider}"
     }
-    require(config.hasStalenessThreshold()) {
-      "staleness_threshold must be set for data provider: ${config.dataProvider}"
-    }
+    requireValidStalenessThreshold(config)
     // Fail fast on per-model-line config the TEE would otherwise only reject at Phase-2.
     requireValidModelLineConfigs(config)
 
@@ -168,7 +181,7 @@ class VidLabelingMonitorFunction : HttpFunction {
 
     val workItemsStub =
       WorkItemsGrpcKt.WorkItemsCoroutineStub(
-        createInstrumentedChannel(
+        VidLabelingFunctionHelpers.createInstrumentedChannel(
           config.controlPlaneConnection,
           controlPlaneTarget,
           controlPlaneCertHost,
@@ -178,7 +191,7 @@ class VidLabelingMonitorFunction : HttpFunction {
 
     val modelRolloutsStub =
       ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub(
-        createInstrumentedChannel(
+        VidLabelingFunctionHelpers.createInstrumentedChannel(
           config.modelRolloutsConnection,
           modelRolloutsTarget,
           modelRolloutsCertHost,
@@ -188,7 +201,7 @@ class VidLabelingMonitorFunction : HttpFunction {
 
     val modelShardsStub =
       ModelShardsGrpcKt.ModelShardsCoroutineStub(
-        createInstrumentedChannel(
+        VidLabelingFunctionHelpers.createInstrumentedChannel(
           config.modelShardsConnection,
           modelShardsTarget,
           modelShardsCertHost,
@@ -198,7 +211,7 @@ class VidLabelingMonitorFunction : HttpFunction {
 
     val modelLinesStub =
       ModelLinesGrpcKt.ModelLinesCoroutineStub(
-        createInstrumentedChannel(
+        VidLabelingFunctionHelpers.createInstrumentedChannel(
           config.modelLinesConnection,
           modelLinesTarget,
           modelLinesCertHost,
@@ -207,7 +220,7 @@ class VidLabelingMonitorFunction : HttpFunction {
       )
 
     val rawImpressionUploadChannel =
-      createInstrumentedChannel(
+      VidLabelingFunctionHelpers.createInstrumentedChannel(
         config.rawImpressionMetadataStorageConnection,
         rawImpressionUploadTarget,
         rawImpressionUploadCertHost,
@@ -233,6 +246,9 @@ class VidLabelingMonitorFunction : HttpFunction {
     // VidLabelingJobService is served by the same RawImpressionMetadata storage deployment.
     val vidLabelingJobStub =
       VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(rawImpressionUploadChannel)
+    // RankerJobService is served by the same RawImpressionMetadata storage deployment.
+    val rankerJobStub =
+      RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(rawImpressionUploadChannel)
     val dispatchSequencer =
       VidLabelingDispatchSequencer(
         rawImpressionUploadStub = rawImpressionUploadStub,
@@ -243,12 +259,14 @@ class VidLabelingMonitorFunction : HttpFunction {
         modelShardsStub = modelShardsStub,
         modelLinesStub = modelLinesStub,
         dataProviderName = config.dataProvider,
-        vidLabelerParamsTemplate = buildVidLabelerParamsTemplate(config),
-        subpoolAssignerParamsTemplate = buildSubpoolAssignerParamsTemplate(config),
+        vidLabelerParamsTemplate = VidLabelingFunctionHelpers.buildVidLabelerParamsTemplate(config),
+        subpoolAssignerParamsTemplate =
+          VidLabelingFunctionHelpers.buildSubpoolAssignerParamsTemplate(config),
         queueName = vidLabelerQueueName,
         poolAssignerQueueName = poolAssignerQueueName,
         numberOfShards = config.numberOfShards,
-        modelLineConfigs = convertModelLineConfigs(config.modelLineConfigsMap),
+        modelLineConfigs =
+          VidLabelingFunctionHelpers.convertModelLineConfigs(config.modelLineConfigsMap),
         rawImpressionUploadFileStub = rawImpressionUploadFileStub,
         vidLabelingJobStub = vidLabelingJobStub,
         maxFileBatchSizeBytes = config.maxFileBatchSizeBytes,
@@ -261,18 +279,38 @@ class VidLabelingMonitorFunction : HttpFunction {
         dispatchSequencer = dispatchSequencer,
         dataProviderName = config.dataProvider,
         stalenessThreshold = config.stalenessThreshold.toDuration(),
+        rawImpressionUploadFileStub = rawImpressionUploadFileStub,
+        rawImpressionsStorageClientProvider = {
+          createStorageClient(
+            config.rawImpressionsStorageParams.gcs.bucketName,
+            config.rawImpressionsStorageParams.gcs.projectId,
+          )
+        },
+        vidLabeledImpressionsStorageClientProvider = {
+          createStorageClient(
+            config.vidLabeledImpressionsStorageParams.gcs.bucketName,
+            config.vidLabeledImpressionsStorageParams.gcs.projectId,
+          )
+        },
+        rankerJobStub = rankerJobStub,
+        vidLabelingJobStub = vidLabelingJobStub,
+        workItemsStub = workItemsStub,
       )
 
-    val result = monitor.run()
-    if (result.dispatchedUpload != null) {
-      logger.info("Dispatched ${result.dispatchedUpload} for ${config.dataProvider}")
+    return when (mode) {
+      MonitorMode.DISPATCH -> {
+        val result = monitor.runDispatch()
+        if (result.dispatchedUpload != null) {
+          logger.info("Dispatched ${result.dispatchedUpload} for ${config.dataProvider}")
+        }
+        result.dispatchError
+      }
+      MonitorMode.HEALTH -> monitor.runHealth().hasIssues
     }
-    return result.hasIssues
   }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private const val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
 
     private val controlPlaneTarget: String = EnvVars.checkNotNullOrEmpty("CONTROL_PLANE_TARGET")
     private val controlPlaneCertHost: String? = System.getenv("CONTROL_PLANE_CERT_HOST")
@@ -292,11 +330,6 @@ class VidLabelingMonitorFunction : HttpFunction {
     private val vidLabelerQueueName: String = EnvVars.checkNotNullOrEmpty("VID_LABELER_QUEUE_NAME")
     private val poolAssignerQueueName: String =
       EnvVars.checkNotNullOrEmpty("POOL_ASSIGNER_QUEUE_NAME")
-    private val channelShutdownDuration =
-      Duration.ofSeconds(
-        System.getenv("CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLong()
-          ?: DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS
-      )
 
     private val configBlobKey: String = EnvVars.checkNotNullOrEmpty("CONFIG_BLOB_KEY")
 
@@ -313,178 +346,19 @@ class VidLabelingMonitorFunction : HttpFunction {
       )
     }
 
-    private val channelCache = ConcurrentHashMap<ChannelKey, ManagedChannel>()
-
-    private fun createPublicChannel(
-      connectionParams: ConfigTransportLayerSecurityParams,
-      target: String,
-      hostName: String?,
-    ): ManagedChannel {
-      val signingCerts =
-        SigningCerts.fromPemFiles(
-          certificateFile = checkNotNull(File(connectionParams.certFilePath)),
-          privateKeyFile = checkNotNull(File(connectionParams.privateKeyFilePath)),
-          trustedCertCollectionFile = checkNotNull(File(connectionParams.certCollectionFilePath)),
-        )
-      return buildMutualTlsChannel(target, signingCerts, hostName)
-        .withShutdownTimeout(channelShutdownDuration)
-    }
-
-    private fun getOrCreateChannel(
-      connectionParams: ConfigTransportLayerSecurityParams,
-      target: String,
-      hostName: String?,
-    ): ManagedChannel {
-      val channelKey = ChannelKey(connectionParams, target, hostName)
-      return channelCache.computeIfAbsent(channelKey) {
-        logger.info("Creating new channel for $target")
-        createPublicChannel(connectionParams, target, hostName)
-      }
-    }
-
-    private fun createInstrumentedChannel(
-      connectionParams: ConfigTransportLayerSecurityParams,
-      target: String,
-      hostName: String?,
-      grpcTelemetry: GrpcTelemetry,
-    ): Channel {
-      val channel = getOrCreateChannel(connectionParams, target, hostName)
-      return ClientInterceptors.intercept(channel, grpcTelemetry.newClientInterceptor())
-    }
-
-    private fun buildVidLabelerParamsTemplate(config: VidLabelingConfig): VidLabelerParams {
-      require(config.rawImpressionsStorageParams.hasGcs()) {
-        "VidLabelingConfig raw_impressions_storage_params must use GCS"
-      }
-      require(config.vidLabeledImpressionsStorageParams.hasGcs()) {
-        "VidLabelingConfig vid_labeled_impressions_storage_params must use GCS"
-      }
-
-      return vidLabelerParams {
-        dataProvider = config.dataProvider
-        vidLabeledImpressionsStorageParams =
-          VidLabelerParamsKt.storageParams {
-            gcsProjectId = config.vidLabeledImpressionsStorageParams.gcs.projectId
-            impressionsBlobPrefix =
-              "gs://${config.vidLabeledImpressionsStorageParams.gcs.bucketName}"
-          }
-        rawImpressionsStorageParams =
-          VidLabelerParamsKt.storageParams {
-            gcsProjectId = config.rawImpressionsStorageParams.gcs.projectId
-            impressionsBlobPrefix = "gs://${config.rawImpressionsStorageParams.gcs.bucketName}"
-          }
-        vidRepoConnection = transportLayerSecurityParams {
-          clientCertResourcePath = config.vidRepoConnection.certFilePath
-          clientPrivateKeyResourcePath = config.vidRepoConnection.privateKeyFilePath
-        }
-        // The compiled model lives in its own Cloud Storage project. Optional on VidLabelingConfig
-        // (only EDPs that actually label need it); when set, thread it onto every WorkItem so the
-        // TEE reads the model from its own project on both the memoized and non-memoized paths.
-        if (config.modelStorageParams.hasGcs()) {
-          modelStorageParams =
-            VidLabelerParamsKt.storageParams {
-              gcsProjectId = config.modelStorageParams.gcs.projectId
-              impressionsBlobPrefix = "gs://${config.modelStorageParams.gcs.bucketName}"
+    /** Builds a bucket-rooted [StorageClient] for the data-quality crawl. */
+    private fun createStorageClient(bucketName: String, projectId: String): StorageClient {
+      return GcsStorageClient(
+        StorageOptions.newBuilder()
+          .also { builder ->
+            if (projectId.isNotEmpty()) {
+              builder.setProjectId(projectId)
             }
-        }
-      }
-    }
-
-    // TODO(world-federation-of-advertisers/cross-media-measurement#4020): De-duplicate this
-    // template builder (with buildVidLabelerParamsTemplate and convertModelLineConfigs) into a
-    // shared helper once the helper-extraction thread on #4020 (this branch's parent) is
-    // addressed, rather than copying it across the dispatcher and monitor Function classes.
-    /**
-     * Builds the template [SubpoolAssignerParams] carrying the storage + connection fields shared
-     * by every memoized Phase-0 WorkItem. The per-shard fields (model line, shard index, active
-     * window, pool assignment job) are filled in by the sequencer.
-     */
-    private fun buildSubpoolAssignerParamsTemplate(
-      config: VidLabelingConfig
-    ): SubpoolAssignerParams {
-      require(config.rawImpressionsStorageParams.hasGcs()) {
-        "VidLabelingConfig raw_impressions_storage_params must use GCS"
-      }
-      require(config.vidLabeledImpressionsStorageParams.hasGcs()) {
-        "VidLabelingConfig vid_labeled_impressions_storage_params must use GCS"
-      }
-      // vid_rank_map/subpool_map storage are consumed only by the memoized Phase-0 path and are
-      // therefore optional in VidLabelingConfig; validate them only when set. An EDP whose model
-      // lines are all non-memoized may omit them, and this template is then never consumed.
-      if (config.hasVidRankMapStorageParams()) {
-        require(config.vidRankMapStorageParams.hasGcs()) {
-          "VidLabelingConfig vid_rank_map_storage_params must use GCS"
-        }
-      }
-      if (config.hasSubpoolMapStorageParams()) {
-        require(config.subpoolMapStorageParams.hasGcs()) {
-          "VidLabelingConfig subpool_map_storage_params must use GCS"
-        }
-      }
-      if (config.hasModelStorageParams()) {
-        require(config.modelStorageParams.hasGcs()) {
-          "VidLabelingConfig model_storage_params must use GCS"
-        }
-      }
-
-      return subpoolAssignerParams {
-        dataProvider = config.dataProvider
-        rawImpressionStorageParams =
-          SubpoolAssignerParamsKt.storageParams {
-            gcsProjectId = config.rawImpressionsStorageParams.gcs.projectId
-            blobPrefix = "gs://${config.rawImpressionsStorageParams.gcs.bucketName}"
           }
-        vidLabeledImpressionsStorageParams =
-          SubpoolAssignerParamsKt.storageParams {
-            gcsProjectId = config.vidLabeledImpressionsStorageParams.gcs.projectId
-            blobPrefix = "gs://${config.vidLabeledImpressionsStorageParams.gcs.bucketName}"
-          }
-        if (config.hasVidRankMapStorageParams()) {
-          vidRankMapStorageParams =
-            SubpoolAssignerParamsKt.storageParams {
-              gcsProjectId = config.vidRankMapStorageParams.gcs.projectId
-              blobPrefix = "gs://${config.vidRankMapStorageParams.gcs.bucketName}"
-            }
-        }
-        if (config.hasSubpoolMapStorageParams()) {
-          subpoolMapStorageParams =
-            SubpoolAssignerParamsKt.storageParams {
-              gcsProjectId = config.subpoolMapStorageParams.gcs.projectId
-              blobPrefix = "gs://${config.subpoolMapStorageParams.gcs.bucketName}"
-            }
-        }
-        if (config.hasModelStorageParams()) {
-          modelStorageParams =
-            SubpoolAssignerParamsKt.storageParams {
-              gcsProjectId = config.modelStorageParams.gcs.projectId
-              blobPrefix = "gs://${config.modelStorageParams.gcs.bucketName}"
-            }
-        }
-        rawImpressionMetadataStorageConnection = transportLayerSecurityParams {
-          clientCertResourcePath = config.rawImpressionMetadataStorageConnection.certFilePath
-          clientPrivateKeyResourcePath =
-            config.rawImpressionMetadataStorageConnection.privateKeyFilePath
-        }
-        // Forward the bin-packing threshold onto the memoized Phase-0 path so the Phase-1 ranker's
-        // last-job-out fan-out bin-packs identically to the non-memoized dispatcher. REQUIRED on
-        // SubpoolAssignerParams; SubpoolAssignerApp validates it > 0.
-        maxFileBatchSizeBytes = config.maxFileBatchSizeBytes
-      }
-    }
-
-    private fun convertModelLineConfigs(
-      configModelLines: Map<String, VidLabelingConfig.ModelLineConfig>
-    ): Map<String, VidLabelerParams.ModelLineConfig> {
-      return configModelLines.mapValues { (_, configModelLine) ->
-        VidLabelerParamsKt.modelLineConfig {
-          labelerInputFieldMapping.addAll(configModelLine.labelerInputFieldMappingList)
-          eventTemplateFieldMapping.putAll(configModelLine.eventTemplateFieldMappingMap)
-          eventTemplateDescriptorBlobUri = configModelLine.eventTemplateDescriptorBlobUri
-          eventTemplateType = configModelLine.eventTemplateType
-          requiredEntityKeyFieldMapping.putAll(configModelLine.requiredEntityKeyFieldMappingMap)
-          optionalEntityKeyFieldMapping.putAll(configModelLine.optionalEntityKeyFieldMappingMap)
-        }
-      }
+          .build()
+          .service,
+        bucketName,
+      )
     }
   }
 }

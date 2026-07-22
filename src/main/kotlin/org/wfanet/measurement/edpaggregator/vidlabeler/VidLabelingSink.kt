@@ -44,6 +44,7 @@ import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
+import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
@@ -96,8 +97,8 @@ import org.wfanet.virtualpeople.common.copy
  * @param modelLineContexts model lines to label with, each with its [ActiveWindow] and
  *   [VidAssigner].
  * @param impressionConverter converts a Parquet row into a [ConvertedImpression] (schema seam).
- * @param fileEntityKeys this file's entity keys (and event group reference id), read from its
- *   plaintext Parquet footer and applied to every impression converted from the file.
+ * @param fileMetadata this file's per-file metadata (event date), read from its plaintext Parquet
+ *   footer and used to place the labeled output under `model-line/<id>/<YYYY-MM-DD>/`.
  * @param encryptKmsClient encrypt/decrypt KMS client for the labeled output.
  * @param encryptKekUri KEK URI for generating per-output DEKs.
  * @param outputStorageParams GCS project + blob prefix for labeled output.
@@ -118,7 +119,7 @@ class VidLabelingSink(
   private val inputBlobUri: String,
   private val modelLineContexts: List<ModelLineContext>,
   private val impressionConverter: ImpressionConverter,
-  private val fileEntityKeys: FileEntityKeys,
+  private val fileMetadata: RawImpressionFileMetadata,
   private val encryptKmsClient: KmsClient,
   private val encryptKekUri: String,
   private val outputStorageParams: VidLabelerParams.StorageParams,
@@ -148,7 +149,7 @@ class VidLabelingSink(
     for (digestedEvent in events) {
       for (context in modelLineContexts) {
         try {
-          val converted = impressionConverter.convert(digestedEvent, context.config, fileEntityKeys)
+          val converted = impressionConverter.convert(digestedEvent, context.config)
           if (converted == null) {
             metrics.impressionsDroppedCounter.add(
               1,
@@ -204,7 +205,6 @@ class VidLabelingSink(
                   eventTime = converted.eventTime
                   vid = person.virtualPersonId
                   event = converted.event
-                  eventGroupReferenceId = converted.eventGroupReferenceId
                   entityKeys += converted.entityKeys
                 },
               )
@@ -261,9 +261,9 @@ class VidLabelingSink(
    * [send] is called by the concurrent [processBatch] invocations; a dedicated coroutine
    * ([deferred]) drains the bounded [channel] straight into [MesosRecordIoStorageClient.writeBlob],
    * so the records are never all held in memory at once. The per-blob aggregates needed for the
-   * metadata sidecar ([earliest], [latest], [entityIdsByType], [eventGroupReferenceId]) are
-   * accumulated by that single draining coroutine as each record passes through, so no
-   * synchronization is needed and [commit] reads them safely after awaiting [deferred].
+   * metadata sidecar ([earliest], [latest], [entityIdsByType]) are accumulated by that single
+   * draining coroutine as each record passes through, so no synchronization is needed and [commit]
+   * reads them safely after awaiting [deferred].
    */
   private inner class GroupWriter(private val key: OutputGroupKey) {
     private val channel = Channel<LabeledImpression>(WRITER_CHANNEL_CAPACITY)
@@ -271,11 +271,6 @@ class VidLabelingSink(
     private var earliest: Timestamp? = null
     private var latest: Timestamp? = null
     private val entityIdsByType = LinkedHashMap<String, LinkedHashSet<String>>()
-    // The event group reference id for this file's impressions (one per input file). Captured while
-    // streaming and written to the sidecar so DataAvailabilitySync can register this blob's
-    // ImpressionMetadata (create requires it) and the results fulfiller can locate it for
-    // reference-id event groups. Mirrors the out-of-band impressions' sidecar.
-    private var eventGroupReferenceId: String = ""
 
     private val blobKey = outputBlobKey(key)
     private val outputBlobUri = "${outputStorageParams.impressionsBlobPrefix}/$blobKey"
@@ -352,10 +347,6 @@ class VidLabelingSink(
       for (entityKey in impression.entityKeysList) {
         entityIdsByType.getOrPut(entityKey.entityType) { LinkedHashSet() }.add(entityKey.entityId)
       }
-      // TODO(#4175): remove once DataAvailabilitySync no longer requires event_group_reference_id.
-      if (eventGroupReferenceId.isEmpty() && impression.eventGroupReferenceId.isNotEmpty()) {
-        eventGroupReferenceId = impression.eventGroupReferenceId
-      }
     }
 
     /** Writes the `.metadata.binpb` sidecar from the aggregates collected while streaming. */
@@ -364,7 +355,6 @@ class VidLabelingSink(
         blobUri = outputBlobUri
         encryptedDek = outputEncryptedDek
         modelLine = key.modelLine
-        eventGroupReferenceId = this@GroupWriter.eventGroupReferenceId
         interval = interval {
           startTime = checkNotNull(earliest) { "No impressions written for ${key.modelLine}" }
           endTime = checkNotNull(latest) { "No impressions written for ${key.modelLine}" }
@@ -412,9 +402,9 @@ class VidLabelingSink(
    * Deterministic output blob key for [key] under this input file:
    * `model-line/<modelLineId>/<YYYY-MM-DD>/<sha256>`. The `model-line/<id>/<date>/` layout is what
    * `DataAvailabilitySync` crawls to classify finalized dates; the date is the file's event date
-   * ([FileEntityKeys.eventDate], read from the footer, UTC; a raw file holds one day). The trailing
-   * SHA of (input file, model line) keeps the key deterministic, so a retried input file overwrites
-   * its previous output instead of duplicating it.
+   * ([RawImpressionFileMetadata.eventDate], read from the footer, UTC; a raw file holds one day).
+   * The trailing SHA of (input file, model line) keeps the key deterministic, so a retried input
+   * file overwrites its previous output instead of duplicating it.
    */
   private fun outputBlobKey(key: OutputGroupKey): String {
     val modelLineId =
@@ -426,7 +416,7 @@ class VidLabelingSink(
       MessageDigest.getInstance("SHA-256")
         .digest("$inputBlobUri|${key.modelLine}".toByteArray(Charsets.UTF_8))
     val sha = digest.joinToString("") { "%02x".format(it) }
-    return "model-line/$modelLineId/${fileEntityKeys.eventDate}/$sha"
+    return "model-line/$modelLineId/${fileMetadata.eventDate}/$sha"
   }
 
   private val Timestamp.epochNanos: Long
@@ -483,9 +473,8 @@ data class ModelLineContext(
 )
 
 /**
- * Identifies one labeled-output blob within an input file: one blob per model line. New writers
- * group by model line and carry the per-blob entity-key union on `BlobDetails.entity_keys` rather
- * than splitting output by the legacy `event_group_reference_id`.
+ * Identifies one labeled-output blob within an input file: one blob per model line. Writers group
+ * by model line and carry the per-blob entity-key union on `BlobDetails.entity_keys`.
  */
 private data class OutputGroupKey(val modelLine: String)
 

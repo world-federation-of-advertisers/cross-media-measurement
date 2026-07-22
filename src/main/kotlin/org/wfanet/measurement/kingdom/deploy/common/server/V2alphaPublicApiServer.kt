@@ -533,6 +533,7 @@ private class V2alphaFlags {
             ),
           )
         }
+        NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
         NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
         NoiseMechanism.UNRECOGNIZED -> {
           throw CommandLine.ParameterException(

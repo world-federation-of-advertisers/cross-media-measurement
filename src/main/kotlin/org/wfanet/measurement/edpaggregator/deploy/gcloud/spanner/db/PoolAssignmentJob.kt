@@ -48,7 +48,8 @@ data class PoolAssignmentJobResult(
   val poolAssignmentJob: PoolAssignmentJob,
   val rawImpressionUploadId: Long,
   val poolAssignmentJobId: Long,
-  val markRequestId: String,
+  val markSucceededRequestId: String,
+  val markFailedRequestId: String,
 )
 
 /** Returns whether a [PoolAssignmentJob] with the specified keys exists. */
@@ -136,8 +137,6 @@ suspend fun AsyncDatabaseClient.ReadContext.findPoolAssignmentJobByRequestId(
   rawImpressionUploadResourceId: String,
   requestId: String,
 ): PoolAssignmentJobResult? {
-  if (requestId.isEmpty()) return null
-
   val sql = buildString {
     appendLine(PoolAssignmentJobEntity.BASE_SQL)
     appendLine(
@@ -473,9 +472,8 @@ fun AsyncDatabaseClient.TransactionContext.insertPoolAssignmentJob(
     set("PoolAssignmentJobResourceId").to(poolAssignmentJobResourceId)
     set("CmmsModelLine").to(cmmsModelLine)
     set("ShardIndex").to(shardIndex)
-    if (createRequestId.isNotEmpty()) {
-      set("CreateRequestId").to(createRequestId)
-    }
+    // request_id is REQUIRED on Create (enforced by the service), so set it unconditionally.
+    set("CreateRequestId").to(createRequestId)
     set("State").to(State.POOL_ASSIGNMENT_STATE_CREATED)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
@@ -515,6 +513,7 @@ private object PoolAssignmentJobEntity {
       PoolAssignmentJob.ShardIndex,
       PoolAssignmentJob.CreateRequestId,
       PoolAssignmentJob.MarkSucceededRequestId,
+      PoolAssignmentJob.MarkFailedRequestId,
       PoolAssignmentJob.State,
       PoolAssignmentJob.ErrorMessage,
       PoolAssignmentJob.EncryptedDek,
@@ -549,6 +548,7 @@ private object PoolAssignmentJobEntity {
       struct.getLong("PoolAssignmentJobId"),
       if (struct.isNull("MarkSucceededRequestId")) ""
       else struct.getString("MarkSucceededRequestId"),
+      if (struct.isNull("MarkFailedRequestId")) "" else struct.getString("MarkFailedRequestId"),
     )
   }
 }

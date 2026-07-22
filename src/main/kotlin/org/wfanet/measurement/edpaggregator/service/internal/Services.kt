@@ -21,8 +21,6 @@ import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGr
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankerJobServiceGrpcKt
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchFileServiceGrpcKt
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt
@@ -35,10 +33,6 @@ data class Services(
     RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase,
   val impressionMetadata:
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase,
-  val rawImpressionMetadataBatch:
-    RawImpressionMetadataBatchServiceGrpcKt.RawImpressionMetadataBatchServiceCoroutineImplBase,
-  val rawImpressionMetadataBatchFile:
-    RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineImplBase,
   val rawImpressionUpload:
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase,
   val rawImpressionUploadFile:
@@ -54,8 +48,6 @@ data class Services(
     listOf(
       requisitionMetadata,
       impressionMetadata,
-      rawImpressionMetadataBatch,
-      rawImpressionMetadataBatchFile,
       rawImpressionUpload,
       rawImpressionUploadFile,
       rawImpressionUploadModelLine,
