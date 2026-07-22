@@ -1128,26 +1128,6 @@ class ImpressionMetadataServiceTest {
   }
 
   @Test
-  fun `listImpressionMetadata with event group reference id filter returns ImpressionMetadata`() =
-    runBlocking {
-      val created = createImpressionMetadata(IMPRESSION_METADATA, IMPRESSION_METADATA_2)
-
-      val response =
-        service.listImpressionMetadata(
-          listImpressionMetadataRequest {
-            parent = DATA_PROVIDER_KEY.toName()
-            filter =
-              ListImpressionMetadataRequestKt.filter {
-                eventGroupReferenceId = created[1].eventGroupReferenceId
-              }
-          }
-        )
-
-      assertThat(response)
-        .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created[1] })
-    }
-
-  @Test
   fun `listImpressionMetadata with event group reference ids filter returns ImpressionMetadata`() =
     runBlocking {
       val created = createImpressionMetadata(IMPRESSION_METADATA, IMPRESSION_METADATA_2)

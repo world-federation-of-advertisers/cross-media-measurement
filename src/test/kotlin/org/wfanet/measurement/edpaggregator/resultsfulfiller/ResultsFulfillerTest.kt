@@ -2967,7 +2967,7 @@ class ResultsFulfillerTest {
       assertThat(request.filter.entityKeysList).hasSize(1)
       assertThat(request.filter.entityKeysList[0].entityType).isEqualTo("creative-id")
       assertThat(request.filter.entityKeysList[0].entityId).isEqualTo("creative-a")
-      assertThat(request.filter.eventGroupReferenceId).isEmpty()
+      assertThat(request.filter.eventGroupReferenceIdsList).isEmpty()
     }
 
   @Test
@@ -3071,7 +3071,7 @@ class ResultsFulfillerTest {
     assertThat(request.filter.entityKeysList).hasSize(1)
     assertThat(request.filter.entityKeysList[0].entityType).isEqualTo("placement-id")
     assertThat(request.filter.entityKeysList[0].entityId).isEqualTo("placement-99")
-    assertThat(request.filter.eventGroupReferenceId).isEmpty()
+    assertThat(request.filter.eventGroupReferenceIdsList).isEmpty()
   }
 
   private suspend fun createData(

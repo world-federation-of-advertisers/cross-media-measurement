@@ -406,11 +406,7 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
   // rather than a base-table scan. Other shapes (blob URI, entity keys, etc.) are left to the
   // optimizer so they keep using their own more selective indexes.
   val tableIndexDirective =
-    if (
-      filter.cmmsModelLine.isNotEmpty() &&
-        (filter.eventGroupReferenceId.isNotEmpty() ||
-          filter.eventGroupReferenceIdsList.isNotEmpty())
-    ) {
+    if (filter.cmmsModelLine.isNotEmpty() && filter.eventGroupReferenceIdsList.isNotEmpty()) {
       "@{FORCE_INDEX=${ImpressionMetadataEntity.LIST_FILTER_INDEX}}"
     } else {
       ""
@@ -428,10 +424,6 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
 
     if (filter.cmmsModelLine.isNotEmpty()) {
       conjuncts.add("ImpressionMetadata.CmmsModelLine = @cmmsModelLine")
-    }
-
-    if (filter.eventGroupReferenceId.isNotEmpty()) {
-      conjuncts.add("ImpressionMetadata.EventGroupReferenceId = @eventGroupReferenceId")
     }
 
     if (filter.eventGroupReferenceIdsList.isNotEmpty()) {
@@ -493,10 +485,6 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
 
       if (filter.cmmsModelLine.isNotEmpty()) {
         bind("cmmsModelLine").to(filter.cmmsModelLine)
-      }
-
-      if (filter.eventGroupReferenceId.isNotEmpty()) {
-        bind("eventGroupReferenceId").to(filter.eventGroupReferenceId)
       }
 
       if (filter.eventGroupReferenceIdsList.isNotEmpty()) {

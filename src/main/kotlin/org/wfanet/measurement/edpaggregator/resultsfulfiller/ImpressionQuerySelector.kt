@@ -31,9 +31,9 @@ sealed class ImpressionQuerySelector {
   /**
    * Query impression metadata by a single event group reference ID.
    *
-   * Retained for symmetry with the singular `event_group_reference_id` filter field (kept for
-   * back-compat) even though the results-fulfiller now batches via [ByEventGroupReferenceIds];
-   * still used by tests and available to any single-event-group caller.
+   * A convenience for a single-event-group query; the results-fulfiller batches many event groups
+   * via [ByEventGroupReferenceIds]. Both build the same repeated `event_group_reference_ids`
+   * filter.
    */
   data class ByEventGroupReferenceId(val refId: String) : ImpressionQuerySelector()
 
