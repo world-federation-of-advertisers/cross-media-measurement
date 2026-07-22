@@ -3,25 +3,12 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 load("//src/main/docker:macros.bzl", "java_image")
 
 kt_jvm_library(
-    name = "api_rate_limiting",
-    srcs = ["EdpaApiRateLimiting.kt"],
-    visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy:__subpackages__",
-        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy:__subpackages__",
-    ],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common/grpc:rate_limiter_provider",
-        "//src/main/kotlin/org/wfanet/measurement/common/grpc:rate_limiting_server_interceptor",
-        "//src/main/proto/wfa/measurement/config:rate_limit_config_kt_jvm_proto",
-    ],
-)
-
-kt_jvm_library(
     name = "system_api_server",
     srcs = ["SystemApiServer.kt"],
     deps = [
-        ":api_rate_limiting",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:interceptors",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:rate_limiter_provider",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:rate_limiting_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:services",
         "//src/main/proto/wfa/measurement/config:rate_limit_config_kt_jvm_proto",
