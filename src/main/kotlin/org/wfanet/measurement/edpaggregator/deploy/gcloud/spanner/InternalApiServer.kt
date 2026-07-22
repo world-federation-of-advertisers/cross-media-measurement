@@ -22,11 +22,14 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.RateLimiterProvider
+import org.wfanet.measurement.common.grpc.RateLimitingServerInterceptor
 import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.grpc.withInterceptor
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.RateLimitConfig
-import org.wfanet.measurement.edpaggregator.deploy.common.server.EdpaApiRateLimiting
+import org.wfanet.measurement.config.RateLimitConfigKt
+import org.wfanet.measurement.config.rateLimitConfig
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
@@ -55,7 +58,7 @@ class InternalApiServer : Runnable {
   private val rateLimitConfig: RateLimitConfig by lazy {
     val configFile = rateLimitConfigFile
     if (configFile == null) {
-      EdpaApiRateLimiting.defaultConfig(EdpaApiRateLimiting.INTERNAL_API_EXPENSIVE_METHODS)
+      DEFAULT_RATE_LIMIT_CONFIG
     } else {
       parseTextProto(configFile, RateLimitConfig.getDefaultInstance())
     }
@@ -65,7 +68,12 @@ class InternalApiServer : Runnable {
     runBlocking {
       spannerFlags.usingSpanner { spanner ->
         val databaseClient: AsyncDatabaseClient = spanner.databaseClient
-        val rateLimitingInterceptor = EdpaApiRateLimiting.interceptor(rateLimitConfig)
+        // Global per-method limiting (the principal extractor returns null): this is overload
+        // protection, not per-client fairness.
+        val rateLimitingInterceptor =
+          RateLimitingServerInterceptor(
+            RateLimiterProvider(rateLimitConfig) { null }::getRateLimiter
+          )
         val services: List<ServerServiceDefinition> =
           InternalApiServices.build(databaseClient, serviceFlags.executor.asCoroutineDispatcher())
             .toList()
@@ -78,6 +86,31 @@ class InternalApiServer : Runnable {
   }
 
   companion object {
+    private const val LIST_IMPRESSION_METADATA_METHOD =
+      "wfa.measurement.internal.edpaggregator.ImpressionMetadataService/ListImpressionMetadata"
+    private const val LIST_REQUISITION_METADATA_METHOD =
+      "wfa.measurement.internal.edpaggregator.RequisitionMetadataService/ListRequisitionMetadata"
+
+    /**
+     * Default rate-limit config: bounds the expensive internal `List*` methods (which can OOM the
+     * server under load) with a conservative token bucket and leaves every other method unlimited.
+     * Override per-environment with `--rate-limit-config-file`.
+     */
+    private val DEFAULT_RATE_LIMIT_CONFIG = rateLimitConfig {
+      rateLimit =
+        RateLimitConfigKt.rateLimit {
+          // maximumRequestCount < 0 short-circuits to unlimited before any token bucket is built.
+          defaultRateLimit = RateLimitConfigKt.methodRateLimit { maximumRequestCount = -1 }
+          val boundedRateLimit =
+            RateLimitConfigKt.methodRateLimit {
+              maximumRequestCount = 200
+              averageRequestRate = 100.0
+            }
+          perMethodRateLimit[LIST_IMPRESSION_METADATA_METHOD] = boundedRateLimit
+          perMethodRateLimit[LIST_REQUISITION_METADATA_METHOD] = boundedRateLimit
+        }
+    }
+
     @JvmStatic fun main(args: Array<String>) = commandLineMain(InternalApiServer(), args)
   }
 }
