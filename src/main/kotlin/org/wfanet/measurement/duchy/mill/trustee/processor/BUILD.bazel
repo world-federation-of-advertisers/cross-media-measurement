@@ -8,6 +8,7 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
         "//src/main/kotlin/org/wfanet/measurement/duchy/utils:computation_conversions",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_kt_jvm_proto",
     ],
 )
 
@@ -16,10 +17,13 @@ kt_jvm_library(
     srcs = ["TrusTeeProcessorImpl.kt"],
     deps = [
         ":trus_tee_processor",
+        "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_truncated_laplace_noise",
         "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:reach_and_frequency_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
+        "//src/main/kotlin/org/wfanet/measurement/computation:sampled_reach_and_frequency",
         "//src/main/kotlin/org/wfanet/measurement/duchy/utils:computation_conversions",
         "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:covariances",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_kt_jvm_proto",
     ],
 )

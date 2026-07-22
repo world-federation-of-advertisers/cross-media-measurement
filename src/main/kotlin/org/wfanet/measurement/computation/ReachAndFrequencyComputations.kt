@@ -22,18 +22,23 @@ object ReachAndFrequencyComputations {
   private const val L_INFINITE_SENSITIVITY = 1L
 
   /**
-   * Computes the reach, applying differential privacy noise if parameters are provided.
+   * Computes the reach from a [SampledReachAndFrequency], applying differential privacy noise if
+   * parameters are provided.
    *
-   * @param rawHistogram A histogram of counts for frequencies 1 to `maxFrequency`.
+   * @param sampled The in-sample reach and frequency histogram.
+   *   [SampledReachAndFrequency.sampledReach] is the reach in the sample;
+   *   [SampledReachAndFrequency.frequencyHistogram] supplies the impression count for the
+   *   small-cell suppression threshold.
    * @param vidSamplingIntervalWidth The sampling rate used to select VIDs.
-   * @param vectorSize The total size of the frequency vector space, used for capping the result.
+   * @param vectorSize The total size of the frequency vector space, used for capping the result
    *   before scaling. If null, no capping is applied.
-   * @param dpParams The privacy parameters for the reach computation.
+   * @param dpParams The privacy parameters for the reach computation. When null, no noise is added
+   *   (the values are treated as already noised, or noise is disabled).
    * @param resultMinimumThresholds Optional result minimum thresholds.
    * @return The reach value, potentially with noise applied.
    */
   fun computeReach(
-    rawHistogram: LongArray,
+    sampled: SampledReachAndFrequency,
     vidSamplingIntervalWidth: Double,
     vectorSize: Int?,
     dpParams: DifferentialPrivacyParams?,
@@ -46,8 +51,7 @@ object ReachAndFrequencyComputations {
         Long.MAX_VALUE
       }
 
-    // The histogram is built only from non-zero frequencies, so its sum is the reach in the sample.
-    val reachInSample = rawHistogram.sum()
+    val reachInSample = sampled.sampledReach
     val minScaledNoisedReach = run {
       if (dpParams == null) {
         val scaledReach = (reachInSample / vidSamplingIntervalWidth).toLong()
@@ -75,7 +79,7 @@ object ReachAndFrequencyComputations {
     val thresholdedImpressionCount = run {
       if (dpParams == null) {
         val rawImpressionCount =
-          rawHistogram.withIndex().sumOf { (index, count) ->
+          sampled.frequencyHistogram.withIndex().sumOf { (index, count) ->
             val frequency = index + 1L
             frequency * count
           }
@@ -90,7 +94,7 @@ object ReachAndFrequencyComputations {
         }
       } else {
         val rawImpressionCount =
-          rawHistogram.withIndex().sumOf { (index, count) ->
+          sampled.frequencyHistogram.withIndex().sumOf { (index, count) ->
             val frequency = min(resultMinimumThresholds.reachMaxFrequencyPerUser, index + 1)
             frequency * count
           }
@@ -118,6 +122,28 @@ object ReachAndFrequencyComputations {
     }
     return thresholdedImpressionCount
   }
+
+  /**
+   * Computes the reach from a raw histogram, deriving the in-sample reach as the histogram sum.
+   *
+   * Equivalent to [computeReach] on `SampledReachAndFrequency(rawHistogram.sum(), rawHistogram)`.
+   *
+   * @param rawHistogram A histogram of counts for frequencies 1 to `maxFrequency`.
+   */
+  fun computeReach(
+    rawHistogram: LongArray,
+    vidSamplingIntervalWidth: Double,
+    vectorSize: Int?,
+    dpParams: DifferentialPrivacyParams?,
+    resultMinimumThresholds: ResultMinimumThresholds?,
+  ): Long =
+    computeReach(
+      SampledReachAndFrequency(rawHistogram.sum(), rawHistogram),
+      vidSamplingIntervalWidth,
+      vectorSize,
+      dpParams,
+      resultMinimumThresholds,
+    )
 
   /**
    * Computes the frequency distribution among VIDs with non-zero frequencies, applying differential
