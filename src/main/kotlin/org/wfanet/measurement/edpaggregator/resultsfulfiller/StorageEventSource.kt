@@ -28,13 +28,11 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Message
 import java.io.IOException
 import java.util.logging.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -128,9 +126,11 @@ class ProgressTracker(private val totalEventReaders: Int) : AutoCloseable {
  * @property readConcurrency maximum number of blobs read + decrypted concurrently. Bounds the
  *   outbound Cloud Storage / Cloud KMS fan-out so one work item cannot exhaust Cloud NAT ports or
  *   overwhelm KMS.
- * @property readMaxAttempts maximum total attempts (including the first) for reading a single blob
- *   before giving up. Transient failures are retried; non-transient failures fail immediately.
- * @property readRetryBackoff exponential backoff applied between transient per-blob read retries.
+ * @property readMaxAttempts maximum total attempts (including the first) for opening a single blob
+ *   (build storage client + DEK unwrap + open) before giving up. Only failures that occur before
+ *   any batch has been emitted are retried; once streaming has started, mid-stream read failures
+ *   are left to the storage client's own retry budget.
+ * @property readRetryBackoff exponential backoff applied between blob-open retries.
  * @property eventReaderFactory builds the [EventReader] for a blob. Defaults to a
  *   [StorageEventReader]; injectable for testing.
  */
@@ -285,55 +285,53 @@ class StorageEventSource(
   ): EventReaderResult {
     logger.fine("Reading events from ${resolvedReader.blobUri}")
 
-    // Wrap the whole blob read (open + DEK decrypt + streaming read) in a single-value flow so
-    // retryWhen restarts the entire read on a retryable failure, never a partial one. Batches are
-    // buffered and emitted downstream only after a full successful read, so a retry cannot
-    // double-count into the accumulating sinks. Peak buffered memory is bounded by
-    // readConcurrency * one blob.
-    val batches: List<EventBatch<Message>> =
-      flow {
-          val buffered = mutableListOf<EventBatch<Message>>()
-          resolvedReader.reader.readEvents().collect { events ->
-            buffered.add(
-              EventBatch(
-                events = events,
-                minTime = events.minOf { it.timestamp },
-                maxTime = events.maxOf { it.timestamp },
-                eventGroupIdentifier = resolvedReader.eventGroupIdentifier,
-              )
+    // Stream the blob: emit each batch downstream as it is read, so peak memory stays at ~one
+    // batch per in-flight reader rather than a whole buffered blob. The blob open + DEK unwrap
+    // happen before the first batch is emitted, so retrying is safe (no double-count into the
+    // accumulating sinks) ONLY while nothing has been emitted yet -- exactly the transient
+    // KMS-endpoint / GCS-connect failure that nothing else retries. Once streaming has started, a
+    // mid-stream read failure is left to the storage client's own retry budget, not retried here.
+    var attempt = 0
+    while (true) {
+      attempt++
+      var batchCount = 0
+      var eventCount = 0
+      var emitted = false
+      try {
+        resolvedReader.reader.readEvents().collect { events ->
+          val eventBatch =
+            EventBatch(
+              events = events,
+              minTime = events.minOf { it.timestamp },
+              maxTime = events.maxOf { it.timestamp },
+              eventGroupIdentifier = resolvedReader.eventGroupIdentifier,
             )
-          }
-          emit(buffered)
+          sendEventBatch(eventBatch)
+          emitted = true
+          batchCount++
+          eventCount += events.size
         }
-        .retryWhen { cause, attempt ->
-          if (isRetryableReadFailure(cause) && attempt < readMaxAttempts - 1) {
-            logger.warning {
-              "Transient failure reading ${resolvedReader.blobUri} on attempt ${attempt + 1} of " +
-                "$readMaxAttempts (${cause.message}); retrying"
-            }
-            delay(readRetryBackoff.durationForAttempt((attempt + 1).toInt()).toMillis())
-            true
-          } else {
-            false
-          }
+        logger.fine("Read $eventCount events in $batchCount batches for ${resolvedReader.blobUri}")
+        return EventReaderResult(batchCount, eventCount)
+      } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        if (emitted || attempt >= readMaxAttempts || !isRetryableReadFailure(e)) {
+          throw e
         }
-        .first()
-
-    var eventCount = 0
-    for (batch in batches) {
-      sendEventBatch(batch)
-      eventCount += batch.events.size
+        logger.warning {
+          "Transient failure opening ${resolvedReader.blobUri} on attempt $attempt of " +
+            "$readMaxAttempts (${e.message}); retrying"
+        }
+        delay(readRetryBackoff.durationForAttempt(attempt).toMillis())
+      }
     }
-
-    logger.fine("Read $eventCount events in ${batches.size} batches for ${resolvedReader.blobUri}")
-    return EventReaderResult(batches.size, eventCount)
   }
 
   /**
-   * Whether a per-blob read/decrypt failure is safe to retry.
+   * Whether a blob open/DEK-unwrap failure is safe to retry.
    *
-   * Reading a blob is a pure, idempotent operation (a re-read cannot double-count because batches
-   * are buffered and emitted only after a full successful read), so this is purely a question of
+   * This is only consulted for failures that occur before any batch has been emitted, so a retry
+   * cannot double-count into the accumulating sinks; retryability is therefore purely a question of
    * whether the failure is a transient egress blip.
    *
    * The dominant production failures surface as an [IOException] somewhere in the cause chain: a
