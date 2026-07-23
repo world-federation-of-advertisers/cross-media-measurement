@@ -20,7 +20,7 @@ on:
       - opened
       - reopened
       - synchronize
-      - edited    
+      - edited
     branches:
       - main
       - 'releases/**'
@@ -41,7 +41,7 @@ jobs:
 
       - name: Set up commitlint
         run: |
-          npm ci
+          npm ci --ignore-scripts
           git --version
           node --version
           npm --version
