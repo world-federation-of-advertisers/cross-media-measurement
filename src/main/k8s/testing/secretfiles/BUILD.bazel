@@ -34,6 +34,7 @@ exports_files([
     "basic_report_metric_spec_config.textproto",
     "impression_qualification_filter_config.textproto",
     "metric_spec_config.textproto",
+    "kingdom_rate_limit_config.textproto",
     "pdp1_tls.key",
     "pdp1_tls.pem",
 ])
