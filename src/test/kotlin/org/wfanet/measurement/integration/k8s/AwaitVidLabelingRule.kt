@@ -31,6 +31,7 @@ import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
@@ -240,9 +241,7 @@ class AwaitVidLabelingRule : TestRule {
     return result
       .groupBy { it.doneBlobUri }
       .values
-      .mapNotNull { ups ->
-        ups.maxByOrNull { it.createTime.seconds * 1_000_000_000L + it.createTime.nanos }
-      }
+      .mapNotNull { ups -> ups.maxByOrNull { it.createTime.toInstant() } }
   }
 
   private suspend fun listModelLines(
@@ -307,16 +306,13 @@ class AwaitVidLabelingRule : TestRule {
     private const val TIMEOUT_MS = 45L * 60L * 1000L
     private const val POLL_MS = 20L * 1000L
 
-    // Transient gRPC codes from the metadata API (pod rollout after a deploy, network blips) that
-    // should be retried within TIMEOUT_MS rather than failing the run.
+    // Transient gRPC codes from the metadata API that should be retried within TIMEOUT_MS rather
+    // than failing the run: UNAVAILABLE (pod rollout drains after a deploy), DEADLINE_EXCEEDED
+    // (per-RPC deadline), ABORTED (Spanner write-conflict retry during rollout). INTERNAL and
+    // UNKNOWN are intentionally excluded: they usually signal a real server bug, and retrying them
+    // for TIMEOUT_MS would hide the actual error behind a timeout.
     private val RETRYABLE_CODES =
-      setOf(
-        Status.Code.UNAVAILABLE,
-        Status.Code.INTERNAL,
-        Status.Code.DEADLINE_EXCEEDED,
-        Status.Code.UNKNOWN,
-        Status.Code.ABORTED,
-      )
+      setOf(Status.Code.UNAVAILABLE, Status.Code.DEADLINE_EXCEEDED, Status.Code.ABORTED)
 
     private fun env(name: String): String = System.getenv(name).orEmpty()
 

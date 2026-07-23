@@ -252,9 +252,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
 
     companion object {
-      // 120s to absorb event-group-sync Cloud Function cold starts (JVM boot
-      // can consume the first several seconds after a fresh deploy).
-      private const val EVENT_GROUP_SYNC_TIMEOUT = 120_000L
+      // 300s to absorb event-group-sync Cloud Function cold starts: a JVM gen2 CF cold start after
+      // a fresh deploy routinely lands in the 45-90s range, and this waits for the output blob
+      // (cold
+      // start + processing + write-back), so 120s left too little headroom.
+      private const val EVENT_GROUP_SYNC_TIMEOUT = 300_000L
       private const val EVENT_GROUP_SYNC_POLLING_INTERVAL = 3000L
     }
   }
@@ -320,12 +322,12 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       private val START_DATE: LocalDate = LocalDate.parse("2021-03-15", DATE_FORMATTER)
       private val END_DATE: LocalDate = LocalDate.parse("2021-03-21", DATE_FORMATTER)
 
-      // edp7's pipelined date — MUST stay in sync with SeedRawImpressionsRule.PIPELINED_DATES. For
-      // this date the deployed VidLabeler drops edp7's own `done` marker, so the test must NOT. All
-      // earlier dates use pre-labeled impressions staged under edp/edp7/model-line/<id>/<date>/
-      // (like the direct EDP), so the test drops an edp7 `done` for them too.
-      private val EDP7_PIPELINED_DATES: Set<LocalDate> =
-        setOf(LocalDate.parse("2021-03-21", DATE_FORMATTER))
+      // Single-sourced from [Edp7PipelinedDates]. For these dates the deployed VidLabeler drops
+      // edp7's own `done` marker, so the test must NOT. All earlier dates use pre-labeled
+      // impressions staged under edp/edp7/model-line/<id>/<date>/ (like the direct EDP), so the
+      // test
+      // drops an edp7 `done` for them too.
+      private val EDP7_PIPELINED_DATES: Set<LocalDate> = Edp7PipelinedDates.DATES
 
       // Per-EDP folder segment for VID-labeled impressions. MUST match each EDP's
       // `output_base_path` (impression_test_data_config.textproto), the `edp_impression_path` in

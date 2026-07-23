@@ -55,20 +55,20 @@ import org.wfanet.measurement.storage.parquetValue
  * Labeling pipeline has something to label, then drops a `done` marker per date to trigger it.
  *
  * Mirrors [the direct path][EdpAggregatorCorrectnessTest]'s `UploadEventGroup` + `CreateDoneBlobs`,
- * but for the raw path: it (re)generates the same synthetic events the direct path would produce and
- * writes them as **PME-encrypted Parquet** via [RawImpressionsWriter]. The `VidLabelingDispatcher`
- * (fired by the DataWatcher on the `done` blob) lists every non-`done` blob in the folder and
- * registers them as a `RawImpressionUpload` + `RawImpressionUploadFile`s, so no manual API
- * registration is needed here.
+ * but for the raw path: it (re)generates the same synthetic events the direct path would produce
+ * and writes them as **PME-encrypted Parquet** via [RawImpressionsWriter]. The
+ * `VidLabelingDispatcher` (fired by the DataWatcher on the `done` blob) lists every non-`done` blob
+ * in the folder and registers them as a `RawImpressionUpload` + `RawImpressionUploadFile`s, so no
+ * manual API registration is needed here.
  *
  * ## Why write locally then upload
- * The Parquet is written to a **local** temp dir and the encrypted bytes are uploaded to GCS via the
- * google-cloud-storage SDK, instead of writing straight to `gs://` through the Parquet client's
- * Hadoop GCS connector. The connector (`gcs-connector` hadoop3) resolves credentials with the legacy
- * `google-api-client` `GoogleCredential`, which does not understand the CI runner's Workload Identity
- * Federation (`external_account`) credentials; the google-cloud-storage SDK and the Tink KMS client
- * both do. PME encryption happens during the local write (via the Tink [KmsClient]); the uploaded
- * bytes are the finished encrypted file, which the TEE reads and decrypts unchanged.
+ * The Parquet is written to a **local** temp dir and the encrypted bytes are uploaded to GCS via
+ * the google-cloud-storage SDK, instead of writing straight to `gs://` through the Parquet client's
+ * Hadoop GCS connector. The connector (`gcs-connector` hadoop3) resolves credentials with the
+ * legacy `google-api-client` `GoogleCredential`, which does not understand the CI runner's Workload
+ * Identity Federation (`external_account`) credentials; the google-cloud-storage SDK and the Tink
+ * KMS client both do. PME encryption happens during the local write (via the Tink [KmsClient]); the
+ * uploaded bytes are the finished encrypted file, which the TEE reads and decrypts unchanged.
  *
  * Idempotent across runs: existing blobs under the prefix are deleted first, and each `done` marker
  * is rewritten (a new GCS generation yields a fresh `RawImpressionUpload` request id).
@@ -82,12 +82,13 @@ import org.wfanet.measurement.storage.parquetValue
  *
  * @property populationSpec the synthetic population (VID -> demographics), shared with the direct
  *   path so both EDPs draw from the same universe.
- * @property eventGroupConfigs edp7's event-group configs keyed by the flattened id (legacy groups by
- *   `event_group_reference_id`; entity-key groups split so each entity key spec is its own entry,
- *   keyed `"${entityType}-${entityId}"`), edpa_meta excluded. One PME Parquet file is written per
- *   (entry, date). Each entry contributes exactly one entity key, matching the real entity key of
- *   the event group as written by the out-of-band days-15-20 data ([WriteReusedLabeledImpressionsRule]),
- *   so the pipelined day's output matches the fulfiller's per-event-group query.
+ * @property eventGroupConfigs edp7's event-group configs keyed by the flattened id (legacy groups
+ *   by `event_group_reference_id`; entity-key groups split so each entity key spec is its own
+ *   entry, keyed `"${entityType}-${entityId}"`), edpa_meta excluded. One PME Parquet file is
+ *   written per (entry, date). Each entry contributes exactly one entity key, matching the real
+ *   entity key of the event group as written by the out-of-band days-15-20 data
+ *   ([WriteReusedLabeledImpressionsRule]), so the pipelined day's output matches the fulfiller's
+ *   per-event-group query.
  */
 class SeedRawImpressionsRule(
   private val populationSpec: PopulationSpec,
@@ -144,19 +145,28 @@ class SeedRawImpressionsRule(
           .filter { it.localDate in PIPELINED_DATES }
           .map { it.toEntityKeyed(config) }
       val blobKeys: List<String> =
-        writer.writeRawImpressions(shards, RAW_IMPRESSIONS_PREFIX) { event -> testEventColumns(event) }
+        writer.writeRawImpressions(shards, RAW_IMPRESSIONS_PREFIX) { event ->
+          testEventColumns(event)
+        }
       for (blobKey in blobKeys) {
         uploadToGcs(storage, File(localRoot, blobKey), blobKey)
         datesWritten.add(blobKey.removePrefix("$RAW_IMPRESSIONS_PREFIX/").substringBefore("/"))
       }
-      logger.info("Wrote + uploaded ${blobKeys.size} raw-impression file(s) for event group $refId.")
+      logger.info(
+        "Wrote + uploaded ${blobKeys.size} raw-impression file(s) for event group $refId."
+      )
     }
 
     for (date in datesWritten) {
       val doneKey = "$RAW_IMPRESSIONS_PREFIX/$date/done"
-      storage.create(BlobInfo.newBuilder(BlobId.of(RAW_IMPRESSIONS_BUCKET, doneKey)).build(), ByteArray(0))
+      storage.create(
+        BlobInfo.newBuilder(BlobId.of(RAW_IMPRESSIONS_BUCKET, doneKey)).build(),
+        ByteArray(0),
+      )
     }
-    logger.info("Seeded edp7 raw impressions for ${datesWritten.size} date(s); done markers written.")
+    logger.info(
+      "Seeded edp7 raw impressions for ${datesWritten.size} date(s); done markers written."
+    )
   }
 
   /** Uploads a locally-written (already PME-encrypted) Parquet file to `gs://bucket/blobKey`. */
@@ -175,14 +185,15 @@ class SeedRawImpressionsRule(
     }
 
   /**
-   * The entity-key columns the writer emits per impression for this event group entry (`entity_type`
-   * -> Parquet column). Every file carries the `person` -> `person_id` column: `person_id` doubles as
-   * the model identity (`profile_info...user_id`, a required labeler-input column present on every
-   * file) and a `person` entity key. Entity-key groups additionally carry the `creative-id` ->
-   * `creative_id` column so the results-fulfiller can match those impressions to the event group by
-   * its `{creative-id, entity_id}` key. The legacy group carries only the `person` key, which the
-   * fulfiller ignores (it matches legacy groups by `event_group_reference_id`) but which satisfies
-   * the reader's requirement that every impression carry >=1 entity key.
+   * The entity-key columns the writer emits per impression for this event group entry
+   * (`entity_type` -> Parquet column). Every file carries the `person` -> `person_id` column:
+   * `person_id` doubles as the model identity (`profile_info...user_id`, a required labeler-input
+   * column present on every file) and a `person` entity key. Entity-key groups additionally carry
+   * the `creative-id` -> `creative_id` column so the results-fulfiller can match those impressions
+   * to the event group by its `{creative-id, entity_id}` key. The legacy group carries only the
+   * `person` key, which the fulfiller ignores (it matches legacy groups by
+   * `event_group_reference_id`) but which satisfies the reader's requirement that every impression
+   * carry >=1 entity key.
    */
   private fun entityKeyColumnsFor(config: EventGroupConfig): Map<String, String> =
     when (config) {
@@ -198,12 +209,12 @@ class SeedRawImpressionsRule(
   /**
    * Keys each impression with this event group entry's entity keys, matching the out-of-band
    * days-15-20 data ([WriteReusedLabeledImpressionsRule]) for the fulfiller-relevant keys:
-   * * entity-key group -> the group's own `{entity_type, entity_id}` (e.g.
-   *   `{creative-id, edpa-eg-creative-id-1}`), so the fulfiller matches the pipelined impressions to
-   *   the event group by that key, PLUS a per-person `{person, person-<vid>}` key that carries the
-   *   model identity column and never matches any event group (harmless).
-   * * legacy group -> only the per-person `{person, person-<vid>}` key; the fulfiller matches legacy
-   *   groups by `event_group_reference_id`, so its value is ignored downstream.
+   * * entity-key group -> the group's own `{entity_type, entity_id}` (e.g. `{creative-id,
+   *   edpa-eg-creative-id-1}`), so the fulfiller matches the pipelined impressions to the event
+   *   group by that key, PLUS a per-person `{person, person-<vid>}` key that carries the model
+   *   identity column and never matches any event group (harmless).
+   * * legacy group -> only the per-person `{person, person-<vid>}` key; the fulfiller matches
+   *   legacy groups by `event_group_reference_id`, so its value is ignored downstream.
    *
    * The pipeline re-assigns the VID from the model; the direct-path expected VID and this one match
    * only when the model reproduces the synthetic assignment (validated by an end-to-end run).
@@ -308,27 +319,16 @@ class SeedRawImpressionsRule(
     // first and defers the rest, and nothing re-triggers the deferred ones (monitor re-dispatch is
     // unimplemented; uploads arrive sequentially in production). One upload still exercises Phase
     // 0/1/2 end to end.
-    private val PIPELINED_DATES: Set<LocalDate> = setOf(LocalDate.parse("2021-03-21"))
+    // Single-sourced from [Edp7PipelinedDates] so the three cloud-test rules stay in lockstep.
+    private val PIPELINED_DATES: Set<LocalDate> = Edp7PipelinedDates.DATES
 
     private fun env(name: String): String = System.getenv(name).orEmpty()
 
     private val PROJECT_ID: String = env("GOOGLE_CLOUD_PROJECT")
 
-    // edp7's storage KEK per GCP project (KMS resource names, not secrets) — the key the deployed
-    // VidLabeler TEE decrypts raw impressions with. Kept here rather than a per-env GitHub variable
-    // (the env var limit is reached); the EDP7_KEK_URI env still overrides.
-    // edp7's KMS key lives in the dev EDP project for ALL three test envs: edp7's
-    // kms_config.service_account is primus-sa@halo-cmm-dev-edp in dev/head/qa alike (see the
-    // per-env EDPA_EDPS_CONFIG variable), so the same key backs edp7 everywhere.
-    private val EDP7_KEK_URI_ALL_ENVS: String =
-      "gcp-kms://projects/halo-cmm-dev-edp/locations/global/keyRings/" +
-        "halo-cmm-dev-edp-enc-kr/cryptoKeys/halo-cmm-dev-edp-enc-key-"
-    private val KEK_URI_BY_PROJECT: Map<String, String> =
-      mapOf(
-        "halo-cmm-dev" to EDP7_KEK_URI_ALL_ENVS,
-        "halo-cmm-head" to EDP7_KEK_URI_ALL_ENVS,
-        "halo-cmm-qa" to EDP7_KEK_URI_ALL_ENVS,
-      )
+    // edp7's storage KEK per GCP project; single-sourced from [Edp7StorageKek]. The EDP7_KEK_URI
+    // env still overrides (see below).
+    private val KEK_URI_BY_PROJECT: Map<String, String> = Edp7StorageKek.BY_PROJECT
     private val EDP7_KEK_URI: String =
       env("EDP7_KEK_URI").ifEmpty { KEK_URI_BY_PROJECT[PROJECT_ID].orEmpty() }
 

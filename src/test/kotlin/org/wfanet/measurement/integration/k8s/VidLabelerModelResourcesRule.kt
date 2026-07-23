@@ -72,8 +72,8 @@ class VidLabelerModelResourcesRule(
 ) : TestRule {
 
   /**
-   * Resource name of the memoized cloudtest model line, populated by [provision]. The cloud test
-   * points its measurement at this line (which the pipeline labels) rather than the shared
+   * Resource name of the memoized cloudtest model line, populated by [resolveModelLines]. The cloud
+   * test points its measurement at this line (which the pipeline labels) rather than the shared
    * `MODEL_LINE_NAME` var (also used by SyntheticGeneratorCorrectnessTest). Null if provisioning
    * was skipped.
    */
@@ -82,9 +82,9 @@ class VidLabelerModelResourcesRule(
 
   /**
    * Resource name of the first non-memoized (hash-only) cloudtest model line, populated by
-   * [provision]. The cloud test points its measurements at this line: its VID assignment is a pure
-   * function of the impression (static model + hash), so it is deterministically reproducible
-   * offline, unlike the memoized line. Null if provisioning was skipped.
+   * [resolveModelLines]. The cloud test points its measurements at this line: its VID assignment is
+   * a pure function of the impression (static model + hash), so it is deterministically
+   * reproducible offline, unlike the memoized line. Null if provisioning was skipped.
    */
   var nonMemoizedModelLine: String? = null
     private set
@@ -110,14 +110,14 @@ class VidLabelerModelResourcesRule(
         if (MODEL_SUITE.isEmpty()) {
           logger.warning("MODEL_SUITE unset; skipping VID Labeling model-line resolution.")
         } else {
-          runBlocking { provision() }
+          runBlocking { resolveModelLines() }
         }
         base.evaluate()
       }
     }
   }
 
-  private suspend fun provision() {
+  private suspend fun resolveModelLines() {
     val modelProviderChannel: ManagedChannel = buildChannel("mp1_tls.pem", "mp1_tls.key")
     try {
       val modelLinesStub = ModelLinesCoroutineStub(modelProviderChannel)
