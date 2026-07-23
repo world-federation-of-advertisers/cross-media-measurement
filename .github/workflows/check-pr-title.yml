@@ -16,6 +16,11 @@ name: Check PR title follows Conventional Commits
 
 on:
   pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - edited    
     branches:
       - main
       - 'releases/**'
@@ -26,6 +31,9 @@ permissions:
 jobs:
   check-pr-title:
     runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: .github/workflows/tooling/check-pr-title
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -33,9 +41,7 @@ jobs:
 
       - name: Set up commitlint
         run: |
-          npm install -D @commitlint/cli@20.5.0 @commitlint/config-conventional@20.5.0
-          echo "export default { extends: ['@commitlint/config-conventional'] };" > commitlint.config.js
-          echo '{"type": "module"}' > package.json
+          npm ci
           git --version
           node --version
           npm --version
