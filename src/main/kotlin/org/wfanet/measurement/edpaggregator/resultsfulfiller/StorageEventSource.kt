@@ -442,6 +442,6 @@ class StorageEventSource(
      * unbounded connection churn (~64-wide) that exhausted Cloud NAT ports and hammered KMS in
      * production.
      */
-    const val DEFAULT_READ_CONCURRENCY = 8
+    const val DEFAULT_READ_CONCURRENCY = 16
   }
 }
