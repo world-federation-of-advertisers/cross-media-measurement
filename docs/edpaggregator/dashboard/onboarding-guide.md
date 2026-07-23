@@ -39,8 +39,8 @@ server's `OpenIdProvidersConfig`.
 
 *   Other EDPs' event groups, entity keys, campaigns, or brand names
 *   Which other EDPs are in the same report
-*   How many other EDPs are in a report (`EdpCount` is platform-only)
-*   Platform-only tables (`mc_details`, `report_detail`) return 403
+*   How many other EDPs are in a report
+*   Platform-only tables
 *   Raw Spanner or Postgres data (no `EXTERNAL_QUERY` access)
 
 ## Operator Steps: Onboarding a New EDP
@@ -71,9 +71,6 @@ MeasurementSystem \
   get --name=dataProviders/AbCdEf_12345
 ```
 
-The resource ID is the last segment of the `DataProvider` resource name
-(e.g., for `dataProviders/AbCdEf_12345`, the ID is `AbCdEf_12345`).
-
 ### Step 2: Add the EDP to the Dashboard Config
 
 Add the EDP to the `edps` array of the `DASHBOARD_CONFIG_CONTENT` GitHub
@@ -86,8 +83,8 @@ the Terraform `data_provider_resource_ids` map from it:
 
 The `name` (e.g., `edp4`) is a short label used for:
 
-*   The service account name: `edp-edp4-dashboard@PROJECT.iam.gserviceaccount.com`
-*   Row access policy IDs: `edp4_filter`
+*   The service account name: `edp-<name>-dashboard@<DASHBOARD_PROJECT>.iam.gserviceaccount.com`
+*   Row access policy IDs: `<name>_filter`
 *   CI test matrix entries
 
 The full `edps` array then looks like:
@@ -101,46 +98,36 @@ The full `edps` array then looks like:
 ]
 ```
 
-### Step 3: Verify Resource IDs
+### Step 3: Apply Terraform
 
-Because `DASHBOARD_CONFIG_CONTENT` is the single source of truth, the same
-`edps` entry drives both the Terraform resources (Terraform's `for_each` over
-the generated `data_provider_resource_ids` creates the `edp-<name>-dashboard@`
-SAs and row access policies) and the compliance/isolation tools (which
-impersonate `edp-<name>-dashboard@` and expect that `resource_id`'s data). Make
-sure each `resource_id` is the **bare** ID correct for the target environment —
-cross-check against the environment's `EDPA_EDPS_CONFIG` (the proto that drives
-the actual EDPA pipeline). A wrong `resource_id` makes the row access policy
-filter everything out, so the compliance check reports `returns other EDPs'
-data` (false-positive leak) or `empty` (false negative).
+Apply the change one of two ways:
 
-### Step 4: Apply Terraform
+*   **CI (normal):** Re-run the `Update CMMS` deploy workflow. It regenerates
+    `data_provider_resource_ids` from `DASHBOARD_CONFIG_CONTENT` and runs
+    `terraform apply`.
+*   **Manual:** A local `.tfvars` is *not* regenerated from
+    `DASHBOARD_CONFIG_CONTENT`, so add the EDP to the `data_provider_resource_ids`
+    map in your `.tfvars` first, then apply:
 
-Re-run the `Update CMMS` deploy workflow. The "Write dashboard tfvars" step regenerates
-`data_provider_resource_ids` from `DASHBOARD_CONFIG_CONTENT`, then `terraform
-apply` runs. For a **manual** apply against a local `.tfvars` — which is *not*
-regenerated from `DASHBOARD_CONFIG_CONTENT` — add the EDP to
-`data_provider_resource_ids` in that file as well before applying:
-
-```shell
-terraform plan -var-file=my-env.tfvars
-terraform apply -var-file=my-env.tfvars
-```
+    ```shell
+    terraform plan -var-file=my-env.tfvars
+    terraform apply -var-file=my-env.tfvars
+    ```
 
 This creates:
 
-*   Service account `edp-edp4-dashboard@PROJECT.iam.gserviceaccount.com`
+*   Service account `edp-<name>-dashboard@<DASHBOARD_PROJECT>.iam.gserviceaccount.com`
 *   `roles/bigquery.dataViewer` on `requisition_overview`, `mc_details_edp`,
     `report_detail_edp`
 *   `roles/bigquery.jobUser` on the project
 *   Row access policies on all 3 tables filtering to the EDP's resource ID
 
-### Step 5: Seed a BasicReport for the new EDP
+### Step 4: Seed a BasicReport for the new EDP
 
 The dashboard's `report_detail_edp` scheduled query only populates a row for an
 EDP when at least one BasicReport in state `SUCCEEDED` references one of that
 EDP's event groups. On a fresh EDP with no reports yet, the compliance check
-`report_detail_edp is empty` and the isolation test both FAIL &mdash; a
+`report_detail_edp is empty` and the isolation test both FAIL — a
 false-negative that will keep failing every deploy until at least one
 BasicReport exists for the EDP.
 
@@ -164,7 +151,7 @@ To seed:
       --ttl=1h
     ```
 
-    The `--scope='*'` wildcard is required &mdash; the reporting API's
+    The `--scope='*'` wildcard is required — the reporting API's
     `Authorization.checkScopes()` returns `PERMISSION_DENIED` without it.
 
 2.  Look up an existing event group on the new EDP via the Reporting API:
@@ -182,62 +169,41 @@ To seed:
     = [dataProviders/<NEW_EDP_RESOURCE_ID>]`, and a single-day
     `reportingInterval` is sufficient.
 4.  Poll the BasicReport with `GET .../basicReports/{id}` until `state:
-    SUCCEEDED`. On qa this takes ~15&ndash;25 minutes (real TEE fulfillment);
-    on dev typically 2&ndash;5 minutes.
+    SUCCEEDED`. On qa this takes ~15–25 minutes (real TEE fulfillment);
+    on dev typically 2–5 minutes.
 5.  Wait for the next `report_detail_edp` scheduled-query cycle to pull the
-    Report in (hourly schedule) or trigger it manually &mdash; see the
-    deployment guide's *Triggering Scheduled Queries Manually* section.
-6.  Verify with `bq show MY_PROJECT:dashboard.report_detail_edp` that
+    Report in (hourly schedule) or trigger it manually — see the
+    deployment guide's *Trigger Scheduled Queries Manually* section.
+6.  Verify with `bq show <DASHBOARD_PROJECT>:dashboard.report_detail_edp` that
     `numRows` has grown and `lastModifiedTime` is after the BasicReport's
     completion time.
 
 The seed BasicReport can be trivial (single-day reporting interval, single
-event group, `impressionQualificationFilters/ami`) &mdash; it just needs to
+event group, `impressionQualificationFilters/ami`) — it just needs to
 exist and be `SUCCEEDED`. It stays in the environment permanently; no cleanup
 is required.
 
-### Step 6: Verify Isolation
+### Step 5: Verify Isolation
 
-Run the compliance check with the new EDP included, impersonating the
-least-privilege `dashboard-compliance` service account (matches the
-deployment guide's Step 4 and the CI pattern from #4128 — running without
-impersonation either fails outright or silently passes with broader-than-
-tested permissions):
+Run the compliance check with the new EDP in the config and confirm it passes
+for that EDP. See the deployment guide's *Run the Compliance Check* for the
+command, impersonation setup, and what it verifies.
 
-```shell
-bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard/tools:DashboardComplianceCheck -- \
-  --impersonate-service-account=dashboard-compliance@MY_PROJECT.iam.gserviceaccount.com \
-  --project=MY_PROJECT \
-  --dashboard-config=/path/to/dashboard-config.json
-```
-
-where `dashboard-config.json` holds the environment's `DASHBOARD_CONFIG_CONTENT`.
-
-To impersonate, your account needs `roles/iam.serviceAccountTokenCreator` on
-the `dashboard-compliance` SA. The dashboard Terraform grants this to every
-member of `dashboard_operators`.
-
-Verify all checks pass, including:
-
-*   `edp4: requisition_overview returns only own data`
-*   `edp4: correctly denied access to mc_details (403)`
-*   `edp4: correctly denied EXTERNAL_QUERY via kingdom-conn (403)`
-
-### Step 7: Share Credentials with the EDP
+### Step 6: Share Credentials with the EDP
 
 Provide the EDP with their service account details:
 
 *   **Service account email**:
-    `edp-edp4-dashboard@PROJECT.iam.gserviceaccount.com`
+    `edp-<name>-dashboard@<DASHBOARD_PROJECT>.iam.gserviceaccount.com`
 *   **Project ID**: The GCP project hosting the dashboard BigQuery dataset
 *   **Dataset**: `dashboard`
 *   **Accessible tables**: `requisition_overview`, `mc_details_edp`,
     `report_detail_edp`
 
-The EDP authenticates using their service account via one of the keyless options
-in Option A below (Workload Identity Federation or service account impersonation
-from their own GCP project). Service account keys are supported as a last resort
-but should be avoided — see the preference order in Option A.
+The EDP authenticates using their service account. See Option A below for the
+options in preference order — keyless (Workload Identity Federation or service
+account impersonation from their own GCP project) is preferred; downloaded
+service-account keys only as a last resort.
 
 ## EDP Steps: Accessing the Dashboard
 
@@ -252,7 +218,7 @@ In preference order:
 1.  **Service account impersonation** (the EDP has a Google identity in any
     GCP project). The operator grants the EDP's user/SA
     `roles/iam.serviceAccountTokenCreator` on
-    `edp-<name>-dashboard@PROJECT.iam.gserviceaccount.com`, then the EDP
+    `edp-<name>-dashboard@<DASHBOARD_PROJECT>.iam.gserviceaccount.com`, then the EDP
     impersonates it.
 2.  **Workload Identity Federation** (the EDP runs outside GCP, e.g. AWS or
     on-prem). The CMMS terraform already provisions
@@ -277,11 +243,11 @@ source_credentials, _ = default(
 )
 target_credentials = impersonated_credentials.Credentials(
     source_credentials=source_credentials,
-    target_principal='edp-edp4-dashboard@DASHBOARD_PROJECT.iam.gserviceaccount.com',
+    target_principal='edp-<name>-dashboard@<DASHBOARD_PROJECT>.iam.gserviceaccount.com',
     target_scopes=['https://www.googleapis.com/auth/bigquery'],
     lifetime=3600,
 )
-client = bigquery.Client(project='DASHBOARD_PROJECT', credentials=target_credentials)
+client = bigquery.Client(project='<DASHBOARD_PROJECT>', credentials=target_credentials)
 
 query = """
 SELECT
@@ -289,7 +255,7 @@ SELECT
     RequisitionState,
     CmmsCreateTime,
     FulfillmentDurationSeconds
-FROM `DASHBOARD_PROJECT.dashboard.requisition_overview`
+FROM `<DASHBOARD_PROJECT>.dashboard.requisition_overview`
 ORDER BY CmmsCreateTime DESC
 LIMIT 100
 """
@@ -304,18 +270,18 @@ for row in client.query(query).result():
 #   roles/iam.serviceAccountTokenCreator on the dashboard SA.
 
 export CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT=\
-edp-edp4-dashboard@DASHBOARD_PROJECT.iam.gserviceaccount.com
+edp-<name>-dashboard@<DASHBOARD_PROJECT>.iam.gserviceaccount.com
 
-bq query --project_id=DASHBOARD_PROJECT --nouse_legacy_sql \
-  'SELECT * FROM `DASHBOARD_PROJECT.dashboard.requisition_overview` LIMIT 10'
+bq query --project_id=<DASHBOARD_PROJECT> --nouse_legacy_sql \
+  'SELECT * FROM `<DASHBOARD_PROJECT>.dashboard.requisition_overview` LIMIT 10'
 
-bq query --project_id=DASHBOARD_PROJECT --nouse_legacy_sql \
+bq query --project_id=<DASHBOARD_PROJECT> --nouse_legacy_sql \
   'SELECT CmmsDataProvider, EventGroupCount, EntityTypes, EntityIds, CampaignNames, MediaTypes
-   FROM `DASHBOARD_PROJECT.dashboard.mc_details_edp`'
+   FROM `<DASHBOARD_PROJECT>.dashboard.mc_details_edp`'
 
-bq query --project_id=DASHBOARD_PROJECT --nouse_legacy_sql \
+bq query --project_id=<DASHBOARD_PROJECT> --nouse_legacy_sql \
   'SELECT ExternalReportId, EventGroupCount, CmmsEventGroupIds, EntityTypes
-   FROM `DASHBOARD_PROJECT.dashboard.report_detail_edp`'
+   FROM `<DASHBOARD_PROJECT>.dashboard.report_detail_edp`'
 ```
 
 #### Last resort: service-account key
@@ -330,65 +296,52 @@ credentials = service_account.Credentials.from_service_account_file(
     'edp-dashboard-key.json',  # treat as a secret; rotate
     scopes=['https://www.googleapis.com/auth/bigquery'],
 )
-client = bigquery.Client(project='DASHBOARD_PROJECT', credentials=credentials)
+client = bigquery.Client(project='<DASHBOARD_PROJECT>', credentials=credentials)
 ```
 
 ### Option B: Looker Studio
 
-Looker Studio comes in two flavors with different authentication models —
-choose based on what you have access to:
+A central **report builder** builds the reports; each EDP only views. An EDP has
+nothing to configure — they just open the report link the builder shares (no
+account setup, service-account access, or IAM grants).
 
-#### Looker Studio Pro (recommended)
+Looker Studio runs the report's BigQuery data source under the EDP's
+`edp-<name>-dashboard` SA — the identity the dashboard's row access policies are
+written for. Every query then executes as the SA, so the policy is satisfied
+and the EDP sees only their own data, with no policy changes. This works the
+same in the free and Pro tiers.
 
-Pro lets a data source run as a service account, which is what the dashboard
-RAP grants. The EDP sees their own data without any policy changes.
+**Requirements:**
 
-1.  Open Looker Studio Pro and create a new report.
-2.  Add a BigQuery data source.
-3.  In the data source settings, configure it to run as
-    `edp-<name>-dashboard@DASHBOARD_PROJECT.iam.gserviceaccount.com`.
-4.  Select the project, dataset `dashboard`, and one of the accessible tables.
-5.  Build visualizations. Row access policies filter automatically.
+*   The report builder must sign in with a **Workspace / Cloud Identity
+    managed account**. Consumer `@gmail.com` accounts cannot select the
+    **Service account credentials** option.
+*   One-time IAM setup by an operator on
+    `edp-<name>-dashboard@<DASHBOARD_PROJECT>.iam.gserviceaccount.com`:
+    *   Grant the Looker Studio service agent (Google-managed, not a human)
+        `roles/iam.serviceAccountTokenCreator` on the SA — lets Looker Studio
+        impersonate the SA at runtime to run queries as it.
+    *   Grant the report builder's human Google account
+        `roles/iam.serviceAccountUser` (`actAs`) on the SA — a config-time
+        authorization to wire a data source to run as the SA; it does not mint
+        tokens or query as the SA itself. Grant per-SA (not project-wide) to
+        keep the footprint minimal.
 
-#### Free Looker Studio
+**Setup** (report builder, per EDP):
 
-The free tier authenticates with the **human's** Google identity, not a
-service account. Because only `edp-<name>-dashboard` is named in the row
-access policy, an EDP human user would see **0 rows** by default. To use the
-free tier, an operator must add the EDP's human Google accounts (or a Google
-Group) as grantees on the EDP's row access policy via `bq`:
+1.  Create a report and add a BigQuery data source.
+2.  Under data credentials, choose **Service account credentials** and enter
+    that EDP's SA:
+    `edp-<name>-dashboard@<DASHBOARD_PROJECT>.iam.gserviceaccount.com`.
+3.  Select the project, dataset `dashboard`, and an accessible table.
+4.  Build visualizations — row access policies filter automatically.
+5.  Share the report only with that EDP's designated viewers.
 
-```shell
-# Add EDP humans to each of the 3 EDP-visible tables' row access policies.
-# Re-run for every (table, EDP) pair where Free-tier access is needed.
-# --row_access_policy is a boolean toggle; identify the policy via
-# --policy_id + --target_table. --grantees is a single comma-separated list.
-# On update, re-supply the existing per-EDP predicate or it will be cleared.
-bq update --row_access_policy \
-  --project_id=DASHBOARD_PROJECT \
-  --policy_id=<EDP>_filter \
-  --target_table='dashboard.requisition_overview' \
-  --grantees='group:<edp-name>-dashboard-users@example.com,user:<analyst>@<edp-domain>' \
-  --filter_predicate='<existing per-EDP predicate>'
-```
-
-**Caveat — this is wiped on the next `terraform apply`.** The dashboard
-Terraform manages each row access policy via `google_bigquery_row_access_policy`
-with a fixed grantee list (the per-EDP service account only). When Terraform
-re-asserts the policy on the next deploy, manually-added human grantees are
-removed. Until the dashboard module accepts a `per_edp_human_grantees` input
-(not yet on the roadmap), free-tier setups require the operator to re-run
-the `bq update` commands above after every dashboard Terraform apply.
-**Prefer Looker Studio Pro whenever feasible** to avoid this drift.
-
-Once the policy is updated:
-
-1.  Open [Looker Studio](https://lookerstudio.google.com/) and create a new
-    report.
-2.  Add a BigQuery data source for the dashboard dataset.
-3.  Select "Viewer's credentials" so each viewer's identity is used for row
-    filtering.
-4.  Build visualizations.
+**Isolation warning:** a report runs as its configured SA for everyone who opens
+it, so the row access policy can't stop the wrong viewer from seeing data —
+cross-EDP isolation depends entirely on sharing scope. Build one report per EDP
+and share each only with that EDP; never use "anyone with the link," and never
+reuse a report or SA across EDPs.
 
 ### Available Fields
 
@@ -446,13 +399,20 @@ Once the policy is updated:
 
 ## Operator Steps: Offboarding an EDP
 
-1.  Remove the EDP from the `edps` array in `DASHBOARD_CONFIG_CONTENT`.
-2.  Re-run the `Update CMMS` deploy workflow (or `terraform apply` for a manual deploy, after
-    also removing the EDP from your local `.tfvars`). This destroys the EDP's
-    service account, row access policies, and table-level IAM grants.
-3.  The EDP's historical data remains in the tables but is inaccessible (no
-    row access policy grants visibility, no service account to authenticate).
-4.  Run the compliance check to verify the EDP no longer has access.
+1.  Remove the EDP from the `edps` array in `DASHBOARD_CONFIG_CONTENT` (for a
+    manual deploy, remove it from `data_provider_resource_ids` in your local
+    `.tfvars`).
+2.  Re-run the `Update CMMS` deploy workflow (or `terraform apply` for a manual
+    deploy). This destroys the EDP's service account, row access policies, and
+    table-level IAM grants.
+3.  Confirm the removal: the EDP's service account and row access policies
+    should be gone — check the apply output, or that
+    `gcloud iam service-accounts describe edp-<name>-dashboard@<DASHBOARD_PROJECT>.iam.gserviceaccount.com`
+    returns `NOT_FOUND`. The compliance check no longer covers a removed EDP, so
+    verify the destroy directly.
+
+The EDP's historical data remains in the tables but is inaccessible (no row
+access policy grants visibility, no service account to authenticate).
 
 ## Security Notes for EDPs
 
