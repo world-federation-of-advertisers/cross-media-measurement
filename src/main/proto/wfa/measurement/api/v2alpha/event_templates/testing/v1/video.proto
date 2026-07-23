@@ -1,0 +1,78 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha.event_templates.testing.v1;
+
+import "google/protobuf/duration.proto";
+import "wfa/measurement/api/v2alpha/event_annotations.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing.v1";
+option java_multiple_files = true;
+
+// Video ad engagement attributes.
+//
+// Completion and viewability are modeled as fraction-valued doubles drawn
+// from a discrete set of valid values, rather than as families of
+// conditional-threshold booleans (e.g. `completed_25_percent_plus`,
+// `viewable_50_percent_plus`) as the Origin/Aquila market templates do. A
+// single annotated double carries the same information without the
+// combinatorial field growth, and threshold semantics ("completed 50%+")
+// are expressed as ordinary comparisons in filters (`completed_fraction >=
+// 0.5`).
+//
+// TODO(world-federation-of-advertisers/cross-media-measurement-api): declare
+// the valid value sets in the `template_field` annotation once
+// `EventFieldDescriptor` supports enumerating valid values for numeric
+// fields.
+message Video {
+  option (.wfa.measurement.api.v2alpha.event_template) = {
+    name: "video"
+    display_name: "Video Ad"
+    description: "Video ad engagement attributes."
+    media_type: VIDEO
+  };
+
+  google.protobuf.Duration length = 1
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Video Length"
+        reporting_features: FILTERABLE
+        version_added: 1
+      }];
+
+  // Fraction of the video that was played, quantized to quartiles.
+  // Valid values: 0.0, 0.25, 0.5, 0.75, 1.0.
+  double completed_fraction = 2
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Completed Fraction"
+        description: "Fraction of the video that was played, quantized to "
+                     "quartiles: 0.0, 0.25, 0.5, 0.75 or 1.0."
+        reporting_features: IMPRESSION_QUALIFICATION
+        version_added: 1
+      }];
+
+  // Fraction of the ad's pixels that were on screen for at least 2
+  // continuous seconds. Valid values: 0.0, 0.5, 1.0 — 0.5 corresponds to
+  // the old MRC viewability standard and 1.0 to the new one.
+  double viewable_fraction = 3
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Viewable Fraction"
+        description: "Fraction of the ad's pixels on screen for at least 2 "
+                     "continuous seconds: 0.0, 0.5 (old MRC standard) or "
+                     "1.0 (new MRC standard)."
+        reporting_features: IMPRESSION_QUALIFICATION
+        version_added: 1
+      }];
+}

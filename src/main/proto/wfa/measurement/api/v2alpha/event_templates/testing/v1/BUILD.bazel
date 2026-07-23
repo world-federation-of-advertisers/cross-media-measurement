@@ -1,0 +1,70 @@
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_descriptor_set")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
+
+# Test-only event template structured as a reference for market-defined event
+# templates (single `Common` population template plus one engagement template
+# per `MediaType`), with completion/viewability modeled as annotated doubles
+# rather than families of threshold booleans. Replaces the legacy `TestEvent`
+# in the parent package; see test_event.proto for full motivation.
+
+package(
+    default_testonly = True,
+    default_visibility = ["//visibility:public"],
+)
+
+IMPORT_PREFIX = "/src/main/proto"
+
+proto_library(
+    name = "common_proto",
+    srcs = ["common.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto"],
+)
+
+proto_library(
+    name = "video_proto",
+    srcs = ["video.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:duration_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto",
+    ],
+)
+
+proto_library(
+    name = "display_proto",
+    srcs = ["display.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto"],
+)
+
+proto_library(
+    name = "other_proto",
+    srcs = ["other.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto"],
+)
+
+proto_library(
+    name = "test_event_proto",
+    srcs = ["test_event.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":common_proto",
+        ":display_proto",
+        ":other_proto",
+        ":video_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "test_event_kt_jvm_proto",
+    deps = [":test_event_proto"],
+)
+
+proto_descriptor_set(
+    name = "test_event_descriptor_set",
+    deps = [":test_event_proto"],
+)
