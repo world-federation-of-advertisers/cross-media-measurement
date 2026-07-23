@@ -25,15 +25,8 @@ import "wfa/measurement/api/v2alpha/event_templates/testing/v1/video.proto";
 option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing.v1";
 option java_multiple_files = true;
 
-// Test event message, structured as a reference for the event templates
-// that individual markets define (see
-// world-federation-of-advertisers/local-market-configuration): a single
-// `Common` template carrying population attributes, plus one engagement
-// template per `MediaType`.
-//
-// It deliberately departs from the market templates in one way: completion
-// and viewability are fraction-valued doubles with a discrete set of valid
-// values, not families of conditional-threshold booleans (see video.proto).
+// Test event message: a single `Common` template carrying population
+// attributes, plus one engagement template per `MediaType`.
 //
 // Replaces `wfa.measurement.api.v2alpha.event_templates.testing.TestEvent`
 // (`Person` → `Common`, `Banner` → `Display`, new `Other`, no

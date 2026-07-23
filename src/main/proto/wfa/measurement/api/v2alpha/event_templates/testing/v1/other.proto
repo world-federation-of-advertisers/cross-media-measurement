@@ -23,8 +23,7 @@ option java_multiple_files = true;
 
 // Template for media types other than Video and Display, completing the
 // `MediaType` surface of the event. Events with `MediaType.NATIVE` are also
-// covered by this template rather than a dedicated one, matching the
-// Origin/Aquila market templates.
+// covered by this template rather than a dedicated one.
 message Other {
   option (.wfa.measurement.api.v2alpha.event_template) = {
     name: "other"

@@ -26,12 +26,10 @@ option java_multiple_files = true;
 //
 // Completion and viewability are modeled as fraction-valued doubles drawn
 // from a discrete set of valid values, rather than as families of
-// conditional-threshold booleans (e.g. `completed_25_percent_plus`,
-// `viewable_50_percent_plus`) as the Origin/Aquila market templates do. A
-// single annotated double carries the same information without the
-// combinatorial field growth, and threshold semantics ("completed 50%+")
-// are expressed as ordinary comparisons in filters (`completed_fraction >=
-// 0.5`).
+// conditional-threshold booleans (e.g. `completed_25_percent_plus`). A
+// single double carries the same information without the combinatorial
+// field growth, and threshold semantics ("completed 50%+") are expressed as
+// ordinary comparisons in filters (`completed_fraction >= 0.5`).
 //
 // TODO(world-federation-of-advertisers/cross-media-measurement-api): declare
 // the valid value sets in the `template_field` annotation once

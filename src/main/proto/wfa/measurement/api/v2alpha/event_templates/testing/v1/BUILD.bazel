@@ -2,11 +2,10 @@ load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_proto//proto:defs.bzl", "proto_descriptor_set")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
 
-# Test-only event template structured as a reference for market-defined event
-# templates (single `Common` population template plus one engagement template
-# per `MediaType`), with completion/viewability modeled as annotated doubles
-# rather than families of threshold booleans. Replaces the legacy `TestEvent`
-# in the parent package; see test_event.proto for full motivation.
+# Test-only event template: a single `Common` population template plus one
+# engagement template per `MediaType`, with completion/viewability modeled as
+# doubles rather than families of threshold booleans. Replaces the legacy
+# `TestEvent` in the parent package.
 
 package(
     default_testonly = True,
