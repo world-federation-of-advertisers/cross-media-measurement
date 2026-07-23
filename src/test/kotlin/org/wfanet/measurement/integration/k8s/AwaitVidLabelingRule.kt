@@ -302,8 +302,11 @@ class AwaitVidLabelingRule : TestRule {
 
     private const val LIST_PAGE_SIZE = 100
     // edp7 pipelines a single upload (2021-03-21) at roughly a Confidential-Space-cold ~15-20 min.
-    // 45 min leaves ample margin while staying under the workflow's 60 min `--test_timeout`.
-    private const val TIMEOUT_MS = 45L * 60L * 1000L
+    // 30 min keeps the downstream chain (writeReusedLabeledImpressions, createDoneBlobs, the
+    // measurement tests) inside the workflow's 90 min `--test_timeout`; a slow pipeline then fails
+    // here with a clean "Timed out waiting for VID Labeling" rather than at the workflow timeout
+    // with a truncated log.
+    private const val TIMEOUT_MS = 30L * 60L * 1000L
     private const val POLL_MS = 20L * 1000L
 
     // Transient gRPC codes from the metadata API that should be retried within TIMEOUT_MS rather

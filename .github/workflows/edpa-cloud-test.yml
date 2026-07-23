@@ -87,7 +87,7 @@ jobs:
           build --define storage_bucket=$STORAGE_BUCKET
           build --define model_line=$MODEL_LINE
           test --test_output=streamed
-          test --test_timeout=3600
+          test --test_timeout=5400
           EOF
 
       # Reduce chance of disconnection from the Build Event Service.
