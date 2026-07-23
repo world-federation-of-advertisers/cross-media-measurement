@@ -179,9 +179,9 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
           "outbound Cloud Storage and Cloud KMS fan-out so a work item cannot exhaust Cloud NAT " +
           "ports or overwhelm KMS."
       ],
-    defaultValue = "8",
+    defaultValue = "16",
   )
-  private var pipelineReadConcurrency: Int = 8
+  private var pipelineReadConcurrency: Int = 16
 
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)

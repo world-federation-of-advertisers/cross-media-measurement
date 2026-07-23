@@ -28,7 +28,7 @@ class PipelineConfigurationTest {
     channelCapacity: Int = 1,
     threadPoolSize: Int = 1,
     workers: Int = 1,
-    readConcurrency: Int = 8,
+    readConcurrency: Int = 16,
   ) = PipelineConfiguration(batchSize, channelCapacity, threadPoolSize, workers, readConcurrency)
 
   @Test
