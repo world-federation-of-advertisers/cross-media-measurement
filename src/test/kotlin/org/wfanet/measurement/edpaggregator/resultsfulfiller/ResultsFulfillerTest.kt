@@ -27,6 +27,8 @@ import com.google.protobuf.Timestamp
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.timestamp
 import com.google.type.interval
+import io.grpc.Status
+import io.grpc.StatusException
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.trace.StatusCode
@@ -46,6 +48,7 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.SecureRandom
 import java.time.*
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.logging.Logger
 import kotlin.math.ln
 import kotlin.math.sqrt
@@ -116,6 +119,7 @@ import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.Hashing
@@ -149,6 +153,7 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequi
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.TrusTeeMeasurementFulfiller
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.NoOpFulfillerSelector
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
@@ -322,6 +327,119 @@ class ResultsFulfillerTest {
           "file:///$IMPRESSIONS_METADATA_BUCKET/ds/$date/model-line/$modelLine/event-group-reference-id/$eventGroupRef/metadata"
       }
     }
+  }
+
+  @Test
+  fun `listRequisitionMetadata retries a transient UNAVAILABLE from the metadata service`() =
+    runBlocking {
+      val attempts = AtomicInteger(0)
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenAnswer {
+        if (attempts.incrementAndGet() < 3) {
+          throw StatusException(Status.UNAVAILABLE)
+        }
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsRequisition = REQUISITION_NAME
+          }
+        }
+      }
+
+      // The group has no requisitions, so fulfillRequisitions returns right after the metadata
+      // list succeeds; the point under test is that the two transient failures were absorbed.
+      createRetryTestFulfiller().fulfillRequisitions()
+
+      assertThat(attempts.get()).isEqualTo(3)
+    }
+
+  @Test
+  fun `listRequisitionMetadata retries a transient DEADLINE_EXCEEDED from the metadata service`() =
+    runBlocking {
+      val attempts = AtomicInteger(0)
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenAnswer {
+        if (attempts.incrementAndGet() < 3) {
+          throw StatusException(Status.DEADLINE_EXCEEDED)
+        }
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsRequisition = REQUISITION_NAME
+          }
+        }
+      }
+
+      createRetryTestFulfiller().fulfillRequisitions()
+
+      assertThat(attempts.get()).isEqualTo(3)
+    }
+
+  @Test
+  fun `listRequisitionMetadata does not retry a non-retryable status`() = runBlocking {
+    val attempts = AtomicInteger(0)
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenAnswer {
+      attempts.incrementAndGet()
+      throw StatusException(Status.INVALID_ARGUMENT)
+    }
+
+    val error = assertFailsWith<Exception> { createRetryTestFulfiller().fulfillRequisitions() }
+
+    assertThat(error).hasMessageThat().contains("Error listing requisition metadata")
+    assertThat(attempts.get()).isEqualTo(1)
+  }
+
+  @Test
+  fun `listRequisitionMetadata fails after exhausting retries`() = runBlocking {
+    val attempts = AtomicInteger(0)
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenAnswer {
+      attempts.incrementAndGet()
+      throw StatusException(Status.UNAVAILABLE)
+    }
+
+    val error =
+      assertFailsWith<Exception> {
+        createRetryTestFulfiller(listMaxAttempts = 3).fulfillRequisitions()
+      }
+
+    assertThat(error).hasMessageThat().contains("Error listing requisition metadata")
+    assertThat(attempts.get()).isEqualTo(3)
+  }
+
+  /**
+   * Builds a [ResultsFulfiller] whose requisition group is empty, so [fulfillRequisitions]
+   * exercises only the `ListRequisitionMetadata` retry path and then returns (nothing to fulfill).
+   * Uses a fast, deterministic backoff so the retry tests do not sleep.
+   */
+  private fun createRetryTestFulfiller(
+    listMaxAttempts: Int = 4,
+    listRetryBackoff: ExponentialBackoff =
+      ExponentialBackoff(
+        initialDelay = Duration.ofMillis(1),
+        multiplier = 1.0,
+        randomnessFactor = 0.0,
+      ),
+  ): ResultsFulfiller {
+    val tmpDir = Files.createTempDirectory(null).toFile()
+    return ResultsFulfiller(
+      dataProvider = EDP_NAME,
+      requisitionMetadataStub = requisitionMetadataStub,
+      requisitionsStub = requisitionsStub,
+      privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+      groupedRequisitions = groupedRequisitions { groupId = "retry-group" },
+      modelLineInfoMap = emptyMap(),
+      pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+      impressionDataSourceProvider =
+        ImpressionDataSourceProvider(
+          impressionMetadataStub = impressionMetadataStub,
+          dataProvider = EDP_NAME,
+          impressionsMetadataStorageConfig = StorageConfig(rootDirectory = tmpDir),
+        ),
+      kmsClient = null,
+      impressionsStorageConfig = StorageConfig(rootDirectory = tmpDir),
+      fulfillerSelector = NoOpFulfillerSelector(),
+      metrics = metrics,
+      listMaxAttempts = listMaxAttempts,
+      listRetryBackoff = listRetryBackoff,
+    )
   }
 
   @Test
