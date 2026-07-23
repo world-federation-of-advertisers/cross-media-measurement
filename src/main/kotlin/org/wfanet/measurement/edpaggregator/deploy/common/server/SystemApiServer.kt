@@ -16,7 +16,8 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.common.server
 
-import io.grpc.BindableService
+import io.grpc.ServerServiceDefinition
+import java.io.File
 import java.time.Duration
 import kotlin.properties.Delegates
 import kotlinx.coroutines.CoroutineDispatcher
@@ -24,10 +25,17 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.RateLimiterProvider
+import org.wfanet.measurement.common.grpc.RateLimitingServerInterceptor
 import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withInterceptor
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.grpc.withVerboseLogging
+import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.config.RateLimitConfig
+import org.wfanet.measurement.config.RateLimitConfigKt
+import org.wfanet.measurement.config.rateLimitConfig
 import org.wfanet.measurement.edpaggregator.service.v1alpha.Services
 import picocli.CommandLine
 
@@ -71,6 +79,27 @@ class SystemApiServer : Runnable {
   )
   private lateinit var channelShutdownTimeout: Duration
 
+  @CommandLine.Option(
+    names = ["--rate-limit-config-file"],
+    description =
+      [
+        "File path to a RateLimitConfig protobuf message in text format.",
+        "If unset, expensive List methods are bounded by a conservative default and all other " +
+          "methods are unlimited.",
+      ],
+    required = false,
+  )
+  private var rateLimitConfigFile: File? = null
+
+  private val rateLimitConfig: RateLimitConfig by lazy {
+    val configFile = rateLimitConfigFile
+    if (configFile == null) {
+      DEFAULT_RATE_LIMIT_CONFIG
+    } else {
+      parseTextProto(configFile, RateLimitConfig.getDefaultInstance())
+    }
+  }
+
   override fun run() {
     val clientCerts =
       SigningCerts.fromPemFiles(
@@ -84,14 +113,45 @@ class SystemApiServer : Runnable {
         .withVerboseLogging(debugVerboseGrpcClientLogging)
     val serviceDispatcher: CoroutineDispatcher = serviceFlags.executor.asCoroutineDispatcher()
 
-    val services: List<BindableService> =
-      Services.build(internalApiChannel, serviceDispatcher).toList()
+    // Global per-method limiting (the principal extractor returns null): this is overload
+    // protection, not per-client fairness.
+    val rateLimitingInterceptor =
+      RateLimitingServerInterceptor(RateLimiterProvider(rateLimitConfig) { null }::getRateLimiter)
+    val services: List<ServerServiceDefinition> =
+      Services.build(internalApiChannel, serviceDispatcher).toList().map {
+        it.withInterceptor(rateLimitingInterceptor)
+      }
 
     val server: CommonServer = CommonServer.fromFlags(serverFlags, SERVER_NAME, services)
     server.start().blockUntilShutdown()
   }
 
   companion object {
+    private const val LIST_IMPRESSION_METADATA_METHOD =
+      "wfa.measurement.edpaggregator.v1alpha.ImpressionMetadataService/ListImpressionMetadata"
+    private const val LIST_REQUISITION_METADATA_METHOD =
+      "wfa.measurement.edpaggregator.v1alpha.RequisitionMetadataService/ListRequisitionMetadata"
+
+    /**
+     * Default rate-limit config: bounds the expensive public `List*` methods (which can OOM the
+     * server under load) with a conservative token bucket and leaves every other method unlimited.
+     * Override per-environment with `--rate-limit-config-file`.
+     */
+    private val DEFAULT_RATE_LIMIT_CONFIG = rateLimitConfig {
+      rateLimit =
+        RateLimitConfigKt.rateLimit {
+          // maximumRequestCount < 0 short-circuits to unlimited before any token bucket is built.
+          defaultRateLimit = RateLimitConfigKt.methodRateLimit { maximumRequestCount = -1 }
+          val boundedRateLimit =
+            RateLimitConfigKt.methodRateLimit {
+              maximumRequestCount = 200
+              averageRequestRate = 100.0
+            }
+          perMethodRateLimit[LIST_IMPRESSION_METADATA_METHOD] = boundedRateLimit
+          perMethodRateLimit[LIST_REQUISITION_METADATA_METHOD] = boundedRateLimit
+        }
+    }
+
     @JvmStatic fun main(args: Array<String>) = commandLineMain(SystemApiServer(), args)
   }
 }
