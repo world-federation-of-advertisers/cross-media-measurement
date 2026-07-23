@@ -120,6 +120,7 @@ jobs:
         run: |
           token_file="$RUNNER_TEMP/aws-web-identity-token"
           printf '%s' "$AWS_WEB_IDENTITY_ID_TOKEN" > "$token_file"
+          chmod 600 "$token_file"
           echo "AWS_WEB_IDENTITY_TOKEN_FILE=$token_file" >> "$GITHUB_ENV"
 
       - name: Run tests

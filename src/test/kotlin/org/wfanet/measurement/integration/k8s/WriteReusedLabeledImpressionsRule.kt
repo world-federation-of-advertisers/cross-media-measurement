@@ -306,30 +306,17 @@ class WriteReusedLabeledImpressionsRule(
     private val ALL_DATES: Set<LocalDate> =
       generateSequence(START_DATE) { it.plusDays(1) }.takeWhile { !it.isAfter(END_DATE) }.toSet()
 
-    // edp7's pipelined date — MUST stay in sync with SeedRawImpressionsRule.PIPELINED_DATES and
-    // CreateDoneBlobs.EDP7_PIPELINED_DATES. For this date the pipeline produces edp7's
+    // Single-sourced from [Edp7PipelinedDates]. For these dates the pipeline produces edp7's
     // memoized-line impressions, so the test must NOT pre-write them.
-    private val EDP7_PIPELINED_DATES: Set<LocalDate> = setOf(LocalDate.parse("2021-03-21"))
+    private val EDP7_PIPELINED_DATES: Set<LocalDate> = Edp7PipelinedDates.DATES
 
     private fun env(name: String): String = System.getenv(name).orEmpty()
 
     private val PROJECT_ID: String = env("GOOGLE_CLOUD_PROJECT")
 
-    // edp7's Google Cloud KMS storage KEK per project (KMS resource names, not secrets), used to
-    // re-encrypt edp7's regenerated impressions. The CI runner can wrap this with its Google Cloud
-    // credentials. The EDP7_KEK_URI env overrides. Kept in sync with
-    // SeedRawImpressionsRule.KEK_URI_BY_PROJECT.
-    // edp7's KMS key is in the dev EDP project for all three test envs (edp7
-    // kms_config.service_account = primus-sa@halo-cmm-dev-edp everywhere).
-    private val EDP7_KEK_URI_ALL_ENVS: String =
-      "gcp-kms://projects/halo-cmm-dev-edp/locations/global/keyRings/" +
-        "halo-cmm-dev-edp-enc-kr/cryptoKeys/halo-cmm-dev-edp-enc-key-"
-    private val EDP7_KEK_URI_BY_PROJECT: Map<String, String> =
-      mapOf(
-        "halo-cmm-dev" to EDP7_KEK_URI_ALL_ENVS,
-        "halo-cmm-head" to EDP7_KEK_URI_ALL_ENVS,
-        "halo-cmm-qa" to EDP7_KEK_URI_ALL_ENVS,
-      )
+    // edp7's storage KEK per project, used to re-encrypt edp7's regenerated impressions;
+    // single-sourced from [Edp7StorageKek]. The EDP7_KEK_URI env overrides (see below).
+    private val EDP7_KEK_URI_BY_PROJECT: Map<String, String> = Edp7StorageKek.BY_PROJECT
 
     private val edp7KekUri: String =
       env("EDP7_KEK_URI").ifEmpty { EDP7_KEK_URI_BY_PROJECT[PROJECT_ID].orEmpty() }

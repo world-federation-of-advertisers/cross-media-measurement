@@ -199,6 +199,7 @@ kt_jvm_library(
     name = "edp_aggregator_correctness_test",
     srcs = [
         "AwaitVidLabelingRule.kt",
+        "Edp7CloudTestConstants.kt",
         "EdpAggregatorCorrectnessTest.kt",
         "NonMemoizedVidLabeler.kt",
         "SeedRawImpressionsRule.kt",

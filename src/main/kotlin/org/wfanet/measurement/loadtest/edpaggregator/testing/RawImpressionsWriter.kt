@@ -32,13 +32,16 @@ import org.wfanet.measurement.storage.parquetValue
 
 /**
  * Canonical raw-impression Parquet column names, shared by this writer and the model-line config
- * that tells the VID Labeling pipeline how to read them back
- * (`VidLabelingConfig.ModelLineConfig` field mappings). Keep the two in lockstep: the mappings name
- * these columns and the reader (`RawImpressionSource` + `ParquetImpressionConverter` +
- * `EntityKeyMapper`) fails loud at file open if a mapped column is missing or retyped.
+ * that tells the VID Labeling pipeline how to read them back (`VidLabelingConfig.ModelLineConfig`
+ * field mappings). Keep the two in lockstep: the mappings name these columns and the reader
+ * (`RawImpressionSource` + `ParquetImpressionConverter` + `EntityKeyMapper`) fails loud at file
+ * open if a mapped column is missing or retyped.
  */
 object RawImpressionColumns {
-  /** Per-impression unique id; the `RawImpressionSource.eventIdColumn` and `LabelerInput.event_id.id`. */
+  /**
+   * Per-impression unique id; the `RawImpressionSource.eventIdColumn` and
+   * `LabelerInput.event_id.id`.
+   */
   const val EVENT_ID = "event_id"
 
   /** Event time as epoch microseconds; feeds `LabelerInput.timestamp_usec` (INT64 column). */
@@ -87,20 +90,21 @@ object RawImpressionColumns {
  *   per-event columns returned by `eventColumns` (e.g. demographics). One row per impression. The
  *   schema is derived from the first row, so every row MUST carry the same columns.
  * * **Footer** — plaintext key-value metadata `event_date` (ISO `YYYY-MM-DD`, UTC), read back by
- *   `org.wfanet.measurement.edpaggregator.vidlabeler.FileEntityKeys.fromFooterMetadata`. Entity keys
- *   are NOT in the footer (they are per-row columns), and the event group reference id is not carried
- *   at all — the VID Labeling pipeline keys impressions by their entity keys.
+ *   `org.wfanet.measurement.edpaggregator.vidlabeler.FileEntityKeys.fromFooterMetadata`. Entity
+ *   keys are NOT in the footer (they are per-row columns), and the event group reference id is not
+ *   carried at all — the VID Labeling pipeline keys impressions by their entity keys.
  * * **Encryption (PME)** — parquet-mr native Parquet Modular Encryption, bridged to the EDP's Tink
  *   [kmsClient] via [ParquetEncryptionConfig]. The data columns are encrypted with [kekUri]; the
  *   footer is left plaintext (`parquet.encryption.plaintext.footer = true`) so the reader can read
  *   the footer metadata and schema without keys, exactly as the deployed TEE reader expects.
  *
- * @property blobKeyId path token that disambiguates this writer's files from other writers' files on
- *   the same date (used only in the blob key and the synthetic event ids); one writer serves a
+ * @property blobKeyId path token that disambiguates this writer's files from other writers' files
+ *   on the same date (used only in the blob key and the synthetic event ids); one writer serves a
  *   single event group. NOT written to the footer — the pipeline keys impressions by entity keys.
- * @property kekUri the EDP's KMS key URI (GCP for the pipelined EDP), used as the PME master key id.
- * @property kmsClient the WFA Tink [KmsClient] resolving [kekUri] to an AEAD (same client the reader
- *   uses to decrypt).
+ * @property kekUri the EDP's KMS key URI (GCP for the pipelined EDP), used as the PME master key
+ *   id.
+ * @property kmsClient the WFA Tink [KmsClient] resolving [kekUri] to an AEAD (same client the
+ *   reader uses to decrypt).
  * @property storageConfiguration Hadoop [Configuration] selecting the storage backend (`file://` by
  *   default; set `fs.gs.impl` etc. for `gs://`). Copied per write, so the PME registration never
  *   leaks across writes.
@@ -119,6 +123,9 @@ class RawImpressionsWriter(
 ) {
   init {
     require(blobKeyId.isNotEmpty()) { "blobKeyId must be non-empty" }
+    require(!blobKeyId.contains('/')) {
+      "blobKeyId must be a single path segment, got '$blobKeyId'"
+    }
     require(kekUri.isNotEmpty()) { "kekUri must be non-empty" }
     require(requiredEntityKeyColumns.isNotEmpty()) {
       "at least one required entity-key column mapping must be configured"
@@ -146,17 +153,18 @@ class RawImpressionsWriter(
       val eventDate = shard.localDate.toString()
       var index = 0
       val rows =
-        shard.entityKeysWithLabeledEvents.flatMap { group ->
-          val entityColumns: Map<String, ParquetValue> = entityKeyColumns(group.entityKeys)
-          group.labeledEvents.map { event ->
-            buildRow(
-              eventId = "$blobKeyId-$eventDate-${index++}",
-              event,
-              entityColumns,
-              eventColumns,
-            )
+        shard.entityKeysWithLabeledEvents
+          .flatMap { group ->
+            val entityColumns: Map<String, ParquetValue> = entityKeyColumns(group.entityKeys)
+            group.labeledEvents.map { event ->
+              buildRow(
+                eventId = "$blobKeyId-$eventDate-${index++}",
+                event,
+                entityColumns,
+                eventColumns,
+              )
+            }
           }
-        }
           .toList()
       if (rows.isEmpty()) {
         logger.info("No raw impressions for $blobKeyId on $eventDate; skipping file.")
@@ -165,11 +173,8 @@ class RawImpressionsWriter(
 
       val blobKey = "$blobKeyPrefix/$eventDate/$blobKeyId"
       val footer = mapOf(FOOTER_EVENT_DATE to eventDate)
-      newEncryptingClient().writeBlob(
-        blobKey,
-        flow { rows.forEach { emit(it.toByteString()) } },
-        footer,
-      )
+      newEncryptingClient()
+        .writeBlob(blobKey, flow { rows.forEach { emit(it.toByteString()) } }, footer)
       logger.info("Wrote ${rows.size} raw impression(s) to $blobKey (event_date=$eventDate).")
       writtenBlobKeys.add(blobKey)
     }
@@ -196,10 +201,9 @@ class RawImpressionsWriter(
     eventColumns: (T) -> Map<String, ParquetValue>,
   ) = parquetRow {
     columns[RawImpressionColumns.EVENT_ID] = parquetValue { stringValue = eventId }
-    columns[RawImpressionColumns.EVENT_TIME_USEC] =
-      parquetValue {
-        int64Value = event.timestamp.epochSecond * 1_000_000L + event.timestamp.nano / 1_000L
-      }
+    columns[RawImpressionColumns.EVENT_TIME_USEC] = parquetValue {
+      int64Value = event.timestamp.epochSecond * 1_000_000L + event.timestamp.nano / 1_000L
+    }
     for ((column, value) in entityColumns) columns[column] = value
     for ((column, value) in eventColumns(event.message)) columns[column] = value
   }
