@@ -47,5 +47,8 @@ kingdom: #Kingdom & {
 				_grpcThreadPoolSize: #SystemServerGrpcThreads
 			}
 		}
+		"v2alpha-public-api-server": {
+			_rateLimitConfigPath: "/etc/\(#AppName)/config-files/kingdom_rate_limit_config.textproto"
+		}
 	}
 }
