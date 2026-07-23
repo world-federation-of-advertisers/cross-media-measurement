@@ -84,6 +84,11 @@ class NonMemoizedVidLabeler(
       gcsProjectId: String,
       labelerInputFieldMapping: List<LabelerInputFieldMapping>,
     ): NonMemoizedVidLabeler {
+      require(modelBlobUri.isNotEmpty()) { "modelBlobUri must be non-empty" }
+      require(gcsProjectId.isNotEmpty()) { "gcsProjectId must be non-empty" }
+      require(labelerInputFieldMapping.isNotEmpty()) {
+        "labelerInputFieldMapping must be non-empty"
+      }
       val blobUri = SelectedStorageClient.parseBlobUri(modelBlobUri)
       val blob =
         SelectedStorageClient(blobUri, rootDirectory = null, projectId = gcsProjectId)

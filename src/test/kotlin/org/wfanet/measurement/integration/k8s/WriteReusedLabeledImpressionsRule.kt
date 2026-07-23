@@ -41,36 +41,37 @@ import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
 
 /**
- * JUnit [TestRule] that makes the pre-staged out-of-band impressions available under the **memoized
- * model line** for the dates the deployed VID Labeling pipeline does not produce, so the
- * DataWatcher / DataAvailabilitySync register `ImpressionMetadata` for those dates under it.
+ * JUnit [TestRule] that makes the pre-staged out-of-band impressions available under the
+ * **non-memoized model line** for the dates the deployed VID Labeling pipeline does not produce, so
+ * the DataWatcher / DataAvailabilitySync register `ImpressionMetadata` for those dates under it.
  *
- * The correctness test measures the memoized model line ([VidLabelerModelResourcesRule.modelLine]),
- * but the pre-staged out-of-band impressions under `edp/edp7/<date>/` and `edp/edpa_meta/<date>/`
+ * The correctness test measures the non-memoized model line
+ * ([VidLabelerModelResourcesRule.nonMemoizedModelLine]), but the pre-staged out-of-band impressions
  * were stamped with the *default* line. Without this rule the results-fulfiller finds no
- * impressions for the memoized line on the non-pipelined dates.
+ * impressions for the non-memoized line on the non-pipelined dates.
  *
  * Both EDPs' impressions are regenerated and re-encrypted (impressions blob + metadata sidecar via
- * [ImpressionsWriter]), stamped with the memoized line, matching the flat-folder layout the
- * results-fulfiller expects (e.g. `edp/edp7/<date>/impressions[-<output_key>]` plus a matching
- * `metadata[-<output_key>].binpb`). Each event group carries its real entity key, which is how the
- * results-fulfiller matches impressions to event groups. They differ only in KMS:
+ * [ImpressionsWriter]), stamped with the non-memoized line, under the per-EDP, per-model-line
+ * layout `<output_base_path>/model-line/<modelLineId>/<date>/impressions[-<output_key>]` (plus a
+ * matching `metadata[-<output_key>].binpb`) that the results-fulfiller / DataAvailabilitySync
+ * crawl. Each event group carries its real entity key, which is how the results-fulfiller matches
+ * impressions to event groups. They differ only in KMS:
  * * **edp7** encrypts with a **Google Cloud KMS** KEK the CI runner wraps with its
  *   application-default credentials.
  * * **edpa_meta** encrypts with an **AWS KMS** KEK, assumed via web-identity federation
  *   ([AwsKmsClientFactory] + [AwsWebIdentityCredentials]). The deployed results-fulfiller decrypts
  *   the same bytes with the same AWS KEK, so AWS KMS is exercised end to end.
  *
- * It must run **after** [VidLabelerModelResourcesRule] (needs `modelLine`) and the event group
- * upload, and **before** `CreateDoneBlobs` so the `done` markers dropped there trigger registration
- * of this data.
+ * It must run **after** [VidLabelerModelResourcesRule] (needs the provisioned non-memoized line)
+ * and the event group upload, and **before** `CreateDoneBlobs` so the `done` markers dropped there
+ * trigger registration of this data.
  *
  * Dates handled:
  * * **edp7** — every non-pipelined date in [START_DATE]`..`[END_DATE] (i.e. excluding
- *   [EDP7_PIPELINED_DATES]); the pipeline produces the pipelined date under the memoized line.
+ *   [EDP7_PIPELINED_DATES]); the pipeline produces the pipelined date under the non-memoized line.
  * * **edpa_meta** — every date in [START_DATE]`..`[END_DATE] (edpa_meta is not pipelined).
  *
- * The rule is a **no-op** unless a memoized model line was provisioned; each EDP's regeneration
+ * The rule is a **no-op** unless a non-memoized model line was provisioned; each EDP's regeneration
  * additionally no-ops when its KMS settings are unresolved (edp7's Google Cloud KEK URI, or
  * edpa_meta's AWS role/region/web-identity-token/KEK), so unrelated runs are unaffected.
  *
@@ -79,7 +80,7 @@ import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
  * @property populationSpec the synthetic population, shared with the direct path so both EDPs draw
  *   from the same universe.
  * @property bucket the storage bucket the results-fulfiller / DataAvailabilitySync read from.
- * @property modelLineProvider yields the memoized model line resource name to stamp; when it
+ * @property modelLineProvider yields the non-memoized model line resource name to stamp; when it
  *   returns null (provisioning skipped) the rule is a no-op.
  */
 class WriteReusedLabeledImpressionsRule(
