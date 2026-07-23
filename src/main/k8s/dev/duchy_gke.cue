@@ -36,7 +36,8 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #StorageServiceAccount:              "storage"
 #InternalServerResourceRequirements: #ResourceRequirements & {
 	requests: {
-		cpu: "75m"
+		cpu:    "75m"
+		memory: "512Mi"
 	}
 }
 #HeraldResourceRequirements: ResourceRequirements=#ResourceRequirements & {
