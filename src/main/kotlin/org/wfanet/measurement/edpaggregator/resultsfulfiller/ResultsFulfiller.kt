@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Message
 import com.google.protobuf.kotlin.unpack
+import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
@@ -32,6 +33,7 @@ import java.util.logging.Logger
 import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.collect
@@ -51,6 +53,7 @@ import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
@@ -95,6 +98,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMe
  * @param impressionsStorageConfig Storage configuration for impression/event ingestion.
  * @param fulfillerSelector Selector for choosing the appropriate fulfiller based on protocol.
  * @param responsePageSize
+ * @param listMaxAttempts maximum total attempts for each `ListRequisitionMetadata` page before
+ *   giving up. Transient gRPC failures (`UNAVAILABLE` / `DEADLINE_EXCEEDED`, e.g. a server-side
+ *   rate limit or an overloaded metadata service) are retried so they do not fail the whole report.
+ * @param listRetryBackoff exponential backoff applied between transient list retries.
  * @param metrics Metrics recorder for telemetry.
  */
 class ResultsFulfiller(
@@ -110,6 +117,8 @@ class ResultsFulfiller(
   private val impressionsStorageConfig: StorageConfig,
   private val fulfillerSelector: FulfillerSelector,
   private val responsePageSize: Int? = null,
+  private val listMaxAttempts: Int = DEFAULT_LIST_MAX_ATTEMPTS,
+  private val listRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
   private val metrics: ResultsFulfillerMetrics,
 ) {
 
@@ -446,32 +455,52 @@ class ResultsFulfiller(
     }
   }
 
-  // List requisitions metadata for the goup id being processed.
+  // List requisitions metadata for the group id being processed.
   private suspend fun listRequisitionMetadata(): List<RequisitionMetadata> {
+    // Fetches a single page, retrying the transient gRPC statuses that are safe to replay here
+    // (ListRequisitionMetadata is an idempotent read): UNAVAILABLE and DEADLINE_EXCEEDED, so a
+    // server-side rate limit or an overloaded metadata service self-heals instead of failing the
+    // whole report. Any other status fails the report.
+    suspend fun listPage(pageToken: String): ResourceList<RequisitionMetadata, String> {
+      var attempt = 0
+      while (true) {
+        attempt++
+        val request = listRequisitionMetadataRequest {
+          parent = dataProvider
+          filter = ListRequisitionMetadataRequestKt.filter { groupId = groupedRequisitions.groupId }
+          if (responsePageSize != null) {
+            pageSize = responsePageSize
+          }
+          this.pageToken = pageToken
+        }
+        try {
+          val response: ListRequisitionMetadataResponse =
+            requisitionMetadataStub.listRequisitionMetadata(request)
+          return ResourceList(response.requisitionMetadataList, response.nextPageToken)
+        } catch (e: StatusException) {
+          val retryable =
+            e.status.code == Status.Code.UNAVAILABLE ||
+              e.status.code == Status.Code.DEADLINE_EXCEEDED
+          if (!retryable || attempt >= listMaxAttempts) {
+            throw Exception(
+              "Error listing requisition metadata for dataProvider=$dataProvider, " +
+                "groupId=${groupedRequisitions.groupId}: ${e.status}",
+              e,
+            )
+          }
+          logger.warning {
+            "Transient failure listing RequisitionMetadata for dataProvider=$dataProvider, " +
+              "groupId=${groupedRequisitions.groupId} on attempt $attempt of $listMaxAttempts " +
+              "(${e.status.code}); retrying"
+          }
+          delay(listRetryBackoff.durationForAttempt(attempt).toMillis())
+        }
+      }
+    }
+
     val requisitionsMetadata: Flow<RequisitionMetadata> =
       requisitionMetadataStub
-        .listResources { pageToken: String ->
-          val request = listRequisitionMetadataRequest {
-            parent = dataProvider
-            filter =
-              ListRequisitionMetadataRequestKt.filter { groupId = groupedRequisitions.groupId }
-            if (responsePageSize != null) {
-              pageSize = responsePageSize
-            }
-            this.pageToken = pageToken
-          }
-          val response: ListRequisitionMetadataResponse =
-            try {
-              requisitionMetadataStub.listRequisitionMetadata(request)
-            } catch (e: StatusException) {
-              throw Exception(
-                "Error listing requisition metadata for dataProvider=$dataProvider, " +
-                  "groupId=${groupedRequisitions.groupId}: ${e.status}",
-                e,
-              )
-            }
-          ResourceList(response.requisitionMetadataList, response.nextPageToken)
-        }
+        .listResources { pageToken: String -> listPage(pageToken) }
         .flattenConcat()
     return requisitionsMetadata.toList()
   }
@@ -651,6 +680,11 @@ class ResultsFulfiller(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    /**
+     * Default maximum total attempts (first attempt + retries) per ListRequisitionMetadata page.
+     */
+    private const val DEFAULT_LIST_MAX_ATTEMPTS = 4
 
     /**
      * Builds the event group → entity key map from grouped requisition entries.

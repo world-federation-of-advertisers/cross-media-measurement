@@ -19,9 +19,13 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.timestamp
 import com.google.type.interval
+import io.grpc.Status
+import io.grpc.StatusException
 import java.io.File
+import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -32,6 +36,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toProtoTime
@@ -256,7 +261,7 @@ class ImpressionDataSourceProviderTest {
     assertThat(request.filter.entityKeysList).hasSize(1)
     assertThat(request.filter.entityKeysList[0].entityType).isEqualTo("creative-id")
     assertThat(request.filter.entityKeysList[0].entityId).isEqualTo("creative-a")
-    assertThat(request.filter.eventGroupReferenceId).isEmpty()
+    assertThat(request.filter.eventGroupReferenceIdsList).isEmpty()
   }
 
   @Test
@@ -349,7 +354,7 @@ class ImpressionDataSourceProviderTest {
       assertThat(request.filter.entityKeysList).hasSize(1)
       assertThat(request.filter.entityKeysList[0].entityType).isEqualTo("campaign-id")
       assertThat(request.filter.entityKeysList[0].entityId).isEqualTo("campaign-123")
-      assertThat(request.filter.eventGroupReferenceId).isEmpty()
+      assertThat(request.filter.eventGroupReferenceIdsList).isEmpty()
     }
 
   @Test
@@ -433,8 +438,118 @@ class ImpressionDataSourceProviderTest {
     assertThat(request.filter.entityKeysList).hasSize(1)
     assertThat(request.filter.entityKeysList[0].entityType).isEqualTo("placement-id")
     assertThat(request.filter.entityKeysList[0].entityId).isEqualTo("placement-42")
-    assertThat(request.filter.eventGroupReferenceId).isEmpty()
+    assertThat(request.filter.eventGroupReferenceIdsList).isEmpty()
     assertThat(request.filter.modelLine).isEqualTo(modelLine)
     assertThat(request.filter.hasIntervalOverlaps()).isTrue()
+  }
+
+  @Test
+  fun `listImpressionDataSources by event group reference ids builds correct filter`(): Unit =
+    runBlocking {
+      val svc = createService()
+
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse {})
+
+      val date = LocalDate.of(2025, 4, 10)
+      val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
+      val end = date.plusDays(5).atStartOfDay(ZoneId.of("UTC")).toInstant()
+      val period = interval {
+        startTime = timestamp {
+          seconds = start.epochSecond
+          nanos = start.nano
+        }
+        endTime = timestamp {
+          seconds = end.epochSecond
+          nanos = end.nano
+        }
+      }
+
+      val results =
+        svc.listImpressionDataSources(
+          modelLine,
+          ImpressionQuerySelector.ByEventGroupReferenceIds(listOf("eg-1", "eg-2", "eg-3")),
+          period,
+        )
+
+      assertThat(results).isEmpty()
+
+      val captor = argumentCaptor<ListImpressionMetadataRequest>()
+      verify(impressionMetadataServiceMock).listImpressionMetadata(captor.capture())
+      val request = captor.firstValue
+      assertThat(request.filter.eventGroupReferenceIdsList).containsExactly("eg-1", "eg-2", "eg-3")
+      assertThat(request.filter.entityKeysList).isEmpty()
+      assertThat(request.filter.modelLine).isEqualTo(modelLine)
+      assertThat(request.filter.hasIntervalOverlaps()).isTrue()
+    }
+
+  @Test
+  fun `listImpressionDataSources retries a transient UNAVAILABLE from the metadata service`():
+    Unit = runBlocking {
+    val bucketName = "meta-bucket"
+    val bucketDir = File(tmp.root, bucketName)
+    bucketDir.mkdirs()
+
+    val date = LocalDate.of(2025, 1, 15)
+    val eventGroupRef = "eg-retry"
+    val key = "ds/$date/model-line/$modelLine/event-group-reference-id/$eventGroupRef/metadata"
+    val blobDetailsBytes =
+      blobDetails {
+          blobUri = "file:///impressions/$date/$eventGroupRef"
+          encryptedDek = EncryptedDek.getDefaultInstance()
+        }
+        .toByteString()
+    FileSystemStorageClient(bucketDir).writeBlob(key, blobDetailsBytes)
+
+    val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
+    val end = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant()
+    val period = interval {
+      startTime = timestamp {
+        seconds = start.epochSecond
+        nanos = start.nano
+      }
+      endTime = timestamp {
+        seconds = end.epochSecond
+        nanos = end.nano
+      }
+    }
+
+    // Fail transiently on the first two attempts, then succeed.
+    val attempts = AtomicInteger(0)
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any())).thenAnswer {
+      if (attempts.incrementAndGet() < 3) {
+        throw StatusException(Status.UNAVAILABLE)
+      }
+      listImpressionMetadataResponse {
+        impressionMetadata += impressionMetadata {
+          state = ImpressionMetadata.State.ACTIVE
+          blobUri = "file:///$bucketName/$key"
+          interval = period
+        }
+      }
+    }
+
+    val svc =
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
+        impressionsMetadataStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        listRetryBackoff =
+          ExponentialBackoff(
+            initialDelay = Duration.ofMillis(1),
+            multiplier = 1.0,
+            randomnessFactor = 0.0,
+          ),
+      )
+
+    val sources =
+      svc.listImpressionDataSources(
+        modelLine = modelLine,
+        selector = ImpressionQuerySelector.ByEventGroupReferenceIds(listOf(eventGroupRef)),
+        period = period,
+      )
+
+    assertThat(sources).hasSize(1)
+    assertThat(attempts.get()).isEqualTo(3)
   }
 }

@@ -668,7 +668,10 @@ class SpannerImpressionMetadataService(
   }
 
   companion object {
-    private const val MAX_PAGE_SIZE = 100
+    // Raised from 100 so a large report's impression metadata can be fetched in a handful of
+    // paginated calls instead of hundreds. Rows are small (a blob URI plus a few fields), so a page
+    // of this size stays well under the gRPC message-size limit.
+    private const val MAX_PAGE_SIZE = 1000
     private const val DEFAULT_PAGE_SIZE = 50
   }
 }

@@ -226,8 +226,11 @@ message ListImpressionMetadataRequest {
       (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
     ];
 
-    // The event group reference ID to filter by.
-    string event_group_reference_id = 2
+    // The event group reference IDs to filter by. An `ImpressionMetadata`
+    // matches if its `event_group_reference_id` is any of these. Lets a caller
+    // fetch metadata for many event groups in one request instead of one
+    // request per event group.
+    repeated string event_group_reference_ids = 2
         [(google.api.field_behavior) = OPTIONAL];
 
     // The time interval to filter by. The `ImpressionMetadata` time range must

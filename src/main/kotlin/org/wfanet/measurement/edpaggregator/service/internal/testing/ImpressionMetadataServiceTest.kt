@@ -1456,7 +1456,87 @@ abstract class ImpressionMetadataServiceTest {
   }
 
   @Test
-  fun `listImpressionMetadata filters by eventGroupReferenceId`() = runBlocking {
+  fun `listImpressionMetadata filters by eventGroupReferenceIds`() = runBlocking {
+    val created =
+      service
+        .batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            requests += createImpressionMetadataRequest {
+              impressionMetadata = IMPRESSION_METADATA_2
+            }
+            requests += createImpressionMetadataRequest {
+              impressionMetadata = IMPRESSION_METADATA_3
+            }
+            requests += createImpressionMetadataRequest {
+              impressionMetadata = IMPRESSION_METADATA_4
+            }
+          }
+        )
+        .impressionMetadataList
+
+    // The batched filter matches group-1 (METADATA_2) and group-2 (METADATA_3, METADATA_4).
+    val expected =
+      created
+        .filter { it.eventGroupReferenceId == "group-1" || it.eventGroupReferenceId == "group-2" }
+        .sortedBy { it.impressionMetadataResourceId }
+
+    val response =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          filter =
+            ListImpressionMetadataRequestKt.filter {
+              eventGroupReferenceIds += listOf("group-1", "group-2")
+            }
+        }
+      )
+
+    assertThat(response)
+      .isEqualTo(listImpressionMetadataResponse { impressionMetadata += expected })
+  }
+
+  @Test
+  fun `listImpressionMetadata by eventGroupReferenceIds returns only matching event groups`() =
+    runBlocking {
+      val created =
+        service
+          .batchCreateImpressionMetadata(
+            batchCreateImpressionMetadataRequest {
+              requests += createImpressionMetadataRequest {
+                impressionMetadata = IMPRESSION_METADATA_2
+              }
+              requests += createImpressionMetadataRequest {
+                impressionMetadata = IMPRESSION_METADATA_3
+              }
+              requests += createImpressionMetadataRequest {
+                impressionMetadata = IMPRESSION_METADATA_4
+              }
+            }
+          )
+          .impressionMetadataList
+
+      val expected =
+        created
+          .filter { it.eventGroupReferenceId == "group-2" }
+          .sortedBy { it.impressionMetadataResourceId }
+
+      val response =
+        service.listImpressionMetadata(
+          listImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            filter = ListImpressionMetadataRequestKt.filter { eventGroupReferenceIds += "group-2" }
+          }
+        )
+
+      assertThat(response)
+        .isEqualTo(listImpressionMetadataResponse { impressionMetadata += expected })
+    }
+
+  @Test
+  fun `listImpressionMetadata filters by cmmsModelLine and eventGroupReferenceIds`() = runBlocking {
+    // Sets both model line and repeated event-group ids: the batched fulfiller shape, which forces
+    // ImpressionMetadataByListFilterAndPagination. Confirms the hinted query is valid and filters
+    // correctly (METADATA_4 is excluded because its model line differs).
     val created =
       service
         .batchCreateImpressionMetadata(
@@ -1476,14 +1556,21 @@ abstract class ImpressionMetadataServiceTest {
 
     val expected =
       created
-        .filter { it.eventGroupReferenceId == "group-2" }
+        .filter {
+          it.cmmsModelLine == MODEL_LINE_2 &&
+            (it.eventGroupReferenceId == "group-1" || it.eventGroupReferenceId == "group-2")
+        }
         .sortedBy { it.impressionMetadataResourceId }
 
     val response =
       service.listImpressionMetadata(
         listImpressionMetadataRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          filter = ListImpressionMetadataRequestKt.filter { eventGroupReferenceId = "group-2" }
+          filter =
+            ListImpressionMetadataRequestKt.filter {
+              cmmsModelLine = MODEL_LINE_2
+              eventGroupReferenceIds += listOf("group-1", "group-2")
+            }
         }
       )
 

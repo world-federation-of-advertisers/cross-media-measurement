@@ -19,15 +19,18 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.protobuf.ByteString
 import com.google.protobuf.util.JsonFormat
 import com.google.type.Interval
+import io.grpc.Status
 import io.grpc.StatusException
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
-import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.common.api.grpc.listResourcesWithAdaptivePageSize
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
@@ -53,11 +56,17 @@ data class ImpressionDataSource(
  * @param impressionMetadataStub used to sync impressions with the ImpressionsMetadataStorage
  * @param dataProvider The DataProvider resource name
  * @param impressionsMetadataStorageConfig configuration for metadata storage
+ * @param listMaxAttempts maximum total attempts for each `ListImpressionMetadata` page before
+ *   giving up. Transient gRPC failures (`UNAVAILABLE` / `DEADLINE_EXCEEDED`, e.g. a server-side
+ *   rate limit or an overloaded metadata service) are retried so they do not fail the whole report.
+ * @param listRetryBackoff exponential backoff applied between transient list retries.
  */
 class ImpressionDataSourceProvider(
   private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
   private val dataProvider: String,
   private val impressionsMetadataStorageConfig: StorageConfig,
+  private val listMaxAttempts: Int = DEFAULT_LIST_MAX_ATTEMPTS,
+  private val listRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) {
 
   /**
@@ -103,10 +112,22 @@ class ImpressionDataSourceProvider(
     period: Interval,
   ): Flow<ImpressionMetadata> {
     logger.info("Resolving path for impression metadata: $reportModelLine, $selector, $period")
-    return impressionMetadataStub
-      .listResources { pageToken: String ->
-        val response =
-          try {
+
+    // Fetches a single page, retrying the transient gRPC statuses that are safe to replay here
+    // (ListImpressionMetadata is an idempotent read): UNAVAILABLE and DEADLINE_EXCEEDED, so a
+    // server-side rate limit or an overloaded metadata service self-heals instead of failing the
+    // whole report. RESOURCE_EXHAUSTED is the adaptive page-size signal (typically the gRPC inbound
+    // message-size limit): it is propagated raw so listResourcesWithAdaptivePageSize can halve the
+    // page size and retry. Any other status fails the report.
+    suspend fun listPage(
+      pageToken: String,
+      pageSize: Int,
+    ): ResourceList<ImpressionMetadata, String> {
+      var attempt = 0
+      while (true) {
+        attempt++
+        try {
+          val response =
             impressionMetadataStub.listImpressionMetadata(
               listImpressionMetadataRequest {
                 parent = dataProvider
@@ -115,23 +136,52 @@ class ImpressionDataSourceProvider(
                     modelLine = reportModelLine
                     when (selector) {
                       is ImpressionQuerySelector.ByEventGroupReferenceId ->
-                        eventGroupReferenceId = selector.refId
+                        eventGroupReferenceIds += selector.refId
+                      is ImpressionQuerySelector.ByEventGroupReferenceIds ->
+                        eventGroupReferenceIds += selector.refIds
                       is ImpressionQuerySelector.ByEntityKey ->
                         this.entityKeys += selector.entityKey
                     }
                     intervalOverlaps = period
                   }
+                this.pageSize = pageSize
                 this.pageToken = pageToken
               }
             )
-          } catch (e: StatusException) {
+          return ResourceList(response.impressionMetadataList, response.nextPageToken)
+        } catch (e: StatusException) {
+          if (e.status.code == Status.Code.RESOURCE_EXHAUSTED) throw e
+          val retryable =
+            e.status.code == Status.Code.UNAVAILABLE ||
+              e.status.code == Status.Code.DEADLINE_EXCEEDED
+          if (!retryable || attempt >= listMaxAttempts) {
             throw Exception(
               "Error listing ImpressionMetadata for dataProvider=$dataProvider, " +
                 "modelLine=$reportModelLine, selector=$selector, period=$period: ${e.status}",
               e,
             )
           }
-        ResourceList(response.impressionMetadataList, response.nextPageToken)
+          logger.warning {
+            "Transient failure listing ImpressionMetadata for dataProvider=$dataProvider on " +
+              "attempt $attempt of $listMaxAttempts (${e.status.code}); retrying"
+          }
+          delay(listRetryBackoff.durationForAttempt(attempt).toMillis())
+        }
+      }
+    }
+
+    return impressionMetadataStub
+      .listResourcesWithAdaptivePageSize(
+        startingPageSize = LIST_IMPRESSION_METADATA_STARTING_PAGE_SIZE,
+        minPageSize = MIN_LIST_IMPRESSION_METADATA_PAGE_SIZE,
+        onPageSizeReduced = { oldSize, newSize ->
+          logger.warning(
+            "ListImpressionMetadata returned RESOURCE_EXHAUSTED at page_size=$oldSize for " +
+              "dataProvider=$dataProvider; halving to $newSize and retrying"
+          )
+        },
+      ) { pageToken: String, pageSize: Int ->
+        listPage(pageToken, pageSize)
       }
       .flattenConcat()
   }
@@ -177,5 +227,19 @@ class ImpressionDataSourceProvider(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    /**
+     * Page size to request for `ListImpressionMetadata`. Large so a whole interval's metadata is
+     * fetched in a handful of RPCs instead of hundreds; `listResourcesWithAdaptivePageSize` halves
+     * it toward [MIN_LIST_IMPRESSION_METADATA_PAGE_SIZE] if a page ever exceeds the gRPC message
+     * limit. Must be <= the services' MAX_PAGE_SIZE or the server clamps it back down.
+     */
+    private const val LIST_IMPRESSION_METADATA_STARTING_PAGE_SIZE = 1000
+
+    /** Floor for the adaptive page size. */
+    private const val MIN_LIST_IMPRESSION_METADATA_PAGE_SIZE = 1
+
+    /** Default maximum total attempts (first attempt + retries) per ListImpressionMetadata page. */
+    private const val DEFAULT_LIST_MAX_ATTEMPTS = 4
   }
 }
