@@ -78,34 +78,22 @@ Before deploying the dashboard, ensure the following are in place:
         the `dashboard-compliance` SA.
     *   `roles/resourcemanager.projectIamAdmin` — grant project-level IAM
         bindings, including the self-grants below.
-    *   `roles/iam.roleAdmin` — required *only* for the very first apply, to
-        create the `dashboardComplianceChecker` custom project role. The
-        Terraform code adds a `terraform_role_admin` self-grant so subsequent
-        applies maintain it automatically. Without this on the first apply,
-        Terraform fails with: "Unable to verify whether custom project role
-        projects/<DASHBOARD_PROJECT>/roles/dashboardComplianceChecker already exists
+    *   `roles/iam.roleAdmin` — needed **only to bootstrap the first apply**:
+        1.  Grant it to the Terraform SA out-of-band.
+        2.  Re-run the `Update CMMS` workflow (or `terraform apply` for a manual
+            deploy). Terraform creates the two custom roles
+            (`dashboardComplianceChecker` and `terraformDashboardRoleAdmin`) and
+            grants itself the scoped `terraformDashboardRoleAdmin`.
+        3.  Revoke `roles/iam.roleAdmin`; later applies use the scoped role.
+
+        Skip step 1 and the first apply fails with "Unable to verify whether
+        custom project role .../roles/dashboardComplianceChecker already exists
         and must be undeleted."
 
-        **Security note for adopters.** The reference Terraform grants
-        project-wide `roles/iam.roleAdmin` because there is no built-in
-        Google-managed role that covers `iam.roles.*` scoped to a single
-        custom role. This lets the Terraform SA create or modify *any*
-        custom role in the project. For your own deployments, prefer one of:
-        (a) grant `roles/iam.roleAdmin` only for the first apply, then revoke
-        and let subsequent applies maintain the role via the self-grant —
-        works if you can accept one-shot bootstrap privilege;
-        (b) replace `terraform_role_admin` in `dashboard.tf` with a project
-        custom role that bundles only
-        `iam.roles.{get,list,create,update,undelete,delete}`, granted via
-        `google_project_iam_member` with an IAM condition restricting the
-        resource to
-        `resource.name.startsWith("projects/<DASHBOARD_PROJECT>/roles/dashboardComplianceChecker")`.
-        The scoped-role refactor is tracked in
-        [#4135](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/4135).
-        The dev/head/qa reference environments accept the broader grant
-        because their blast radius is bounded to test data and audit-logged
-        CI; non-dev deployments should not follow this pattern without
-        one of the above narrowings.
+        **Security note.** After the bootstrap above, the Terraform SA holds
+        only the scoped `terraformDashboardRoleAdmin`, which allows it to run the
+        `iam.roles.*` verbs but only on the dashboard's two custom roles. It
+        can't create or modify any other role in the project.
 5.  Proto bundles are registered in Kingdom and Reporting Spanner databases
     (required for `TO_JSON()` decoding).
 6.  The BigQuery Connection service agent

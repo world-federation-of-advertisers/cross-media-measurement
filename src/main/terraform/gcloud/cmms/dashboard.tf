@@ -526,22 +526,36 @@ resource "google_service_account_iam_member" "terraform_sa_act_as_self" {
   member             = "serviceAccount:${var.terraform_service_account}"
 }
 
-# Terraform SA needs roleAdmin to manage the dashboardComplianceChecker custom
-# role. Mirrors terraform_sa_act_as_self above. Without this, terraform fails
-# on a fresh project with: "Unable to verify whether custom project role ...
-# already exists and must be undeleted" (the get-before-create call returns
-# 403 to the terraform SA).
-#
-# TODO(#4135): scope this to a purpose-built terraformDashboardRoleAdmin custom
-# role with iam.roles.{get,list,create,update,undelete,delete} and an IAM
-# condition restricting the resource to
-# projects/<project>/roles/dashboardComplianceChecker*. roles/iam.roleAdmin
-# project-wide is over-broad: it lets the terraform SA create/modify any custom
-# role in the project (including one that grants itself setIamPolicy).
+# Lets the terraform SA manage the dashboard's custom roles without project-wide
+# roles/iam.roleAdmin: terraformDashboardRoleAdmin holds only the iam.roles.*
+# verbs, scoped by an IAM condition to the two roles terraform manages
+# (dashboardComplianceChecker and this role itself — list both, or terraform
+# can't reconcile its own admin role).
+resource "google_project_iam_custom_role" "terraform_dashboard_role_admin" {
+  role_id     = "terraformDashboardRoleAdmin"
+  project     = data.google_client_config.default.project
+  title       = "Terraform Dashboard Role Admin"
+  description = "Manage only the dashboard's own custom roles."
+  permissions = [
+    "iam.roles.get",
+    "iam.roles.list",
+    "iam.roles.create",
+    "iam.roles.update",
+    "iam.roles.undelete",
+    "iam.roles.delete",
+  ]
+}
+
 resource "google_project_iam_member" "terraform_role_admin" {
   project = data.google_client_config.default.project
-  role    = "roles/iam.roleAdmin"
+  role    = google_project_iam_custom_role.terraform_dashboard_role_admin.id
   member  = "serviceAccount:${var.terraform_service_account}"
+
+  condition {
+    title       = "dashboard-custom-roles-only"
+    description = "Limit role management to the dashboard's own custom roles."
+    expression  = "resource.name.startsWith(\"projects/${data.google_client_config.default.project}/roles/dashboardComplianceChecker\") || resource.name.startsWith(\"projects/${data.google_client_config.default.project}/roles/terraformDashboardRoleAdmin\")"
+  }
 }
 
 
