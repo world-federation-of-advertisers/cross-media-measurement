@@ -70,4 +70,78 @@ message Common {
         reporting_features: GROUPABLE
         version_added: 1
       }];
+
+  // US state or the District of Columbia. A high-cardinality attribute, to
+  // exercise grouping and filtering over a large value set.
+  enum Region {
+    REGION_UNSPECIFIED = 0;
+    ALABAMA = 1;
+    ALASKA = 2;
+    ARIZONA = 3;
+    ARKANSAS = 4;
+    CALIFORNIA = 5;
+    COLORADO = 6;
+    CONNECTICUT = 7;
+    DELAWARE = 8;
+    DISTRICT_OF_COLUMBIA = 9;
+    FLORIDA = 10;
+    GEORGIA = 11;
+    HAWAII = 12;
+    IDAHO = 13;
+    ILLINOIS = 14;
+    INDIANA = 15;
+    IOWA = 16;
+    KANSAS = 17;
+    KENTUCKY = 18;
+    LOUISIANA = 19;
+    MAINE = 20;
+    MARYLAND = 21;
+    MASSACHUSETTS = 22;
+    MICHIGAN = 23;
+    MINNESOTA = 24;
+    MISSISSIPPI = 25;
+    MISSOURI = 26;
+    MONTANA = 27;
+    NEBRASKA = 28;
+    NEVADA = 29;
+    NEW_HAMPSHIRE = 30;
+    NEW_JERSEY = 31;
+    NEW_MEXICO = 32;
+    NEW_YORK = 33;
+    NORTH_CAROLINA = 34;
+    NORTH_DAKOTA = 35;
+    OHIO = 36;
+    OKLAHOMA = 37;
+    OREGON = 38;
+    PENNSYLVANIA = 39;
+    RHODE_ISLAND = 40;
+    SOUTH_CAROLINA = 41;
+    SOUTH_DAKOTA = 42;
+    TENNESSEE = 43;
+    TEXAS = 44;
+    UTAH = 45;
+    VERMONT = 46;
+    VIRGINIA = 47;
+    WASHINGTON = 48;
+    WEST_VIRGINIA = 49;
+    WISCONSIN = 50;
+    WYOMING = 51;
+  }
+  Region region = 4 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "Region"
+    population_attribute: true
+    reporting_features: FILTERABLE
+    reporting_features: GROUPABLE
+    version_added: 1
+  }];
+
+  // Whether the person was signed in to a first-party account when reached.
+  // A boolean population attribute, to exercise boolean-valued dimensions.
+  bool logged_in = 5 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "Logged In"
+    population_attribute: true
+    reporting_features: FILTERABLE
+    reporting_features: GROUPABLE
+    version_added: 1
+  }];
 }

@@ -37,13 +37,14 @@ message Display {
   };
 
   // Fraction of the ad's pixels that were on screen for at least 1
-  // continuous second. Valid values: 0.0, 0.5, 1.0 — 0.5 corresponds to the
-  // MRC display viewability standard.
+  // continuous second, quantized to quartiles. Valid values: 0.0, 0.25, 0.5,
+  // 0.75, 1.0 — 0.5 corresponds to the MRC display viewability standard.
   double viewable_fraction = 1
       [(.wfa.measurement.api.v2alpha.template_field) = {
         display_name: "Viewable Fraction"
         description: "Fraction of the ad's pixels on screen for at least 1 "
-                     "continuous second: 0.0, 0.5 (MRC standard) or 1.0."
+                     "continuous second, quantized to quartiles: 0.0, 0.25, "
+                     "0.5 (MRC standard), 0.75 or 1.0."
         reporting_features: IMPRESSION_QUALIFICATION
         version_added: 1
       }];
