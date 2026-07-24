@@ -1,0 +1,51 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha.event_templates.testing.v1;
+
+import "wfa/measurement/api/v2alpha/event_annotations.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing.v1";
+option java_multiple_files = true;
+
+// Display ad engagement attributes.
+//
+// Replaces the `Banner` template of the legacy
+// `wfa.measurement.api.v2alpha.event_templates.testing.TestEvent`, whose
+// single `viewable` boolean carried no threshold semantics. Viewability is a
+// fraction-valued double drawn from a discrete set of valid values (see
+// video.proto for the rationale versus threshold booleans).
+message Display {
+  option (.wfa.measurement.api.v2alpha.event_template) = {
+    name: "display"
+    display_name: "Display Ad"
+    description: "Display ad engagement attributes."
+    media_type: DISPLAY
+  };
+
+  // Fraction of the ad's pixels that were on screen for at least 1
+  // continuous second, quantized to quartiles. Valid values: 0.0, 0.25, 0.5,
+  // 0.75, 1.0 — 0.5 corresponds to the MRC display viewability standard.
+  double viewable_fraction = 1
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Viewable Fraction"
+        description: "Fraction of the ad's pixels on screen for at least 1 "
+                     "continuous second, quantized to quartiles: 0.0, 0.25, "
+                     "0.5 (MRC standard), 0.75 or 1.0."
+        reporting_features: IMPRESSION_QUALIFICATION
+        version_added: 1
+      }];
+}
