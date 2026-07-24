@@ -335,8 +335,7 @@ abstract class MeasurementConsumerSimulator(
     // reportId, override the measurement spec's report so that this measurement's requisitions
     // group under a separate report from the default one (e.g. entity-key measurements must not
     // share a report with reference-id measurements).
-    val newMeasurementSpec:
-      (ProtoAny, List<ByteString>, VidSamplingInterval) -> MeasurementSpec =
+    val newMeasurementSpec: (ProtoAny, List<ByteString>, VidSamplingInterval) -> MeasurementSpec =
       if (reportId == null) {
         ::newReachAndFrequencyMeasurementSpec
       } else {
