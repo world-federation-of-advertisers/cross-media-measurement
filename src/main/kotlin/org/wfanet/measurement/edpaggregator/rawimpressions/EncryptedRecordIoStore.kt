@@ -58,15 +58,31 @@ abstract class EncryptedRecordIoStore(
   }
 
   /**
-   * A [MesosRecordIoStorageClient] over [storageClient] that envelope-encrypts with [encryptedDek].
+   * Caches one [MesosRecordIoStorageClient] per distinct [EncryptedDek] for the lifetime of this
+   * store (one `WorkItem`). Building a client unwraps the DEK under the KEK (a KMS round-trip) and
+   * allocates per-client encryption buffers, so reusing the cached instance across repeated and
+   * concurrent `getBlob`/`writeBlob` calls avoids redundant KEK->DEK unwraps and buffer allocs. The
+   * cached clients are stateless and thread-safe (`MesosRecordIoStorageClient` /
+   * `StreamingAeadStorageClient` / `GcsStorageClient` hold no mutable instance state), so a single
+   * instance is safe for concurrent reuse. [EncryptedDek] is an immutable proto, so it is a valid
+   * map key.
+   */
+  private val clientCache =
+    java.util.concurrent.ConcurrentHashMap<EncryptedDek, MesosRecordIoStorageClient>()
+
+  /**
+   * A cached [MesosRecordIoStorageClient] over [storageClient] that envelope-encrypts with
+   * [encryptedDek].
    */
   protected fun encryptedClient(encryptedDek: EncryptedDek): MesosRecordIoStorageClient =
-    EncryptedStorage.buildEncryptedMesosStorageClient(
-      storageClient,
-      kmsClient = kmsClient,
-      kekUri = encryptedDek.kekUri,
-      encryptedDek = encryptedDek,
-    )
+    clientCache.computeIfAbsent(encryptedDek) { dek ->
+      EncryptedStorage.buildEncryptedMesosStorageClient(
+        storageClient,
+        kmsClient = kmsClient,
+        kekUri = dek.kekUri,
+        encryptedDek = dek,
+      )
+    }
 
   companion object {
     init {

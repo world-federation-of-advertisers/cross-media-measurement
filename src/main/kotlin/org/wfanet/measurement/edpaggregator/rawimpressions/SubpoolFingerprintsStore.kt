@@ -19,8 +19,12 @@ package org.wfanet.measurement.edpaggregator.rawimpressions
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolFingerprints
 import org.wfanet.measurement.edpaggregator.v1alpha.subpoolFingerprints
@@ -104,11 +108,25 @@ class SubpoolFingerprintsStore(
   }
 
   /**
+   * Returns the byte size of the merged blob at [blobKey], or 0 if it is absent. The forward rank
+   * build uses this to pre-size its striped maps: shards partition the fingerprint space, so the
+   * merged blob is duplicate-free and its fingerprint count is approximately `size /
+   * EventIdDigestBytes.WIDTH`.
+   */
+  suspend fun blobSize(blobKey: String, encryptedDek: EncryptedDek): Long =
+    encryptedClient(encryptedDek).getBlob(blobKey)?.size ?: 0L
+
+  /**
    * Streams every record from each [inputs] blob into a single merged blob at [outputKey],
-   * re-encrypted with [outputEncryptedDek]. Because shards partition the fingerprint space, the
-   * inputs are disjoint and merging is a pure concatenation (no dedup). Missing inputs (a shard
+   * re-encrypted with [outputEncryptedDek]. The [inputs] shard blobs are read CONCURRENTLY (via
+   * [channelFlow]) into the one output write stream, with the TOTAL number of in-flight shard reads
+   * bounded by the shared [readSemaphore] so the caller can cap merge memory across all concurrent
+   * subpool merges. Because shards partition the fingerprint space, the inputs are disjoint and
+   * merging is a pure concatenation (no dedup), so interleaving records across shards is safe
+   * (order-independent — Phase-1 reads the merged blob into a dedup set). Missing inputs (a shard
    * with no blob for this subpool) are skipped. Memory stays bounded — records stream straight
-   * through.
+   * through and [channelFlow]'s bounded buffer applies backpressure; the single [writeBlob] is the
+   * only writer.
    *
    * NOTE(world-federation-of-advertisers/cross-media-measurement#3999): also written
    * unconditionally, for the same reason as [writeBlob]. The merge is deliberately idempotent —
@@ -120,14 +138,20 @@ class SubpoolFingerprintsStore(
     inputs: List<SubpoolBlob>,
     outputKey: String,
     outputEncryptedDek: EncryptedDek,
+    readSemaphore: Semaphore,
   ) {
     encryptedClient(outputEncryptedDek)
       .writeBlob(
         outputKey,
-        flow {
+        channelFlow {
           for (input in inputs) {
-            val blob = encryptedClient(input.encryptedDek).getBlob(input.blobKey) ?: continue
-            blob.read().collect { record -> emit(record) }
+            launch {
+              readSemaphore.withPermit {
+                val blob =
+                  encryptedClient(input.encryptedDek).getBlob(input.blobKey) ?: return@withPermit
+                blob.read().collect { record -> send(record) }
+              }
+            }
           }
         },
       )

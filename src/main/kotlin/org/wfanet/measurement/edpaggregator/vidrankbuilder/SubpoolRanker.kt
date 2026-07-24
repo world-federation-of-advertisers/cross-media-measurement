@@ -23,8 +23,14 @@ import java.security.MessageDigest
 import java.time.LocalDate
 import java.util.UUID
 import java.util.logging.Logger
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
@@ -34,6 +40,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexMap
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRankIndexBlobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
@@ -140,6 +147,12 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
  *   detection.
  * @param retentionDays retention window in days (must exceed the max measurement-report window).
  * @param today the UTC date treated as "now" for the rank-age cutoff.
+ * @param workerDispatcher CPU dispatcher for the parallel forward rank build; capped to [stripes]
+ *   via `limitedParallelism`. Defaults to [Dispatchers.Default]. The backfill path stays serial.
+ * @param stripes number of map stripes for the parallel forward build (≈ available cores). One
+ *   assign/free coroutine runs per stripe over a single shared rank pool. Injectable for tests.
+ * @param maxInFlightRecords parse-phase read-ahead bound: max `SubpoolFingerprints` records
+ *   launched-but-unfinished at once (backpressure), mirroring `RawImpressionSource`.
  * @param metrics OpenTelemetry instruments.
  */
 class SubpoolRanker(
@@ -156,8 +169,16 @@ class SubpoolRanker(
   private val maxEventDate: Date,
   private val retentionDays: Int,
   private val today: LocalDate,
+  private val workerDispatcher: CoroutineDispatcher = Dispatchers.Default,
+  private val stripes: Int = ConcurrentRankAllocator.DEFAULT_STRIPES,
+  private val maxInFlightRecords: Int = maxOf(2, ConcurrentRankAllocator.DEFAULT_STRIPES * 2),
   private val metrics: VidRankBuilderMetrics = VidRankBuilderMetrics(),
 ) {
+  init {
+    require(stripes >= 1) { "stripes must be >= 1, got $stripes" }
+    require(maxInFlightRecords >= 1) { "maxInFlightRecords must be >= 1, got $maxInFlightRecords" }
+  }
+
   /**
    * @property poolOffset the subpool ranked.
    * @property allocated ranks newly assigned to never-before-seen fingerprints.
@@ -199,15 +220,201 @@ class SubpoolRanker(
     val eventDay = epochDayOf(maxEventDate)
     val cutoffEpochDay = (today.toEpochDay() - retentionDays).toInt()
 
-    // 1. Decide whether this dispatch is a backfill and, if so, which older snapshot to replay
-    // ranks from. (The latest cumulative is loaded into the allocator in step 3.)
+    // Decide whether this dispatch is a backfill and, if so, which older snapshot to replay ranks
+    // from. The forward (non-backfill) path is parallelized across cores; the backfill path holds
+    // two in-heap maps and stays serial (see [rankBackfill]).
     val priorSnapshot = findPriorSnapshot(poolOffset)
     val oldSnapshot = resolveBackfillOldSnapshot(poolOffset, eventDay, priorSnapshot)
-    val isBackfill = oldSnapshot != null
 
-    // 2. Materialize this dispatch's fingerprint set for the subpool from the Phase-0 merged blob.
-    // Done before the allocator so its element count can pre-size the allocator's heap maps (step
-    // 3).
+    return if (oldSnapshot != null) {
+      rankBackfill(
+        poolOffset,
+        subpoolBlobUri,
+        rankedSize,
+        eventDay,
+        cutoffEpochDay,
+        priorSnapshot,
+        oldSnapshot,
+      )
+    } else {
+      rankForward(poolOffset, subpoolBlobUri, rankedSize, eventDay, cutoffEpochDay, priorSnapshot)
+    }
+  }
+
+  /**
+   * Parallel forward (non-backfill) rank build for one subpool. Uses a [ConcurrentRankAllocator]:
+   * maps are striped for lock-free per-coroutine access while ranks are drawn from ONE shared pool,
+   * so overflow still only happens once the entire [rankedSize] is exhausted. The output has the
+   * same renewal, retention, and overflow semantics as the serial path and the same dense *set* of
+   * ranks; only the pairing of freshly-allocated ranks to new fingerprints may differ, since new
+   * ranks are drawn concurrently from the shared pool (aggregate measurement is invariant under
+   * that relabeling, and existing ranks are always preserved via the loaded snapshot).
+   *
+   * Pipeline: parse (parallel + backpressure) -> warm-load prior snapshot -> storage GC -> free
+   * aged ranks (parallel) -> assign (parallel) -> a single serial write of ONE `SNAPSHOT` + ONE
+   * `DAY_ONLY` blob (Phase-2 layout unchanged).
+   */
+  private suspend fun rankForward(
+    poolOffset: Long,
+    subpoolBlobUri: String,
+    rankedSize: Int,
+    eventDay: Int,
+    cutoffEpochDay: Int,
+    priorSnapshot: RankIndexBlob?,
+  ): Result {
+    // Pre-size the striped maps so the parallel fill / warm load does not resize under each
+    // stripe's
+    // monitor (a resize holds the monitor across an O(n) rehash, which serializes the workers and
+    // transiently doubles the heap). Counts are estimated from blob byte sizes: each today
+    // fingerprint is [EventIdDigestBytes.WIDTH] bytes and shards partition the space
+    // (duplicate-free
+    // merged blob), and each prior-snapshot entry is [RankIndexStore.ON_DISK_BYTES_PER_ENTRY]
+    // bytes.
+    // The cumulative map holds prior + today (a safe over-estimate), fixing the warm-dispatch
+    // resize-during-load caveat (world-federation-of-advertisers/cross-media-measurement#4015).
+    val todayEntries =
+      subpoolFingerprintsStore.blobSize(subpoolBlobUri, encryptedSubpoolMapsDek) /
+        EventIdDigestBytes.WIDTH
+    val priorEntries =
+      if (priorSnapshot != null) {
+        rankIndexStore.blobSize(priorSnapshot.blobUri, priorSnapshot.encryptedDek) /
+          RankIndexStore.ON_DISK_BYTES_PER_ENTRY
+      } else {
+        0L
+      }
+    val totalEntries = priorEntries + todayEntries
+    val allocator =
+      ConcurrentRankAllocator(
+        poolOffset,
+        rankedSize,
+        eventDay,
+        stripes,
+        todayStripeCapacity = stripeSlotCapacity(todayEntries, stripes),
+        cumulativeStripeCapacity = stripeSlotCapacity(totalEntries, stripes),
+        estimatedTotalRanks = minOf(rankedSize.toLong(), totalEntries).toInt(),
+      )
+    // One shared CPU cap across the parse, free, and assign phases (mirrors RawImpressionSource).
+    val cpuDispatcher = workerDispatcher.limitedParallelism(stripes)
+
+    // 1. Parse (parallel + backpressure): one reader collects the merged blob on Dispatchers.IO;
+    // each ~1M-fingerprint record is parsed by a worker that buckets its fingerprints by stripe and
+    // inserts each stripe's fingerprints with ONE monitor acquisition via addTodayBulk (instead of
+    // one synchronized per fingerprint). The map is used as a set, so duplicates collapse — the
+    // accumulated fingerprint set is identical to the per-fingerprint path. A Semaphore bounds
+    // read-ahead.
+    coroutineScope {
+      val inFlight = Semaphore(maxInFlightRecords)
+      launch(Dispatchers.IO) {
+        subpoolFingerprintsStore.readBlob(subpoolBlobUri, encryptedSubpoolMapsDek).collect { record
+          ->
+          inFlight.acquire()
+          launch(cpuDispatcher) {
+            try {
+              val fps = record.fingerprints
+              val count = fps.size() / EventIdDigestBytes.WIDTH
+              // Pass 1: count this record's fingerprints per stripe (same routing as addToday).
+              val counts = IntArray(stripes)
+              var off = 0
+              repeat(count) {
+                counts[allocator.stripeOf(EventIdDigestBytes.readHi(fps, off))]++
+                off += EventIdDigestBytes.WIDTH
+              }
+              // Pass 2: fill exact-size per-stripe primitive buffers.
+              val bufHi = Array(stripes) { LongArray(counts[it]) }
+              val bufLo = Array(stripes) { IntArray(counts[it]) }
+              val filled = IntArray(stripes)
+              off = 0
+              repeat(count) {
+                val hi = EventIdDigestBytes.readHi(fps, off)
+                val lo = EventIdDigestBytes.readLo(fps, off + 8)
+                val s = allocator.stripeOf(hi)
+                val j = filled[s]
+                bufHi[s][j] = hi
+                bufLo[s][j] = lo
+                filled[s] = j + 1
+                off += EventIdDigestBytes.WIDTH
+              }
+              for (s in 0 until stripes) {
+                if (counts[s] > 0) allocator.addTodayBulk(s, bufHi[s], bufLo[s], counts[s])
+              }
+            } finally {
+              inFlight.release()
+            }
+          }
+        }
+      }
+    }
+
+    // 2. Warm forward: load the latest cumulative snapshot into the striped maps and derive the
+    // shared rank pool (cursor past the loaded high-water, holes reclaimed first). Cold start
+    // skips.
+    if (priorSnapshot != null) {
+      allocator.loadFrom(
+        rankIndexStore.readBlob(
+          priorSnapshot.blobUri,
+          priorSnapshot.encryptedDek,
+          priorSnapshot.blobChecksum,
+        )
+      )
+    }
+
+    // 3a. Storage GC of aged-out DAY_ONLY blobs (independent of rank freeing).
+    retention.deleteAgedBlobs(poolOffset)
+    // 3b. Free aged-out ranks (parallel per stripe) before allocating so freed slots are reusable
+    // today; fingerprints seen this dispatch are excluded so their VIDs survive.
+    allocator.freeAgedRanks(cutoffEpochDay, cpuDispatcher)
+
+    // 4. Assign ranks to today's fingerprints (parallel per stripe over the shared rank pool).
+    allocator.assign(cpuDispatcher)
+
+    // 5. Single serial write: ONE SNAPSHOT + ONE DAY_ONLY blob, streamed across all stripes.
+    writeBlobsAndRows(
+      poolOffset,
+      allocator.streamCumulativeChunks(),
+      allocator.streamDayOnlyChunks(),
+      snapshotMaxEventDate = maxEventDate,
+    )
+
+    recordMetrics(
+      allocator.allocated,
+      allocator.renewed,
+      allocator.freed,
+      allocator.overflow,
+      backfillReusedOldRank = 0,
+      backfillRankCollisions = 0,
+    )
+    logger.info(
+      "Subpool $poolOffset for $modelLine: allocated=${allocator.allocated}, " +
+        "renewed=${allocator.renewed}, overflow=${allocator.overflow}, freed=${allocator.freed}, " +
+        "cumulative=${allocator.cumulativeSize}"
+    )
+    return Result(
+      poolOffset = poolOffset,
+      allocated = allocator.allocated,
+      renewed = allocator.renewed,
+      overflow = allocator.overflow,
+      freed = allocator.freed,
+      cumulativeSize = allocator.cumulativeSize,
+    )
+  }
+
+  /**
+   * Serial backfill rank build for one subpool (unchanged from the original). A backfill holds two
+   * in-heap maps (the latest cumulative and the old snapshot's today-intersection) and replays each
+   * fingerprint's historical rank via [RankAllocator.assignBackfill]; it is deliberately NOT
+   * parallelized. Produces byte-compatible `SNAPSHOT` / `DAY_ONLY` output.
+   */
+  private suspend fun rankBackfill(
+    poolOffset: Long,
+    subpoolBlobUri: String,
+    rankedSize: Int,
+    eventDay: Int,
+    cutoffEpochDay: Int,
+    priorSnapshot: RankIndexBlob?,
+    oldSnapshot: RankIndexBlob,
+  ): Result {
+    // Materialize this dispatch's fingerprint set for the subpool from the Phase-0 merged blob,
+    // before the allocator so its element count can pre-size the allocator's heap maps.
     val todayFps = Bytes12IntMap()
     subpoolFingerprintsStore.readBlob(subpoolBlobUri, encryptedSubpoolMapsDek).collect { record ->
       val fps = record.fingerprints
@@ -223,20 +430,28 @@ class SubpoolRanker(
       }
     }
 
-    // 3. Pre-size the allocator's cumulative + day-only maps to this dispatch's fingerprint count,
-    // then load the latest cumulative snapshot. Sizing from the subpool-map count is the only entry
-    // count known here without an extra read (SubpoolFingerprints deliberately stores none), and it
-    // avoids the 16-slot default and the ~log2(N) resizes that loading would otherwise trigger.
-    //
-    // Caveat: this does NOT fully solve the cumulative-snapshot case. `cumulative` is loaded from
-    // the
-    // prior SNAPSHOT, which for a mature subpool holds far more entries (N) than one day's subpool
-    // map (M), so it still resizes up to N and still incurs the final near-N resize's peak-heap
-    // spike. It is an exact fit for the day-only map and for cold/Day-1 subpools (N ~= M), and a
-    // strict improvement (fewer resizes) otherwise. A full fix needs the prior snapshot's entry
-    // count persisted on its row — world-federation-of-advertisers/cross-media-measurement#4015.
+    // Pre-size the allocator's maps: dayOnly to this dispatch's fingerprint count, and the
+    // cumulative to prior-snapshot-plus-today so it does not resize during load
+    // (world-federation-of-advertisers/cross-media-measurement#4015). Sizing affects only capacity,
+    // not the (fp -> rank) mapping, ranks, or last_seen.
     val initialMapCapacity = todayFps.size.coerceAtLeast(Bytes12IntMap.MIN_CAPACITY)
-    val allocator = RankAllocator(poolOffset, rankedSize, eventDay, initialMapCapacity)
+    val priorEntries =
+      if (priorSnapshot != null) {
+        rankIndexStore.blobSize(priorSnapshot.blobUri, priorSnapshot.encryptedDek) /
+          RankIndexStore.ON_DISK_BYTES_PER_ENTRY
+      } else {
+        0L
+      }
+    val totalEntries = priorEntries + todayFps.size
+    val allocator =
+      RankAllocator(
+        poolOffset,
+        rankedSize,
+        eventDay,
+        initialCapacity = initialMapCapacity,
+        cumulativeCapacity = stripeSlotCapacity(totalEntries, 1),
+        estimatedTotalRanks = minOf(rankedSize.toLong(), totalEntries).toInt(),
+      )
     if (priorSnapshot != null) {
       allocator.loadFrom(
         rankIndexStore.readBlob(
@@ -247,33 +462,79 @@ class SubpoolRanker(
       )
     }
 
-    // 4a. Storage GC of aged-out DAY_ONLY blobs (independent of rank freeing).
+    // Storage GC of aged-out DAY_ONLY blobs, then free aged-out ranks before allocating.
     retention.deleteAgedBlobs(poolOffset)
-    // 4b. Free aged-out ranks in heap from the `last_seen` index, before allocating so freed slots
-    // are reusable today. Fingerprints seen this dispatch are excluded so their ranks (VIDs)
-    // survive.
     allocator.freeAgedRanks(cutoffEpochDay, todayFps)
 
-    // 5. Assign ranks to today's fingerprints.
-    if (oldSnapshot != null) {
-      // Backfill: replay each fingerprint's historical rank into the day-only delta while extending
-      // the cumulative forward (see class KDoc and RankAllocator.assignBackfill). Only the old
-      // snapshot's entries that also appear today are ever looked up (we iterate todayFps), so load
-      // just that intersection — bounding this second in-heap map to O(today) instead of O(old
-      // cumulative). The full streamed entry count is still recorded for the OOM-growth histogram.
-      val oldRanks = loadBackfillOldRanks(oldSnapshot, todayFps)
-      metrics.backfillOldSnapshotEntriesHistogram.record(oldRanks.totalEntries)
-      todayFps.forEach { keyHi, keyLo, _ ->
-        allocator.assignBackfill(keyHi, keyLo, oldRanks.ranks.get(keyHi, keyLo))
-      }
-    } else {
-      todayFps.forEach { keyHi, keyLo, _ -> allocator.assign(keyHi, keyLo) }
+    // Replay each fingerprint's historical rank into the day-only delta while extending the
+    // cumulative forward. Only the old snapshot's entries that also appear today are looked up (we
+    // iterate todayFps), so load just that intersection — bounding the second in-heap map to
+    // O(today). The full streamed entry count is still recorded for the OOM-growth histogram.
+    val oldRanks = loadBackfillOldRanks(oldSnapshot, todayFps)
+    metrics.backfillOldSnapshotEntriesHistogram.record(oldRanks.totalEntries)
+    todayFps.forEach { keyHi, keyLo, _ ->
+      allocator.assignBackfill(keyHi, keyLo, oldRanks.ranks.get(keyHi, keyLo))
     }
 
-    // 6. Write the new DAY_ONLY + SNAPSHOT blobs and record both as RankIndexBlob rows. Keys carry
-    // a
-    // per-attempt UUID so a concurrent/re-delivered attempt never overwrites another's bytes; the
-    // winning (deterministic-request_id) row's blob_uri + DEK are always self-consistent.
+    // The SNAPSHOT's max_event_date is the prior snapshot's (unchanged) date for a backfill, which
+    // only adds older fingerprints. A backfill always has a prior snapshot (backfill detection
+    // requires one).
+    writeBlobsAndRows(
+      poolOffset,
+      allocator.streamCumulativeChunks(),
+      allocator.streamDayOnlyChunks(),
+      snapshotMaxEventDate = priorSnapshot!!.maxEventDate,
+    )
+
+    recordMetrics(
+      allocator.allocated,
+      allocator.renewed,
+      allocator.freed,
+      allocator.overflow,
+      allocator.backfillReusedOldRank,
+      allocator.backfillRankCollisions,
+    )
+    logger.info(
+      "Subpool $poolOffset for $modelLine: allocated=${allocator.allocated}, " +
+        "renewed=${allocator.renewed}, overflow=${allocator.overflow}, freed=${allocator.freed}, " +
+        "cumulative=${allocator.cumulativeSize} [backfill: " +
+        "reusedOldRank=${allocator.backfillReusedOldRank}, " +
+        "rankCollisions=${allocator.backfillRankCollisions}]"
+    )
+    if (allocator.backfillRankCollisions > 0) {
+      logger.warning(
+        "Subpool $poolOffset for $modelLine backfill reach-undercount: " +
+          "${allocator.backfillRankCollisions} fingerprint(s) reused an old rank already re-handed " +
+          "to a different fingerprint in the latest snapshot"
+      )
+    }
+    return Result(
+      poolOffset = poolOffset,
+      allocated = allocator.allocated,
+      renewed = allocator.renewed,
+      overflow = allocator.overflow,
+      freed = allocator.freed,
+      cumulativeSize = allocator.cumulativeSize,
+      backfill = true,
+      backfillReusedOldRank = allocator.backfillReusedOldRank,
+      backfillRankCollisions = allocator.backfillRankCollisions,
+    )
+  }
+
+  /**
+   * Writes the new DAY_ONLY + SNAPSHOT blobs and records both as RankIndexBlob rows. Keys carry a
+   * per-attempt UUID so a concurrent/re-delivered attempt never overwrites another's bytes; the
+   * winning (deterministic-request_id) row's blob_uri + DEK are always self-consistent.
+   *
+   * @param snapshotMaxEventDate the newest event date represented in the cumulative (this
+   *   dispatch's date on a forward upload, the prior snapshot's on a backfill).
+   */
+  private suspend fun writeBlobsAndRows(
+    poolOffset: Long,
+    cumulativeChunks: Flow<RankIndexMap>,
+    dayOnlyChunks: Flow<RankIndexMap>,
+    snapshotMaxEventDate: Date,
+  ) {
     val attemptId = UUID.randomUUID().toString()
     val dek = rankIndexStore.generateDek(kekUri)
     val snapshotKey =
@@ -292,14 +553,8 @@ class SubpoolRanker(
         poolOffset,
         attemptId,
       )
-    val snapshotChecksum =
-      rankIndexStore.writeBlob(snapshotKey, dek, allocator.streamCumulativeChunks())
-    val dayOnlyChecksum = rankIndexStore.writeBlob(dayOnlyKey, dek, allocator.streamDayOnlyChunks())
-    // The SNAPSHOT's max_event_date is the newest event date in the cumulative: this dispatch's
-    // date
-    // for a forward upload, but the prior snapshot's (unchanged) date for a backfill, which only
-    // adds older fingerprints.
-    val snapshotMaxEventDate = if (isBackfill) priorSnapshot!!.maxEventDate else maxEventDate
+    val snapshotChecksum = rankIndexStore.writeBlob(snapshotKey, dek, cumulativeChunks)
+    val dayOnlyChecksum = rankIndexStore.writeBlob(dayOnlyKey, dek, dayOnlyChunks)
     insertBlobRows(
       poolOffset,
       snapshotKey,
@@ -308,37 +563,6 @@ class SubpoolRanker(
       dayOnlyChecksum,
       dek,
       snapshotMaxEventDate,
-    )
-
-    recordMetrics(allocator)
-    logger.info(
-      "Subpool $poolOffset for $modelLine: allocated=${allocator.allocated}, " +
-        "renewed=${allocator.renewed}, overflow=${allocator.overflow}, freed=${allocator.freed}, " +
-        "cumulative=${allocator.cumulativeSize}" +
-        if (isBackfill) {
-          " [backfill: reusedOldRank=${allocator.backfillReusedOldRank}, " +
-            "rankCollisions=${allocator.backfillRankCollisions}]"
-        } else {
-          ""
-        }
-    )
-    if (allocator.backfillRankCollisions > 0) {
-      logger.warning(
-        "Subpool $poolOffset for $modelLine backfill reach-undercount: " +
-          "${allocator.backfillRankCollisions} fingerprint(s) reused an old rank already re-handed " +
-          "to a different fingerprint in the latest snapshot"
-      )
-    }
-    return Result(
-      poolOffset = poolOffset,
-      allocated = allocator.allocated,
-      renewed = allocator.renewed,
-      overflow = allocator.overflow,
-      freed = allocator.freed,
-      cumulativeSize = allocator.cumulativeSize,
-      backfill = isBackfill,
-      backfillReusedOldRank = allocator.backfillReusedOldRank,
-      backfillRankCollisions = allocator.backfillRankCollisions,
     )
   }
 
@@ -587,17 +811,24 @@ class SubpoolRanker(
     )
   }
 
-  private fun recordMetrics(allocator: RankAllocator) {
-    metrics.ranksAllocatedCounter.add(allocator.allocated)
-    metrics.ranksRenewedCounter.add(allocator.renewed)
-    metrics.ranksFreedCounter.add(allocator.freed)
-    metrics.overflowFingerprintsCounter.add(allocator.overflow)
+  private fun recordMetrics(
+    allocated: Long,
+    renewed: Long,
+    freed: Long,
+    overflow: Long,
+    backfillReusedOldRank: Long,
+    backfillRankCollisions: Long,
+  ) {
+    metrics.ranksAllocatedCounter.add(allocated)
+    metrics.ranksRenewedCounter.add(renewed)
+    metrics.ranksFreedCounter.add(freed)
+    metrics.overflowFingerprintsCounter.add(overflow)
     metrics.subpoolsRankedCounter.add(1)
-    if (allocator.backfillReusedOldRank > 0) {
-      metrics.backfillReusedOldRankCounter.add(allocator.backfillReusedOldRank)
+    if (backfillReusedOldRank > 0) {
+      metrics.backfillReusedOldRankCounter.add(backfillReusedOldRank)
     }
-    if (allocator.backfillRankCollisions > 0) {
-      metrics.backfillRankCollisionsCounter.add(allocator.backfillRankCollisions)
+    if (backfillRankCollisions > 0) {
+      metrics.backfillRankCollisionsCounter.add(backfillRankCollisions)
     }
   }
 
@@ -627,6 +858,20 @@ class SubpoolRanker(
 
   companion object {
     private val logger = Logger.getLogger(SubpoolRanker::class.java.name)
+
+    /**
+     * Slot capacity for a [Bytes12IntMap] stripe that must hold about `entries / stripes` entries
+     * without resizing: `ceil((entries / stripes) / loadFactor)`, floored at
+     * [Bytes12IntMap.MIN_CAPACITY]. The map constructor rounds up to a power of two. Pass `stripes
+     * = 1` for a non-striped (serial) map. Pure capacity hint: it affects neither the stored `(fp
+     * -> rank)` mapping nor the ranks/last_seen the allocator produces.
+     */
+    private fun stripeSlotCapacity(entries: Long, stripes: Int): Long {
+      val perStripe = (entries + stripes - 1) / stripes
+      // ceil(perStripe / 0.75) == ceil(perStripe * 4 / 3).
+      val slots = (perStripe * 4 + 2) / 3
+      return slots.coerceAtLeast(Bytes12IntMap.MIN_CAPACITY)
+    }
 
     /** Orders timestamps for "newest snapshot" without depending on a proto comparator. */
     private fun com.google.protobuf.Timestamp.toComparable(): Long =
