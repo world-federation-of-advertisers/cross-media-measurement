@@ -81,10 +81,15 @@ message BatchDeleteEventGroupActivitiesRequest {
 }
 
 message ListEventGroupActivitiesRequest {
-  // External ID of the parent DataProvider. Required.
-  fixed64 external_data_provider_id = 1;
+  // Scope of the list request. Required.
+  oneof scope {
+    // External ID of the parent DataProvider.
+    fixed64 external_data_provider_id = 1;
+    // External ID of the parent MeasurementConsumer.
+    fixed64 external_measurement_consumer_id = 6;
+  }
   // External ID of the parent EventGroup. If unset, lists across all
-  // EventGroups for the scoped DataProvider.
+  // EventGroups within the chosen scope.
   fixed64 external_event_group_id = 2;
 
   // The maximum number of results to return.
