@@ -986,3 +986,140 @@ resource "google_service_account_iam_member" "dashboard_compliance_terraform_tok
   member             = "serviceAccount:${var.terraform_service_account}"
 }
 
+
+# --- Scheduled compliance check --------------------------------------
+# Packages DashboardComplianceCheck as an HTTP Cloud Function and runs it daily
+# via Cloud Scheduler (OIDC), independently of the post-deploy CI check, to
+# detect drift against the live state between deploys. Failed checks are logged
+# at SEVERE with an "ALERT:" prefix and surfaced by the log-based alert policy.
+#
+# Gated on dashboard_compliance_uber_jar_path: environments that do not supply
+# the function uber jar (e.g. local plans) skip the scheduled check cleanly.
+locals {
+  deploy_dashboard_compliance_scheduler = (
+    var.dashboard_compliance_uber_jar_path != null &&
+    var.dashboard_compliance_uber_jar_path != "" &&
+    length(var.data_provider_resource_ids) > 0
+  )
+  dashboard_compliance_function_name = "dashboard-compliance-check"
+
+  # Derived from data_provider_resource_ids so it can never drift from the SAs /
+  # row access policies. Semicolon-separated so it can travel in the Cloud
+  # Function's comma-delimited env-var string.
+  dashboard_edps_env = join(
+    ";",
+    [for name, resource_id in var.data_provider_resource_ids : "${name}:${resource_id}"],
+  )
+}
+
+module "dashboard_compliance_cloud_function" {
+  count  = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  source = "../modules/http-cloud-function"
+
+  http_cloud_function_service_account_name = "dashboard-compliance-fn"
+  terraform_service_account                = var.terraform_service_account
+  function_name                            = local.dashboard_compliance_function_name
+  entry_point                              = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.tools.DashboardComplianceCheckFunction"
+  uber_jar_path                            = var.dashboard_compliance_uber_jar_path
+  secret_mappings                          = ""
+  # One run does ~12 sequential BigQuery jobs per EDP plus REST calls; 60s (the gen2
+  # default) is too short. max_instances = 1 prevents a scheduler retry or manual trigger
+  # from overlapping the daily run (matches the RequisitionFetcher function).
+  timeout_seconds = 600
+  max_instances   = 1
+  extra_env_vars = join(",", [
+    "GOOGLE_CLOUD_PROJECT=${data.google_client_config.default.project}",
+    "BIGQUERY_REGION=${data.google_client_config.default.region}",
+    "DASHBOARD_DATASET=${google_bigquery_dataset.dashboard.dataset_id}",
+    "IMPERSONATE_SERVICE_ACCOUNT=${google_service_account.dashboard_compliance.email}",
+    "DASHBOARD_EDPS=${local.dashboard_edps_env}",
+    "OTEL_SERVICE_NAME=edpa.dashboard_compliance",
+    "OTEL_METRICS_EXPORTER=google_cloud_monitoring",
+    "OTEL_TRACES_EXPORTER=google_cloud_trace",
+    "OTEL_LOGS_EXPORTER=logging",
+    "OTEL_METRIC_EXPORT_INTERVAL=60000",
+  ])
+}
+
+# The function runs as its own SA and impersonates the least-privilege
+# dashboard-compliance SA (the same identity the post-deploy CI check uses).
+resource "google_service_account_iam_member" "dashboard_compliance_function_token_creator" {
+  count              = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  service_account_id = google_service_account.dashboard_compliance.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${module.dashboard_compliance_cloud_function[0].cloud_function_service_account.email}"
+}
+
+# The function's runtime SA exports the failed-check metric to Cloud Monitoring.
+resource "google_project_iam_member" "dashboard_compliance_function_metric_writer" {
+  count   = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  project = data.google_client_config.default.project
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${module.dashboard_compliance_cloud_function[0].cloud_function_service_account.email}"
+}
+
+module "dashboard_compliance_cloud_scheduler" {
+  count                     = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  source                    = "../modules/cloud-scheduler"
+  terraform_service_account = var.terraform_service_account
+  scheduler_config = {
+    schedule                  = "0 6 * * *"
+    time_zone                 = "UTC"
+    name                      = "dashboard-compliance-scheduler"
+    function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/${local.dashboard_compliance_function_name}"
+    scheduler_sa_display_name = "Dashboard Compliance Scheduler"
+    scheduler_sa_description  = "Service account for Cloud Scheduler to trigger the dashboard compliance check"
+    scheduler_job_description = "Daily DashboardComplianceCheck run to detect drift between deploys"
+    scheduler_job_name        = local.dashboard_compliance_function_name
+  }
+  depends_on = [module.dashboard_compliance_cloud_function]
+}
+
+# Metric-based alert policy. The function records failed-check counts per section to the
+# edpa.dashboard_compliance.failed_checks gauge and increments edpa.dashboard_compliance.errors
+# on a genuine crash; this policy fires on either. Channels are attached out-of-band (as with
+# the
+# gcs-bucket DLQ alert); with none configured the policy still records incidents but pages no one.
+resource "google_monitoring_alert_policy" "dashboard_compliance_failures" {
+  count        = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  display_name = "Dashboard Compliance Check Failures"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "DashboardComplianceCheck reported failed checks"
+    condition_threshold {
+      filter          = "metric.type=\"workload.googleapis.com/edpa.dashboard_compliance.failed_checks\" AND resource.type=\"generic_task\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+      duration        = "0s"
+      aggregations {
+        alignment_period   = "600s"
+        per_series_aligner = "ALIGN_MAX"
+      }
+    }
+  }
+
+  conditions {
+    display_name = "DashboardComplianceCheckFunction execution errors"
+    condition_threshold {
+      filter          = "metric.type=\"workload.googleapis.com/edpa.dashboard_compliance.errors\" AND resource.type=\"generic_task\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+      duration        = "0s"
+      aggregations {
+        alignment_period   = "600s"
+        per_series_aligner = "ALIGN_DELTA"
+      }
+    }
+  }
+
+  notification_channels = var.dashboard_alert_notification_channels
+
+  alert_strategy {
+    auto_close = "1800s"
+  }
+
+  documentation {
+    content = "The scheduled DashboardComplianceCheck reported one or more failed checks (edpa.dashboard_compliance.failed_checks > 0). Inspect the dashboard-compliance-check Cloud Function logs for SEVERE 'ALERT:' entries. Notification channels attach out-of-band via dashboard_alert_notification_channels; none are paged until one is set."
+  }
+}
