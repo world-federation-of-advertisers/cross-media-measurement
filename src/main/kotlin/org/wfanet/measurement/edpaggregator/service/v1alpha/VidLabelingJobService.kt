@@ -431,6 +431,7 @@ class VidLabelingJobService(
       InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
       InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
       InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+      InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
       InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
       InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
       InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,

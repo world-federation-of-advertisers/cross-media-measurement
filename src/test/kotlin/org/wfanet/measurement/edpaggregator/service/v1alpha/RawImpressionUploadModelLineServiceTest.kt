@@ -101,6 +101,7 @@ class RawImpressionUploadModelLineServiceTest {
   private suspend fun createParentUpload(
     dataProviderResourceId: String,
     rawImpressionUploadResourceId: String,
+    state: RawImpressionUploadState = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED,
   ) {
     val uploadId = nextUploadId++
     val mutation =
@@ -114,7 +115,7 @@ class RawImpressionUploadModelLineServiceTest {
         .set("DoneBlobUri")
         .to("gs://bucket/done-$uploadId")
         .set("State")
-        .to(Value.protoEnum(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED))
+        .to(Value.protoEnum(state))
         .set("CreateTime")
         .to(Value.COMMIT_TIMESTAMP)
         .set("UpdateTime")
@@ -1444,6 +1445,35 @@ class RawImpressionUploadModelLineServiceTest {
         }
       )
   }
+
+  @Test
+  fun `createRawImpressionUploadModelLine returns FAILED_PRECONDITION when backfilling a FAILED parent`() =
+    runBlocking {
+      // A FAILED parent (e.g. set by data-quality recovery) must reject backfill with an actionable
+      // FAILED_PRECONDITION at the public layer — not INTERNAL. Regression: the internal service
+      // previously threw a bare status with no Errors.Reason, which handleInternalError mapped to
+      // INTERNAL; this pins the typed-exception routing through the public API.
+      createParentUpload(
+        DATA_PROVIDER_ID,
+        RAW_IMPRESSION_UPLOAD_ID,
+        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
+      )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRawImpressionUploadModelLine(
+            createRawImpressionUploadModelLineRequest {
+              parent = UPLOAD_KEY.toName()
+              rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+                cmmsModelLine = CMMS_MODEL_LINE
+              }
+              requestId = REQUEST_ID
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()

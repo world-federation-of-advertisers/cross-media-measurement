@@ -50,6 +50,7 @@ import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadModelLineNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadModelLineStateInvalidException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
+import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadStateInvalidException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateRawImpressionUploadModelLinesRequest
@@ -140,6 +141,13 @@ class SpannerRawImpressionUploadModelLineService(
             dataProviderResourceId = request.dataProviderResourceId,
             cmmsModelLine = request.rawImpressionUploadModelLine.cmmsModelLine,
             createRequestId = request.requestId,
+          )
+
+          reactivateParentForBackfill(
+            txn,
+            request.dataProviderResourceId,
+            request.rawImpressionUploadResourceId,
+            rawImpressionUploadId,
           )
 
           request.rawImpressionUploadModelLine.copy {
@@ -256,52 +264,68 @@ class SpannerRawImpressionUploadModelLineService(
               request.requestsList.map { it.requestId },
             )
 
-          request.requestsList.map { subRequest ->
-            val existing = existingByRequestId[subRequest.requestId]
-            if (existing != null) {
-              if (
-                existing.rawImpressionUploadModelLine.cmmsModelLine !=
-                  subRequest.rawImpressionUploadModelLine.cmmsModelLine
-              ) {
-                throw Status.ALREADY_EXISTS.withDescription(
-                    "RawImpressionUploadModelLine already exists for request_id " +
-                      "${subRequest.requestId} with a different cmms_model_line"
-                  )
-                  .asRuntimeException()
-              }
-              existing.rawImpressionUploadModelLine
-            } else {
-              val rawImpressionUploadModelLineId =
-                idGenerator.generateNewId { id ->
-                  txn.rawImpressionUploadModelLineExists(
-                    dataProviderResourceId,
-                    rawImpressionUploadId,
-                    id,
-                  )
+          var anyInserted = false
+          val created =
+            request.requestsList.map { subRequest ->
+              val existing = existingByRequestId[subRequest.requestId]
+              if (existing != null) {
+                if (
+                  existing.rawImpressionUploadModelLine.cmmsModelLine !=
+                    subRequest.rawImpressionUploadModelLine.cmmsModelLine
+                ) {
+                  throw Status.ALREADY_EXISTS.withDescription(
+                      "RawImpressionUploadModelLine already exists for request_id " +
+                        "${subRequest.requestId} with a different cmms_model_line"
+                    )
+                    .asRuntimeException()
                 }
+                existing.rawImpressionUploadModelLine
+              } else {
+                anyInserted = true
+                val rawImpressionUploadModelLineId =
+                  idGenerator.generateNewId { id ->
+                    txn.rawImpressionUploadModelLineExists(
+                      dataProviderResourceId,
+                      rawImpressionUploadId,
+                      id,
+                    )
+                  }
 
-              val resourceId =
-                "$RAW_IMPRESSION_UPLOAD_MODEL_LINE_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
+                val resourceId =
+                  "$RAW_IMPRESSION_UPLOAD_MODEL_LINE_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
 
-              txn.insertRawImpressionUploadModelLine(
-                rawImpressionUploadId = rawImpressionUploadId,
-                rawImpressionUploadModelLineId = rawImpressionUploadModelLineId,
-                rawImpressionUploadModelLineResourceId = resourceId,
-                dataProviderResourceId = dataProviderResourceId,
-                cmmsModelLine = subRequest.rawImpressionUploadModelLine.cmmsModelLine,
-                createRequestId = subRequest.requestId,
-              )
+                txn.insertRawImpressionUploadModelLine(
+                  rawImpressionUploadId = rawImpressionUploadId,
+                  rawImpressionUploadModelLineId = rawImpressionUploadModelLineId,
+                  rawImpressionUploadModelLineResourceId = resourceId,
+                  dataProviderResourceId = dataProviderResourceId,
+                  cmmsModelLine = subRequest.rawImpressionUploadModelLine.cmmsModelLine,
+                  createRequestId = subRequest.requestId,
+                )
 
-              subRequest.rawImpressionUploadModelLine.copy {
-                this.dataProviderResourceId = dataProviderResourceId
-                this.rawImpressionUploadResourceId = rawImpressionUploadResourceId
-                rawImpressionUploadModelLineResourceId = resourceId
-                state = State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED
-                clearCreateTime()
-                clearUpdateTime()
+                subRequest.rawImpressionUploadModelLine.copy {
+                  this.dataProviderResourceId = dataProviderResourceId
+                  this.rawImpressionUploadResourceId = rawImpressionUploadResourceId
+                  rawImpressionUploadModelLineResourceId = resourceId
+                  state = State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED
+                  clearCreateTime()
+                  clearUpdateTime()
+                }
               }
             }
+
+          // Reactivate the parent only when this batch actually added a model line (backfill),
+          // not on a pure idempotent replay where every requested line already existed.
+          if (anyInserted) {
+            reactivateParentForBackfill(
+              txn,
+              dataProviderResourceId,
+              rawImpressionUploadResourceId,
+              rawImpressionUploadId,
+            )
           }
+
+          created
         }
       } catch (e: RawImpressionUploadNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
@@ -328,6 +352,50 @@ class SpannerRawImpressionUploadModelLineService(
             }
           }
         }
+    }
+  }
+
+  /**
+   * Reactivates the parent [RawImpressionUpload] when a model line is added to it via backfill.
+   *
+   * Adding a model line to a COMPLETED upload (operator backfill) flips the denormalized parent
+   * state back to ACTIVE in the same transaction so the dispatcher re-processes it. Adding a model
+   * line to a FAILED upload is rejected: reviving it would strand the new child (the dispatcher
+   * skips FAILED parents) and, once the child completed, leave the parent stuck ACTIVE because its
+   * FAILED siblings block the COMPLETED roll-up, mis-classifying it as stale. CREATED and ACTIVE
+   * parents need no change — the normal state cascade in [transitionState] handles them.
+   */
+  private suspend fun reactivateParentForBackfill(
+    txn: AsyncDatabaseClient.TransactionContext,
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    rawImpressionUploadId: Long,
+  ) {
+    val parentState =
+      txn.getRawImpressionUploadState(dataProviderResourceId, rawImpressionUploadId)
+        ?: error("RawImpressionUpload not found for backfill parent $rawImpressionUploadResourceId")
+    when (parentState) {
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED ->
+        txn.updateRawImpressionUploadState(
+          dataProviderResourceId,
+          rawImpressionUploadId,
+          RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
+        )
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED ->
+        throw RawImpressionUploadStateInvalidException(
+            dataProviderResourceId,
+            rawImpressionUploadResourceId,
+            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
+          )
+          .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      // CREATED/ACTIVE need no reactivation — the normal child-Mark cascade handles them.
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED,
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE -> {}
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_UNSPECIFIED,
+      RawImpressionUploadState.UNRECOGNIZED ->
+        error(
+          "Unrecognized RawImpressionUpload state for backfill parent $rawImpressionUploadResourceId"
+        )
     }
   }
 
