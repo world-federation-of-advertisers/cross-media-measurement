@@ -107,6 +107,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       )
     service.markRawImpressionUploadModelLineLabeling(
       markRawImpressionUploadModelLineLabelingRequest {
+        requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -115,6 +116,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     )
     service.markRawImpressionUploadModelLineCompleted(
       markRawImpressionUploadModelLineCompletedRequest {
+        requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -1620,6 +1622,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       )
     service.markRawImpressionUploadModelLineFailed(
       markRawImpressionUploadModelLineFailedRequest {
+        requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
@@ -2095,6 +2098,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
           .single()
       service.markRawImpressionUploadModelLineLabeling(
         markRawImpressionUploadModelLineLabelingRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLineResourceId = backfilled.rawImpressionUploadModelLineResourceId
@@ -2103,6 +2107,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       )
       service.markRawImpressionUploadModelLineCompleted(
         markRawImpressionUploadModelLineCompletedRequest {
+          requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           rawImpressionUploadModelLineResourceId = backfilled.rawImpressionUploadModelLineResourceId
