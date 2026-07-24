@@ -47,7 +47,7 @@ class SubpoolAssignmentSink(
   private val accumulator: SubpoolFingerprintsAccumulator,
   private val activeWindow: ActiveWindow,
   private val metrics: SubpoolAssignerMetrics = SubpoolAssignerMetrics(),
-) : RawImpressionSource.BlobSink {
+) : RawImpressionSource.BlobSink<ParquetDigestedEvent> {
   private val labeledCounter = AtomicLong()
   private val droppedOutsideWindowCounter = AtomicLong()
   private val unroutedCounter = AtomicLong()

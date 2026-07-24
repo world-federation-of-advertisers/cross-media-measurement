@@ -27,6 +27,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetUndigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
@@ -57,7 +58,7 @@ class VidLabelerTest {
       StubVidAssigner()
     }
 
-    val rawImpressionSource: RawImpressionSource = mock()
+    val rawImpressionSource: RawImpressionSource<ParquetUndigestedEvent> = mock()
     whenever(rawImpressionSource.streamBlobs(any())).then {}
 
     val labeler =
@@ -73,6 +74,7 @@ class VidLabelerTest {
         outputStorageParams = VidLabelerParams.StorageParams.getDefaultInstance(),
         storageConfig = StorageConfig(),
         dataProvider = "dataProviders/edp-1",
+        newSink = ::PlainVidLabelingSink,
       )
 
     labeler.label()
@@ -90,7 +92,7 @@ class VidLabelerTest {
       StubVidAssigner()
     }
 
-    val rawImpressionSource: RawImpressionSource = mock()
+    val rawImpressionSource: RawImpressionSource<ParquetUndigestedEvent> = mock()
     whenever(rawImpressionSource.streamBlobs(any())).then {}
 
     val labeler =
@@ -110,6 +112,7 @@ class VidLabelerTest {
         outputStorageParams = VidLabelerParams.StorageParams.getDefaultInstance(),
         storageConfig = StorageConfig(),
         dataProvider = "dataProviders/edp-1",
+        newSink = ::PlainVidLabelingSink,
       )
 
     labeler.label()
@@ -123,7 +126,7 @@ class VidLabelerTest {
   fun `label with override referencing absent model line throws`() = runBlocking {
     val vidModelLoader = VidModelLoader { _, _ -> StubVidAssigner() }
 
-    val rawImpressionSource: RawImpressionSource = mock()
+    val rawImpressionSource: RawImpressionSource<ParquetUndigestedEvent> = mock()
 
     val labeler =
       VidLabeler(
@@ -137,6 +140,7 @@ class VidLabelerTest {
         outputStorageParams = VidLabelerParams.StorageParams.getDefaultInstance(),
         storageConfig = StorageConfig(),
         dataProvider = "dataProviders/edp-1",
+        newSink = ::PlainVidLabelingSink,
       )
 
     val exception = assertFailsWith<IllegalArgumentException> { labeler.label() }

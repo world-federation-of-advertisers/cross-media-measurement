@@ -129,7 +129,7 @@ class RawImpressionSourceTest {
     shardIndex: Int = 0,
     totalShards: Int = 1,
     extractor: EventIdDigestExtractor = EventIdDigestExtractor(),
-  ): RawImpressionSource =
+  ): RawImpressionSource<ParquetRawEvent> =
     RawImpressionSource(
       parquetStorageClient = client,
       rawImpressionUploadFilesStub = filesStub,
@@ -139,10 +139,11 @@ class RawImpressionSourceTest {
       totalShards = totalShards,
       eventIdDigestExtractor = extractor,
       metrics = testMetrics,
+      toEvent = { row, d -> if (d != null) DigestedEvent(row, d) else UndigestedEvent(row) },
     )
 
   /** Reads the decoded `event_id` (STRING or BINARY) from a [DigestedEvent]. */
-  private fun eventId(event: ParquetDigestedEvent): String {
+  private fun eventId(event: ParquetRawEvent): String {
     val v = event.row.getValue("event_id")
     return when (v.kindCase) {
       ParquetValue.KindCase.STRING_VALUE -> v.stringValue
@@ -160,22 +161,23 @@ class RawImpressionSourceTest {
     opened: ConcurrentLinkedQueue<String>? = null,
     committed: ConcurrentLinkedQueue<String>? = null,
     closed: ConcurrentLinkedQueue<String>? = null,
-  ): suspend (String, Map<String, String>) -> RawImpressionSource.BlobSink = { blobUri, _ ->
-    opened?.add(blobUri)
-    object : RawImpressionSource.BlobSink {
-      override suspend fun processBatch(events: List<ParquetDigestedEvent>) {
-        events.forEach { sink.add(eventId(it)) }
-      }
+  ): suspend (String, Map<String, String>) -> RawImpressionSource.BlobSink<ParquetRawEvent> =
+    { blobUri, _ ->
+      opened?.add(blobUri)
+      object : RawImpressionSource.BlobSink<ParquetRawEvent> {
+        override suspend fun processBatch(events: List<ParquetRawEvent>) {
+          events.forEach { sink.add(eventId(it)) }
+        }
 
-      override suspend fun commit() {
-        committed?.add(blobUri)
-      }
+        override suspend fun commit() {
+          committed?.add(blobUri)
+        }
 
-      override suspend fun close() {
-        closed?.add(blobUri)
+        override suspend fun close() {
+          closed?.add(blobUri)
+        }
       }
     }
-  }
 
   @Test
   fun `streamBlobs emits every row of the shard`(): Unit = runBlocking {
@@ -214,6 +216,7 @@ class RawImpressionSourceTest {
         eventIdDigestExtractor = EventIdDigestExtractor(),
         metrics = testMetrics,
         inputFiles = listOf("$UPLOAD/files/x", "$UPLOAD/files/y"),
+        toEvent = { row, d -> if (d != null) DigestedEvent(row, d) else UndigestedEvent(row) },
       )
     val sink = ConcurrentLinkedQueue<String>()
     subject.streamBlobs(collectingSink(sink))
@@ -332,6 +335,48 @@ class RawImpressionSourceTest {
   }
 
   @Test
+  fun `streamBlobs with needsDigest false skips the digest but still emits every row`(): Unit =
+    runBlocking {
+      val client = newClient()
+      writeFile(client, "nd/a.parquet", listOf(row("e1"), row("e2"), row("e3")))
+      val subject =
+        RawImpressionSource(
+          parquetStorageClient = client,
+          rawImpressionUploadFilesStub = filesStub,
+          rawImpressionUpload = UPLOAD,
+          eventIdColumn = "event_id",
+          eventIdDigestExtractor = EventIdDigestExtractor(),
+          metrics = testMetrics,
+          needsDigest = false,
+          toEvent = { row, d -> if (d != null) DigestedEvent(row, d) else UndigestedEvent(row) },
+        )
+
+      val ids = ConcurrentLinkedQueue<String>()
+      val digestPresent = ConcurrentLinkedQueue<Boolean>()
+      subject.streamBlobs { _, _ ->
+        object : RawImpressionSource.BlobSink<ParquetRawEvent> {
+          override suspend fun processBatch(events: List<ParquetRawEvent>) {
+            events.forEach {
+              ids.add(eventId(it))
+              digestPresent.add(it is DigestedEvent)
+            }
+          }
+
+          override suspend fun commit() {}
+
+          override suspend fun close() {}
+        }
+      }
+
+      assertThat(ids.toList()).containsExactly("e1", "e2", "e3")
+      // The per-row SHA-256 was skipped: every event carries a null digest (never read on this
+      // path), so a future accidental read fails fast instead of silently colliding.
+      assertThat(digestPresent.toList()).containsExactly(false, false, false)
+      assertThat(counterValue(EMITTED)).isEqualTo(3)
+      assertThat(counterValue(DROPPED)).isEqualTo(0)
+    }
+
+  @Test
   fun `streamBlobs reads a raw BINARY (ByteString) event-id column`(): Unit = runBlocking {
     val client = newClient()
     writeFile(client, "b/a.parquet", listOf(rowWithBytesId("e1"), rowWithBytesId("e2")))
@@ -372,6 +417,7 @@ class RawImpressionSourceTest {
         0,
         0,
         EventIdDigestExtractor(),
+        toEvent = { row, d -> if (d != null) DigestedEvent(row, d) else UndigestedEvent(row) },
       )
     }
     // shardIndex out of range.
@@ -384,6 +430,7 @@ class RawImpressionSourceTest {
         5,
         2,
         EventIdDigestExtractor(),
+        toEvent = { row, d -> if (d != null) DigestedEvent(row, d) else UndigestedEvent(row) },
       )
     }
     // maxOpenFiles must be positive.
@@ -396,16 +443,35 @@ class RawImpressionSourceTest {
         0,
         1,
         EventIdDigestExtractor(),
+        toEvent = { row, d -> if (d != null) DigestedEvent(row, d) else UndigestedEvent(row) },
         maxOpenFiles = 0,
       )
     }
     // rawImpressionUpload must be non-blank.
     assertFailsWith<IllegalArgumentException> {
-      RawImpressionSource(newClient(), filesStub, "  ", "event_id", 0, 1, EventIdDigestExtractor())
+      RawImpressionSource(
+        newClient(),
+        filesStub,
+        "  ",
+        "event_id",
+        0,
+        1,
+        EventIdDigestExtractor(),
+        toEvent = { row, d -> if (d != null) DigestedEvent(row, d) else UndigestedEvent(row) },
+      )
     }
     // eventIdColumn must be non-blank.
     assertFailsWith<IllegalArgumentException> {
-      RawImpressionSource(newClient(), filesStub, UPLOAD, "  ", 0, 1, EventIdDigestExtractor())
+      RawImpressionSource(
+        newClient(),
+        filesStub,
+        UPLOAD,
+        "  ",
+        0,
+        1,
+        EventIdDigestExtractor(),
+        toEvent = { row, d -> if (d != null) DigestedEvent(row, d) else UndigestedEvent(row) },
+      )
     }
   }
 

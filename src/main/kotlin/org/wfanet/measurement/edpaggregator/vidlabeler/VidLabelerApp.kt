@@ -30,11 +30,13 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigestExtractor
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
+import org.wfanet.measurement.edpaggregator.rawimpressions.UndigestedEvent
 import org.wfanet.measurement.edpaggregator.service.VidLabelingJobKey
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
@@ -131,6 +133,14 @@ class VidLabelerApp(
   private val buildImpressionConverter:
     suspend (modelLine: String, config: VidLabelerParams.ModelLineConfig) -> ImpressionConverter,
   private val eventIdDigestExtractor: EventIdDigestExtractor = EventIdDigestExtractor(),
+  // Process-scoped cache of the built memoized rank index, shared across WorkItems so consecutive
+  // WorkItems for the same (dataProvider, modelLine) with an unchanged snapshot set reuse the index
+  // instead of rebuilding the (tens-of-GB) structure. Defaults to a FRESH instance per constructor
+  // call, which gives tests isolated caches (no cross-test pollution). For production the runner
+  // passes an explicit process-scoped instance so the index is reused across WorkItems — DO NOT
+  // rely
+  // on the default to get that reuse; any second production path must pass the shared instance.
+  private val memoizedRankIndexCache: MemoizedRankIndexCache = MemoizedRankIndexCache(),
   private val metrics: VidLabelerAppMetrics = VidLabelerAppMetrics(),
 ) :
   BaseTeeApplication(
@@ -320,8 +330,16 @@ class VidLabelerApp(
         buildVidRankMapStorageClient(getStorageConfig(mp.vidRankMapStorageParams)),
         kmsClient,
       )
+    // Resolve the current snapshot set every WorkItem (cheap listing); reuse the process-wide
+    // cached
+    // index when the exact same blobs would load, else build it (evicting the old one first). New
+    // Phase-1 output changes the chosen blob URIs -> a new cache key -> a rebuild.
+    val resolvedBlobs =
+      MemoizedRankIndex.resolveLatestBlobs(rankIndexBlobsStub, dataProvider, modelLine)
     val rankIndex =
-      MemoizedRankIndex.load(rankIndexBlobsStub, rankIndexStore, dataProvider, modelLine)
+      memoizedRankIndexCache.getOrBuild(resolvedBlobs.key) {
+        MemoizedRankIndex.buildFrom(rankIndexStore, dataProvider, modelLine, resolvedBlobs.blobs)
+      }
 
     // The raw event-id column is the raw-impression field mapped to LabelerInput's `event_id.id`.
     val eventIdColumn = resolveEventIdColumn(config)
@@ -340,6 +358,10 @@ class VidLabelerApp(
         eventIdColumn = eventIdColumn,
         eventIdDigestExtractor = eventIdDigestExtractor,
         inputFiles = inputFiles,
+        // The memoized path probes the rank index per impression by its event-id digest, so the
+        // digest must be computed.
+        needsDigest = true,
+        toEvent = { row, digest -> DigestedEvent(row, checkNotNull(digest)) },
       )
 
     // Schema-drift guard (#3993): fail fast if a mapped raw column is missing from the file schema
@@ -383,6 +405,7 @@ class VidLabelerApp(
         // The labeled output is wrapped with the EDP's KEK, the same one the rank-index blobs were
         // written with; read it from the loaded RankIndexBlobs so there is no separate KEK field.
         encryptKekUri = rankIndex.kekUri,
+        newSink = ::MemoizedVidLabelingSink,
         outputStorageParams = params.vidLabeledImpressionsStorageParams,
         storageConfig = getStorageConfig(params.vidLabeledImpressionsStorageParams),
         dataProvider = dataProvider,
@@ -429,6 +452,10 @@ class VidLabelerApp(
         eventIdColumn = eventIdColumn,
         eventIdDigestExtractor = eventIdDigestExtractor,
         inputFiles = inputFiles,
+        // The non-memoized path has no rank index (rankIndex = null for every model line) and runs
+        // single-shard (file-list mode), so no consumer reads the digest: skip the per-row SHA-256.
+        needsDigest = false,
+        toEvent = { row, _ -> UndigestedEvent(row) },
       )
 
     require(params.hasModelStorageParams()) { "model_storage_params must be set" }
@@ -481,6 +508,7 @@ class VidLabelerApp(
         impressionConverter = impressionConverter,
         encryptKmsClient = kmsClient,
         encryptKekUri = encryptKekUri,
+        newSink = ::PlainVidLabelingSink,
         outputStorageParams = params.vidLabeledImpressionsStorageParams,
         storageConfig = getStorageConfig(params.vidLabeledImpressionsStorageParams),
         dataProvider = dataProvider,

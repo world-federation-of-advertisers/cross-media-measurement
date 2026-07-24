@@ -17,8 +17,8 @@
 package org.wfanet.measurement.edpaggregator.rawimpressions
 
 /**
- * One surviving raw impression event after shard-filtering, with its 12-byte [EventIdDigest]
- * pre-computed.
+ * A raw impression event that survived shard-filtering, tagged by whether its event-id
+ * [EventIdDigest] was computed.
  *
  * [row] is the reader's representation of the decoded row; the type parameter [R] keeps this
  * reusable across readers. For the parquet reader ([RawImpressionSource]) `R` is `Map<String,
@@ -27,6 +27,23 @@ package org.wfanet.measurement.edpaggregator.rawimpressions
  * `LabelerInput` proto) via the `labeler_input_field_mapping`.
  *
  * @property row the decoded row.
+ */
+sealed interface RawEvent<R> {
+  val row: R
+}
+
+/**
+ * A [RawEvent] whose event-id [EventIdDigest] was computed. Memoized paths (Phase-0 subpool
+ * assignment and memoized Phase-2 labeling) require this variant, so the digest is non-null and the
+ * compiler proves it is present at those call sites.
+ *
  * @property digest the event-id [EventIdDigest]; distinct from the labeler's `acting_fingerprint`.
  */
-data class DigestedEvent<R>(val row: R, val digest: EventIdDigest)
+data class DigestedEvent<R>(override val row: R, val digest: EventIdDigest) : RawEvent<R>
+
+/**
+ * A [RawEvent] emitted without a digest: the non-memoized single-shard Phase-2 path skips the
+ * per-row SHA-256. Memoized consumers do not accept this variant, so routing one to a digest-keyed
+ * consumer is a compile error rather than a runtime NPE.
+ */
+data class UndigestedEvent<R>(override val row: R) : RawEvent<R>

@@ -24,6 +24,8 @@ import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -42,7 +44,11 @@ import org.wfanet.measurement.storage.ParquetValue
  * A shard-surviving parquet row + its event-id digest, delivered to a
  * [RawImpressionSource.BlobSink].
  */
+typealias ParquetRawEvent = RawEvent<Map<String, ParquetValue>>
+
 typealias ParquetDigestedEvent = DigestedEvent<Map<String, ParquetValue>>
+
+typealias ParquetUndigestedEvent = UndigestedEvent<Map<String, ParquetValue>>
 
 /**
  * Reads the local VM's shard of raw impressions for one upload in parallel and hands shard-filtered
@@ -142,7 +148,7 @@ typealias ParquetDigestedEvent = DigestedEvent<Map<String, ParquetValue>>
  *   (BINARY+STRING) or raw `BINARY` column; both are accepted. Downstream reads any other columns
  *   it needs (e.g. event time for per-model-line windowing) from [DigestedEvent.row].
  */
-class RawImpressionSource(
+class RawImpressionSource<E : ParquetRawEvent>(
   private val parquetStorageClient: ParquetStorageClient,
   private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
   private val rawImpressionUpload: String,
@@ -173,6 +179,19 @@ class RawImpressionSource(
   // fingerprint-shard filter and NO whole-upload discovery. When null (Phase 0), discover all
   // of [rawImpressionUpload]'s files and apply the shard filter.
   private val inputFiles: List<String>? = null,
+  // Whether the event-id [EventIdDigest] is needed downstream. When false AND [totalShards] == 1
+  // (no shard filter to apply either), the per-row SHA-256 digest is skipped and a null digest
+  // is delivered — used by the non-memoized single-shard Phase-2 path, whose consumer never reads
+  // the digest. A null (rather than a placeholder value) makes any accidental future read fail fast
+  // instead of silently colliding. Defaults to true (compute), matching all prior callers
+  // (Phase-0 subpool assignment and memoized Phase-2, which key on the digest). When [totalShards]
+  // > 1 the digest is always computed regardless, since the shard filter needs it.
+  private val needsDigest: Boolean = true,
+  // Builds the reader's event type from a decoded row and the (nullable) computed digest.
+  // Digested readers pass `{ row, digest -> DigestedEvent(row, checkNotNull(digest)) }`; the
+  // non-memoized single-shard reader passes `{ row, _ -> UndigestedEvent(row) }`. Concentrating
+  // the digest-presence check here lets the digested consumers get a compile-time-non-null digest.
+  private val toEvent: (Map<String, ParquetValue>, EventIdDigest?) -> E,
 ) {
   init {
     require(totalShards > 0) { "totalShards must be positive, got $totalShards" }
@@ -215,9 +234,9 @@ class RawImpressionSource(
    *   `Bytes12IntMap`); `commit`/`close` are no-ops and the whole map is uploaded once after
    *   [streamBlobs] returns.
    */
-  interface BlobSink {
+  interface BlobSink<E : ParquetRawEvent> {
     /** Processes one shard-filtered batch for this blob. Called concurrently. */
-    suspend fun processBatch(events: List<ParquetDigestedEvent>)
+    suspend fun processBatch(events: List<E>)
 
     /**
      * Finalizes + publishes this blob's output (Phase 2 upload; Phase 0 no-op). Called exactly
@@ -280,7 +299,7 @@ class RawImpressionSource(
   }
 
   suspend fun streamBlobs(
-    openSink: suspend (blobUri: String, footerMetadata: Map<String, String>) -> BlobSink
+    openSink: suspend (blobUri: String, footerMetadata: Map<String, String>) -> BlobSink<E>
   ) {
     val blobUris = discoverBlobUris()
     logger.info(
@@ -312,7 +331,7 @@ class RawImpressionSource(
    */
   private suspend fun processBlob(
     blobUri: String,
-    openSink: suspend (blobUri: String, footerMetadata: Map<String, String>) -> BlobSink,
+    openSink: suspend (blobUri: String, footerMetadata: Map<String, String>) -> BlobSink<E>,
     cpuDispatcher: CoroutineDispatcher,
     inFlight: Semaphore,
     progress: ProgressTracker,
@@ -386,21 +405,31 @@ class RawImpressionSource(
   private suspend fun readEventsFromBlob(
     blobUri: String,
     parquetBlob: ParquetStorageClient.ParquetBlob,
-    onBatch: suspend (List<ParquetDigestedEvent>) -> Unit,
+    onBatch: suspend (List<E>) -> Unit,
   ): FileCounts {
     var read = 0L
     var droppedOtherShard = 0L
     var emitted = 0L
-    var batch = ArrayList<ParquetDigestedEvent>(batchSize)
+    var batch = ArrayList<E>(batchSize)
+    // Compute the digest only when a consumer needs it or the shard filter does (totalShards > 1).
+    // On the non-memoized single-shard path both are false, so the SHA-256 per row is skipped and
+    // the (never-read) digest is null; the shard filter is also skipped (it is a no-op at
+    // totalShards == 1, where belongsToShard is always true).
+    val computeDigest = needsDigest || totalShards > 1
     parquetBlob.readRows().collect { row ->
       read++
-      val digest = eventIdDigestExtractor.extract(readEventIdBytes(row, blobUri))
-      if (!belongsToShard(digest)) {
+      val digest =
+        if (computeDigest) {
+          eventIdDigestExtractor.extract(readEventIdBytes(row, blobUri))
+        } else {
+          null
+        }
+      if (digest != null && !belongsToShard(digest)) {
         droppedOtherShard++
         return@collect
       }
       emitted++
-      batch.add(DigestedEvent(row, digest))
+      batch.add(toEvent(row, digest))
       if (batch.size >= batchSize) {
         onBatch(batch)
         batch = ArrayList(batchSize)
@@ -422,14 +451,29 @@ class RawImpressionSource(
    */
   private suspend fun discoverBlobUris(): List<String> {
     if (inputFiles != null) {
-      return inputFiles.map { fileName ->
-        try {
-          rawImpressionUploadFilesStub
-            .getRawImpressionUploadFile(getRawImpressionUploadFileRequest { name = fileName })
-            .blobUri
-        } catch (e: StatusException) {
-          throw Exception("Error getting RawImpressionUploadFile $fileName", e)
-        }
+      // Resolve the file-list -> blob_uri lookups with bounded concurrency, collecting BY INDEX
+      // (awaitAll) so the resolved order is identical to the serial order. This is a separate,
+      // ephemeral scope that completes before any row-processing worker starts, so it never shares
+      // the CPU worker pool.
+      val resolveSemaphore = Semaphore(FILE_RESOLVE_CONCURRENCY)
+      return coroutineScope {
+        inputFiles
+          .map { fileName ->
+            async(readDispatcher) {
+              resolveSemaphore.withPermit {
+                try {
+                  rawImpressionUploadFilesStub
+                    .getRawImpressionUploadFile(
+                      getRawImpressionUploadFileRequest { name = fileName }
+                    )
+                    .blobUri
+                } catch (e: StatusException) {
+                  throw Exception("Error getting RawImpressionUploadFile $fileName", e)
+                }
+              }
+            }
+          }
+          .awaitAll()
       }
     }
     val blobUris = mutableListOf<String>()
@@ -528,5 +572,9 @@ class RawImpressionSource(
 
     /** Page size for listing the upload's files. */
     private const val LIST_PAGE_SIZE = 1000
+
+    /** Max concurrent `GetRawImpressionUploadFile` lookups when resolving a file list. */
+    private val FILE_RESOLVE_CONCURRENCY =
+      (System.getenv("FILE_RESOLVE_CONCURRENCY")?.toIntOrNull() ?: 8).coerceAtLeast(1)
   }
 }
