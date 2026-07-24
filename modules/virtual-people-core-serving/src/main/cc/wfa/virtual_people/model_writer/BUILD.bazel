@@ -1,0 +1,19 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+package(default_visibility = ["//src:__subpackages__"])
+
+cc_binary(
+    name = "model_writer_main",
+    srcs = ["model_writer_main.cc"],
+    deps = [
+        "//src/main/cc/wfa/virtual_people/core/model:model_serializer",
+        "@com_github_google_glog//:glog",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_protobuf//:protobuf",
+        "@wfa_common_cpp//src/main/cc/common_cpp/protobuf_util:riegeli_io",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)

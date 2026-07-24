@@ -1,0 +1,19 @@
+name: "modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelLines/AAAAAAAAAHs/modelRollouts/rollout_03"
+
+gradual_rollout_period {
+  start_date: {
+    year: 2014
+    month: 5
+    day: 13
+  }
+  end_date: {
+    year: 2027
+    month: 1
+    day: 15
+  }
+}
+
+model_release: "modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelReleases/rollout_03"
+
+previous_model_rollout: "modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelLines/AAAAAAAAAHs/modelRollouts/rollout_02"
+

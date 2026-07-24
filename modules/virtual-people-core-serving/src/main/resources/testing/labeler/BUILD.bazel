@@ -1,0 +1,19 @@
+package(
+    default_testonly = True,
+    default_visibility = ["//visibility:public"],
+)
+
+exports_files(
+    glob(["*.textproto"]) + [
+        "toy_model_riegeli_list",
+        "single_id_model_riegeli_list",
+    ],
+)
+
+filegroup(
+    name = "labeler_integration_test_data",
+    srcs = glob(["*.textproto"]) + [
+        "toy_model_riegeli_list",
+        "single_id_model_riegeli_list",
+    ],
+)

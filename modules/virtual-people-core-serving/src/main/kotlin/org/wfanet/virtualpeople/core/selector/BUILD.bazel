@@ -1,0 +1,89 @@
+load("@rules_java//java:defs.bzl", "java_proto_library")
+load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+java_proto_library(
+    name = "model_line_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_line_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "model_line_kt_jvm_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_line_proto",
+    ],
+    deps = [":model_line_java_proto"],
+)
+
+java_proto_library(
+    name = "model_rollout_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_rollout_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "model_rollout_kt_jvm_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_rollout_proto",
+    ],
+    deps = [":model_rollout_java_proto"],
+)
+
+java_proto_library(
+    name = "model_release_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_release_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "model_release_kt_jvm_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_release_proto",
+    ],
+    deps = [":model_release_java_proto"],
+)
+
+java_proto_library(
+    name = "date_interval_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:date_interval_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "date_interval_kt_jvm_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:date_interval_proto",
+    ],
+    deps = [":date_interval_java_proto"],
+)
+
+kt_jvm_library(
+    name = "cache",
+    srcs = [
+        "LruCache.kt",
+    ],
+)
+
+kt_jvm_library(
+    name = "selector",
+    srcs = [
+        "VidModelSelector.kt",
+    ],
+    deps = [
+        ":cache",
+        ":model_line_kt_jvm_proto",
+        ":model_release_kt_jvm_proto",
+        ":model_rollout_kt_jvm_proto",
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/common",
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/selector/resourcekey:resource_key",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:date_kt_jvm_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_kt_jvm_proto",
+    ],
+)

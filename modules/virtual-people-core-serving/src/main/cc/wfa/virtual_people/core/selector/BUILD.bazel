@@ -1,0 +1,41 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+_INCLUDE_PREFIX = "/src/main/cc"
+
+cc_library(
+    name = "lru_cache",
+    srcs = [
+        "lru_cache.cc",
+    ],
+    hdrs = [
+        "lru_cache.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@farmhash",
+    ],
+)
+
+cc_library(
+    name = "vid_model_selector",
+    srcs = [
+        "vid_model_selector.cc",
+    ],
+    hdrs = [
+        "vid_model_selector.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        ":lru_cache",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_line_cc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_rollout_cc_proto",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_protobuf//:protobuf",
+        "@wfa_common_cpp//src/main/cc/common_cpp/macros",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_cc_proto",
+    ],
+)
