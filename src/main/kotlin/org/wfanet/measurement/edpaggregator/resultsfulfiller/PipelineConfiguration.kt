@@ -33,12 +33,18 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
  *   assigned batches in parallel via round-robin distribution. For CPU-bound workloads, optimal
  *   performance is typically achieved with workers equal to or slightly above CPU core count (e.g.,
  *   CPU cores + 1 or 2).
+ * @property readConcurrency Maximum number of impression blobs read (and DEK-decrypted)
+ *   concurrently during event generation. This bounds the fan-out of outbound Cloud Storage and
+ *   Cloud KMS requests so a single work item cannot exhaust Cloud NAT source ports or overwhelm
+ *   KMS. The Cloud KMS unwrap and the GCS read are coupled inside each blob's reader, so this
+ *   single bound caps both. Tune it down until transient egress failures stop.
  */
 data class PipelineConfiguration(
   val batchSize: Int,
   val channelCapacity: Int,
   val threadPoolSize: Int,
   val workers: Int,
+  val readConcurrency: Int,
 ) {
 
   /**
@@ -51,5 +57,6 @@ data class PipelineConfiguration(
     require(channelCapacity > 0) { "Channel capacity must be positive" }
     require(workers > 0) { "Workers must be positive" }
     require(threadPoolSize > 0) { "Thread pool size must be positive" }
+    require(readConcurrency > 0) { "Read concurrency must be positive" }
   }
 }

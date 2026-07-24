@@ -16,8 +16,10 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers
 
+import io.grpc.Status
 import io.grpc.StatusException
 import java.util.logging.Logger
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import org.wfanet.frequencycount.FrequencyVector
@@ -30,6 +32,7 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultMinimumThresholder
@@ -46,35 +49,64 @@ class HMShuffleMeasurementFulfiller(
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val generateSecretShares: (ByteArray) -> (ByteArray) =
     SecretShareGeneratorAdapter::generateSecretShares,
+  private val retryMaxAttempts: Int = DEFAULT_RETRY_MAX_ATTEMPTS,
+  private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) : MeasurementFulfiller {
+  init {
+    require(retryMaxAttempts >= 1) { "retryMaxAttempts must be at least 1" }
+  }
+
   override suspend fun fulfillRequisition() {
     logger.info("Fulfilling requisition ${requisition.name}...")
     val duchyId = getDuchyWithoutPublicKey(requisition)
     val requisitionFulfillmentStub = requisitionFulfillmentStubMap.getValue(duchyId)
-    try {
-      val getRequisitionResponse =
-        requisitionsStub.getRequisition(getRequisitionRequest { name = requisition.name })
-      if (getRequisitionResponse.state === Requisition.State.UNFULFILLED) {
-        val requests: Flow<FulfillRequisitionRequest> =
-          FulfillRequisitionRequestBuilder.build(
-              requisition,
-              requisitionNonce,
-              sampledFrequencyVector,
-              dataProviderCertificateKey,
-              dataProviderSigningKeyHandle,
-              getRequisitionResponse.etag,
-              generateSecretShares,
-            )
-            .asFlow()
-        requisitionFulfillmentStub.fulfillRequisition(requests)
-        logger.info("Successfully fulfilled HMShuffle requisition ${requisition.name}")
-      } else {
-        logger.info(
-          "Cannot fulfill requisition ${requisition.name} with state ${getRequisitionResponse.state}"
-        )
+    var attempt = 0
+    while (true) {
+      attempt++
+      try {
+        // getRequisition re-checks the state on each attempt, so a requisition already fulfilled by
+        // a prior attempt is skipped; combined with the etag carried into the fulfillment request,
+        // this makes the whole block idempotent, which is what makes retrying DEADLINE_EXCEEDED
+        // (below) safe here.
+        val getRequisitionResponse =
+          requisitionsStub.getRequisition(getRequisitionRequest { name = requisition.name })
+        if (getRequisitionResponse.state === Requisition.State.UNFULFILLED) {
+          val requests: Flow<FulfillRequisitionRequest> =
+            FulfillRequisitionRequestBuilder.build(
+                requisition,
+                requisitionNonce,
+                sampledFrequencyVector,
+                dataProviderCertificateKey,
+                dataProviderSigningKeyHandle,
+                getRequisitionResponse.etag,
+                generateSecretShares,
+              )
+              .asFlow()
+          requisitionFulfillmentStub.fulfillRequisition(requests)
+          logger.info("Successfully fulfilled HMShuffle requisition ${requisition.name}")
+        } else {
+          logger.info(
+            "Cannot fulfill requisition ${requisition.name} with state ${getRequisitionResponse.state}"
+          )
+        }
+        return
+      } catch (e: StatusException) {
+        // Retry only the worker RPC statuses that are safe to replay here: UNAVAILABLE (the call
+        // did not reach the server, or reached it and is known to have failed) and
+        // DEADLINE_EXCEEDED
+        // (safe because the block is idempotent, see above). Any other status is non-retryable and
+        // fails the fulfillment.
+        val retryable =
+          e.status.code == Status.Code.UNAVAILABLE || e.status.code == Status.Code.DEADLINE_EXCEEDED
+        if (!retryable || attempt >= retryMaxAttempts) {
+          throw Exception("Error fulfilling requisition ${requisition.name}", e)
+        }
+        logger.warning {
+          "Transient failure fulfilling requisition ${requisition.name} on attempt $attempt of " +
+            "$retryMaxAttempts (${e.message}); retrying"
+        }
+        delay(retryBackoff.durationForAttempt(attempt).toMillis())
       }
-    } catch (e: StatusException) {
-      throw Exception("Error fulfilling requisition ${requisition.name}", e)
     }
   }
 
@@ -89,6 +121,9 @@ class HMShuffleMeasurementFulfiller(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    /** Default maximum total attempts (first attempt + retries) for the fulfillment worker RPCs. */
+    const val DEFAULT_RETRY_MAX_ATTEMPTS = 4
 
     /** Constructs a [HMShuffleMeasurementFulfiller] with a thresholded FrequencyVector. */
     fun buildThresholded(

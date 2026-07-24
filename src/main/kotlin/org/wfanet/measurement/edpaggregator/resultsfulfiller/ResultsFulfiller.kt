@@ -219,6 +219,7 @@ class ResultsFulfiller(
         impressionsStorageConfig = impressionsStorageConfig,
         descriptor = eventDescriptor,
         batchSize = pipelineConfiguration.batchSize,
+        readConcurrency = pipelineConfiguration.readConcurrency,
       )
 
     // Get the KEK URI from BlobDetails.encryptedDek for TrusTee protocol encryption
