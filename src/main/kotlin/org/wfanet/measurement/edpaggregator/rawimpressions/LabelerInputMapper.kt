@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.rawimpressions
 
 import com.google.protobuf.Descriptors.Descriptor
+import com.google.protobuf.Descriptors.EnumValueDescriptor
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Descriptors.FieldDescriptor.JavaType
 import org.wfanet.measurement.edpaggregator.v1alpha.AgeRange
@@ -127,6 +128,26 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
           require(leaf.javaType == JavaType.ENUM) {
             "enum_lookup target '$fieldPath' must be an enum field"
           }
+          val enumType = leaf.enumType
+          // Resolve every lookup-table target (and the default) to its EnumValueDescriptor ONCE at
+          // construction, so the per-row applier does no findValueByName. A target that names a
+          // non-existent enum value fails fast here at startup instead of on the first matching
+          // row.
+          val rawToEnumValue: Map<String, EnumValueDescriptor> =
+            lookup.lookupTableMap.mapValues { (raw, enumName) ->
+              requireNotNull(enumType.findValueByName(enumName)) {
+                "enum_lookup maps '$raw' to '$enumName', which is not a ${enumType.name} value " +
+                  "($fieldPath)"
+              }
+            }
+          val defaultEnumValue: EnumValueDescriptor? =
+            lookup.defaultEnumValue
+              .takeIf { it.isNotEmpty() }
+              ?.let { enumName ->
+                requireNotNull(enumType.findValueByName(enumName)) {
+                  "enum_lookup default '$enumName' is not a ${enumType.name} value ($fieldPath)"
+                }
+              }
           record(columnKinds, column, setOf(KindCase.STRING_VALUE))
           Applier { row, builder ->
             val value = presentValue(row, column) ?: return@Applier
@@ -135,28 +156,34 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
             }
             val raw = value.stringValue
             if (raw.isEmpty()) return@Applier
-            val enumName =
-              lookup.lookupTableMap[raw]
-                ?: lookup.defaultEnumValue.takeIf { it.isNotEmpty() }
+            val enumValue =
+              rawToEnumValue[raw]
+                ?: defaultEnumValue
                 ?: throw IllegalArgumentException(
                   "Column '$column' value '$raw' has no entry in enum_lookup.lookup_table for " +
                     "'$fieldPath' (and no default_enum_value)"
                 )
-            val enumValue =
-              requireNotNull(leaf.enumType.findValueByName(enumName)) {
-                "enum_lookup maps '$raw' to '$enumName', which is not a ${leaf.enumType.name} " +
-                  "value ($fieldPath)"
-              }
             ProtoRowProjector.setLeaf(builder, path, enumValue)
           }
         }
         LabelerInputFieldMapping.SourceCase.AGE_RANGE -> {
           val ageRange = mapping.ageRange
           val path = ProtoRowProjector.resolvePath(ROOT, fieldPath, allowMessageLeaf = true)
+          // Resolve the age message's min_age/max_age FieldDescriptors ONCE (the leaf's message
+          // type
+          // is fixed), so the per-row applier does no findFieldByName.
+          val ageDescriptor =
+            requireNotNull(path.last().messageType) {
+              "age_range target '$fieldPath' must be a message field with min_age/max_age"
+            }
+          val minAgeField = requireField(ageDescriptor, "min_age")
+          val maxAgeField = requireField(ageDescriptor, "max_age")
           for (column in ageRangeColumns(ageRange, fieldPath)) {
             record(columnKinds, column, ageColumnKinds(ageRange))
           }
-          Applier { row, builder -> applyAgeRange(builder, path, ageRange, row) }
+          Applier { row, builder ->
+            applyAgeRange(builder, path, ageRange, row, minAgeField, maxAgeField)
+          }
         }
         LabelerInputFieldMapping.SourceCase.COMPOSITE_IDENTITY -> {
           val composite = mapping.compositeIdentity
@@ -223,6 +250,8 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
       path: List<FieldDescriptor>,
       ageRange: AgeRange,
       row: Map<String, ParquetValue>,
+      minAgeField: FieldDescriptor,
+      maxAgeField: FieldDescriptor,
     ) {
       val (minAge, maxAge) =
         when (ageRange.sourceCase) {
@@ -268,9 +297,8 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
         owner = owner.getFieldBuilder(path[i])
       }
       val ageBuilder = owner.getFieldBuilder(path.last())
-      val ageDescriptor = ageBuilder.descriptorForType
-      ageBuilder.setField(requireField(ageDescriptor, "min_age"), minAge)
-      ageBuilder.setField(requireField(ageDescriptor, "max_age"), maxAge)
+      ageBuilder.setField(minAgeField, minAge)
+      ageBuilder.setField(maxAgeField, maxAge)
       owner.setField(path.last(), ageBuilder.build())
     }
 

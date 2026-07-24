@@ -20,7 +20,6 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.Timestamp
-import com.google.protobuf.util.Timestamps
 import com.google.type.interval
 import io.opentelemetry.api.common.Attributes
 import java.security.MessageDigest
@@ -56,7 +55,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.virtualpeople.common.copy
 
 /**
  * Per-input-file [RawImpressionSource.BlobSink] that labels one raw-impression file's
@@ -143,92 +141,101 @@ class VidLabelingSink(
   private val writers = ConcurrentHashMap<OutputGroupKey, GroupWriter>()
 
   override suspend fun processBatch(events: List<ParquetDigestedEvent>) {
-    // Label first (CPU work, and the canonical Labeler is stateless), then stream each produced
-    // record into its group's writer. processBatch is invoked concurrently for this blob.
-    val produced = ArrayList<GroupedImpression>()
-    for (digestedEvent in events) {
-      for (context in modelLineContexts) {
+    // Label (CPU work; the canonical Labeler is stateless) and stream each produced record straight
+    // into its group's writer. processBatch is invoked concurrently for this blob. Iterating model
+    // lines in the OUTER loop lets each context precompute its metric Attributes and resolve its
+    // GroupWriter once per batch (rather than per row) and stream records inline (no batch-wide
+    // buffer of produced impressions). Per-writer record order within a batch is preserved — events
+    // stream in order into each context's single writer — while order across concurrent batches is
+    // non-deterministic, exactly as before (records go to a per-model-line writer, so swapping the
+    // loop nesting cannot change any one blob's contents).
+    for (context in modelLineContexts) {
+      // Attributes depend only on (modelLine, reason), fixed for this context: build them once.
+      val labelAttrs = labelAttributes(context.modelLine)
+      val converterSkipAttrs =
+        dropAttributes(context.modelLine, VidLabelerMetrics.DROP_REASON_CONVERTER_SKIP)
+      val outsideWindowAttrs =
+        dropAttributes(context.modelLine, VidLabelerMetrics.DROP_REASON_OUTSIDE_WINDOW)
+      val noAssignmentAttrs =
+        dropAttributes(context.modelLine, VidLabelerMetrics.DROP_REASON_NO_ASSIGNMENT)
+      val rankIndex = context.rankIndex
+      // Resolved lazily on this context's first produced record, then reused for the batch, so a
+      // context that produces nothing opens no output blob (an empty blob would fail commit()).
+      var writer: GroupWriter? = null
+      for (digestedEvent in events) {
         try {
           val converted = impressionConverter.convert(digestedEvent, context.config)
           if (converted == null) {
-            metrics.impressionsDroppedCounter.add(
-              1,
-              dropAttributes(context.modelLine, VidLabelerMetrics.DROP_REASON_CONVERTER_SKIP),
-            )
+            metrics.impressionsDroppedCounter.add(1, converterSkipAttrs)
             continue
           }
-          if (!context.activeWindow.contains(Timestamps.toMicros(converted.eventTime))) {
-            metrics.impressionsDroppedCounter.add(
-              1,
-              dropAttributes(context.modelLine, VidLabelerMetrics.DROP_REASON_OUTSIDE_WINDOW),
-            )
+          if (!context.activeWindow.contains(converted.eventTimeMicros)) {
+            metrics.impressionsDroppedCounter.add(1, outsideWindowAttrs)
             continue
           }
 
-          // Memoized path: attach the impression's pre-computed rank(s) (keyed by its
-          // EventIdDigest) so the model's RankedPopulationNode leaf derives a collision-free VID
-          // via Feistel. All of the fingerprint's per-subpool ranks are attached (a fingerprint
-          // can route to several subpools across impressions); the leaf selects the one matching
-          // its own pool_offset. No match (overflow / unseen) leaves the input untouched and the
-          // leaf falls back to hashing.
-          val ranks = context.rankIndex?.lookup(digestedEvent.digest).orEmpty()
-          val labelerInput =
-            if (ranks.isEmpty()) {
-              converted.labelerInput
-            } else {
-              converted.labelerInput.copy { rankAssignments += ranks }
-            }
+          // Memoized path: append the impression's pre-computed rank(s) (keyed by its
+          // EventIdDigest)
+          // directly onto the LabelerInput builder so the model's RankedPopulationNode leaf derives
+          // a collision-free VID via Feistel. All matching per-subpool ranks are attached (a
+          // fingerprint can route to several subpools across impressions); the leaf selects the one
+          // matching its own pool_offset. No match (overflow / unseen) leaves the input untouched
+          // and the leaf falls back to hashing. The non-memoized path (rankIndex == null) never
+          // probes and never reads the digest.
           // TODO(world-federation-of-advertisers/cross-media-measurement#4073): Once
           // virtual-people-common#75 (memoized_rank_fallback signal) and
           // virtual-people-core-serving#89 (RankedPopulationNode hash fallback) are merged, count
           // VirtualPersonActivity.memoized_rank_fallback across output.peopleList (coviewing-safe)
           // into a per-(dataProvider, modelLine) counter here to surface silent degradation to
           // hash-based VID assignment when subpools saturate.
+          val labelerInput =
+            if (rankIndex == null) {
+              converted.labelerInput
+            } else {
+              val builder = converted.labelerInput.toBuilder()
+              if (rankIndex.appendRankAssignments(digestedEvent.digest, builder) == 0) {
+                converted.labelerInput // miss: leave the input untouched, exactly as before
+              } else {
+                builder.build()
+              }
+            }
 
           val output = context.assigner.assign(labelerInput)
           if (output.peopleCount == 0) {
-            metrics.impressionsDroppedCounter.add(
-              1,
-              dropAttributes(context.modelLine, VidLabelerMetrics.DROP_REASON_NO_ASSIGNMENT),
-            )
+            metrics.impressionsDroppedCounter.add(1, noAssignmentAttrs)
             continue
           }
 
-          val key = OutputGroupKey(context.modelLine)
+          // computeIfAbsent is atomic per key, so concurrent processBatch calls for different
+          // groups
+          // never block each other; send() then suspends on the group's channel if it is full,
+          // applying backpressure that bounds the heap.
+          val groupWriter =
+            writer
+              ?: writers
+                .computeIfAbsent(OutputGroupKey(context.modelLine)) { GroupWriter(it) }
+                .also { writer = it }
           // A LabelerOutput can assign multiple virtual people to a single impression; emit one
           // LabeledImpression per assigned VID rather than only the first.
           for (person in output.peopleList) {
-            produced.add(
-              GroupedImpression(
-                key,
-                labeledImpression {
-                  eventTime = converted.eventTime
-                  vid = person.virtualPersonId
-                  event = converted.event
-                  entityKeys += converted.entityKeys
-                },
-              )
+            groupWriter.send(
+              labeledImpression {
+                eventTime = converted.eventTime
+                vid = person.virtualPersonId
+                event = converted.event
+                entityKeys += converted.entityKeys
+              }
             )
           }
-          metrics.impressionsLabeledCounter.add(
-            output.peopleList.size.toLong(),
-            labelAttributes(context.modelLine),
-          )
+          metrics.impressionsLabeledCounter.add(output.peopleList.size.toLong(), labelAttrs)
         } catch (e: CancellationException) {
           // Cooperative cancellation is not a labeling error; rethrow without inflating the metric.
           throw e
         } catch (e: Exception) {
-          metrics.labelingErrorsCounter.add(1, labelAttributes(context.modelLine))
+          metrics.labelingErrorsCounter.add(1, labelAttrs)
           throw e
         }
       }
-    }
-
-    for ((key, impression) in produced) {
-      // computeIfAbsent is atomic per key, so concurrent processBatch calls for different groups
-      // never block each other; send() then suspends on the group's channel if it is full,
-      // applying backpressure that bounds the heap.
-      writers.computeIfAbsent(key) { GroupWriter(it) }.send(impression)
     }
   }
 
@@ -482,6 +489,3 @@ data class ModelLineContext(
  * by model line and carry the per-blob entity-key union on `BlobDetails.entity_keys`.
  */
 private data class OutputGroupKey(val modelLine: String)
-
-/** A labeled impression paired with the output group it belongs to, for channel hand-off. */
-private data class GroupedImpression(val key: OutputGroupKey, val impression: LabeledImpression)

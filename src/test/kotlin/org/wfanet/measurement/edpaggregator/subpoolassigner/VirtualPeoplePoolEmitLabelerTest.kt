@@ -43,7 +43,9 @@ class VirtualPeoplePoolEmitLabelerTest {
     // Loads without throwing: the blob is a Riegeli record list, so the pre-fix single-node
     // `CompiledNode.parseFrom(modelBlob)` threw here; the list reader succeeds.
     val labeler = VirtualPeoplePoolEmitLabeler.fromCompiledNodeBlob(modelBlob)
-    val offsets = labeler.emit(labelerInput { eventId = eventId { id = "any-event" } })
+    val offsets = buildList {
+      labeler.emit(labelerInput { eventId = eventId { id = "any-event" } }) { add(it) }
+    }
 
     // `single_id_model` is a single-VID model with no `RankedPopulationNode`, so POOL_IDENTITY
     // emits no pool offsets. The point of this test is that the Riegeli list is read and the

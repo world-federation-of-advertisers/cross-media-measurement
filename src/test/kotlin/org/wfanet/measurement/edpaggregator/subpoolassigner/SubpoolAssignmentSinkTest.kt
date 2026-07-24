@@ -215,7 +215,11 @@ class SubpoolAssignmentSinkTest {
 
   private class FakePoolEmitLabeler(private val routing: (LabelerInput) -> List<Long>) :
     PoolEmitLabeler {
-    override fun emit(input: LabelerInput): List<Long> = routing(input)
+    override fun emit(input: LabelerInput, onPoolOffset: (Long) -> Unit): Int {
+      val offsets = routing(input)
+      offsets.forEach(onPoolOffset)
+      return offsets.size
+    }
 
     override fun rankedSize(poolOffset: Long): Int = 0
   }

@@ -37,6 +37,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.R
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
 import org.wfanet.measurement.edpaggregator.vidrankbuilder.EventIdDigestBytes
+import org.wfanet.virtualpeople.common.LabelerInput
 import org.wfanet.virtualpeople.common.RankAssignment
 import org.wfanet.virtualpeople.common.rankAssignment
 
@@ -55,11 +56,18 @@ import org.wfanet.virtualpeople.common.rankAssignment
  * is safe to call concurrently from the reader's CPU pool even though [Bytes12IntMap] is not safe
  * for concurrent *mutation*.
  *
- * @property mapsByPoolOffset the per-subpool `fingerprint -> rank` maps, keyed by `pool_offset`.
+ * The per-subpool state is held as two parallel arrays ([poolOffsets] + [maps]) rather than a
+ * `Map<Long, Bytes12IntMap>` so the per-impression probe iterates primitive indices with no map
+ * entry / iterator allocation on the hot path. Index `i` pairs `poolOffsets[i]` with `maps[i]`; the
+ * arrays share the load-time subpool order.
+ *
+ * @property poolOffsets the loaded subpools' `pool_offset`s, parallel to [maps].
+ * @property maps the per-subpool `fingerprint -> rank` maps, parallel to [poolOffsets].
  */
 class MemoizedRankIndex
 private constructor(
-  private val mapsByPoolOffset: Map<Long, Bytes12IntMap>,
+  private val poolOffsets: LongArray,
+  private val maps: Array<Bytes12IntMap>,
   /**
    * KEK URI shared by every loaded `RankIndexBlob` (the EDP's own KEK). Reused to wrap the
    * labeled-output DEK, so the output is encrypted with the same key as the rank-index blobs.
@@ -69,7 +77,7 @@ private constructor(
 
   /** Number of subpools loaded. Exposed for diagnostics / tests. */
   val subpoolCount: Int
-    get() = mapsByPoolOffset.size
+    get() = poolOffsets.size
 
   /**
    * Returns a [RankAssignment] for every subpool whose map holds [digest] — one `(pool_offset,
@@ -81,20 +89,57 @@ private constructor(
    * caller attaches all of them; the model's `RankedPopulationNode` leaf selects the one matching
    * its own `pool_offset` and ignores the rest. Returning only the first match would attach a rank
    * for the wrong subpool when the impression reaches a different one, which the leaf rejects.
+   *
+   * Kept for tests and callers that want the list; the hot labeling path uses
+   * [appendRankAssignments] to avoid the intermediate list + per-match message allocations.
    */
   fun lookup(digest: EventIdDigest): List<RankAssignment> = buildList {
-    for ((poolOffset, map) in mapsByPoolOffset) {
-      val rank = map.get(digest.high, digest.low)
+    for (i in poolOffsets.indices) {
+      val rank = maps[i].get(digest.high, digest.low)
       if (rank != Bytes12IntMap.NOT_PRESENT) {
         add(
           rankAssignment {
-            this.poolOffset = poolOffset
+            poolOffset = poolOffsets[i]
             localRank = rank.toLong()
           }
         )
       }
     }
   }
+
+  /**
+   * Appends a `RankAssignment` for every subpool whose map holds [digest] directly onto [builder]'s
+   * `rank_assignments`, and returns how many were appended. Equivalent to attaching [lookup]'s
+   * result but without allocating the intermediate list or the per-match [RankAssignment] messages
+   * (they are built in place). Probes every subpool in the same order as [lookup]; a return of `0`
+   * means the fingerprint is unranked (overflow / unseen).
+   */
+  fun appendRankAssignments(digest: EventIdDigest, builder: LabelerInput.Builder): Int {
+    var appended = 0
+    for (i in poolOffsets.indices) {
+      val rank = maps[i].get(digest.high, digest.low)
+      if (rank != Bytes12IntMap.NOT_PRESENT) {
+        builder.addRankAssignmentsBuilder().apply {
+          poolOffset = poolOffsets[i]
+          localRank = rank.toLong()
+        }
+        appended++
+      }
+    }
+    return appended
+  }
+
+  /**
+   * Content identity of a loaded index: the `(dataProvider, modelLine)` plus the sorted set of
+   * chosen `SNAPSHOT` blob URIs. `RankIndexBlob` URIs are per-write-unique (attempt UUID) and their
+   * content is immutable, so an identical set of chosen URIs would build a byte-identical index —
+   * which is what lets [MemoizedRankIndexCache] safely reuse one across WorkItems. A new Phase-1
+   * snapshot for any subpool produces a new chosen URI, hence a new [Key] and a rebuild.
+   */
+  data class Key(val dataProvider: String, val modelLine: String, val blobUris: List<String>)
+
+  /** The cheap listing result of [resolveLatestBlobs]: the cache [key] and the chosen blobs. */
+  class ResolvedBlobs(val key: Key, val blobs: List<RankIndexBlob>)
 
   companion object {
     private val logger = Logger.getLogger(MemoizedRankIndex::class.java.name)
@@ -112,7 +157,12 @@ private constructor(
     fun fromMaps(
       mapsByPoolOffset: Map<Long, Bytes12IntMap>,
       kekUri: String = "test-kek-uri",
-    ): MemoizedRankIndex = MemoizedRankIndex(mapsByPoolOffset, kekUri)
+    ): MemoizedRankIndex =
+      MemoizedRankIndex(
+        mapsByPoolOffset.keys.toLongArray(),
+        mapsByPoolOffset.values.toTypedArray(),
+        kekUri,
+      )
 
     /**
      * Loads the current rank index for [modelLine] under [dataProvider].
@@ -145,7 +195,30 @@ private constructor(
       readerParallelism: Int = DEFAULT_READER_PARALLELISM,
       metrics: MemoizedRankIndexMetrics = MemoizedRankIndexMetrics(),
     ): MemoizedRankIndex {
-      val startMark = TimeSource.Monotonic.markNow()
+      val resolved = resolveLatestBlobs(rankIndexBlobsStub, dataProvider, modelLine)
+      return buildFrom(
+        rankIndexStore,
+        dataProvider,
+        modelLine,
+        resolved.blobs,
+        readerParallelism,
+        metrics,
+      )
+    }
+
+    /**
+     * The cheap discovery half of [load]: lists every non-deleted `SNAPSHOT` blob for the
+     * `(dataProvider, modelLine)` across all uploads, keeps per `pool_offset` the one with the
+     * greatest `create_time` (tie-broken by name), and returns those chosen blobs together with a
+     * content-identity [Key]. No blob bytes are downloaded here — this is the part that runs on
+     * EVERY WorkItem so [MemoizedRankIndexCache] can detect a changed snapshot set. Throws if no
+     * SNAPSHOT exists (the same fail-loud contract [load] had).
+     */
+    suspend fun resolveLatestBlobs(
+      rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
+      dataProvider: String,
+      modelLine: String,
+    ): ResolvedBlobs {
       val latestByPoolOffset = LinkedHashMap<Long, RankIndexBlob>()
       rankIndexBlobsStub
         .listResources { pageToken: String ->
@@ -181,9 +254,33 @@ private constructor(
           "Phase-1 must produce a cumulative snapshot before Phase-2 labeling"
       }
 
+      val blobs = latestByPoolOffset.values.toList()
+      val key = Key(dataProvider, modelLine, blobs.map { it.blobUri }.sorted())
+      return ResolvedBlobs(key, blobs)
+    }
+
+    /**
+     * The expensive build half of [load]: decrypts + decodes each chosen [blobs] entry into a
+     * [Bytes12IntMap] (up to [readerParallelism] at a time) and assembles the [MemoizedRankIndex].
+     * Records the cold-start / per-subpool metrics. Split out so [MemoizedRankIndexCache] can skip
+     * it on a key match while still running the cheap [resolveLatestBlobs] every WorkItem.
+     *
+     * Memory: the entire cumulative index is held in heap for the WorkItem's lifetime (~6 GiB
+     * steady-state on the 128 GB VID-labeler VM). Size the VM for the model line's fingerprint
+     * count.
+     */
+    suspend fun buildFrom(
+      rankIndexStore: RankIndexStore,
+      dataProvider: String,
+      modelLine: String,
+      blobs: List<RankIndexBlob>,
+      readerParallelism: Int = DEFAULT_READER_PARALLELISM,
+      metrics: MemoizedRankIndexMetrics = MemoizedRankIndexMetrics(),
+    ): MemoizedRankIndex {
+      val startMark = TimeSource.Monotonic.markNow()
       val semaphore = Semaphore(readerParallelism.coerceAtLeast(1))
       val loaded: Map<Long, LoadedSubpool> = coroutineScope {
-        latestByPoolOffset.values
+        blobs
           .map { blob ->
             async {
               semaphore.withPermit { blob.poolOffset to readSubpoolMap(rankIndexStore, blob) }
@@ -192,11 +289,15 @@ private constructor(
           .awaitAll()
           .toMap()
       }
-      val maps: Map<Long, Bytes12IntMap> = loaded.mapValues { (_, subpool) -> subpool.map }
+      // Parallel arrays in the load-time subpool order (loaded is an ordered LinkedHashMap), so
+      // poolOffsets[i] pairs with subpoolMaps[i]. Held as arrays (not a Map) for an allocation-free
+      // per-impression probe.
+      val poolOffsets: LongArray = loaded.keys.toLongArray()
+      val subpoolMaps: Array<Bytes12IntMap> = loaded.values.map { it.map }.toTypedArray()
 
       val baseAttributes =
         Attributes.of(metrics.DATA_PROVIDER_ATTR, dataProvider, metrics.MODEL_LINE_ATTR, modelLine)
-      metrics.subpoolCountGauge.set(maps.size.toLong(), baseAttributes)
+      metrics.subpoolCountGauge.set(poolOffsets.size.toLong(), baseAttributes)
       metrics.coldStartDurationHistogram.record(
         startMark.elapsedNow().inWholeMilliseconds / 1000.0,
         baseAttributes,
@@ -209,12 +310,12 @@ private constructor(
       }
 
       // Every rank-index blob is wrapped with the EDP's single KEK; resolve it (and assert it is
-      // present + consistent) so the labeled output can be wrapped with the same key. The empty-
-      // index check above already guarantees there is at least one blob to resolve it from.
-      val kekUri = resolveKekUri(latestByPoolOffset.values, modelLine)
+      // present + consistent) so the labeled output can be wrapped with the same key. The caller
+      // (resolveLatestBlobs) already guarantees there is at least one blob to resolve it from.
+      val kekUri = resolveKekUri(blobs, modelLine)
 
-      logger.info("Loaded memoized rank index for $modelLine: ${maps.size} subpool(s)")
-      return MemoizedRankIndex(maps, kekUri)
+      logger.info("Loaded memoized rank index for $modelLine: ${poolOffsets.size} subpool(s)")
+      return MemoizedRankIndex(poolOffsets, subpoolMaps, kekUri)
     }
 
     /**
@@ -237,14 +338,18 @@ private constructor(
       rankIndexStore: RankIndexStore,
       blob: RankIndexBlob,
     ): LoadedSubpool {
-      val estimatedEntries =
-        (rankIndexStore.blobSize(blob.blobUri, blob.encryptedDek) /
-            RankIndexStore.ON_DISK_BYTES_PER_ENTRY)
-          .coerceAtLeast(Bytes12IntMap.MIN_CAPACITY)
-      val map = Bytes12IntMap(estimatedEntries)
+      // Open the blob ONCE: openBlob does the single getBlob and hands back both the byte size (for
+      // pre-sizing) and the record flow (for content), instead of a getBlob for blobSize plus a
+      // second getBlob inside readBlob. An absent blob (null) is handled exactly as before: no
+      // records are read, so the ranked_size check below fails with the same error.
+      val opened = rankIndexStore.openBlob(blob.blobUri, blob.encryptedDek, blob.blobChecksum)
+      val estimatedEntries = (opened?.first ?: 0L) / RankIndexStore.ON_DISK_BYTES_PER_ENTRY
+      // Size the map to hold estimatedEntries WITHOUT resizing: capacity = entries / load-factor
+      // (0.75) == entries * 4 / 3, floored at the minimum. The map is lookup-only (never iterated),
+      // so a different capacity cannot change any observable result — only avoids resizes at load.
+      val map = Bytes12IntMap((estimatedEntries * 4 / 3).coerceAtLeast(Bytes12IntMap.MIN_CAPACITY))
       var rankedSize = -1
-      rankIndexStore.readBlob(blob.blobUri, blob.encryptedDek, blob.blobChecksum).collect { record
-        ->
+      opened?.second?.collect { record ->
         if (rankedSize == -1) {
           rankedSize = record.rankedSize
         } else {
