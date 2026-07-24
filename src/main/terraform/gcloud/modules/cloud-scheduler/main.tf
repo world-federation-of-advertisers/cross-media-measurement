@@ -48,6 +48,10 @@ resource "google_cloud_scheduler_job" "scheduler_job" {
 
     oidc_token {
       service_account_email = google_service_account.scheduler_service_account.email
+      # OIDC audience must be the bare service URL. Cloud Scheduler otherwise defaults the audience
+      # to the full uri, and a query string (e.g. ?mode=dispatch on the VID labeling jobs) makes the
+      # token aud mismatch the receiving service -> 401. Strip any query string.
+      audience = split("?", var.scheduler_config.function_url)[0]
     }
   }
 

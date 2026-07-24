@@ -47,6 +47,7 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.integration.common.EventGroupConfig
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 
 /** Implementation of MeasurementConsumerSimulator for use with the EDP Aggregator. */
@@ -70,6 +71,13 @@ class EdpAggregatorMeasurementConsumerSimulator(
   maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
   listEventGroupsEntityTypes: List<String>,
   onMeasurementsCreated: (() -> Unit)? = null,
+  /**
+   * Optional override that assigns the VID for each generated event when computing the expected
+   * result. When null (default), the raw synthetic VID is used. The EDPA cloud test injects the
+   * non-memoized labeler here so the expected reach/frequency is computed from the same VIDs the
+   * pipeline assigns, matching the pre-staged and pipelined labeled data.
+   */
+  private val vidLabeler: ((LabeledEvent<*>) -> Long)? = null,
 ) :
   MeasurementConsumerSimulator(
     measurementConsumerData,
@@ -156,7 +164,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
                 impression.timestamp < collectionInterval.endTime.toInstant())
           }
       }
-      .map { it.vid }
+      .map { vidLabeler?.invoke(it) ?: it.vid }
   }
 
   override fun getFilteredVids(measurementInfo: MeasurementInfo): Sequence<Long> {

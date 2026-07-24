@@ -53,6 +53,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -83,12 +84,11 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measurementSystem) {
 
   override val EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS: (CmmsEventGroup) -> Boolean = {
-    it.eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID
+    it.eventGroupReferenceId == EDP7_DIRECT_EVENT_GROUP_REF_ID
   }
 
   override val EVENT_GROUP_FILTERING_LAMBDA_CROSS_PUB: (CmmsEventGroup) -> Boolean = {
-    it.eventGroupReferenceId in
-      setOf(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID, EDPA_META_EVENT_GROUP_REF_ID)
+    it.eventGroupReferenceId in setOf(EDP7_DIRECT_EVENT_GROUP_REF_ID, EDPA_META_EVENT_GROUP_REF_ID)
   }
 
   private class UploadEventGroup : TestRule {
@@ -113,7 +113,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           objectKey = "edp7/event-groups/edp7-event-group.binpb",
           blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.binpb",
           eventGroupReferenceIds =
-            setOf(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID, CREATIVE_ID_EVENT_GROUP_REF_ID) +
+            setOf(EDP7_DIRECT_EVENT_GROUP_REF_ID, CREATIVE_ID_EVENT_GROUP_REF_ID) +
               MULTI_CREATIVE_REF_IDS,
         ),
         EdpStorage(
@@ -252,9 +252,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
 
     companion object {
-      // 120s to absorb event-group-sync Cloud Function cold starts (JVM boot
-      // can consume the first several seconds after a fresh deploy).
-      private const val EVENT_GROUP_SYNC_TIMEOUT = 120_000L
+      // 300s to absorb event-group-sync Cloud Function cold starts: a JVM gen2 CF cold start after
+      // a fresh deploy routinely lands in the 45-90s range, and this waits for the output blob
+      // (cold
+      // start + processing + write-back), so 120s left too little headroom.
+      private const val EVENT_GROUP_SYNC_TIMEOUT = 300_000L
       private const val EVENT_GROUP_SYNC_POLLING_INTERVAL = 3000L
     }
   }
@@ -283,7 +285,18 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
 
     private suspend fun createDoneBlobs() {
-      buildPaths().forEach { path ->
+      // The pipeline (and WriteReusedLabeledImpressionsRule) write under
+      // `<edp_impression_path>/model-line/<modelLineId>/<date>/`, so the `done` markers that
+      // trigger the DataAvailabilitySync must sit in that same per-model-line folder. Use the
+      // non-memoized model line the pre-labeled data is stamped with (the line the measurements
+      // use).
+      val modelLine = provisionModelResources.nonMemoizedModelLine ?: TEST_CONFIG.modelLine
+      val modelLineId =
+        requireNotNull(ModelLineKey.fromName(modelLine)) {
+            "non-memoized model line must be a full ModelLine resource name: $modelLine"
+          }
+          .modelLineId
+      buildPaths(modelLineId).forEach { path ->
         val doneBlobUri = SelectedStorageClient.parseBlobUri(path)
         val selectedStorageClient =
           SelectedStorageClient(
@@ -309,14 +322,35 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       private val START_DATE: LocalDate = LocalDate.parse("2021-03-15", DATE_FORMATTER)
       private val END_DATE: LocalDate = LocalDate.parse("2021-03-21", DATE_FORMATTER)
 
-      fun buildPaths(): List<String> {
-        val basePaths =
-          listOf("gs://$bucket/edp/edp7/{date}/done", "gs://$bucket/edp/edpa_meta/{date}/done")
+      // Single-sourced from [Edp7PipelinedDates]. For these dates the deployed VidLabeler drops
+      // edp7's own `done` marker, so the test must NOT. All earlier dates use pre-labeled
+      // impressions staged under edp/edp7/model-line/<id>/<date>/ (like the direct EDP), so the
+      // test
+      // drops an edp7 `done` for them too.
+      private val EDP7_PIPELINED_DATES: Set<LocalDate> = Edp7PipelinedDates.DATES
 
+      // Per-EDP folder segment for VID-labeled impressions. MUST match each EDP's
+      // `output_base_path` (impression_test_data_config.textproto), the `edp_impression_path` in
+      // the deployed VidLabeling dispatcher/monitor + DataAvailabilitySync configs, and the
+      // data-watcher `data-availability` regex.
+      private const val EDP7_IMPRESSION_PATH = "edp/edp7"
+      private const val EDPA_META_IMPRESSION_PATH = "edp/edpa_meta"
+
+      fun buildPaths(modelLineId: String): List<String> {
         return generateSequence(START_DATE) { it.plusDays(1) }
           .takeWhile { !it.isAfter(END_DATE) }
           .flatMap { date ->
-            basePaths.map { basePath -> basePath.replace("{date}", date.format(DATE_FORMATTER)) }
+            val ds = date.format(DATE_FORMATTER)
+            buildList {
+              // Direct EDP: test-dropped for every date.
+              add("gs://$bucket/$EDPA_META_IMPRESSION_PATH/model-line/$modelLineId/$ds/done")
+              // Pipelined EDP: only the pre-labeled (non-pipelined) dates get a test-dropped
+              // `done`;
+              // the pipeline drops its own for EDP7_PIPELINED_DATES.
+              if (date !in EDP7_PIPELINED_DATES) {
+                add("gs://$bucket/$EDP7_IMPRESSION_PATH/model-line/$modelLineId/$ds/done")
+              }
+            }
           }
           .toList()
       }
@@ -427,9 +461,20 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         populationSpec,
         resolvedSyntheticEventGroupMap,
         reportName,
-        TEST_CONFIG.modelLine,
+        provisionModelResources.nonMemoizedModelLine ?: TEST_CONFIG.modelLine,
         listEventGroupsEntityTypes = listOf("campaign", "creative-id"),
         onMeasurementsCreated = ::triggerRequisitionFetcher,
+        // Compute the expected reach/frequency from the VIDs the deployed non-memoized model
+        // assigns (not the raw synthetic VIDs), matching the pre-staged and pipelined labeled data.
+        vidLabeler = { impression ->
+          val event = impression.message as TestEvent
+          nonMemoizedVidLabeler.assignVid(
+            impression.vid,
+            event.person.gender.name,
+            event.person.ageGroup.name,
+            impression.timestamp,
+          )
+        },
       )
     }
 
@@ -502,12 +547,75 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     private val ZONE_ID = ZoneId.of("UTC")
 
+    /**
+     * edp7's flattened event-group configs (edpa_meta excluded), keyed by the flattened id (legacy
+     * groups by event_group_reference_id; entity-key groups split so each entity key spec is its
+     * own entry keyed "${entityType}-${entityId}"). Each entry carries its own entity key so the
+     * seeder can stamp the pipelined day's raw impressions with the same entity keys the
+     * out-of-band days-15-20 data uses.
+     */
+    private val edp7EventGroupConfigs: Map<String, EventGroupConfig> = run {
+      val configs = linkedMapOf<String, EventGroupConfig>()
+      for ((id, config) in resolvedSyntheticEventGroupMap) {
+        if (id != AbstractEdpAggregatorCorrectnessTest.EDPA_META_EVENT_GROUP_REF_ID) {
+          configs[id] = config
+        }
+      }
+      configs
+    }
+
+    private val provisionModelResources =
+      VidLabelerModelResourcesRule(
+        TEST_CONFIG.kingdomPublicApiTarget,
+        TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
+      )
+
+    /**
+     * The deployed non-memoized (hash-only) labeler, loaded once (lazily, after
+     * [provisionModelResources] runs) so the out-of-band pre-staged impressions and the expected
+     * results carry the same VID the pipeline assigns on the pipelined day. See
+     * [NonMemoizedVidLabeler].
+     */
+    private val nonMemoizedVidLabeler: NonMemoizedVidLabeler by lazy {
+      runBlocking {
+        NonMemoizedVidLabeler.create(
+          modelBlobUri = provisionModelResources.nonMemoizedModelBlobUri,
+          gcsProjectId =
+            System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set"),
+          labelerInputFieldMapping = provisionModelResources.labelerInputFieldMapping,
+        )
+      }
+    }
     private val uploadEventGroup = UploadEventGroup()
+    private val seedRawImpressions = SeedRawImpressionsRule(populationSpec, edp7EventGroupConfigs)
+    private val awaitVidLabeling = AwaitVidLabelingRule()
+    // Writes pre-labeled impressions stamped with the non-memoized model line for the dates the
+    // pipeline does not produce, so the `done` blobs dropped by createDoneBlobs register them under
+    // that line. Each impression is relabeled with the non-memoized labeler so its VID matches what
+    // the pipeline assigns on the pipelined day. Must run after provisionModelResources (needs
+    // nonMemoizedModelLine) and uploadEventGroup, and before createDoneBlobs.
+    private val writeReusedLabeledImpressions =
+      WriteReusedLabeledImpressionsRule(
+        config = IMPRESSION_TEST_DATA_CONFIG,
+        populationSpec = populationSpec,
+        bucket = TEST_CONFIG.storageBucket,
+        modelLineProvider = { provisionModelResources.nonMemoizedModelLine },
+        vidLabelerProvider = { nonMemoizedVidLabeler },
+      )
     private val createDoneBlobs = CreateDoneBlobs()
     private val measurementSystem = RunningMeasurementSystem()
 
     @ClassRule
     @JvmField
-    val chainedRule = chainRulesSequentially(uploadEventGroup, createDoneBlobs, measurementSystem)
+    val chainedRule =
+      chainRulesSequentially(
+        provisionModelResources,
+        uploadEventGroup,
+        seedRawImpressions,
+        awaitVidLabeling,
+        writeReusedLabeledImpressions,
+        createDoneBlobs,
+        measurementSystem,
+      )
   }
 }
