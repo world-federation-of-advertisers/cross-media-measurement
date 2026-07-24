@@ -35,6 +35,8 @@ import org.wfanet.measurement.api.v2alpha.EventGroupActivityKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.ListEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupActivitiesResponse
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerEventGroupKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupActivitiesResponse
 import org.wfanet.measurement.api.v2alpha.eventGroupActivity
@@ -249,24 +251,45 @@ class EventGroupActivitiesService(
   override suspend fun listEventGroupActivities(
     request: ListEventGroupActivitiesRequest
   ): ListEventGroupActivitiesResponse {
-    val parentKey: EventGroupKey =
-      grpcRequireNotNull(EventGroupKey.fromName(request.parent)) {
-        "Parent is either unspecified or invalid"
-      }
-
     grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
 
-    // TODO(world-federation-of-advertisers/cross-media-measurement#4080): Support
-    // MeasurementConsumer-rooted EventGroup parents in addition to the
-    // DataProvider-rooted form.
-    val dataProviderKey: DataProviderKey = parentKey.parentKey
-    grpcRequire(dataProviderKey.dataProviderId != ResourceKey.WILDCARD_ID) {
-      "Wildcard ID is not supported for the DataProvider in parent"
+    // The parent is an EventGroup name, which may be DataProvider-rooted or
+    // MeasurementConsumer-rooted; both scopes are derivable from the parent alone.
+    val dataProviderEventGroupKey: EventGroupKey? = EventGroupKey.fromName(request.parent)
+    val measurementConsumerEventGroupKey: MeasurementConsumerEventGroupKey? =
+      if (dataProviderEventGroupKey == null) {
+        MeasurementConsumerEventGroupKey.fromName(request.parent)
+      } else {
+        null
+      }
+    grpcRequire(dataProviderEventGroupKey != null || measurementConsumerEventGroupKey != null) {
+      "Parent is either unspecified or invalid"
     }
 
     val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
-    if (authenticatedPrincipal.resourceKey != dataProviderKey) {
-      throw Permission.LIST.deniedStatus(request.parent).asRuntimeException()
+    val eventGroupId: String
+    val dataProviderKey: DataProviderKey?
+    val measurementConsumerKey: MeasurementConsumerKey?
+    if (dataProviderEventGroupKey != null) {
+      dataProviderKey = dataProviderEventGroupKey.parentKey
+      measurementConsumerKey = null
+      eventGroupId = dataProviderEventGroupKey.eventGroupId
+      grpcRequire(dataProviderKey.dataProviderId != ResourceKey.WILDCARD_ID) {
+        "Wildcard ID is not supported for the DataProvider in parent"
+      }
+      if (authenticatedPrincipal.resourceKey != dataProviderKey) {
+        throw Permission.LIST.deniedStatus(request.parent).asRuntimeException()
+      }
+    } else {
+      measurementConsumerKey = measurementConsumerEventGroupKey!!.parentKey
+      dataProviderKey = null
+      eventGroupId = measurementConsumerEventGroupKey.eventGroupId
+      grpcRequire(measurementConsumerKey.measurementConsumerId != ResourceKey.WILDCARD_ID) {
+        "Wildcard ID is not supported for the MeasurementConsumer in parent"
+      }
+      if (authenticatedPrincipal.resourceKey != measurementConsumerKey) {
+        throw Permission.LIST.deniedStatus(request.parent).asRuntimeException()
+      }
     }
 
     val resolvedPageSize: Int =
@@ -291,9 +314,14 @@ class EventGroupActivitiesService(
 
     val internalRequest: InternalListEventGroupActivitiesRequest =
       internalListEventGroupActivitiesRequest {
-        externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
-        if (parentKey.eventGroupId != ResourceKey.WILDCARD_ID) {
-          externalEventGroupId = apiIdToExternalId(parentKey.eventGroupId)
+        if (dataProviderKey != null) {
+          externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
+        } else {
+          externalMeasurementConsumerId =
+            apiIdToExternalId(measurementConsumerKey!!.measurementConsumerId)
+        }
+        if (eventGroupId != ResourceKey.WILDCARD_ID) {
+          externalEventGroupId = apiIdToExternalId(eventGroupId)
         }
         pageSize = resolvedPageSize
         if (pageToken != null) {

@@ -51,6 +51,7 @@ import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.EventGroupMet
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.eventGroupMetadata
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MediaType
 import org.wfanet.measurement.internal.kingdom.batchDeleteEventGroupActivitiesRequest
@@ -1180,7 +1181,158 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
   }
 
   @Test
-  fun `listEventGroupActivities throws INVALID_ARGUMENT when external_data_provider_id is missing`() {
+  fun `listEventGroupActivities returns activities for MeasurementConsumer-rooted event group`() =
+    runBlocking {
+      eventGroupActivitiesService.batchUpdateEventGroupActivities(
+        batchUpdateEventGroupActivitiesRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+          requests += updateEventGroupActivityRequest {
+            allowMissing = true
+            eventGroupActivity = eventGroupActivity {
+              externalEventGroupId = eventGroup.externalEventGroupId
+              date = date {
+                year = 2025
+                month = 12
+                day = 1
+              }
+            }
+          }
+        }
+      )
+
+      val response =
+        eventGroupActivitiesService.listEventGroupActivities(
+          listEventGroupActivitiesRequest {
+            externalMeasurementConsumerId = eventGroup.externalMeasurementConsumerId
+            externalEventGroupId = eventGroup.externalEventGroupId
+          }
+        )
+
+      assertThat(response.eventGroupActivitiesList)
+        .ignoringFields(EventGroupActivity.CREATE_TIME_FIELD_NUMBER)
+        .containsExactly(
+          eventGroupActivity {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = eventGroup.externalEventGroupId
+            date = date {
+              year = 2025
+              month = 12
+              day = 1
+            }
+          }
+        )
+        .inOrder()
+    }
+
+  @Test
+  fun `listEventGroupActivities returns activities across event groups for MeasurementConsumer`() {
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val eventGroupA =
+        createEventGroup(dataProvider, measurementConsumer, "provided-event-group-a")
+      val eventGroupB =
+        createEventGroup(dataProvider, measurementConsumer, "provided-event-group-b")
+      // EventGroup under a different MeasurementConsumer; its activity must be excluded.
+      val otherEventGroup = createEventGroup(dataProvider)
+
+      val activityDate = date {
+        year = 2025
+        month = 12
+        day = 5
+      }
+      for (eventGroupUnderTest in listOf(eventGroupA, eventGroupB, otherEventGroup)) {
+        eventGroupActivitiesService.batchUpdateEventGroupActivities(
+          batchUpdateEventGroupActivitiesRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = eventGroupUnderTest.externalEventGroupId
+            requests += updateEventGroupActivityRequest {
+              allowMissing = true
+              eventGroupActivity = eventGroupActivity {
+                externalEventGroupId = eventGroupUnderTest.externalEventGroupId
+                date = activityDate
+              }
+            }
+          }
+        )
+      }
+
+      val response =
+        eventGroupActivitiesService.listEventGroupActivities(
+          listEventGroupActivitiesRequest {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          }
+        )
+
+      assertThat(response.eventGroupActivitiesList)
+        .ignoringFields(EventGroupActivity.CREATE_TIME_FIELD_NUMBER)
+        .containsExactly(
+          eventGroupActivity {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = eventGroupA.externalEventGroupId
+            date = activityDate
+          },
+          eventGroupActivity {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = eventGroupB.externalEventGroupId
+            date = activityDate
+          },
+        )
+    }
+  }
+
+  @Test
+  fun `listEventGroupActivities throws NOT_FOUND for non existent EventGroup under MeasurementConsumer`() {
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.listEventGroupActivities(
+            listEventGroupActivitiesRequest {
+              externalMeasurementConsumerId = eventGroup.externalMeasurementConsumerId
+              externalEventGroupId = 999999L
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = KingdomInternalException.DOMAIN
+            reason = ErrorCode.EVENT_GROUP_NOT_FOUND.name
+            metadata["external_measurement_consumer_id"] =
+              eventGroup.externalMeasurementConsumerId.toString()
+            metadata["external_event_group_id"] = "999999"
+          }
+        )
+    }
+  }
+
+  @Test
+  fun `listEventGroupActivities throws NOT_FOUND for non existent MeasurementConsumer`() {
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.listEventGroupActivities(
+            listEventGroupActivitiesRequest { externalMeasurementConsumerId = 999999L }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = KingdomInternalException.DOMAIN
+            reason = ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND.name
+            metadata["external_measurement_consumer_id"] = "999999"
+          }
+        )
+    }
+  }
+
+  @Test
+  fun `listEventGroupActivities throws INVALID_ARGUMENT when scope is not set`() {
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
@@ -1193,7 +1345,7 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
           errorInfo {
             domain = KingdomInternalException.DOMAIN
             reason = ErrorCode.REQUIRED_FIELD_NOT_SET.name
-            metadata["field_name"] = "external_data_provider_id"
+            metadata["field_name"] = "scope"
           }
         )
     }
@@ -1775,16 +1927,20 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
     }
   }
 
-  private suspend fun createEventGroup(dataProvider: DataProvider): EventGroup {
-    val measurementConsumer =
-      population.createMeasurementConsumer(measurementConsumersService, accountsService)
-
+  private suspend fun createEventGroup(
+    dataProvider: DataProvider,
+    measurementConsumer: MeasurementConsumer? = null,
+    providedEventGroupId: String = PROVIDED_EVENT_GROUP_ID,
+  ): EventGroup {
+    val resolvedMeasurementConsumer =
+      measurementConsumer
+        ?: population.createMeasurementConsumer(measurementConsumersService, accountsService)
     return eventGroupsService.createEventGroup(
       createEventGroupRequest {
         this.eventGroup = eventGroup {
           externalDataProviderId = dataProvider.externalDataProviderId
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+          externalMeasurementConsumerId = resolvedMeasurementConsumer.externalMeasurementConsumerId
+          this.providedEventGroupId = providedEventGroupId
           mediaTypes += MediaType.VIDEO
           dataAvailabilityInterval = interval { startTime = testClock.instant().toProtoTime() }
           details = DETAILS
