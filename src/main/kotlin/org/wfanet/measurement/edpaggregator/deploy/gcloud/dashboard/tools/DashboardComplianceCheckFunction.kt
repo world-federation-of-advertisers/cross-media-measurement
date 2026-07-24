@@ -67,6 +67,9 @@ class DashboardComplianceCheckFunction : HttpFunction {
 
   override fun service(request: HttpRequest, response: HttpResponse) {
     try {
+      // Prime to 0 so the metric (and its alert policy) exists before any error occurs.
+      DashboardComplianceMetrics.errorsCounter.add(0)
+
       logger.info(
         "Starting DashboardComplianceCheckFunction (project=$project, region=$region, " +
           "edps=${edps.map { it.name }})"

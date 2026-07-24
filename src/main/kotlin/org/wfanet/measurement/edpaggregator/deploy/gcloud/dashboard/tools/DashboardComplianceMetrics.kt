@@ -47,6 +47,8 @@ object DashboardComplianceMetrics {
    * Incremented in the function's catch block so a metric-based alert fires on genuine crashes —
    * distinct from a completed run that merely found failed checks (which returns HTTP 200 and is
    * captured by [failedChecksGauge]).
+   *
+   * Primed to 0 each run so the metric (and its alert policy) exists before any error occurs.
    */
   val errorsCounter: LongCounter
     get() =
