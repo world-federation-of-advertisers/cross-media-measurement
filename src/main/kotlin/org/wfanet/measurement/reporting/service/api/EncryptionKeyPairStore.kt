@@ -16,8 +16,11 @@ package org.wfanet.measurement.reporting.service.api
 
 import com.google.common.hash.Hashing.goodFastHash
 import com.google.protobuf.ByteString
+import java.security.GeneralSecurityException
+import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
+import org.wfanet.measurement.common.crypto.tink.TinkPublicKeyHandle
 
 private const val DEFAULT_HASH_MINIMUM_BITS = 128
 
@@ -36,7 +39,20 @@ class InMemoryEncryptionKeyPairStore(
 ) : EncryptionKeyPairStore {
   private val hashFunction = goodFastHash(DEFAULT_HASH_MINIMUM_BITS)
 
-  private fun fingerprint(key: ByteString) = hashFunction.hashBytes(key.toByteArray()).toString()
+  /**
+   * Fingerprints the of an [EncryptionPublicKey] in a Tink-version-stable way.
+   *
+   * Tink public-key serialization is not guaranteed to be stable across Tink releases, so the same
+   * underlying key can have different serialized bytes depending on the Tink version that produced
+   * it (e.g. a key read from a checked-in keyset vs. one re-serialized by the running server after
+   * a Tink upgrade). Hashing the raw bytes would fail to match those. Parsing and re-serializing
+   * with the current Tink before hashing makes any serialization of a given key fingerprint
+   * identically.
+   */
+  private fun fingerprint(key: ByteString): String {
+    val normalized: ByteString = TinkPublicKeyHandle(key).toByteString()
+    return hashFunction.hashBytes(normalized.toByteArray()).toString()
+  }
 
   private val principalToKeyPairs: Map<String, Map<String, PrivateKeyHandle>> =
     principalToKeyPairs.mapValues { (_, keyPairs) ->
@@ -46,5 +62,23 @@ class InMemoryEncryptionKeyPairStore(
   override suspend fun getPrivateKeyHandle(
     principal: String,
     publicKey: ByteString,
-  ): PrivateKeyHandle? = principalToKeyPairs[principal]?.get(fingerprint(publicKey))
+  ): PrivateKeyHandle? {
+    // A caller-supplied public key that is not a parseable Tink keyset cannot match any stored
+    // key, so report it as not found (null) rather than propagating a low-level crypto exception.
+    val fingerprint =
+      try {
+        fingerprint(publicKey)
+      } catch (e: GeneralSecurityException) {
+        logger.warning(
+          "Public key for principal $principal is not a parseable Tink keyset; treating as not " +
+            "found"
+        )
+        return null
+      }
+    return principalToKeyPairs[principal]?.get(fingerprint)
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
+  }
 }
