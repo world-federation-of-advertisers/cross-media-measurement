@@ -115,8 +115,9 @@ message ListImpressionMetadataRequest {
 
   message Filter {
     string cmms_model_line = 1;
-    // Filter by event group reference IDs. OR-semantics: an `ImpressionMetadata`
-    // matches if its `event_group_reference_id` is any of the values listed here.
+    // Filter by event group reference IDs. OR-semantics: an
+    // `ImpressionMetadata` matches if its `event_group_reference_id` is any of
+    // the values listed here.
     repeated string event_group_reference_ids = 2;
     google.type.Interval interval_overlaps = 3;
     ImpressionMetadataState state = 4;

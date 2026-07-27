@@ -226,8 +226,9 @@ message ListImpressionMetadataRequest {
       (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
     ];
 
-    // Filter by event group reference IDs. OR-semantics: an `ImpressionMetadata`
-    // matches if its `event_group_reference_id` is any of the values listed here.
+    // Filter by event group reference IDs. OR-semantics: an
+    // `ImpressionMetadata` matches if its `event_group_reference_id` is any of
+    // the values listed here.
     repeated string event_group_reference_ids = 2
         [(google.api.field_behavior) = OPTIONAL];
 
