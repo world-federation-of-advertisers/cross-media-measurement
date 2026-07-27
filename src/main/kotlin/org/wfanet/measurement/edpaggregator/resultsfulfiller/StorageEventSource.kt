@@ -255,14 +255,15 @@ class StorageEventSource(
         // Batch every event-group reference ID that shares a collection interval into ONE paginated
         // ListImpressionMetadata call (an IN UNNEST query) instead of one call per event group.
         // This collapses hundreds of metadata RPCs per report into a handful.
-        val referenceIdsByInterval = LinkedHashMap<Interval, MutableSet<String>>()
-        for (details in eventGroupDetailsList) {
-          for (interval in details.collectionIntervalsList) {
-            referenceIdsByInterval
-              .getOrPut(interval) { linkedSetOf() }
-              .add(details.eventGroupReferenceId)
-          }
-        }
+        val referenceIdsByInterval: Map<Interval, List<String>> =
+          eventGroupDetailsList
+            .flatMap { details ->
+              details.collectionIntervalsList.map { interval ->
+                interval to details.eventGroupReferenceId
+              }
+            }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, referenceIds) -> referenceIds.distinct() }
         referenceIdsByInterval.flatMap { (interval, referenceIds) ->
           logger.info(
             "Batching ${referenceIds.size} event-group reference IDs for interval: $interval"
