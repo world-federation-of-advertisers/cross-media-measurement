@@ -19,6 +19,7 @@ package org.wfanet.measurement.api.v2alpha.tools
 import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.CleartextKeysetHandle
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.jwt.JwtSignatureConfig
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.InvalidProtocolBufferException
@@ -285,6 +286,9 @@ private class Accounts {
       }
 
     // TODO(@SanjayVas): Use a util from common.crypto rather than directly interacting with Tink.
+    // Tink 1.23 parses key types as LegacyProtoKey unless their parser is registered before
+    // the keyset is read, which later breaks JwtPublicKeyVerify. Register JWT first.
+    JwtSignatureConfig.register()
     val keysetHandle: KeysetHandle =
       siopKey.inputStream().use { input ->
         CleartextKeysetHandle.read(BinaryKeysetReader.withInputStream(input))

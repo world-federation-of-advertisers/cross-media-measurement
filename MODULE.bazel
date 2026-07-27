@@ -42,6 +42,22 @@ bazel_dep(
     version = "0.147.0",
     repo_name = "wfa_common_jvm",
 )
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#399)
+git_override(
+    module_name = "common-jvm",
+    commit = "daa07f37713ac84c11d7e9269d711b442e19202c",
+    remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
+)
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/rules_kotlin_jvm#27): temporary until
+# rules_kotlin_jvm releases protobuf 4.33.6 (required by Tink 1.23).
+git_override(
+    module_name = "rules_kotlin_jvm",
+    commit = "7acc3aa0d3233fbae4bcbc83af462c020ced8ab8",
+    remote = "https://github.com/world-federation-of-advertisers/rules_kotlin_jvm.git",
+)
+
 bazel_dep(
     name = "common-cpp",
     version = "0.14.0",
@@ -158,7 +174,7 @@ bazel_dep(
 # Must be compatible with the protobuf version declared in requirements.txt
 bazel_dep(
     name = "protobuf",
-    version = "33.1",
+    version = "33.6",
     repo_name = "com_google_protobuf",
 )
 bazel_dep(
@@ -238,8 +254,8 @@ maven.artifact(
 )
 maven.install(
     artifacts = [
-        "com.google.crypto.tink:tink-awskms:1.11.0",
-        "com.google.crypto.tink:tink-gcpkms:1.9.0",
+        "com.google.crypto.tink:tink-awskms:2.0.0",
+        "com.google.crypto.tink:tink-gcpkms:1.11.0",
         "com.squareup.okhttp3:okhttp",
         "com.squareup.okhttp3:okhttp-tls",
         "com.google.privacy.differentialprivacy:differentialprivacy:4.0.0",
