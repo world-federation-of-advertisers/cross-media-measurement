@@ -1146,7 +1146,9 @@ class ImpressionMetadataServiceTest {
         )
 
       assertThat(response)
-        .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created })
+        .isEqualTo(
+          listImpressionMetadataResponse { impressionMetadata += created.sortedBy { it.name } }
+        )
     }
 
   @Test
