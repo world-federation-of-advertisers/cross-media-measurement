@@ -24,17 +24,17 @@ option java_multiple_files = true;
 
 // Video ad engagement attributes.
 //
-// Completion and viewability are modeled as fraction-valued doubles drawn
-// from a discrete set of valid values, rather than as families of
-// conditional-threshold booleans (e.g. `completed_25_percent_plus`). A
-// single double carries the same information without the combinatorial
-// field growth, and threshold semantics ("completed 50%+") are expressed as
-// ordinary comparisons in filters (`completed_fraction >= 0.5`).
+// Completion and viewability are modeled as fraction-valued doubles rather
+// than families of conditional-threshold booleans (e.g.
+// `completed_25_percent_plus`). A single double carries the same information
+// without the combinatorial field growth; the meaningful grouping thresholds
+// (e.g. 25%+, 50%+) are declared per field via the `template_field`
+// grouping-predicate annotation, and threshold filters are ordinary
+// comparisons (`completed_fraction >= 0.5`).
 //
-// TODO(world-federation-of-advertisers/cross-media-measurement-api): declare
-// the valid value sets in the `template_field` annotation once
-// `EventFieldDescriptor` supports enumerating valid values for numeric
-// fields.
+// TODO(world-federation-of-advertisers/cross-media-measurement-api#286):
+// declare the grouping thresholds in the `template_field` grouping-predicate
+// annotation once that annotation is released.
 message Video {
   option (.wfa.measurement.api.v2alpha.event_template) = {
     name: "video"
@@ -51,27 +51,28 @@ message Video {
         version_added: 1
       }];
 
-  // Fraction of the video that was played, quantized to quartiles.
-  // Valid values: 0.0, 0.25, 0.5, 0.75, 1.0.
+  // Fraction of the video that was played, in the range [0, 1]. The quartile
+  // grouping thresholds (0.25, 0.5, 0.75, 1.0) are offered for reporting; the
+  // field itself is not constrained to those values.
   double completed_fraction = 2
       [(.wfa.measurement.api.v2alpha.template_field) = {
         display_name: "Completed Fraction"
-        description: "Fraction of the video that was played, quantized to "
-                     "quartiles: 0.0, 0.25, 0.5, 0.75 or 1.0."
+        description: "Fraction of the video that was played, in the range "
+                     "[0, 1]."
         reporting_features: IMPRESSION_QUALIFICATION
         version_added: 1
       }];
 
-  // Fraction of the ad's pixels that were on screen for at least 2
-  // continuous seconds, quantized to quartiles. Valid values: 0.0, 0.25,
-  // 0.5, 0.75, 1.0 — 0.5 corresponds to the old MRC viewability standard and
-  // 1.0 to the new one.
+  // Fraction of the ad's pixels that were on screen for at least 2 continuous
+  // seconds, in the range [0, 1]. The quartile grouping thresholds (0.25,
+  // 0.5, 0.75, 1.0) are offered for reporting — 0.5 is the old MRC
+  // viewability standard and 1.0 the new one; the field itself is not
+  // constrained to those values.
   double viewable_fraction = 3
       [(.wfa.measurement.api.v2alpha.template_field) = {
         display_name: "Viewable Fraction"
         description: "Fraction of the ad's pixels on screen for at least 2 "
-                     "continuous seconds, quantized to quartiles: 0.0, 0.25, "
-                     "0.5 (old MRC standard), 0.75 or 1.0 (new MRC standard)."
+                     "continuous seconds, in the range [0, 1]."
         reporting_features: IMPRESSION_QUALIFICATION
         version_added: 1
       }];

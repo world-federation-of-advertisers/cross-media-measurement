@@ -30,13 +30,13 @@ message Common {
                  "an event."
   };
 
-  enum Sex {
-    SEX_UNSPECIFIED = 0;
+  enum Gender {
+    GENDER_UNSPECIFIED = 0;
     MALE = 1;
     FEMALE = 2;
   }
-  Sex sex = 1 [(.wfa.measurement.api.v2alpha.template_field) = {
-    display_name: "Sex"
+  Gender gender = 1 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "Gender"
     population_attribute: true
     reporting_features: FILTERABLE
     reporting_features: GROUPABLE
@@ -57,24 +57,12 @@ message Common {
     version_added: 1
   }];
 
-  enum SocialGradeGroup {
-    SOCIAL_GRADE_GROUP_UNSPECIFIED = 0;
-    A_B_C1 = 1;
-    C2_D_E = 2;
-  }
-  SocialGradeGroup social_grade_group = 3
-      [(.wfa.measurement.api.v2alpha.template_field) = {
-        display_name: "Social Grade"
-        population_attribute: true
-        reporting_features: FILTERABLE
-        reporting_features: GROUPABLE
-        version_added: 1
-      }];
-
   // US state or the District of Columbia. A high-cardinality attribute, to
-  // exercise grouping and filtering over a large value set.
-  enum Region {
-    REGION_UNSPECIFIED = 0;
+  // exercise grouping and filtering over a large value set. A different
+  // geography (countries, DMAs, etc.) would be modeled as its own enum and
+  // field rather than added here.
+  enum UsState {
+    US_STATE_UNSPECIFIED = 0;
     ALABAMA = 1;
     ALASKA = 2;
     ARIZONA = 3;
@@ -127,8 +115,12 @@ message Common {
     WISCONSIN = 50;
     WYOMING = 51;
   }
-  Region region = 4 [(.wfa.measurement.api.v2alpha.template_field) = {
-    display_name: "Region"
+  // `population_attribute` is true here because this models the virtual
+  // person's home state. A geo attribute indicating where the event
+  // originated, rather than the person's home geo, should instead set
+  // `population_attribute` to false.
+  UsState us_state = 3 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "US State"
     population_attribute: true
     reporting_features: FILTERABLE
     reporting_features: GROUPABLE
@@ -137,8 +129,8 @@ message Common {
 
   // Whether the person was signed in to a first-party account when reached.
   // A boolean population attribute, to exercise boolean-valued dimensions.
-  bool logged_in = 5 [(.wfa.measurement.api.v2alpha.template_field) = {
-    display_name: "Logged In"
+  bool signed_in = 4 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "Signed In"
     population_attribute: true
     reporting_features: FILTERABLE
     reporting_features: GROUPABLE
