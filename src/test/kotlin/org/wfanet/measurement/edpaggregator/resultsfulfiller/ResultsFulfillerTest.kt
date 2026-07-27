@@ -3591,6 +3591,7 @@ class ResultsFulfillerTest {
         channelCapacity = 100,
         threadPoolSize = 4,
         workers = 2,
+        readConcurrency = 16,
       )
 
     private val PERSON = person {

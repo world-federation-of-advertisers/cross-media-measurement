@@ -393,3 +393,14 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
+
+kt_jvm_test(
+    name = "PipelineConfigurationTest",
+    srcs = ["PipelineConfigurationTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.PipelineConfigurationTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:pipeline_configuration",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

@@ -298,6 +298,7 @@ class ResultsFulfillerApp(
         channelCapacity = 64,
         threadPoolSize = cpuCount,
         workers = cpuCount,
+        readConcurrency = 16,
       )
   }
 }
