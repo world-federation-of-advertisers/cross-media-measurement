@@ -202,10 +202,9 @@ class StorageEventSource(
           "Processing ${eventReaders.size} EventReaders across ${eventGroupDetailsList.size} event groups"
         )
         // Launch one coroutine per EventReader, but bound how many read + decrypt concurrently via
-        // a
-        // semaphore so the outbound Cloud Storage / Cloud KMS fan-out cannot exhaust Cloud NAT
-        // ports
-        // or overwhelm KMS (the ~64-wide unbounded churn that caused the production egress storm).
+        // a semaphore so the outbound Cloud Storage / Cloud KMS fan-out cannot exhaust Cloud NAT
+        // ports or overwhelm KMS (the ~64-wide unbounded churn that caused the production egress
+        // storm).
         val readSemaphore = Semaphore(readConcurrency)
         coroutineScope {
           eventReaders.forEach { resolvedReader ->
