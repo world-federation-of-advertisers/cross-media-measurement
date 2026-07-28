@@ -78,8 +78,7 @@ class SubpoolFingerprintsAccumulator {
     val index = indexOf(current.ids, subpoolId)
     if (index >= 0) return current.buckets[index]
     // Slow path: create the bucket (or find it, if a concurrent add just created it), then publish
-    // a
-    // new snapshot with the appended (id, bucket) pair.
+    // a new snapshot with the appended (id, bucket) pair.
     synchronized(growthLock) {
       val latest = snapshot
       val existing = indexOf(latest.ids, subpoolId)

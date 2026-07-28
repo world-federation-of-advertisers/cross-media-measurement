@@ -131,8 +131,8 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
           val enumType = leaf.enumType
           // Resolve every lookup-table target (and the default) to its EnumValueDescriptor ONCE at
           // construction, so the per-row applier does no findValueByName. A target that names a
-          // non-existent enum value fails fast here at startup instead of on the first matching
-          // row.
+          // non-existent enum value fails fast here at startup instead of on the first
+          // matching row.
           val rawToEnumValue: Map<String, EnumValueDescriptor> =
             lookup.lookupTableMap.mapValues { (raw, enumName) ->
               requireNotNull(enumType.findValueByName(enumName)) {
@@ -170,8 +170,7 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
           val ageRange = mapping.ageRange
           val path = ProtoRowProjector.resolvePath(ROOT, fieldPath, allowMessageLeaf = true)
           // Resolve the age message's min_age/max_age FieldDescriptors ONCE (the leaf's message
-          // type
-          // is fixed), so the per-row applier does no findFieldByName.
+          // type is fixed), so the per-row applier does no findFieldByName.
           val ageDescriptor =
             requireNotNull(path.last().messageType) {
               "age_range target '$fieldPath' must be a message field with min_age/max_age"

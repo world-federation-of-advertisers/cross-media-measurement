@@ -210,9 +210,8 @@ class VidLabelingSink(
           }
 
           // computeIfAbsent is atomic per key, so concurrent processBatch calls for different
-          // groups
-          // never block each other; send() then suspends on the group's channel if it is full,
-          // applying backpressure that bounds the heap.
+          // groups never block each other; send() then suspends on the group's channel if it is
+          // full, applying backpressure that bounds the heap.
           val groupWriter =
             writer
               ?: writers
