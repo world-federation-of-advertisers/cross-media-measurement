@@ -18,7 +18,6 @@ package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.protobuf.Any
 import com.google.protobuf.Descriptors
-import com.google.protobuf.util.Timestamps
 import java.util.concurrent.ConcurrentHashMap
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
@@ -74,8 +73,6 @@ class ParquetImpressionConverter(private val eventDescriptor: Descriptors.Descri
     val mappers = mappersFor(config)
 
     val labelerInput = mappers.inputMapper.project(event.row)
-    val eventTimeMicros = labelerInput.timestampUsec
-    val eventTime = Timestamps.fromMicros(eventTimeMicros)
     // Byte-identical to Any.pack(message): the type_url is "type.googleapis.com/<fullName>" and the
     // value is message.toByteString(); the type_url is cached because it never varies per row.
     val eventMessage =
@@ -88,10 +85,8 @@ class ParquetImpressionConverter(private val eventDescriptor: Descriptors.Descri
 
     return ConvertedImpression(
       labelerInput = labelerInput,
-      eventTime = eventTime,
       event = eventMessage,
       entityKeys = entityKeys,
-      eventTimeMicros = eventTimeMicros,
     )
   }
 

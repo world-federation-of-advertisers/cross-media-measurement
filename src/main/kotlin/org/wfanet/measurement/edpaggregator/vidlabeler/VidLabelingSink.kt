@@ -20,6 +20,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.Timestamp
+import com.google.protobuf.util.Timestamps
 import com.google.type.interval
 import io.opentelemetry.api.common.Attributes
 import java.security.MessageDigest
@@ -171,7 +172,7 @@ class VidLabelingSink(
             metrics.impressionsDroppedCounter.add(1, converterSkipAttrs)
             continue
           }
-          if (!context.activeWindow.contains(converted.eventTimeMicros)) {
+          if (!context.activeWindow.contains(converted.labelerInput.timestampUsec)) {
             metrics.impressionsDroppedCounter.add(1, outsideWindowAttrs)
             continue
           }
@@ -222,7 +223,7 @@ class VidLabelingSink(
           for (person in output.peopleList) {
             groupWriter.send(
               labeledImpression {
-                eventTime = converted.eventTime
+                eventTime = Timestamps.fromMicros(converted.labelerInput.timestampUsec)
                 vid = person.virtualPersonId
                 event = converted.event
                 entityKeys += converted.entityKeys

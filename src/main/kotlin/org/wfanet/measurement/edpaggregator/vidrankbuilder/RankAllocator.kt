@@ -406,7 +406,11 @@ class RankAllocator(
     /** ~1M entries (~18 MB of fps+ranks+last_seen) per record: one buffer in memory at a time. */
     const val DEFAULT_CHUNK_ENTRIES = 1 * 1024 * 1024
 
-    /** Initial size of the growable primitive buffer of doomed keys in [freeAgedRanks]. */
-    private const val INITIAL_FREE_BUFFER = 16
+    /**
+     * Initial size of the growable primitive buffer of doomed keys in [freeAgedRanks]. Sized to
+     * skip the first several grow-and-copy doublings on a real retention cutover (starting at 16
+     * would double ~6 times to reach this); still trivially small when fewer keys age out.
+     */
+    private const val INITIAL_FREE_BUFFER = 1024
   }
 }
