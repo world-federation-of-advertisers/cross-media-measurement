@@ -12,3 +12,17 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
+
+kt_jvm_test(
+    name = "ValidationCloudFunctionClientTest",
+    srcs = ["ValidationCloudFunctionClientTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.validation.ValidationCloudFunctionClientTest",
+    deps = [
+        "//imports/java/com/google/auth:oauth_http2",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/validation:validation_cloud_function_client",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_impression_query_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
