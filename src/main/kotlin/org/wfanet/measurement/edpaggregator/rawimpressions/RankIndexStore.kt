@@ -128,11 +128,17 @@ class RankIndexStore(storageClient: ConditionalOperationStorageClient, kmsClient
   }
 
   /**
-   * Byte size of the SNAPSHOT blob at [blobKey], or 0 if absent. The Phase-2 index load uses this
-   * to pre-size its per-subpool map: on disk each entry is ~[ON_DISK_BYTES_PER_ENTRY] bytes
-   * (12-byte fingerprint + 4-byte fixed32 rank + 2-byte last-seen day), so the entry count is
-   * approximately `size / ON_DISK_BYTES_PER_ENTRY` (a safe slight over-estimate given
-   * framing/encryption).
+   * Byte size of the SNAPSHOT blob at [blobKey], or 0 if absent. This is the ciphertext (on-disk)
+   * byte count as reported by the encrypted storage client, not the plaintext size. The Phase-2
+   * index load uses it to pre-size its per-subpool map: on disk each entry is
+   * ~[ON_DISK_BYTES_PER_ENTRY] bytes (12-byte fingerprint + 4-byte fixed32 rank + 2-byte last-seen
+   * day), so the entry count is approximately `size / ON_DISK_BYTES_PER_ENTRY` (a safe slight
+   * over-estimate given framing/encryption).
+   *
+   * TODO(world-federation-of-advertisers/cross-media-measurement#4235): the Phase-2 caller
+   *   pre-sizes with this and then reads the blob, so each subpool resolves the blob handle (and
+   *   unwraps the DEK) twice. #4235's `openBlob` resolves it once and returns the size and record
+   *   flow together, collapsing this to a single unwrap.
    */
   suspend fun blobSize(blobKey: String, encryptedDek: EncryptedDek): Long =
     encryptedClient(encryptedDek).getBlob(blobKey)?.size ?: 0L

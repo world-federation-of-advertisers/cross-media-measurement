@@ -255,8 +255,7 @@ private constructor(
         }
         val fingerprints = record.fingerprints
         // `rank_index_map.proto`: `fingerprints` length MUST equal `ranks_count` * 12. Enforce it
-        // so
-        // a malformed blob fails with a clear, attributable error instead of an opaque
+        // so a malformed blob fails with a clear, attributable error instead of an opaque
         // IndexOutOfBoundsException (too short) or silently dropped trailing fingerprints (too
         // long).
         check(fingerprints.size() == record.ranksCount * FINGERPRINT_BYTES) {
