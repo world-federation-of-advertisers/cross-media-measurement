@@ -105,9 +105,11 @@ class EdpValidationPostProcessorTest {
 
     postProcessor().validate(listOf(row(reportedImpressions = 10_000_000L)))
 
-    val sentRequest = DataProviderImpressionQueryRequest.parseFrom(fakeCloudFunction.lastRequestBody)
+    val sentRequest =
+      DataProviderImpressionQueryRequest.parseFrom(fakeCloudFunction.lastRequestBody)
     val expectedKey = "$DATA_PROVIDER|campaign|campaign-1|1700000000|1700086400"
-    val expectedRequestId = UUID.nameUUIDFromBytes(expectedKey.toByteArray(Charsets.UTF_8)).toString()
+    val expectedRequestId =
+      UUID.nameUUIDFromBytes(expectedKey.toByteArray(Charsets.UTF_8)).toString()
     assertThat(sentRequest.requestId).isEqualTo(expectedRequestId)
   }
 

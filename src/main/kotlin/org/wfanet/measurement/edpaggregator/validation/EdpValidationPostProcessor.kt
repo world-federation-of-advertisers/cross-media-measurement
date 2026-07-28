@@ -126,8 +126,8 @@ class EdpValidationPostProcessor(
    *
    * Derived as a name-based UUID over the fields that define the query — data provider, entity, and
    * time interval — so the same query always yields the same ID. The
-   * `DataProviderImpressionQueryRequest.request_id` field is annotated `format = UUID4`; a name-based
-   * UUID satisfies the UUID shape while remaining stable.
+   * `DataProviderImpressionQueryRequest.request_id` field is annotated `format = UUID4`; a
+   * name-based UUID satisfies the UUID shape while remaining stable.
    *
    * @param dataProviderName resource name of the `DataProvider`
    * @param row the impression data row that defines the query
