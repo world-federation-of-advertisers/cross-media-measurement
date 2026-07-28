@@ -23,10 +23,10 @@ import org.wfanet.measurement.config.edpaggregator.ToleranceConfig
 /**
  * Evaluates the deviation between a reported impression count and the expected count.
  *
- * The expected count is the publisher's source-of-truth count, already scaled to the EDPA's measured
- * population by the caller. This is a pure two-count comparison: scaling and any minimum-count
- * gating are the caller's responsibility. The deviation is checked against the configured warning
- * and failure tolerance bands.
+ * The expected count is the publisher's source-of-truth count, already scaled to the EDPA's
+ * measured population by the caller. This is a pure two-count comparison: scaling and any
+ * minimum-count gating are the caller's responsibility. The deviation is checked against the
+ * configured warning and failure tolerance bands.
  */
 object ToleranceEvaluator {
 
@@ -77,8 +77,7 @@ object ToleranceEvaluator {
     config: ToleranceConfig,
   ): EvaluationResult {
     require(
-      !config.hasFailure() ||
-        config.failure.thresholdFraction >= config.warning.thresholdFraction
+      !config.hasFailure() || config.failure.thresholdFraction >= config.warning.thresholdFraction
     ) {
       "failure band threshold_fraction must be >= warning band threshold_fraction"
     }
@@ -89,7 +88,8 @@ object ToleranceEvaluator {
       "failure band minimum_absolute_deviation must be >= warning band minimum_absolute_deviation"
     }
 
-    // Nothing to compare against when there is no expected count. A skipped row carries no deviation
+    // Nothing to compare against when there is no expected count. A skipped row carries no
+    // deviation
     // or tolerance, so both are null to distinguish "not evaluated" from a real zero.
     if (expectedCount <= 0L) {
       return EvaluationResult(

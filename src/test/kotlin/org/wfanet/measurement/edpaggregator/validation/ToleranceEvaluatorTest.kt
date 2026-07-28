@@ -188,7 +188,11 @@ class ToleranceEvaluatorTest {
   @Test
   fun `evaluate returns SKIPPED when expected count is zero`() {
     val result =
-      ToleranceEvaluator.evaluate(reportedCount = 100_000, expectedCount = 0, config = defaultConfig)
+      ToleranceEvaluator.evaluate(
+        reportedCount = 100_000,
+        expectedCount = 0,
+        config = defaultConfig,
+      )
     assertThat(result.verdict).isEqualTo(ToleranceEvaluator.Verdict.SKIPPED)
     assertThat(result.deviationFraction).isNull()
     assertThat(result.effectiveTolerance).isNull()
