@@ -1283,6 +1283,80 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
   }
 
   @Test
+  fun `listEventGroupActivities paginates across event groups for MeasurementConsumer`() {
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val eventGroupA =
+        createEventGroup(dataProvider, measurementConsumer, "provided-event-group-a")
+      val eventGroupB =
+        createEventGroup(dataProvider, measurementConsumer, "provided-event-group-b")
+
+      val activityA = eventGroupActivity {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalEventGroupId = eventGroupA.externalEventGroupId
+        date = date {
+          year = 2025
+          month = 12
+          day = 1
+        }
+      }
+      val activityB = eventGroupActivity {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalEventGroupId = eventGroupB.externalEventGroupId
+        date = date {
+          year = 2025
+          month = 12
+          day = 5
+        }
+      }
+      for (activity in listOf(activityA, activityB)) {
+        eventGroupActivitiesService.batchUpdateEventGroupActivities(
+          batchUpdateEventGroupActivitiesRequest {
+            externalDataProviderId = activity.externalDataProviderId
+            externalEventGroupId = activity.externalEventGroupId
+            requests += updateEventGroupActivityRequest {
+              allowMissing = true
+              eventGroupActivity = eventGroupActivity {
+                externalEventGroupId = activity.externalEventGroupId
+                date = activity.date
+              }
+            }
+          }
+        )
+      }
+
+      val firstResponse =
+        eventGroupActivitiesService.listEventGroupActivities(
+          listEventGroupActivitiesRequest {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            pageSize = 1
+          }
+        )
+
+      assertThat(firstResponse.eventGroupActivitiesList).hasSize(1)
+      assertThat(firstResponse.hasNextPageToken()).isTrue()
+
+      val secondResponse =
+        eventGroupActivitiesService.listEventGroupActivities(
+          listEventGroupActivitiesRequest {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            pageSize = 1
+            pageToken = firstResponse.nextPageToken
+          }
+        )
+
+      assertThat(secondResponse.eventGroupActivitiesList).hasSize(1)
+      assertThat(secondResponse.eventGroupActivitiesList.map { it.externalEventGroupId })
+        .containsNoneIn(firstResponse.eventGroupActivitiesList.map { it.externalEventGroupId })
+
+      assertThat(firstResponse.eventGroupActivitiesList + secondResponse.eventGroupActivitiesList)
+        .ignoringFields(EventGroupActivity.CREATE_TIME_FIELD_NUMBER)
+        .containsExactly(activityA, activityB)
+    }
+  }
+
+  @Test
   fun `listEventGroupActivities throws NOT_FOUND for non existent EventGroup under MeasurementConsumer`() {
     runBlocking {
       val exception =
