@@ -135,9 +135,9 @@ class RankIndexStore(storageClient: ConditionalOperationStorageClient, kmsClient
    * day), so the entry count is approximately `size / ON_DISK_BYTES_PER_ENTRY` (a safe slight
    * over-estimate given framing/encryption).
    *
-   * TODO(world-federation-of-advertisers/cross-media-measurement#4235): the Phase-2 caller
+   * TODO(world-federation-of-advertisers/cross-media-measurement#4234): the Phase-2 caller
    *   pre-sizes with this and then reads the blob, so each subpool resolves the blob handle (and
-   *   unwraps the DEK) twice. #4235's `openBlob` resolves it once and returns the size and record
+   *   unwraps the DEK) twice. #4234's `openBlob` resolves it once and returns the size and record
    *   flow together, collapsing this to a single unwrap.
    */
   suspend fun blobSize(blobKey: String, encryptedDek: EncryptedDek): Long =
