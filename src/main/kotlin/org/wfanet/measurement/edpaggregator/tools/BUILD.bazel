@@ -49,6 +49,7 @@ kt_jvm_library(
         "VidLabelingHeal.kt",
     ],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:request_ids",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:work_item_ids",
@@ -76,6 +77,10 @@ kt_jvm_library(
     ],
 )
 
+# TODO(world-federation-of-advertisers/cross-media-measurement#4302): wire vid-labeling-heal into
+# k8s/terraform for in-cluster execution and attach VidLabelingHeal_deploy.jar to releases
+# (attach-artifacts-to-release.yml), so operators can run this CLI against the cluster-internal
+# EDPA public API.
 java_binary(
     name = "VidLabelingHeal",
     main_class = "org.wfanet.measurement.edpaggregator.tools.VidLabelingHealKt",

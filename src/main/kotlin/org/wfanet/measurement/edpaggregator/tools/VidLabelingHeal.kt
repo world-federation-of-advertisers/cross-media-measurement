@@ -21,6 +21,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
@@ -168,18 +169,23 @@ class MarkFailedCommand : EdpaApiCommand() {
 /**
  * Re-triggers a `FAILED` `(upload, model line)` after the operator has resolved the root cause.
  *
- * Restarts from the beginning of the model line's path — Phase 0 (`POOL_ASSIGNING`) for a memoized
- * model line, Phase 2 (`LABELING`) for a non-memoized one (detected from whether Phase-0 jobs
- * exist) — by re-publishing that phase's WorkItem(s) and transitioning the model line out of
- * `FAILED`. The pipeline's idempotency gates skip already-succeeded work, so it resumes at the
- * actual failure point.
+ * Restarts from the furthest phase the model line actually reached, auto-detected from which
+ * per-phase job rows exist: `VidLabelingJob`s ⇒ Phase 2 (`LABELING`), else `RankerJob`s ⇒ Phase 1
+ * (`RANKING`), else `PoolAssignmentJob`s ⇒ Phase 0 (`POOL_ASSIGNING`). The operator can override
+ * the detected phase with `--from-phase`. It re-publishes that phase's WorkItem(s) and transitions
+ * the model line out of `FAILED`; the pipeline's idempotency gates skip already-succeeded work, so
+ * it resumes at the actual failure point.
  *
  * Talks to both the EDP Aggregator public API (model line + job rows) and the Secure Computation
  * control plane (WorkItems), so it takes a second target for the control plane.
  */
 @Command(
   name = "retry-failed",
-  description = ["Re-triggers a FAILED (upload, model line) from the start of its path."],
+  description =
+    [
+      "Re-triggers a FAILED (upload, model line) from the furthest phase it reached " +
+        "(auto-detected; override with --from-phase)."
+    ],
   mixinStandardHelpOptions = true,
 )
 class RetryFailedCommand : EdpaApiCommand() {
@@ -239,7 +245,7 @@ class RetryFailedCommand : EdpaApiCommand() {
           )
         val result = retrier.retryFailed(rawImpressionUpload, modelLine, fromPhase)
         if (result.workItemsRepublished == 0) {
-          println(
+          System.err.println(
             "WARN: all target WorkItems for ${result.modelLineName} already exist from a prior " +
               "retry; the model line remains ${result.newState} and no new work was created. " +
               "Investigate the prior retry's WorkItems (workItems/rt-<...>) before re-running."
@@ -364,6 +370,13 @@ class BackfillModelLineCommand : EdpaApiCommand() {
   private lateinit var rawImpressionUploads: List<String>
 
   override fun run() {
+    require(ModelLineKey.fromName(modelLine) != null) {
+      "--model-line must be a valid CMMS ModelLine resource name " +
+        "(modelProviders/.../modelSuites/.../modelLines/...); got '$modelLine'"
+    }
+    require(rawImpressionUploads.all { it.isNotBlank() }) {
+      "--raw-impression-uploads entries must be non-blank RawImpressionUpload resource names."
+    }
     val channel: ManagedChannel = buildEdpaChannel()
     try {
       runBlocking {
@@ -388,6 +401,13 @@ class BackfillModelLineCommand : EdpaApiCommand() {
  * falls back to the last good snapshot when the affected uploads are re-triggered. Confined to the
  * retention window. Prints the cascade and prompts the operator to confirm before mutating
  * anything.
+ *
+ * Confirmation is interactive (type `yes`), by design, not a `--confirm` flag: the printed cascade
+ * often includes uploads the operator did not name explicitly (later uploads that cascade from the
+ * earliest bad one), so making the operator visually review that cascade before typing `yes` is the
+ * whole safety property — a `--confirm` flag baked into a runbook or shell history would bypass it.
+ * It also fails closed: a non-interactive invocation (no TTY / EOF) reads null and declines, so
+ * cron/CI cannot silently mutate (see [isAffirmative]).
  */
 @Command(
   name = "evict-uploads",
@@ -430,6 +450,14 @@ class EvictUploadsCommand : EdpaApiCommand() {
   private lateinit var reason: String
 
   override fun run() {
+    require(ModelLineKey.fromName(modelLine) != null) {
+      "--model-line must be a valid CMMS ModelLine resource name " +
+        "(modelProviders/.../modelSuites/.../modelLines/...); got '$modelLine'"
+    }
+    require(badUploads.all { it.isNotBlank() }) {
+      "--bad-uploads entries must be non-blank RawImpressionUpload resource names."
+    }
+    require(retentionDays > 0) { "--retention-days must be positive; got $retentionDays" }
     val channel: ManagedChannel = buildEdpaChannel()
     try {
       runBlocking {
@@ -441,11 +469,6 @@ class EvictUploadsCommand : EdpaApiCommand() {
           )
         val cutoffTime: Instant = Instant.now().minus(Duration.ofDays(retentionDays.toLong()))
         val plan = evictUploader.plan(modelLine, badUploads, cutoffTime)
-
-        if (plan.cascade.isEmpty()) {
-          println("Nothing to evict: no $modelLine model lines found for the given upload(s).")
-          return@runBlocking
-        }
 
         println(
           "Eviction cascade for $modelLine (${plan.cascade.size} upload(s)): " +
