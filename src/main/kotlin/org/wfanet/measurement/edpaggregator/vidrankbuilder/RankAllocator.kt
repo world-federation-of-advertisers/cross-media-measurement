@@ -371,9 +371,9 @@ class RankAllocator(
     rankedSize = this@RankAllocator.rankedSize
     fingerprints = UnsafeByteOperations.unsafeWrap(fps, 0, count * EventIdDigestBytes.WIDTH)
     val lastSeenBytes = ByteArray(count * LastSeenDayBytes.WIDTH)
-    // Bulk-add ranks in O(count). A per-element  on the packed repeated-field DSL
-    // list is O(count) each (repeated-field grow/copy), making this loop O(count^2) and stalling
-    // large no-overflow rank-index writes; addAll copies once.
+    // Bulk-add ranks in one call. Per-element `this.ranks += ranks[i]` allocated one boxed Int per
+    // entry and paid N virtual dispatches through DslList; addAll skips both, at the cost of the
+    // list-view copy in the subList branch.
     this.ranks += if (count == ranks.size) ranks.asList() else ranks.asList().subList(0, count)
     for (i in 0 until count) {
       LastSeenDayBytes.write(lastSeenBytes, i * LastSeenDayBytes.WIDTH, seen[i])
@@ -382,7 +382,7 @@ class RankAllocator(
   }
 
   companion object {
-    /** ~16M entries (~288 MB of fps+ranks+last_seen) per record: one buffer in memory at a time. */
+    /** ~1M entries (~18 MB of fps+ranks+last_seen) per record: one buffer in memory at a time. */
     const val DEFAULT_CHUNK_ENTRIES = 1 * 1024 * 1024
   }
 }
