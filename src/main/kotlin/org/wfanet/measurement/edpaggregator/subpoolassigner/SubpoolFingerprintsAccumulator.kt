@@ -97,7 +97,10 @@ class SubpoolFingerprintsAccumulator {
     return -1
   }
 
-  /** The subpool offsets seen so far. */
+  /**
+   * The subpool offsets seen so far, as a snapshot. Subpools added after this call are not visible
+   * in the returned set (unlike the previous `ConcurrentHashMap.keys` live-view semantics).
+   */
   fun subpoolIds(): Set<Long> {
     val current = snapshot
     val ids = LinkedHashSet<Long>(current.ids.size)
@@ -156,7 +159,14 @@ class SubpoolFingerprintsAccumulator {
     }
   }
 
-  /** Drops [subpoolId]'s map, freeing its heap once the subpool's blob has been written. */
+  /**
+   * Drops [subpoolId]'s map, freeing its heap once the subpool's blob has been written.
+   *
+   * Callers MUST have quiesced all `add(subpoolId, ...)` before calling this — a concurrent add
+   * would land in an orphaned bucket that no later [subpoolIds] / [streamChunks] would see. Today
+   * enforced by `SubpoolAssigner.dispatchShard` joining all input-processing coroutines (via
+   * `streamBlobs` returning) before the sequential per-subpool write/remove loop.
+   */
   fun remove(subpoolId: Long) {
     synchronized(growthLock) {
       val latest = snapshot

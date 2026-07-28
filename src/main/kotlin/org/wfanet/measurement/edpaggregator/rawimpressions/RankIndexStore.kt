@@ -110,6 +110,9 @@ class RankIndexStore(storageClient: ConditionalOperationStorageClient, kmsClient
             null
           }
         blob.read().collect { record ->
+          // Hashing PLAINTEXT record bytes: the encrypted storage client has already decrypted at
+          // this point. If this ever swaps to a raw storage client, the hash target changes and
+          // expectedChecksum must be recomputed accordingly.
           digest?.update(record.asReadOnlyByteBuffer())
           emit(RankIndexMap.parseFrom(record))
         }
@@ -123,8 +126,8 @@ class RankIndexStore(storageClient: ConditionalOperationStorageClient, kmsClient
       .buffer(recordBufferCapacity)
 
   /**
-   * Opens [blobKey] with a SINGLE `getBlob`, returning its plaintext byte size together with a
-   * [readBlob]-equivalent record [Flow], or `null` when the blob is absent.
+   * Opens [blobKey] with a SINGLE `getBlob`, returning its on-disk (ciphertext) byte size together
+   * with a [readBlob]-equivalent record [Flow], or `null` when the blob is absent.
    *
    * A caller that needs both the size (e.g. to pre-size a map) and the contents would otherwise
    * call [blobSize] and [readBlob], each doing its own `getBlob`. This resolves the blob handle
@@ -149,6 +152,9 @@ class RankIndexStore(storageClient: ConditionalOperationStorageClient, kmsClient
               null
             }
           blob.read().collect { record ->
+            // Hashing PLAINTEXT record bytes: the encrypted storage client has already decrypted at
+            // this point. If this ever swaps to a raw storage client, the hash target changes and
+            // expectedChecksum must be recomputed accordingly.
             digest?.update(record.asReadOnlyByteBuffer())
             emit(RankIndexMap.parseFrom(record))
           }

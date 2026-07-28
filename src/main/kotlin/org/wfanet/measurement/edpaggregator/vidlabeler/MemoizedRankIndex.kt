@@ -289,8 +289,12 @@ private constructor(
           .awaitAll()
           .toMap()
       }
-      // Parallel arrays in the load-time subpool order (loaded is an ordered LinkedHashMap), so
-      // poolOffsets[i] pairs with subpoolMaps[i]. Held as arrays (not a Map) for an allocation-free
+      // Parallel arrays in the load-time subpool order (loaded is an ordered LinkedHashMap from
+      // awaitAll().toMap()), so poolOffsets[i] pairs with subpoolMaps[i]. Both lookup() and
+      // appendRankAssignments() walk poolOffsets.indices in exactly this order; that stability
+      // relies on loaded staying insertion-ordered and would silently change if the map type
+      // changed. The model leaf selects by pool_offset, so any order is still correct — this only
+      // affects reproducible load-time ordering. Held as arrays (not a Map) for an allocation-free
       // per-impression probe.
       val poolOffsets: LongArray = loaded.keys.toLongArray()
       val subpoolMaps: Array<Bytes12IntMap> = loaded.values.map { it.map }.toTypedArray()

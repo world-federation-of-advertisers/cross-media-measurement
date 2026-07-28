@@ -148,7 +148,9 @@ class VidLabelingSink(
     // buffer of produced impressions). Per-writer record order within a batch is preserved — events
     // stream in order into each context's single writer — while order across concurrent batches is
     // non-deterministic, exactly as before (records go to a per-model-line writer, so swapping the
-    // loop nesting cannot change any one blob's contents).
+    // loop nesting cannot change any one blob's contents). Each writer's blob is independently
+    // ordered by event; there is NO cross-writer ordering guarantee (before or after this change),
+    // so nothing may rely on how the writers' outputs interleave.
     for (context in modelLineContexts) {
       // Attributes depend only on (modelLine, reason), fixed for this context: build them once.
       val labelAttrs = labelAttributes(context.modelLine)
