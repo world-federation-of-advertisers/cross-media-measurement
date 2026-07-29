@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.benchmarking
 
+import com.sun.management.OperatingSystemMXBean
 import java.io.File
 import java.lang.management.ManagementFactory
 import java.util.logging.Logger
@@ -36,6 +37,14 @@ object MemorySampler {
   private val logger = Logger.getLogger(MemorySampler::class.java.name)
   private val memoryBean = ManagementFactory.getMemoryMXBean()
   private val gcBeans = ManagementFactory.getGarbageCollectorMXBeans()
+  private val osBean: OperatingSystemMXBean? =
+    try {
+      ManagementFactory.getPlatformMXBean(OperatingSystemMXBean::class.java)
+    } catch (e: Throwable) {
+      null
+    }
+  private val threadBean = ManagementFactory.getThreadMXBean()
+  private val cores: Int = Runtime.getRuntime().availableProcessors()
   private val instanceId: String =
     (System.getenv("HOSTNAME") ?: System.getenv("GCE_INSTANCE"))?.takeIf { it.isNotEmpty() }
       ?: "unknown"
@@ -83,12 +92,21 @@ object MemorySampler {
     val nonHeap = memoryBean.nonHeapMemoryUsage
     val rssMb = readRssBytes() / MB
     val gcMs = gcBeans.sumOf { it.collectionTime }
+    // CPU utilization keyed by the current step: procCpuPct is THIS JVM's share, sysCpuPct is the
+    // whole VM. Both 0..100 (or -1 before the first reading is available). The gap between them and
+    // 100 is the idle headroom this benchmark is trying to close.
+    val procCpuPct = pct(osBean?.processCpuLoad ?: -1.0)
+    val sysCpuPct = pct(osBean?.cpuLoad ?: -1.0)
     logger.info(
       "BENCHMEM component=$component instance=$instanceId step=$step " +
         "heapUsedMb=${heap.used / MB} heapCommittedMb=${heap.committed / MB} " +
-        "heapMaxMb=${heap.max / MB} nonHeapMb=${nonHeap.used / MB} rssMb=$rssMb gcTimeMs=$gcMs"
+        "heapMaxMb=${heap.max / MB} nonHeapMb=${nonHeap.used / MB} rssMb=$rssMb gcTimeMs=$gcMs " +
+        "procCpuPct=$procCpuPct sysCpuPct=$sysCpuPct cores=$cores threads=${threadBean.threadCount}"
     )
   }
+
+  /** Fraction in `[0, 1]` (or negative when unavailable) -> whole percent, or -1. */
+  private fun pct(load: Double): Int = if (load < 0) -1 else (load * 100).toInt()
 
   private fun readRssBytes(): Long =
     try {

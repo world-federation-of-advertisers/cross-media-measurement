@@ -147,6 +147,14 @@ class RawImpressionsWriter(
     shards: Sequence<EntityKeyedLabeledEventDateShard<T>>,
     blobKeyPrefix: String,
     eventColumns: (T) -> Map<String, ParquetValue>,
+    // BENCHMARK hook: derives each impression's event_id from (eventDate, event, per-shard index).
+    // Default reproduces the historical "<blobKeyId>-<eventDate>-<index>" scheme, so the cloud test
+    // and any other caller are byte-for-byte unaffected. The memoized stress benchmark overrides it
+    // to make the fingerprint (digest(event_id)) reproducible across days for a controlled overlap.
+    eventIdFor: (eventDate: String, event: LabeledEvent<T>, index: Int) -> String =
+      { date, _, index ->
+        "$blobKeyId-$date-$index"
+      },
   ): List<String> {
     val writtenBlobKeys = mutableListOf<String>()
     for (shard in shards) {
@@ -158,7 +166,7 @@ class RawImpressionsWriter(
             val entityColumns: Map<String, ParquetValue> = entityKeyColumns(group.entityKeys)
             group.labeledEvents.map { event ->
               buildRow(
-                eventId = "$blobKeyId-$eventDate-${index++}",
+                eventId = eventIdFor(eventDate, event, index++),
                 event,
                 entityColumns,
                 eventColumns,
