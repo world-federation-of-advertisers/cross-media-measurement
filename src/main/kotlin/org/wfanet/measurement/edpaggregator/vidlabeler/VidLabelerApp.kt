@@ -138,8 +138,8 @@ class VidLabelerApp(
   // instead of rebuilding the (tens-of-GB) structure. Defaults to a FRESH instance per constructor
   // call, which gives tests isolated caches (no cross-test pollution). For production the runner
   // passes an explicit process-scoped instance so the index is reused across WorkItems — DO NOT
-  // rely
-  // on the default to get that reuse; any second production path must pass the shared instance.
+  // rely on the default to get that reuse; any second production path must pass the
+  // shared instance.
   private val memoizedRankIndexCache: MemoizedRankIndexCache = MemoizedRankIndexCache(),
   private val metrics: VidLabelerAppMetrics = VidLabelerAppMetrics(),
 ) :
@@ -331,15 +331,12 @@ class VidLabelerApp(
         kmsClient,
       )
     // Resolve the current snapshot set every WorkItem (cheap listing); reuse the process-wide
-    // cached
-    // index when the exact same blobs would load, else build it (evicting the old one first). New
-    // Phase-1 output changes the chosen blob URIs -> a new cache key -> a rebuild.
+    // cached index when the exact same blobs would load, else build it (evicting the old one
+    // first). New Phase-1 output changes the chosen blob URIs -> a new cache key -> a rebuild.
     // TODO: resolveLatestBlobs runs a metadata-list RPC on every WorkItem, even on a cache hit, so
-    // a
-    // metadata-service roll (UNAVAILABLE / DEADLINE_EXCEEDED) fails every WorkItem's fast path
-    // until
-    // it recovers. If it becomes a hotspot, cache the result with a short TTL to share one call
-    // across a burst of WorkItems, or retry-on-transient before falling through to a rebuild.
+    // a metadata-service roll (UNAVAILABLE / DEADLINE_EXCEEDED) fails every WorkItem's fast path
+    // until it recovers. If it becomes a hotspot, cache the result with a short TTL to share one
+    // call across a burst of WorkItems, or retry-on-transient before falling through to a rebuild.
     val resolvedBlobs =
       MemoizedRankIndex.resolveLatestBlobs(rankIndexBlobsStub, dataProvider, modelLine)
     val rankIndex =
