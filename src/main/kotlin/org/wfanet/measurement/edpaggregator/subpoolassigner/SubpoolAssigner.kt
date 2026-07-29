@@ -168,13 +168,15 @@ class SubpoolAssigner(
     //   row-first DEK, or key-on-row) is an API change; kept unconditional for now.
     val dek: EncryptedDek = store.generateDek(kekUri)
     val subpoolIds = accumulator.subpoolIds().toList()
-    // Write the per-subpool blobs with bounded concurrency (each subpool is a distinct blob key and
-    // a distinct accumulator bucket, so the writes are independent). The shared encrypted client is
-    // thread-safe for concurrent writeBlob, and streamChunks/remove operate on disjoint buckets, so
-    // this is safe. This runs after the read/label stream has fully drained, so it uses a separate,
-    // ephemeral scope — never the row-processing worker pool. Each subpool's map is freed as soon
-    // as
-    // its blob is durable, so peak memory is unchanged (all maps are already resident here).
+    // Write the per-subpool blobs with bounded concurrency (up to SUBPOOL_UPLOAD_CONCURRENCY at
+    // once). subpoolIds is deduplicated, so each async block owns a DISTINCT subpool id: the
+    // concurrent accumulator.remove(subpoolId) calls therefore only ever run across DIFFERENT
+    // subpools — same-subpool remove is impossible here, which is exactly the callsite invariant
+    // that makes the snapshot-based accumulator safe (see SubpoolFingerprintsAccumulator.remove).
+    // The shared encrypted client is thread-safe for concurrent writeBlob, and streamChunks/remove
+    // touch disjoint buckets. This runs after the read/label stream has fully drained, so it uses a
+    // separate, ephemeral scope — never the row-processing worker pool. Each subpool's map is freed
+    // as soon as its blob is durable, so peak memory is unchanged (all maps are already resident).
     coroutineScope {
       val uploadSemaphore = Semaphore(SUBPOOL_UPLOAD_CONCURRENCY)
       subpoolIds
@@ -592,13 +594,25 @@ class SubpoolAssigner(
     /**
      * Max total in-flight shard reads across all concurrent subpool merges, bounding merge memory.
      * Tunable via the `MERGE_READ_CONCURRENCY` env var; default [DEFAULT_MERGE_READ_CONCURRENCY].
+     * Read once at class-load, so changing the env var inside a running container has no effect.
      */
     private val MERGE_READ_CONCURRENCY =
       (System.getenv("MERGE_READ_CONCURRENCY")?.toIntOrNull() ?: DEFAULT_MERGE_READ_CONCURRENCY)
         .coerceAtLeast(1)
 
-    /** Max concurrent per-subpool blob uploads for one shard's flush. */
-    private const val SUBPOOL_UPLOAD_CONCURRENCY = 8
+    /** Default max concurrent per-subpool blob uploads for one shard's flush. */
+    private const val DEFAULT_SUBPOOL_UPLOAD_CONCURRENCY = 8
+
+    /**
+     * Max concurrent per-subpool blob uploads for one shard's flush. Tunable via the
+     * `SUBPOOL_UPLOAD_CONCURRENCY` env var; default [DEFAULT_SUBPOOL_UPLOAD_CONCURRENCY]. Read once
+     * at class-load, so changing the env var inside a running container has no effect (symmetric
+     * with [MERGE_READ_CONCURRENCY]).
+     */
+    private val SUBPOOL_UPLOAD_CONCURRENCY =
+      (System.getenv("SUBPOOL_UPLOAD_CONCURRENCY")?.toIntOrNull()
+          ?: DEFAULT_SUBPOOL_UPLOAD_CONCURRENCY)
+        .coerceAtLeast(1)
 
     /**
      * Parent states that mean the last-shard-out fan-out already completed (state flip is last).

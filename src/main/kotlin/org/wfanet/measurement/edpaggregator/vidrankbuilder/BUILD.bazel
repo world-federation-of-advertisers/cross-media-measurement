@@ -24,9 +24,23 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "base_rank_allocator",
+    srcs = ["BaseRankAllocator.kt"],
+    deps = [
+        ":event_id_digest_bytes",
+        ":last_seen_day_bytes",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/utils:bytes12_int_map",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_map_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
     name = "rank_allocator",
     srcs = ["RankAllocator.kt"],
     deps = [
+        ":base_rank_allocator",
         ":event_id_digest_bytes",
         ":last_seen_day_bytes",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/utils:bytes12_int_map",
@@ -40,6 +54,7 @@ kt_jvm_library(
     name = "concurrent_rank_allocator",
     srcs = ["ConcurrentRankAllocator.kt"],
     deps = [
+        ":base_rank_allocator",
         ":event_id_digest_bytes",
         ":last_seen_day_bytes",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/utils:bytes12_int_map",

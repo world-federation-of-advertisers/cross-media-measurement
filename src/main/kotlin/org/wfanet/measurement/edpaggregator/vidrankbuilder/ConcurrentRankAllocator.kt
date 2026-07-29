@@ -16,18 +16,15 @@
 
 package org.wfanet.measurement.edpaggregator.vidrankbuilder
 
-import com.google.protobuf.UnsafeByteOperations
 import java.util.BitSet
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexMap
-import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
 
 /**
@@ -90,14 +87,14 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
  *   `BitSet` auto-grows and its contents/`nextClearBit` results do not depend on its initial size.
  */
 class ConcurrentRankAllocator(
-  val poolOffset: Long,
-  val rankedSize: Int,
+  poolOffset: Long,
+  rankedSize: Int,
   private val eventDay: Int,
   private val stripes: Int = DEFAULT_STRIPES,
   todayStripeCapacity: Long = Bytes12IntMap.DEFAULT_INITIAL_CAPACITY,
   cumulativeStripeCapacity: Long = todayStripeCapacity,
   private val estimatedTotalRanks: Int = rankedSize,
-) {
+) : BaseRankAllocator(poolOffset, rankedSize) {
   init {
     require(rankedSize >= 0) { "rankedSize must be >= 0, got $rankedSize" }
     require(eventDay in 0..LastSeenDayBytes.MAX_DAY) {
@@ -212,6 +209,13 @@ class ConcurrentRankAllocator(
    * recency to [eventDay]. Out-of-range ranks are dropped (matching [RankAllocator.loadEntry]).
    */
   suspend fun loadFrom(records: Flow<RankIndexMap>) {
+    // Fail fast on misuse: loadFrom derives the shared rank pool from ONLY the loaded snapshot, so
+    // it must run once, before any rank is allocated (assign) and before any earlier load. It may
+    // run after addToday (the documented order) — addToday touches todayFps, not the cursor or the
+    // cumulative maps, so this guard still holds.
+    check(newRankCursor.get() == 0 && cumulative.all { it.size == 0L }) {
+      "loadFrom must run once, before assign and before any prior load"
+    }
     // [BitSet] auto-grows and its results are independent of the initial size, so this is a pure
     // capacity hint; [estimatedTotalRanks] avoids over-allocating at a huge [rankedSize].
     val taken = BitSet(estimatedTotalRanks.coerceAtLeast(1))
@@ -257,7 +261,11 @@ class ConcurrentRankAllocator(
   private fun allocateRank(): Int {
     val reused = reclaimed.poll()
     if (reused != null) return reused
-    val next = newRankCursor.getAndIncrement()
+    // Clamp at [rankedSize]: getAndUpdate returns the pre-update value (identical to
+    // getAndIncrement below the cap) but stops advancing once exhausted, so a heavily-overflowing
+    // subpool (billions of attempts) can never wrap the cursor past Int.MAX_VALUE into a negative
+    // rank.
+    val next = newRankCursor.getAndUpdate { if (it >= rankedSize) it else it + 1 }
     return if (next >= rankedSize) NOT_ALLOCATED else next
   }
 
@@ -370,68 +378,6 @@ class ConcurrentRankAllocator(
    */
   fun streamDayOnlyChunks(chunkEntries: Int = DEFAULT_CHUNK_ENTRIES): Flow<RankIndexMap> =
     streamChunks(dayOnly, chunkEntries) { eventDay }
-
-  private fun streamChunks(
-    maps: Array<Bytes12IntMap>,
-    chunkEntries: Int,
-    lastSeenOf: (rank: Int) -> Int,
-  ): Flow<RankIndexMap> = flow {
-    var total = 0L
-    for (map in maps) total += map.size
-    if (total == 0L) return@flow
-    val firstChunk = minOf(chunkEntries.toLong(), total).toInt()
-    var fps = ByteArray(firstChunk * EventIdDigestBytes.WIDTH)
-    var ranks = IntArray(firstChunk)
-    var seen = IntArray(firstChunk)
-    var n = 0
-    var produced = 0L
-    // The buffers are sized to exactly what will fill them (initial = min(chunk, total); each
-    // resize = min(chunk, remaining)), so the final chunk fills exactly and no trailing partial
-    // emit is needed. `n` carries across stripe maps, so a chunk boundary may fall mid-map.
-    for (map in maps) {
-      // forEach is inline, so the suspend emit() is legal inside the flow block.
-      map.forEach { keyHi, keyLo, rank ->
-        val base = n * EventIdDigestBytes.WIDTH
-        EventIdDigestBytes.writeHi(fps, base, keyHi)
-        EventIdDigestBytes.writeLo(fps, base + 8, keyLo)
-        ranks[n] = rank
-        seen[n] = lastSeenOf(rank)
-        n++
-        produced++
-        if (n == ranks.size) {
-          emit(buildRecord(fps, ranks, seen, n))
-          val remaining = total - produced
-          if (remaining > 0) {
-            val next = minOf(chunkEntries.toLong(), remaining).toInt()
-            fps = ByteArray(next * EventIdDigestBytes.WIDTH)
-            ranks = IntArray(next)
-            seen = IntArray(next)
-            n = 0
-          }
-        }
-      }
-    }
-  }
-
-  private fun buildRecord(
-    fps: ByteArray,
-    ranks: IntArray,
-    seen: IntArray,
-    count: Int,
-  ): RankIndexMap = rankIndexMap {
-    poolOffset = this@ConcurrentRankAllocator.poolOffset
-    rankedSize = this@ConcurrentRankAllocator.rankedSize
-    fingerprints = UnsafeByteOperations.unsafeWrap(fps, 0, count * EventIdDigestBytes.WIDTH)
-    val lastSeenBytes = ByteArray(count * LastSeenDayBytes.WIDTH)
-    // Bulk-add ranks in O(count). A per-element `+=` on the packed repeated-field DSL
-    // list is O(count) each (repeated-field grow/copy), making this loop O(count^2) and stalling
-    // large no-overflow rank-index writes; addAll copies once.
-    this.ranks += if (count == ranks.size) ranks.asList() else ranks.asList().subList(0, count)
-    for (i in 0 until count) {
-      LastSeenDayBytes.write(lastSeenBytes, i * LastSeenDayBytes.WIDTH, seen[i])
-    }
-    lastSeenDays = UnsafeByteOperations.unsafeWrap(lastSeenBytes)
-  }
 
   companion object {
     /** Returned by [allocateRank] when the whole ranked range is exhausted (overflow). */

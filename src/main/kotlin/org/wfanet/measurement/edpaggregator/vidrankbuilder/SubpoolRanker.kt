@@ -312,6 +312,9 @@ class SubpoolRanker(
             try {
               val fps = record.fingerprints
               val count = fps.size() / EventIdDigestBytes.WIDTH
+              // Two-pass fill is worth it at ~1M fps/record (DEFAULT_CHUNK_ENTRIES): exact-sized
+              // primitive buffers beat an ArrayList grow. If the chunk size ever drops below ~1K
+              // fps, revisit — a single-pass per-fingerprint addToday may become cheaper.
               // Pass 1: count this record's fingerprints per stripe (same routing as addToday).
               val counts = IntArray(stripes)
               var off = 0

@@ -17,8 +17,10 @@
 package org.wfanet.measurement.edpaggregator.vidrankbuilder
 
 import com.google.common.truth.Truth.assertThat
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -305,6 +307,94 @@ class ConcurrentRankAllocatorTest {
         assertThat(secondRanks[fp]).isEqualTo(firstRanks[fp])
       }
       assertThat(secondRanks.values.toSet()).isEqualTo((0 until 14).toSet())
+    }
+
+  @Test
+  fun `streamCumulativeChunks emits multiple records across stripes at a small chunk size`() =
+    runBlocking<Unit> {
+      // A small chunkEntries forces multiple records; with several stripes the shared chunker must
+      // carry its fill counter ACROSS stripe maps (a chunk boundary may fall mid-stripe). Exercises
+      // the multi-map path of the extracted BaseRankAllocator.streamChunks (the single-map path is
+      // covered by RankAllocatorTest).
+      val allocator =
+        ConcurrentRankAllocator(POOL, rankedSize = 100, eventDay = EVENT_DAY, stripes = 4)
+      val fps = distinctFps(10)
+      fps.forEach { (hi, lo) -> allocator.addToday(hi, lo) }
+      allocator.assign(Dispatchers.Default)
+
+      val records = allocator.streamCumulativeChunks(chunkEntries = 3).toList()
+      // 10 entries, chunk 3 -> record sizes 3, 3, 3, 1 (each buffer sized to min(chunk,
+      // remaining)).
+      assertThat(records.map { it.ranksCount }).containsExactly(3, 3, 3, 1).inOrder()
+      assertThat(records.all { it.poolOffset == POOL && it.rankedSize == 100 }).isTrue()
+      // No entry is lost or duplicated across the record boundaries.
+      val decoded = decode(records)
+      assertThat(decoded.keys).containsExactlyElementsIn(fps)
+      assertThat(decoded.values.toSet()).isEqualTo((0 until 10).toSet())
+    }
+
+  @Test
+  fun `heavy overflow never yields a negative rank`() =
+    runBlocking<Unit> {
+      // rankedSize is tiny relative to the fingerprint count, so most assigns overflow. The cursor
+      // is clamped at rankedSize (getAndUpdate stops advancing once exhausted), so a heavily-
+      // overflowing subpool can never wrap the Int cursor into a negative rank.
+      val allocator =
+        ConcurrentRankAllocator(POOL, rankedSize = 4, eventDay = EVENT_DAY, stripes = 8)
+      distinctFps(200).forEach { (hi, lo) -> allocator.addToday(hi, lo) }
+
+      allocator.assign(Dispatchers.Default)
+
+      assertThat(allocator.allocated).isEqualTo(4)
+      assertThat(allocator.overflow).isEqualTo(196)
+      val ranks = decode(allocator.streamCumulativeChunks().toList()).values
+      assertThat(ranks.toSet()).isEqualTo((0 until 4).toSet())
+      assertThat(ranks.all { it >= 0 }).isTrue()
+    }
+
+  @Test
+  fun `loadFrom fails fast when called twice`() =
+    runBlocking<Unit> {
+      val first = ConcurrentRankAllocator(POOL, rankedSize = 100, eventDay = EVENT_DAY, stripes = 4)
+      (1L..3L).forEach { first.addToday(it, 0) }
+      first.assign(Dispatchers.Default)
+      val snapshot = first.streamCumulativeChunks().toList()
+
+      val second =
+        ConcurrentRankAllocator(POOL, rankedSize = 100, eventDay = EVENT_DAY + 1, stripes = 4)
+      second.loadFrom(snapshot.asFlow())
+      assertFailsWith<IllegalStateException> { second.loadFrom(snapshot.asFlow()) }
+    }
+
+  @Test
+  fun `loadFrom fails fast once ranks have been allocated`() =
+    runBlocking<Unit> {
+      val allocator =
+        ConcurrentRankAllocator(POOL, rankedSize = 100, eventDay = EVENT_DAY, stripes = 4)
+      allocator.addToday(1L, 0)
+      allocator.assign(Dispatchers.Default) // advances the rank cursor
+      assertFailsWith<IllegalStateException> { allocator.loadFrom(emptyFlow()) }
+    }
+
+  @Test
+  fun `loadFrom is allowed after addToday (the documented lifecycle order)`() =
+    runBlocking<Unit> {
+      val first = ConcurrentRankAllocator(POOL, rankedSize = 100, eventDay = EVENT_DAY, stripes = 4)
+      (1L..3L).forEach { first.addToday(it, 0) }
+      first.assign(Dispatchers.Default)
+      val snapshot = first.streamCumulativeChunks().toList()
+
+      // addToday touches only todayFps (not the cursor or cumulative), so loadFrom after it is the
+      // documented order and must NOT trip the guard.
+      val second =
+        ConcurrentRankAllocator(POOL, rankedSize = 100, eventDay = EVENT_DAY + 1, stripes = 4)
+      second.addToday(10L, 0)
+      second.loadFrom(snapshot.asFlow())
+      second.freeAgedRanks(cutoffEpochDay = 0, Dispatchers.Default)
+      second.assign(Dispatchers.Default)
+
+      assertThat(second.allocated).isEqualTo(1) // fp 10 is new
+      assertThat(second.cumulativeSize).isEqualTo(4L) // 3 loaded + 1 new
     }
 
   private companion object {
