@@ -499,8 +499,7 @@ class MemoizedVidLabelingSink(
   ): LabelerInput {
     // Append the impression's pre-computed rank(s) (keyed by its EventIdDigest) directly onto the
     // LabelerInput builder so the model's RankedPopulationNode leaf derives a collision-free VID
-    // via
-    // Feistel. All matching per-subpool ranks are attached (a fingerprint can route to several
+    // via Feistel. All matching per-subpool ranks are attached (a fingerprint can route to several
     // subpools across impressions); the leaf selects the one matching its own pool_offset. No match
     // (overflow / unseen) leaves the input untouched and the leaf falls back to hashing; a model
     // line with no rank index falls back too.
