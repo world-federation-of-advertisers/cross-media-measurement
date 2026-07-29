@@ -28,7 +28,12 @@ class DashboardViewIsolationLocalTest {
     private val PLATFORM_ONLY_COLUMNS = setOf("CoveragePercent", "TotalMcs", "EdpCount")
 
     private val SQL_FILES =
-      listOf("mc_details.sql", "report_detail.sql", "requisition_overview.sql")
+      listOf(
+        "mc_details.sql",
+        "report_detail.sql",
+        "requisition_overview.sql",
+        "unlinked_accounts.sql",
+      )
   }
 
   private fun readSqlFile(fileName: String): String {
