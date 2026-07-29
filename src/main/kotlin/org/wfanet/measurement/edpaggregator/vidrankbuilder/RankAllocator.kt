@@ -91,8 +91,7 @@ class RankAllocator(
   private val taken = BitSet(estimatedTotalRanks.coerceAtLeast(1))
   // Sized to [rankedSize] (not the estimated rank count): the MAX rank value loaded from a prior
   // snapshot can exceed the live-entry count (retention frees low ranks while a high rank
-  // survives),
-  // so a shorter array would index out of bounds. Kept fixed-size for safety.
+  // survives), so a shorter array would index out of bounds. Kept fixed-size for safety.
   private val lastSeen = ShortArray(rankedSize)
   private var cursor = 0
 

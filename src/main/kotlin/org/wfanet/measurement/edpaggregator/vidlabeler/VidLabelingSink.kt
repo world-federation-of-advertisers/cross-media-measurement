@@ -178,13 +178,12 @@ class VidLabelingSink(
           }
 
           // Memoized path: append the impression's pre-computed rank(s) (keyed by its
-          // EventIdDigest)
-          // directly onto the LabelerInput builder so the model's RankedPopulationNode leaf derives
-          // a collision-free VID via Feistel. All matching per-subpool ranks are attached (a
-          // fingerprint can route to several subpools across impressions); the leaf selects the one
-          // matching its own pool_offset. No match (overflow / unseen) leaves the input untouched
-          // and the leaf falls back to hashing. The non-memoized path (rankIndex == null) never
-          // probes and never reads the digest.
+          // EventIdDigest) directly onto the LabelerInput builder so the model's
+          // RankedPopulationNode leaf derives a collision-free VID via Feistel. All matching
+          // per-subpool ranks are attached (a fingerprint can route to several subpools across
+          // impressions); the leaf selects the one matching its own pool_offset. No match
+          // (overflow / unseen) leaves the input untouched and the leaf falls back to hashing. The
+          // non-memoized path (rankIndex == null) never probes and never reads the digest.
           // TODO(world-federation-of-advertisers/cross-media-measurement#4073): Once
           // virtual-people-common#75 (memoized_rank_fallback signal) and
           // virtual-people-core-serving#89 (RankedPopulationNode hash fallback) are merged, count
