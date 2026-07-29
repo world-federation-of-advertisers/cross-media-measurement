@@ -37,6 +37,12 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
    */
   private lateinit var aggregatedFrequencyVector: IntArray
 
+  /**
+   * Number of contributions aggregated so far, after input suppression. Folded into the noise seed
+   * so adding or removing a contribution reseeds the noise even when the aggregate is unchanged.
+   */
+  private var contributionCount: Int = 0
+
   private val maxFrequency: Int
   private val vidSamplingIntervalWidth: Double
   private val resultMinimumThresholds: ResultMinimumThresholds?
@@ -91,6 +97,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
       }
       currentVector[i] = (currentVector[i] + frequency).coerceAtMost(maxFrequency)
     }
+    contributionCount++
   }
 
   /**
@@ -117,7 +124,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
           sampledReachAndFrequency =
             applyDeterministicNoise(
               sampledReachAndFrequency,
-              DeterministicTruncatedLaplaceNoise.fingerprint(frequencyVector),
+              DeterministicTruncatedLaplaceNoise.fingerprint(frequencyVector, contributionCount),
               reachDpParams = params.dpParams,
               frequencyDpParams = params.dpParams,
               truncationBound = params.truncationBound,
@@ -138,7 +145,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
           sampledReachAndFrequency =
             applyDeterministicNoise(
               sampledReachAndFrequency,
-              DeterministicTruncatedLaplaceNoise.fingerprint(frequencyVector),
+              DeterministicTruncatedLaplaceNoise.fingerprint(frequencyVector, contributionCount),
               reachDpParams = params.reachDpParams,
               frequencyDpParams = params.frequencyDpParams,
               truncationBound = params.truncationBound,

@@ -25,20 +25,35 @@ class DeterministicTruncatedLaplaceNoiseTest {
   @Test
   fun `fingerprint is deterministic`() {
     val vector = intArrayOf(0, 1, 2, 3, 0, 5)
-    assertThat(DeterministicTruncatedLaplaceNoise.fingerprint(vector))
-      .isEqualTo(DeterministicTruncatedLaplaceNoise.fingerprint(vector.copyOf()))
+    assertThat(DeterministicTruncatedLaplaceNoise.fingerprint(vector, CONTRIBUTION_COUNT))
+      .isEqualTo(
+        DeterministicTruncatedLaplaceNoise.fingerprint(vector.copyOf(), CONTRIBUTION_COUNT)
+      )
   }
 
   @Test
   fun `fingerprint changes with vector contents`() {
-    assertThat(DeterministicTruncatedLaplaceNoise.fingerprint(intArrayOf(1, 2, 3)))
-      .isNotEqualTo(DeterministicTruncatedLaplaceNoise.fingerprint(intArrayOf(1, 2, 4)))
+    assertThat(
+        DeterministicTruncatedLaplaceNoise.fingerprint(intArrayOf(1, 2, 3), CONTRIBUTION_COUNT)
+      )
+      .isNotEqualTo(
+        DeterministicTruncatedLaplaceNoise.fingerprint(intArrayOf(1, 2, 4), CONTRIBUTION_COUNT)
+      )
+  }
+
+  @Test
+  fun `fingerprint changes with contribution count`() {
+    // Same aggregate vector, different contribution count: reseeds. This is what closes the
+    // fully-contained-contribution differencing case, where the aggregate is byte-identical.
+    val vector = intArrayOf(0, 1, 2, 3, 0, 5)
+    assertThat(DeterministicTruncatedLaplaceNoise.fingerprint(vector, 2))
+      .isNotEqualTo(DeterministicTruncatedLaplaceNoise.fingerprint(vector, 3))
   }
 
   @Test
   fun `noise is deterministic in the fingerprint and params`() {
     val sampled = SampledReachAndFrequency(15, longArrayOf(10, 4, 1))
-    val fingerprint = DeterministicTruncatedLaplaceNoise.fingerprint(COMBINED)
+    val fingerprint = DeterministicTruncatedLaplaceNoise.fingerprint(COMBINED, CONTRIBUTION_COUNT)
 
     val first =
       DeterministicTruncatedLaplaceNoise.noise(
@@ -68,7 +83,7 @@ class DeterministicTruncatedLaplaceNoiseTest {
     val rawHistogram = longArrayOf(10, 4, 1)
     val sampledReach = 15L
     val sampled = SampledReachAndFrequency(sampledReach, rawHistogram)
-    val fingerprint = DeterministicTruncatedLaplaceNoise.fingerprint(COMBINED)
+    val fingerprint = DeterministicTruncatedLaplaceNoise.fingerprint(COMBINED, CONTRIBUTION_COUNT)
 
     val result =
       DeterministicTruncatedLaplaceNoise.noise(
@@ -101,7 +116,7 @@ class DeterministicTruncatedLaplaceNoiseTest {
   fun `noise clamps counts to non-negative`() {
     // Zero counts with noise that can be negative must never produce a negative result.
     val sampled = SampledReachAndFrequency(0, longArrayOf(0, 0, 0))
-    val fingerprint = DeterministicTruncatedLaplaceNoise.fingerprint(COMBINED)
+    val fingerprint = DeterministicTruncatedLaplaceNoise.fingerprint(COMBINED, CONTRIBUTION_COUNT)
 
     val result =
       DeterministicTruncatedLaplaceNoise.noise(
@@ -124,6 +139,7 @@ class DeterministicTruncatedLaplaceNoiseTest {
     private const val FREQUENCY_EPSILON = 2.0
     private const val SENSITIVITY = 1.0
     private const val BOUND = 8
+    private const val CONTRIBUTION_COUNT = 3
     private val COMBINED = intArrayOf(0, 1, 2, 1, 3, 0, 2)
 
     private fun label(value: Int): ByteArray =

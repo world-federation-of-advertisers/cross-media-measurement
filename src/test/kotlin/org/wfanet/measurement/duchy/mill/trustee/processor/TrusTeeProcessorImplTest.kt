@@ -529,24 +529,27 @@ class TrusTeeProcessorImplTest {
   }
 
   @Test
-  fun `computeResult with deterministic noise depends only on the combined vector not the EDP split`() {
-    // The noise is seeded from the combined frequency vector, so the same aggregate reached two
-    // different ways (one vector vs two summing to it) yields identical noise and results.
-    val single =
-      TrusTeeProcessorImpl(DETERMINISTIC_R_F_PARAMS).apply {
-        addFrequencyVector(byteArrayOf(1, 3, 0, 2))
-      }
-    val split =
+  fun `computeResult with deterministic noise is independent of contribution order`() {
+    // The noise is seeded from the combined vector and the contribution count, both independent of
+    // the order contributions arrive in, so the same contributions in a different order yield
+    // identical results. (The count is in the seed, so a different number of contributions does
+    // reseed; that is covered by DeterministicTruncatedLaplaceNoiseTest.)
+    val forward =
       TrusTeeProcessorImpl(DETERMINISTIC_R_F_PARAMS).apply {
         addFrequencyVector(byteArrayOf(1, 1, 0, 2))
-        addFrequencyVector(byteArrayOf(0, 2, 0, 0)) // sums to [1, 3, 0, 2]
+        addFrequencyVector(byteArrayOf(0, 2, 0, 0))
+      }
+    val reversed =
+      TrusTeeProcessorImpl(DETERMINISTIC_R_F_PARAMS).apply {
+        addFrequencyVector(byteArrayOf(0, 2, 0, 0))
+        addFrequencyVector(byteArrayOf(1, 1, 0, 2))
       }
 
-    val singleResult = single.computeResult() as ReachAndFrequencyResult
-    val splitResult = split.computeResult() as ReachAndFrequencyResult
+    val forwardResult = forward.computeResult() as ReachAndFrequencyResult
+    val reversedResult = reversed.computeResult() as ReachAndFrequencyResult
 
-    assertThat(singleResult.reach).isEqualTo(splitResult.reach)
-    assertThat(singleResult.frequency).isEqualTo(splitResult.frequency)
+    assertThat(forwardResult.reach).isEqualTo(reversedResult.reach)
+    assertThat(forwardResult.frequency).isEqualTo(reversedResult.frequency)
   }
 
   @Test

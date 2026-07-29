@@ -30,13 +30,18 @@ import java.security.MessageDigest
  */
 object DeterministicTruncatedLaplaceNoise {
   /**
-   * Fingerprint of the combined frequency vector, used as the noise seed.
+   * Fingerprint of the combined frequency vector and the number of contributions aggregated into
+   * it, used as the noise seed.
    *
-   * SHA-256 binds the seed to the vector's contents, so the noise cannot change unless the data
-   * changes.
+   * SHA-256 binds the seed to the vector's contents and [contributionCount], so the noise cannot
+   * change unless the data changes, and adding or removing a contribution reseeds every draw even
+   * when the capped aggregate is byte-identical (a fully-contained contribution).
+   * [contributionCount] is the count after input suppression, so a dropped sub-threshold
+   * contribution does not change it.
    */
-  fun fingerprint(combinedFrequencyVector: IntArray): ByteArray {
-    val buffer = ByteBuffer.allocate(combinedFrequencyVector.size * Int.SIZE_BYTES)
+  fun fingerprint(combinedFrequencyVector: IntArray, contributionCount: Int): ByteArray {
+    val buffer = ByteBuffer.allocate((combinedFrequencyVector.size + 1) * Int.SIZE_BYTES)
+    buffer.putInt(contributionCount)
     buffer.asIntBuffer().put(combinedFrequencyVector)
     return MessageDigest.getInstance("SHA-256").digest(buffer.array())
   }
