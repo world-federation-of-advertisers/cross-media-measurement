@@ -471,8 +471,8 @@ fun buildCelExpression(
  *
  * A multi-term disjunction is parenthesized twice over: each term is wrapped, and the group as a
  * whole is wrapped. Both are required rather than cosmetic. CEL binds `&&` tighter than `||`, and
- * callers combine sibling filters (and, on the IQF path, `<template> != null` clauses) with `&&`, so
- * an unwrapped group would re-associate into the neighbouring conjunction. The per-term wrapping
+ * callers combine sibling filters (and, on the IQF path, `<template> != null` clauses) with `&&`,
+ * so an unwrapped group would re-associate into the neighbouring conjunction. The per-term wrapping
  * covers the same hazard one level down: with [emitNullGuardForNestedMembers] enabled a term is
  * itself `<member> != null && <path> == <value>`.
  *
