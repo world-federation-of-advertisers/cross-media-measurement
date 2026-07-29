@@ -46,9 +46,9 @@ import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest
-import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetRawEvent
+import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
@@ -479,7 +479,7 @@ class VidLabelingSinkTest {
           listOf(
             LabeledImpressionKt.entityKey {
               entityType = "household"
-              entityId = "hh-${(event as DigestedEvent).digest.high}"
+              entityId = "hh-${event.row.getValue(HOUSEHOLD_ID_COLUMN).int64Value}"
             },
             LabeledImpressionKt.entityKey {
               entityType = "person"
@@ -527,7 +527,8 @@ class VidLabelingSinkTest {
     DigestedEvent(
       row =
         mapOf(
-          EVENT_TIME_COLUMN to ParquetValue.newBuilder().setInt64Value(eventTimeMicros).build()
+          EVENT_TIME_COLUMN to ParquetValue.newBuilder().setInt64Value(eventTimeMicros).build(),
+          HOUSEHOLD_ID_COLUMN to ParquetValue.newBuilder().setInt64Value(idByte.toLong()).build(),
         ),
       digest = EventIdDigest(high = idByte.toLong(), low = idByte),
     )
@@ -543,5 +544,6 @@ class VidLabelingSinkTest {
     private const val VID = 42L
     private const val POOL_OFFSET = 10L
     private const val EVENT_TIME_COLUMN = "event_time_micros"
+    private const val HOUSEHOLD_ID_COLUMN = "household_id"
   }
 }

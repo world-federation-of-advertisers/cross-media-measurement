@@ -71,12 +71,14 @@ class MemoizedRankIndexCache {
     build: suspend () -> MemoizedRankIndex,
   ): MemoizedRankIndex =
     mutex.withLock {
-      val existing = cachedIndex
-      if (existing != null && cachedKey == key) {
-        return@withLock existing
+      if (cachedKey == key) {
+        val cached = cachedIndex
+        if (cached != null) return@withLock cached
       }
-      // Miss: release the old index reference BEFORE building the new one so it can be reclaimed
-      // during the build and the peak stays a single index.
+      // Miss: drop the old index — the field AND any local — BEFORE building the new one so it can
+      // be reclaimed during the build and the peak stays a single index. Binding the old index to a
+      // local that outlives build() would pin it in heap and defeat that (two multi-GB indexes at
+      // once).
       cachedIndex = null
       cachedKey = null
       val built = build()
