@@ -334,6 +334,12 @@ class VidLabelerApp(
     // cached
     // index when the exact same blobs would load, else build it (evicting the old one first). New
     // Phase-1 output changes the chosen blob URIs -> a new cache key -> a rebuild.
+    // TODO: resolveLatestBlobs runs a metadata-list RPC on every WorkItem, even on a cache hit, so
+    // a
+    // metadata-service roll (UNAVAILABLE / DEADLINE_EXCEEDED) fails every WorkItem's fast path
+    // until
+    // it recovers. If it becomes a hotspot, cache the result with a short TTL to share one call
+    // across a burst of WorkItems, or retry-on-transient before falling through to a rebuild.
     val resolvedBlobs =
       MemoizedRankIndex.resolveLatestBlobs(rankIndexBlobsStub, dataProvider, modelLine)
     val rankIndex =
@@ -361,7 +367,12 @@ class VidLabelerApp(
         // The memoized path probes the rank index per impression by its event-id digest, so the
         // digest must be computed.
         needsDigest = true,
-        toEvent = { row, digest -> DigestedEvent(row, checkNotNull(digest)) },
+        toEvent = { row, digest ->
+          DigestedEvent(
+            row,
+            checkNotNull(digest) { "needsDigest=true must produce a digest for the memoized path" },
+          )
+        },
       )
 
     // Schema-drift guard (#3993): fail fast if a mapped raw column is missing from the file schema
