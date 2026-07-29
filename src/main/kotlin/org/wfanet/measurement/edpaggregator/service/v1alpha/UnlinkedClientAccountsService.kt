@@ -63,9 +63,16 @@ class UnlinkedClientAccountsService(
         ?: throw InvalidFieldValueException("parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
+    val referenceIds = mutableSetOf<String>()
     request.unlinkedClientAccountsList.forEachIndexed { index, account ->
       if (account.clientAccountReferenceId.isEmpty()) {
         throw RequiredFieldNotSetException(
+            "unlinked_client_accounts.$index.client_account_reference_id"
+          )
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (!referenceIds.add(account.clientAccountReferenceId)) {
+        throw InvalidFieldValueException(
             "unlinked_client_accounts.$index.client_account_reference_id"
           )
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)

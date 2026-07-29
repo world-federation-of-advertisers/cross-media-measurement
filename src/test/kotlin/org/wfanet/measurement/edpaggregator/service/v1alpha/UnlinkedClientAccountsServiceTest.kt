@@ -145,6 +145,26 @@ class UnlinkedClientAccountsServiceTest {
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     }
 
+  @Test
+  fun `replaceUnlinkedClientAccounts throws INVALID_ARGUMENT when reference id is duplicated`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.replaceUnlinkedClientAccounts(
+            replaceUnlinkedClientAccountsRequest {
+              parent = DATA_PROVIDER_KEY.toName()
+              unlinkedClientAccounts += unlinkedClientAccount {
+                clientAccountReferenceId = CLIENT_ACCOUNT_REFERENCE_ID
+              }
+              unlinkedClientAccounts += unlinkedClientAccount {
+                clientAccountReferenceId = CLIENT_ACCOUNT_REFERENCE_ID
+              }
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
   companion object {
     private const val DATA_PROVIDER_ID = "data-provider-1"
     private val DATA_PROVIDER_KEY = DataProviderKey(DATA_PROVIDER_ID)
