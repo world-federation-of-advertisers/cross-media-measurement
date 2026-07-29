@@ -7211,6 +7211,7 @@ class BasicReportsServiceTest {
             value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_35_TO_54" }
           },
         )
+        .inOrder()
     }
 
   @Test
