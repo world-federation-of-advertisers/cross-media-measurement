@@ -252,8 +252,8 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
   override suspend fun close() {
     // Abort any still-open writers. On the failure path commit() has not run, so cancelling here
     // tears down the open writeBlob streams. Any partially written data blob is harmless: it has no
-    // metadata sidecar, so no consumer can discover it, and a retry overwrites it (deterministic
-    // key).
+    // metadata sidecar, so no consumer can discover it, and a retry overwrites it
+    // (deterministic key).
     writerScope.cancel()
   }
 
