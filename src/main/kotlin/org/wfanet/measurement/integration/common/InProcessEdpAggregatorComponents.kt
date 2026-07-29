@@ -94,6 +94,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.UnlinkedClientAccountsServiceGrpcKt.UnlinkedClientAccountsServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
@@ -170,6 +171,10 @@ class InProcessEdpAggregatorComponents(
 
   private val impressionMetadataClient: ImpressionMetadataServiceCoroutineStub by lazy {
     ImpressionMetadataServiceCoroutineStub(edpAggregatorSystemApi.publicApiChannel)
+  }
+
+  private val unlinkedClientAccountsClient: UnlinkedClientAccountsServiceCoroutineStub by lazy {
+    UnlinkedClientAccountsServiceCoroutineStub(edpAggregatorSystemApi.publicApiChannel)
   }
 
   private lateinit var dataWatcher: DataWatcher
@@ -354,6 +359,7 @@ class InProcessEdpAggregatorComponents(
           edpResourceName,
           eventGroupsClient,
           clientAccountsClient,
+          unlinkedClientAccountsClient,
           eventGroups.asFlow(),
           throttler,
           entityKeyTypes = emptyList(),
@@ -773,6 +779,7 @@ class InProcessEdpAggregatorComponents(
         edpResourceName,
         eventGroupsClient,
         clientAccountsClient,
+        unlinkedClientAccountsClient,
         sources.asFlow(),
         throttler,
         entityKeyTypes = entityKeyTypes,

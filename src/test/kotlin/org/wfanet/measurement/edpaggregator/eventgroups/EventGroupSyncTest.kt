@@ -95,6 +95,10 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.ent
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
+import org.wfanet.measurement.edpaggregator.v1alpha.ReplaceUnlinkedClientAccountsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.UnlinkedClientAccountsServiceGrpcKt.UnlinkedClientAccountsServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.UnlinkedClientAccountsServiceGrpcKt.UnlinkedClientAccountsServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.replaceUnlinkedClientAccountsResponse
 
 @RunWith(JUnit4::class)
 class EventGroupSyncTest {
@@ -284,6 +288,12 @@ class EventGroupSyncTest {
       }
   }
 
+  private val unlinkedClientAccountsServiceMock: UnlinkedClientAccountsServiceCoroutineImplBase =
+    mockService {
+      onBlocking { replaceUnlinkedClientAccounts(any<ReplaceUnlinkedClientAccountsRequest>()) }
+        .thenAnswer { replaceUnlinkedClientAccountsResponse {} }
+    }
+
   private val eventGroupsStub: EventGroupsCoroutineStub by lazy {
     EventGroupsCoroutineStub(grpcTestServerRule.channel)
   }
@@ -292,10 +302,15 @@ class EventGroupSyncTest {
     ClientAccountsCoroutineStub(grpcTestServerRule.channel)
   }
 
+  private val unlinkedClientAccountsStub: UnlinkedClientAccountsServiceCoroutineStub by lazy {
+    UnlinkedClientAccountsServiceCoroutineStub(grpcTestServerRule.channel)
+  }
+
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(eventGroupsServiceMock)
     addService(clientAccountsServiceMock)
+    addService(unlinkedClientAccountsServiceMock)
   }
 
   @Test
@@ -324,6 +339,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         testCampaigns.asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -359,6 +375,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         testCampaigns.asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -443,6 +460,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(deletedEventGroup).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -540,6 +558,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(deletedEventGroup, activeEventGroup).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -577,6 +596,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(deletedEventGroup).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -623,6 +643,7 @@ class EventGroupSyncTest {
           "dataProviders/test-edp-delete-metric",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           listOf(deletedEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -660,6 +681,7 @@ class EventGroupSyncTest {
           "dataProviders/test-edp-no-delete-metric",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           listOf(deletedEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -701,6 +723,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         testCampaigns.asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -744,6 +767,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(newStyleEventGroup).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -789,6 +813,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(legacyEventGroup).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -852,6 +877,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(legacyEventGroup, newStyleEventGroup).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -923,6 +949,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(sourceEventGroup).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -956,6 +983,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         CAMPAIGNS.asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -995,6 +1023,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(sourceEventGroup).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -1070,6 +1099,7 @@ class EventGroupSyncTest {
     val testRule = GrpcTestServerRule {
       addService(eventGroupsMock)
       addService(clientAccountsServiceMock)
+      addService(unlinkedClientAccountsServiceMock)
     }
 
     val statement =
@@ -1098,6 +1128,7 @@ class EventGroupSyncTest {
               "edp-name",
               EventGroupsCoroutineStub(testRule.channel),
               ClientAccountsCoroutineStub(testRule.channel),
+              UnlinkedClientAccountsServiceCoroutineStub(testRule.channel),
               listOf(sourceEventGroup).asFlow(),
               MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
               100,
@@ -1179,6 +1210,7 @@ class EventGroupSyncTest {
     val testRule = GrpcTestServerRule {
       addService(eventGroupsMock)
       addService(clientAccountsServiceMock)
+      addService(unlinkedClientAccountsServiceMock)
     }
 
     val statement =
@@ -1215,6 +1247,7 @@ class EventGroupSyncTest {
               "edp-name",
               EventGroupsCoroutineStub(testRule.channel),
               ClientAccountsCoroutineStub(testRule.channel),
+              UnlinkedClientAccountsServiceCoroutineStub(testRule.channel),
               listOf(sourceEventGroup).asFlow(),
               MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
               100,
@@ -1288,6 +1321,7 @@ class EventGroupSyncTest {
     val testRule = GrpcTestServerRule {
       addService(eventGroupsMock)
       addService(clientAccountsServiceMock)
+      addService(unlinkedClientAccountsServiceMock)
     }
 
     val statement =
@@ -1324,6 +1358,7 @@ class EventGroupSyncTest {
               "edp-name",
               EventGroupsCoroutineStub(testRule.channel),
               ClientAccountsCoroutineStub(testRule.channel),
+              UnlinkedClientAccountsServiceCoroutineStub(testRule.channel),
               listOf(sourceEventGroup).asFlow(),
               MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
               100,
@@ -1407,6 +1442,7 @@ class EventGroupSyncTest {
     val testRule = GrpcTestServerRule {
       addService(eventGroupsMock)
       addService(clientAccountsServiceMock)
+      addService(unlinkedClientAccountsServiceMock)
     }
 
     val statement =
@@ -1440,6 +1476,7 @@ class EventGroupSyncTest {
               "edp-name",
               EventGroupsCoroutineStub(testRule.channel),
               ClientAccountsCoroutineStub(testRule.channel),
+              UnlinkedClientAccountsServiceCoroutineStub(testRule.channel),
               listOf(sourceEventGroup).asFlow(),
               MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
               100,
@@ -1525,6 +1562,7 @@ class EventGroupSyncTest {
     val testRule = GrpcTestServerRule {
       addService(eventGroupsMock)
       addService(clientAccountsServiceMock)
+      addService(unlinkedClientAccountsServiceMock)
     }
 
     val statement =
@@ -1558,6 +1596,7 @@ class EventGroupSyncTest {
               "edp-name",
               EventGroupsCoroutineStub(testRule.channel),
               ClientAccountsCoroutineStub(testRule.channel),
+              UnlinkedClientAccountsServiceCoroutineStub(testRule.channel),
               listOf(sourceEventGroup).asFlow(),
               MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
               100,
@@ -1591,6 +1630,7 @@ class EventGroupSyncTest {
           "edp-name",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -1712,6 +1752,7 @@ class EventGroupSyncTest {
           "dataProviders/test-edp-123",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -1745,6 +1786,7 @@ class EventGroupSyncTest {
           "dataProviders/test-edp-456",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -1774,6 +1816,7 @@ class EventGroupSyncTest {
           "dataProviders/test-edp-789",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -1819,6 +1862,7 @@ class EventGroupSyncTest {
           "dataProviders/test-edp-error",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           listOf(invalidEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -1858,6 +1902,7 @@ class EventGroupSyncTest {
           "dataProviders/test-edp-123",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -1887,6 +1932,7 @@ class EventGroupSyncTest {
           "dataProviders/test-edp-456",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -1936,6 +1982,7 @@ class EventGroupSyncTest {
           "dataProviders/test-edp-error",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           listOf(invalidEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -1973,6 +2020,7 @@ class EventGroupSyncTest {
           "dataProviders/test-edp-parent-ok",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           listOf(invalidEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -1999,6 +2047,7 @@ class EventGroupSyncTest {
           "dataProviders/test-edp-no-high-cardinality",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -2067,6 +2116,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(eventGroupWithClientRef).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -2113,6 +2163,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(eventGroupWithBoth).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -2167,6 +2218,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(eventGroupWithNoMatch).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -2210,6 +2262,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(eventGroupWithMultiple).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -2265,6 +2318,7 @@ class EventGroupSyncTest {
           "edp-name",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           listOf(unmappableEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -2334,6 +2388,7 @@ class EventGroupSyncTest {
           "edp-name",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           listOf(unmappableEventGroup, validEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -2384,6 +2439,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(eventGroupWithFailingLookup).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -2419,6 +2475,7 @@ class EventGroupSyncTest {
           "edp-name",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           listOf(malformedEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -2534,6 +2591,7 @@ class EventGroupSyncTest {
     val testRule = GrpcTestServerRule {
       addService(eventGroupsMock)
       addService(clientAccountsMock)
+      addService(unlinkedClientAccountsServiceMock)
     }
 
     val statement =
@@ -2562,6 +2620,7 @@ class EventGroupSyncTest {
               "edp-name",
               EventGroupsCoroutineStub(testRule.channel),
               ClientAccountsCoroutineStub(testRule.channel),
+              UnlinkedClientAccountsServiceCoroutineStub(testRule.channel),
               listOf(eventGroupWithReducedMapping).asFlow(),
               MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
               100,
@@ -2703,6 +2762,7 @@ class EventGroupSyncTest {
           "edp-name",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           listOf(deletedEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -2776,6 +2836,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(sourceEventGroup).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -2855,6 +2916,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(sourceEventGroup).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -2927,6 +2989,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(sourceEventGroup).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -2996,6 +3059,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         sourceEventGroups.asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -3075,6 +3139,7 @@ class EventGroupSyncTest {
           "edp-name",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           manyEventGroups.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -3149,6 +3214,7 @@ class EventGroupSyncTest {
           "edp-name",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           changedEventGroups.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -3253,6 +3319,7 @@ class EventGroupSyncTest {
           "edp-name",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           listOf(updateSource, deletedEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -3348,6 +3415,7 @@ class EventGroupSyncTest {
           "edp-name",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           listOf(newCreate, deletedEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -3391,6 +3459,7 @@ class EventGroupSyncTest {
           "edp-name",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           listOf(duplicated, duplicated).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -3460,6 +3529,7 @@ class EventGroupSyncTest {
           "edp-name",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           newGroups.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -3543,6 +3613,7 @@ class EventGroupSyncTest {
           "edp-name",
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           changedGroups.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -3633,6 +3704,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(sourceA, sourceB).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -3715,6 +3787,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(refIdOnly, entityKeyOnly).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -3799,6 +3872,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(legacyRefIdOfShapedName, entityKeyOfSameShape).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -3878,6 +3952,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(duplicateEntityKeyA, duplicateEntityKeyB).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -3962,6 +4037,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(newSourceRow).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -4028,6 +4104,7 @@ class EventGroupSyncTest {
         "edp-name",
         eventGroupsStub,
         clientAccountsStub,
+        unlinkedClientAccountsStub,
         listOf(rowA, rowB).asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         100,
@@ -4136,6 +4213,7 @@ class EventGroupSyncTest {
           edpName,
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           listOf(source).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -4338,6 +4416,7 @@ class EventGroupSyncTest {
           edpName,
           eventGroupsStub,
           clientAccountsStub,
+          unlinkedClientAccountsStub,
           sources.toList().asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           100,
@@ -4402,6 +4481,437 @@ class EventGroupSyncTest {
     // Total creates across all five syncs = 3 (only sync 1). All later syncs took the update or
     // no-op path.
     verifyBlocking(eventGroupsServiceMock, times(1)) { batchCreateEventGroups(any()) }
+  }
+
+  @Test
+  fun `sync captures unlinked client account and flushes via ReplaceUnlinkedClientAccounts`() {
+    val unlinkedEventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id-unlinked"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-unlinked"
+            campaign = "campaign-unlinked"
+          }
+        }
+      }
+      clientAccountReferenceId = "client-ref-nonexistent"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        unlinkedClientAccountsStub,
+        listOf(unlinkedEventGroup).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+        entityKeyTypes = emptyList(),
+      )
+    runBlocking { eventGroupSync.sync().collect() }
+
+    val captor = argumentCaptor<ReplaceUnlinkedClientAccountsRequest>()
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
+      replaceUnlinkedClientAccounts(captor.capture())
+    }
+    val request = captor.firstValue
+    assertThat(request.parent).isEqualTo("edp-name")
+    val account = request.unlinkedClientAccountsList.single()
+    assertThat(account.clientAccountReferenceId).isEqualTo("client-ref-nonexistent")
+    assertThat(account.brandsList).containsExactly("brand-unlinked")
+    assertThat(account.eventGroupReferenceId).isEqualTo("reference-id-unlinked")
+  }
+
+  @Test
+  fun `sync does not record unlinked account when ClientAccounts lookup fails`() {
+    wheneverBlocking { clientAccountsServiceMock.listClientAccounts(any()) }
+      .thenThrow(StatusRuntimeException(Status.INTERNAL.withDescription("transient outage")))
+
+    val eventGroupWithFailingLookup = eventGroup {
+      eventGroupReferenceId = "reference-id-failing"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-failing"
+            campaign = "campaign-failing"
+          }
+        }
+      }
+      clientAccountReferenceId = "client-ref-failing"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        unlinkedClientAccountsStub,
+        listOf(eventGroupWithFailingLookup).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+        entityKeyTypes = emptyList(),
+      )
+
+    // A transient lookup failure must propagate as its gRPC StatusException rather than mislabel
+    // the
+    // account as unlinked.
+    assertFailsWith<StatusException> { runBlocking { eventGroupSync.sync().collect() } }
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(0)) {
+      replaceUnlinkedClientAccounts(any())
+    }
+  }
+
+  @Test
+  fun `sync excludes linked client accounts from the unlinked set`() {
+    val linkedEventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id-linked"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-linked"
+            campaign = "campaign-linked"
+          }
+        }
+      }
+      clientAccountReferenceId = "client-ref-1"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+    val unlinkedEventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id-unlinked"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-unlinked"
+            campaign = "campaign-unlinked"
+          }
+        }
+      }
+      clientAccountReferenceId = "client-ref-nonexistent"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        unlinkedClientAccountsStub,
+        listOf(linkedEventGroup, unlinkedEventGroup).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+        entityKeyTypes = emptyList(),
+      )
+    runBlocking { eventGroupSync.sync().collect() }
+
+    val captor = argumentCaptor<ReplaceUnlinkedClientAccountsRequest>()
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
+      replaceUnlinkedClientAccounts(captor.capture())
+    }
+    val refIds = captor.firstValue.unlinkedClientAccountsList.map { it.clientAccountReferenceId }
+    assertThat(refIds).containsExactly("client-ref-nonexistent")
+  }
+
+  @Test
+  fun `sync does not capture unlinked account when event group has a direct measurement consumer`() {
+    val eventGroupWithDirectMc = eventGroup {
+      eventGroupReferenceId = "reference-id-direct"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-direct"
+            campaign = "campaign-direct"
+          }
+        }
+      }
+      measurementConsumer = "measurementConsumers/direct-consumer"
+      clientAccountReferenceId = "client-ref-nonexistent"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        unlinkedClientAccountsStub,
+        listOf(eventGroupWithDirectMc).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+        entityKeyTypes = emptyList(),
+      )
+    runBlocking { eventGroupSync.sync().collect() }
+
+    val captor = argumentCaptor<ReplaceUnlinkedClientAccountsRequest>()
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
+      replaceUnlinkedClientAccounts(captor.capture())
+    }
+    // The event group is linked via its direct measurement_consumer, so the empty client-account
+    // lookup does not record it as unlinked.
+    assertThat(captor.firstValue.unlinkedClientAccountsList).isEmpty()
+  }
+
+  @Test
+  fun `sync captures unlinked account with empty brands when brand is blank`() {
+    val unlinkedEventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id-no-brand"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata { campaign = "campaign-no-brand" }
+        }
+      }
+      clientAccountReferenceId = "client-ref-nonexistent"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        unlinkedClientAccountsStub,
+        listOf(unlinkedEventGroup).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+        entityKeyTypes = emptyList(),
+      )
+    runBlocking { eventGroupSync.sync().collect() }
+
+    val captor = argumentCaptor<ReplaceUnlinkedClientAccountsRequest>()
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
+      replaceUnlinkedClientAccounts(captor.capture())
+    }
+    val account = captor.firstValue.unlinkedClientAccountsList.single()
+    assertThat(account.clientAccountReferenceId).isEqualTo("client-ref-nonexistent")
+    assertThat(account.brandsList).isEmpty()
+    assertThat(account.eventGroupReferenceId).isEqualTo("reference-id-no-brand")
+  }
+
+  @Test
+  fun `sync captures a separate entry per distinct client_account_reference_id`() {
+    val firstUnlinked = eventGroup {
+      eventGroupReferenceId = "reference-id-first"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-first"
+            campaign = "campaign-first"
+          }
+        }
+      }
+      clientAccountReferenceId = "client-ref-nonexistent"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+    val secondUnlinked = eventGroup {
+      eventGroupReferenceId = "reference-id-second"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-second"
+            campaign = "campaign-second"
+          }
+        }
+      }
+      clientAccountReferenceId = "client-ref-also-nonexistent"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        unlinkedClientAccountsStub,
+        listOf(firstUnlinked, secondUnlinked).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+        entityKeyTypes = emptyList(),
+      )
+    runBlocking { eventGroupSync.sync().collect() }
+
+    val captor = argumentCaptor<ReplaceUnlinkedClientAccountsRequest>()
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
+      replaceUnlinkedClientAccounts(captor.capture())
+    }
+    val refIds = captor.firstValue.unlinkedClientAccountsList.map { it.clientAccountReferenceId }
+    assertThat(refIds).containsExactly("client-ref-nonexistent", "client-ref-also-nonexistent")
+  }
+
+  @Test
+  fun `sync retains a non-blank example event group reference id over an earlier blank one`() {
+    val blankRefIdEventGroup = eventGroup {
+      // No event_group_reference_id; identified by entity_key so it still validates.
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-blank"
+            campaign = "campaign-blank"
+          }
+        }
+      }
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "entity-blank"
+      }
+      clientAccountReferenceId = "client-ref-nonexistent"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+    val nonBlankRefIdEventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id-non-blank"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-non-blank"
+            campaign = "campaign-non-blank"
+          }
+        }
+      }
+      clientAccountReferenceId = "client-ref-nonexistent"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        unlinkedClientAccountsStub,
+        listOf(blankRefIdEventGroup, nonBlankRefIdEventGroup).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+        entityKeyTypes = emptyList(),
+      )
+    runBlocking { eventGroupSync.sync().collect() }
+
+    val captor = argumentCaptor<ReplaceUnlinkedClientAccountsRequest>()
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
+      replaceUnlinkedClientAccounts(captor.capture())
+    }
+    val account = captor.firstValue.unlinkedClientAccountsList.single()
+    assertThat(account.clientAccountReferenceId).isEqualTo("client-ref-nonexistent")
+    assertThat(account.eventGroupReferenceId).isEqualTo("reference-id-non-blank")
+  }
+
+  @Test
+  fun `sync flushes unlinked accounts once with deduped brands`() {
+    val firstEventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id-a"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-a"
+            campaign = "campaign-a"
+          }
+        }
+      }
+      clientAccountReferenceId = "client-ref-nonexistent"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+    val secondEventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id-b"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-b"
+            campaign = "campaign-b"
+          }
+        }
+      }
+      clientAccountReferenceId = "client-ref-nonexistent"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+    }
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        unlinkedClientAccountsStub,
+        listOf(firstEventGroup, secondEventGroup).asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+        entityKeyTypes = emptyList(),
+      )
+    runBlocking { eventGroupSync.sync().collect() }
+
+    // The lookup is cached, so the Kingdom is queried only once for the shared reference ID.
+    verifyBlocking(clientAccountsServiceMock, times(1)) { listClientAccounts(any()) }
+
+    val captor = argumentCaptor<ReplaceUnlinkedClientAccountsRequest>()
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
+      replaceUnlinkedClientAccounts(captor.capture())
+    }
+    val request = captor.firstValue
+    assertThat(request.parent).isEqualTo("edp-name")
+    val account = request.unlinkedClientAccountsList.single()
+    assertThat(account.clientAccountReferenceId).isEqualTo("client-ref-nonexistent")
+    assertThat(account.brandsList).containsExactly("brand-a", "brand-b")
+    assertThat(account.eventGroupReferenceId).isEqualTo("reference-id-a")
+  }
+
+  @Test
+  fun `sync always calls ReplaceUnlinkedClientAccounts even with no unlinked accounts`() {
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        unlinkedClientAccountsStub,
+        CAMPAIGNS.asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+        entityKeyTypes = emptyList(),
+      )
+    runBlocking { eventGroupSync.sync().collect() }
+
+    val captor = argumentCaptor<ReplaceUnlinkedClientAccountsRequest>()
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
+      replaceUnlinkedClientAccounts(captor.capture())
+    }
+    assertThat(captor.firstValue.parent).isEqualTo("edp-name")
+    assertThat(captor.firstValue.unlinkedClientAccountsList).isEmpty()
   }
 
   companion object {

@@ -92,8 +92,11 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ReplaceUnlinkedClientAccountsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.UnlinkedClientAccountsServiceGrpcKt.UnlinkedClientAccountsServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.eventGroupSyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.replaceUnlinkedClientAccountsResponse
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -203,10 +206,17 @@ class EventGroupSyncFunctionTest() {
       .thenReturn(listClientAccountsResponse {})
   }
 
+  private val unlinkedClientAccountsServiceMock: UnlinkedClientAccountsServiceCoroutineImplBase =
+    mockService {
+      onBlocking { replaceUnlinkedClientAccounts(any<ReplaceUnlinkedClientAccountsRequest>()) }
+        .thenReturn(replaceUnlinkedClientAccountsResponse {})
+    }
+
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(eventGroupsServiceMock)
     addService(clientAccountsServiceMock)
+    addService(unlinkedClientAccountsServiceMock)
   }
 
   @get:Rule val tempFolder = TemporaryFolder()
@@ -220,7 +230,12 @@ class EventGroupSyncFunctionTest() {
           certs = serverCerts,
           clientAuth = ClientAuth.REQUIRE,
           nameForLogging = "EventGroupsServer",
-          services = listOf(eventGroupsServiceMock.bindService()),
+          services =
+            listOf(
+              eventGroupsServiceMock.bindService(),
+              clientAccountsServiceMock.bindService(),
+              unlinkedClientAccountsServiceMock.bindService(),
+            ),
         )
         .start()
     functionProcess =
@@ -243,6 +258,10 @@ class EventGroupSyncFunctionTest() {
         "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
         "KINGDOM_CERT_HOST" to "localhost",
         "KINGDOM_SHUTDOWN_DURATION_SECONDS" to "3",
+        // The EDPA public API (UnlinkedClientAccounts) is served by the same in-process test
+        // server.
+        "EDPA_PUBLIC_API_TARGET" to "localhost:${grpcServer.port}",
+        "EDPA_PUBLIC_API_CERT_HOST" to "localhost",
         "OTEL_METRICS_EXPORTER" to "logging",
         "OTEL_TRACES_EXPORTER" to "logging",
         "OTEL_LOGS_EXPORTER" to "logging",
@@ -275,6 +294,13 @@ class EventGroupSyncFunctionTest() {
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.binpb"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
       this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      // EDPA public API uses the same in-process test certs; a real deployment would
+      // point this at the EDPA server's own credentials.
+      this.edpaConnection = transportLayerSecurityParams {
         certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
         privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
         certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
@@ -348,6 +374,92 @@ class EventGroupSyncFunctionTest() {
   }
 
   @Test
+  fun `sync writes unlinked client accounts via ReplaceUnlinkedClientAccounts`() {
+    val unlinkedEventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id-unlinked"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-unlinked"
+            campaign = "campaign-unlinked"
+          }
+        }
+      }
+      clientAccountReferenceId = "client-ref-unlinked"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.OTHER)
+    }
+    val config = eventGroupSyncConfig {
+      dataProvider = "dataProviders/some-data-provider"
+      eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.binpb"
+      eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
+      this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      // EDPA public API uses the same in-process test certs; a real deployment would
+      // point this at the EDPA server's own credentials.
+      this.edpaConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+      eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
+    }
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = eventGroupSyncConfigs { configs += config }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+
+    File("${tempFolder.root}/some/path").mkdirs()
+    File("${tempFolder.root}/some/other/path").mkdirs()
+    val port = runBlocking {
+      startFunction(
+        mapOf(
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+        )
+      )
+    }
+
+    val url = "http://localhost:$port"
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    runBlocking {
+      MesosRecordIoStorageClient(storageClient)
+        .writeBlob(
+          "some/path/campaigns-blob-uri.binpb",
+          listOf(unlinkedEventGroup).map { it.toByteString() }.asFlow(),
+        )
+    }
+
+    val client = HttpClient.newHttpClient()
+    val getRequest =
+      HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
+        .build()
+    val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
+    assertThat(getResponse.statusCode()).isEqualTo(200)
+
+    val captor = argumentCaptor<ReplaceUnlinkedClientAccountsRequest>()
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
+      replaceUnlinkedClientAccounts(captor.capture())
+    }
+    val request = captor.firstValue
+    assertThat(request.parent).isEqualTo("dataProviders/some-data-provider")
+    val account = request.unlinkedClientAccountsList.single()
+    assertThat(account.clientAccountReferenceId).isEqualTo("client-ref-unlinked")
+    assertThat(account.brandsList).containsExactly("brand-unlinked")
+    assertThat(account.eventGroupReferenceId).isEqualTo("reference-id-unlinked")
+  }
+
+  @Test
   fun `sync registersUnregisteredEventGroups using JSON format`() {
     val newCampaign =
       """
@@ -397,6 +509,13 @@ class EventGroupSyncFunctionTest() {
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.json"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
       this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      // EDPA public API uses the same in-process test certs; a real deployment would
+      // point this at the EDPA server's own credentials.
+      this.edpaConnection = transportLayerSecurityParams {
         certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
         privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
         certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
@@ -518,6 +637,13 @@ class EventGroupSyncFunctionTest() {
         privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
         certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
       }
+      // EDPA public API uses the same in-process test certs; a real deployment would
+      // point this at the EDPA server's own credentials.
+      this.edpaConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
       eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
       eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
     }
@@ -623,6 +749,13 @@ class EventGroupSyncFunctionTest() {
         privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
         certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
       }
+      // EDPA public API uses the same in-process test certs; a real deployment would
+      // point this at the EDPA server's own credentials.
+      this.edpaConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
       eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
       eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
     }
@@ -694,6 +827,13 @@ class EventGroupSyncFunctionTest() {
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.json"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
       this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      // EDPA public API uses the same in-process test certs; a real deployment would
+      // point this at the EDPA server's own credentials.
+      this.edpaConnection = transportLayerSecurityParams {
         certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
         privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
         certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
@@ -778,6 +918,13 @@ class EventGroupSyncFunctionTest() {
         privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
         certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
       }
+      // EDPA public API uses the same in-process test certs; a real deployment would
+      // point this at the EDPA server's own credentials.
+      this.edpaConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
       eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
       eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
     }
@@ -853,6 +1000,13 @@ class EventGroupSyncFunctionTest() {
       eventGroupsBlobUri = "file:///some/path/that/does/not/exist"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
       this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      // EDPA public API uses the same in-process test certs; a real deployment would
+      // point this at the EDPA server's own credentials.
+      this.edpaConnection = transportLayerSecurityParams {
         certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
         privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
         certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
@@ -964,6 +1118,13 @@ class EventGroupSyncFunctionTest() {
           privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
           certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
         }
+        // EDPA public API uses the same in-process test certs; a real deployment would
+        // point this at the EDPA server's own credentials.
+        this.edpaConnection = transportLayerSecurityParams {
+          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        }
         eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
         eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
       }
@@ -972,6 +1133,13 @@ class EventGroupSyncFunctionTest() {
         eventGroupsBlobUri = "file:///other/path/campaigns-blob-uri.binpb"
         eventGroupMapBlobUri = "file:///other/path/event-groups-map-uri"
         this.cmmsConnection = transportLayerSecurityParams {
+          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        }
+        // EDPA public API uses the same in-process test certs; a real deployment would
+        // point this at the EDPA server's own credentials.
+        this.edpaConnection = transportLayerSecurityParams {
           certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
           privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
           certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
@@ -1066,6 +1234,13 @@ class EventGroupSyncFunctionTest() {
           privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
           certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
         }
+        // EDPA public API uses the same in-process test certs; a real deployment would
+        // point this at the EDPA server's own credentials.
+        this.edpaConnection = transportLayerSecurityParams {
+          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        }
         eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
         eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
       }
@@ -1112,6 +1287,13 @@ class EventGroupSyncFunctionTest() {
         eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.binpb"
         eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
         this.cmmsConnection = transportLayerSecurityParams {
+          certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+          privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+          certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+        }
+        // EDPA public API uses the same in-process test certs; a real deployment would
+        // point this at the EDPA server's own credentials.
+        this.edpaConnection = transportLayerSecurityParams {
           certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
           privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
           certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
@@ -1199,6 +1381,13 @@ class EventGroupSyncFunctionTest() {
       eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.binpb"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
       this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      // EDPA public API uses the same in-process test certs; a real deployment would
+      // point this at the EDPA server's own credentials.
+      this.edpaConnection = transportLayerSecurityParams {
         certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
         privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
         certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()

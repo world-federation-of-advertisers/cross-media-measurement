@@ -70,6 +70,9 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 import org.wfanet.measurement.edpaggregator.telemetry.withSpan
+import org.wfanet.measurement.edpaggregator.v1alpha.UnlinkedClientAccountsServiceGrpcKt.UnlinkedClientAccountsServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.replaceUnlinkedClientAccountsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.unlinkedClientAccount
 
 class UnresolvedMeasurementConsumerException(message: String) : Exception(message)
 
@@ -216,6 +219,7 @@ class EventGroupSync(
   private val edpName: String,
   private val eventGroupsStub: EventGroupsCoroutineStub,
   private val clientAccountsStub: ClientAccountsCoroutineStub,
+  private val unlinkedClientAccountsStub: UnlinkedClientAccountsServiceCoroutineStub,
   private val eventGroups: Flow<EventGroup>,
   private val throttler: Throttler,
   private val listEventGroupPageSize: Int,
@@ -231,6 +235,26 @@ class EventGroupSync(
    * client account can map to multiple Measurement Consumers. Empty list if resolution failed.
    */
   private val clientAccountCache = mutableMapOf<String, List<MeasurementConsumerKey>>()
+
+  /**
+   * Accumulated unlinked client accounts observed during a single [sync] run, keyed by
+   * `client_account_reference_id`.
+   *
+   * An entry is recorded only when a `client_account_reference_id` lookup completes and resolves to
+   * zero MeasurementConsumers (the confirmed-empty result). Distinct brands are unioned across
+   * every EventGroup that carries the same reference ID, and one example `event_group_reference_id`
+   * is retained for traceability. Flushed once at the end of the run via
+   * [flushUnlinkedClientAccounts].
+   */
+  private val unlinkedClientAccounts = mutableMapOf<String, UnlinkedClientAccountAccumulator>()
+
+  /**
+   * Mutable accumulator for the distinct brands and one example EventGroup of an unlinked account.
+   */
+  private class UnlinkedClientAccountAccumulator {
+    val brands = mutableSetOf<String>()
+    var exampleEventGroupReferenceId: String = ""
+  }
 
   /** Creates metric attributes with data provider name. */
   private fun metricAttributes() =
@@ -404,6 +428,10 @@ class EventGroupSync(
       // Flush any remaining buffered writes after the input stream is exhausted.
       flushCreates(pendingCreates)
       flushUpdates(pendingUpdates)
+
+      // Reconcile the full set of unlinked client accounts for this DataProvider. Always called
+      // (even with zero entries) so accounts that became linked since the previous run are dropped.
+      flushUnlinkedClientAccounts()
     }
   }
 
@@ -899,6 +927,18 @@ class EventGroupSync(
           resolvedKeys
         }
 
+      // Record as unlinked only on a confirmed-empty lookup for an otherwise-unlinked EventGroup:
+      // the `listClientAccounts` RPC runs inside `getOrPut` above, so a StatusException from a
+      // transient Kingdom outage propagates out of this function and never reaches here — an RPC
+      // error can therefore never record an account as unlinked. An account that resolves to >=1 MC
+      // (non-empty `lookedUpKeys`) is linked and is not captured (the cross-MC reconcile
+      // guarantee),
+      // and neither is an EventGroup already linked via a direct `measurement_consumer`
+      // (`measurementConsumerKeys` already holds it, added above before the lookup).
+      if (lookedUpKeys.isEmpty() && measurementConsumerKeys.isEmpty()) {
+        recordUnlinkedClientAccount(eventGroup, refId)
+      }
+
       measurementConsumerKeys.addAll(lookedUpKeys)
     }
 
@@ -911,6 +951,70 @@ class EventGroupSync(
     }
 
     return measurementConsumerKeys
+  }
+
+  /**
+   * Accumulates an unlinked-client-account observation for [refId].
+   *
+   * Unions the EventGroup's brand (from `event_group_metadata.ad_metadata.campaign_metadata.brand`)
+   * into the account's distinct-brand set and retains the first non-blank EventGroup reference ID
+   * as an example. Called only from the confirmed-empty lookup branch in
+   * [resolveMeasurementConsumers].
+   */
+  private fun recordUnlinkedClientAccount(eventGroup: EventGroup, refId: String) {
+    val accumulator = unlinkedClientAccounts.getOrPut(refId) { UnlinkedClientAccountAccumulator() }
+    val brand = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.brand
+    if (brand.isNotBlank()) {
+      accumulator.brands.add(brand)
+    }
+    if (
+      accumulator.exampleEventGroupReferenceId.isBlank() &&
+        eventGroup.eventGroupReferenceId.isNotBlank()
+    ) {
+      accumulator.exampleEventGroupReferenceId = eventGroup.eventGroupReferenceId
+    }
+  }
+
+  /**
+   * Reconciles the full set of unlinked client accounts for this DataProvider with a single
+   * `ReplaceUnlinkedClientAccounts` RPC.
+   *
+   * This is always issued at the end of a run — including with an empty set — so that the stored
+   * set is fully reconciled: accounts that resolved to a MeasurementConsumer in this run (and were
+   * therefore not accumulated) are dropped from storage.
+   */
+  private suspend fun flushUnlinkedClientAccounts() {
+    val accounts =
+      unlinkedClientAccounts.map { (refId, accumulator) ->
+        unlinkedClientAccount {
+          clientAccountReferenceId = refId
+          // Sorted for a deterministic request payload.
+          brands += accumulator.brands.sorted()
+          if (accumulator.exampleEventGroupReferenceId.isNotBlank()) {
+            eventGroupReferenceId = accumulator.exampleEventGroupReferenceId
+          }
+        }
+      }
+    throttler.onReady {
+      withSpan(
+        tracer,
+        "EventGroupSync.ReplaceUnlinkedClientAccounts",
+        Attributes.of(
+          AttributeKey.longKey("unlinked_client_account_count"),
+          accounts.size.toLong(),
+          AttributeKey.stringKey("data_provider_name"),
+          edpName,
+        ),
+        errorMessage = "ReplaceUnlinkedClientAccounts failed",
+      ) { _ ->
+        unlinkedClientAccountsStub.replaceUnlinkedClientAccounts(
+          replaceUnlinkedClientAccountsRequest {
+            parent = edpName
+            unlinkedClientAccounts += accounts
+          }
+        )
+      }
+    }
   }
 
   /*

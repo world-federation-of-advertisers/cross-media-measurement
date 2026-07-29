@@ -46,18 +46,32 @@ import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfigs
+import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.ConfigLoader
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.v1alpha.UnlinkedClientAccountsServiceGrpcKt.UnlinkedClientAccountsServiceCoroutineStub
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
-/*
- * Cloud Run Function that receives a [HTTPRequest] with EventGroupSyncConfig. It updates/registers
+/**
+ * Cloud Run Function that receives a [HttpRequest] with EventGroupSyncConfig. It updates/registers
  * EventGroups with the kingdom and writes a map of the registered resource names to storage.
+ *
+ * ## Environment Variables
+ * - `KINGDOM_TARGET`: Required. Target endpoint for the CMMS (Kingdom) Public API.
+ * - `KINGDOM_CERT_HOST`: Optional. Overrides the TLS authority for the Kingdom channel.
+ * - `KINGDOM_SHUTDOWN_DURATION_SECONDS`: Optional. gRPC channel shutdown timeout (default: 3s).
+ * - `EDPA_PUBLIC_API_TARGET`: Required. Target endpoint for the EDP Aggregator Public API, which
+ *   hosts the `UnlinkedClientAccounts` service.
+ * - `EDPA_PUBLIC_API_CERT_HOST`: Optional. Overrides the TLS authority for the EDPA channel.
+ * - `LIST_EVENT_GROUPS_PAGE_SIZE`: Optional. Page size for listing EventGroups (default: 100).
+ * - `THROTTLER_MILLIS`: Optional. Minimum interval between Kingdom RPCs (default: 1000ms).
+ * - `CONFIG_BLOB_KEY`: Required. Blob key of the runtime `EventGroupSyncConfigs`.
+ * - `FILE_STORAGE_ROOT`: Optional. If set, enables file-system storage. Used only in testing.
  */
 class EventGroupSyncFunction() : HttpFunction {
 
@@ -76,14 +90,28 @@ class EventGroupSyncFunction() : HttpFunction {
           attributes = mapOf("data_provider_name" to eventGroupSyncConfig.dataProvider),
         ) {
           val kingdomChannel =
-            createKingdomPublicApiChannel(
+            createPublicApiChannel(
               target = kingdomTarget,
-              eventGroupSyncConfig = eventGroupSyncConfig,
+              connection = eventGroupSyncConfig.cmmsConnection,
               certHost = kingdomCertHost,
               shutdownTimeout = channelShutdownDuration,
             )
           val eventGroupsClient = EventGroupsCoroutineStub(kingdomChannel)
           val clientAccountsClient = ClientAccountsCoroutineStub(kingdomChannel)
+
+          // Separate mutual-TLS channel to the EDPA public API, which hosts the
+          // UnlinkedClientAccounts service that EventGroupSync reconciles at the end of a run. This
+          // is a distinct server from the Kingdom, so it uses its own `edpa_connection`
+          // credentials.
+          val edpaPublicApiChannel =
+            createPublicApiChannel(
+              target = edpaPublicApiTarget,
+              connection = eventGroupSyncConfig.edpaConnection,
+              certHost = edpaPublicApiCertHost,
+              shutdownTimeout = channelShutdownDuration,
+            )
+          val unlinkedClientAccountsClient =
+            UnlinkedClientAccountsServiceCoroutineStub(edpaPublicApiChannel)
           val eventGroups: Flow<EventGroup> =
             Tracing.traceSuspending(
               spanName = "load_event_groups",
@@ -113,6 +141,7 @@ class EventGroupSyncFunction() : HttpFunction {
                   edpName = eventGroupSyncConfig.dataProvider,
                   eventGroupsStub = eventGroupsClient,
                   clientAccountsStub = clientAccountsClient,
+                  unlinkedClientAccountsStub = unlinkedClientAccountsClient,
                   eventGroups = eventGroups,
                   throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration),
                   listEventGroupPageSize,
@@ -259,6 +288,8 @@ class EventGroupSyncFunction() : HttpFunction {
 
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
+    private val edpaPublicApiTarget = EnvVars.checkNotNullOrEmpty("EDPA_PUBLIC_API_TARGET")
+    private val edpaPublicApiCertHost: String? = System.getenv("EDPA_PUBLIC_API_CERT_HOST")
     private val throttlerDuration =
       Duration.ofMillis(System.getenv("THROTTLER_MILLIS")?.toLong() ?: THROTTLER_DURATION_MILLIS)
     private val channelShutdownDuration =
@@ -293,35 +324,37 @@ class EventGroupSyncFunction() : HttpFunction {
     }
 
     /**
-     * Creates an instrumented gRPC channel for the Kingdom Public API.
+     * Creates an instrumented mutual-TLS gRPC channel to a public API [target].
+     *
+     * Used for both the Kingdom public API and the EDPA public API. Each caller passes its own
+     * [connection] (client certificate, private key, and trust anchor), since the two are distinct
+     * servers with distinct identities and trust roots.
      *
      * The channel is configured with:
-     * - Mutual TLS authentication (certificates loaded from eventGroupSyncConfig)
+     * - Mutual TLS authentication (certificates loaded from [connection])
      * - Graceful shutdown timeout
      * - OpenTelemetry gRPC instrumentation for automatic span and metric creation
      *
      * This channel should be shared across all stubs for the same target to avoid creating
      * expensive duplicate connections.
      *
-     * @param target The Kingdom API target (e.g., "kingdom.example.com:443")
-     * @param eventGroupSyncConfig Configuration containing certificate file paths for mutual TLS
+     * @param target The public API target (e.g., "kingdom.example.com:443")
+     * @param connection TLS parameters containing certificate file paths for mutual TLS
      * @param certHost The expected certificate hostname (optional, for cert verification)
      * @param shutdownTimeout Duration to wait for graceful channel shutdown
      * @return Instrumented Channel ready for use with multiple stubs
      */
-    private fun createKingdomPublicApiChannel(
+    private fun createPublicApiChannel(
       target: String,
-      eventGroupSyncConfig: EventGroupSyncConfig,
+      connection: TransportLayerSecurityParams,
       certHost: String?,
       shutdownTimeout: Duration,
     ): Channel {
       val signingCerts =
         SigningCerts.fromPemFiles(
-          certificateFile = checkNotNull(File(eventGroupSyncConfig.cmmsConnection.certFilePath)),
-          privateKeyFile =
-            checkNotNull(File(eventGroupSyncConfig.cmmsConnection.privateKeyFilePath)),
-          trustedCertCollectionFile =
-            checkNotNull(File(eventGroupSyncConfig.cmmsConnection.certCollectionFilePath)),
+          certificateFile = checkNotNull(File(connection.certFilePath)),
+          privateKeyFile = checkNotNull(File(connection.privateKeyFilePath)),
+          trustedCertCollectionFile = checkNotNull(File(connection.certCollectionFilePath)),
         )
 
       val publicChannel =

@@ -46,6 +46,12 @@ message EventGroupSyncConfig {
   // ensure all event groups with matching entity types are visible to sync.
   // When empty, the API default behavior applies (only "campaign" type).
   repeated string entity_key_types = 7;
+  // How the EDP connects to the EDP Aggregator Public API, which hosts the
+  // `UnlinkedClientAccounts` service that EventGroupSync reconciles.
+  //
+  // This is a distinct server from the CMMS Public API, so it uses its own
+  // client credentials and trust anchor rather than reusing `cmms_connection`.
+  TransportLayerSecurityParams edpa_connection = 8;
 }
 
 // Wrapper containing Event Group Sync configurations for all EDPs.
