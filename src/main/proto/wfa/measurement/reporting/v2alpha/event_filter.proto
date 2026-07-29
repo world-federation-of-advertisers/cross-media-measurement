@@ -27,11 +27,6 @@ option go_package = "github.com/world-federation-of-advertisers/cross-media-meas
 // Event filter criteria
 message EventFilter {
   // A disjunction of terms that define the filter criteria.
-  //
-  // Terms are combined with OR. Where an `EventFilter` appears in a repeated
-  // field, those `EventFilter`s are combined with AND, so a criterion such as
-  // "female, aged 18 to 54" is expressed as two `EventFilter`s, the second
-  // carrying one term per age group.
   repeated EventTemplateField terms = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE

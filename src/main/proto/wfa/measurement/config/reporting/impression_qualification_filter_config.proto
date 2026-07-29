@@ -67,9 +67,6 @@ message ImpressionQualificationFilterConfig {
   // Event filter criteria
   message EventFilter {
     // A disjunction of terms that define the filter criteria.
-    //
-    // Terms are combined with OR. The enclosing `filters` are combined with
-    // AND.
     repeated EventTemplateField terms = 1;
   }
 
