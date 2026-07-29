@@ -122,6 +122,16 @@ class ImpressionQualificationFilterMapping(
         // does not re-associate into the surrounding conjunction.
         val celString: String =
           spec.filtersList.joinToString(" && ") { configEventFilter ->
+            // `isImpressionQualificationFilterSpecValid` iterates `terms` without requiring any,
+            // so an empty list reaches here. Reject it by name rather than emitting `()` and
+            // reporting it below as an opaque CEL compile failure.
+            require(configEventFilter.termsList.isNotEmpty()) {
+              "Impression qualification filter " +
+                "${configFilter.externalImpressionQualificationFilterId} spec (mediaType=" +
+                "${spec.mediaType}) has an EventFilter with no terms. Fix the base IQF " +
+                "configuration."
+            }
+
             val terms: List<String> =
               configEventFilter.termsList.map { configTerm ->
                 val fieldInfo = eventTemplateFieldsByPath.getValue(configTerm.path)
