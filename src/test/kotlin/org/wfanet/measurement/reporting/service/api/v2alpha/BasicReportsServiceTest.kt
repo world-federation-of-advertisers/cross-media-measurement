@@ -7196,7 +7196,8 @@ class BasicReportsServiceTest {
         basicReportId = "a1234"
       }
 
-      val response = withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
 
       assertThat(response.createTime.seconds).isAtLeast(1)
       assertThat(response.resultGroupSpecsList[0].dimensionSpec.filtersList[0].termsList)
