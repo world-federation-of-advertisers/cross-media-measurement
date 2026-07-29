@@ -380,8 +380,8 @@ class VidLabelerApp(
 
     val activeWindow =
       ActiveWindow.of(
-        // active_start_time is required on ModelLineConfig (a model line always has an active
-        // start),
+        // active_start_time is required on ModelLineConfig (a model line always has an
+        // active start),
         // so ActiveWindow.of's non-null start parameter is satisfied directly; only the end is
         // optional and mapped to a null (open-ended) upper bound.
         config.activeStartTime.toInstant(),
@@ -509,8 +509,8 @@ class VidLabelerApp(
     return VidLabeler(
         rawImpressionSource = rawImpressionSource,
         modelLineSpecs = modelLineSpecs,
-        // The operator-header override filters the labeled set at the engine; empty = label all of
-        // model_lines.
+        // The operator-header override filters the labeled set at the engine; empty = label all
+        // of model_lines.
         overrideModelLines = params.overrideModelLinesList,
         vidModelLoader = vidModelLoader,
         impressionConverter = impressionConverter,
@@ -583,8 +583,8 @@ class VidLabelerApp(
     val completedModelLines = response.lastVidLabelingJobResult.completedModelLinesList
     // The date folder each completed model line's done marker goes in. Reuse the event dates the
     // labeler already read from each file's footer while streaming (no extra I/O); on the
-    // skip-relabel recovery path no labeling ran this delivery, so fall back to reading the
-    // footers.
+    // skip-relabel recovery path no labeling ran this delivery, so fall back to reading
+    // the footers.
     val eventDates = observedEventDates.ifEmpty { readEventDates(params, kmsClient, inputFiles) }
     if (completedModelLines.isNotEmpty()) {
       if (eventDates.isEmpty()) {
@@ -618,14 +618,12 @@ class VidLabelerApp(
       // truth-bearing signal. A persistent writeDoneBlob failure then leaves the model line in
       // LABELING (recoverable) instead of stranding a COMPLETED-but-unavailable upload: on Pub/Sub
       // redelivery the idempotent markVidLabelingJobSucceeded replay re-reports this completed
-      // model
-      // line (recomputed from sibling job states), so writeDoneBlob is retried; only once it
+      // model line (recomputed from sibling job states), so writeDoneBlob is retried; only once it
       // succeeds does markParentCompleted commit COMPLETED. Only this TEE reached last-job-out for
       // `completedModelLine`, so only it finalizes the (model line, date): it drops the single
       // `done` marker in that model line's shared-event-date folder — the one VidLabelingSink wrote
       // its labeled output to — and DataAvailabilitySync finalizes it. Independent per model line:
-      // a
-      // FAILED/stuck sibling no longer withholds this line's availability.
+      // a FAILED/stuck sibling no longer withholds this line's availability.
       if (eventDate != null) {
         writeDoneBlob(
           params.vidLabeledImpressionsStorageParams,
