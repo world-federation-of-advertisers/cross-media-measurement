@@ -127,11 +127,14 @@ message Common {
     version_added: 1
   }];
 
-  // Whether the person was signed in to a first-party account when reached.
-  // A boolean population attribute, to exercise boolean-valued dimensions.
+  // Whether the person was signed in to a first-party account for this event.
+  // A per-event (non-population) boolean, to exercise boolean-valued
+  // dimensions. It is `population_attribute: false` because it is a property
+  // of the event, not of the virtual person: the same person can be signed in
+  // for one impression and not another.
   bool signed_in = 4 [(.wfa.measurement.api.v2alpha.template_field) = {
     display_name: "Signed In"
-    population_attribute: true
+    population_attribute: false
     reporting_features: FILTERABLE
     reporting_features: GROUPABLE
     version_added: 1
