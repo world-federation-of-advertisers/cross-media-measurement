@@ -25,6 +25,7 @@ option java_multiple_files = true;
 message EventFilter {
   // A disjunction of terms that define the filter criteria.
   //
-  // A current limitation is that the number of terms must be exactly one.
+  // Terms are combined with OR. Where an `EventFilter` appears in a repeated
+  // field, those `EventFilter`s are combined with AND.
   repeated EventTemplateField terms = 1;
 }

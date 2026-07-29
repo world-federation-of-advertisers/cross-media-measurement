@@ -23,6 +23,7 @@ import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.common.cel.CelPredicates
 import org.wfanet.measurement.common.cel.CelValidationException
+import org.wfanet.measurement.internal.reporting.v2.EventFilter as InternalEventFilter
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField as InternalEventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
@@ -292,9 +293,13 @@ fun buildCelExpression(
               Normalization.normalizeEventFilters(
                 impressionQualificationFilterSpec.filtersList.map { it.toInternal() }
               )) {
-              val term: InternalEventTemplateField = eventFilter.termsList.single()
-              val termValue = term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path))
-              add(buildCelTerm(term.path, termValue, emitCelNullGuardsForNestedMembers))
+              add(
+                buildCelDisjunction(
+                  eventFilter,
+                  eventTemplateFieldsByPath,
+                  emitCelNullGuardsForNestedMembers,
+                )
+              )
             }
           }
           .joinToString(" && ")
@@ -449,17 +454,59 @@ fun buildCelExpression(
   return if (dimensionSpecFilters.isEmpty()) {
     ""
   } else {
+    // `DimensionSpec.filters` is a conjunction of `EventFilter`s, each of which is a disjunction of
+    // its own terms.
     Normalization.normalizeEventFilters(dimensionSpecFilters.map { it.toInternal() }).joinToString(
       " && "
     ) {
-      val term = it.termsList.single()
+      buildCelDisjunction(it, eventTemplateFieldsByPath, emitCelNullGuardsForNestedMembers)
+    }
+  }
+}
+
+/**
+ * Emits the CEL for a single [InternalEventFilter] as a disjunction of its terms.
+ *
+ * `EventFilter.terms` is documented as a disjunction, so terms are joined with `||`.
+ *
+ * A multi-term disjunction is parenthesized twice over: each term is wrapped, and the group as a
+ * whole is wrapped. Both are required rather than cosmetic. CEL binds `&&` tighter than `||`, and
+ * callers combine sibling filters (and, on the IQF path, `<template> != null` clauses) with `&&`, so
+ * an unwrapped group would re-associate into the neighbouring conjunction. The per-term wrapping
+ * covers the same hazard one level down: with [emitNullGuardForNestedMembers] enabled a term is
+ * itself `<member> != null && <path> == <value>`.
+ *
+ * A single-term filter emits the bare term with no added parentheses, so CEL generated for the
+ * filters that exist today is byte-for-byte unchanged.
+ *
+ * [normalizedEventFilter] must have come from [Normalization.normalizeEventFilters], which sorts
+ * terms by `(path, value)`. Term order is load-bearing, not aesthetic: two requests whose filters
+ * differ only in term order have to produce the same CEL string, or they yield distinct
+ * MetricCalculationSpecs (the same metric computed and privacy-charged twice) and distinct filter
+ * fingerprints for one logical filter, which splits the dimension identity the post-processor uses
+ * to pair whole-campaign results with weekly ones.
+ */
+private fun buildCelDisjunction(
+  normalizedEventFilter: InternalEventFilter,
+  eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
+  emitNullGuardForNestedMembers: Boolean,
+): String {
+  require(normalizedEventFilter.termsList.isNotEmpty()) { "EventFilter has no terms" }
+
+  val terms: List<String> =
+    normalizedEventFilter.termsList.map { term ->
       require(
         term.value.selectorCase !=
           InternalEventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
       )
       val termValue = term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path))
-      buildCelTerm(term.path, termValue, emitCelNullGuardsForNestedMembers)
+      buildCelTerm(term.path, termValue, emitNullGuardForNestedMembers)
     }
+
+  return if (terms.size == 1) {
+    terms.single()
+  } else {
+    terms.joinToString(separator = " || ", prefix = "(", postfix = ")") { "($it)" }
   }
 }
 

@@ -68,7 +68,8 @@ message ImpressionQualificationFilterConfig {
   message EventFilter {
     // A disjunction of terms that define the filter criteria.
     //
-    // A current limitation is that the number of terms must be exactly one.
+    // Terms are combined with OR. The enclosing `filters` are combined with
+    // AND.
     repeated EventTemplateField terms = 1;
   }
 

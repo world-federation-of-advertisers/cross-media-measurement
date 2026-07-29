@@ -36,6 +36,7 @@ import org.wfanet.measurement.internal.reporting.v2.ResultGroupMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupSpec
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.resultGroup
+import org.wfanet.measurement.reporting.service.internal.Normalization
 
 /** The type of the resources that a [ReportingUnit]'s components reference. */
 private enum class ReportingUnitComponentType {
@@ -526,7 +527,13 @@ object BasicReportProcessedResultsTransformation {
         ResultGroupSpecKey(
           metricFrequencySpec = resultGroupSpec.metricFrequency,
           groupingFields = resultGroupSpec.dimensionSpec.grouping.eventTemplateFieldsList.toSet(),
-          eventFilters = resultGroupSpec.dimensionSpec.filtersList.toSet(),
+          // The map side of this key is built from `ReportingSetResult.Dimension.event_filters`,
+          // which `SpannerReportResultsService` requires to be normalized. This side comes straight
+          // from the request, so it has to be normalized to match. Filter order alone was absorbed
+          // by `toSet()`, but term order within a filter is not, so a multi-term filter submitted
+          // in non-canonical order would silently miss the lookup.
+          eventFilters =
+            Normalization.normalizeEventFilters(resultGroupSpec.dimensionSpec.filtersList).toSet(),
         )
       )
 

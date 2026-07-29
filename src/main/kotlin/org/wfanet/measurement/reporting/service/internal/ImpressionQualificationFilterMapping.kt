@@ -114,13 +114,25 @@ class ImpressionQualificationFilterMapping(
     val celEnv = CelPredicates.buildEnvironment(eventMessageDescriptor)
     for (configFilter in impressionQualificationFilters) {
       for (spec in configFilter.filterSpecsList) {
+        // `filters` is a conjunction; each filter's `terms` is a disjunction. Prior to
+        // world-federation-of-advertisers/cross-media-measurement#4253 both levels were joined
+        // with `&&` here, which disagreed with the documented semantics of `terms`; the
+        // disagreement was unobservable because every filter was limited to a single term, where
+        // the two joins produce the same string. A multi-term disjunction is parenthesized so it
+        // does not re-associate into the surrounding conjunction.
         val celString: String =
           spec.filtersList.joinToString(" && ") { configEventFilter ->
-            configEventFilter.termsList.joinToString(" && ") { configTerm ->
-              val fieldInfo = eventTemplateFieldsByPath.getValue(configTerm.path)
-              val internalTerm = configTerm.toEventTemplateField()
-              val valueLiteral = internalTerm.value.toCelValue(fieldInfo)
-              "${configTerm.path} == $valueLiteral"
+            val terms: List<String> =
+              configEventFilter.termsList.map { configTerm ->
+                val fieldInfo = eventTemplateFieldsByPath.getValue(configTerm.path)
+                val internalTerm = configTerm.toEventTemplateField()
+                val valueLiteral = internalTerm.value.toCelValue(fieldInfo)
+                "${configTerm.path} == $valueLiteral"
+              }
+            if (terms.size == 1) {
+              terms.single()
+            } else {
+              terms.joinToString(separator = " || ", prefix = "(", postfix = ")")
             }
           }
         try {

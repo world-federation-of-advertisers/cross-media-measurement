@@ -388,12 +388,10 @@ object CreateBasicReportRequestValidation {
       if (eventFilter.termsList.isEmpty()) {
         throw RequiredFieldNotSetException("$filterFieldPath.terms")
       }
-      if (eventFilter.termsList.size > 1) {
-        throw InvalidFieldValueException("$filterFieldPath.terms") { fieldName ->
-          "$fieldName can only have a size of 1"
-        }
-      }
 
+      // `terms` is a disjunction; multiple terms are permitted. Sibling `filters` remain a
+      // conjunction, so `gender == FEMALE` AND (`age == 18_34` OR `age == 35_54`) is two filters,
+      // the second carrying two terms.
       eventFilter.termsList.forEachIndexed { index, term ->
         val termFieldPath = "$filterFieldPath.terms[$index]"
         validateDimensionSpecEventTemplateField(term, termFieldPath, eventTemplateFieldsByPath)
@@ -874,12 +872,8 @@ object CreateBasicReportRequestValidation {
           if (filter.termsList.isEmpty()) {
             throw RequiredFieldNotSetException("$filterFieldPath.terms")
           }
-          if (filter.termsList.size > 1) {
-            throw InvalidFieldValueException("$filterFieldPath.terms") { fieldName ->
-              "$fieldName can only have a size of 1"
-            }
-          }
 
+          // `terms` is a disjunction; multiple terms are permitted.
           filter.termsList.forEachIndexed { termIndex, term ->
             validateIqfTerm(
               term,
