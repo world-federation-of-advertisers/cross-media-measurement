@@ -52,16 +52,15 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
  * * [dayOnly] — the `(fp, rank)` pairs touched this dispatch; serialized as the `DAY_ONLY` blob.
  *
  * Shared rank pool (the whole point — no per-stripe rank band):
- * * [newRankCursor] — the next never-used rank ([AtomicInteger.getAndIncrement], lock-free).
+ * * [newRankCursor] — the next never-used rank ([AtomicInteger.getAndUpdate], clamped, lock-free).
  * * [reclaimed] — ranks freed by retention (or holes below the loaded high-water), reused before
  *   the cursor is extended.
  * * [lastSeen] — `lastSeen[rank]` recency; each rank is owned/written by exactly one coroutine, and
  *   reads are of stable values, so no lock is needed.
  *
- * [allocateRank] returns `reclaimed.poll()` if any, else `newRankCursor.getAndIncrement()` unless
- * it has reached [rankedSize] (overflow). No bulk reservation and no per-stripe capacity, so no
- * rank is ever stranded: overflow occurs **only** when the whole ranked range is simultaneously
- * held.
+ * [allocateRank] returns `reclaimed.poll()` if any, else the clamped `newRankCursor` unless it has
+ * reached [rankedSize] (overflow). No bulk reservation and no per-stripe capacity, so no rank is
+ * ever stranded: overflow occurs **only** when the whole ranked range is simultaneously held.
  *
  * ## Lifecycle
  * 1. [addToday] (parallel parse phase, under the per-stripe lock),

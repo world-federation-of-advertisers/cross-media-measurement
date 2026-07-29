@@ -263,15 +263,13 @@ class SubpoolRanker(
     priorSnapshot: RankIndexBlob?,
   ): Result {
     // Pre-size the striped maps so the parallel fill / warm load does not resize under each
-    // stripe's
-    // monitor (a resize holds the monitor across an O(n) rehash, which serializes the workers and
-    // transiently doubles the heap). Counts are estimated from blob byte sizes: each today
-    // fingerprint is [EventIdDigestBytes.WIDTH] bytes and shards partition the space
-    // (duplicate-free
-    // merged blob), and each prior-snapshot entry is [RankIndexStore.ON_DISK_BYTES_PER_ENTRY]
-    // bytes.
-    // The cumulative map holds prior + today (a safe over-estimate), fixing the warm-dispatch
-    // resize-during-load caveat (world-federation-of-advertisers/cross-media-measurement#4015).
+    // stripe's monitor (a resize holds the monitor across an O(n) rehash, which serializes the
+    // workers and transiently doubles the heap). Counts are estimated from blob byte sizes: each
+    // today fingerprint is [EventIdDigestBytes.WIDTH] bytes and shards partition the space
+    // (duplicate-free merged blob), and each prior-snapshot entry is
+    // [RankIndexStore.ON_DISK_BYTES_PER_ENTRY] bytes. The cumulative map holds prior + today (a
+    // safe over-estimate), fixing the warm-dispatch resize-during-load caveat
+    // (world-federation-of-advertisers/cross-media-measurement#4015).
     val todayEntries =
       subpoolFingerprintsStore.blobSize(subpoolBlobUri, encryptedSubpoolMapsDek) /
         EventIdDigestBytes.WIDTH
