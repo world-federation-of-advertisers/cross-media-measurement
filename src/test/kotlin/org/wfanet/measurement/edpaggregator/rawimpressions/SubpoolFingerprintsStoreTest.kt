@@ -24,11 +24,12 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
-import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicInteger
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Semaphore
 import org.junit.Before
@@ -37,9 +38,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
-import org.wfanet.measurement.storage.ConditionalOperationStorageClient
-import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
@@ -152,55 +150,35 @@ class SubpoolFingerprintsStoreTest {
     }
 
   @Test
-  fun `mergeSubpool caches the encrypted client per DEK across ops and subpools`() = runBlocking {
-    // FileSystemStorageClient exercises a real streaming backend; the counting KMS proves the
-    // cache.
-    val countingKms = CountingKmsClient(kmsClient)
-    val tempDir = Files.createTempDirectory("subpool-fingerprints-store-test").toFile()
-    val fsClient: ConditionalOperationStorageClient =
-      asConditional(FileSystemStorageClient(tempDir))
-    val store = SubpoolFingerprintsStore(fsClient, countingKms)
+  fun `writeBlob builds its own client per writer and is safe under concurrent writers`() =
+    runBlocking<Unit> {
+      // Review #4235: per-subpool uploads run concurrently on one store (SubpoolAssigner's
+      // uploadSemaphore). encryptedClient() must build a FRESH client per call — sharing one client
+      // across concurrent writeBlob interleaves its mutable write state and mixes fingerprints
+      // between subpool blobs. InMemoryStorageClient is a thread-safe backend, so any corruption
+      // here is the client, not the storage layer.
+      val countingKms = CountingKmsClient(kmsClient)
+      val store = SubpoolFingerprintsStore(InMemoryStorageClient(), countingKms)
+      val dek = store.generateDek(kekUri)
+      countingKms.unwrapCount.set(0)
 
-    // Two shards, each with its own DEK; two subpools (7, 8) with disjoint fingerprints.
-    val dek0 = store.generateDek(kekUri)
-    val dek1 = store.generateDek(kekUri)
-    val mergedDek = store.generateDek(kekUri)
-    // Count only the KEK->DEK unwraps done by the blob operations below (DEK generation above wraps
-    // a keyset with its own KEK round-trip, which is not what the client cache is about).
-    countingKms.unwrapCount.set(0)
-    store.writeBlob("shard-0/subpool-7", dek0, 7L, flowOf(pack(listOf(fp(0x11), fp(0x22)))))
-    store.writeBlob("shard-1/subpool-7", dek1, 7L, flowOf(pack(listOf(fp(0x33)))))
-    store.writeBlob("shard-0/subpool-8", dek0, 8L, flowOf(pack(listOf(fp(0x44)))))
-    store.writeBlob("shard-1/subpool-8", dek1, 8L, flowOf(pack(listOf(fp(0x55), fp(0x66)))))
+      val n = 16
+      val chunks = (0 until n).associateWith { pack(listOf(fp(it))) }
+      coroutineScope {
+        (0 until n).map { i ->
+          launch(Dispatchers.IO) {
+            store.writeBlob("subpool-" + i, dek, i.toLong(), flowOf(chunks.getValue(i)))
+          }
+        }
+      }
 
-    val readSemaphore = Semaphore(16)
-    for (offset in listOf(7L, 8L)) {
-      store.mergeSubpool(
-        listOf(
-          SubpoolFingerprintsStore.SubpoolBlob("shard-0/subpool-$offset", dek0),
-          SubpoolFingerprintsStore.SubpoolBlob("shard-1/subpool-$offset", dek1),
-          // A shard with no blob for this subpool is skipped.
-          SubpoolFingerprintsStore.SubpoolBlob("shard-2/subpool-$offset", dek1),
-        ),
-        outputKey = "merged/subpool-$offset",
-        outputEncryptedDek = mergedDek,
-        readSemaphore = readSemaphore,
-      )
+      // One client (one KEK->DEK unwrap) PER concurrent writer — no shared/cached client.
+      assertThat(countingKms.unwrapCount.get()).isEqualTo(n)
+      // ...and no cross-writer corruption: each blob round-trips to exactly its own bytes.
+      for (i in 0 until n) {
+        assertThat(readAll(store, "subpool-" + i, dek)).isEqualTo(chunks.getValue(i))
+      }
     }
-
-    // Each merged blob's fingerprint SET is the disjoint union of its shards, order-independent.
-    assertThat(fingerprintSet(store, "merged/subpool-7", mergedDek))
-      .containsExactly(bs(fp(0x11)), bs(fp(0x22)), bs(fp(0x33)))
-    assertThat(fingerprintSet(store, "merged/subpool-8", mergedDek))
-      .containsExactly(bs(fp(0x44)), bs(fp(0x55)), bs(fp(0x66)))
-
-    // Cache proof: many blob ops (4 input writes + 2 merged writes + 4 shard reads + 2 readbacks,
-    // spanning both subpools) ran, but the KEK->DEK unwrap happened exactly once per DISTINCT DEK
-    // (dek0, dek1, mergedDek), NOT once per blob op — proving encryptedClient() is cached per DEK.
-    val distinctDeks = setOf(dek0, dek1, mergedDek).size
-    assertThat(distinctDeks).isEqualTo(3)
-    assertThat(countingKms.unwrapCount.get()).isEqualTo(distinctDeks)
-  }
 
   @Test
   fun `delete removes a blob`() = runBlocking {
@@ -245,32 +223,6 @@ class SubpoolFingerprintsStoreTest {
       )
       .isEqualTo("maps/upload/abc-123/modelLine/ml1/merged/subpoolOffset/7")
   }
-
-  /**
-   * Adapts a plain [StorageClient] to [ConditionalOperationStorageClient]. The store's writes are
-   * unconditional, so the conditional-write method is never exercised.
-   */
-  private fun asConditional(delegate: StorageClient): ConditionalOperationStorageClient =
-    object : ConditionalOperationStorageClient, StorageClient by delegate {
-      override suspend fun getFreshnessToken(blobKey: String): String? =
-        throw UnsupportedOperationException("unconditional writes only")
-
-      override suspend fun writeBlobIfNotFound(
-        blobKey: String,
-        content: Flow<ByteString>,
-      ): StorageClient.Blob = throw UnsupportedOperationException("unconditional writes only")
-
-      override suspend fun writeBlobIfUnchanged(
-        blob: StorageClient.Blob,
-        content: Flow<ByteString>,
-      ): StorageClient.Blob = throw UnsupportedOperationException("unconditional writes only")
-
-      override suspend fun writeBlobIfUnchanged(
-        blobKey: String,
-        freshnessToken: String,
-        content: Flow<ByteString>,
-      ): StorageClient.Blob = throw UnsupportedOperationException("unconditional writes only")
-    }
 
   /**
    * Wraps a [KmsClient] to count KEK->DEK unwraps, i.e. how many times a wrapped DEK is decrypted

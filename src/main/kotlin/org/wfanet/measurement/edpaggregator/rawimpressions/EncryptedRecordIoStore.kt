@@ -58,31 +58,24 @@ abstract class EncryptedRecordIoStore(
   }
 
   /**
-   * Caches one [MesosRecordIoStorageClient] per distinct [EncryptedDek] for the lifetime of this
-   * store (one `WorkItem`). Building a client unwraps the DEK under the KEK (a KMS round-trip) and
-   * allocates per-client encryption buffers, so reusing the cached instance across repeated and
-   * concurrent `getBlob`/`writeBlob` calls avoids redundant KEK->DEK unwraps and buffer allocs. The
-   * cached clients are stateless and thread-safe (`MesosRecordIoStorageClient` /
-   * `StreamingAeadStorageClient` / `GcsStorageClient` hold no mutable instance state), so a single
-   * instance is safe for concurrent reuse. [EncryptedDek] is an immutable proto, so it is a valid
-   * map key.
-   */
-  private val clientCache =
-    java.util.concurrent.ConcurrentHashMap<EncryptedDek, MesosRecordIoStorageClient>()
-
-  /**
-   * A cached [MesosRecordIoStorageClient] over [storageClient] that envelope-encrypts with
+   * A fresh [MesosRecordIoStorageClient] over [storageClient] that envelope-encrypts with
    * [encryptedDek].
+   *
+   * A NEW client is built per call — deliberately not cached or shared. The underlying
+   * [MesosRecordIoStorageClient] / `StreamingAeadStorageClient` hold mutable per-write state, so
+   * sharing one instance across concurrent `writeBlob`/`getBlob` calls (as the Phase-0 per-subpool
+   * upload does, bounded by `SUBPOOL_UPLOAD_CONCURRENCY`) would interleave that state and corrupt
+   * blob contents. Building per call gives each concurrent writer its own client. The cost is one
+   * KEK->DEK unwrap per call; if that ever becomes a bottleneck, cache per (DEK, owning coroutine)
+   * rather than a single shared instance.
    */
   protected fun encryptedClient(encryptedDek: EncryptedDek): MesosRecordIoStorageClient =
-    clientCache.computeIfAbsent(encryptedDek) { dek ->
-      EncryptedStorage.buildEncryptedMesosStorageClient(
-        storageClient,
-        kmsClient = kmsClient,
-        kekUri = dek.kekUri,
-        encryptedDek = dek,
-      )
-    }
+    EncryptedStorage.buildEncryptedMesosStorageClient(
+      storageClient,
+      kmsClient = kmsClient,
+      kekUri = encryptedDek.kekUri,
+      encryptedDek = encryptedDek,
+    )
 
   companion object {
     init {

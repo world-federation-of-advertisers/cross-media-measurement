@@ -79,8 +79,6 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  *   [Dispatchers.Default] (already ≈ #cores).
  * @param rankStripes Number of map stripes ≈ #cores for the parallel forward build.
  * @param maxInFlightRecords Parse-phase read-ahead bound (backpressure) for [SubpoolRanker].
- * @param maxConcurrentSubpools Max subpools ranked concurrently within one `RankerJob` (small; each
- *   subpool build is itself core-parallel). A 1-subpool job is unaffected.
  */
 class VidRankBuilderApp(
   subscriptionId: String,
@@ -102,7 +100,6 @@ class VidRankBuilderApp(
   private val workerDispatcher: CoroutineDispatcher = Dispatchers.Default,
   private val rankStripes: Int = ConcurrentRankAllocator.DEFAULT_STRIPES,
   private val maxInFlightRecords: Int = maxOf(2, ConcurrentRankAllocator.DEFAULT_STRIPES * 2),
-  private val maxConcurrentSubpools: Int = VidRankBuilder.DEFAULT_MAX_CONCURRENT_SUBPOOLS,
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
@@ -199,7 +196,6 @@ class VidRankBuilderApp(
         // Forwarded verbatim from Phase-0 via VidRankBuilderParams (REQUIRED); VidRankBuilder's
         // `require(maxFileBatchSizeBytes > 0)` rejects an unset/zero value at the boundary.
         maxFileBatchSizeBytes = params.maxFileBatchSizeBytes,
-        maxConcurrentSubpools = maxConcurrentSubpools,
       )
       .run()
   }

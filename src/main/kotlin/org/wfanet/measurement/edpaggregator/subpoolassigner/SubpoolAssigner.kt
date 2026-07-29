@@ -173,7 +173,8 @@ class SubpoolAssigner(
     // concurrent accumulator.remove(subpoolId) calls therefore only ever run across DIFFERENT
     // subpools — same-subpool remove is impossible here, which is exactly the callsite invariant
     // that makes the snapshot-based accumulator safe (see SubpoolFingerprintsAccumulator.remove).
-    // The shared encrypted client is thread-safe for concurrent writeBlob, and streamChunks/remove
+    // Each writeBlob builds its OWN encrypted client (encryptedClient is not shared/cached across
+    // calls), so concurrent writes never interleave on shared client state; streamChunks/remove
     // touch disjoint buckets. This runs after the read/label stream has fully drained, so it uses a
     // separate, ephemeral scope — never the row-processing worker pool. Each subpool's map is freed
     // as soon as its blob is durable, so peak memory is unchanged (all maps are already resident).
