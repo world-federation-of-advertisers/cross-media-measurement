@@ -501,6 +501,57 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
+  fun `insertBasicReport throws INVALID_ARGUMENT when component summary missing external_reporting_set_id`():
+    Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    // Regression for cross-media-measurement#4289: a component summary with no
+    // external_reporting_set_id (as produced by the legacy InsertBasicReport importer) must be
+    // rejected, since the read path would otherwise throw while serializing it.
+    val basicReport = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalBasicReportId = "1237"
+      externalCampaignGroupId = REPORTING_SET.externalReportingSetId
+      details = basicReportDetails { title = "title" }
+      resultDetails = basicReportResultDetails {
+        resultGroups += resultGroup {
+          title = "title"
+          results +=
+            ResultGroupKt.result {
+              metadata =
+                ResultGroupKt.metricMetadata {
+                  reportingUnitSummary =
+                    ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
+                      reportingUnitComponentSummary +=
+                        ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
+                          cmmsDataProviderDisplayName = "display"
+                          // external_reporting_set_id intentionally left unset.
+                        }
+                    }
+                }
+            }
+        }
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.insertBasicReport(insertBasicReportRequest { this.basicReport = basicReport })
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
   fun `getBasicReport with insertBasicReport succeeds`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }

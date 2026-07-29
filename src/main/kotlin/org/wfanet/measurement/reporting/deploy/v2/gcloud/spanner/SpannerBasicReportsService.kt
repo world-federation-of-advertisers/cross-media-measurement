@@ -604,6 +604,26 @@ class SpannerBasicReportsService(
       throw RequiredFieldNotSetException("result_details")
     }
 
+    // Every ReportingUnitComponentSummary must carry an external_reporting_set_id. The read path
+    // (BasicReportProtoConversions.toMetricMetadata) assembles a ReportingSet resource name from it
+    // unconditionally, so a missing value makes GetBasicReport/ListBasicReports throw. The public
+    // CreateBasicReport path derives this field during result processing, but InsertBasicReport
+    // stores result_details verbatim, so it must be validated here.
+    // See world-federation-of-advertisers/cross-media-measurement#4289.
+    for (resultGroup in basicReport.resultDetails.resultGroupsList) {
+      for (result in resultGroup.resultsList) {
+        for (componentSummary in
+          result.metadata.reportingUnitSummary.reportingUnitComponentSummaryList) {
+          if (componentSummary.externalReportingSetId.isEmpty()) {
+            throw RequiredFieldNotSetException(
+              "result_details.result_groups.results.metadata.reporting_unit_summary" +
+                ".reporting_unit_component_summary.external_reporting_set_id"
+            )
+          }
+        }
+      }
+    }
+
     for (impressionQualificationFilter in basicReport.details.impressionQualificationFiltersList) {
       if (
         impressionQualificationFilter.externalImpressionQualificationFilterId.isNotEmpty() &&
