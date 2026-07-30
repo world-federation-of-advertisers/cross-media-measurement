@@ -249,6 +249,10 @@ class SpannerEventGroupActivitiesService(
         // EventGroup within that scope if a specific one was requested.
         when (request.scopeCase) {
           ListEventGroupActivitiesRequest.ScopeCase.EXTERNAL_DATA_PROVIDER_ID -> {
+            if (request.externalDataProviderId == 0L) {
+              throw RequiredFieldNotSetException("external_data_provider_id")
+                .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+            }
             val dataProviderResult =
               DataProviderReader()
                 .readByExternalDataProviderId(txn, ExternalId(request.externalDataProviderId))
@@ -274,6 +278,10 @@ class SpannerEventGroupActivitiesService(
             }
           }
           ListEventGroupActivitiesRequest.ScopeCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
+            if (request.externalMeasurementConsumerId == 0L) {
+              throw RequiredFieldNotSetException("external_measurement_consumer_id")
+                .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+            }
             val measurementConsumerResult =
               MeasurementConsumerReader()
                 .readByExternalMeasurementConsumerId(
