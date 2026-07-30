@@ -16,13 +16,10 @@
 
 package org.wfanet.measurement.edpaggregator.vidrankbuilder
 
-import com.google.protobuf.UnsafeByteOperations
 import java.util.BitSet
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexMap
-import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
 
 /**
@@ -72,13 +69,13 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
  *   to [rankedSize] (the previous fixed sizing).
  */
 class RankAllocator(
-  val poolOffset: Long,
-  val rankedSize: Int,
+  poolOffset: Long,
+  rankedSize: Int,
   private val eventDay: Int,
   initialCapacity: Long = Bytes12IntMap.DEFAULT_INITIAL_CAPACITY,
   cumulativeCapacity: Long = initialCapacity,
   estimatedTotalRanks: Int = rankedSize,
-) {
+) : BaseRankAllocator(poolOffset, rankedSize) {
   init {
     require(rankedSize >= 0) { "rankedSize must be >= 0, got $rankedSize" }
     require(eventDay in 0..LastSeenDayBytes.MAX_DAY) {
@@ -336,70 +333,14 @@ class RankAllocator(
    * carrying its entries' persisted `last_seen` recency.
    */
   fun streamCumulativeChunks(chunkEntries: Int = DEFAULT_CHUNK_ENTRIES): Flow<RankIndexMap> =
-    streamChunks(cumulative, chunkEntries) { rank -> lastSeen[rank].toInt() and 0xFFFF }
+    streamChunks(arrayOf(cumulative), chunkEntries) { rank -> lastSeen[rank].toInt() and 0xFFFF }
 
   /**
    * Streams this dispatch's touched entries as chunked [RankIndexMap] records (`DAY_ONLY` blob);
    * every entry's `last_seen` is [eventDay] (they were all observed this dispatch).
    */
   fun streamDayOnlyChunks(chunkEntries: Int = DEFAULT_CHUNK_ENTRIES): Flow<RankIndexMap> =
-    streamChunks(dayOnly, chunkEntries) { eventDay }
-
-  private fun streamChunks(
-    map: Bytes12IntMap,
-    chunkEntries: Int,
-    lastSeenOf: (rank: Int) -> Int,
-  ): Flow<RankIndexMap> = flow {
-    val total = map.size
-    if (total == 0L) return@flow
-    val chunkCount = minOf(chunkEntries.toLong(), total).toInt()
-    var fps = ByteArray(chunkCount * EventIdDigestBytes.WIDTH)
-    var ranks = IntArray(chunkCount)
-    var seen = IntArray(chunkCount)
-    var n = 0
-    var produced = 0L
-    // forEach is inline, so the suspend emit() is legal inside the flow block.
-    map.forEach { keyHi, keyLo, rank ->
-      val base = n * EventIdDigestBytes.WIDTH
-      EventIdDigestBytes.writeHi(fps, base, keyHi)
-      EventIdDigestBytes.writeLo(fps, base + 8, keyLo)
-      ranks[n] = rank
-      seen[n] = lastSeenOf(rank)
-      n++
-      produced++
-      if (n == ranks.size) {
-        emit(buildRecord(fps, ranks, seen, n))
-        val remaining = total - produced
-        if (remaining > 0) {
-          val next = minOf(chunkEntries.toLong(), remaining).toInt()
-          fps = ByteArray(next * EventIdDigestBytes.WIDTH)
-          ranks = IntArray(next)
-          seen = IntArray(next)
-          n = 0
-        }
-      }
-    }
-  }
-
-  private fun buildRecord(
-    fps: ByteArray,
-    ranks: IntArray,
-    seen: IntArray,
-    count: Int,
-  ): RankIndexMap = rankIndexMap {
-    poolOffset = this@RankAllocator.poolOffset
-    rankedSize = this@RankAllocator.rankedSize
-    fingerprints = UnsafeByteOperations.unsafeWrap(fps, 0, count * EventIdDigestBytes.WIDTH)
-    val lastSeenBytes = ByteArray(count * LastSeenDayBytes.WIDTH)
-    // Bulk-add ranks in one call. Per-element `this.ranks += ranks[i]` allocated one boxed Int per
-    // entry and paid N virtual dispatches through DslList; addAll skips both, at the cost of the
-    // list-view copy in the subList branch.
-    this.ranks += if (count == ranks.size) ranks.asList() else ranks.asList().subList(0, count)
-    for (i in 0 until count) {
-      LastSeenDayBytes.write(lastSeenBytes, i * LastSeenDayBytes.WIDTH, seen[i])
-    }
-    lastSeenDays = UnsafeByteOperations.unsafeWrap(lastSeenBytes)
-  }
+    streamChunks(arrayOf(dayOnly), chunkEntries) { eventDay }
 
   companion object {
     /** ~1M entries (~18 MB of fps+ranks+last_seen) per record: one buffer in memory at a time. */
