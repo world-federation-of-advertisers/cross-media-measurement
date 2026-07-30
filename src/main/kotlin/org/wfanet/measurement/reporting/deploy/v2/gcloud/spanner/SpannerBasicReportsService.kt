@@ -604,20 +604,17 @@ class SpannerBasicReportsService(
       throw RequiredFieldNotSetException("result_details")
     }
 
-    // Every ReportingUnitComponentSummary must carry an external_reporting_set_id. The read path
-    // (BasicReportProtoConversions.toMetricMetadata) assembles a ReportingSet resource name from it
-    // unconditionally, so a missing value makes GetBasicReport/ListBasicReports throw. The public
-    // CreateBasicReport path derives this field during result processing, but InsertBasicReport
-    // stores result_details verbatim, so it must be validated here.
-    // See world-federation-of-advertisers/cross-media-measurement#4289.
-    for (resultGroup in basicReport.resultDetails.resultGroupsList) {
-      for (result in resultGroup.resultsList) {
-        for (componentSummary in
-          result.metadata.reportingUnitSummary.reportingUnitComponentSummaryList) {
+    basicReport.resultDetails.resultGroupsList.forEachIndexed { resultGroupIndex, resultGroup ->
+      resultGroup.resultsList.forEachIndexed { resultIndex, result ->
+        val componentSummaryListPath =
+          "result_details.result_groups[$resultGroupIndex].results[$resultIndex]" +
+            ".metadata.reporting_unit_summary.reporting_unit_component_summary"
+        result.metadata.reportingUnitSummary.reportingUnitComponentSummaryList.forEachIndexed {
+          componentIndex,
+          componentSummary ->
           if (componentSummary.externalReportingSetId.isEmpty()) {
             throw RequiredFieldNotSetException(
-              "result_details.result_groups.results.metadata.reporting_unit_summary" +
-                ".reporting_unit_component_summary.external_reporting_set_id"
+              "$componentSummaryListPath[$componentIndex].external_reporting_set_id"
             )
           }
         }
