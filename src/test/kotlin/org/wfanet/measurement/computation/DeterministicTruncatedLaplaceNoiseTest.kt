@@ -42,6 +42,14 @@ class DeterministicTruncatedLaplaceNoiseTest {
   }
 
   @Test
+  fun `fingerprint matches golden`() {
+    // Golden digest over BE32(count) || BE32(vector). Pins the encoding: a change to the field
+    // order, width or endianness reseeds every deployed measurement.
+    assertThat(DeterministicTruncatedLaplaceNoise.fingerprint(COMBINED, CONTRIBUTION_COUNT).toHex())
+      .isEqualTo("ddff6bed977d8001cf37dd15dc88025d1c4f264c82263af73b2f8ced93cf2312")
+  }
+
+  @Test
   fun `fingerprint changes with contribution count`() {
     // Same aggregate vector, different contribution count: reseeds. This is what closes the
     // fully-contained-contribution differencing case, where the aggregate is byte-identical.
@@ -79,7 +87,30 @@ class DeterministicTruncatedLaplaceNoiseTest {
   }
 
   @Test
-  fun `noise adds one reach draw and one draw per frequency bucket`() {
+  fun `noise matches golden draws`() {
+    // Goldens computed outside this codebase from the documented construction: SHA-256 over the
+    // length-prefixed parts, top 53 bits as the uniform, then inverseCdf and round-half-to-even.
+    // Reach uses label 0 at REACH_EPSILON; bucket b uses label b at FREQUENCY_EPSILON. The draws
+    // are +1, -2, -1, 0, so this fails against a noiser that returns zero.
+    val sampled = ReachAndFrequency(15, longArrayOf(10, 4, 1))
+    val fingerprint = DeterministicTruncatedLaplaceNoise.fingerprint(COMBINED, CONTRIBUTION_COUNT)
+
+    val result =
+      DeterministicTruncatedLaplaceNoise.noise(
+        sampled,
+        fingerprint,
+        REACH_EPSILON,
+        FREQUENCY_EPSILON,
+        SENSITIVITY,
+        BOUND,
+      )
+
+    assertThat(result.sampledReach).isEqualTo(16L)
+    assertThat(result.frequencyHistogram).isEqualTo(longArrayOf(8, 3, 1))
+  }
+
+  @Test
+  fun `noise draws once per output with the matching epsilon`() {
     val rawHistogram = longArrayOf(10, 4, 1)
     val sampledReach = 15L
     val sampled = ReachAndFrequency(sampledReach, rawHistogram)
@@ -95,8 +126,6 @@ class DeterministicTruncatedLaplaceNoiseTest {
         BOUND,
       )
 
-    // Reconstruct the expected draws from the same sampler: reach uses label 0 with the reach
-    // epsilon; each bucket b uses label b with the frequency epsilon.
     val reachSampler = DeterministicTruncatedLaplaceNoiseSampler(REACH_EPSILON, SENSITIVITY, BOUND)
     val frequencySampler =
       DeterministicTruncatedLaplaceNoiseSampler(FREQUENCY_EPSILON, SENSITIVITY, BOUND)
@@ -144,5 +173,7 @@ class DeterministicTruncatedLaplaceNoiseTest {
 
     private fun label(value: Int): ByteArray =
       ByteBuffer.allocate(Int.SIZE_BYTES).putInt(value).array()
+
+    private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it.toInt() and 0xFF) }
   }
 }
