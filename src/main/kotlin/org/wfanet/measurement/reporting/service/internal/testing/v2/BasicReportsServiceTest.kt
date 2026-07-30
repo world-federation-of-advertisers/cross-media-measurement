@@ -549,6 +549,16 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] =
+            "result_details.result_groups[0].results[0].metadata.reporting_unit_summary" +
+              ".reporting_unit_component_summary[0].external_reporting_set_id"
+        }
+      )
   }
 
   @Test
