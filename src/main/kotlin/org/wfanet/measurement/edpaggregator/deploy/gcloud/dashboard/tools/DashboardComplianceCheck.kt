@@ -16,14 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.tools
 
-import com.google.auth.oauth2.GoogleCredentials
-import com.google.auth.oauth2.ImpersonatedCredentials
-import com.google.cloud.bigquery.BigQuery
-import com.google.cloud.bigquery.BigQueryOptions
-import java.util.logging.Logger
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.DashboardIsolationChecks
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.DashboardIsolationChecks.CheckResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.DashboardIsolationChecks.EdpConfig
 import picocli.CommandLine
 
@@ -70,9 +63,6 @@ class DashboardComplianceCheck : Runnable {
     }
   }
 
-  private var passed = 0
-  private var failed = 0
-
   override fun run() {
     println("=== EDPA Dashboard Compliance Check ===")
     println("Project: $project")
@@ -80,101 +70,34 @@ class DashboardComplianceCheck : Runnable {
     println("EDPs: ${edps.map { it.name }}")
     println()
 
-    val checks = DashboardIsolationChecks(project, dataset, region)
+    val report =
+      DashboardComplianceRunner.run(project, dataset, region, impersonateServiceAccount, edps)
 
-    // Per-EDP checks via impersonation
-    for (edp in edps) {
-      val bq = bigQueryAsEdp(edp)
-      println("[Data Isolation]")
-      report(checks.checkDataIsolation(bq, edp))
-      println()
-      println("[IAM Boundary]")
-      report(checks.checkIamBoundary(bq, edp))
-      println()
-      println("[EXTERNAL_QUERY Bypass]")
-      report(checks.checkExternalQueryBypass(bq, edp))
-      println()
-      println("[Data Correctness]")
-      report(checks.checkDataCorrectness(bq, edp))
+    for (section in report.sections) {
+      println("[${section.name}]")
+      for (result in section.results) {
+        if (result.passed) {
+          println("  OK  ${result.message}")
+        } else {
+          println("  FAIL  ${result.message}")
+        }
+      }
       println()
     }
 
-    // Platform checks via default credentials
-    val bq = bigQueryDefault()
-    println("[UDF Output Validation]")
-    report(checks.checkUdfOutputValidation(bq))
-    println()
-    println("[Drift Detection]")
-    report(checks.checkDriftDetection(bq, edps))
-    println()
-    println("[Data Freshness]")
-    report(checks.checkFreshness(bq))
-    println()
-
-    val total = passed + failed
-    if (failed == 0) {
-      println("=== RESULT: ALL CHECKS PASSED ($passed/$total) ===")
+    val total = report.passed + report.failed
+    if (report.allPassed) {
+      println("=== RESULT: ALL CHECKS PASSED (${report.passed}/$total) ===")
     } else {
       println(
-        "=== RESULT: $failed CHECKS FAILED ($passed passed, $failed failed out of $total) ==="
+        "=== RESULT: ${report.failed} CHECKS FAILED " +
+          "(${report.passed} passed, ${report.failed} failed out of $total) ==="
       )
       System.exit(1)
     }
   }
 
-  private fun report(results: List<CheckResult>) {
-    for (result in results) {
-      if (result.passed) {
-        println("  OK  ${result.message}")
-        passed++
-      } else {
-        println("  FAIL  ${result.message}")
-        failed++
-      }
-    }
-  }
-
-  private val credentials: GoogleCredentials by lazy {
-    val scopes = arrayOf("https://www.googleapis.com/auth/cloud-platform")
-    val adc = GoogleCredentials.getApplicationDefault().createScoped(*scopes)
-    val target = impersonateServiceAccount
-    if (target.isNullOrEmpty()) {
-      adc
-    } else {
-      ImpersonatedCredentials.create(adc, target, null, scopes.toList(), 300)
-    }
-  }
-
-  private fun bigQueryDefault(): BigQuery {
-    return BigQueryOptions.newBuilder()
-      .setCredentials(credentials)
-      .setProjectId(project)
-      .build()
-      .service
-  }
-
-  private fun bigQueryAsEdp(edp: EdpConfig): BigQuery {
-    val saEmail = "edp-${edp.name}-dashboard@$project.iam.gserviceaccount.com"
-    val impersonatedCredentials =
-      ImpersonatedCredentials.create(
-        credentials,
-        saEmail,
-        null,
-        listOf("https://www.googleapis.com/auth/cloud-platform"),
-        300,
-      )
-    impersonatedCredentials.refreshIfExpired()
-    logger.info("Successfully impersonated $saEmail")
-    return BigQueryOptions.newBuilder()
-      .setCredentials(impersonatedCredentials)
-      .setProjectId(project)
-      .build()
-      .service
-  }
-
   companion object {
-    private val logger = Logger.getLogger(DashboardComplianceCheck::class.java.name)
-
     @JvmStatic fun main(args: Array<String>) = commandLineMain(DashboardComplianceCheck(), args)
   }
 }

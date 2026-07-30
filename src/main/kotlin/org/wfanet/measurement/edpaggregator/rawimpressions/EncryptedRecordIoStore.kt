@@ -58,7 +58,16 @@ abstract class EncryptedRecordIoStore(
   }
 
   /**
-   * A [MesosRecordIoStorageClient] over [storageClient] that envelope-encrypts with [encryptedDek].
+   * A fresh [MesosRecordIoStorageClient] over [storageClient] that envelope-encrypts with
+   * [encryptedDek].
+   *
+   * A NEW client is built per call — deliberately not cached or shared. The underlying
+   * [MesosRecordIoStorageClient] / `StreamingAeadStorageClient` hold mutable per-write state, so
+   * sharing one instance across concurrent `writeBlob`/`getBlob` calls (as the Phase-0 per-subpool
+   * upload does, bounded by `SUBPOOL_UPLOAD_CONCURRENCY`) would interleave that state and corrupt
+   * blob contents. Building per call gives each concurrent writer its own client. The cost is one
+   * KEK->DEK unwrap per call; if that ever becomes a bottleneck, cache per (DEK, owning coroutine)
+   * rather than a single shared instance.
    */
   protected fun encryptedClient(encryptedDek: EncryptedDek): MesosRecordIoStorageClient =
     EncryptedStorage.buildEncryptedMesosStorageClient(

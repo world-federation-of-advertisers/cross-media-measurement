@@ -177,7 +177,7 @@ jobs:
         AKID_TO_PRINCIPAL_MAP: ${{ vars.AKID_TO_PRINCIPAL_MAP }}
       run: >
         echo "$AKID_TO_PRINCIPAL_MAP" | sed $'s/\r$//'  >
-        "$KUSTOMIZATION_PATH/src/main/k8s/dev/config_files/authority_key_identifier_to_principal_map.textproto"
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/duchy_config_files/authority_key_identifier_to_principal_map.textproto"
 
     - name: Upload Kustomization artifact
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

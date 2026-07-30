@@ -53,10 +53,10 @@ fun interface ImpressionConverter {
 /**
  * The labeling-relevant fields extracted from one raw-impression row for one model line.
  *
- * @property labelerInput input fed to the [VidAssigner].
- * @property eventTime impression event time — used for active-window filtering and as the output
- *   `event_time`. A typed `Timestamp` so the converter contract carries the unit instead of a bare
- *   epoch-micros `Long`.
+ * @property labelerInput input fed to the [VidAssigner]. Its `timestamp_usec` is the single source
+ *   of the impression's event time: the sink filters the active window on it directly and derives
+ *   the output `event_time` from it via `Timestamps.fromMicros`, so no separate timestamp field can
+ *   drift out of sync with it.
  * @property event the Event payload to embed in the labeled output.
  * @property entityKeys entity keys for this impression, read per-row from the model line's
  *   required/optional entity-key column mappings (see [EntityKeyMapper]); propagated to the labeled
@@ -64,7 +64,6 @@ fun interface ImpressionConverter {
  */
 data class ConvertedImpression(
   val labelerInput: LabelerInput,
-  val eventTime: com.google.protobuf.Timestamp,
   val event: com.google.protobuf.Any,
   val entityKeys: List<org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression.EntityKey>,
 ) {

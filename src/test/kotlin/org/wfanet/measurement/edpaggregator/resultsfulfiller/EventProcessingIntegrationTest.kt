@@ -174,7 +174,13 @@ class EventProcessingIntegrationTest {
 
     // Create pipeline configuration
     val config =
-      PipelineConfiguration(batchSize = 10, channelCapacity = 100, threadPoolSize = 2, workers = 2)
+      PipelineConfiguration(
+        batchSize = 10,
+        channelCapacity = 100,
+        threadPoolSize = 2,
+        workers = 2,
+        readConcurrency = 8,
+      )
 
     // Process requisitions
     val result =
@@ -302,7 +308,13 @@ class EventProcessingIntegrationTest {
     val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
 
     val config =
-      PipelineConfiguration(batchSize = 15, channelCapacity = 100, threadPoolSize = 3, workers = 3)
+      PipelineConfiguration(
+        batchSize = 15,
+        channelCapacity = 100,
+        threadPoolSize = 3,
+        workers = 3,
+        readConcurrency = 8,
+      )
     // Process all requisitions
     val result =
       eventProcessingOrchestrator.run(
@@ -409,7 +421,13 @@ class EventProcessingIntegrationTest {
     val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
 
     val config =
-      PipelineConfiguration(batchSize = 20, channelCapacity = 100, threadPoolSize = 3, workers = 3)
+      PipelineConfiguration(
+        batchSize = 20,
+        channelCapacity = 100,
+        threadPoolSize = 3,
+        workers = 3,
+        readConcurrency = 8,
+      )
 
     // Process requisitions
     val result =
@@ -504,7 +522,13 @@ class EventProcessingIntegrationTest {
     val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
 
     val config =
-      PipelineConfiguration(batchSize = 10, channelCapacity = 100, threadPoolSize = 2, workers = 2)
+      PipelineConfiguration(
+        batchSize = 10,
+        channelCapacity = 100,
+        threadPoolSize = 2,
+        workers = 2,
+        readConcurrency = 8,
+      )
 
     // Process requisitions
     val result =
@@ -633,7 +657,13 @@ class EventProcessingIntegrationTest {
     val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
 
     val config =
-      PipelineConfiguration(batchSize = 10, channelCapacity = 100, threadPoolSize = 4, workers = 4)
+      PipelineConfiguration(
+        batchSize = 10,
+        channelCapacity = 100,
+        threadPoolSize = 4,
+        workers = 4,
+        readConcurrency = 8,
+      )
 
     // Process requisitions
     val result =
@@ -761,7 +791,13 @@ class EventProcessingIntegrationTest {
     val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
 
     val config =
-      PipelineConfiguration(batchSize = 15, channelCapacity = 100, threadPoolSize = 3, workers = 3)
+      PipelineConfiguration(
+        batchSize = 15,
+        channelCapacity = 100,
+        threadPoolSize = 3,
+        workers = 3,
+        readConcurrency = 8,
+      )
 
     // Process all requisitions
     val result =
@@ -872,7 +908,13 @@ class EventProcessingIntegrationTest {
     val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
 
     val config =
-      PipelineConfiguration(batchSize = 10, channelCapacity = 50, threadPoolSize = 2, workers = 2)
+      PipelineConfiguration(
+        batchSize = 10,
+        channelCapacity = 50,
+        threadPoolSize = 2,
+        workers = 2,
+        readConcurrency = 8,
+      )
 
     // Process all requisitions
     val result =
@@ -1013,7 +1055,13 @@ class EventProcessingIntegrationTest {
     val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
 
     val config =
-      PipelineConfiguration(batchSize = 12, channelCapacity = 100, threadPoolSize = 3, workers = 3)
+      PipelineConfiguration(
+        batchSize = 12,
+        channelCapacity = 100,
+        threadPoolSize = 3,
+        workers = 3,
+        readConcurrency = 8,
+      )
 
     // Process all requisitions
     val result =
@@ -1635,6 +1683,7 @@ class EventProcessingIntegrationTest {
           channelCapacity = 100,
           threadPoolSize = 2,
           workers = 2,
+          readConcurrency = 8,
         )
 
       val result =
