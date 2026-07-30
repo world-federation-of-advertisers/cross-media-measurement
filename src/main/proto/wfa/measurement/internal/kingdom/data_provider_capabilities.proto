@@ -24,4 +24,6 @@ message DataProviderCapabilities {
   bool honest_majority_share_shuffle_supported = 1;
   // Whether the TrusTEE protocol is supported.
   bool trus_tee_supported = 2;
+  // Whether the DETERMINISTIC_TRUNCATED_LAPLACE noise mechanism is supported.
+  bool noise_mechanism_deterministic_truncated_laplace_supported = 3;
 }

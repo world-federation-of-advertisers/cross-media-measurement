@@ -37,6 +37,7 @@ message ProtocolConfig {
     DISCRETE_GAUSSIAN = 2;
     CONTINUOUS_LAPLACE = 4;
     CONTINUOUS_GAUSSIAN = 5;
+    DETERMINISTIC_TRUNCATED_LAPLACE = 6;
   }
 
   // Configuration for the Direct protocol.
@@ -163,6 +164,16 @@ message ProtocolConfig {
 
     // Optional small-cell suppression parameters.
     ResultMinimumThresholds result_minimum_thresholds = 2;
+
+    // Parameters for DETERMINISTIC_TRUNCATED_LAPLACE noise.
+    message DeterministicTruncatedLaplaceNoiseParams {
+      // Draws are truncated to `[-truncation_bound, truncation_bound]`.
+      int32 truncation_bound = 1;
+    }
+
+    // Required when `noise_mechanism` is DETERMINISTIC_TRUNCATED_LAPLACE.
+    DeterministicTruncatedLaplaceNoiseParams
+        deterministic_truncated_laplace_noise_params = 3;
   }
 
   // Configuration for the specific protocol.
