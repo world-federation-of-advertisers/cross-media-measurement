@@ -475,6 +475,22 @@ class MeasurementsService(
     }
   }
 
+  /**
+   * Whether every `DataProvider` supports the noise mechanism the TrusTEE config selects.
+   *
+   * Only DETERMINISTIC_TRUNCATED_LAPLACE is capability-gated. The others predate the capability and
+   * are treated as supported.
+   */
+  private fun Collection<InternalDataProviderCapabilities>.supportTrusTeeNoiseMechanism(): Boolean {
+    if (
+      TrusTeeProtocolConfig.protocolConfig.noiseMechanism !=
+        InternalProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
+    ) {
+      return true
+    }
+    return all { it.noiseMechanismDeterministicTruncatedLaplaceSupported }
+  }
+
   private fun buildInternalProtocolConfig(
     measurementSpec: MeasurementSpec,
     dataProviderCapabilities: Collection<InternalDataProviderCapabilities>,
@@ -501,7 +517,8 @@ class MeasurementsService(
         } else {
           if (
             (measurementConsumerName in trusTeeEnabledMeasurementConsumers || trusTeeEnabled) &&
-              dataProviderCapabilities.all { it.trusTeeSupported }
+              dataProviderCapabilities.all { it.trusTeeSupported } &&
+              dataProviderCapabilities.supportTrusTeeNoiseMechanism()
           ) {
             protocolConfig {
               externalProtocolConfigId = TrusTeeProtocolConfig.NAME
@@ -549,7 +566,8 @@ class MeasurementsService(
         } else {
           if (
             (measurementConsumerName in trusTeeEnabledMeasurementConsumers || trusTeeEnabled) &&
-              dataProviderCapabilities.all { it.trusTeeSupported }
+              dataProviderCapabilities.all { it.trusTeeSupported } &&
+              dataProviderCapabilities.supportTrusTeeNoiseMechanism()
           ) {
             protocolConfig {
               externalProtocolConfigId = TrusTeeProtocolConfig.NAME
