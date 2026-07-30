@@ -93,15 +93,29 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
   suspend fun readEventGroupActivities(
     readContext: AsyncDatabaseClient.ReadContext,
     externalDataProviderId: Long,
+    externalMeasurementConsumerId: Long,
     externalEventGroupId: Long,
     limit: Int,
     after: ListEventGroupActivitiesPageToken.After? = null,
     dateInterval: DateInterval? = null,
   ): List<Result> {
     return fillStatementBuilder {
+        // Join MeasurementConsumers to filter by its external ID when scoping by
+        // MeasurementConsumer.
+        if (externalMeasurementConsumerId != 0L) {
+          appendClause("JOIN MeasurementConsumers USING (MeasurementConsumerId)")
+        }
         val conjuncts = mutableListOf<String>()
-        conjuncts.add("DataProviders.ExternalDataProviderId = @externalDataProviderId")
-        bind("externalDataProviderId").to(externalDataProviderId)
+        if (externalDataProviderId != 0L) {
+          conjuncts.add("DataProviders.ExternalDataProviderId = @externalDataProviderId")
+          bind("externalDataProviderId").to(externalDataProviderId)
+        }
+        if (externalMeasurementConsumerId != 0L) {
+          conjuncts.add(
+            "MeasurementConsumers.ExternalMeasurementConsumerId = @externalMeasurementConsumerId"
+          )
+          bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId)
+        }
         if (externalEventGroupId != 0L) {
           conjuncts.add("EventGroups.ExternalEventGroupId = @externalEventGroupId")
           bind("externalEventGroupId").to(externalEventGroupId)
