@@ -105,6 +105,7 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.BatchGetDataProvidersRequest
+import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest as InternalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
@@ -939,7 +940,10 @@ class MeasurementsServiceTest {
                 this.externalDataProviderId = externalDataProviderId.value
                 details =
                   details.copy {
-                    capabilities = internalDataProviderCapabilities { trusTeeSupported = true }
+                    capabilities = internalDataProviderCapabilities {
+                      trusTeeSupported = true
+                      noiseMechanismDeterministicTruncatedLaplaceSupported = true
+                    }
                   }
               }
             }
@@ -987,6 +991,53 @@ class MeasurementsServiceTest {
   }
 
   @Test
+  fun `createMeasurement skips trusTEE when an EDP lacks the noise mechanism capability`() {
+    // The configured TrusTEE mechanism is DETERMINISTIC_TRUNCATED_LAPLACE, so an EDP that supports
+    // TrusTEE but not the mechanism must not get a TrusTEE protocol config.
+    internalDataProvidersMock.stub {
+      onBlocking { batchGetDataProviders(any()) }
+        .thenReturn(
+          internalBatchGetDataProvidersResponse {
+            for (externalDataProviderId in EXTERNAL_DATA_PROVIDER_IDS) {
+              dataProviders += internalDataProvider {
+                this.externalDataProviderId = externalDataProviderId.value
+                details =
+                  details.copy {
+                    capabilities = internalDataProviderCapabilities {
+                      trusTeeSupported = true
+                      noiseMechanismDeterministicTruncatedLaplaceSupported = false
+                    }
+                  }
+              }
+            }
+          }
+        )
+    }
+    val measurement =
+      MEASUREMENT.copy {
+        clearFailure()
+        results.clear()
+        clearProtocolConfig()
+      }
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      this.measurement = measurement
+      requestId = "foo"
+    }
+
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      runBlocking { trusTeeEnabledService.createMeasurement(request) }
+    }
+
+    val internalRequest =
+      captureFirst<InternalCreateMeasurementRequest> {
+        runBlocking { verify(internalMeasurementsMock).createMeasurement(capture()) }
+      }
+    assertThat(internalRequest.measurement.details.protocolConfig)
+      .isNotEqualTo(TRUS_TEE_INTERNAL_PROTOCOL_CONFIG)
+  }
+
+  @Test
   fun `createMeasurement with TrusTEE enabled using wrapping VidSamplingInterval`() {
     internalDataProvidersMock.stub {
       onBlocking { batchGetDataProviders(any()) }
@@ -997,7 +1048,10 @@ class MeasurementsServiceTest {
                 this.externalDataProviderId = externalDataProviderId.value
                 details =
                   details.copy {
-                    capabilities = internalDataProviderCapabilities { trusTeeSupported = true }
+                    capabilities = internalDataProviderCapabilities {
+                      trusTeeSupported = true
+                      noiseMechanismDeterministicTruncatedLaplaceSupported = true
+                    }
                   }
               }
             }
@@ -3155,7 +3209,10 @@ class MeasurementsServiceTest {
 
     private val TRUS_TEE_INTERNAL_PROTOCOL_CONFIG = internalProtocolConfig {
       externalProtocolConfigId = "trustee"
-      trusTee = InternalProtocolConfigKt.trusTee {}
+      trusTee =
+        InternalProtocolConfigKt.trusTee {
+          noiseMechanism = InternalNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
+        }
     }
 
     private val DATA_PROVIDER_PUBLIC_KEY = encryptionPublicKey { data = UPDATE_TIME.toByteString() }
