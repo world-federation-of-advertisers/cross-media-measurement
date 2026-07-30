@@ -47,8 +47,13 @@ private constructor(
   private val labeler: Labeler,
   private val rankedSizeByPoolOffset: Map<Long, Int>,
 ) : PoolEmitLabeler {
-  override fun emit(input: LabelerInput): List<Long> =
-    labeler.label(input, LabelingMode.POOL_IDENTITY).poolAssignmentsList.map { it.poolOffset }
+  override fun emit(input: LabelerInput, onPoolOffset: (Long) -> Unit): Int {
+    val poolAssignments = labeler.label(input, LabelingMode.POOL_IDENTITY).poolAssignmentsList
+    for (poolAssignment in poolAssignments) {
+      onPoolOffset(poolAssignment.poolOffset)
+    }
+    return poolAssignments.size
+  }
 
   override fun rankedSize(poolOffset: Long): Int =
     requireNotNull(rankedSizeByPoolOffset[poolOffset]) {

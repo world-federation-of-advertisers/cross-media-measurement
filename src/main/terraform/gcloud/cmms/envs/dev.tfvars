@@ -6,5 +6,5 @@ key_ring_name                                     = "test-key-ring"
 results_fulfiller_event_proto_descriptor_blob_uri = "gs://edpa-configs-storage-dev-bucket/results_fulfiller_event_proto_descriptor.pb"
 results_fulfiller_event_template_type_name        = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
 results_fulfiller_population_spec_blob_uri        = "gs://edpa-configs-storage-dev-bucket/results-fulfiller-population-spec-small.textproto"
-edpa_model_line_map                               = "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/b_LzatczKFY"
+edpa_model_line_map                               = "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/B16R2tctG4A"
 dashboard_deletion_protection                     = false

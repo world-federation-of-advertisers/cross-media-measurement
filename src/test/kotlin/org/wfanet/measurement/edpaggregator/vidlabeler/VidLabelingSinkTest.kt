@@ -262,7 +262,10 @@ class VidLabelingSinkTest {
       // sharing the same impression time.
       assertThat(impressions).hasSize(3)
       assertThat(impressions.map { it.vid }).containsExactly(101L, 102L, 103L)
-      assertThat(impressions.map { it.eventTime }.toSet()).hasSize(1)
+      // The output event_time is derived from labelerInput.timestamp_usec via
+      // Timestamps.fromMicros.
+      assertThat(impressions.map { it.eventTime }.toSet())
+        .containsExactly(Timestamps.fromMicros(1_500L))
     }
 
   @Test
@@ -292,8 +295,10 @@ class VidLabelingSinkTest {
           converter =
             ImpressionConverter { event, _ ->
               ConvertedImpression(
-                labelerInput = LabelerInput.getDefaultInstance(),
-                eventTime = Timestamps.fromMicros(event.row.getValue(EVENT_TIME_COLUMN).int64Value),
+                labelerInput =
+                  LabelerInput.newBuilder()
+                    .setTimestampUsec(event.row.getValue(EVENT_TIME_COLUMN).int64Value)
+                    .build(),
                 event = Any.getDefaultInstance(),
                 entityKeys = emptyList(),
               )
@@ -464,8 +469,10 @@ class VidLabelingSinkTest {
       config: VidLabelerParams.ModelLineConfig,
     ): ConvertedImpression =
       ConvertedImpression(
-        labelerInput = LabelerInput.getDefaultInstance(),
-        eventTime = Timestamps.fromMicros(event.row.getValue(EVENT_TIME_COLUMN).int64Value),
+        labelerInput =
+          LabelerInput.newBuilder()
+            .setTimestampUsec(event.row.getValue(EVENT_TIME_COLUMN).int64Value)
+            .build(),
         event = Any.getDefaultInstance(),
         entityKeys =
           listOf(

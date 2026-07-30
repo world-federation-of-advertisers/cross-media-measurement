@@ -3,12 +3,18 @@
 
 population_spec_resource_path: "small_population_spec.textproto"
 
-# Legacy event group with no entity keys (edp7).
+# edp7's single-entity-key event group measured by the direct (single-publisher) and TrusTee
+# (cross-publisher) measurements. Identified solely by its `creative-id` entity key (no reliance on
+# event_group_reference_id).
 event_groups {
   event_group_reference_id: "edpa-eg-reference-id-1"
-  data_spec_resource_path: "small_data_spec.textproto"
   edp_name: "edp7"
   output_base_path: "edp/edp7"
+  entity_key_specs {
+    entity_type: "creative-id"
+    entity_id: "edpa-eg-direct-creative"
+    data_spec_resource_path: "small_data_spec.textproto"
+  }
 }
 
 # Single creative-id entity key event group (edp7).
@@ -62,10 +68,16 @@ event_groups {
   }
 }
 
-# Legacy event group for edpa_meta EDP.
+# edpa_meta's single-entity-key event group (second publisher for the TrusTee cross-publisher
+# measurement). Identified solely by its `creative-id` entity key. Its impressions are AWS-KMS
+# encrypted and generated in-test by WriteReusedLabeledImpressionsRule.
 event_groups {
   event_group_reference_id: "edpa-eg-reference-id-2"
-  data_spec_resource_path: "small_data_spec.textproto"
   edp_name: "edpa_meta"
   output_base_path: "edp/edpa_meta"
+  entity_key_specs {
+    entity_type: "creative-id"
+    entity_id: "edpa-meta-creative"
+    data_spec_resource_path: "small_data_spec.textproto"
+  }
 }

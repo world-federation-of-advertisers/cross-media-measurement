@@ -127,6 +127,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
@@ -193,6 +194,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
@@ -299,6 +301,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
@@ -373,6 +376,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
@@ -479,6 +483,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
@@ -544,6 +549,7 @@ class ImpressionMetadataService(
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
         InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
         InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
         InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
@@ -638,6 +644,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
@@ -716,8 +723,8 @@ class ImpressionMetadataService(
         if (request.filter.modelLine.isNotEmpty()) {
           cmmsModelLine = request.filter.modelLine
         }
-        if (request.filter.eventGroupReferenceId.isNotEmpty()) {
-          eventGroupReferenceId = request.filter.eventGroupReferenceId
+        if (request.filter.eventGroupReferenceIdsList.isNotEmpty()) {
+          eventGroupReferenceIds += request.filter.eventGroupReferenceIdsList
         }
         if (request.filter.hasIntervalOverlaps()) {
           intervalOverlaps = request.filter.intervalOverlaps
@@ -765,6 +772,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
@@ -830,6 +838,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
@@ -1000,7 +1009,14 @@ class ImpressionMetadataService(
 
   companion object {
     private const val DEFAULT_PAGE_SIZE = 50
-    private const val MAX_PAGE_SIZE = 100
+    /**
+     * Maximum page size for `ListImpressionMetadata`.
+     *
+     * Large enough that a report's impression metadata is fetched in a handful of paginated calls;
+     * rows are small (a blob URI plus a few fields), so a page of this size stays well under the
+     * gRPC message-size limit.
+     */
+    private const val MAX_PAGE_SIZE = 1000
   }
 }
 

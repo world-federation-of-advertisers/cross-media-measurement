@@ -6,5 +6,5 @@ key_ring_name                                     = "halo"
 results_fulfiller_event_proto_descriptor_blob_uri = "gs://edpa-configs-storage-qa-bucket/results_fulfiller_event_proto_descriptor.pb"
 results_fulfiller_event_template_type_name        = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
 results_fulfiller_population_spec_blob_uri        = "gs://edpa-configs-storage-qa-bucket/results-fulfiller-population-spec.textproto"
-edpa_model_line_map                               = "modelProviders/eaaPUbwUC5c/modelSuites/NMtDnLwcnNo/modelLines/PFUW1Lwcnyo"
+edpa_model_line_map                               = "modelProviders/eaaPUbwUC5c/modelSuites/NMtDnLwcnNo/modelLines/AcQdbXsZIzw"
 dashboard_deletion_protection                     = true
