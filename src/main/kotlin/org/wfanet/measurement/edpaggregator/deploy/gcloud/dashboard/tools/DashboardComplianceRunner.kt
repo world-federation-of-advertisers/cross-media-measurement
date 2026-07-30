@@ -99,9 +99,9 @@ object DashboardComplianceRunner {
   /**
    * Parses `name:resourceId` pairs separated by `;` (e.g. `meta:AbCdEf_12345;google:GhIjKl_67890`).
    *
-   * Blank entries are skipped. Each non-blank entry must contain a `:` and a non-empty resourceId;
-   * a malformed entry throws [IllegalArgumentException] with an actionable message rather than
-   * failing opaquely later.
+   * Blank entries are skipped. Each non-blank entry must contain a `:` with a non-empty name and a
+   * non-empty resourceId; a malformed entry throws [IllegalArgumentException] with an actionable
+   * message rather than failing opaquely later.
    */
   fun parseEdps(raw: String): List<EdpConfig> {
     return raw
@@ -109,8 +109,8 @@ object DashboardComplianceRunner {
       .map { it.trim() }
       .filter { it.isNotEmpty() }
       .map { entry ->
-        val parts = entry.split(":", limit = 2)
-        require(parts.size == 2 && parts[1].isNotEmpty()) {
+        val parts = entry.split(":", limit = 2).map { it.trim() }
+        require(parts.size == 2 && parts[0].isNotEmpty() && parts[1].isNotEmpty()) {
           "Malformed DASHBOARD_EDPS entry (expected name:resourceId): '$entry'"
         }
         EdpConfig(parts[0], parts[1])

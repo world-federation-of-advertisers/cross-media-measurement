@@ -991,7 +991,9 @@ resource "google_service_account_iam_member" "dashboard_compliance_terraform_tok
 # Packages DashboardComplianceCheck as an HTTP Cloud Function and runs it daily
 # via Cloud Scheduler (OIDC), independently of the post-deploy CI check, to
 # detect drift against the live state between deploys. Failed checks are logged
-# at SEVERE with an "ALERT:" prefix and surfaced by the log-based alert policy.
+# at SEVERE with an "ALERT:" prefix for triage, and surfaced by metric-based
+# Cloud Monitoring alert policies on the edpa.dashboard_compliance.failed_checks
+# and .errors metrics.
 #
 # Gated on dashboard_compliance_uber_jar_path: environments that do not supply
 # the function uber jar (e.g. local plans) skip the scheduled check cleanly.

@@ -104,4 +104,11 @@ class DashboardComplianceRunnerTest {
       DashboardComplianceRunner.parseEdps("meta:")
     }
   }
+
+  @Test
+  fun `parseEdps throws when name is empty`() {
+    assertThrows(IllegalArgumentException::class.java) {
+      DashboardComplianceRunner.parseEdps(":AbC")
+    }
+  }
 }
