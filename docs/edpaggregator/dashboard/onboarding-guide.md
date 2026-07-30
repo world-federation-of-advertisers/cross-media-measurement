@@ -256,7 +256,7 @@ but should be avoided — see the preference order in Option A.
 
 Authenticate **without** downloading service-account keys whenever possible.
 Downloaded keys are a long-lived credential and are called out as a top risk
-in #3930's threat model.
+in the dashboard's security model.
 
 In preference order:
 
