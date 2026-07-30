@@ -34,6 +34,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.crypto.tink.ConfidentialSpaceToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
@@ -41,6 +42,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfigs
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
+import org.wfanet.measurement.gcloud.kms.ConfidentialSpaceToAwsKmsClientFactory
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.gcloud.kms.GCloudToAwsKmsClientFactory
 import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
@@ -243,6 +245,16 @@ abstract class BaseTeeAppRunner : Runnable {
             awsAudience = edpConfig.kmsConfig.awsAudience,
           )
         GCloudToAwsKmsClientFactory().getKmsClient(gcloudToAwsConfig)
+      }
+      EventDataProviderConfig.KmsConfig.KmsType.AWS_CONFIDENTIAL_SPACE -> {
+        val confidentialSpaceToAwsConfig =
+          ConfidentialSpaceToAwsWifCredentials(
+            roleArn = edpConfig.kmsConfig.awsRoleArn,
+            roleSessionName = edpConfig.kmsConfig.awsRoleSessionName,
+            region = edpConfig.kmsConfig.awsRegion,
+            audience = edpConfig.kmsConfig.awsAudience,
+          )
+        ConfidentialSpaceToAwsKmsClientFactory().getKmsClient(confidentialSpaceToAwsConfig)
       }
       EventDataProviderConfig.KmsConfig.KmsType.GCP -> {
         val gcpConfig =
