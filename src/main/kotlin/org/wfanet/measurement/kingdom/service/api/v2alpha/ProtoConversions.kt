@@ -71,6 +71,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.TrusTeeKt.resultMinimumThresholds as publicResultMinimumThresholds
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.deterministicTruncatedLaplaceNoiseParams as publicDeterministicTruncatedLaplaceNoiseParams
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.honestMajorityShareShuffle
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
@@ -287,6 +288,8 @@ fun InternalNoiseMechanism.toNoiseMechanism(): NoiseMechanism {
     InternalNoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
     InternalNoiseMechanism.CONTINUOUS_LAPLACE -> NoiseMechanism.CONTINUOUS_LAPLACE
     InternalNoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
+    InternalNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE ->
+      NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
     InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
     InternalNoiseMechanism.UNRECOGNIZED -> error("invalid internal noise mechanism.")
   }
@@ -300,7 +303,8 @@ fun NoiseMechanism.toInternal(): InternalNoiseMechanism {
     NoiseMechanism.NONE -> InternalNoiseMechanism.NONE
     NoiseMechanism.CONTINUOUS_LAPLACE -> InternalNoiseMechanism.CONTINUOUS_LAPLACE
     NoiseMechanism.CONTINUOUS_GAUSSIAN -> InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
-    NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+    NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE ->
+      InternalNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
     NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
     NoiseMechanism.UNRECOGNIZED -> error("invalid internal noise mechanism.")
   }
@@ -494,6 +498,13 @@ private fun buildMpcProtocolConfig(
               minImpressions = protocolConfig.trusTee.resultMinimumThresholds.minImpressions
               minUsers = protocolConfig.trusTee.resultMinimumThresholds.minUsers
             }
+          }
+          if (protocolConfig.trusTee.hasDeterministicTruncatedLaplaceNoiseParams()) {
+            deterministicTruncatedLaplaceNoiseParams =
+              publicDeterministicTruncatedLaplaceNoiseParams {
+                truncationBound =
+                  protocolConfig.trusTee.deterministicTruncatedLaplaceNoiseParams.truncationBound
+              }
           }
         }
       }
