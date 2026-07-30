@@ -17,12 +17,6 @@ package org.wfanet.measurement.computation
 /**
  * In-sample reach and frequency, before scaling and thresholding.
  *
- * Reach is carried as a scalar so its derivation (the histogram sum for the raw case, or
- * `vectorSize - noisedBucket0` for deterministic noise) is decoupled from the reach computation.
- * Optionally noised as a unit (see the deterministic noise path) and then passed to
- * [ReachAndFrequencyComputations.computeReach] and
- * [ReachAndFrequencyComputations.computeFrequencyDistribution].
- *
  * Carrier only: the [frequencyHistogram] array gives this type referential `equals`/`hashCode`.
  *
  * @property sampledReach the reach in the sample.
