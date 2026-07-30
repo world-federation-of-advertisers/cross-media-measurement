@@ -21,6 +21,7 @@ import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.type.Date
 import com.google.type.date
 import java.io.IOException
@@ -68,6 +69,10 @@ class SubpoolRetentionTest {
   @Before
   fun setUp() {
     AeadConfig.register()
+    // EncryptedRecordIoStore uses the StreamingAead template AES256_GCM_HKDF_1MB (via
+    // EncryptedStorage), so the streaming-AEAD key manager must be registered too (peer tests such
+    // as EncryptedStorageTest / VidLabelingSinkTest do the same).
+    StreamingAeadConfig.register()
     kmsClient =
       FakeKmsClient().apply {
         setAead(
