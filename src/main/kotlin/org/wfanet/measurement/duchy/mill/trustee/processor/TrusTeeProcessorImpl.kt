@@ -17,9 +17,9 @@ package org.wfanet.measurement.duchy.mill.trustee.processor
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceNoise
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.HistogramComputations
+import org.wfanet.measurement.computation.ReachAndFrequency
 import org.wfanet.measurement.computation.ReachAndFrequencyComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
-import org.wfanet.measurement.computation.SampledReachAndFrequency
 import org.wfanet.measurement.duchy.utils.ComputationResult
 import org.wfanet.measurement.duchy.utils.ReachAndFrequencyResult
 import org.wfanet.measurement.duchy.utils.ReachResult
@@ -116,7 +116,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
     }
     val frequencyVector = aggregatedFrequencyVector
     val rawHistogram = HistogramComputations.buildHistogram(frequencyVector, maxFrequency)
-    var sampledReachAndFrequency = SampledReachAndFrequency(rawHistogram.sum(), rawHistogram)
+    var sampledReachAndFrequency = ReachAndFrequency(rawHistogram.sum(), rawHistogram)
 
     return when (val params = trusTeeParams) {
       is TrusTeeReachParams -> {
@@ -178,12 +178,12 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
    * single reach params).
    */
   private fun applyDeterministicNoise(
-    sampled: SampledReachAndFrequency,
+    sampled: ReachAndFrequency,
     fingerprint: ByteArray,
     reachDpParams: InternalDifferentialPrivacyParams?,
     frequencyDpParams: InternalDifferentialPrivacyParams?,
     truncationBound: Int,
-  ): SampledReachAndFrequency =
+  ): ReachAndFrequency =
     DeterministicTruncatedLaplaceNoise.noise(
       sampled,
       fingerprint,

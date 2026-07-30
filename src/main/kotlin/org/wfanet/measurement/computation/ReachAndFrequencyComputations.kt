@@ -22,13 +22,12 @@ object ReachAndFrequencyComputations {
   private const val L_INFINITE_SENSITIVITY = 1L
 
   /**
-   * Computes the reach from a [SampledReachAndFrequency], applying differential privacy noise if
+   * Computes the reach from a [ReachAndFrequency], applying differential privacy noise if
    * parameters are provided.
    *
-   * @param sampled The in-sample reach and frequency histogram.
-   *   [SampledReachAndFrequency.sampledReach] is the reach in the sample;
-   *   [SampledReachAndFrequency.frequencyHistogram] supplies the impression count for the
-   *   small-cell suppression threshold.
+   * @param sampled The in-sample reach and frequency histogram. [ReachAndFrequency.sampledReach] is
+   *   the reach in the sample; [ReachAndFrequency.frequencyHistogram] supplies the impression count
+   *   for the small-cell suppression threshold.
    * @param vidSamplingIntervalWidth The sampling rate used to select VIDs.
    * @param vectorSize The total size of the frequency vector space, used for capping the result
    *   before scaling. If null, no capping is applied.
@@ -38,7 +37,7 @@ object ReachAndFrequencyComputations {
    * @return The reach value, potentially with noise applied.
    */
   fun computeReach(
-    sampled: SampledReachAndFrequency,
+    sampled: ReachAndFrequency,
     vidSamplingIntervalWidth: Double,
     vectorSize: Int?,
     dpParams: DifferentialPrivacyParams?,
@@ -126,7 +125,7 @@ object ReachAndFrequencyComputations {
   /**
    * Computes the reach from a raw histogram, deriving the in-sample reach as the histogram sum.
    *
-   * Equivalent to [computeReach] on `SampledReachAndFrequency(rawHistogram.sum(), rawHistogram)`.
+   * Equivalent to [computeReach] on `ReachAndFrequency(rawHistogram.sum(), rawHistogram)`.
    *
    * @param rawHistogram A histogram of counts for frequencies 1 to `maxFrequency`.
    */
@@ -138,7 +137,7 @@ object ReachAndFrequencyComputations {
     resultMinimumThresholds: ResultMinimumThresholds?,
   ): Long =
     computeReach(
-      SampledReachAndFrequency(rawHistogram.sum(), rawHistogram),
+      ReachAndFrequency(rawHistogram.sum(), rawHistogram),
       vidSamplingIntervalWidth,
       vectorSize,
       dpParams,

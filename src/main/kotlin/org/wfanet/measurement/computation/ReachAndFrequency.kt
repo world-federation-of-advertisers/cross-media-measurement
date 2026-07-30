@@ -23,4 +23,4 @@ package org.wfanet.measurement.computation
  * @property frequencyHistogram counts for frequencies `1..maxFrequency` (a
  *   [HistogramComputations.buildHistogram] result).
  */
-data class SampledReachAndFrequency(val sampledReach: Long, val frequencyHistogram: LongArray)
+data class ReachAndFrequency(val sampledReach: Long, val frequencyHistogram: LongArray)

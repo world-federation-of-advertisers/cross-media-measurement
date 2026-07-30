@@ -18,7 +18,7 @@ import java.nio.ByteBuffer
 import java.security.MessageDigest
 
 /**
- * Deterministic truncated-Laplace noising of a [SampledReachAndFrequency].
+ * Deterministic truncated-Laplace noising of a [ReachAndFrequency].
  *
  * The noise is keyless and reproducible: each output's draw is seeded from a [fingerprint] of the
  * combined frequency vector and an output label ([DeterministicTruncatedLaplaceNoiseSampler]), so
@@ -58,13 +58,13 @@ object DeterministicTruncatedLaplaceNoise {
    * @param fingerprint the [fingerprint] of the combined frequency vector.
    */
   fun noise(
-    sampled: SampledReachAndFrequency,
+    sampled: ReachAndFrequency,
     fingerprint: ByteArray,
     reachEpsilon: Double,
     frequencyEpsilon: Double,
     sensitivity: Double,
     truncationBound: Int,
-  ): SampledReachAndFrequency {
+  ): ReachAndFrequency {
     val rawHistogram = sampled.frequencyHistogram
     val maxFrequency = rawHistogram.size
 
@@ -84,7 +84,7 @@ object DeterministicTruncatedLaplaceNoise {
           .coerceAtLeast(0L)
     }
 
-    return SampledReachAndFrequency(noisedReach, noisedHistogram)
+    return ReachAndFrequency(noisedReach, noisedHistogram)
   }
 
   /** The output label that makes each bucket's draw independent (bucket 0 is reach). */

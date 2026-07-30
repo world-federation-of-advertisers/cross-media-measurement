@@ -52,7 +52,7 @@ class DeterministicTruncatedLaplaceNoiseTest {
 
   @Test
   fun `noise is deterministic in the fingerprint and params`() {
-    val sampled = SampledReachAndFrequency(15, longArrayOf(10, 4, 1))
+    val sampled = ReachAndFrequency(15, longArrayOf(10, 4, 1))
     val fingerprint = DeterministicTruncatedLaplaceNoise.fingerprint(COMBINED, CONTRIBUTION_COUNT)
 
     val first =
@@ -82,7 +82,7 @@ class DeterministicTruncatedLaplaceNoiseTest {
   fun `noise adds one reach draw and one draw per frequency bucket`() {
     val rawHistogram = longArrayOf(10, 4, 1)
     val sampledReach = 15L
-    val sampled = SampledReachAndFrequency(sampledReach, rawHistogram)
+    val sampled = ReachAndFrequency(sampledReach, rawHistogram)
     val fingerprint = DeterministicTruncatedLaplaceNoise.fingerprint(COMBINED, CONTRIBUTION_COUNT)
 
     val result =
@@ -115,7 +115,7 @@ class DeterministicTruncatedLaplaceNoiseTest {
   @Test
   fun `noise clamps counts to non-negative`() {
     // Zero counts with noise that can be negative must never produce a negative result.
-    val sampled = SampledReachAndFrequency(0, longArrayOf(0, 0, 0))
+    val sampled = ReachAndFrequency(0, longArrayOf(0, 0, 0))
     val fingerprint = DeterministicTruncatedLaplaceNoise.fingerprint(COMBINED, CONTRIBUTION_COUNT)
 
     val result =
