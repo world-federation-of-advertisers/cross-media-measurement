@@ -601,8 +601,14 @@ class SubpoolAssigner(
       (System.getenv("MERGE_READ_CONCURRENCY")?.toIntOrNull() ?: DEFAULT_MERGE_READ_CONCURRENCY)
         .coerceAtLeast(1)
 
-    /** Default max concurrent per-subpool blob uploads for one shard's flush. */
-    private const val DEFAULT_SUBPOOL_UPLOAD_CONCURRENCY = 8
+    /**
+     * Default max concurrent per-subpool blob uploads for one shard's flush. Measured not a
+     * bottleneck: the flush was ~3s at 1B/16-shard, and it runs after the read stream fully drains,
+     * so it never contends with GCS reads. 16 keeps the uploads parallel while still bounding the
+     * concurrent GCS upload streams, so a high-subpool-count model can't open an unbounded number
+     * at once.
+     */
+    private const val DEFAULT_SUBPOOL_UPLOAD_CONCURRENCY = 16
 
     /**
      * Max concurrent per-subpool blob uploads for one shard's flush. Tunable via the
