@@ -127,6 +127,12 @@ sections of this when reviewing others’ code.
     *   For example, `String.toFoo()` where the String must be a specific
         serialization of a `Foo` to work. This is a version of the "stringly
         typed" anti-pattern.
+*   Avoid polluting the global namespace.
+    *   Don't declare public non-extension functions at the top level.
+    *   Use (companion) objects for constants and static properties.
+    *   Note that some existing files in the repository do not follow this. You
+        may continue to follow the existing style in those files until they can
+        be refactored.
 
 #### Error Handling
 
