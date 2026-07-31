@@ -42,6 +42,7 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
+import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
@@ -159,7 +160,7 @@ class SubpoolAssignerTest {
     modelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
     rankerStub: RankerJobServiceCoroutineStub = rankerStubMock(),
     workItemsStub: WorkItemsCoroutineStub = workItemsStubMock(),
-    source: RawImpressionSource = mock(),
+    source: RawImpressionSource<ParquetDigestedEvent> = mock(),
     accumulator: SubpoolFingerprintsAccumulator = SubpoolFingerprintsAccumulator(),
     totalShards: Int = 1,
   ) =
