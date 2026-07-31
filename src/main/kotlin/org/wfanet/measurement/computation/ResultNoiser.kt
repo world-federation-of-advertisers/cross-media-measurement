@@ -16,6 +16,7 @@ package org.wfanet.measurement.computation
 
 import com.google.privacy.differentialprivacy.GaussianNoise
 import java.nio.ByteBuffer
+import java.security.MessageDigest
 import kotlin.math.min
 
 /**
@@ -101,18 +102,21 @@ class GaussianResultNoiser(
 }
 
 /**
- * A [ResultNoiser] drawing deterministic truncated-Laplace noise seeded from [fingerprint].
+ * A [ResultNoiser] drawing deterministic truncated-Laplace noise.
  *
  * Every draw is a pure function of the seed and an output label, so the same inputs always yield
  * the same result. The labels are private to this class: reach draws [REACH_LABEL], the impression
  * threshold draws [IMPRESSION_LABEL], and frequency bucket `f` draws `f`.
  */
 class DeterministicTruncatedLaplaceResultNoiser(
-  private val fingerprint: ByteArray,
+  combinedFrequencyVector: IntArray,
+  contributionCount: Int,
   private val reachEpsilon: Double,
   private val frequencyEpsilon: Double,
   private val truncationBound: Int,
 ) : ResultNoiser {
+  private val fingerprint: ByteArray = fingerprint(combinedFrequencyVector, contributionCount)
+
   private val reachSampler by lazy {
     DeterministicTruncatedLaplaceNoiseSampler(reachEpsilon, UNIT_SENSITIVITY, truncationBound)
   }
@@ -150,6 +154,23 @@ class DeterministicTruncatedLaplaceResultNoiser(
     private const val REACH_LABEL = 0
     private const val IMPRESSION_LABEL = -1
     private const val UNIT_SENSITIVITY = 1.0
+
+    /**
+     * The noise seed: a SHA-256 fingerprint of the combined frequency vector and the number of
+     * contributions aggregated into it.
+     *
+     * Binding the seed to the vector's contents means the noise cannot change unless the data
+     * changes. Binding it to [contributionCount] means adding or removing a contribution reseeds
+     * every draw even when the capped aggregate is byte-identical, which is the fully-contained
+     * contribution case. The count is taken after input suppression, so a dropped sub-threshold
+     * contribution does not change it.
+     */
+    fun fingerprint(combinedFrequencyVector: IntArray, contributionCount: Int): ByteArray {
+      val buffer = ByteBuffer.allocate((combinedFrequencyVector.size + 1) * Int.SIZE_BYTES)
+      buffer.putInt(contributionCount)
+      buffer.asIntBuffer().put(combinedFrequencyVector)
+      return MessageDigest.getInstance("SHA-256").digest(buffer.array())
+    }
   }
 }
 

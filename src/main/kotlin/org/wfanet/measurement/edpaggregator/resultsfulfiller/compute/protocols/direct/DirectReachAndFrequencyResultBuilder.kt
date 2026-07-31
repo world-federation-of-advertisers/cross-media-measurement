@@ -122,7 +122,7 @@ class DirectReachAndFrequencyResultBuilder(
     return ReachAndFrequencyComputations.computeFrequencyDistribution(
       rawHistogram = histogram,
       maxFrequency = maxFrequency,
-      noiser = frequencyDpParams?.let { GaussianResultNoiser(it) } ?: NoNoise,
+      noiser = frequencyDpParams?.let { GaussianResultNoiser(it, it) } ?: NoNoise,
       resultMinimumThresholds = resultMinimumThresholds,
       vidSamplingIntervalWidth = samplingRate.toDouble(),
     )
@@ -144,7 +144,7 @@ class DirectReachAndFrequencyResultBuilder(
       }
     return ReachAndFrequencyComputations.computeReach(
       rawHistogram = histogram,
-      noiser = reachDpParams?.let { GaussianResultNoiser(it) } ?: NoNoise,
+      noiser = reachDpParams?.let { GaussianResultNoiser(it, it) } ?: NoNoise,
       vidSamplingIntervalWidth = samplingRate.toDouble(),
       vectorSize = maxPopulation,
       resultMinimumThresholds = resultMinimumThresholds,

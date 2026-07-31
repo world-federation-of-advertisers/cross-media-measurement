@@ -58,15 +58,36 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
   }
 
   @Test
-  fun `a different seed gives a different draw`() {
-    val other =
-      DeterministicTruncatedLaplaceResultNoiser(
-        DeterministicTruncatedLaplaceNoise.fingerprint(COMBINED, CONTRIBUTION_COUNT + 1),
-        REACH_EPSILON,
-        FREQUENCY_EPSILON,
-        BOUND,
+  fun `a different contribution count gives a different draw`() {
+    // Same aggregate vector, different contribution count: reseeds. This is what closes the
+    // fully-contained-contribution differencing case, where the aggregate is byte-identical.
+    assertThat(noiser(CONTRIBUTION_COUNT + 1).noiseReach(15)).isNotEqualTo(noiser().noiseReach(15))
+  }
+
+  @Test
+  fun `fingerprint matches golden`() {
+    // Golden digest over BE32(count) || BE32(vector). Pins the encoding: a change to the field
+    // order, width or endianness reseeds every deployed measurement.
+    assertThat(
+        DeterministicTruncatedLaplaceResultNoiser.fingerprint(COMBINED, CONTRIBUTION_COUNT).toHex()
       )
-    assertThat(other.noiseReach(15)).isNotEqualTo(noiser().noiseReach(15))
+      .isEqualTo("ddff6bed977d8001cf37dd15dc88025d1c4f264c82263af73b2f8ced93cf2312")
+  }
+
+  @Test
+  fun `fingerprint changes with vector contents`() {
+    assertThat(
+        DeterministicTruncatedLaplaceResultNoiser.fingerprint(
+          intArrayOf(1, 2, 3),
+          CONTRIBUTION_COUNT,
+        )
+      )
+      .isNotEqualTo(
+        DeterministicTruncatedLaplaceResultNoiser.fingerprint(
+          intArrayOf(1, 2, 4),
+          CONTRIBUTION_COUNT,
+        )
+      )
   }
 
   companion object {
@@ -77,12 +98,15 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
     private const val MAX_FREQUENCY_PER_USER = 3
     private val COMBINED = intArrayOf(0, 1, 2, 1, 3, 0, 2)
 
-    private fun noiser() =
+    private fun noiser(contributionCount: Int = CONTRIBUTION_COUNT) =
       DeterministicTruncatedLaplaceResultNoiser(
-        DeterministicTruncatedLaplaceNoise.fingerprint(COMBINED, CONTRIBUTION_COUNT),
+        COMBINED,
+        contributionCount,
         REACH_EPSILON,
         FREQUENCY_EPSILON,
         BOUND,
       )
+
+    private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it.toInt() and 0xFF) }
   }
 }

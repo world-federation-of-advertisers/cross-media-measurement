@@ -44,19 +44,9 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "DeterministicTruncatedLaplaceNoiseTest",
-    srcs = ["DeterministicTruncatedLaplaceNoiseTest.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_truncated_laplace_noise",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-    ],
-)
-
-kt_jvm_test(
     name = "DeterministicTruncatedLaplaceResultNoiserTest",
     srcs = ["DeterministicTruncatedLaplaceResultNoiserTest.kt"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_truncated_laplace_noise",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_noiser",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
     ],

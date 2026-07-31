@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.duchy.mill.trustee.processor
 
-import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceNoise
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceResultNoiser
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.GaussianResultNoiser
@@ -181,7 +180,8 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
   ): ResultNoiser {
     if (isDeterministicTruncatedLaplace) {
       return DeterministicTruncatedLaplaceResultNoiser(
-        DeterministicTruncatedLaplaceNoise.fingerprint(frequencyVector, contributionCount),
+        frequencyVector,
+        contributionCount,
         reachEpsilon = requireNotNull(reachDpParams) { REACH_DP_PARAMS_REQUIRED }.epsilon,
         frequencyEpsilon =
           requireNotNull(frequencyDpParams) { FREQUENCY_DP_PARAMS_REQUIRED }.epsilon,

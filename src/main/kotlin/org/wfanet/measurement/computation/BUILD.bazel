@@ -87,8 +87,3 @@ kt_jvm_library(
         ":result_noiser",
     ],
 )
-
-kt_jvm_library(
-    name = "deterministic_truncated_laplace_noise",
-    srcs = ["DeterministicTruncatedLaplaceNoise.kt"],
-)
