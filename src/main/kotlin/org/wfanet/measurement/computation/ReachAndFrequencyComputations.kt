@@ -54,11 +54,7 @@ object ReachAndFrequencyComputations {
       return minScaledNoisedReach
     }
 
-    val impressionCount =
-      noiser.impressionCountForThreshold(
-        sampled.frequencyHistogram,
-        resultMinimumThresholds.reachMaxFrequencyPerUser,
-      )
+    val impressionCount = noiser.impressionCountForThreshold(sampled.frequencyHistogram)
     val scaledImpressionCount = (impressionCount / vidSamplingIntervalWidth).toLong()
     return if (
       scaledImpressionCount < resultMinimumThresholds.minImpressions ||

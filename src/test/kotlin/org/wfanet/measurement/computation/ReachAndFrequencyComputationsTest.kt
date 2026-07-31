@@ -122,7 +122,7 @@ class ReachAndFrequencyComputationsTest {
         rawHistogram,
         vidSamplingIntervalWidth = 1.0,
         vectorSize = 200,
-        noiser = GAUSSIAN_NOISER,
+        noiser = GAUSSIAN_NOISER_CAP_3,
         resultMinimumThresholds =
           ResultMinimumThresholds(minUsers = 30, minImpressions = 50, reachMaxFrequencyPerUser = 3),
       )
@@ -139,7 +139,7 @@ class ReachAndFrequencyComputationsTest {
         rawHistogram,
         vidSamplingIntervalWidth = 1.0,
         vectorSize = 200,
-        noiser = GAUSSIAN_NOISER,
+        noiser = GAUSSIAN_NOISER_CAP_3,
         resultMinimumThresholds =
           ResultMinimumThresholds(
             minUsers = 200,
@@ -496,7 +496,11 @@ class ReachAndFrequencyComputationsTest {
     private const val FLOAT_COMPARISON_TOLERANCE = 1e-9
 
     private val DP_PARAMS = DifferentialPrivacyParams(epsilon = 1.0, delta = 0.99)
-    private val GAUSSIAN_NOISER = GaussianResultNoiser(DP_PARAMS, DP_PARAMS)
+    private val DEFAULT_MAX_FREQUENCY_PER_USER =
+      ResultMinimumThresholds(minUsers = 0, minImpressions = 0).reachMaxFrequencyPerUser
+    private val GAUSSIAN_NOISER =
+      GaussianResultNoiser(DP_PARAMS, DP_PARAMS, DEFAULT_MAX_FREQUENCY_PER_USER)
+    private val GAUSSIAN_NOISER_CAP_3 = GaussianResultNoiser(DP_PARAMS, DP_PARAMS, 3)
 
     /**
      * Calculates a test tolerance for a noised value.

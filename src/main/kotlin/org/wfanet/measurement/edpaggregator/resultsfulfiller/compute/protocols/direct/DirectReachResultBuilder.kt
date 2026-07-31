@@ -103,7 +103,10 @@ class DirectReachResultBuilder(
       }
     return ReachAndFrequencyComputations.computeReach(
       rawHistogram = histogram,
-      noiser = reachDpParams?.let { GaussianResultNoiser(it, it) } ?: NoNoise,
+      noiser =
+        reachDpParams?.let {
+          GaussianResultNoiser(it, it, resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1)
+        } ?: NoNoise,
       vidSamplingIntervalWidth = samplingRate.toDouble(),
       vectorSize = maxPopulation,
       resultMinimumThresholds = resultMinimumThresholds,

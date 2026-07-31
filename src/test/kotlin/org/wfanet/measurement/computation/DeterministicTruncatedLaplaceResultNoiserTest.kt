@@ -45,8 +45,7 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
     // Capped sum over [10, 4, 1] at 3 per user is 1*10 + 2*4 + 3*1 = 21; the draw on the impression
     // label at sensitivity 3 is -4. Distinct from the bucket labels, so it is not the weighted sum
     // of the bucket draws.
-    assertThat(noiser().impressionCountForThreshold(longArrayOf(10, 4, 1), MAX_FREQUENCY_PER_USER))
-      .isEqualTo(17L)
+    assertThat(noiser().impressionCountForThreshold(longArrayOf(10, 4, 1))).isEqualTo(17L)
   }
 
   @Test
@@ -105,6 +104,7 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
         REACH_EPSILON,
         FREQUENCY_EPSILON,
         BOUND,
+        MAX_FREQUENCY_PER_USER,
       )
 
     private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it.toInt() and 0xFF) }

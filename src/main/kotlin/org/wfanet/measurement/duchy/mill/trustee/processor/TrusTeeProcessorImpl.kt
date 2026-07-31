@@ -194,6 +194,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
     return GaussianResultNoiser(
       reachDpParams.toDifferentialPrivacyParams(),
       frequencyDpParams.toDifferentialPrivacyParams(),
+      resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1,
     )
   }
 

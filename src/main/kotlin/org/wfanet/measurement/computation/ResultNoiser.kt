@@ -34,10 +34,9 @@ interface ResultNoiser {
    * Returns the impression count used to decide whether the result meets `min_impressions`.
    *
    * The mechanism derives the whole quantity, not just its noise, because whether a user's
-   * contribution is capped at [maxFrequencyPerUser] is what makes a sensitivity claim about that
-   * count true.
+   * contribution is capped is what makes a sensitivity claim about that count true.
    */
-  fun impressionCountForThreshold(frequencyHistogram: LongArray, maxFrequencyPerUser: Int): Long
+  fun impressionCountForThreshold(frequencyHistogram: LongArray): Long
 
   /** Returns the count for the frequency bucket at [index] (frequency `index + 1`) with noise. */
   fun noiseFrequencyBucket(index: Int, count: Long): Long
@@ -47,10 +46,8 @@ interface ResultNoiser {
 object NoNoise : ResultNoiser {
   override fun noiseReach(reachInSample: Long): Long = reachInSample
 
-  override fun impressionCountForThreshold(
-    frequencyHistogram: LongArray,
-    maxFrequencyPerUser: Int,
-  ): Long = frequencyHistogram.weightedSum(cap = null)
+  override fun impressionCountForThreshold(frequencyHistogram: LongArray): Long =
+    frequencyHistogram.weightedSum(cap = null)
 
   override fun noiseFrequencyBucket(index: Int, count: Long): Long = count
 }
@@ -65,6 +62,7 @@ object NoNoise : ResultNoiser {
 class GaussianResultNoiser(
   private val reachDpParams: DifferentialPrivacyParams,
   private val frequencyDpParams: DifferentialPrivacyParams,
+  private val maxFrequencyPerUser: Int = 1,
 ) : ResultNoiser {
   private val noise = GaussianNoise()
 
@@ -77,10 +75,7 @@ class GaussianResultNoiser(
       reachDpParams.delta,
     )
 
-  override fun impressionCountForThreshold(
-    frequencyHistogram: LongArray,
-    maxFrequencyPerUser: Int,
-  ): Long =
+  override fun impressionCountForThreshold(frequencyHistogram: LongArray): Long =
     noise.addNoise(
       frequencyHistogram.weightedSum(cap = maxFrequencyPerUser),
       L0_SENSITIVITY,
@@ -114,6 +109,7 @@ class DeterministicTruncatedLaplaceResultNoiser(
   private val reachEpsilon: Double,
   private val frequencyEpsilon: Double,
   private val truncationBound: Int,
+  private val maxFrequencyPerUser: Int = 1,
 ) : ResultNoiser {
   private val fingerprint: ByteArray = fingerprint(combinedFrequencyVector, contributionCount)
 
@@ -123,26 +119,23 @@ class DeterministicTruncatedLaplaceResultNoiser(
   private val frequencySampler by lazy {
     DeterministicTruncatedLaplaceNoiseSampler(frequencyEpsilon, UNIT_SENSITIVITY, truncationBound)
   }
+  private val impressionSampler by lazy {
+    DeterministicTruncatedLaplaceNoiseSampler(
+      reachEpsilon,
+      maxFrequencyPerUser.toDouble(),
+      truncationBound,
+    )
+  }
 
   override fun noiseReach(reachInSample: Long): Long =
     reachInSample + reachSampler.sampleRounded(fingerprint, label(REACH_LABEL))
 
-  override fun impressionCountForThreshold(
-    frequencyHistogram: LongArray,
-    maxFrequencyPerUser: Int,
-  ): Long {
+  override fun impressionCountForThreshold(frequencyHistogram: LongArray): Long =
     // One draw calibrated to the capped count's sensitivity, mirroring the Gaussian mechanism.
     // Deriving this from the bucket draws instead would weight each by its frequency, giving the
     // threshold a noise magnitude that is not calibrated to any sensitivity.
-    val sampler =
-      DeterministicTruncatedLaplaceNoiseSampler(
-        reachEpsilon,
-        maxFrequencyPerUser.toDouble(),
-        truncationBound,
-      )
-    return frequencyHistogram.weightedSum(cap = maxFrequencyPerUser) +
-      sampler.sampleRounded(fingerprint, label(IMPRESSION_LABEL))
-  }
+    frequencyHistogram.weightedSum(cap = maxFrequencyPerUser) +
+      impressionSampler.sampleRounded(fingerprint, label(IMPRESSION_LABEL))
 
   override fun noiseFrequencyBucket(index: Int, count: Long): Long =
     (count + frequencySampler.sampleRounded(fingerprint, label(index + 1))).coerceAtLeast(0L)
