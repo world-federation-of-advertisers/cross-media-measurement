@@ -28,6 +28,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServi
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.UnlinkedClientAccountsServiceGrpcKt.UnlinkedClientAccountsServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt as InternalImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrpcKt as InternalPoolAssignmentJobServiceGrpcKt
@@ -37,6 +38,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFileServ
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt as InternalRawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt as InternalRawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt as InternalRequisitionMetadataServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.UnlinkedClientAccountsServiceGrpcKt as InternalUnlinkedClientAccountsServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingJobServiceGrpcKt as InternalVidLabelingJobServiceGrpcKt
 
 data class Services(
@@ -49,6 +51,7 @@ data class Services(
   val rankerJob: RankerJobServiceCoroutineImplBase,
   val rankIndexBlob: RankIndexBlobServiceCoroutineImplBase,
   val poolAssignmentJob: PoolAssignmentJobServiceCoroutineImplBase,
+  val unlinkedClientAccounts: UnlinkedClientAccountsServiceCoroutineImplBase,
 ) {
   fun toList(): List<BindableService> =
     listOf(
@@ -61,6 +64,7 @@ data class Services(
       rankerJob,
       rankIndexBlob,
       poolAssignmentJob,
+      unlinkedClientAccounts,
     )
 
   companion object {
@@ -97,6 +101,10 @@ data class Services(
         InternalPoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
           internalApiChannel
         )
+      val internalUnlinkedClientAccountsStub =
+        InternalUnlinkedClientAccountsServiceGrpcKt.UnlinkedClientAccountsServiceCoroutineStub(
+          internalApiChannel
+        )
 
       return Services(
         RequisitionMetadataService(internalRequisitionMetadataStub, coroutineContext),
@@ -108,6 +116,7 @@ data class Services(
         RankerJobService(internalRankerJobStub, coroutineContext),
         RankIndexBlobService(internalRankIndexBlobStub, coroutineContext),
         PoolAssignmentJobService(internalPoolAssignmentJobStub, coroutineContext),
+        UnlinkedClientAccountsService(internalUnlinkedClientAccountsStub, coroutineContext),
       )
     }
   }
