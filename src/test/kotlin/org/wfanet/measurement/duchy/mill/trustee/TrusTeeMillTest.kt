@@ -52,6 +52,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.testing.TestData
+import org.wfanet.measurement.common.crypto.tink.ConfidentialSpaceToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
@@ -82,8 +83,10 @@ import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationS
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.NoiseMechanism
+import org.wfanet.measurement.internal.duchy.RequisitionDetails.RequisitionProtocol.TrusTee.AwsKmsParams
 import org.wfanet.measurement.internal.duchy.RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.TrusTeeKt.awsKmsParams as requisitionAwsKmsParams
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.trusTee as requisitionTrusTee
 import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.computationToken
@@ -124,6 +127,11 @@ class TrusTeeMillTest {
   private val mockGcloudToAwsKmsClientFactory: KmsClientFactory<GCloudToAwsWifCredentials> = mock {
     on { getKmsClient(any()) }.thenReturn(fakeKmsClient)
   }
+  private val mockConfidentialSpaceToAwsKmsClientFactory:
+    KmsClientFactory<ConfidentialSpaceToAwsWifCredentials> =
+    mock {
+      on { getKmsClient(any()) }.thenReturn(fakeKmsClient)
+    }
 
   private val mockComputationControl: ComputationControlCoroutineImplBase = mockService()
   private val mockSystemComputations: SystemComputationsCoroutineImplBase = mockService()
@@ -213,6 +221,7 @@ class TrusTeeMillTest {
       trusTeeProcessorFactory = mockProcessorFactory,
       gcloudKmsClientFactory = mockGcloudKmsClientFactory,
       gcloudToAwsKmsClientFactory = mockGcloudToAwsKmsClientFactory,
+      confidentialSpaceToAwsKmsClientFactory = mockConfidentialSpaceToAwsKmsClientFactory,
       attestationTokenPath = ATTESTATION_TOKEN_PATH,
     )
   }
@@ -399,6 +408,29 @@ class TrusTeeMillTest {
           resultPublicKey = MEASUREMENT_ENCRYPTION_PUBLIC_KEY.toByteString()
         }
       )
+  }
+
+  @Test
+  fun `computingPhase uses Confidential Space KMS client for CONFIDENTIAL_SPACE awsKmsParams`():
+    Unit = runBlocking {
+    writeRequisitionData()
+    fakeComputationDb.addComputation(
+      LOCAL_ID,
+      Stage.COMPUTING.toProtocolStage(),
+      computationDetails = COMPUTATION_DETAILS,
+      requisitions = listOf(REQUISITION_CONFIDENTIAL_SPACE),
+    )
+
+    whenever(mockProcessor.addFrequencyVector(any())).thenAnswer {}
+    whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
+
+    val mill = createMill()
+    mill.claimAndProcessWork()
+
+    val finalToken = fakeComputationDb[LOCAL_ID]!!
+    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
+    verify(mockConfidentialSpaceToAwsKmsClientFactory).getKmsClient(any())
+    verify(mockGcloudToAwsKmsClientFactory, never()).getKmsClient(any())
   }
 
   @Test
@@ -876,6 +908,29 @@ class TrusTeeMillTest {
             protocol =
               RequisitionDetailsKt.requisitionProtocol {
                 trusTee = requisitionTrusTee { dataFormat = DataFormat.FREQUENCY_VECTOR }
+              }
+          }
+        path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey
+      }
+
+    private val REQUISITION_CONFIDENTIAL_SPACE =
+      TEST_REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED).copy {
+        details =
+          details.copy {
+            protocol =
+              RequisitionDetailsKt.requisitionProtocol {
+                trusTee = requisitionTrusTee {
+                  dataFormat = DataFormat.ENCRYPTED_FREQUENCY_VECTOR
+                  encryptedDekCiphertext = DEK_KEYSET_HANDLE_1.toEncryptedByteString(KEK_AEAD_1)
+                  kmsKekUri = KEK_URI_1
+                  awsKmsParams = requisitionAwsKmsParams {
+                    roleArn = "arn:aws:iam::123456789012:role/my-role"
+                    roleSession = "my-session"
+                    region = "us-east-1"
+                    audience = "https://example.com"
+                    credentialSource = AwsKmsParams.CredentialSource.CONFIDENTIAL_SPACE
+                  }
+                }
               }
           }
         path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey
