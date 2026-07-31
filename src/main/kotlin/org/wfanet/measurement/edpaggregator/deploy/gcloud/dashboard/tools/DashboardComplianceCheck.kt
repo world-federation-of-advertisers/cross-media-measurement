@@ -69,7 +69,10 @@ class DashboardComplianceCheck : Runnable {
           "Cannot read --dashboard-config file '${dashboardConfigFile.path}': ${e.message}",
         )
       } catch (e: IllegalArgumentException) {
-        throw CommandLine.ParameterException(spec.commandLine(), e.message)
+        throw CommandLine.ParameterException(
+          spec.commandLine(),
+          "Invalid --dashboard-config file '${dashboardConfigFile.path}': ${e.message ?: e}",
+        )
       }
 
     println("=== EDPA Dashboard Compliance Check ===")

@@ -263,12 +263,20 @@ jobs:
         # Dashboard config (EDPs, operators, deletion protection) is consolidated
         # into the single DASHBOARD_CONFIG_CONTENT JSON var. Terraform reads
         # it natively as *.tfvars.json.
-        # Fail loudly if any required key is missing rather than silently emitting
-        # null (which Terraform would treat as unset, falling back to defaults).
-        jq -e 'has("bigquery_region") and has("deletion_protection")
-          and has("operators") and has("edps")' \
+        # Fail loudly on a malformed config -- missing/mistyped keys, empty strings,
+        # or duplicate EDP names -- rather than silently emitting null (which Terraform
+        # treats as unset) or letting a duplicate name collapse in the map below.
+        jq -e '
+          (.bigquery_region | type == "string" and length > 0)
+          and (.deletion_protection | type == "boolean")
+          and (.operators | type == "array")
+          and (.edps | type == "array" and length > 0)
+          and (.edps | all((.name | type == "string" and length > 0)
+            and (.resource_id | type == "string" and length > 0)))
+          and ((.edps | map(.name)) as $names | ($names | length) == ($names | unique | length))
+        ' \
           <<< "$DASHBOARD_CONFIG_CONTENT" > /dev/null \
-          || { echo "DASHBOARD_CONFIG_CONTENT is missing required keys" >&2; exit 1; }
+          || { echo "DASHBOARD_CONFIG_CONTENT is malformed: need non-empty bigquery_region, boolean deletion_protection, operators array, and non-empty edps with unique non-empty name/resource_id" >&2; exit 1; }
         jq '{
           data_provider_resource_ids: ((.edps // [] | map({(.name): .resource_id}) | add) // {}),
           dashboard_operators: .operators,

@@ -54,6 +54,11 @@ jobs:
             echo "vars.DASHBOARD_CONFIG_CONTENT is empty for environment ${{ inputs.environment }}" >&2
             exit 1
           fi
+          # Fail loudly on a malformed config rather than emitting literal "null" that
+          # propagates into later steps (e.g. locations/null). Mirrors terraform-cmms-v2.yml.
+          jq -e '(.edps | type == "array" and length > 0) and (.bigquery_region | type == "string" and length > 0)' \
+            <<< "$DASHBOARD_CONFIG_CONTENT" > /dev/null \
+            || { echo "DASHBOARD_CONFIG_CONTENT must set a non-empty 'edps' array and 'bigquery_region'" >&2; exit 1; }
           echo "edp_config=$(jq -c '.edps' <<< "$DASHBOARD_CONFIG_CONTENT")" >> "$GITHUB_OUTPUT"
           echo "region=$(jq -r '.bigquery_region' <<< "$DASHBOARD_CONFIG_CONTENT")" >> "$GITHUB_OUTPUT"
 

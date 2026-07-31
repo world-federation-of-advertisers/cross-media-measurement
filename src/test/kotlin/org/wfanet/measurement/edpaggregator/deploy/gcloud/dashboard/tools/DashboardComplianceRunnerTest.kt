@@ -197,4 +197,15 @@ class DashboardComplianceRunnerTest {
       }
     assertThat(exception).hasMessageThat().contains("name")
   }
+
+  @Test
+  fun `parseDashboardConfig throws on duplicate edp names`() {
+    val exception =
+      assertThrows(IllegalArgumentException::class.java) {
+        DashboardComplianceRunner.parseDashboardConfig(
+          """{"bigquery_region": "us-central1", "edps": [{"name": "meta", "resource_id": "a"}, {"name": "meta", "resource_id": "b"}]}"""
+        )
+      }
+    assertThat(exception).hasMessageThat().contains("duplicate")
+  }
 }

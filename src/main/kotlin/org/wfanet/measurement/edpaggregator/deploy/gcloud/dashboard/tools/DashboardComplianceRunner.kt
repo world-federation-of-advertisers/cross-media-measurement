@@ -148,6 +148,11 @@ object DashboardComplianceRunner {
         "dashboard config edp '${edp.name}' is missing 'resource_id'"
       }
     }
+    val duplicateNames =
+      config.edpsList.groupingBy { it.name }.eachCount().filterValues { it > 1 }.keys
+    require(duplicateNames.isEmpty()) {
+      "dashboard config has duplicate edp names: $duplicateNames"
+    }
     require(config.bigqueryRegion.isNotEmpty()) { "dashboard config must set 'bigquery_region'" }
     return ResolvedConfig(
       config.edpsList.map { EdpConfig(it.name, it.resourceId) },
