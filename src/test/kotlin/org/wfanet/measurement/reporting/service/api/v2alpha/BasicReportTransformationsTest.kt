@@ -3510,7 +3510,8 @@ class BasicReportTransformationsTest {
     // `||`, so an unparenthesized group would parse as `(age == 1 && gender == 2) || age == 2` and
     // match every 35-to-54-year-old regardless of gender.
     //
-    // Filters are emitted in normalized order, in which `person.age_group` precedes `person.gender`.
+    // Filters are emitted in normalized order, in which `person.age_group` precedes
+    // `person.gender`.
     assertThat(filter)
       .isEqualTo("((person.age_group == 1) || (person.age_group == 2)) && person.gender == 2")
     assertCompilesCleanly(filter)

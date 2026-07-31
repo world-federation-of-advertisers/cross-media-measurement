@@ -468,8 +468,8 @@ fun buildCelExpression(
  * The emitted expression is self-contained: it can be combined with other expressions using any
  * operator without regard to CEL operator precedence.
  *
- * @param normalizedEventFilter [InternalEventFilter] which has been normalized (i.e. it matches what
- *   is returned by [Normalization.normalizeEventFilters])
+ * @param normalizedEventFilter [InternalEventFilter] which has been normalized (i.e. it matches
+ *   what is returned by [Normalization.normalizeEventFilters])
  * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for parsing [InternalEventTemplateField]
  */
