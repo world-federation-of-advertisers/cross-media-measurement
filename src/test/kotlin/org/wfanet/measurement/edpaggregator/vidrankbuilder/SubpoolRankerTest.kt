@@ -21,6 +21,7 @@ import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import com.google.type.Date
@@ -80,6 +81,10 @@ class SubpoolRankerTest {
   @Before
   fun setUp() {
     AeadConfig.register()
+    // EncryptedRecordIoStore uses the StreamingAead template AES256_GCM_HKDF_1MB (via
+    // EncryptedStorage), so the streaming-AEAD key manager must be registered too (peer tests such
+    // as EncryptedStorageTest / VidLabelingSinkTest do the same).
+    StreamingAeadConfig.register()
     kmsClient =
       FakeKmsClient().apply {
         setAead(
@@ -191,7 +196,7 @@ class SubpoolRankerTest {
     fake.rows.any { it.blobType == blobType && it.name.startsWith("$upload/") }
 
   @Test
-  fun `cold subpool allocates sequential ranks and stamps last_seen`() = runBlocking {
+  fun `cold subpool allocates a dense rank set and stamps last_seen`() = runBlocking {
     val key = writePhase0(listOf(1L to 0, 2L to 0, 3L to 0))
 
     val result = ranker().rank(POOL, key, rankedSize = 100)
@@ -199,8 +204,11 @@ class SubpoolRankerTest {
     assertThat(result.skipped).isFalse()
     assertThat(result.allocated).isEqualTo(3)
     val snapshot = readSnapshot()
-    assertThat(snapshot.mapValues { it.value.first })
-      .containsExactly(1L to 0, 0, 2L to 0, 1, 3L to 0, 2)
+    // The parallel forward path draws new ranks concurrently from one shared pool, so the specific
+    // fingerprint->rank pairing is not ordered. Assert the invariant: every fingerprint is present
+    // and the assigned ranks are exactly the dense set {0, 1, 2}.
+    assertThat(snapshot.keys).containsExactly(1L to 0, 2L to 0, 3L to 0)
+    assertThat(snapshot.values.map { it.first }.toSet()).containsExactly(0, 1, 2)
     assertThat(snapshot.values.map { it.second }.toSet()).containsExactly(TODAY_EPOCH_DAY)
     // A DAY_ONLY row is recorded with the dispatch's max event date.
     assertThat(

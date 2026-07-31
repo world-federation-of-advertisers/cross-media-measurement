@@ -51,12 +51,16 @@ import org.wfanet.virtualpeople.common.LabelerInput
  */
 interface PoolEmitLabeler : AutoCloseable {
   /**
-   * Returns the pool offsets [input] routes to (one per virtual person the model emits for the
-   * event), or an empty list if the event routes to no ranked pool (e.g. it falls back to
-   * hash-based VID assignment and therefore has no subpool). Duplicate offsets are permitted —
+   * Invokes [onPoolOffset] once for each pool offset [input] routes to (one per virtual person the
+   * model emits for the event), in model-emission order, and returns how many offsets were emitted
+   * (0 when the event routes to no ranked pool — e.g. it falls back to hash-based VID assignment
+   * and therefore has no subpool). Duplicate offsets are permitted and are passed through —
    * [SubpoolFingerprintsAccumulator] dedupes per subpool.
+   *
+   * The callback form lets the consumer hand each primitive offset straight to the accumulator with
+   * no intermediate boxed `List<Long>` allocation on this per-event hot path.
    */
-  fun emit(input: LabelerInput): List<Long>
+  fun emit(input: LabelerInput, onPoolOffset: (Long) -> Unit): Int
 
   /**
    * Returns the configured ranked sub-range size (`RankedPopulationNode.ranked_size`) of the

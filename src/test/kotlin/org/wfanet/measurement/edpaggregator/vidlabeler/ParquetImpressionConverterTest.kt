@@ -17,7 +17,6 @@
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.util.Timestamps
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -77,7 +76,7 @@ class ParquetImpressionConverterTest {
 
     assertThat(converted).isNotNull()
     assertThat(converted!!.labelerInput.eventId.id).isEqualTo("event-1")
-    assertThat(converted.eventTime).isEqualTo(Timestamps.fromMicros(1_700_000_000_000_000L))
+    assertThat(converted.labelerInput.timestampUsec).isEqualTo(1_700_000_000_000_000L)
 
     val event = converted.event.unpack(TestEvent::class.java)
     assertThat(event.person.gender).isEqualTo(Person.Gender.MALE)
@@ -118,6 +117,49 @@ class ParquetImpressionConverterTest {
     assertThat(event).isEqualTo(TestEvent.getDefaultInstance())
     assertThat(converted.event.typeUrl)
       .isEqualTo("type.googleapis.com/" + TestEvent.getDescriptor().fullName)
+  }
+
+  @Test
+  fun `convert reuses cached mappers and is race-free under concurrent calls`() {
+    val converter = ParquetImpressionConverter(eventDescriptor)
+    val row =
+      mapOf(
+        "eid" to parquetValue { stringValue = "event-1" },
+        "ts" to parquetValue { int64Value = 1_700_000_000_000_000L },
+        "gender" to parquetValue { stringValue = "MALE" },
+        "age" to parquetValue { stringValue = "YEARS_18_TO_34" },
+        "cr_col" to parquetValue { stringValue = "c-1" },
+        "pl_col" to parquetValue { stringValue = "p-9" },
+      )
+    // Reference result from a warm-up convert (populates the per-config mapper cache).
+    val reference = converter.convert(digestedEvent(row), config)!!
+
+    val threads = 8
+    val perThread = 200
+    val pool = java.util.concurrent.Executors.newFixedThreadPool(threads)
+    val results = java.util.concurrent.ConcurrentLinkedQueue<ConvertedImpression>()
+    val errors = java.util.concurrent.ConcurrentLinkedQueue<Throwable>()
+    try {
+      (0 until threads)
+        .map {
+          pool.submit {
+            try {
+              repeat(perThread) { results.add(converter.convert(digestedEvent(row), config)!!) }
+            } catch (t: Throwable) {
+              errors.add(t)
+            }
+          }
+        }
+        .forEach { it.get() }
+    } finally {
+      pool.shutdown()
+    }
+
+    assertThat(errors).isEmpty()
+    assertThat(results).hasSize(threads * perThread)
+    // Every concurrent conversion of the same row+config yields an identical ConvertedImpression,
+    // proving the lock-free per-config mapper cache is race-free.
+    assertThat(results.all { it == reference }).isTrue()
   }
 
   @Test
