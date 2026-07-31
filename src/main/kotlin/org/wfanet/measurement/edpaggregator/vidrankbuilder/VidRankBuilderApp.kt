@@ -21,6 +21,8 @@ import com.google.protobuf.Any
 import com.google.protobuf.Parser
 import java.time.LocalDate
 import java.time.ZoneOffset
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
@@ -72,6 +74,11 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param buildVidRankMapStorageClient Builds the vid-rank-map [ConditionalOperationStorageClient]
  *   from its [StorageParams] (bucket parsed from the `gs://` blob_prefix).
  * @param today Supplies the UTC date treated as "now" for retention (injectable for tests).
+ * @param workerDispatcher Base CPU dispatcher for the parallel forward rank build; [SubpoolRanker]
+ *   caps it to [rankStripes] via `limitedParallelism` (mirrors `RawImpressionSource`). Defaults to
+ *   [Dispatchers.Default] (already ≈ #cores).
+ * @param rankStripes Number of map stripes ≈ #cores for the parallel forward build.
+ * @param maxInFlightRecords Parse-phase read-ahead bound (backpressure) for [SubpoolRanker].
  */
 class VidRankBuilderApp(
   subscriptionId: String,
@@ -90,6 +97,9 @@ class VidRankBuilderApp(
   private val buildSubpoolMapStorageClient: (StorageParams) -> ConditionalOperationStorageClient,
   private val buildVidRankMapStorageClient: (StorageParams) -> ConditionalOperationStorageClient,
   private val today: () -> LocalDate = { LocalDate.now(ZoneOffset.UTC) },
+  private val workerDispatcher: CoroutineDispatcher = Dispatchers.Default,
+  private val rankStripes: Int = ConcurrentRankAllocator.DEFAULT_STRIPES,
+  private val maxInFlightRecords: Int = maxOf(2, ConcurrentRankAllocator.DEFAULT_STRIPES * 2),
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
@@ -164,6 +174,9 @@ class VidRankBuilderApp(
         maxEventDate = params.maxEventDate,
         retentionDays = retentionDays,
         today = runDate,
+        workerDispatcher = workerDispatcher,
+        stripes = rankStripes,
+        maxInFlightRecords = maxInFlightRecords,
       )
 
     VidRankBuilder(

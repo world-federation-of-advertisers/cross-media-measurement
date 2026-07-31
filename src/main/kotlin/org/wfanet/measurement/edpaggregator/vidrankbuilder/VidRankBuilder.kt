@@ -155,6 +155,9 @@ class VidRankBuilder(
       return recoverIfLastJobOut()
     }
 
+    // Rank this job's subpools sequentially; each subpool's own rank build is already parallelized
+    // across cores by [SubpoolRanker]. A failure propagates so the framework nacks and Pub/Sub
+    // retries.
     for ((poolOffset, blobUri) in subpoolMapBlobUris) {
       val rankedSize =
         requireNotNull(subpoolRankedSizes[poolOffset]) {
