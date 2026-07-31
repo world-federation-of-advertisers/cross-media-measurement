@@ -92,9 +92,11 @@ assertThat(service.internalCache.size())
 
 Full guide: [docs/dev-standards.md](docs/dev-standards.md)
 
-**Conventional Commits** — see [docs/dev-standards.md](docs/dev-standards.md) for full format, types, and commit message requirements.
+**Conventional Commits.** Types: `build`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `test`. Append `!` for a breaking change and add a `BREAKING-CHANGE` trailer. The description is a short imperative sentence — "Delete the Foo method from the Bar service.", not "Deletes ...".
 
-Every significant PR must have an `Issue` trailer:
+The PR title and description body become the commit message, so keep the body concise and free of headers, bullet lists, and code blocks — these make noisy commit history and can break the trailer parsing used by release automation. Put reviewer context in a PR comment or the issue. Remove any line wrapping GitHub introduces.
+
+Trailers: `Issue` (every significant PR; short link format, not a URL; repeatable), `RELNOTES` (release-note text unrelated to a breaking change).
 ```
 Issue: #123
 ```
@@ -111,6 +113,7 @@ Issue: #123
 - **No Java modules** — this project doesn't use `module-info.java`
 - All public service APIs follow [AIPs](https://aip.dev/) unless explicitly noted
 - TODOs must be actionable — see [docs/code-style.md#todos](docs/code-style.md#todos) for format. When an agent creates a TODO, it must also create a corresponding GitHub issue
+- **Keep comments and PR descriptions concise** — generated text tends to be verbose, to narrate the change rather than describe the code, and to duplicate the linked issue. Edit it down before submitting. See [docs/code-style.md#comments](docs/code-style.md#comments) and [docs/dev-standards.md](docs/dev-standards.md)
 
 ## Architecture
 
