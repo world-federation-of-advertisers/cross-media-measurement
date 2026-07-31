@@ -45,7 +45,8 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
     // Capped sum over [10, 4, 1] at 3 per user is 1*10 + 2*4 + 3*1 = 21; the draw on the impression
     // label at sensitivity 3 is -4. Distinct from the bucket labels, so it is not the weighted sum
     // of the bucket draws.
-    assertThat(noiser().impressionCountForThreshold(longArrayOf(10, 4, 1))).isEqualTo(17L)
+    assertThat(noiser().noiseImpressionsFromFrequencyHistogram(longArrayOf(10, 4, 1)))
+      .isEqualTo(17L)
   }
 
   @Test
@@ -57,10 +58,14 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
   }
 
   @Test
-  fun `a different contribution count gives a different draw`() {
+  fun `fingerprint changes with contribution count`() {
     // Same aggregate vector, different contribution count: reseeds. This is what closes the
     // fully-contained-contribution differencing case, where the aggregate is byte-identical.
-    assertThat(noiser(CONTRIBUTION_COUNT + 1).noiseReach(15)).isNotEqualTo(noiser().noiseReach(15))
+    // Asserted on the seed, not a draw: draws round into a small integer range and collide.
+    assertThat(DeterministicTruncatedLaplaceResultNoiser.fingerprint(COMBINED, CONTRIBUTION_COUNT))
+      .isNotEqualTo(
+        DeterministicTruncatedLaplaceResultNoiser.fingerprint(COMBINED, CONTRIBUTION_COUNT + 1)
+      )
   }
 
   @Test
@@ -97,10 +102,10 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
     private const val MAX_FREQUENCY_PER_USER = 3
     private val COMBINED = intArrayOf(0, 1, 2, 1, 3, 0, 2)
 
-    private fun noiser(contributionCount: Int = CONTRIBUTION_COUNT) =
+    private fun noiser() =
       DeterministicTruncatedLaplaceResultNoiser(
         COMBINED,
-        contributionCount,
+        CONTRIBUTION_COUNT,
         REACH_EPSILON,
         FREQUENCY_EPSILON,
         BOUND,
