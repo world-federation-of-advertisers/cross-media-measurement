@@ -74,7 +74,7 @@ class SpannerUnlinkedClientAccountsService(
         throw InvalidFieldValueException(
             "unlinked_client_accounts.$index.client_account_reference_id"
           ) {
-            "client account reference id $referenceId is duplicate in the batch of requests"
+            "duplicate client_account_reference_id \"$referenceId\" in the request"
           }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
