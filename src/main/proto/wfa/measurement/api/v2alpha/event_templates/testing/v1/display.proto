@@ -46,6 +46,7 @@ message Display {
         description: "Fraction of the ad's pixels on screen for at least 1 "
                      "continuous second, in the range [0, 1]."
         reporting_features: IMPRESSION_QUALIFICATION
+        reporting_features: GROUPABLE
         version_added: 1
       }];
 }

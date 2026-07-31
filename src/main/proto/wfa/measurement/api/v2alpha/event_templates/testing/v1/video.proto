@@ -43,10 +43,12 @@ message Video {
     media_type: VIDEO
   };
 
-  // Amount of the video that was actually viewed.
-  google.protobuf.Duration duration_viewed = 1
+  // Amount of the video that was played, i.e. the video's length multiplied
+  // by `completed_fraction`. This is a completion measure, not a viewability
+  // one.
+  google.protobuf.Duration completed_duration = 1
       [(.wfa.measurement.api.v2alpha.template_field) = {
-        display_name: "Duration Viewed"
+        display_name: "Completed Duration"
         reporting_features: FILTERABLE
         version_added: 1
       }];
@@ -60,6 +62,7 @@ message Video {
         description: "Fraction of the video that was played, in the range "
                      "[0, 1]."
         reporting_features: IMPRESSION_QUALIFICATION
+        reporting_features: GROUPABLE
         version_added: 1
       }];
 
@@ -74,6 +77,7 @@ message Video {
         description: "Fraction of the ad's pixels on screen for at least 2 "
                      "continuous seconds, in the range [0, 1]."
         reporting_features: IMPRESSION_QUALIFICATION
+        reporting_features: GROUPABLE
         version_added: 1
       }];
 }

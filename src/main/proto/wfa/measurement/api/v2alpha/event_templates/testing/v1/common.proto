@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.api.v2alpha.event_templates.testing.v1;
 
 import "wfa/measurement/api/v2alpha/event_annotations.proto";
+import "wfa/measurement/api/v2alpha/media_type.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing.v1";
 option java_multiple_files = true;
@@ -61,59 +62,64 @@ message Common {
   // exercise grouping and filtering over a large value set. A different
   // geography (countries, DMAs, etc.) would be modeled as its own enum and
   // field rather than added here.
+  //
+  // Enum values are the state's FIPS 5-2 numeric code
+  // (https://transition.fcc.gov/oet/info/maps/census/fips/fips.txt). The
+  // reserved numbers are FIPS codes not assigned to a state or DC.
   enum UsState {
     US_STATE_UNSPECIFIED = 0;
+    reserved 3, 7, 14, 43, 52;
     ALABAMA = 1;
     ALASKA = 2;
-    ARIZONA = 3;
-    ARKANSAS = 4;
-    CALIFORNIA = 5;
-    COLORADO = 6;
-    CONNECTICUT = 7;
-    DELAWARE = 8;
-    DISTRICT_OF_COLUMBIA = 9;
-    FLORIDA = 10;
-    GEORGIA = 11;
-    HAWAII = 12;
-    IDAHO = 13;
-    ILLINOIS = 14;
-    INDIANA = 15;
-    IOWA = 16;
-    KANSAS = 17;
-    KENTUCKY = 18;
-    LOUISIANA = 19;
-    MAINE = 20;
-    MARYLAND = 21;
-    MASSACHUSETTS = 22;
-    MICHIGAN = 23;
-    MINNESOTA = 24;
-    MISSISSIPPI = 25;
-    MISSOURI = 26;
-    MONTANA = 27;
-    NEBRASKA = 28;
-    NEVADA = 29;
-    NEW_HAMPSHIRE = 30;
-    NEW_JERSEY = 31;
-    NEW_MEXICO = 32;
-    NEW_YORK = 33;
-    NORTH_CAROLINA = 34;
-    NORTH_DAKOTA = 35;
-    OHIO = 36;
-    OKLAHOMA = 37;
-    OREGON = 38;
-    PENNSYLVANIA = 39;
-    RHODE_ISLAND = 40;
-    SOUTH_CAROLINA = 41;
-    SOUTH_DAKOTA = 42;
-    TENNESSEE = 43;
-    TEXAS = 44;
-    UTAH = 45;
-    VERMONT = 46;
-    VIRGINIA = 47;
-    WASHINGTON = 48;
-    WEST_VIRGINIA = 49;
-    WISCONSIN = 50;
-    WYOMING = 51;
+    ARIZONA = 4;
+    ARKANSAS = 5;
+    CALIFORNIA = 6;
+    COLORADO = 8;
+    CONNECTICUT = 9;
+    DELAWARE = 10;
+    DISTRICT_OF_COLUMBIA = 11;
+    FLORIDA = 12;
+    GEORGIA = 13;
+    HAWAII = 15;
+    IDAHO = 16;
+    ILLINOIS = 17;
+    INDIANA = 18;
+    IOWA = 19;
+    KANSAS = 20;
+    KENTUCKY = 21;
+    LOUISIANA = 22;
+    MAINE = 23;
+    MARYLAND = 24;
+    MASSACHUSETTS = 25;
+    MICHIGAN = 26;
+    MINNESOTA = 27;
+    MISSISSIPPI = 28;
+    MISSOURI = 29;
+    MONTANA = 30;
+    NEBRASKA = 31;
+    NEVADA = 32;
+    NEW_HAMPSHIRE = 33;
+    NEW_JERSEY = 34;
+    NEW_MEXICO = 35;
+    NEW_YORK = 36;
+    NORTH_CAROLINA = 37;
+    NORTH_DAKOTA = 38;
+    OHIO = 39;
+    OKLAHOMA = 40;
+    OREGON = 41;
+    PENNSYLVANIA = 42;
+    RHODE_ISLAND = 44;
+    SOUTH_CAROLINA = 45;
+    SOUTH_DAKOTA = 46;
+    TENNESSEE = 47;
+    TEXAS = 48;
+    UTAH = 49;
+    VERMONT = 50;
+    VIRGINIA = 51;
+    WASHINGTON = 53;
+    WEST_VIRGINIA = 54;
+    WISCONSIN = 55;
+    WYOMING = 56;
   }
   // `population_attribute` is true here because this models the virtual
   // person's home state. A geo attribute indicating where the event
@@ -139,4 +145,18 @@ message Common {
     reporting_features: GROUPABLE
     version_added: 1
   }];
+
+  // Media type of the event, so that metrics can be grouped (sliced) and
+  // filtered by media type. It lives on `Common` — the cross-media-type
+  // template — rather than a media-specific sub-template. A per-event
+  // (non-population) field: it is a property of the event, not the virtual
+  // person.
+  wfa.measurement.api.v2alpha.MediaType media_type = 5
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Media Type"
+        population_attribute: false
+        reporting_features: FILTERABLE
+        reporting_features: GROUPABLE
+        version_added: 1
+      }];
 }
