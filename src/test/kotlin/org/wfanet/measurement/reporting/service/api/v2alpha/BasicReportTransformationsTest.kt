@@ -3506,14 +3506,11 @@ class BasicReportTransformationsTest {
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
       )
 
-    // "female, aged 18 to 54" -- the criterion from issue #4253. The disjunction has to be
-    // wrapped: CEL binds `&&` tighter than `||`, so an unparenthesized group would parse as
-    // `(age == 1 && gender == 2) || age == 2` and silently match every 35-to-54-year-old
-    // regardless of gender. That failure produces wrong reach at fulfillment with no error
-    // anywhere, so this asserts the exact string rather than just that it compiles.
+    // "female, aged 18 to 54". The disjunction must be parenthesized: CEL binds `&&` tighter than
+    // `||`, so an unparenthesized group would parse as `(age == 1 && gender == 2) || age == 2` and
+    // match every 35-to-54-year-old regardless of gender.
     //
-    // Filter order is Normalization's, not the caller's: filters sort lexicographically by their
-    // term lists, and `person.age_group` precedes `person.gender`.
+    // Filters are emitted in normalized order, in which `person.age_group` precedes `person.gender`.
     assertThat(filter)
       .isEqualTo("((person.age_group == 1) || (person.age_group == 2)) && person.gender == 2")
     assertCompilesCleanly(filter)
@@ -3557,11 +3554,9 @@ class BasicReportTransformationsTest {
         eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
       )
 
-    // Two requests that differ only in term order describe the same filter and must generate the
-    // same string. If they diverge, they produce distinct MetricCalculationSpecs -- the same
-    // metric computed and privacy-charged twice -- and distinct filter fingerprints for one
-    // logical filter, which splits the dimension identity the post-processor uses to pair
-    // whole-campaign results with weekly ones. Both failures are silent.
+    // Filters that differ only in term order are equivalent and must emit the same expression, as
+    // the expression identifies the MetricCalculationSpec and is fingerprinted as part of the
+    // dimension identity.
     assertThat(descending).isEqualTo(ascending)
     assertThat(ascending).isEqualTo("((person.age_group == 1) || (person.age_group == 2))")
     assertCompilesCleanly(ascending)

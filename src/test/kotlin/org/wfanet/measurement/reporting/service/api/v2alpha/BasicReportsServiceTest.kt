@@ -7176,10 +7176,9 @@ class BasicReportsServiceTest {
               resultGroupSpecs[0].copy {
                 dimensionSpec =
                   BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
-                    // "aged 18 to 54": a disjunction over a single field, which is the criterion
-                    // issue #4253 could not previously express. The sibling `person.gender` filter
-                    // from BASIC_REPORT is retained, so this also covers a conjunction of filters
-                    // where one of them is a disjunction.
+                    // Replaces the single-term `person.age_group` filter with a two-term
+                    // disjunction, retaining the sibling `person.gender` filter so that the
+                    // dimension spec is a conjunction of filters where one is a disjunction.
                     filters[0] = eventFilter {
                       terms += eventTemplateField {
                         path = "person.age_group"

@@ -454,8 +454,6 @@ fun buildCelExpression(
   return if (dimensionSpecFilters.isEmpty()) {
     ""
   } else {
-    // `DimensionSpec.filters` is a conjunction of `EventFilter`s, each of which is a disjunction of
-    // its own terms.
     Normalization.normalizeEventFilters(dimensionSpecFilters.map { it.toInternal() }).joinToString(
       " && "
     ) {
@@ -465,26 +463,15 @@ fun buildCelExpression(
 }
 
 /**
- * Emits the CEL for a single [InternalEventFilter] as a disjunction of its terms.
+ * Emits a CEL expression for [normalizedEventFilter] as a disjunction of its terms.
  *
- * `EventFilter.terms` is documented as a disjunction, so terms are joined with `||`.
+ * The emitted expression is self-contained: it can be combined with other expressions using any
+ * operator without regard to CEL operator precedence.
  *
- * A multi-term disjunction is parenthesized twice over: each term is wrapped, and the group as a
- * whole is wrapped. Both are required rather than cosmetic. CEL binds `&&` tighter than `||`, and
- * callers combine sibling filters (and, on the IQF path, `<template> != null` clauses) with `&&`,
- * so an unwrapped group would re-associate into the neighbouring conjunction. The per-term wrapping
- * covers the same hazard one level down: with [emitNullGuardForNestedMembers] enabled a term is
- * itself `<member> != null && <path> == <value>`.
- *
- * A single-term filter emits the bare term with no added parentheses, so CEL generated for the
- * filters that exist today is byte-for-byte unchanged.
- *
- * [normalizedEventFilter] must have come from [Normalization.normalizeEventFilters], which sorts
- * terms by `(path, value)`. Term order is load-bearing, not aesthetic: two requests whose filters
- * differ only in term order have to produce the same CEL string, or they yield distinct
- * MetricCalculationSpecs (the same metric computed and privacy-charged twice) and distinct filter
- * fingerprints for one logical filter, which splits the dimension identity the post-processor uses
- * to pair whole-campaign results with weekly ones.
+ * @param normalizedEventFilter [InternalEventFilter] which has been normalized (i.e. it matches what
+ *   is returned by [Normalization.normalizeEventFilters])
+ * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
+ *   info for the field. Used for parsing [InternalEventTemplateField]
  */
 private fun buildCelDisjunction(
   normalizedEventFilter: InternalEventFilter,
@@ -506,6 +493,7 @@ private fun buildCelDisjunction(
   return if (terms.size == 1) {
     terms.single()
   } else {
+    // Join disjuncts. Add parens to ensure correct order of operations.
     terms.joinToString(separator = " || ", prefix = "(", postfix = ")") { "($it)" }
   }
 }

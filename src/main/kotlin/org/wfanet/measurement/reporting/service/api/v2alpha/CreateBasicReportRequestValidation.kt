@@ -389,9 +389,6 @@ object CreateBasicReportRequestValidation {
         throw RequiredFieldNotSetException("$filterFieldPath.terms")
       }
 
-      // `terms` is a disjunction; multiple terms are permitted. Sibling `filters` remain a
-      // conjunction, so `gender == FEMALE` AND (`age == 18_34` OR `age == 35_54`) is two filters,
-      // the second carrying two terms.
       eventFilter.termsList.forEachIndexed { index, term ->
         val termFieldPath = "$filterFieldPath.terms[$index]"
         validateDimensionSpecEventTemplateField(term, termFieldPath, eventTemplateFieldsByPath)
@@ -873,7 +870,6 @@ object CreateBasicReportRequestValidation {
             throw RequiredFieldNotSetException("$filterFieldPath.terms")
           }
 
-          // `terms` is a disjunction; multiple terms are permitted.
           filter.termsList.forEachIndexed { termIndex, term ->
             validateIqfTerm(
               term,

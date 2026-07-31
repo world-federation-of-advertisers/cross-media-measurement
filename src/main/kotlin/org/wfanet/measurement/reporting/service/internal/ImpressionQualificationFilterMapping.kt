@@ -114,24 +114,8 @@ class ImpressionQualificationFilterMapping(
     val celEnv = CelPredicates.buildEnvironment(eventMessageDescriptor)
     for (configFilter in impressionQualificationFilters) {
       for (spec in configFilter.filterSpecsList) {
-        // `filters` is a conjunction; each filter's `terms` is a disjunction. Prior to
-        // world-federation-of-advertisers/cross-media-measurement#4253 both levels were joined
-        // with `&&` here, which disagreed with the documented semantics of `terms`; the
-        // disagreement was unobservable because every filter was limited to a single term, where
-        // the two joins produce the same string. A multi-term disjunction is parenthesized so it
-        // does not re-associate into the surrounding conjunction.
         val celString: String =
           spec.filtersList.joinToString(" && ") { configEventFilter ->
-            // `isImpressionQualificationFilterSpecValid` iterates `terms` without requiring any,
-            // so an empty list reaches here. Reject it by name rather than emitting `()` and
-            // reporting it below as an opaque CEL compile failure.
-            require(configEventFilter.termsList.isNotEmpty()) {
-              "Impression qualification filter " +
-                "${configFilter.externalImpressionQualificationFilterId} spec (mediaType=" +
-                "${spec.mediaType}) has an EventFilter with no terms. Fix the base IQF " +
-                "configuration."
-            }
-
             val terms: List<String> =
               configEventFilter.termsList.map { configTerm ->
                 val fieldInfo = eventTemplateFieldsByPath.getValue(configTerm.path)
@@ -197,6 +181,10 @@ class ImpressionQualificationFilterMapping(
     }
 
     for (eventFilter in impressionQualificationFilterSpec.filtersList) {
+      if (eventFilter.termsList.isEmpty()) {
+        return false
+      }
+
       for (eventTemplateField in eventFilter.termsList) {
         if (eventTemplateField.path.isEmpty()) {
           return false
