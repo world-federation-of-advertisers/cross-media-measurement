@@ -35,7 +35,7 @@ class ReachAndFrequencyComputationsTest {
         rawHistogram,
         vidSamplingIntervalWidth = 1.0,
         vectorSize = 20,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = null,
       )
     assertThat(reach).isEqualTo(16)
@@ -49,7 +49,7 @@ class ReachAndFrequencyComputationsTest {
         rawHistogram,
         vidSamplingIntervalWidth = 0.5,
         vectorSize = 40,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = null,
       )
     assertThat(reach).isEqualTo(32)
@@ -63,7 +63,7 @@ class ReachAndFrequencyComputationsTest {
         rawHistogram,
         vidSamplingIntervalWidth = 0.5,
         vectorSize = 40,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 20, minImpressions = 20),
       )
     assertThat(reach).isEqualTo(32)
@@ -77,7 +77,7 @@ class ReachAndFrequencyComputationsTest {
         rawHistogram,
         vidSamplingIntervalWidth = 0.5,
         vectorSize = 40,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 35, minImpressions = 30),
       )
     assertThat(reach).isEqualTo(0)
@@ -91,7 +91,7 @@ class ReachAndFrequencyComputationsTest {
         rawHistogram,
         vidSamplingIntervalWidth = 0.5,
         vectorSize = 40,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds =
           ResultMinimumThresholds(minUsers = 30, minImpressions = 50, reachMaxFrequencyPerUser = 3),
       )
@@ -107,7 +107,7 @@ class ReachAndFrequencyComputationsTest {
         rawHistogram,
         vidSamplingIntervalWidth = 1.0,
         vectorSize = 200,
-        dpParams = DP_PARAMS,
+        noiser = GAUSSIAN_NOISER,
         resultMinimumThresholds = null,
       )
     assertThat(reach).isAtMost(min(200, 170 + tolerance))
@@ -122,7 +122,7 @@ class ReachAndFrequencyComputationsTest {
         rawHistogram,
         vidSamplingIntervalWidth = 1.0,
         vectorSize = 200,
-        dpParams = DP_PARAMS,
+        noiser = GAUSSIAN_NOISER,
         resultMinimumThresholds =
           ResultMinimumThresholds(minUsers = 30, minImpressions = 50, reachMaxFrequencyPerUser = 3),
       )
@@ -139,7 +139,7 @@ class ReachAndFrequencyComputationsTest {
         rawHistogram,
         vidSamplingIntervalWidth = 1.0,
         vectorSize = 200,
-        dpParams = DP_PARAMS,
+        noiser = GAUSSIAN_NOISER,
         resultMinimumThresholds =
           ResultMinimumThresholds(
             minUsers = 200,
@@ -157,7 +157,7 @@ class ReachAndFrequencyComputationsTest {
       ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 3,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = null,
         vidSamplingIntervalWidth = null,
       )
@@ -175,7 +175,7 @@ class ReachAndFrequencyComputationsTest {
       ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 3,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = null,
         vidSamplingIntervalWidth = null,
       )
@@ -191,7 +191,7 @@ class ReachAndFrequencyComputationsTest {
       ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 5,
-        dpParams = DP_PARAMS,
+        noiser = GAUSSIAN_NOISER,
         resultMinimumThresholds = null,
         vidSamplingIntervalWidth = null,
       )
@@ -223,7 +223,7 @@ class ReachAndFrequencyComputationsTest {
         ReachAndFrequencyComputations.computeFrequencyDistribution(
           rawHistogram,
           maxFrequency = 3,
-          dpParams = null,
+          noiser = NoNoise,
           resultMinimumThresholds = null,
           vidSamplingIntervalWidth = null,
         )
@@ -238,7 +238,7 @@ class ReachAndFrequencyComputationsTest {
       ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 3,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 11, minImpressions = 5),
         vidSamplingIntervalWidth = 1.0,
       )
@@ -257,7 +257,7 @@ class ReachAndFrequencyComputationsTest {
       ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 3,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 110, minImpressions = 5),
         vidSamplingIntervalWidth = 1.0,
       )
@@ -272,7 +272,7 @@ class ReachAndFrequencyComputationsTest {
       ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 3,
-        dpParams = DP_PARAMS,
+        noiser = GAUSSIAN_NOISER,
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 11, minImpressions = 5),
         vidSamplingIntervalWidth = 1.0,
       )
@@ -289,7 +289,7 @@ class ReachAndFrequencyComputationsTest {
       ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 3,
-        dpParams = DP_PARAMS,
+        noiser = GAUSSIAN_NOISER,
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 110, minImpressions = 5),
         vidSamplingIntervalWidth = 1.0,
       )
@@ -306,7 +306,7 @@ class ReachAndFrequencyComputationsTest {
         rawHistogram,
         vidSamplingIntervalWidth = 1.0,
         vectorSize = 20,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 10, minImpressions = 50),
       )
     assertThat(reach).isEqualTo(0)
@@ -323,7 +323,7 @@ class ReachAndFrequencyComputationsTest {
       ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 3,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 1, minImpressions = 15),
         vidSamplingIntervalWidth = 1.0,
       )
@@ -344,7 +344,7 @@ class ReachAndFrequencyComputationsTest {
       ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 5,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 500, minImpressions = 10),
         vidSamplingIntervalWidth = 1.0,
       )
@@ -371,7 +371,7 @@ class ReachAndFrequencyComputationsTest {
       ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 3,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 50, minImpressions = 5),
         vidSamplingIntervalWidth = 0.5,
       )
@@ -390,7 +390,7 @@ class ReachAndFrequencyComputationsTest {
       ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 5,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 30, minImpressions = 10),
         vidSamplingIntervalWidth = 1.0,
       )
@@ -410,7 +410,7 @@ class ReachAndFrequencyComputationsTest {
       ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 5,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 50, minImpressions = 10),
         vidSamplingIntervalWidth = 1.0,
       )
@@ -428,7 +428,7 @@ class ReachAndFrequencyComputationsTest {
         rawHistogram,
         vidSamplingIntervalWidth = 1.0,
         vectorSize = 20,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds =
           ResultMinimumThresholds(minUsers = 50, minImpressions = 10, reachMaxFrequencyPerUser = 5),
       )
@@ -447,14 +447,14 @@ class ReachAndFrequencyComputationsTest {
         rawHistogram,
         vidSamplingIntervalWidth = vidSamplingIntervalWidth,
         vectorSize = 20,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = thresholds,
       )
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 5,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = thresholds,
         vidSamplingIntervalWidth = vidSamplingIntervalWidth,
       )
@@ -475,14 +475,14 @@ class ReachAndFrequencyComputationsTest {
         rawHistogram,
         vidSamplingIntervalWidth = vidSamplingIntervalWidth,
         vectorSize = 10000,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = thresholds,
       )
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 5,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = thresholds,
         vidSamplingIntervalWidth = vidSamplingIntervalWidth,
       )
@@ -496,6 +496,7 @@ class ReachAndFrequencyComputationsTest {
     private const val FLOAT_COMPARISON_TOLERANCE = 1e-9
 
     private val DP_PARAMS = DifferentialPrivacyParams(epsilon = 1.0, delta = 0.99)
+    private val GAUSSIAN_NOISER = GaussianResultNoiser(DP_PARAMS, DP_PARAMS)
 
     /**
      * Calculates a test tolerance for a noised value.

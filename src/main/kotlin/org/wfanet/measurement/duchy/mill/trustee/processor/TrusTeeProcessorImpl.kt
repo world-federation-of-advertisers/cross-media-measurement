@@ -15,11 +15,15 @@
 package org.wfanet.measurement.duchy.mill.trustee.processor
 
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceNoise
+import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceResultNoiser
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
+import org.wfanet.measurement.computation.GaussianResultNoiser
 import org.wfanet.measurement.computation.HistogramComputations
+import org.wfanet.measurement.computation.NoNoise
 import org.wfanet.measurement.computation.ReachAndFrequency
 import org.wfanet.measurement.computation.ReachAndFrequencyComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
+import org.wfanet.measurement.computation.ResultNoiser
 import org.wfanet.measurement.duchy.utils.ComputationResult
 import org.wfanet.measurement.duchy.utils.ReachAndFrequencyResult
 import org.wfanet.measurement.duchy.utils.ReachResult
@@ -116,54 +120,45 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
     }
     val frequencyVector = aggregatedFrequencyVector
     val rawHistogram = HistogramComputations.buildHistogram(frequencyVector, maxFrequency)
-    var sampledReachAndFrequency = ReachAndFrequency(rawHistogram.sum(), rawHistogram)
+    val sampledReachAndFrequency = ReachAndFrequency(rawHistogram.sum(), rawHistogram)
 
     return when (val params = trusTeeParams) {
       is TrusTeeReachParams -> {
-        if (isDeterministicTruncatedLaplace) {
-          sampledReachAndFrequency =
-            applyDeterministicNoise(
-              sampledReachAndFrequency,
-              DeterministicTruncatedLaplaceNoise.fingerprint(frequencyVector, contributionCount),
-              reachDpParams = params.dpParams,
-              frequencyDpParams = params.dpParams,
-              truncationBound = params.truncationBound,
-            )
-        }
+        // A reach-only measurement has a single set of DP params, and never draws a frequency
+        // bucket: computeReach noises the reach and the threshold only.
+        val noiser =
+          noiser(frequencyVector, params.dpParams, params.dpParams, params.truncationBound)
         val reach =
           ReachAndFrequencyComputations.computeReach(
             sampledReachAndFrequency,
             vidSamplingIntervalWidth,
             frequencyVector.size,
-            dpParamsForCompute(params.dpParams),
+            noiser,
             resultMinimumThresholds = resultMinimumThresholds,
           )
         ReachResult(reach = reach, methodology = DeterministicMethodology)
       }
       is TrusTeeReachAndFrequencyParams -> {
-        if (isDeterministicTruncatedLaplace) {
-          sampledReachAndFrequency =
-            applyDeterministicNoise(
-              sampledReachAndFrequency,
-              DeterministicTruncatedLaplaceNoise.fingerprint(frequencyVector, contributionCount),
-              reachDpParams = params.reachDpParams,
-              frequencyDpParams = params.frequencyDpParams,
-              truncationBound = params.truncationBound,
-            )
-        }
+        val noiser =
+          noiser(
+            frequencyVector,
+            params.reachDpParams,
+            params.frequencyDpParams,
+            params.truncationBound,
+          )
         val reach =
           ReachAndFrequencyComputations.computeReach(
             sampledReachAndFrequency,
             vidSamplingIntervalWidth,
             frequencyVector.size,
-            dpParamsForCompute(params.reachDpParams),
+            noiser,
             resultMinimumThresholds = resultMinimumThresholds,
           )
         val frequency =
           ReachAndFrequencyComputations.computeFrequencyDistribution(
-            sampledReachAndFrequency.frequencyHistogram,
+            rawHistogram,
             maxFrequency,
-            dpParamsForCompute(params.frequencyDpParams),
+            noiser,
             resultMinimumThresholds = resultMinimumThresholds,
             vidSamplingIntervalWidth = vidSamplingIntervalWidth,
           )
@@ -173,35 +168,34 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
   }
 
   /**
-   * Returns [sampled] noised with deterministic truncated-Laplace. Reach and frequency draw from
-   * [reachDpParams] / [frequencyDpParams] respectively (for a reach-only measurement both are the
-   * single reach params).
+   * Returns the noiser for the configured mechanism.
+   *
+   * A reach-only measurement passes its single set of params as both, which is safe because it
+   * never draws a frequency bucket.
    */
-  private fun applyDeterministicNoise(
-    sampled: ReachAndFrequency,
-    fingerprint: ByteArray,
+  private fun noiser(
+    frequencyVector: IntArray,
     reachDpParams: InternalDifferentialPrivacyParams?,
     frequencyDpParams: InternalDifferentialPrivacyParams?,
     truncationBound: Int,
-  ): ReachAndFrequency =
-    DeterministicTruncatedLaplaceNoise.noise(
-      sampled,
-      fingerprint,
-      reachEpsilon = requireNotNull(reachDpParams) { REACH_DP_PARAMS_REQUIRED }.epsilon,
-      frequencyEpsilon = requireNotNull(frequencyDpParams) { FREQUENCY_DP_PARAMS_REQUIRED }.epsilon,
-      sensitivity = TRUNCATED_LAPLACE_SENSITIVITY,
-      truncationBound = truncationBound,
+  ): ResultNoiser {
+    if (isDeterministicTruncatedLaplace) {
+      return DeterministicTruncatedLaplaceResultNoiser(
+        DeterministicTruncatedLaplaceNoise.fingerprint(frequencyVector, contributionCount),
+        reachEpsilon = requireNotNull(reachDpParams) { REACH_DP_PARAMS_REQUIRED }.epsilon,
+        frequencyEpsilon =
+          requireNotNull(frequencyDpParams) { FREQUENCY_DP_PARAMS_REQUIRED }.epsilon,
+        truncationBound = truncationBound,
+      )
+    }
+    if (reachDpParams == null || frequencyDpParams == null) {
+      return NoNoise
+    }
+    return GaussianResultNoiser(
+      reachDpParams.toDifferentialPrivacyParams(),
+      frequencyDpParams.toDifferentialPrivacyParams(),
     )
-
-  /**
-   * DP params to pass to the compute functions. For deterministic truncated-Laplace, the histogram
-   * is already noised (see [DeterministicTruncatedLaplaceNoise.noise]), so noise is turned off with
-   * null; otherwise the internal params are converted for the Gaussian path.
-   */
-  private fun dpParamsForCompute(
-    internalDpParams: InternalDifferentialPrivacyParams?
-  ): DifferentialPrivacyParams? =
-    if (isDeterministicTruncatedLaplace) null else internalDpParams?.toDifferentialPrivacyParams()
+  }
 
   private fun InternalDifferentialPrivacyParams.toDifferentialPrivacyParams():
     DifferentialPrivacyParams {
@@ -209,10 +203,6 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
   }
 
   companion object Factory : TrusTeeProcessor.Factory {
-    // Per-bucket sensitivity for the deterministic truncated-Laplace draws: adding or removing one
-    // user changes a histogram bucket count by 1, matching the L-infinity sensitivity the Gaussian
-    // path uses.
-    private const val TRUNCATED_LAPLACE_SENSITIVITY = 1.0
     private const val REACH_DP_PARAMS_REQUIRED =
       "Reach DP params are required for DETERMINISTIC_TRUNCATED_LAPLACE noise."
     private const val FREQUENCY_DP_PARAMS_REQUIRED =

@@ -69,21 +69,26 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "result_noiser",
+    srcs = ["ResultNoiser.kt"],
+    deps = [
+        ":deterministic_truncated_laplace_noise_sampler",
+        ":differential_privacy_params",
+        "//imports/java/com/google/privacy:differential_privacy",
+    ],
+)
+
+kt_jvm_library(
     name = "reach_and_frequency_computations",
     srcs = ["ReachAndFrequencyComputations.kt"],
     deps = [
-        ":differential_privacy_params",
         ":reach_and_frequency",
         ":result_minimum_thresholds",
-        "//imports/java/com/google/privacy:differential_privacy",
+        ":result_noiser",
     ],
 )
 
 kt_jvm_library(
     name = "deterministic_truncated_laplace_noise",
     srcs = ["DeterministicTruncatedLaplaceNoise.kt"],
-    deps = [
-        ":deterministic_truncated_laplace_noise_sampler",
-        ":reach_and_frequency",
-    ],
 )

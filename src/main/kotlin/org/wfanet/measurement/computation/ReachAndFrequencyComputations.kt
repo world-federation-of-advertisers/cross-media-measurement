@@ -14,16 +14,12 @@
 
 package org.wfanet.measurement.computation
 
-import com.google.privacy.differentialprivacy.GaussianNoise
 import kotlin.math.min
 
 object ReachAndFrequencyComputations {
-  private const val L0_SENSITIVITY = 1
-  private const val L_INFINITE_SENSITIVITY = 1L
 
   /**
-   * Computes the reach from a [ReachAndFrequency], applying differential privacy noise if
-   * parameters are provided.
+   * Computes the reach from a [ReachAndFrequency], applying [noiser] to the released quantities.
    *
    * @param sampled The in-sample reach and frequency histogram. [ReachAndFrequency.sampledReach] is
    *   the reach in the sample; [ReachAndFrequency.frequencyHistogram] supplies the impression count
@@ -31,16 +27,15 @@ object ReachAndFrequencyComputations {
    * @param vidSamplingIntervalWidth The sampling rate used to select VIDs.
    * @param vectorSize The total size of the frequency vector space, used for capping the result
    *   before scaling. If null, no capping is applied.
-   * @param dpParams The privacy parameters for the reach computation. When null, no noise is added
-   *   (the values are treated as already noised, or noise is disabled).
+   * @param noiser The noise mechanism. Use [NoNoise] to release the raw values.
    * @param resultMinimumThresholds Optional result minimum thresholds.
-   * @return The reach value, potentially with noise applied.
+   * @return The reach value, or 0 when it does not meet [resultMinimumThresholds].
    */
   fun computeReach(
     sampled: ReachAndFrequency,
     vidSamplingIntervalWidth: Double,
     vectorSize: Int?,
-    dpParams: DifferentialPrivacyParams?,
+    noiser: ResultNoiser,
     resultMinimumThresholds: ResultMinimumThresholds?,
   ): Long {
     val maxPossibleScaledReach =
@@ -50,76 +45,29 @@ object ReachAndFrequencyComputations {
         Long.MAX_VALUE
       }
 
-    val reachInSample = sampled.sampledReach
-    val minScaledNoisedReach = run {
-      if (dpParams == null) {
-        val scaledReach = (reachInSample / vidSamplingIntervalWidth).toLong()
-        min(scaledReach, maxPossibleScaledReach)
-      } else {
+    val noisedReachInSample = noiser.noiseReach(sampled.sampledReach)
+    val scaledNoisedReach =
+      if (noisedReachInSample < 0) 0L else (noisedReachInSample / vidSamplingIntervalWidth).toLong()
+    val minScaledNoisedReach = min(scaledNoisedReach, maxPossibleScaledReach)
 
-        val noise = GaussianNoise()
-        val noisedReachInSample =
-          noise.addNoise(
-            reachInSample,
-            L0_SENSITIVITY,
-            L_INFINITE_SENSITIVITY,
-            dpParams.epsilon,
-            dpParams.delta,
-          )
-        val scaledNoisedReach =
-          if (noisedReachInSample < 0) 0L
-          else (noisedReachInSample / vidSamplingIntervalWidth).toLong()
-        min(scaledNoisedReach, maxPossibleScaledReach)
-      }
-    }
     if (resultMinimumThresholds == null) {
       return minScaledNoisedReach
     }
-    val thresholdedImpressionCount = run {
-      if (dpParams == null) {
-        val rawImpressionCount =
-          sampled.frequencyHistogram.withIndex().sumOf { (index, count) ->
-            val frequency = index + 1L
-            frequency * count
-          }
-        val scaledImpressionCount = (rawImpressionCount / vidSamplingIntervalWidth).toLong()
-        if (
-          scaledImpressionCount < resultMinimumThresholds.minImpressions ||
-            minScaledNoisedReach < resultMinimumThresholds.minUsers
-        ) {
-          0
-        } else {
-          minScaledNoisedReach
-        }
-      } else {
-        val rawImpressionCount =
-          sampled.frequencyHistogram.withIndex().sumOf { (index, count) ->
-            val frequency = min(resultMinimumThresholds.reachMaxFrequencyPerUser, index + 1)
-            frequency * count
-          }
 
-        val noise = GaussianNoise()
-        val noisedImpressionCount =
-          noise.addNoise(
-            rawImpressionCount,
-            1,
-            resultMinimumThresholds.reachMaxFrequencyPerUser.toLong(),
-            dpParams.epsilon,
-            dpParams.delta,
-          )
-        val scaledNoisedImpressionCount =
-          (noisedImpressionCount / vidSamplingIntervalWidth).toLong()
-        if (
-          scaledNoisedImpressionCount < resultMinimumThresholds.minImpressions ||
-            minScaledNoisedReach < resultMinimumThresholds.minUsers
-        ) {
-          0
-        } else {
-          minScaledNoisedReach
-        }
-      }
+    val impressionCount =
+      noiser.impressionCountForThreshold(
+        sampled.frequencyHistogram,
+        resultMinimumThresholds.reachMaxFrequencyPerUser,
+      )
+    val scaledImpressionCount = (impressionCount / vidSamplingIntervalWidth).toLong()
+    return if (
+      scaledImpressionCount < resultMinimumThresholds.minImpressions ||
+        minScaledNoisedReach < resultMinimumThresholds.minUsers
+    ) {
+      0
+    } else {
+      minScaledNoisedReach
     }
-    return thresholdedImpressionCount
   }
 
   /**
@@ -133,14 +81,14 @@ object ReachAndFrequencyComputations {
     rawHistogram: LongArray,
     vidSamplingIntervalWidth: Double,
     vectorSize: Int?,
-    dpParams: DifferentialPrivacyParams?,
+    noiser: ResultNoiser,
     resultMinimumThresholds: ResultMinimumThresholds?,
   ): Long =
     computeReach(
       ReachAndFrequency(rawHistogram.sum(), rawHistogram),
       vidSamplingIntervalWidth,
       vectorSize,
-      dpParams,
+      noiser,
       resultMinimumThresholds,
     )
 
@@ -151,7 +99,7 @@ object ReachAndFrequencyComputations {
    * @param rawHistogram A histogram of counts for frequencies 1 to `maxFrequency`.
    * @param maxFrequency The maximum frequency to reveal in the distribution. The input
    *   `rawHistogram` must have this size.
-   * @param dpParams The privacy parameters for the reach computation.
+   * @param noiser The noise mechanism. Use [NoNoise] to release the raw values.
    * @param resultMinimumThresholds Optional result minimum thresholds.
    * @param vidSamplingIntervalWidth The sampling rate used to select VIDs. Required if small-cell
    *   suppression thresholds are set.
@@ -160,43 +108,17 @@ object ReachAndFrequencyComputations {
   fun computeFrequencyDistribution(
     rawHistogram: LongArray,
     maxFrequency: Int,
-    dpParams: DifferentialPrivacyParams?,
+    noiser: ResultNoiser,
     resultMinimumThresholds: ResultMinimumThresholds?,
     vidSamplingIntervalWidth: Double?,
   ): Map<Long, Double> {
     require(rawHistogram.size == maxFrequency) {
       "Invalid histogram size: ${rawHistogram.size} against maxFrequency: $maxFrequency"
     }
-    val noisedHistogram: LongArray = run {
-      if (dpParams == null) {
-        val numActiveRegisters = rawHistogram.sum()
-        if (numActiveRegisters == 0L) {
-          return (1..maxFrequency).associate { it.toLong() to 0.0 }
-        }
-        rawHistogram
-      } else {
-        val noise = GaussianNoise()
-        val noisedHistogram: LongArray =
-          rawHistogram
-            .map {
-              val noisedValue =
-                noise.addNoise(
-                  it,
-                  L0_SENSITIVITY,
-                  L_INFINITE_SENSITIVITY,
-                  dpParams.epsilon,
-                  dpParams.delta,
-                )
-              if (noisedValue < 0) 0L else noisedValue
-            }
-            .toLongArray()
-
-        val numNoisedActiveRegisters = noisedHistogram.sum()
-        if (numNoisedActiveRegisters == 0L) {
-          return (1..maxFrequency).associate { it.toLong() to 0.0 }
-        }
-        noisedHistogram
-      }
+    val noisedHistogram =
+      LongArray(maxFrequency) { index -> noiser.noiseFrequencyBucket(index, rawHistogram[index]) }
+    if (noisedHistogram.sum() == 0L) {
+      return (1..maxFrequency).associate { it.toLong() to 0.0 }
     }
 
     if (resultMinimumThresholds == null) {

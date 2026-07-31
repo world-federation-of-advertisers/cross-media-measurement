@@ -26,7 +26,9 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
+import org.wfanet.measurement.computation.GaussianResultNoiser
 import org.wfanet.measurement.computation.HistogramComputations
+import org.wfanet.measurement.computation.NoNoise
 import org.wfanet.measurement.computation.ReachAndFrequencyComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
@@ -101,7 +103,7 @@ class DirectReachResultBuilder(
       }
     return ReachAndFrequencyComputations.computeReach(
       rawHistogram = histogram,
-      dpParams = reachDpParams,
+      noiser = reachDpParams?.let { GaussianResultNoiser(it) } ?: NoNoise,
       vidSamplingIntervalWidth = samplingRate.toDouble(),
       vectorSize = maxPopulation,
       resultMinimumThresholds = resultMinimumThresholds,

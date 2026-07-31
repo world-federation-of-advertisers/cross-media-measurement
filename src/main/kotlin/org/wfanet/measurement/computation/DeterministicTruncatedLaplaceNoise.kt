@@ -18,15 +18,11 @@ import java.nio.ByteBuffer
 import java.security.MessageDigest
 
 /**
- * Deterministic truncated-Laplace noising of a [ReachAndFrequency].
+ * The seed for deterministic truncated-Laplace noise.
  *
- * The noise is keyless and reproducible: each output's draw is seeded from a [fingerprint] of the
- * combined frequency vector and an output label ([DeterministicTruncatedLaplaceNoiseSampler]), so
- * the same measurement always yields the same noise and it cannot be averaged away across repeated
- * queries.
- *
- * Reach is noised as a single scalar draw (label 0), not the sum of the noised frequency buckets
- * (which would scale reach noise with `maxFrequency`).
+ * The noise is keyless and reproducible: [DeterministicTruncatedLaplaceResultNoiser] derives every
+ * draw from this seed and an output label, so the same measurement always yields the same noise and
+ * it cannot be averaged away across repeated queries.
  */
 object DeterministicTruncatedLaplaceNoise {
   /**
@@ -45,49 +41,4 @@ object DeterministicTruncatedLaplaceNoise {
     buffer.asIntBuffer().put(combinedFrequencyVector)
     return MessageDigest.getInstance("SHA-256").digest(buffer.array())
   }
-
-  /**
-   * Returns a noised copy of [sampled].
-   *
-   * The frequency histogram is noised bucket-by-bucket with [frequencyEpsilon]; reach is noised as
-   * a scalar with [reachEpsilon], mirroring how the Gaussian path splits reach and frequency
-   * privacy parameters. Each output receives a single draw seeded from [fingerprint]. Counts are
-   * clamped to be non-negative.
-   *
-   * @param sampled the in-sample reach and frequency to noise.
-   * @param fingerprint the [fingerprint] of the combined frequency vector.
-   */
-  fun noise(
-    sampled: ReachAndFrequency,
-    fingerprint: ByteArray,
-    reachEpsilon: Double,
-    frequencyEpsilon: Double,
-    sensitivity: Double,
-    truncationBound: Int,
-  ): ReachAndFrequency {
-    val rawHistogram = sampled.frequencyHistogram
-    val maxFrequency = rawHistogram.size
-
-    val reachSampler =
-      DeterministicTruncatedLaplaceNoiseSampler(reachEpsilon, sensitivity, truncationBound)
-    val frequencySampler =
-      DeterministicTruncatedLaplaceNoiseSampler(frequencyEpsilon, sensitivity, truncationBound)
-
-    val noisedReach =
-      (sampled.sampledReach + reachSampler.sampleRounded(fingerprint, label(0))).coerceAtLeast(0L)
-
-    val noisedHistogram = LongArray(maxFrequency)
-    for (frequency in 1..maxFrequency) {
-      noisedHistogram[frequency - 1] =
-        (rawHistogram[frequency - 1] +
-            frequencySampler.sampleRounded(fingerprint, label(frequency)))
-          .coerceAtLeast(0L)
-    }
-
-    return ReachAndFrequency(noisedReach, noisedHistogram)
-  }
-
-  /** The output label that makes each bucket's draw independent (bucket 0 is reach). */
-  private fun label(frequency: Int): ByteArray =
-    ByteBuffer.allocate(Int.SIZE_BYTES).putInt(frequency).array()
 }
