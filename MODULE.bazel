@@ -62,6 +62,16 @@ bazel_dep(
     version = "0.96.0",
     repo_name = "wfa_measurement_proto",
 )
+
+# DO_NOT_SUBMIT: temporarily build against the unmerged cross-media-measurement-api branch
+# that adds AwsKmsParams.CredentialSource for the direct Confidential Space -> AWS KMS path
+# (world-federation-of-advertisers/cross-media-measurement-api). Remove this override and bump
+# the version above once that PR is merged and released.
+git_override(
+    module_name = "cross-media-measurement-api",
+    commit = "df59556f1fa59ae9f21fba82e1df8b715081b9d1",
+    remote = "https://github.com/world-federation-of-advertisers/cross-media-measurement-api.git",
+)
 bazel_dep(
     name = "consent-signaling-client",
     version = "0.23.0",

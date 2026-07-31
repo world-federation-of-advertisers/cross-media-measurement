@@ -33,7 +33,8 @@ message EventDataProviderConfig {
       // AWS KMS accessed directly from Confidential Space, with no GCP project:
       // the workload presents an AWS_PRINCIPALTAGS attestation token to AWS
       // STS. Uses aws_role_arn, aws_role_session_name, aws_region and
-      // aws_audience.
+      // aws_audience; kms_audience and service_account are unused for this
+      // type.
       AWS_CONFIDENTIAL_SPACE = 3;
     }
 
