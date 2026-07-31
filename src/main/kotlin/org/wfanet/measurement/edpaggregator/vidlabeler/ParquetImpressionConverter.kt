@@ -20,7 +20,7 @@ import com.google.protobuf.Any
 import com.google.protobuf.Descriptors
 import java.util.concurrent.ConcurrentHashMap
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
-import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
+import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetRawEvent
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 
 /**
@@ -67,7 +67,7 @@ class ParquetImpressionConverter(private val eventDescriptor: Descriptors.Descri
     }
 
   override fun convert(
-    event: ParquetDigestedEvent,
+    event: ParquetRawEvent,
     config: VidLabelerParams.ModelLineConfig,
   ): ConvertedImpression? {
     val mappers = mappersFor(config)
