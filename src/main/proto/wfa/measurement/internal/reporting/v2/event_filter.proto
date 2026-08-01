@@ -24,7 +24,5 @@ option java_multiple_files = true;
 // Event filter criteria
 message EventFilter {
   // A disjunction of terms that define the filter criteria.
-  //
-  // A current limitation is that the number of terms must be exactly one.
   repeated EventTemplateField terms = 1;
 }

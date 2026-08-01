@@ -116,11 +116,17 @@ class ImpressionQualificationFilterMapping(
       for (spec in configFilter.filterSpecsList) {
         val celString: String =
           spec.filtersList.joinToString(" && ") { configEventFilter ->
-            configEventFilter.termsList.joinToString(" && ") { configTerm ->
-              val fieldInfo = eventTemplateFieldsByPath.getValue(configTerm.path)
-              val internalTerm = configTerm.toEventTemplateField()
-              val valueLiteral = internalTerm.value.toCelValue(fieldInfo)
-              "${configTerm.path} == $valueLiteral"
+            val terms: List<String> =
+              configEventFilter.termsList.map { configTerm ->
+                val fieldInfo = eventTemplateFieldsByPath.getValue(configTerm.path)
+                val internalTerm = configTerm.toEventTemplateField()
+                val valueLiteral = internalTerm.value.toCelValue(fieldInfo)
+                "${configTerm.path} == $valueLiteral"
+              }
+            if (terms.size == 1) {
+              terms.single()
+            } else {
+              terms.joinToString(separator = " || ", prefix = "(", postfix = ")")
             }
           }
         try {
@@ -175,6 +181,10 @@ class ImpressionQualificationFilterMapping(
     }
 
     for (eventFilter in impressionQualificationFilterSpec.filtersList) {
+      if (eventFilter.termsList.isEmpty()) {
+        return false
+      }
+
       for (eventTemplateField in eventFilter.termsList) {
         if (eventTemplateField.path.isEmpty()) {
           return false

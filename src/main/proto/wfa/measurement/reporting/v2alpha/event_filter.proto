@@ -27,8 +27,6 @@ option go_package = "github.com/world-federation-of-advertisers/cross-media-meas
 // Event filter criteria
 message EventFilter {
   // A disjunction of terms that define the filter criteria.
-  //
-  // A current limitation is that the number of terms must be exactly one.
   repeated EventTemplateField terms = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
