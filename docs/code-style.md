@@ -115,6 +115,12 @@ sections of this when reviewing others’ code.
     structure is required by the API (e.g. `zip`, `mapOf`).
 *   Use `kotlin.text.Regex` instead of `java.util.regex.Pattern`.
 
+#### Documentation
+
+*   Use idiomatic KDoc tags (`@param`, `@return`, `@throws`) rather than prose
+    restating the same information. See [Comments](#comments) for general
+    guidance.
+
 #### Namespacing & Imports
 
 *   Wildcard imports are not allowed.
@@ -275,9 +281,8 @@ high readability bar for this codebase, prefer fewer and shorter comments.
     protobuf definition of a field that the code operates on.
 *   Document the contract, not the callers. Avoid describing what callers happen
     to do with a result, which is the caller's prerogative and goes stale.
-*   Keep implementation rationale in the function body rather than in the KDoc.
-*   Use idiomatic KDoc tags (`@param`, `@return`, `@throws`) rather than prose
-    restating the same information.
+*   Keep implementation rationale in the function body rather than in its
+    documentation comment.
 *   Document an invariant on the type or property that holds it, not at each
     site that relies on it.
 

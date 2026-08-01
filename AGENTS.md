@@ -90,13 +90,11 @@ assertThat(service.internalCache.size())
 
 ## Git Workflow
 
-Full guide: [docs/dev-standards.md](docs/dev-standards.md)
+Full guide: @docs/dev-standards.md
 
-**Conventional Commits.** Types: `build`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `test`. Append `!` for a breaking change and add a `BREAKING-CHANGE` trailer. The description is a short imperative sentence — "Delete the Foo method from the Bar service.", not "Deletes ...".
+**Conventional Commits** — see [docs/dev-standards.md](docs/dev-standards.md) for full format, types, and commit message requirements.
 
-The PR title and description body become the commit message, so keep the body concise and free of headers, bullet lists, and code blocks — these make noisy commit history and can break the trailer parsing used by release automation. Put reviewer context in a PR comment or the issue. Remove any line wrapping GitHub introduces.
-
-Trailers: `Issue` (every significant PR; short link format, not a URL; repeatable), `RELNOTES` (release-note text unrelated to a breaking change).
+Every significant PR must have an `Issue` trailer:
 ```
 Issue: #123
 ```

@@ -84,7 +84,9 @@ the commit message, complex formatting creates noisy commit history and can
 interfere with
 [Git trailer](https://git-scm.com/docs/git-interpret-trailers) parsing used by
 release automation. If additional context is needed for reviewers, add it as a
-comment on the PR or in the corresponding issue.
+comment on the PR or in the corresponding issue. Investigation and background
+belong in the issue rather than being repeated across the issue, the PR
+description, and code comments.
 
 ### Use Reviewable
 
@@ -172,7 +174,6 @@ See [Code Style](code-style.md).
 ### Pull Requests
 - Every PR should be associated with an existing Issue.
 - If a PR is associated with an Issue, it **must** have an `Issue` trailer.
-- **Description**: Keep it short and focused on what the PR does. Investigation, background, and discussion belong in the linked Issue — that's what the `Issue` trailer is for, and a reviewer can follow it for context. Don't repeat the same content across the Issue, the PR description, and code comments.
 
 ### Issues
 - **Type**: Each issue **must** have it's type assigned (e.g. `Bug`, `Feature request`, etc.). Labels should be used only for additional context, not as a substitute for the type.
