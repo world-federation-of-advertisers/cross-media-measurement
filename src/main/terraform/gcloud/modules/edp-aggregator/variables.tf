@@ -19,6 +19,7 @@ variable "requisition_fulfiller_config" {
       subscription_name     = string
       topic_name            = string
       ack_deadline_seconds  = number
+      max_delivery_attempts = optional(number)
     })
     worker = object({
       instance_template_name        = string

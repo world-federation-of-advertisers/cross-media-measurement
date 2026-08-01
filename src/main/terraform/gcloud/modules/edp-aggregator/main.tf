@@ -396,9 +396,10 @@ module "data_availability_cleanup_cloud_function" {
 module "result_fulfiller_queue" {
   source = "../pubsub"
 
-  topic_name           = var.requisition_fulfiller_config.queue.topic_name
-  subscription_name    = var.requisition_fulfiller_config.queue.subscription_name
-  ack_deadline_seconds = var.requisition_fulfiller_config.queue.ack_deadline_seconds
+  topic_name            = var.requisition_fulfiller_config.queue.topic_name
+  subscription_name     = var.requisition_fulfiller_config.queue.subscription_name
+  ack_deadline_seconds  = var.requisition_fulfiller_config.queue.ack_deadline_seconds
+  max_delivery_attempts = var.requisition_fulfiller_config.queue.max_delivery_attempts
 }
 
 resource "google_pubsub_topic_iam_member" "publisher" {

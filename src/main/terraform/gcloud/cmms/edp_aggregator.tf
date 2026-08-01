@@ -114,9 +114,10 @@ locals {
 
   requisition_fulfiller_config = {
     queue = {
-    subscription_name     = "results-fulfiller-subscription"
-    topic_name            = "results-fulfiller-queue"
+      subscription_name     = "results-fulfiller-subscription"
+      topic_name            = "results-fulfiller-queue"
       ack_deadline_seconds  = 600
+      max_delivery_attempts = 5
     }
     worker = {
       instance_template_name        = "requisition-fulfiller-template"
