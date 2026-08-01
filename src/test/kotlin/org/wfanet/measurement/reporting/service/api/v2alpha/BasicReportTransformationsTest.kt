@@ -3481,6 +3481,89 @@ class BasicReportTransformationsTest {
   }
 
   @Test
+  fun `dimension_spec multi-term filter emits a parenthesized disjunction joined by &&`() {
+    val filter =
+      buildCelExpression(
+        dimensionSpecFilters =
+          listOf(
+            eventFilter {
+              terms += eventTemplateField {
+                path = "person.gender"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "FEMALE" }
+              }
+            },
+            eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              }
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_35_TO_54" }
+              }
+            },
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+
+    // "female, aged 18 to 54". The disjunction must be parenthesized: CEL binds `&&` tighter than
+    // `||`, so an unparenthesized group would parse as `(age == 1 && gender == 2) || age == 2` and
+    // match every 35-to-54-year-old regardless of gender.
+    //
+    // Filters are emitted in normalized order, in which `person.age_group` precedes
+    // `person.gender`.
+    assertThat(filter)
+      .isEqualTo("((person.age_group == 1) || (person.age_group == 2)) && person.gender == 2")
+    assertCompilesCleanly(filter)
+  }
+
+  @Test
+  fun `dimension_spec multi-term filter emits identical CEL regardless of term order`() {
+    val ascending =
+      buildCelExpression(
+        dimensionSpecFilters =
+          listOf(
+            eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              }
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_35_TO_54" }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+
+    val descending =
+      buildCelExpression(
+        dimensionSpecFilters =
+          listOf(
+            eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_35_TO_54" }
+              }
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              }
+            }
+          ),
+        eventTemplateFieldsByPath = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsByPath,
+      )
+
+    // Filters that differ only in term order are equivalent and must emit the same expression, as
+    // the expression identifies the MetricCalculationSpec and is fingerprinted as part of the
+    // dimension identity.
+    assertThat(descending).isEqualTo(ascending)
+    assertThat(ascending).isEqualTo("((person.age_group == 1) || (person.age_group == 2))")
+    assertCompilesCleanly(ascending)
+  }
+
+  @Test
   fun `custom IQF with two mediaTypes joins with disjunction and validates`() {
     val filter =
       buildCelExpression(
