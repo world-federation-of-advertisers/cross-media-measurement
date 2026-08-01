@@ -68,6 +68,7 @@ service BasicReports {
   // Error reasons:
   // * `REQUIRED_FIELD_NOT_SET`
   // * `BASIC_REPORT_NOT_FOUND`
+  // * `BASIC_REPORT_STATE_INVALID`
   rpc FailBasicReport(FailBasicReportRequest) returns (BasicReport);
 }
 
@@ -143,4 +144,7 @@ message ListBasicReportsResponse {
 message FailBasicReportRequest {
   string cmms_measurement_consumer_id = 1;
   string external_basic_report_id = 2;
+
+  // State the `BasicReport` must be in for the transition to be applied.
+  BasicReport.State expected_state = 3;
 }

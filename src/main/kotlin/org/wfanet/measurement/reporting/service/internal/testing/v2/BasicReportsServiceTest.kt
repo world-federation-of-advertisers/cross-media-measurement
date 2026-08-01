@@ -2945,6 +2945,102 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
+  fun `failBasicReport updates state to FAILED when expected_state matches`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    val createdBasicReport =
+      service.createBasicReport(
+        createBasicReportRequest {
+          basicReport =
+            BASIC_REPORT.copy {
+              createReportRequestId = "1235"
+              clearResultDetails()
+            }
+        }
+      )
+
+    val updatedBasicReport =
+      service.failBasicReport(
+        failBasicReportRequest {
+          cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
+          externalBasicReportId = createdBasicReport.externalBasicReportId
+          expectedState = BasicReport.State.CREATED
+        }
+      )
+
+    assertThat(updatedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
+  }
+
+  @Test
+  fun `failBasicReport throws FAILED_PRECONDITION when expected_state does not match`(): Unit =
+    runBlocking {
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+      )
+
+      reportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = REPORTING_SET
+          externalReportingSetId = REPORTING_SET.externalReportingSetId
+        }
+      )
+
+      val createdBasicReport =
+        service.createBasicReport(
+          createBasicReportRequest {
+            basicReport =
+              BASIC_REPORT.copy {
+                createReportRequestId = "1235"
+                clearResultDetails()
+              }
+          }
+        )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.failBasicReport(
+            failBasicReportRequest {
+              cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
+              externalBasicReportId = createdBasicReport.externalBasicReportId
+              expectedState = BasicReport.State.REPORT_CREATED
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.BASIC_REPORT_STATE_INVALID.name
+            metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
+              createdBasicReport.cmmsMeasurementConsumerId
+            metadata[Errors.Metadata.EXTERNAL_BASIC_REPORT_ID.key] =
+              createdBasicReport.externalBasicReportId
+            metadata[Errors.Metadata.BASIC_REPORT_STATE.key] = BasicReport.State.CREATED.name
+          }
+        )
+
+      val retrievedBasicReport =
+        service.getBasicReport(
+          getBasicReportRequest {
+            cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
+            externalBasicReportId = createdBasicReport.externalBasicReportId
+          }
+        )
+      assertThat(retrievedBasicReport.state).isEqualTo(BasicReport.State.CREATED)
+    }
+
+  @Test
   fun `failBasicReport throws NOT_FOUND when basic report not found`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
