@@ -126,6 +126,10 @@ class VidLabelerAppRunner :
         buildImpressionConverter = { _, config ->
           ParquetImpressionConverter(eventDescriptor = resolveEventDescriptor(config))
         },
+        // Process-scoped: one cache shared across every WorkItem this container processes, so the
+        // memoized rank index is reused across WorkItems when the Phase-1 snapshot set is
+        // unchanged.
+        memoizedRankIndexCache = MemoizedRankIndexCache(),
       )
 
     runBlockingWithTelemetry { vidLabelerApp.run() }

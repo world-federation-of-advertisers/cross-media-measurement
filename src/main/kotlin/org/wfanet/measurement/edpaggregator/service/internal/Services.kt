@@ -25,6 +25,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFileServ
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.UnlinkedClientAccountsServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingJobServiceGrpcKt
 
 /** Edp Aggregator internal API services. */
@@ -43,6 +44,8 @@ data class Services(
   val rankerJob: RankerJobServiceGrpcKt.RankerJobServiceCoroutineImplBase,
   val rankIndexBlob: RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase,
   val poolAssignmentJob: PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase,
+  val unlinkedClientAccounts:
+    UnlinkedClientAccountsServiceGrpcKt.UnlinkedClientAccountsServiceCoroutineImplBase,
 ) {
   fun toList(): List<BindableService> =
     listOf(
@@ -55,5 +58,6 @@ data class Services(
       rankerJob,
       rankIndexBlob,
       poolAssignmentJob,
+      unlinkedClientAccounts,
     )
 }

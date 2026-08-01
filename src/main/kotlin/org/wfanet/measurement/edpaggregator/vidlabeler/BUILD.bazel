@@ -26,6 +26,7 @@ kt_jvm_library(
     name = "memoized_rank_index",
     srcs = [
         "MemoizedRankIndex.kt",
+        "MemoizedRankIndexCache.kt",
         "MemoizedRankIndexMetrics.kt",
     ],
     deps = [
