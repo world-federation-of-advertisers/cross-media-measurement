@@ -55,6 +55,7 @@ LIBS = [
     "recurring_exchange",
     "requisition_refusal",
     "state_transition_measurement_log_entry",
+    "unlinked_client_account",
 ]
 
 DETAILS_LIBS = [
@@ -101,6 +102,7 @@ SERVICES = [
     "public_keys",
     "recurring_exchanges",
     "requisitions",
+    "unlinked_client_accounts",
 ]
 
 proto_library(
@@ -151,6 +153,25 @@ proto_library(
         ":client_account_proto",
         "@com_google_protobuf//:empty_proto",
         "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "unlinked_client_account_proto",
+    srcs = ["unlinked_client_account.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":event_group_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "unlinked_client_accounts_service_proto",
+    srcs = ["unlinked_client_accounts_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":unlinked_client_account_proto",
     ],
 )
 
