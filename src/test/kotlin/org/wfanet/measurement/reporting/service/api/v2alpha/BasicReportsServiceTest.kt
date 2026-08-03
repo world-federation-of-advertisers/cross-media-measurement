@@ -7145,7 +7145,7 @@ class BasicReportsServiceTest {
     }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when dimension spec filter 2 terms`() =
+  fun `createBasicReport returns basic report when dimension spec filter has multiple terms`() =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
@@ -7176,14 +7176,17 @@ class BasicReportsServiceTest {
               resultGroupSpecs[0].copy {
                 dimensionSpec =
                   BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
-                    filters += eventFilter {
+                    // Replaces the single-term `person.age_group` filter with a two-term
+                    // disjunction, retaining the sibling `person.gender` filter so that the
+                    // dimension spec is a conjunction of filters where one is a disjunction.
+                    filters[0] = eventFilter {
                       terms += eventTemplateField {
                         path = "person.age_group"
-                        value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_TO_18_TO_34" }
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                       }
                       terms += eventTemplateField {
-                        path = "person.gender"
-                        value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+                        path = "person.age_group"
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_35_TO_54" }
                       }
                     }
                   }
@@ -7191,22 +7194,23 @@ class BasicReportsServiceTest {
           }
         basicReportId = "a1234"
       }
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-        }
 
-      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception)
-        .errorInfo()
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs[0].dimension_spec.filters[2].terms"
-          }
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+      assertThat(response.createTime.seconds).isAtLeast(1)
+      assertThat(response.resultGroupSpecsList[0].dimensionSpec.filtersList[0].termsList)
+        .containsExactly(
+          eventTemplateField {
+            path = "person.age_group"
+            value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+          },
+          eventTemplateField {
+            path = "person.age_group"
+            value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_35_TO_54" }
+          },
         )
+        .inOrder()
     }
 
   @Test
@@ -8136,7 +8140,7 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when custom IQF filter 2 terms`() = runBlocking {
+  fun `createBasicReport returns basic report when custom IQF filter has 2 terms`() = runBlocking {
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
@@ -8184,22 +8188,21 @@ class BasicReportsServiceTest {
         }
       basicReportId = "a1234"
     }
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-      }
 
-    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception)
-      .errorInfo()
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] =
-            "basic_report.impression_qualification_filters[0].custom.filter_specs[0].filters[0].terms"
-        }
+    val response = withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+    assertThat(response.createTime.seconds).isAtLeast(1)
+    assertThat(
+        response.impressionQualificationFiltersList
+          .single()
+          .custom
+          .filterSpecList
+          .single()
+          .filtersList
+          .single()
+          .termsList
       )
+      .hasSize(2)
   }
 
   @Test

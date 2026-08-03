@@ -52,7 +52,7 @@ Before deploying the dashboard, ensure the following are in place:
     APIs (or force-provision service agents) until this is on. Requires a
     human with `roles/serviceusage.serviceUsageAdmin` (or Owner):
     ```shell
-    gcloud services enable serviceusage.googleapis.com --project=MY_PROJECT
+    gcloud services enable serviceusage.googleapis.com --project=<DASHBOARD_PROJECT>
     ```
     If you see `ERROR: (gcloud.beta.services.identity.create) PERMISSION_DENIED:
     Service Usage API has not been used in project ... before or it is disabled`
@@ -68,7 +68,7 @@ Before deploying the dashboard, ensure the following are in place:
     gcloud services enable \
       bigqueryconnection.googleapis.com \
       bigquerydatatransfer.googleapis.com \
-      --project=MY_PROJECT
+      --project=<DASHBOARD_PROJECT>
     ```
 4.  The Terraform service account has the following project-level roles
     (granted out-of-band — Terraform does not bootstrap its own credentials):
@@ -83,7 +83,7 @@ Before deploying the dashboard, ensure the following are in place:
         Terraform code adds a `terraform_role_admin` self-grant so subsequent
         applies maintain it automatically. Without this on the first apply,
         Terraform fails with: "Unable to verify whether custom project role
-        projects/<project>/roles/dashboardComplianceChecker already exists
+        projects/<DASHBOARD_PROJECT>/roles/dashboardComplianceChecker already exists
         and must be undeleted."
 
         **Security note for adopters.** The reference Terraform grants
@@ -99,17 +99,17 @@ Before deploying the dashboard, ensure the following are in place:
         `iam.roles.{get,list,create,update,undelete,delete}`, granted via
         `google_project_iam_member` with an IAM condition restricting the
         resource to
-        `resource.name.startsWith("projects/<project>/roles/dashboardComplianceChecker")`.
+        `resource.name.startsWith("projects/<DASHBOARD_PROJECT>/roles/dashboardComplianceChecker")`.
         The scoped-role refactor is tracked in
         [#4135](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/4135).
         The dev/head/qa reference environments accept the broader grant
         because their blast radius is bounded to test data and audit-logged
-        CI; production deployments should not follow this pattern without
+        CI; non-dev deployments should not follow this pattern without
         one of the above narrowings.
 5.  Proto bundles are registered in Kingdom and Reporting Spanner databases
     (required for `TO_JSON()` decoding).
 6.  The BigQuery Connection service agent
-    (`service-${project_number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com`)
+    (`service-<PROJECT_NUMBER>@gcp-sa-bigqueryconnection.iam.gserviceaccount.com`)
     exists. GCP creates this service-managed agent on demand the first time
     a project uses the BigQuery Connection API — but on-demand creation
     happens too late for Terraform, which tries to grant IAM to the agent in
@@ -120,8 +120,14 @@ Before deploying the dashboard, ensure the following are in place:
 
 ## Step 1: Configure Terraform Variables
 
-Add the following variables to your environment's `.tfvars` file or GitHub
-Actions environment variables.
+Dashboard configuration has two homes depending on how you deploy:
+
+*   **CI deploys** — the dashboard's EDPs, operators, region, and deletion
+    protection all live in the single `DASHBOARD_CONFIG_CONTENT` GitHub Actions
+    variable (see *GitHub Actions Environment Variables* below); the workflow
+    generates the Terraform vars from it.
+*   **Manual `terraform apply`** — provide them as the HCL variables in your
+    `.tfvars` file — see *Required Variables* and *Optional Variables* below.
 
 ### Required Variables
 
@@ -136,7 +142,7 @@ data_provider_resource_ids = {
 
 # Users or groups granted full platform access to all dashboard tables
 # and the ability to impersonate EDP service accounts for testing.
-# Use Google Groups for production deployments.
+# Use Google Groups for shared/non-dev environments.
 dashboard_operators = ["group:edpa-dashboard-operators@example.com"]
 
 # Spanner project and instance for each database connection.
@@ -157,29 +163,56 @@ dashboard.
 
 ### Optional Variables
 
-```hcl
-# Set to false for dev environments to allow table recreation.
-# Defaults to true.
-dashboard_deletion_protection = false
+`dashboard_deletion_protection` defaults to `true`. On the CI path it comes from
+the `deletion_protection` field of `DASHBOARD_CONFIG_CONTENT`. The
+`envs/*.tfvars` files no longer set it, so a manual `terraform apply` now gets
+`true` — pass `false` (e.g. for dev/head) to allow table recreation:
+
+```shell
+terraform apply -var-file=envs/dev.tfvars -var=dashboard_deletion_protection=false
 ```
 
 ### GitHub Actions Environment Variables
 
 If using the CI workflow, set the following in your GitHub environment. The
-`terraform-cmms-v2.yml` workflow's "Write dashboard tfvars" step reads
-`DATA_PROVIDER_RESOURCE_IDS` and `DASHBOARD_OPERATORS` to generate the
-`dashboard.auto.tfvars` Terraform consumes; without them the deploy writes an
-empty/invalid tfvars and fails. `DASHBOARD_EDP_CONFIG` is used by the
-isolation test matrix; `DASHBOARD_DELETION_PROTECTION` is optional.
+`terraform-cmms-v2.yml` workflow's "Write dashboard tfvars" step reads the
+single `DASHBOARD_CONFIG_CONTENT` JSON var (per the `DashboardConfig` schema)
+to generate the `dashboard.auto.tfvars.json` Terraform consumes and to build
+the isolation-test matrix; without it the deploy fails.
 
-| Variable | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `DATA_PROVIDER_RESOURCE_IDS` | yes | JSON object mapping EDP short name → DataProviderResourceId, consumed by the Terraform `data_provider_resource_ids` map var | `{"edp1":"AbCdEf_12345","edp2":"GhIjKl_67890"}` |
-| `DASHBOARD_OPERATORS` | yes | JSON array of `user:` / `group:` IAM members granted operator access (impersonation, platform-table reads) | `["group:edpa-dashboard-operators@example.com"]` |
-| `DASHBOARD_EDP_CONFIG` | yes | JSON array of EDP configs for the CI isolation test matrix | `[{"name":"edp1","resource_id":"AbCdEf_12345"},{"name":"edp2","resource_id":"GhIjKl_67890"}]` |
-| `DASHBOARD_DELETION_PROTECTION` | no (default `true`) | Set `"false"` in dev to allow table recreation | `"false"` |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DASHBOARD_CONFIG_CONTENT` | yes | Single JSON object per the `DashboardConfig` proto. Consumed by Terraform (as `*.tfvars.json`), the compliance check, and the isolation-test matrix. See the field reference below. |
 
-Pre-existing CMMS environment variables (`GOOGLE_CLOUD_PROJECT`,
+`DASHBOARD_CONFIG_CONTENT` is one JSON object matching the `DashboardConfig`
+proto (`src/main/proto/wfa/measurement/config/edpaggregator/dashboard_config.proto`).
+The CI step requires **all four** top-level keys to be present — a missing key
+fails the deploy rather than silently falling back to a Terraform default:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `bigquery_region` | string | BigQuery region hosting the dashboard dataset (e.g. `"us-central1"`). Used by the compliance check and isolation-test matrix. |
+| `deletion_protection` | bool | Whether the dashboard BigQuery dataset has deletion protection. Set `false` in dev to allow table recreation; `true` for non-dev environments. |
+| `operators` | string[] | IAM principals granted platform-wide access to the dashboard tables (`user:` / `group:`). Use Google Groups for shared/non-dev environments. |
+| `edps` | object[] | The EDPs the dashboard exposes; each is isolated to its own rows. |
+| `edps[].name` | string | Short EDP name used for per-EDP resource naming (e.g. `"meta"`): SA `edp-<name>-dashboard`, row policy `<name>_filter`, and CI matrix entry. |
+| `edps[].resource_id` | string | The **bare** `DataProvider` resource ID — final path segment only (e.g. `"J3-pzhqS9Lo"`), **not** the full `dataProviders/...` name. Must match the value in Spanner / `EDPA_EDPS_CONFIG`. |
+
+Example (pretty-printed here; store it as compact JSON in the variable):
+
+```json
+{
+  "bigquery_region": "us-central1",
+  "deletion_protection": false,
+  "operators": ["group:edpa-dashboard-operators@example.com"],
+  "edps": [
+    {"name": "edp1", "resource_id": "AbCdEf_12345"},
+    {"name": "edp2", "resource_id": "GhIjKl_67890"}
+  ]
+}
+```
+
+Pre-existing CMMS environment variables (`GCLOUD_PROJECT`,
 `SPANNER_INSTANCE`, `POSTGRES_INSTANCE_NAME`, `POSTGRES_PASSWORD`) are
 already consumed by the broader workflow and do not need to be re-added for
 the dashboard.
@@ -209,8 +242,8 @@ After Terraform applies successfully, the tables are empty. The scheduled
 queries run hourly via MERGE. To populate tables immediately:
 
 `<REGION>` in the examples below is the GCP region the dashboard resources
-are deployed in — the CI reads it from the `BIGQUERY_REGION` GitHub
-environment variable. All dashboard tables, connections, and scheduled
+are deployed in — the CI reads it from the `bigquery_region` field of
+`DASHBOARD_CONFIG_CONTENT`. All dashboard tables, connections, and scheduled
 queries are created via `data.google_client_config.default.region` in
 `dashboard.tf`, so any GCP region GCP supports for BigQuery Data Transfer
 works.
@@ -219,7 +252,7 @@ works.
 
 ```shell
 # List dashboard transfer configs
-bq ls --transfer_config --transfer_location=<REGION> --project_id=MY_PROJECT \
+bq ls --transfer_config --transfer_location=<REGION> --project_id=<DASHBOARD_PROJECT> \
   --filter='dataSourceIds:scheduled_query'
 
 # Trigger a manual run for each config. CONFIG_RESOURCE_NAME is the
@@ -235,7 +268,7 @@ BigQuery scheduled queries — use `bq` as shown above.
 
 ```sql
 SELECT table_id, row_count, TIMESTAMP_MILLIS(last_modified_time) AS last_modified
-FROM `MY_PROJECT.dashboard.__TABLES__`
+FROM `<DASHBOARD_PROJECT>.dashboard.__TABLES__`
 ORDER BY table_id;
 ```
 
@@ -252,13 +285,13 @@ role grants only what the check needs.
 
 ```shell
 bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard/tools:DashboardComplianceCheck -- \
-  --impersonate-service-account=dashboard-compliance@MY_PROJECT.iam.gserviceaccount.com \
-  --project=MY_PROJECT \
-  --region=<REGION> \
-  --edp=edp1:AbCdEf_12345 \
-  --edp=edp2:GhIjKl_67890 \
-  --edp=edp3:MnOpQr_24680
+  --impersonate-service-account=dashboard-compliance@<DASHBOARD_PROJECT>.iam.gserviceaccount.com \
+  --project=<DASHBOARD_PROJECT> \
+  --dashboard-config=/path/to/dashboard-config.json
 ```
+
+where `dashboard-config.json` holds the environment's `DASHBOARD_CONFIG_CONTENT`
+(the EDPs and region are read from it).
 
 To impersonate, your account needs `roles/iam.serviceAccountTokenCreator` on
 the `dashboard-compliance` SA. The dashboard Terraform grants this to every
@@ -277,56 +310,42 @@ The compliance check verifies:
 
 ## Step 5: Set Up CI Integration
 
-The dashboard isolation tests are wired into the `update-cmms.yml` workflow.
+The dashboard isolation tests are wired into the `Update CMMS` workflow.
 After Terraform deploys and other cloud tests generate data, the workflow:
 
 1.  Triggers all dashboard scheduled queries
 2.  Waits for completion
-3.  Runs `DashboardIsolationTest` for each EDP: the workflow authenticates as the terraform SA via Workload Identity Federation, then impersonates `edp-<name>-dashboard@PROJECT.iam.gserviceaccount.com` (chained through `dashboard-compliance@PROJECT.iam.gserviceaccount.com`) so each check runs with only the permissions that EDP would have in production
+3.  Runs `DashboardIsolationTest` for each EDP: the workflow authenticates as
+    the terraform SA via Workload Identity Federation, then impersonates
+    `edp-<name>-dashboard@<DASHBOARD_PROJECT>.iam.gserviceaccount.com` so each check
+    runs with only the permissions that EDP itself has
 4.  Runs `DashboardComplianceCheck` impersonating
-    `dashboard-compliance@PROJECT.iam.gserviceaccount.com` (the least-privilege
+    `dashboard-compliance@<DASHBOARD_PROJECT>.iam.gserviceaccount.com` (the least-privilege
     SA, not the broader operator/terraform SA)
 
-Ensure the GitHub environment has the required variables (`DASHBOARD_EDP_CONFIG`,
-`GOOGLE_CLOUD_PROJECT`, `BIGQUERY_REGION`, `TF_SERVICE_ACCOUNT`,
+Ensure the GitHub environment has the required variables
+(`DASHBOARD_CONFIG_CONTENT`, `GCLOUD_PROJECT`, `TF_SERVICE_ACCOUNT`,
 `WORKLOAD_IDENTITY_PROVIDER`).
 
 ## Ongoing Operations
 
-### Adding a New EDP
+### Adding or Removing an EDP
 
-1.  Add the EDP to `data_provider_resource_ids` in your `.tfvars`:
-    ```hcl
-    data_provider_resource_ids = {
-      edp1 = "AbCdEf_12345"
-      edp2 = "GhIjKl_67890"
-      edp3 = "MnOpQr_24680"
-      edp4    = "StUvWx_13579"   # New EDP
-    }
-    ```
-2.  Update `DASHBOARD_EDP_CONFIG` in the GitHub environment to include the new
-    EDP.
-3.  Run `terraform apply`. This creates the new EDP's service account, row
-    access policies, and table-level IAM grants.
-4.  Run the compliance check to verify the new EDP's isolation.
-
-### Removing an EDP
-
-1.  Remove the EDP from `data_provider_resource_ids` and
-    `DASHBOARD_EDP_CONFIG`.
-2.  Run `terraform apply`. This destroys the EDP's service account, row access
-    policies, and IAM grants.
-3.  The EDP's historical data remains in the tables but is no longer accessible
-    (no row access policy grants visibility).
+See the EDP Onboarding Guide — *Operator Steps: Onboarding a New EDP* and
+*Operator Steps: Offboarding an EDP* — the single source for the EDP lifecycle
+(resource-ID lookup, seeding a BasicReport, sharing credentials).
 
 ### Updating Dashboard Operators
 
-1.  Update `dashboard_operators` in your `.tfvars`:
-    ```hcl
-    dashboard_operators = ["group:new-operators-group@example.com"]
+1.  Update the `operators` array in the `DASHBOARD_CONFIG_CONTENT` GitHub
+    environment variable (the single source of truth):
+    ```json
+    "operators": ["group:new-operators-group@example.com"]
     ```
-2.  Run `terraform apply`. This updates row access policies and impersonation
-    grants.
+2.  Re-run the `Update CMMS` deploy workflow to update the platform row access
+    policies, table-level IAM, and impersonation grants. (For a manual apply,
+    edit `dashboard_operators` in your local `.tfvars` and `terraform apply`
+    directly.)
 
 ### Monitoring
 
@@ -337,10 +356,6 @@ Ensure the GitHub environment has the required variables (`DASHBOARD_EDP_CONFIG`
     service account and will not appear there. To also catch transfer- or
     config-level failures that never produce a query job, inspect the
     transfer run history with `bq show --transfer_run`.
-*   **Stale data**: The compliance check's staleness threshold is 3 hours. If
-    data is older, investigate scheduled query logs.
-*   **Row access policy drift**: The compliance check verifies policies exist
-    on every run.
 
 ### Scheduled compliance check
 
@@ -361,7 +376,15 @@ policy without notifications, so no one is paged until a channel is attached.
 
 The scheduled deploy is gated on `dashboard_compliance_uber_jar_path`: when
 that variable is unset, the Cloud Function, scheduler, and alert policy are not
-created.
+created. In CI it is set automatically (the deploy workflow downloads the
+published jar and passes it). For a manual `terraform apply`, build the jar
+yourself and pass it explicitly:
+
+```shell
+bazel build //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard/tools:DashboardComplianceCheckFunction_deploy.jar
+terraform apply -var-file=envs/dev.tfvars \
+  -var="dashboard_compliance_uber_jar_path=/abs/path/to/DashboardComplianceCheckFunction_deploy.jar"
+```
 
 ## Troubleshooting
 
@@ -379,24 +402,13 @@ manually (see Step 3). If tables remain empty after a triggered run, check:
 
 If the compliance check reports missing policies, run `terraform apply` to
 re-create them. MERGE-based scheduled queries preserve policies across runs.
-If you previously used `WRITE_TRUNCATE`, policies were dropped on each run
-and must be re-applied.
 
 ### EDP sees zero rows
 
-Verify the EDP's `DataProviderResourceId` in `data_provider_resource_ids`
-matches the value produced by `externalIdToApiId` for that EDP's internal
-Spanner ID. A mismatch causes the row access policy filter to not match any
-rows.
-
-Also verify `DASHBOARD_EDP_CONFIG`'s `resource_id` for the same EDP matches
-`data_provider_resource_ids`. If they disagree, terraform creates the SA
-against one resource ID (row policy filters to that ID) but the compliance /
-isolation tool authenticates against a different one (queries return only
-data matching the tool's ID). Symptom: `returns other EDPs' data` false-
-positive OR `report_detail_edp is empty` false-negative for that EDP. Fix by
-aligning both env vars to the ID in `EDPA_EDPS_CONFIG` and re-running
-terraform.
+Verify the EDP's `resource_id` in `DASHBOARD_CONFIG_CONTENT` matches the value
+`externalIdToApiId` produces for that EDP's internal Spanner ID — cross-check
+against `EDPA_EDPS_CONFIG`. It flows into the row access policy filter, so a
+wrong value matches no rows. Correct it and re-run the deploy.
 
 ### `report_detail_edp is empty` on a freshly-onboarded EDP
 
@@ -404,43 +416,25 @@ The compliance check `report_detail_edp is empty (expected data after
 scheduled queries)` and the corresponding isolation test both FAIL until the
 new EDP has at least one BasicReport in state `SUCCEEDED` that references one
 of its event groups. On fresh environments (and after adding any new EDPA
-EDP), you must seed a BasicReport manually &mdash; the CI `run-tests` job
+EDP), you must seed a BasicReport manually — the CI `run-tests` job
 only creates reports against simulator event groups (`sim-eg-*` prefix), not
 against EDPA-owned event groups. See the *Seed a BasicReport for the new
 EDP* step in the onboarding guide.
 
 ### `rerun-failed-jobs` doesn't re-trigger scheduled queries
 
-`rerun-failed-jobs` on `Update CMMS` only re-runs jobs whose prior attempt
-was `failure`. The `run-dashboard-isolation-test / trigger-scheduled-queries`
-job typically succeeds on its first run (kicking the queries off is
-independent of whether the queries return data), so subsequent
-`rerun-failed-jobs` calls preserve it as `success` and **do not re-fire the
-scheduled queries**. If the compliance/isolation checks are failing because
-`report_detail_edp` hasn't yet been refreshed to include a new BasicReport:
-
-1.  Verify the BasicReport is `state: SUCCEEDED` (via the Reporting API).
-2.  Check `bq show --format=prettyjson <project>:dashboard.report_detail_edp
-    | jq '{numRows, lastModifiedTime}'` &mdash; if `lastModifiedTime` is
-    before the BasicReport completed, the query hasn't cycled yet.
-3.  Wait for the natural hourly cycle, OR trigger the query manually via the
-    BigQuery Data Transfer REST API:
-    ```shell
-    curl -sS -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" \
-      -H 'Content-Type: application/json' \
-      --data "{\"requestedRunTime\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
-      "https://bigquerydatatransfer.googleapis.com/v1/projects/<project>/locations/<region>/transferConfigs/<config-id>:startManualRuns"
-    ```
-    (You need `roles/bigquerydatatransfer.admin` on the project; find
-    `<config-id>` via `bq ls --transfer_config --transfer_location=<region> --project_id=<project> --filter='dataSourceIds:scheduled_query'`.)
-4.  Once `report_detail_edp` has been refreshed, `gh api
-    .../actions/runs/<RUN_ID>/rerun-failed-jobs --method POST` will re-run
-    the remaining failing dashboard checks against the updated data.
+If a new EDP's compliance and isolation checks fail because `report_detail_edp`
+hasn't refreshed yet, `rerun-failed-jobs` on `Update CMMS` won't help: the
+`trigger-scheduled-queries` job already succeeded (firing the queries succeeds
+regardless of their output), so it isn't re-run and the checks re-run against
+stale data. Confirm the BasicReport is `SUCCEEDED`, refresh the data (wait for
+the next hourly cycle or trigger the query manually — see *Trigger Scheduled
+Queries Manually*), then re-run the failed jobs.
 
 ### Cross-project connection failures
 
 Verify the BigQuery Connection service agent
-(`service-{project_number}@gcp-sa-bigqueryconnection.iam.gserviceaccount.com`)
+(`service-<PROJECT_NUMBER>@gcp-sa-bigqueryconnection.iam.gserviceaccount.com`)
 has appropriate grants in the target project:
 
 *   `roles/spanner.databaseReaderWithDataBoost` on each target Spanner database
