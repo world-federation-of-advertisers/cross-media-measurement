@@ -49,7 +49,7 @@ bazel_dep(
 # is merged and released.
 git_override(
     module_name = "common-jvm",
-    commit = "97a13cb1d21e769dcf07d9fc0b9af5cc8353c3e1",
+    commit = "fa4ed02205eb2bf8a0846bffa4193edd334bcc68",
     remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
 bazel_dep(
