@@ -45,6 +45,7 @@ import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoro
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt.PublicKeysCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineImplBase
 
 interface DataServices {
   /**
@@ -91,6 +92,7 @@ data class KingdomDataServices(
   val modelShardsService: ModelShardsCoroutineImplBase,
   val modelRolloutsService: ModelRolloutsCoroutineImplBase,
   val populationsService: PopulationsCoroutineImplBase,
+  val unlinkedClientAccountsService: UnlinkedClientAccountsCoroutineImplBase,
 )
 
 fun KingdomDataServices.toList(): List<BindableService> {
