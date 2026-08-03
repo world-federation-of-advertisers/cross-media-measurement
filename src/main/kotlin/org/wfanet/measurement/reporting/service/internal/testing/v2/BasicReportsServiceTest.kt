@@ -559,6 +559,61 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
+  fun `insertBasicReport throws INVALID_ARGUMENT when reporting_set_components entry missing external_reporting_set_id`():
+    Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    val basicReport = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalBasicReportId = "1237"
+      externalCampaignGroupId = REPORTING_SET.externalReportingSetId
+      details = basicReportDetails { title = "title" }
+      resultDetails = basicReportResultDetails {
+        resultGroups += resultGroup {
+          title = "title"
+          results +=
+            ResultGroupKt.result {
+              metricSet =
+                ResultGroupKt.metricSet {
+                  reportingSetComponents +=
+                    ResultGroupKt.MetricSetKt.reportingSetComponentMetricSetMapEntry {
+                      value = ResultGroupKt.MetricSetKt.componentMetricSet {}
+                      // external_reporting_set_id intentionally left unset.
+                    }
+                }
+            }
+        }
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.insertBasicReport(insertBasicReportRequest { this.basicReport = basicReport })
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] =
+            "result_details.result_groups[0].results[0]" +
+              ".metric_set.reporting_set_components[0].external_reporting_set_id"
+        }
+      )
+  }
+
+  @Test
   fun `getBasicReport with insertBasicReport succeeds`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }

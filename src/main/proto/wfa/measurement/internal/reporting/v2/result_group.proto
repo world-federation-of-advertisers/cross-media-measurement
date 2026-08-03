@@ -200,7 +200,7 @@ message ResultGroup {
     message ReportingSetComponentMetricSetMapEntry {
       // Map entry key.
       //
-      // `ReportingSet` ID from the Reporting internal API.
+      // `ReportingSet` ID from the Reporting internal API. Required.
       string external_reporting_set_id = 1;
 
       // Map entry value.

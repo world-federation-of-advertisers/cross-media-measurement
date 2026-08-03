@@ -618,6 +618,14 @@ class SpannerBasicReportsService(
             )
           }
         }
+        result.metricSet.reportingSetComponentsList.forEachIndexed { componentIndex, component ->
+          if (component.externalReportingSetId.isEmpty()) {
+            throw RequiredFieldNotSetException(
+              "result_details.result_groups[$resultGroupIndex].results[$resultIndex]" +
+                ".metric_set.reporting_set_components[$componentIndex].external_reporting_set_id"
+            )
+          }
+        }
       }
     }
 
