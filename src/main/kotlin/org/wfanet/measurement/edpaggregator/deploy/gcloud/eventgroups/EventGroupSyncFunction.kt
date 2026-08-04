@@ -318,13 +318,24 @@ class EventGroupSyncFunction() : HttpFunction {
       certHost: String?,
       shutdownTimeout: Duration,
     ): Channel {
+      val cmmsConnection = eventGroupSyncConfig.cmmsConnection
+      val certificateFile = File(cmmsConnection.certFilePath)
+      val privateKeyFile = File(cmmsConnection.privateKeyFilePath)
+      val trustedCertCollectionFile = File(cmmsConnection.certCollectionFilePath)
+      require(certificateFile.isFile) {
+        "cmms_connection.cert_file_path must point to an existing file"
+      }
+      require(privateKeyFile.isFile) {
+        "cmms_connection.private_key_file_path must point to an existing file"
+      }
+      require(trustedCertCollectionFile.isFile) {
+        "cmms_connection.cert_collection_file_path must point to an existing file"
+      }
       val signingCerts =
         SigningCerts.fromPemFiles(
-          certificateFile = checkNotNull(File(eventGroupSyncConfig.cmmsConnection.certFilePath)),
-          privateKeyFile =
-            checkNotNull(File(eventGroupSyncConfig.cmmsConnection.privateKeyFilePath)),
-          trustedCertCollectionFile =
-            checkNotNull(File(eventGroupSyncConfig.cmmsConnection.certCollectionFilePath)),
+          certificateFile = certificateFile,
+          privateKeyFile = privateKeyFile,
+          trustedCertCollectionFile = trustedCertCollectionFile,
         )
 
       val publicChannel =

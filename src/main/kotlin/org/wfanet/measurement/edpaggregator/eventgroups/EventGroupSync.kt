@@ -1013,14 +1013,12 @@ class EventGroupSync(
             // `entity_key` is preferred when any observed EventGroup carries one, falling back to
             // `event_group_reference_id`. Among candidates of the chosen kind the lexicographically
             // smallest is used, so repeated syncs over the same input produce the same value.
-            if (accumulator.entityKeys.isNotEmpty()) {
-              entityKey =
-                accumulator.entityKeys
-                  .sortedWith(compareBy({ it.entityType }, { it.entityId }))
-                  .first()
-                  .toCmmsEntityKey()
-            } else if (accumulator.eventGroupReferenceIds.isNotEmpty()) {
-              eventGroupReferenceId = accumulator.eventGroupReferenceIds.sorted().first()
+            val entityKeyCandidate =
+              accumulator.entityKeys.minWithOrNull(compareBy({ it.entityType }, { it.entityId }))
+            if (entityKeyCandidate != null) {
+              entityKey = entityKeyCandidate.toCmmsEntityKey()
+            } else {
+              accumulator.eventGroupReferenceIds.minOrNull()?.let { eventGroupReferenceId = it }
             }
           }
         }
