@@ -45,11 +45,11 @@ variable "max_delivery_attempts" {
 variable "minimum_backoff" {
   description = "The minimum delay between consecutive delivery attempts of a message, as a duration in seconds (e.g. \"10s\")."
   type        = string
-  default     = "10s"
+  nullable    = false
 }
 
 variable "maximum_backoff" {
   description = "The maximum delay between consecutive delivery attempts of a message, as a duration in seconds (e.g. \"600s\")."
   type        = string
-  default     = "600s"
+  nullable    = false
 }

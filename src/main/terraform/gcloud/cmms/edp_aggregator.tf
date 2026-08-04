@@ -118,6 +118,8 @@ locals {
       topic_name            = "results-fulfiller-queue"
       ack_deadline_seconds  = 600
       max_delivery_attempts = 5
+      minimum_backoff       = "10s"
+      maximum_backoff       = "600s"
     }
     worker = {
       instance_template_name        = "requisition-fulfiller-template"
@@ -367,6 +369,8 @@ locals {
         subscription_name     = "subpool-assigner-subscription"
         ack_deadline_seconds  = 600
         max_delivery_attempts = 5
+        minimum_backoff       = "10s"
+        maximum_backoff       = "600s"
       }
       worker = {
         instance_template_name        = "subpool-assigner-template"
@@ -393,6 +397,8 @@ locals {
         subscription_name     = "vid-rank-builder-subscription"
         ack_deadline_seconds  = 600
         max_delivery_attempts = 5
+        minimum_backoff       = "10s"
+        maximum_backoff       = "600s"
       }
       worker = {
         instance_template_name        = "vid-rank-builder-template"
@@ -419,6 +425,8 @@ locals {
         subscription_name     = "vid-labeler-subscription"
         ack_deadline_seconds  = 600
         max_delivery_attempts = 5
+        minimum_backoff       = "10s"
+        maximum_backoff       = "600s"
       }
       worker = {
         instance_template_name        = "vid-labeler-template"

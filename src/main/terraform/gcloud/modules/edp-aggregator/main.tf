@@ -400,6 +400,8 @@ module "result_fulfiller_queue" {
   subscription_name     = var.requisition_fulfiller_config.queue.subscription_name
   ack_deadline_seconds  = var.requisition_fulfiller_config.queue.ack_deadline_seconds
   max_delivery_attempts = var.requisition_fulfiller_config.queue.max_delivery_attempts
+  minimum_backoff       = var.requisition_fulfiller_config.queue.minimum_backoff
+  maximum_backoff       = var.requisition_fulfiller_config.queue.maximum_backoff
 }
 
 resource "google_pubsub_topic_iam_member" "publisher" {
@@ -747,6 +749,8 @@ module "vid_labeling_queue" {
   subscription_name     = each.value.queue.subscription_name
   ack_deadline_seconds  = each.value.queue.ack_deadline_seconds
   max_delivery_attempts = each.value.queue.max_delivery_attempts
+  minimum_backoff       = each.value.queue.minimum_backoff
+  maximum_backoff       = each.value.queue.maximum_backoff
 }
 
 resource "google_pubsub_topic_iam_member" "vid_labeling_publisher" {
