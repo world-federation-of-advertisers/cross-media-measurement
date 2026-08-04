@@ -24,7 +24,7 @@ PYTHON_VERSION = "3.11"
 # See https://github.com/bazelbuild/bazel/discussions/23075.
 bazel_dep(
     name = "rules_kotlin_jvm",
-    version = "0.14.0",
+    version = "0.15.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
 bazel_dep(
@@ -39,7 +39,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.147.0",
+    version = "0.149.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -91,7 +91,6 @@ bazel_dep(
     name = "grpc_ecosystem_grpc_gateway",
     version = "2.26.0.bzlmod.1",
 )
-
 # Must also be updated in src/main/k8s/local/BUILD.bazel
 bazel_dep(
     name = "cloud-spanner-emulator-bin",
@@ -154,11 +153,10 @@ bazel_dep(
     name = "grpc",
     version = "1.74.1",
 )
-
 # Must be compatible with the protobuf version declared in requirements.txt
 bazel_dep(
     name = "protobuf",
-    version = "33.1",
+    version = "33.6",
     repo_name = "com_google_protobuf",
 )
 bazel_dep(
@@ -204,7 +202,6 @@ single_version_override(
         "//build/cosign/patches:sign_dot_bzl.patch",
     ],
 )
-
 bazel_dep(
     name = "rules_multirun",
     version = "0.12.0",
@@ -326,13 +323,13 @@ maven.install(
     fetch_sources = True,  # For IDE integration.
     known_contributing_modules = [
         "any-sketch-java",
-        "bazel_worker_java",
         "common-jvm",
         "consent-signaling-client",
         "cross-media-measurement-system",
         "protobuf",
         "rules_kotlin_jvm",
         "virtual-people-common",
+        "virtual-people-core-serving",
     ],
     lock_file = "//:maven_install.json",
     repositories = [

@@ -44,6 +44,8 @@ import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
+import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetRawEvent
+import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetUndigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
@@ -56,7 +58,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.virtualpeople.common.copy
+import org.wfanet.virtualpeople.common.LabelerInput
 
 /**
  * Per-input-file [RawImpressionSource.BlobSink] that labels one raw-impression file's
@@ -115,7 +117,7 @@ import org.wfanet.virtualpeople.common.copy
  *   sink; the permit covers only the short key-setup phase, never the long streaming write, so it
  *   can never stall a started blob stream.
  */
-class VidLabelingSink(
+abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
   private val inputBlobUri: String,
   private val modelLineContexts: List<ModelLineContext>,
   private val impressionConverter: ImpressionConverter,
@@ -127,7 +129,7 @@ class VidLabelingSink(
   private val dataProvider: String,
   private val metrics: VidLabelerMetrics,
   private val encryptionKeySemaphore: Semaphore,
-) : RawImpressionSource.BlobSink {
+) : RawImpressionSource.BlobSink<E> {
 
   /**
    * Sink-owned scope for the per-group writer coroutines.
@@ -142,95 +144,95 @@ class VidLabelingSink(
   /** One streaming writer per model-line output group, created on the group's first record. */
   private val writers = ConcurrentHashMap<OutputGroupKey, GroupWriter>()
 
-  override suspend fun processBatch(events: List<ParquetDigestedEvent>) {
-    // Label first (CPU work, and the canonical Labeler is stateless), then stream each produced
-    // record into its group's writer. processBatch is invoked concurrently for this blob.
-    val produced = ArrayList<GroupedImpression>()
-    for (digestedEvent in events) {
-      for (context in modelLineContexts) {
+  override suspend fun processBatch(events: List<E>) {
+    // Label (CPU work; the canonical Labeler is stateless) and stream each produced record straight
+    // into its group's writer. processBatch is invoked concurrently for this blob. Iterating model
+    // lines in the OUTER loop lets each context precompute its metric Attributes and resolve its
+    // GroupWriter once per batch (rather than per row) and stream records inline (no batch-wide
+    // buffer of produced impressions). Per-writer record order within a batch is preserved — events
+    // stream in order into each context's single writer — while order across concurrent batches is
+    // non-deterministic, exactly as before (records go to a per-model-line writer, so swapping the
+    // loop nesting cannot change any one blob's contents). Each writer's blob is independently
+    // ordered by event; there is NO cross-writer ordering guarantee (before or after this change),
+    // so nothing may rely on how the writers' outputs interleave.
+    for (context in modelLineContexts) {
+      // Attributes depend only on (modelLine, reason), fixed for this context: build them once.
+      val labelAttrs = labelAttributes(context.modelLine)
+      val converterSkipAttrs =
+        dropAttributes(context.modelLine, VidLabelerMetrics.DROP_REASON_CONVERTER_SKIP)
+      val outsideWindowAttrs =
+        dropAttributes(context.modelLine, VidLabelerMetrics.DROP_REASON_OUTSIDE_WINDOW)
+      val noAssignmentAttrs =
+        dropAttributes(context.modelLine, VidLabelerMetrics.DROP_REASON_NO_ASSIGNMENT)
+      // Resolved lazily on this context's first produced record, then reused for the batch, so a
+      // context that produces nothing opens no output blob (an empty blob would fail commit()).
+      var writer: GroupWriter? = null
+      for (rawEvent in events) {
         try {
-          val converted = impressionConverter.convert(digestedEvent, context.config)
+          val converted = impressionConverter.convert(rawEvent, context.config)
           if (converted == null) {
-            metrics.impressionsDroppedCounter.add(
-              1,
-              dropAttributes(context.modelLine, VidLabelerMetrics.DROP_REASON_CONVERTER_SKIP),
-            )
+            metrics.impressionsDroppedCounter.add(1, converterSkipAttrs)
             continue
           }
-          if (!context.activeWindow.contains(Timestamps.toMicros(converted.eventTime))) {
-            metrics.impressionsDroppedCounter.add(
-              1,
-              dropAttributes(context.modelLine, VidLabelerMetrics.DROP_REASON_OUTSIDE_WINDOW),
-            )
+          if (!context.activeWindow.contains(converted.labelerInput.timestampUsec)) {
+            metrics.impressionsDroppedCounter.add(1, outsideWindowAttrs)
             continue
           }
 
-          // Memoized path: attach the impression's pre-computed rank(s) (keyed by its
-          // EventIdDigest) so the model's RankedPopulationNode leaf derives a collision-free VID
-          // via Feistel. All of the fingerprint's per-subpool ranks are attached (a fingerprint
-          // can route to several subpools across impressions); the leaf selects the one matching
-          // its own pool_offset. No match (overflow / unseen) leaves the input untouched and the
-          // leaf falls back to hashing.
-          val ranks = context.rankIndex?.lookup(digestedEvent.digest).orEmpty()
-          val labelerInput =
-            if (ranks.isEmpty()) {
-              converted.labelerInput
-            } else {
-              converted.labelerInput.copy { rankAssignments += ranks }
-            }
-          // TODO(world-federation-of-advertisers/cross-media-measurement#4073): Once
-          // virtual-people-common#75 (memoized_rank_fallback signal) and
-          // virtual-people-core-serving#89 (RankedPopulationNode hash fallback) are merged, count
-          // VirtualPersonActivity.memoized_rank_fallback across output.peopleList (coviewing-safe)
-          // into a per-(dataProvider, modelLine) counter here to surface silent degradation to
-          // hash-based VID assignment when subpools saturate.
+          // Memoized vs. hash-only labeling differ ONLY here (see the subclasses'
+          // resolveLabelerInput). Everything else — convert, window filter, assign, stream-write —
+          // is identical and lives in this base, so neither subclass duplicates it.
+          val labelerInput = resolveLabelerInput(rawEvent, converted, context)
 
           val output = context.assigner.assign(labelerInput)
           if (output.peopleCount == 0) {
-            metrics.impressionsDroppedCounter.add(
-              1,
-              dropAttributes(context.modelLine, VidLabelerMetrics.DROP_REASON_NO_ASSIGNMENT),
-            )
+            metrics.impressionsDroppedCounter.add(1, noAssignmentAttrs)
             continue
           }
 
-          val key = OutputGroupKey(context.modelLine)
+          // computeIfAbsent is atomic per key, so concurrent processBatch calls for different
+          // groups never block each other; send() then suspends on the group's channel if it is
+          // full, applying backpressure that bounds the heap.
+          val groupWriter =
+            writer
+              ?: writers
+                .computeIfAbsent(OutputGroupKey(context.modelLine)) { GroupWriter(it) }
+                .also { writer = it }
           // A LabelerOutput can assign multiple virtual people to a single impression; emit one
           // LabeledImpression per assigned VID rather than only the first.
           for (person in output.peopleList) {
-            produced.add(
-              GroupedImpression(
-                key,
-                labeledImpression {
-                  eventTime = converted.eventTime
-                  vid = person.virtualPersonId
-                  event = converted.event
-                  entityKeys += converted.entityKeys
-                },
-              )
+            groupWriter.send(
+              labeledImpression {
+                eventTime = Timestamps.fromMicros(converted.labelerInput.timestampUsec)
+                vid = person.virtualPersonId
+                event = converted.event
+                entityKeys += converted.entityKeys
+              }
             )
           }
-          metrics.impressionsLabeledCounter.add(
-            output.peopleList.size.toLong(),
-            labelAttributes(context.modelLine),
-          )
+          metrics.impressionsLabeledCounter.add(output.peopleList.size.toLong(), labelAttrs)
         } catch (e: CancellationException) {
           // Cooperative cancellation is not a labeling error; rethrow without inflating the metric.
           throw e
         } catch (e: Exception) {
-          metrics.labelingErrorsCounter.add(1, labelAttributes(context.modelLine))
+          metrics.labelingErrorsCounter.add(1, labelAttrs)
           throw e
         }
       }
     }
-
-    for ((key, impression) in produced) {
-      // computeIfAbsent is atomic per key, so concurrent processBatch calls for different groups
-      // never block each other; send() then suspends on the group's channel if it is full,
-      // applying backpressure that bounds the heap.
-      writers.computeIfAbsent(key) { GroupWriter(it) }.send(impression)
-    }
   }
+
+  /**
+   * Resolves the [LabelerInput] to label for [event]. The memoized subclass appends the event's
+   * pre-computed ranks — it is typed to a
+   * [org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent], so the digest is proven
+   * present at compile time; the hash-only subclass returns [converted]'s input unchanged.
+   */
+  protected abstract fun resolveLabelerInput(
+    event: E,
+    converted: ConvertedImpression,
+    context: ModelLineContext,
+  ): LabelerInput
 
   override suspend fun commit() {
     // Signal end-of-input to every writer, then await them so each data blob is fully written
@@ -250,8 +252,8 @@ class VidLabelingSink(
   override suspend fun close() {
     // Abort any still-open writers. On the failure path commit() has not run, so cancelling here
     // tears down the open writeBlob streams. Any partially written data blob is harmless: it has no
-    // metadata sidecar, so no consumer can discover it, and a retry overwrites it (deterministic
-    // key).
+    // metadata sidecar, so no consumer can discover it, and a retry overwrites it
+    // (deterministic key).
     writerScope.cancel()
   }
 
@@ -317,7 +319,7 @@ class VidLabelingSink(
         // (write-if-absent) to prevent overwrite races on Pub/Sub redelivery.
         MesosRecordIoStorageClient(aeadStorageClient)
           .writeBlob(
-            blobKey,
+            SelectedStorageClient.parseBlobUri(outputBlobUri).key,
             channel.consumeAsFlow().map { impression ->
               updateAggregates(impression)
               impression.toByteString()
@@ -328,6 +330,11 @@ class VidLabelingSink(
         throw e
       } catch (e: Exception) {
         metrics.labelingErrorsCounter.add(1, labelAttributes(key.modelLine))
+        logger.log(
+          java.util.logging.Level.SEVERE,
+          "Labeled-output writer failed for model line " + key.modelLine + " at " + outputBlobUri,
+          e,
+        )
         throw e
       }
       metrics.blobsWrittenCounter.add(1, labelAttributes(key.modelLine))
@@ -379,7 +386,7 @@ class VidLabelingSink(
           storageConfig.rootDirectory,
           storageConfig.projectId,
         )
-        .writeBlob(metadataKey, details.toByteString())
+        .writeBlob(SelectedStorageClient.parseBlobUri(metadataUri).key, details.toByteString())
     }
   }
 
@@ -431,7 +438,7 @@ class VidLabelingSink(
       StreamingAeadConfig.register()
     }
 
-    private val logger = Logger.getLogger(VidLabelingSink::class.java.name)
+    private val logger = Logger.getLogger(BaseVidLabelingSink::class.java.name)
 
     /**
      * Default permit count for the per-WorkItem [encryptionKeySemaphore]: the maximum number of
@@ -453,6 +460,122 @@ class VidLabelingSink(
     private const val WRITER_CHANNEL_CAPACITY = 256
   }
 }
+
+/**
+ * Memoized-path sink: typed to [ParquetDigestedEvent], so every event carries a non-null
+ * [org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest]. The compiler proves the
+ * digest is present where the rank lookup reads it — a hash-only event can never reach this sink.
+ */
+class MemoizedVidLabelingSink(
+  inputBlobUri: String,
+  modelLineContexts: List<ModelLineContext>,
+  impressionConverter: ImpressionConverter,
+  fileMetadata: RawImpressionFileMetadata,
+  encryptKmsClient: KmsClient,
+  encryptKekUri: String,
+  outputStorageParams: VidLabelerParams.StorageParams,
+  storageConfig: StorageConfig,
+  dataProvider: String,
+  metrics: VidLabelerMetrics,
+  encryptionKeySemaphore: Semaphore,
+) :
+  BaseVidLabelingSink<ParquetDigestedEvent>(
+    inputBlobUri,
+    modelLineContexts,
+    impressionConverter,
+    fileMetadata,
+    encryptKmsClient,
+    encryptKekUri,
+    outputStorageParams,
+    storageConfig,
+    dataProvider,
+    metrics,
+    encryptionKeySemaphore,
+  ) {
+  override fun resolveLabelerInput(
+    event: ParquetDigestedEvent,
+    converted: ConvertedImpression,
+    context: ModelLineContext,
+  ): LabelerInput {
+    // Append the impression's pre-computed rank(s) (keyed by its EventIdDigest) directly onto the
+    // LabelerInput builder so the model's RankedPopulationNode leaf derives a collision-free VID
+    // via Feistel. All matching per-subpool ranks are attached (a fingerprint can route to several
+    // subpools across impressions); the leaf selects the one matching its own pool_offset. No match
+    // (overflow / unseen) leaves the input untouched and the leaf falls back to hashing; a model
+    // line with no rank index falls back too.
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4073): Once
+    // virtual-people-common#75 (memoized_rank_fallback signal) and virtual-people-core-serving#89
+    // (RankedPopulationNode hash fallback) are merged, count
+    // VirtualPersonActivity.memoized_rank_fallback across output.peopleList (coviewing-safe) into a
+    // per-(dataProvider, modelLine) counter to surface silent degradation to hash-based VID
+    // assignment when subpools saturate.
+    val rankIndex = context.rankIndex ?: return converted.labelerInput
+    val builder = converted.labelerInput.toBuilder()
+    return if (rankIndex.appendRankAssignments(event.digest, builder) == 0) {
+      converted.labelerInput
+    } else {
+      builder.build()
+    }
+  }
+}
+
+/**
+ * Non-memoized (hash-only) sink: typed to [ParquetUndigestedEvent]. The per-row SHA-256 was skipped
+ * upstream, no rank lookup happens, and the digest is never read.
+ */
+class PlainVidLabelingSink(
+  inputBlobUri: String,
+  modelLineContexts: List<ModelLineContext>,
+  impressionConverter: ImpressionConverter,
+  fileMetadata: RawImpressionFileMetadata,
+  encryptKmsClient: KmsClient,
+  encryptKekUri: String,
+  outputStorageParams: VidLabelerParams.StorageParams,
+  storageConfig: StorageConfig,
+  dataProvider: String,
+  metrics: VidLabelerMetrics,
+  encryptionKeySemaphore: Semaphore,
+) :
+  BaseVidLabelingSink<ParquetUndigestedEvent>(
+    inputBlobUri,
+    modelLineContexts,
+    impressionConverter,
+    fileMetadata,
+    encryptKmsClient,
+    encryptKekUri,
+    outputStorageParams,
+    storageConfig,
+    dataProvider,
+    metrics,
+    encryptionKeySemaphore,
+  ) {
+  override fun resolveLabelerInput(
+    event: ParquetUndigestedEvent,
+    converted: ConvertedImpression,
+    context: ModelLineContext,
+  ): LabelerInput = converted.labelerInput
+}
+
+/**
+ * Builds a per-file [BaseVidLabelingSink] for event type [E]: `::MemoizedVidLabelingSink` for the
+ * memoized path, `::PlainVidLabelingSink` for the hash-only path. Lets [VidLabeler] stay generic in
+ * the event type while the concrete sink — and its compile-time digest guarantee — is chosen by the
+ * caller.
+ */
+typealias VidLabelingSinkFactory<E> =
+  (
+    inputBlobUri: String,
+    modelLineContexts: List<ModelLineContext>,
+    impressionConverter: ImpressionConverter,
+    fileMetadata: RawImpressionFileMetadata,
+    encryptKmsClient: KmsClient,
+    encryptKekUri: String,
+    outputStorageParams: VidLabelerParams.StorageParams,
+    storageConfig: StorageConfig,
+    dataProvider: String,
+    metrics: VidLabelerMetrics,
+    encryptionKeySemaphore: Semaphore,
+  ) -> RawImpressionSource.BlobSink<E>
 
 /**
  * A model line resolved to everything [VidLabelingSink] needs to label with it.
@@ -477,6 +600,3 @@ data class ModelLineContext(
  * by model line and carry the per-blob entity-key union on `BlobDetails.entity_keys`.
  */
 private data class OutputGroupKey(val modelLine: String)
-
-/** A labeled impression paired with the output group it belongs to, for channel hand-off. */
-private data class GroupedImpression(val key: OutputGroupKey, val impression: LabeledImpression)

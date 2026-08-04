@@ -16,13 +16,10 @@
 
 package org.wfanet.measurement.edpaggregator.vidrankbuilder
 
-import com.google.protobuf.UnsafeByteOperations
 import java.util.BitSet
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexMap
-import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
 
 /**
@@ -56,20 +53,29 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
  * @param eventDay epoch-day stamped as `last_seen` for every fingerprint touched this dispatch
  *   (typically the dispatch's `max_event_date`). Also the default `last_seen` for entries loaded
  *   from a legacy `SNAPSHOT` that predates the field.
- * @param initialCapacity initial slot count for **both** the [cumulative] and [dayOnly] maps. The
- *   caller passes this dispatch's subpool-map fingerprint count so the maps start near their final
- *   size instead of the 16-slot default, avoiding the `~log2(N)` resizes during load. This is an
- *   exact fit for [dayOnly] (it holds at most one entry per today fingerprint) and for cold
- *   subpools; for a mature subpool [cumulative] is loaded from a prior `SNAPSHOT` larger than one
- *   day's map, so it still resizes up to its real size — see
- *   world-federation-of-advertisers/cross-media-measurement#4015.
+ * @param initialCapacity initial slot count for the [dayOnly] map (and, by default, the
+ *   [cumulative] map). The caller passes this dispatch's subpool-map fingerprint count so the maps
+ *   start near their final size instead of the 16-slot default, avoiding the `~log2(N)` resizes
+ *   during load. This is an exact fit for [dayOnly] (it holds at most one entry per today
+ *   fingerprint) and for cold subpools.
+ * @param cumulativeCapacity initial slot count for the [cumulative] map. Defaults to
+ *   [initialCapacity]; a warm/backfill caller passes the prior-snapshot-plus-today entry count so
+ *   [cumulative] does not resize up during load — see
+ *   world-federation-of-advertisers/cross-media-measurement#4015. Sizing only affects capacity, not
+ *   the stored `(fp -> rank)` mapping, ranks, or `last_seen`.
+ * @param estimatedTotalRanks estimated distinct-rank count (prior + today, capped at [rankedSize]);
+ *   used only to pre-size the [taken] [BitSet]. Over- or under-estimating is safe: the `BitSet`
+ *   auto-grows and its contents/`nextClearBit` results do not depend on its initial size. Defaults
+ *   to [rankedSize] (the previous fixed sizing).
  */
 class RankAllocator(
-  val poolOffset: Long,
-  val rankedSize: Int,
+  poolOffset: Long,
+  rankedSize: Int,
   private val eventDay: Int,
   initialCapacity: Long = Bytes12IntMap.DEFAULT_INITIAL_CAPACITY,
-) {
+  cumulativeCapacity: Long = initialCapacity,
+  estimatedTotalRanks: Int = rankedSize,
+) : BaseRankAllocator(poolOffset, rankedSize) {
   init {
     require(rankedSize >= 0) { "rankedSize must be >= 0, got $rankedSize" }
     require(eventDay in 0..LastSeenDayBytes.MAX_DAY) {
@@ -77,9 +83,12 @@ class RankAllocator(
     }
   }
 
-  private val cumulative = Bytes12IntMap(initialCapacity)
+  private val cumulative = Bytes12IntMap(cumulativeCapacity)
   private val dayOnly = Bytes12IntMap(initialCapacity)
-  private val taken = BitSet(rankedSize.coerceAtLeast(1))
+  private val taken = BitSet(estimatedTotalRanks.coerceAtLeast(1))
+  // Sized to [rankedSize] (not the estimated rank count): the MAX rank value loaded from a prior
+  // snapshot can exceed the live-entry count (retention frees low ranks while a high rank
+  // survives), so a shorter array would index out of bounds. Kept fixed-size for safety.
   private val lastSeen = ShortArray(rankedSize)
   private var cursor = 0
 
@@ -180,19 +189,27 @@ class RankAllocator(
    * @return the number of ranks freed.
    */
   fun freeAgedRanks(cutoffEpochDay: Int, todayFps: Bytes12IntMap): Long {
-    val freeHi = ArrayList<Long>()
-    val freeLo = ArrayList<Int>()
+    // Growable primitive long[]/int[] (not boxed ArrayList<Long>/ArrayList<Int>); the iteration
+    // order over [cumulative] is unchanged, so the freed set is identical.
+    var freeHi = LongArray(INITIAL_FREE_BUFFER)
+    var freeLo = IntArray(INITIAL_FREE_BUFFER)
+    var freeCount = 0
     cumulative.forEach { keyHi, keyLo, rank ->
       if (
         rank in 0 until rankedSize &&
           (lastSeen[rank].toInt() and 0xFFFF) < cutoffEpochDay &&
           !todayFps.containsKey(keyHi, keyLo)
       ) {
-        freeHi.add(keyHi)
-        freeLo.add(keyLo)
+        if (freeCount == freeHi.size) {
+          freeHi = freeHi.copyOf(freeHi.size * 2)
+          freeLo = freeLo.copyOf(freeLo.size * 2)
+        }
+        freeHi[freeCount] = keyHi
+        freeLo[freeCount] = keyLo
+        freeCount++
       }
     }
-    for (i in freeHi.indices) {
+    for (i in 0 until freeCount) {
       val rank = cumulative.remove(freeHi[i], freeLo[i])
       if (rank != Bytes12IntMap.NOT_PRESENT) {
         if (rank in 0 until rankedSize) taken.clear(rank)
@@ -316,70 +333,24 @@ class RankAllocator(
    * carrying its entries' persisted `last_seen` recency.
    */
   fun streamCumulativeChunks(chunkEntries: Int = DEFAULT_CHUNK_ENTRIES): Flow<RankIndexMap> =
-    streamChunks(cumulative, chunkEntries) { rank -> lastSeen[rank].toInt() and 0xFFFF }
+    streamChunks(arrayOf(cumulative), chunkEntries) { rank -> lastSeen[rank].toInt() and 0xFFFF }
 
   /**
    * Streams this dispatch's touched entries as chunked [RankIndexMap] records (`DAY_ONLY` blob);
    * every entry's `last_seen` is [eventDay] (they were all observed this dispatch).
    */
   fun streamDayOnlyChunks(chunkEntries: Int = DEFAULT_CHUNK_ENTRIES): Flow<RankIndexMap> =
-    streamChunks(dayOnly, chunkEntries) { eventDay }
-
-  private fun streamChunks(
-    map: Bytes12IntMap,
-    chunkEntries: Int,
-    lastSeenOf: (rank: Int) -> Int,
-  ): Flow<RankIndexMap> = flow {
-    val total = map.size
-    if (total == 0L) return@flow
-    val chunkCount = minOf(chunkEntries.toLong(), total).toInt()
-    var fps = ByteArray(chunkCount * EventIdDigestBytes.WIDTH)
-    var ranks = IntArray(chunkCount)
-    var seen = IntArray(chunkCount)
-    var n = 0
-    var produced = 0L
-    // forEach is inline, so the suspend emit() is legal inside the flow block.
-    map.forEach { keyHi, keyLo, rank ->
-      val base = n * EventIdDigestBytes.WIDTH
-      EventIdDigestBytes.writeHi(fps, base, keyHi)
-      EventIdDigestBytes.writeLo(fps, base + 8, keyLo)
-      ranks[n] = rank
-      seen[n] = lastSeenOf(rank)
-      n++
-      produced++
-      if (n == ranks.size) {
-        emit(buildRecord(fps, ranks, seen, n))
-        val remaining = total - produced
-        if (remaining > 0) {
-          val next = minOf(chunkEntries.toLong(), remaining).toInt()
-          fps = ByteArray(next * EventIdDigestBytes.WIDTH)
-          ranks = IntArray(next)
-          seen = IntArray(next)
-          n = 0
-        }
-      }
-    }
-  }
-
-  private fun buildRecord(
-    fps: ByteArray,
-    ranks: IntArray,
-    seen: IntArray,
-    count: Int,
-  ): RankIndexMap = rankIndexMap {
-    poolOffset = this@RankAllocator.poolOffset
-    rankedSize = this@RankAllocator.rankedSize
-    fingerprints = UnsafeByteOperations.unsafeWrap(fps, 0, count * EventIdDigestBytes.WIDTH)
-    val lastSeenBytes = ByteArray(count * LastSeenDayBytes.WIDTH)
-    for (i in 0 until count) {
-      this.ranks += ranks[i]
-      LastSeenDayBytes.write(lastSeenBytes, i * LastSeenDayBytes.WIDTH, seen[i])
-    }
-    lastSeenDays = UnsafeByteOperations.unsafeWrap(lastSeenBytes)
-  }
+    streamChunks(arrayOf(dayOnly), chunkEntries) { eventDay }
 
   companion object {
-    /** ~16M entries (~288 MB of fps+ranks+last_seen) per record: one buffer in memory at a time. */
-    const val DEFAULT_CHUNK_ENTRIES = 16 * 1024 * 1024
+    /** ~1M entries (~18 MB of fps+ranks+last_seen) per record: one buffer in memory at a time. */
+    const val DEFAULT_CHUNK_ENTRIES = 1 * 1024 * 1024
+
+    /**
+     * Initial size of the growable primitive buffer of doomed keys in [freeAgedRanks]. Sized to
+     * skip the first several grow-and-copy doublings on a real retention cutover (starting at 16
+     * would double ~6 times to reach this); still trivially small when fewer keys age out.
+     */
+    private const val INITIAL_FREE_BUFFER = 1024
   }
 }

@@ -105,6 +105,9 @@ kingdom: #Kingdom & {
 				_grpcThreadPoolSize: #SystemServerGrpcThreads
 			}
 		}
+		"v2alpha-public-api-server": {
+			_rateLimitConfigPath: "/etc/\(#AppName)/config-files/rate_limit_config.textproto"
+		}
 	}
 
 	cronJobs: {

@@ -23,6 +23,7 @@ import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.common.cel.CelPredicates
 import org.wfanet.measurement.common.cel.CelValidationException
+import org.wfanet.measurement.internal.reporting.v2.EventFilter as InternalEventFilter
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField as InternalEventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
@@ -292,9 +293,13 @@ fun buildCelExpression(
               Normalization.normalizeEventFilters(
                 impressionQualificationFilterSpec.filtersList.map { it.toInternal() }
               )) {
-              val term: InternalEventTemplateField = eventFilter.termsList.single()
-              val termValue = term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path))
-              add(buildCelTerm(term.path, termValue, emitCelNullGuardsForNestedMembers))
+              add(
+                buildCelDisjunction(
+                  eventFilter,
+                  eventTemplateFieldsByPath,
+                  emitCelNullGuardsForNestedMembers,
+                )
+              )
             }
           }
           .joinToString(" && ")
@@ -452,14 +457,44 @@ fun buildCelExpression(
     Normalization.normalizeEventFilters(dimensionSpecFilters.map { it.toInternal() }).joinToString(
       " && "
     ) {
-      val term = it.termsList.single()
+      buildCelDisjunction(it, eventTemplateFieldsByPath, emitCelNullGuardsForNestedMembers)
+    }
+  }
+}
+
+/**
+ * Emits a CEL expression for [normalizedEventFilter] as a disjunction of its terms.
+ *
+ * The emitted expression is self-contained: it can be combined with other expressions using any
+ * operator without regard to CEL operator precedence.
+ *
+ * @param normalizedEventFilter [InternalEventFilter] which has been normalized (i.e. it matches
+ *   what is returned by [Normalization.normalizeEventFilters])
+ * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
+ *   info for the field. Used for parsing [InternalEventTemplateField]
+ */
+private fun buildCelDisjunction(
+  normalizedEventFilter: InternalEventFilter,
+  eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
+  emitNullGuardForNestedMembers: Boolean,
+): String {
+  require(normalizedEventFilter.termsList.isNotEmpty()) { "EventFilter has no terms" }
+
+  val terms: List<String> =
+    normalizedEventFilter.termsList.map { term ->
       require(
         term.value.selectorCase !=
           InternalEventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
       )
       val termValue = term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path))
-      buildCelTerm(term.path, termValue, emitCelNullGuardsForNestedMembers)
+      buildCelTerm(term.path, termValue, emitNullGuardForNestedMembers)
     }
+
+  return if (terms.size == 1) {
+    terms.single()
+  } else {
+    // Join disjuncts. Add parens to ensure correct order of operations.
+    terms.joinToString(separator = " || ", prefix = "(", postfix = ")") { "($it)" }
   }
 }
 

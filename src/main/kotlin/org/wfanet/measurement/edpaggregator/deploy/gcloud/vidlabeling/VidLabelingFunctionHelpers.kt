@@ -171,6 +171,9 @@ object VidLabelingFunctionHelpers {
     require(config.vidLabeledImpressionsStorageParams.hasGcs()) {
       "VidLabelingConfig vid_labeled_impressions_storage_params must use GCS"
     }
+    require(config.edpImpressionPath.isNotEmpty()) {
+      "VidLabelingConfig.edp_impression_path is required"
+    }
     // vid_rank_map/subpool_map storage are consumed only by the memoized Phase-0 path and are
     // therefore optional in VidLabelingConfig; validate them only when set. An EDP whose model
     // lines are all non-memoized may omit them, and this template is then never consumed.
@@ -200,7 +203,13 @@ object VidLabelingFunctionHelpers {
       vidLabeledImpressionsStorageParams =
         SubpoolAssignerParamsKt.storageParams {
           gcsProjectId = config.vidLabeledImpressionsStorageParams.gcs.projectId
-          blobPrefix = "gs://${config.vidLabeledImpressionsStorageParams.gcs.bucketName}"
+          // Per-EDP labeled-output folder segment: gs://<bucket>/<edp_impression_path>/
+          // model-line/<id>/<date>/. Must match buildVidLabelerParamsTemplate and this EDP's
+          // DataAvailabilitySyncConfig edp_impression_path so the memoized Phase-2 output lands
+          // where the registrar looks (the non-memoized path composes the same prefix).
+          blobPrefix =
+            "gs://${config.vidLabeledImpressionsStorageParams.gcs.bucketName}" +
+              "/${config.edpImpressionPath}"
         }
       if (config.hasVidRankMapStorageParams()) {
         vidRankMapStorageParams =

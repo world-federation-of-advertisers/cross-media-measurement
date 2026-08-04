@@ -30,9 +30,11 @@ option java_multiple_files = true;
 //    a. If not present, use [RateLimitConfig.RateLimit.default_rate_limit][].
 message RateLimitConfig {
   // Rate limit configuration for an RPC method.
+  //
+  // Each instance represents a separate rate limiting bucket.
   message MethodRateLimit {
-    // Maximum number of requests at one time. A negative value means there is
-    // no rate limit.
+    // Maximum number of requests allowed in an instant, i.e. the burst limit. A
+    // negative value means there is no rate limit.
     int32 maximum_request_count = 1;
     // Average number of requests per second.
     double average_request_rate = 2;
@@ -40,6 +42,9 @@ message RateLimitConfig {
   message RateLimit {
     // Default rate limit that applies when there is not a per-method limit.
     // Required.
+    //
+    // This limit is shared across all methods for which there is not a
+    // per-method limit.
     MethodRateLimit default_rate_limit = 1;
 
     // Map of full method name to the rate limit for that method.

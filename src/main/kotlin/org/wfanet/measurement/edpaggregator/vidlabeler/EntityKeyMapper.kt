@@ -57,32 +57,34 @@ class EntityKeyMapper(
 
   /** Builds this row's entity keys from the mapped string columns. */
   fun map(row: Map<String, ParquetValue>): List<LabeledImpression.EntityKey> {
-    val required =
-      requiredFieldMapping.map { (entityType, column) ->
-        val id = readStringOrNull(row, column, entityType)
-        require(!id.isNullOrEmpty()) {
-          "required entity-key column '$column' (entity_type '$entityType') is null/empty; every " +
-            "impression must have a non-empty value for required entity types"
-        }
+    // One pre-sized list filled required-then-optional (same order as the previous
+    // `required + optional` concatenation), instead of two intermediate lists plus a concat.
+    val entityKeys =
+      ArrayList<LabeledImpression.EntityKey>(requiredFieldMapping.size + optionalFieldMapping.size)
+    for ((entityType, column) in requiredFieldMapping) {
+      val id = readStringOrNull(row, column, entityType)
+      require(!id.isNullOrEmpty()) {
+        "required entity-key column '$column' (entity_type '$entityType') is null/empty; every " +
+          "impression must have a non-empty value for required entity types"
+      }
+      entityKeys.add(
         entityKey {
           this.entityType = entityType
           this.entityId = id
         }
-      }
-    val optional =
-      optionalFieldMapping.mapNotNull { (entityType, column) ->
-        // A NULL / unset / empty-string cell means the impression is not associated with this
-        // entity_type (mirrors ResultsFulfiller.buildEventGroupEntityKeyMap dropping empty ids).
-        readStringOrNull(row, column, entityType)
-          ?.takeIf { it.isNotEmpty() }
-          ?.let { id ->
-            entityKey {
-              this.entityType = entityType
-              this.entityId = id
-            }
-          }
-      }
-    val entityKeys = required + optional
+      )
+    }
+    for ((entityType, column) in optionalFieldMapping) {
+      // A NULL / unset / empty-string cell means the impression is not associated with this
+      // entity_type (mirrors ResultsFulfiller.buildEventGroupEntityKeyMap dropping empty ids).
+      val id = readStringOrNull(row, column, entityType)?.takeIf { it.isNotEmpty() } ?: continue
+      entityKeys.add(
+        entityKey {
+          this.entityType = entityType
+          this.entityId = id
+        }
+      )
+    }
     require(entityKeys.isNotEmpty()) {
       "all entity-key columns are null/empty for this impression; at least one entity key is " +
         "required (required columns: ${requiredFieldMapping.values}, optional columns: " +

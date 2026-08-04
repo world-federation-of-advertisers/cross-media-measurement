@@ -5,6 +5,7 @@ load("//src/main/docker:macros.bzl", "java_image")
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__subpackages__",
 ])
 
 kt_jvm_library(
@@ -25,6 +26,7 @@ kt_jvm_library(
     name = "memoized_rank_index",
     srcs = [
         "MemoizedRankIndex.kt",
+        "MemoizedRankIndexCache.kt",
         "MemoizedRankIndexMetrics.kt",
     ],
     deps = [
@@ -33,6 +35,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:event_id_digest",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:rank_index_store",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/utils:bytes12_int_map",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:event_id_digest_bytes",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_service_kt_jvm_grpc_proto",

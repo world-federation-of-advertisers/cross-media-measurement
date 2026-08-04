@@ -34,6 +34,7 @@ exports_files([
     "basic_report_metric_spec_config.textproto",
     "impression_qualification_filter_config.textproto",
     "metric_spec_config.textproto",
+    "kingdom_rate_limit_config.textproto",
     "pdp1_tls.key",
     "pdp1_tls.pem",
 ])
@@ -246,6 +247,8 @@ SECRET_FILES = [
     "edp7_enc_public.tink",
     "edp7_tls.key",
     "edp7_tls.pem",
+    "data_availability_tls.key",
+    "data_availability_tls.pem",
     "mp1_tls.pem",
     "mp1_tls.key",
     "mp1_cs_cert.der",
