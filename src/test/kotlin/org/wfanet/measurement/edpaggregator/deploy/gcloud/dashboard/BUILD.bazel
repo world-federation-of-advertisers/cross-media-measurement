@@ -8,6 +8,7 @@ kt_jvm_test(
         "//src/main/terraform/gcloud/cmms/sql:mc_details.sql",
         "//src/main/terraform/gcloud/cmms/sql:report_detail.sql",
         "//src/main/terraform/gcloud/cmms/sql:requisition_overview.sql",
+        "//src/main/terraform/gcloud/cmms/sql:unlinked_accounts.sql",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard/tools:dashboard_compliance_check_function",
