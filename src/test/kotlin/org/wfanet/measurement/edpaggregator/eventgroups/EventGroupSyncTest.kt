@@ -208,7 +208,7 @@ class EventGroupSyncTest {
                 name = "dataProviders/data-provider-3/eventGroups/resource-id-3"
                 measurementConsumer = "measurementConsumers/measurement-consumer-2"
                 eventGroupReferenceId = "reference-id-3"
-                mediaTypes += listOf(CmmsMediaType.valueOf("OTHER"))
+                mediaTypes += listOf(CmmsMediaType.OTHER)
                 eventGroupMetadata = cmmsEventGroupMetadata {
                   this.adMetadata = cmmsAdMetadata {
                     this.campaignMetadata = cmmsCampaignMetadata {
@@ -331,7 +331,7 @@ class EventGroupSyncTest {
         endTime = timestamp { seconds = 300 }
       }
       mediaTypes +=
-        listOf(MediaType.valueOf("OTHER"), MediaType.valueOf("VIDEO"), MediaType.valueOf("DISPLAY"))
+        listOf(MediaType.OTHER, MediaType.valueOf("VIDEO"), MediaType.valueOf("DISPLAY"))
     }
     val testCampaigns = CAMPAIGNS + newCampaign
     val eventGroupSync =
@@ -367,7 +367,7 @@ class EventGroupSyncTest {
         endTime = timestamp { seconds = 300 }
       }
       mediaTypes +=
-        listOf(MediaType.valueOf("OTHER"), MediaType.valueOf("VIDEO"), MediaType.valueOf("DISPLAY"))
+        listOf(MediaType.OTHER, MediaType.valueOf("VIDEO"), MediaType.valueOf("DISPLAY"))
     }
     val testCampaigns = listOf(newCampaign)
     val eventGroupSync =
@@ -715,7 +715,7 @@ class EventGroupSyncTest {
         endTime = timestamp { seconds = 300 }
       }
       mediaTypes +=
-        listOf(MediaType.valueOf("OTHER"), MediaType.valueOf("VIDEO"), MediaType.valueOf("DISPLAY"))
+        listOf(MediaType.OTHER, MediaType.valueOf("VIDEO"), MediaType.valueOf("DISPLAY"))
     }
     val testCampaigns = listOf(newCampaign)
     val eventGroupSync =
@@ -1686,7 +1686,7 @@ class EventGroupSyncTest {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
       }
-      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+      mediaTypes += listOf(MediaType.OTHER)
     }
     assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
   }
@@ -1704,7 +1704,7 @@ class EventGroupSyncTest {
         }
       }
       measurementConsumer = "measurement-consumer-2"
-      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+      mediaTypes += listOf(MediaType.OTHER)
     }
     assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
   }
@@ -1718,7 +1718,7 @@ class EventGroupSyncTest {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
       }
-      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+      mediaTypes += listOf(MediaType.OTHER)
     }
     assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
   }
@@ -1739,7 +1739,7 @@ class EventGroupSyncTest {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
       }
-      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+      mediaTypes += listOf(MediaType.OTHER)
     }
     assertFailsWith<IllegalStateException> { EventGroupSync.validateEventGroup(eventGroup) }
   }
@@ -1850,7 +1850,7 @@ class EventGroupSyncTest {
       val invalidEventGroup = eventGroup {
         eventGroupReferenceId = "invalid-ref-id"
         measurementConsumer = "" // Invalid - empty
-        mediaTypes += listOf(MediaType.valueOf("OTHER"))
+        mediaTypes += listOf(MediaType.OTHER)
         dataAvailabilityInterval = interval {
           startTime = timestamp { seconds = 200 }
           endTime = timestamp { seconds = 300 }
@@ -1970,7 +1970,7 @@ class EventGroupSyncTest {
       val invalidEventGroup = eventGroup {
         eventGroupReferenceId = "invalid-ref-id"
         measurementConsumer = "" // Invalid - empty
-        mediaTypes += listOf(MediaType.valueOf("OTHER"))
+        mediaTypes += listOf(MediaType.OTHER)
         dataAvailabilityInterval = interval {
           startTime = timestamp { seconds = 200 }
           endTime = timestamp { seconds = 300 }
@@ -2008,7 +2008,7 @@ class EventGroupSyncTest {
       val invalidEventGroup = eventGroup {
         eventGroupReferenceId = "invalid-ref-id"
         measurementConsumer = "" // Invalid - empty
-        mediaTypes += listOf(MediaType.valueOf("OTHER"))
+        mediaTypes += listOf(MediaType.OTHER)
         dataAvailabilityInterval = interval {
           startTime = timestamp { seconds = 200 }
           endTime = timestamp { seconds = 300 }
@@ -2108,7 +2108,7 @@ class EventGroupSyncTest {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
       }
-      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+      mediaTypes += listOf(MediaType.OTHER)
     }
 
     val eventGroupSync =
@@ -2155,7 +2155,7 @@ class EventGroupSyncTest {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
       }
-      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+      mediaTypes += listOf(MediaType.OTHER)
     }
 
     val eventGroupSync =
@@ -2210,7 +2210,7 @@ class EventGroupSyncTest {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
       }
-      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+      mediaTypes += listOf(MediaType.OTHER)
     }
 
     val eventGroupSync =
@@ -2254,7 +2254,7 @@ class EventGroupSyncTest {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
       }
-      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+      mediaTypes += listOf(MediaType.OTHER)
     }
 
     val eventGroupSync =
@@ -2310,7 +2310,7 @@ class EventGroupSyncTest {
           startTime = timestamp { seconds = 200 }
           endTime = timestamp { seconds = 300 }
         }
-        mediaTypes += listOf(MediaType.valueOf("OTHER"))
+        mediaTypes += listOf(MediaType.OTHER)
       }
 
       val eventGroupSync =
@@ -2362,7 +2362,7 @@ class EventGroupSyncTest {
           startTime = timestamp { seconds = 200 }
           endTime = timestamp { seconds = 300 }
         }
-        mediaTypes += listOf(MediaType.valueOf("OTHER"))
+        mediaTypes += listOf(MediaType.OTHER)
       }
 
       val validEventGroup = eventGroup {
@@ -2431,7 +2431,7 @@ class EventGroupSyncTest {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
       }
-      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+      mediaTypes += listOf(MediaType.OTHER)
     }
 
     val eventGroupSync =
@@ -2467,7 +2467,7 @@ class EventGroupSyncTest {
           startTime = timestamp { seconds = 200 }
           endTime = timestamp { seconds = 300 }
         }
-        mediaTypes += listOf(MediaType.valueOf("OTHER"))
+        mediaTypes += listOf(MediaType.OTHER)
       }
 
       val eventGroupSync =
@@ -2551,7 +2551,7 @@ class EventGroupSyncTest {
                   name = "dataProviders/data-provider-1/eventGroups/resource-id-100"
                   measurementConsumer = "measurementConsumers/measurement-consumer-1"
                   eventGroupReferenceId = "reference-id-reduced"
-                  mediaTypes += listOf(CmmsMediaType.valueOf("OTHER"))
+                  mediaTypes += listOf(CmmsMediaType.OTHER)
                   eventGroupMetadata = cmmsEventGroupMetadata {
                     this.adMetadata = cmmsAdMetadata {
                       this.campaignMetadata = cmmsCampaignMetadata {
@@ -2569,7 +2569,7 @@ class EventGroupSyncTest {
                   name = "dataProviders/data-provider-1/eventGroups/resource-id-101"
                   measurementConsumer = "measurementConsumers/measurement-consumer-2"
                   eventGroupReferenceId = "reference-id-reduced"
-                  mediaTypes += listOf(CmmsMediaType.valueOf("OTHER"))
+                  mediaTypes += listOf(CmmsMediaType.OTHER)
                   eventGroupMetadata = cmmsEventGroupMetadata {
                     this.adMetadata = cmmsAdMetadata {
                       this.campaignMetadata = cmmsCampaignMetadata {
@@ -2612,7 +2612,7 @@ class EventGroupSyncTest {
               startTime = timestamp { seconds = 200 }
               endTime = timestamp { seconds = 300 }
             }
-            mediaTypes += listOf(MediaType.valueOf("OTHER"))
+            mediaTypes += listOf(MediaType.OTHER)
           }
 
           val eventGroupSync =
@@ -2717,7 +2717,7 @@ class EventGroupSyncTest {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
       }
-      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+      mediaTypes += listOf(MediaType.OTHER)
     }
 
     // Should not throw an exception
@@ -2740,7 +2740,7 @@ class EventGroupSyncTest {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
       }
-      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+      mediaTypes += listOf(MediaType.OTHER)
     }
 
     val exception =
@@ -3101,7 +3101,7 @@ class EventGroupSyncTest {
         startTime = timestamp { seconds = 200 }
         endTime = timestamp { seconds = 300 }
       }
-      mediaTypes += listOf(MediaType.valueOf("OTHER"))
+      mediaTypes += listOf(MediaType.OTHER)
     }
 
     val exception =
@@ -5136,7 +5136,7 @@ class EventGroupSyncTest {
             startTime = timestamp { seconds = 200 }
             endTime = timestamp { seconds = 300 }
           }
-          mediaTypes += listOf(MediaType.valueOf("OTHER"))
+          mediaTypes += listOf(MediaType.OTHER)
         },
         eventGroup {
           eventGroupReferenceId = "reference-id-3"
@@ -5153,7 +5153,7 @@ class EventGroupSyncTest {
             startTime = timestamp { seconds = 200 }
             endTime = timestamp { seconds = 300 }
           }
-          mediaTypes += listOf(MediaType.valueOf("OTHER"))
+          mediaTypes += listOf(MediaType.OTHER)
         },
         eventGroup {
           eventGroupReferenceId = "reference-id-1"
