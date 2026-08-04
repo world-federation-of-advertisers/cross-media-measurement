@@ -563,11 +563,14 @@ class TrusTeeProcessorImplTest {
 
   @Test
   fun `computeResult with deterministic noise releases when impressions clear the threshold`() {
-    // 100 users seen once is 100 impressions; the draw is bounded by the truncation bound, so this
-    // clears min_impressions regardless of the seed.
-    val params = deterministicParamsWithThresholds(minUsers = 1, minImpressions = 10)
+    // 100 users seen 5 times each: 500 impressions against 100 users. The threshold sits between
+    // the
+    // two, so this only clears it if repeat views count toward min_impressions. A noiser capping at
+    // 1 per user reads 100 and suppresses. The draw is bounded by the truncation bound, so the
+    // margin holds regardless of the seed.
+    val params = deterministicParamsWithThresholds(minUsers = 1, minImpressions = 200)
     val processor = TrusTeeProcessorImpl(params)
-    processor.addFrequencyVector(ByteArray(100) { 1 })
+    processor.addFrequencyVector(ByteArray(100) { 5 })
 
     val result = processor.computeResult() as ReachAndFrequencyResult
 
