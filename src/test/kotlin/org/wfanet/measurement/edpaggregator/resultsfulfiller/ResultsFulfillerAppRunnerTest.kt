@@ -140,6 +140,7 @@ class ResultsFulfillerAppRunnerTest {
     val config = kmsConfig {
       kmsType = EventDataProviderConfig.KmsConfig.KmsType.AWS_CONFIDENTIAL_SPACE
       awsRoleArn = "arn:aws:iam::123456789012:role/my-role"
+      awsRoleSessionName = "my-session"
       awsRegion = "us-east-1"
       awsAudience = "https://example.com"
     }

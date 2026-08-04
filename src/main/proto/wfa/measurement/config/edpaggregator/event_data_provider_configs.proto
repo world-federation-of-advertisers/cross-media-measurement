@@ -46,7 +46,9 @@ message EventDataProviderConfig {
     // Type of KMS provider. Defaults to GCP for backward compatibility.
     KmsType kms_type = 3;
 
-    // AWS IAM role ARN to assume via GCP identity federation.
+    // AWS IAM role ARN to assume via AWS STS. For AWS the role is assumed with
+    // a GCP-minted OIDC token; for AWS_CONFIDENTIAL_SPACE it is assumed
+    // directly with a Confidential Space attestation token.
     string aws_role_arn = 4;
     // Identifier for the assumed AWS role session.
     string aws_role_session_name = 5;
