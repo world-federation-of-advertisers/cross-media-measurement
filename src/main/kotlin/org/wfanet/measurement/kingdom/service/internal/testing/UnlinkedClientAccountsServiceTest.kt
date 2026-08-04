@@ -502,12 +502,45 @@ abstract class UnlinkedClientAccountsServiceTest<T : UnlinkedClientAccountsCorou
         unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
           replaceUnlinkedClientAccountsRequest {
             externalDataProviderId = dataProvider.externalDataProviderId
-            unlinkedClientAccounts +=
-              unlinkedClientAccount { clientAccountReferenceId = "a".repeat(37) }
+            unlinkedClientAccounts += unlinkedClientAccount {
+              clientAccountReferenceId = "a".repeat(37)
+            }
           }
         )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
+
+  @Test
+  fun `replaceUnlinkedClientAccounts round-trips an unset observed_event_group`(): Unit =
+    runBlocking {
+      val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+
+      val response =
+        unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
+          replaceUnlinkedClientAccountsRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            unlinkedClientAccounts += unlinkedClientAccount {
+              clientAccountReferenceId = "ref-1"
+              brands += "brand-a"
+            }
+          }
+        )
+
+      val account = response.unlinkedClientAccountsList.single()
+      assertThat(account.observedEventGroupCase)
+        .isEqualTo(UnlinkedClientAccount.ObservedEventGroupCase.OBSERVEDEVENTGROUP_NOT_SET)
+      assertThat(account.hasEntityKey()).isFalse()
+      assertThat(account.hasEventGroupReferenceId()).isFalse()
+
+      val listed =
+        unlinkedClientAccountsService.listUnlinkedClientAccounts(
+          listUnlinkedClientAccountsRequest {
+            this.filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
+          }
+        )
+      // The unset oneof round-trips through storage as unset, not an empty reference ID.
+      assertThat(listed.unlinkedClientAccountsList.single()).isEqualTo(account)
+    }
 }

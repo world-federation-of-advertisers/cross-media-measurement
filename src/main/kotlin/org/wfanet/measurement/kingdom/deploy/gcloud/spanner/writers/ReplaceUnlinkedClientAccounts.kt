@@ -115,18 +115,27 @@ class ReplaceUnlinkedClientAccounts(
 /**
  * Sets the EventGroup traceability columns from the `observed_event_group` oneof.
  *
- * When [account] carries an entity key, the EventGroupEntityKey* columns are populated and
- * EventGroupReferenceId is left null; otherwise EventGroupReferenceId is populated and the
- * entity-key columns are left null.
+ * Exactly one of the traceability columns is populated per the observed_event_group oneof: an
+ * entity key populates the EventGroupEntityKey* columns, an event group reference ID populates
+ * EventGroupReferenceId, and an unset oneof leaves all three null so the unset case round-trips as
+ * unset rather than an empty reference ID.
  */
 private fun Mutation.WriteBuilder.setObservedEventGroupColumns(account: UnlinkedClientAccount) {
-  if (account.hasEntityKey()) {
-    set("EventGroupReferenceId").to(null as String?)
-    set("EventGroupEntityKeyType").to(account.entityKey.entityType)
-    set("EventGroupEntityKeyId").to(account.entityKey.entityId)
-  } else {
-    set("EventGroupReferenceId").to(account.eventGroupReferenceId)
-    set("EventGroupEntityKeyType").to(null as String?)
-    set("EventGroupEntityKeyId").to(null as String?)
+  when (account.observedEventGroupCase) {
+    UnlinkedClientAccount.ObservedEventGroupCase.ENTITY_KEY -> {
+      set("EventGroupReferenceId").to(null as String?)
+      set("EventGroupEntityKeyType").to(account.entityKey.entityType)
+      set("EventGroupEntityKeyId").to(account.entityKey.entityId)
+    }
+    UnlinkedClientAccount.ObservedEventGroupCase.EVENT_GROUP_REFERENCE_ID -> {
+      set("EventGroupReferenceId").to(account.eventGroupReferenceId)
+      set("EventGroupEntityKeyType").to(null as String?)
+      set("EventGroupEntityKeyId").to(null as String?)
+    }
+    UnlinkedClientAccount.ObservedEventGroupCase.OBSERVEDEVENTGROUP_NOT_SET -> {
+      set("EventGroupReferenceId").to(null as String?)
+      set("EventGroupEntityKeyType").to(null as String?)
+      set("EventGroupEntityKeyId").to(null as String?)
+    }
   }
 }
