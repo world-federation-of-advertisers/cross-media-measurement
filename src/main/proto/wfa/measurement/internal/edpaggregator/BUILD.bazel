@@ -420,3 +420,31 @@ kt_jvm_grpc_proto_library(
     name = "vid_labeling_job_service_kt_jvm_grpc_proto",
     deps = [":vid_labeling_job_service_proto"],
 )
+
+proto_library(
+    name = "unlinked_client_account_proto",
+    srcs = ["unlinked_client_account.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "unlinked_client_account_kt_jvm_proto",
+    deps = [":unlinked_client_account_proto"],
+)
+
+proto_library(
+    name = "unlinked_client_account_service_proto",
+    srcs = ["unlinked_client_account_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":unlinked_client_account_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "unlinked_client_account_service_kt_jvm_grpc_proto",
+    deps = [":unlinked_client_account_service_proto"],
+)

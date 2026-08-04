@@ -36,6 +36,7 @@ import org.wfanet.measurement.internal.reporting.v2.ResultGroupMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupSpec
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.resultGroup
+import org.wfanet.measurement.reporting.service.internal.Normalization
 
 /** The type of the resources that a [ReportingUnit]'s components reference. */
 private enum class ReportingUnitComponentType {
@@ -526,7 +527,8 @@ object BasicReportProcessedResultsTransformation {
         ResultGroupSpecKey(
           metricFrequencySpec = resultGroupSpec.metricFrequency,
           groupingFields = resultGroupSpec.dimensionSpec.grouping.eventTemplateFieldsList.toSet(),
-          eventFilters = resultGroupSpec.dimensionSpec.filtersList.toSet(),
+          eventFilters =
+            Normalization.normalizeEventFilters(resultGroupSpec.dimensionSpec.filtersList).toSet(),
         )
       )
 
@@ -940,6 +942,7 @@ object BasicReportProcessedResultsTransformation {
 
   private data class ResultGroupSpecKey(
     val metricFrequencySpec: MetricFrequencySpec,
+    /** Normalized [EventFilter]s, i.e. as returned by [Normalization.normalizeEventFilters]. */
     val eventFilters: Set<EventFilter>,
     val groupingFields: Set<String>,
   )
