@@ -560,8 +560,8 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/crc32c/1.1.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.87.0/MODULE.bazel": "c678b3f46885c8dea8e0de6215dc3b935ff93d632eec5d603e0690ce61571398",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.94.0/MODULE.bazel": "c47c3a60edd160e22cf491c4567347275909483bfd74aff233149f0a5c7124a5",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.96.0/MODULE.bazel": "15926543388631bd8e15b784bdface040e8509db84571ebf6dd70c61eca678b9",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.96.0/source.json": "5b3c253a49e7f3c7799514abf0e06fd4324acd22d8246ba7cee9791a6e8757df",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.97.0/MODULE.bazel": "6e147f36b9ff66e4a179c075a67aecb6b9a80b4c25d21231820f93a261c3f09b",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.97.0/source.json": "18d6b1c50624ba7fdb34db5832a5560924cc379806024d725510b4162681f917",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/curl/8.4.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/curl/8.7.1/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/curl/8.8.0.bcr.3/MODULE.bazel": "not found",
@@ -1699,7 +1699,7 @@
     "@@cross-media-measurement-api+//build:non_module_deps.bzl%non_module_deps": {
       "general": {
         "bzlTransitiveDigest": "106KtriH+KcBTg/tpZH9+v5m6bY0biSfPAuAoCsRay0=",
-        "usagesDigest": "RhKdXJUt0vplU3Noz2BFNjvBQ97iCQ8ArqjY2zgSyPw=",
+        "usagesDigest": "6O2HwuGCIMTf01ZQzfnHHlihOOdUhUvjr0WKor+ZsQE=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
