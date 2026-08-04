@@ -7,6 +7,7 @@ kt_jvm_test(
         "//src/main/terraform/gcloud/cmms/sql:mc_details.sql",
         "//src/main/terraform/gcloud/cmms/sql:report_detail.sql",
         "//src/main/terraform/gcloud/cmms/sql:requisition_overview.sql",
+        "//src/main/terraform/gcloud/cmms/sql:unlinked_accounts.sql",
     ],
     deps = [
         "@wfa_common_jvm//imports/java/com/google/common/truth",
