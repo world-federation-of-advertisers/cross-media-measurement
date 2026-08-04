@@ -39,18 +39,8 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.149.0",
+    version = "0.150.0",
     repo_name = "wfa_common_jvm",
-)
-
-# DO_NOT_SUBMIT: temporarily build against the unmerged common-jvm branch that adds the
-# direct Confidential Space -> AWS KMS client factory (world-federation-of-advertisers/
-# common-jvm#402). Remove this override and bump the common-jvm version above once that PR
-# is merged and released.
-git_override(
-    module_name = "common-jvm",
-    commit = "fa4ed02205eb2bf8a0846bffa4193edd334bcc68",
-    remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
 bazel_dep(
     name = "common-cpp",
