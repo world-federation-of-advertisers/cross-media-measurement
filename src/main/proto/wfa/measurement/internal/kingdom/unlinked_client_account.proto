@@ -31,6 +31,8 @@ message UnlinkedClientAccount {
   fixed64 external_data_provider_id = 1;
 
   // Reference ID of the client account in the DataProvider ecosystem.
+  //
+  // Must be at most 36 characters.
   string client_account_reference_id = 2;
 
   // The distinct brands observed for this client account. Display hint only.

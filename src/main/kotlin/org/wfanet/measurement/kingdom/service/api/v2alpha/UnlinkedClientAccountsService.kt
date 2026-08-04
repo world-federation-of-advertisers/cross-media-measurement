@@ -84,6 +84,9 @@ class UnlinkedClientAccountsService(
       grpcRequire(account.clientAccountReferenceId.isNotEmpty()) {
         "unlinked_client_accounts.$index.client_account_reference_id must be specified"
       }
+      grpcRequire(account.clientAccountReferenceId.length <= 36) {
+        "unlinked_client_accounts.$index.client_account_reference_id must be <= 36 characters"
+      }
       grpcRequire(referenceIds.add(account.clientAccountReferenceId)) {
         "unlinked_client_accounts.$index.client_account_reference_id is a duplicate"
       }

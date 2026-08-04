@@ -253,4 +253,20 @@ class UnlinkedClientAccountsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
+
+  @Test
+  fun `replaceUnlinkedClientAccounts throws INVALID_ARGUMENT when reference id too long`() {
+    val request = replaceUnlinkedClientAccountsRequest {
+      parent = DATA_PROVIDER_NAME
+      unlinkedClientAccounts += unlinkedClientAccount { clientAccountReferenceId = "a".repeat(37) }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.replaceUnlinkedClientAccounts(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
 }
