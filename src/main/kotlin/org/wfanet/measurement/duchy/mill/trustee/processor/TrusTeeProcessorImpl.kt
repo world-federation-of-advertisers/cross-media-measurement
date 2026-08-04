@@ -86,6 +86,13 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
       "Input vector size ${vector.size} does not match expected size ${currentVector.size}"
     }
 
+    // Validated before the suppression check below, so a malformed vector fails for every
+    // mechanism rather than being silently dropped under deterministic noise.
+    val invalidFrequency: Byte? = vector.firstOrNull { it < 0 }
+    require(invalidFrequency == null) {
+      "Invalid frequency value in byte array: $invalidFrequency. Frequency must be non-negative."
+    }
+
     // For deterministic truncated-Laplace noise, drop a contribution whose own reach is below the
     // min_users threshold before it enters the aggregate, so its marginal cannot be recovered by
     // differencing overlapping regions. The dropped vector is treated as all-zeros.
@@ -94,11 +101,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
     }
 
     for (i in vector.indices) {
-      val frequency = vector[i].toInt()
-      require(frequency >= 0) {
-        "Invalid frequency value in byte array: $frequency. Frequency must be non-negative."
-      }
-      currentVector[i] = (currentVector[i] + frequency).coerceAtMost(maxFrequency)
+      currentVector[i] = (currentVector[i] + vector[i].toInt()).coerceAtMost(maxFrequency)
     }
     contributionCount++
   }
@@ -186,6 +189,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
         frequencyEpsilon =
           requireNotNull(frequencyDpParams) { FREQUENCY_DP_PARAMS_REQUIRED }.epsilon,
         truncationBound = truncationBound,
+        maxFrequencyPerUser = resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1,
       )
     }
     if (reachDpParams == null || frequencyDpParams == null) {

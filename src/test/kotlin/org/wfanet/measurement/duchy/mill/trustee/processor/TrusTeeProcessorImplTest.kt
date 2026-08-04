@@ -562,6 +562,43 @@ class TrusTeeProcessorImplTest {
   }
 
   @Test
+  fun `computeResult with deterministic noise releases when impressions clear the threshold`() {
+    // 100 users seen once is 100 impressions; the draw is bounded by the truncation bound, so this
+    // clears min_impressions regardless of the seed.
+    val params = deterministicParamsWithThresholds(minUsers = 1, minImpressions = 10)
+    val processor = TrusTeeProcessorImpl(params)
+    processor.addFrequencyVector(ByteArray(100) { 1 })
+
+    val result = processor.computeResult() as ReachAndFrequencyResult
+
+    assertThat(result.reach).isGreaterThan(0)
+  }
+
+  @Test
+  fun `computeResult with deterministic noise suppresses when impressions miss the threshold`() {
+    // Same 100 impressions against a threshold the truncated draw cannot bridge.
+    val params = deterministicParamsWithThresholds(minUsers = 1, minImpressions = 10_000)
+    val processor = TrusTeeProcessorImpl(params)
+    processor.addFrequencyVector(ByteArray(100) { 1 })
+
+    val result = processor.computeResult() as ReachAndFrequencyResult
+
+    assertThat(result.reach).isEqualTo(0)
+  }
+
+  @Test
+  fun `addFrequencyVector rejects a negative frequency under deterministic noise`() {
+    // The suppression check must not swallow a malformed vector: a negative byte reads as reach 0,
+    // which would otherwise look sub-threshold and be dropped silently.
+    val processor =
+      TrusTeeProcessorImpl(deterministicParamsWithThresholds(minUsers = 2, minImpressions = 1))
+
+    assertFailsWith<IllegalArgumentException> {
+      processor.addFrequencyVector(byteArrayOf(-1, -1, 0, 0, 0, 0, 0, 0, 0, 0))
+    }
+  }
+
+  @Test
   fun `computeResult with deterministic noise drops a sub-threshold vector before aggregating`() {
     // A contribution whose own reach is below min_users is dropped before aggregation, so adding it
     // does not change the result. This blocks recovering its marginal by differencing.
@@ -592,6 +629,20 @@ class TrusTeeProcessorImplTest {
     assertThat(withSubThreshold.reach).isEqualTo(withoutSubThreshold.reach)
     assertThat(withSubThreshold.frequency).isEqualTo(withoutSubThreshold.frequency)
   }
+
+  private fun deterministicParamsWithThresholds(
+    minUsers: Int,
+    minImpressions: Int,
+  ): TrusTeeReachAndFrequencyParams =
+    TrusTeeReachAndFrequencyParams(
+      maximumFrequency = MAX_FREQUENCY,
+      vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
+      reachDpParams = DEFAULT_DP_PARAMS,
+      frequencyDpParams = DEFAULT_DP_PARAMS,
+      resultMinimumThresholds = ResultMinimumThresholds(minUsers, minImpressions),
+      noiseMechanism = NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+      truncationBound = TRUNCATION_BOUND,
+    )
 
   companion object {
     private const val MAX_FREQUENCY = 5
