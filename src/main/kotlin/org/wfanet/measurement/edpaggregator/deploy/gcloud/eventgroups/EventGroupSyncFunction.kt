@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineStub
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -84,6 +85,7 @@ class EventGroupSyncFunction() : HttpFunction {
             )
           val eventGroupsClient = EventGroupsCoroutineStub(kingdomChannel)
           val clientAccountsClient = ClientAccountsCoroutineStub(kingdomChannel)
+          val unlinkedClientAccountsClient = UnlinkedClientAccountsCoroutineStub(kingdomChannel)
           val eventGroups: Flow<EventGroup> =
             Tracing.traceSuspending(
               spanName = "load_event_groups",
@@ -113,6 +115,7 @@ class EventGroupSyncFunction() : HttpFunction {
                   edpName = eventGroupSyncConfig.dataProvider,
                   eventGroupsStub = eventGroupsClient,
                   clientAccountsStub = clientAccountsClient,
+                  unlinkedClientAccountsStub = unlinkedClientAccountsClient,
                   eventGroups = eventGroups,
                   throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration),
                   listEventGroupPageSize,
