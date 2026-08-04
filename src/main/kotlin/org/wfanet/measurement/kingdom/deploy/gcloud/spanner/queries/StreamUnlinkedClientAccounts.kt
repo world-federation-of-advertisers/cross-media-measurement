@@ -31,7 +31,10 @@ class StreamUnlinkedClientAccounts(
   override val reader =
     UnlinkedClientAccountReader().fillStatementBuilder {
       appendWhereClause()
-      appendClause("ORDER BY UnlinkedClientAccounts.ClientAccountReferenceId ASC")
+      appendClause(
+        "ORDER BY DataProviders.ExternalDataProviderId ASC, " +
+          "UnlinkedClientAccounts.ClientAccountReferenceId ASC"
+      )
       if (limit > 0) {
         appendClause("LIMIT @${LIMIT_PARAM}")
         bind(LIMIT_PARAM to limit.toLong())
@@ -47,9 +50,16 @@ class StreamUnlinkedClientAccounts(
     }
 
     if (after != null) {
+      // Compound keyset cursor matching the (ExternalDataProviderId,
+      // ClientAccountReferenceId) sort order. ClientAccountReferenceId is unique only
+      // within a DataProvider, so the cursor must also key on ExternalDataProviderId to
+      // page correctly when listing across DataProviders.
       conjuncts.add(
-        "UnlinkedClientAccounts.ClientAccountReferenceId > @${CLIENT_ACCOUNT_REFERENCE_ID}"
+        "(DataProviders.ExternalDataProviderId > @${AFTER_EXTERNAL_DATA_PROVIDER_ID} OR " +
+          "(DataProviders.ExternalDataProviderId = @${AFTER_EXTERNAL_DATA_PROVIDER_ID} AND " +
+          "UnlinkedClientAccounts.ClientAccountReferenceId > @${CLIENT_ACCOUNT_REFERENCE_ID}))"
       )
+      bind(AFTER_EXTERNAL_DATA_PROVIDER_ID to after.externalDataProviderId)
       bind(CLIENT_ACCOUNT_REFERENCE_ID to after.clientAccountReferenceId)
     }
 
@@ -64,6 +74,7 @@ class StreamUnlinkedClientAccounts(
   companion object {
     private const val LIMIT_PARAM = "limit"
     private const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
+    private const val AFTER_EXTERNAL_DATA_PROVIDER_ID = "afterExternalDataProviderId"
     private const val CLIENT_ACCOUNT_REFERENCE_ID = "clientAccountReferenceId"
   }
 }
