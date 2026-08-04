@@ -98,6 +98,9 @@ object DashboardComplianceRunner {
     sections.add(Section("UDF Output Validation", checks.checkUdfOutputValidation(bq)))
     sections.add(Section("Drift Detection", checks.checkDriftDetection(bq, edps)))
     sections.add(Section("Data Freshness", checks.checkFreshness(bq)))
+    sections.add(
+      Section("Unlinked Accounts Pipeline", checks.checkUnlinkedAccountsPipeline(bq))
+    )
 
     return Report(sections)
   }
