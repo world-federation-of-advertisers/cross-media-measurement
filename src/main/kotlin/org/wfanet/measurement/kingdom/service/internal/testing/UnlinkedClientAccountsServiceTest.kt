@@ -492,4 +492,22 @@ abstract class UnlinkedClientAccountsServiceTest<T : UnlinkedClientAccountsCorou
     private const val RANDOM_SEED = 1
     private const val MAX_PAGE_SIZE = 1000
   }
+
+  @Test
+  fun `replaceUnlinkedClientAccounts fails when reference ID too long`(): Unit = runBlocking {
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
+          replaceUnlinkedClientAccountsRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            unlinkedClientAccounts +=
+              unlinkedClientAccount { clientAccountReferenceId = "a".repeat(37) }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
 }

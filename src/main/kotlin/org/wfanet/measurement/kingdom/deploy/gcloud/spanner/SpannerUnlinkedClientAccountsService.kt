@@ -60,6 +60,14 @@ class SpannerUnlinkedClientAccountsService(
           )
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
+      if (account.clientAccountReferenceId.length > 36) {
+        throw InvalidFieldValueException(
+            "unlinked_client_accounts.$index.client_account_reference_id"
+          ) { fieldPath ->
+            "Length of $fieldPath must be at most 36 characters"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
       if (!referenceIds.add(account.clientAccountReferenceId)) {
         throw InvalidFieldValueException(
             "unlinked_client_accounts.$index.client_account_reference_id"
