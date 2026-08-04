@@ -52,6 +52,13 @@ class SpannerUnlinkedClientAccountsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    if (request.unlinkedClientAccountsList.size > MAX_BATCH_SIZE) {
+      throw InvalidFieldValueException("unlinked_client_accounts") { fieldPath ->
+          "Number of $fieldPath must be at most $MAX_BATCH_SIZE"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
     val referenceIds = mutableSetOf<String>()
     for ((index, account) in request.unlinkedClientAccountsList.withIndex()) {
       if (account.clientAccountReferenceId.isEmpty()) {
@@ -136,6 +143,7 @@ class SpannerUnlinkedClientAccountsService(
   }
 
   companion object {
+    private const val MAX_BATCH_SIZE = 1000
     private const val MAX_PAGE_SIZE = 1000
     private const val DEFAULT_PAGE_SIZE = 50
   }
