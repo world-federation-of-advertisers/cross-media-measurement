@@ -531,7 +531,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
                       reportingUnitComponentSummary +=
                         ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderDisplayName = "display"
-                          // external_reporting_set_id intentionally left unset.
                         }
                     }
                 }
@@ -587,7 +586,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
                   reportingSetComponents +=
                     ResultGroupKt.MetricSetKt.reportingSetComponentMetricSetMapEntry {
                       value = ResultGroupKt.MetricSetKt.componentMetricSet {}
-                      // external_reporting_set_id intentionally left unset.
                     }
                 }
             }
