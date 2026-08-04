@@ -25,6 +25,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.duchy.deploy.common.daemon.mill.trustee.TrusTeeMillDaemon
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.gcloud.kms.ConfidentialSpaceToAwsKmsClientFactory
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.gcloud.kms.GCloudToAwsKmsClientFactory
 import picocli.CommandLine
@@ -85,7 +86,12 @@ class GcsTrusTeeMillDaemon : TrusTeeMillDaemon() {
     saveCerts()
 
     val gcs = GcsFromFlags(gcsFlags)
-    run(GcsStorageClient.fromFlags(gcs), GCloudKmsClientFactory(), GCloudToAwsKmsClientFactory())
+    run(
+      GcsStorageClient.fromFlags(gcs),
+      GCloudKmsClientFactory(),
+      GCloudToAwsKmsClientFactory(),
+      ConfidentialSpaceToAwsKmsClientFactory(),
+    )
   }
 
   private fun saveCerts() {
