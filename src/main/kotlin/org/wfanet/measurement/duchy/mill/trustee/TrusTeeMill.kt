@@ -28,6 +28,7 @@ import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.tink.ConfidentialSpaceToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
@@ -72,6 +73,8 @@ class TrusTeeMill(
   private val trusTeeProcessorFactory: TrusTeeProcessor.Factory,
   private val gcloudKmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
   private val gcloudToAwsKmsClientFactory: KmsClientFactory<GCloudToAwsWifCredentials>,
+  private val confidentialSpaceToAwsKmsClientFactory:
+    KmsClientFactory<ConfidentialSpaceToAwsWifCredentials>,
   private val attestationTokenPath: Path,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
@@ -226,20 +229,38 @@ class TrusTeeMill(
     try {
       return if (protocol.hasAwsKmsParams()) {
         val awsConfig = protocol.awsKmsParams
-        val credentials =
-          GCloudToAwsWifCredentials(
-            gcloudAudience = protocol.workloadIdentityProvider,
-            subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
-            tokenUrl = GOOGLE_STS_TOKEN_URL,
-            credentialSourceFilePath = attestationTokenPath.toString(),
-            serviceAccountImpersonationUrl =
-              IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
-            roleArn = awsConfig.roleArn,
-            roleSessionName = awsConfig.roleSession,
-            region = awsConfig.region,
-            awsAudience = awsConfig.audience,
-          )
-        gcloudToAwsKmsClientFactory.getKmsClient(credentials)
+        if (
+          awsConfig.credentialSource ==
+            RequisitionDetails.RequisitionProtocol.TrusTee.AwsKmsParams.CredentialSource
+              .CONFIDENTIAL_SPACE
+        ) {
+          // Direct Confidential Space -> AWS: present the attestation token to AWS STS, with no
+          // intermediary GCP Workload Identity pool or service account.
+          val credentials =
+            ConfidentialSpaceToAwsWifCredentials(
+              roleArn = awsConfig.roleArn,
+              roleSessionName = awsConfig.roleSession,
+              region = awsConfig.region,
+              audience = awsConfig.audience,
+            )
+          confidentialSpaceToAwsKmsClientFactory.getKmsClient(credentials)
+        } else {
+          // Two-hop: GCP WIF + service-account impersonation mints the OIDC token for AWS STS.
+          val credentials =
+            GCloudToAwsWifCredentials(
+              gcloudAudience = protocol.workloadIdentityProvider,
+              subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
+              tokenUrl = GOOGLE_STS_TOKEN_URL,
+              credentialSourceFilePath = attestationTokenPath.toString(),
+              serviceAccountImpersonationUrl =
+                IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
+              roleArn = awsConfig.roleArn,
+              roleSessionName = awsConfig.roleSession,
+              region = awsConfig.region,
+              awsAudience = awsConfig.audience,
+            )
+          gcloudToAwsKmsClientFactory.getKmsClient(credentials)
+        }
       } else {
         val credentials =
           GCloudWifCredentials(
