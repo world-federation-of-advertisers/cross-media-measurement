@@ -64,6 +64,8 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.ListClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
+import org.wfanet.measurement.api.v2alpha.ReplaceUnlinkedClientAccountsRequest
+import org.wfanet.measurement.api.v2alpha.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.batchCreateEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupsResponse
@@ -72,6 +74,7 @@ import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as cmmsEventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.listClientAccountsResponse
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.replaceUnlinkedClientAccountsResponse
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
@@ -203,10 +206,17 @@ class EventGroupSyncFunctionTest() {
       .thenReturn(listClientAccountsResponse {})
   }
 
+  private val unlinkedClientAccountsServiceMock: UnlinkedClientAccountsCoroutineImplBase =
+    mockService {
+      onBlocking { replaceUnlinkedClientAccounts(any<ReplaceUnlinkedClientAccountsRequest>()) }
+        .thenReturn(replaceUnlinkedClientAccountsResponse {})
+    }
+
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(eventGroupsServiceMock)
     addService(clientAccountsServiceMock)
+    addService(unlinkedClientAccountsServiceMock)
   }
 
   @get:Rule val tempFolder = TemporaryFolder()
@@ -220,7 +230,12 @@ class EventGroupSyncFunctionTest() {
           certs = serverCerts,
           clientAuth = ClientAuth.REQUIRE,
           nameForLogging = "EventGroupsServer",
-          services = listOf(eventGroupsServiceMock.bindService()),
+          services =
+            listOf(
+              eventGroupsServiceMock.bindService(),
+              clientAccountsServiceMock.bindService(),
+              unlinkedClientAccountsServiceMock.bindService(),
+            ),
         )
         .start()
     functionProcess =
@@ -345,6 +360,85 @@ class EventGroupSyncFunctionTest() {
           "reference-id-4" to "resource-name-for-reference-id-4",
         )
       )
+  }
+
+  @Test
+  fun `sync writes unlinked client accounts via ReplaceUnlinkedClientAccounts`() {
+    val unlinkedEventGroup = eventGroup {
+      eventGroupReferenceId = "reference-id-unlinked"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-unlinked"
+            campaign = "campaign-unlinked"
+          }
+        }
+      }
+      clientAccountReferenceId = "client-ref-unlinked"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.OTHER)
+    }
+    val config = eventGroupSyncConfig {
+      dataProvider = "dataProviders/some-data-provider"
+      eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.binpb"
+      eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
+      this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+      eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
+    }
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = eventGroupSyncConfigs { configs += config }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+
+    File("${tempFolder.root}/some/path").mkdirs()
+    File("${tempFolder.root}/some/other/path").mkdirs()
+    val port = runBlocking {
+      startFunction(
+        mapOf(
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+        )
+      )
+    }
+
+    val url = "http://localhost:$port"
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    runBlocking {
+      MesosRecordIoStorageClient(storageClient)
+        .writeBlob(
+          "some/path/campaigns-blob-uri.binpb",
+          listOf(unlinkedEventGroup).map { it.toByteString() }.asFlow(),
+        )
+    }
+
+    val client = HttpClient.newHttpClient()
+    val getRequest =
+      HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
+        .build()
+    val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
+    assertThat(getResponse.statusCode()).isEqualTo(200)
+
+    val captor = argumentCaptor<ReplaceUnlinkedClientAccountsRequest>()
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
+      replaceUnlinkedClientAccounts(captor.capture())
+    }
+    val request = captor.firstValue
+    assertThat(request.parent).isEqualTo("dataProviders/some-data-provider")
+    val account = request.unlinkedClientAccountsList.single()
+    assertThat(account.clientAccountReferenceId).isEqualTo("client-ref-unlinked")
+    assertThat(account.brandsList).containsExactly("brand-unlinked")
+    assertThat(account.eventGroupReferenceId).isEqualTo("reference-id-unlinked")
   }
 
   @Test
