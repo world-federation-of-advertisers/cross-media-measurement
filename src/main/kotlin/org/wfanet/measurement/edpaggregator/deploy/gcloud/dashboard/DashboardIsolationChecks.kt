@@ -830,4 +830,62 @@ class DashboardIsolationChecks(
     }
     return results
   }
+
+  /**
+   * Detects a silently-broken `unlinked_accounts` MERGE.
+   *
+   * `unlinked_accounts` is exempt from both the empty-result isolation check and the staleness
+   * check because it is legitimately often empty. Those two exemptions together leave a blind
+   * spot: a broken federation connection, a type error, or a permissions change can leave the
+   * dashboard table empty forever and look identical to "legitimately empty". This distinguishes
+   * the two by comparing the federated Kingdom Spanner source row count to the dashboard table
+   * row count — if the source has rows but the dashboard table is empty, the scheduled MERGE is
+   * broken. It reuses the existing BigQuery client and EXTERNAL_QUERY federation, so it needs no
+   * new dependency.
+   */
+  fun checkUnlinkedAccountsPipeline(bq: BigQuery): List<CheckResult> {
+    return try {
+      val sourceCount =
+        bq.query(
+            QueryJobConfiguration.of(
+              "SELECT COUNT(*) AS cnt FROM EXTERNAL_QUERY(" +
+                "'projects/$project/locations/$region/connections/kingdom-conn', " +
+                "'''SELECT ClientAccountReferenceId FROM UnlinkedClientAccounts''')"
+            )
+          )
+          .iterateAll()
+          .first()
+          .get("cnt")
+          .longValue
+      val destCount =
+        bq.query(
+            QueryJobConfiguration.of(
+              "SELECT COUNT(*) AS cnt FROM `$project.$dataset.unlinked_accounts`"
+            )
+          )
+          .iterateAll()
+          .first()
+          .get("cnt")
+          .longValue
+      val healthy = !(sourceCount > 0 && destCount == 0L)
+      listOf(
+        CheckResult(
+          "unlinked_accounts pipeline",
+          healthy,
+          if (healthy) "unlinked_accounts: source=$sourceCount dest=$destCount (MERGE current)"
+          else
+            "unlinked_accounts: source has $sourceCount rows but dashboard is empty " +
+              "(MERGE broken?)",
+        )
+      )
+    } catch (e: BigQueryException) {
+      listOf(
+        CheckResult(
+          "unlinked_accounts pipeline",
+          false,
+          "unlinked_accounts pipeline health check failed: ${e.message}",
+        )
+      )
+    }
+  }
 }
