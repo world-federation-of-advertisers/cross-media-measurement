@@ -59,7 +59,7 @@ bazel_dep(
 # the version above once that PR is merged and released.
 git_override(
     module_name = "cross-media-measurement-api",
-    commit = "df59556f1fa59ae9f21fba82e1df8b715081b9d1",
+    commit = "3b07948528d475c355592160244829a03d24feef",
     remote = "https://github.com/world-federation-of-advertisers/cross-media-measurement-api.git",
 )
 bazel_dep(
