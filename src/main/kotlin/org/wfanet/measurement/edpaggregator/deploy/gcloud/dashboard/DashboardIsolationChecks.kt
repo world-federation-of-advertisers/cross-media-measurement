@@ -46,6 +46,7 @@ class DashboardIsolationChecks(
         "requisition_overview" to "DataProviderResourceId",
         "mc_details_edp" to "CmmsDataProvider",
         "report_detail_edp" to "CmmsDataProvider",
+        "unlinked_accounts" to "CmmsDataProvider",
       )) {
       val (tableName, column) = table
       try {
@@ -55,11 +56,20 @@ class DashboardIsolationChecks(
           )
         val ids = result.iterateAll().map { it[column].stringValue }.toSet()
         if (ids.isEmpty()) {
+          // unlinked_accounts records an edge/error condition and can legitimately
+          // be empty (an EDP with zero unlinked accounts, or a clean deployment
+          // with none). Empty means there is nothing to leak, so treat it as
+          // healthy rather than a failure. Every other table always has data for
+          // an active EDP, so an empty result there is still a failure. The
+          // cross-EDP assertion below still applies whenever rows do exist.
+          val emptyIsHealthy = tableName == "unlinked_accounts"
           results.add(
             CheckResult(
               "${edp.name}: $tableName",
-              false,
-              "${edp.name}: $tableName is empty (expected data after scheduled queries)",
+              emptyIsHealthy,
+              if (emptyIsHealthy)
+                "${edp.name}: $tableName is empty (no unlinked accounts; nothing to leak)"
+              else "${edp.name}: $tableName is empty (expected data after scheduled queries)",
             )
           )
         } else if (ids == setOf(edp.resourceId)) {
@@ -246,6 +256,7 @@ class DashboardIsolationChecks(
         "mc_details_edp",
         "report_detail",
         "report_detail_edp",
+        "unlinked_accounts",
       )
     try {
       val result =
@@ -310,7 +321,8 @@ class DashboardIsolationChecks(
         Regex("(?i).*total.?mcs.*"),
         Regex("(?i).*coverage.?percent.*"),
       )
-    val edpTables = listOf("requisition_overview", "mc_details_edp", "report_detail_edp")
+    val edpTables =
+      listOf("requisition_overview", "mc_details_edp", "report_detail_edp", "unlinked_accounts")
     try {
       val result =
         bq.query(
@@ -345,6 +357,14 @@ class DashboardIsolationChecks(
     // Check deployed table schemas match expected columns
     val expectedColumns =
       mapOf(
+        "unlinked_accounts" to
+          setOf(
+            "CmmsDataProvider",
+            "ClientAccountReferenceId",
+            "Brands",
+            "ObservedEventGroup",
+            "FirstObservedTime",
+          ),
         "requisition_overview" to
           setOf(
             "DataProviderResourceId",
@@ -473,6 +493,7 @@ class DashboardIsolationChecks(
         "requisition_overview" to "DataProviderResourceId",
         "mc_details_edp" to "CmmsDataProvider",
         "report_detail_edp" to "CmmsDataProvider",
+        "unlinked_accounts" to "CmmsDataProvider",
       )
     for ((tableName, column) in edpTableColumns) {
       try {
@@ -765,6 +786,10 @@ class DashboardIsolationChecks(
   fun checkFreshness(bq: BigQuery): List<CheckResult> {
     val results = mutableListOf<CheckResult>()
     val stalenessThresholdHours = 3
+    // unlinked_accounts is intentionally excluded from the staleness assertion:
+    // it records an edge/error condition and is often legitimately empty, and an
+    // hourly MERGE that affects zero rows does not bump lastModifiedTime. For this
+    // table "not recently modified" is a healthy state, not staleness.
     for (tableName in listOf("requisition_overview", "mc_details", "mc_details_edp")) {
       try {
         val table = bq.getTable(TableId.of(project, dataset, tableName))
