@@ -310,7 +310,6 @@ class BasicReportsService(
         request.basicReport.reportingInterval.reportStart
       }
 
-    val reportingSetMaps: ReportingSetMaps<*> = buildReportingSetMaps(campaignGroupResolution)
     val effectiveModelLine: ModelLine =
       try {
         getEffectiveModelLine(
@@ -335,6 +334,10 @@ class BasicReportsService(
     }
 
     authorization.check(request.parent, requiredPermissionIds)
+
+    // Creates ReportingSets, so it must not run until the request is known to be valid and
+    // authorized.
+    val reportingSetMaps: ReportingSetMaps<*> = buildReportingSetMaps(campaignGroupResolution)
 
     val baseImpressionQualificationFilterKeys: List<ImpressionQualificationFilterKey> =
       baseExternalImpressionQualificationFilterIds.map { ImpressionQualificationFilterKey(it) }

@@ -3381,6 +3381,21 @@ class BasicReportsServiceTest {
           )
         }
       assertThat(internalException).status().code().isEqualTo(Status.Code.NOT_FOUND)
+
+      val reportingSets =
+        internalReportingSetsService
+          .streamReportingSets(
+            streamReportingSetsRequest {
+              filter =
+                StreamReportingSetsRequestKt.filter {
+                  cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+                  externalCampaignGroupId = campaignGroupKey.reportingSetId
+                }
+            }
+          )
+          .toList()
+      assertThat(reportingSets.map { it.externalReportingSetId })
+        .containsExactly(campaignGroupKey.reportingSetId)
     }
 
   @Test
