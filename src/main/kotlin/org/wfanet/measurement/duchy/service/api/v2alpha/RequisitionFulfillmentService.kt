@@ -344,24 +344,27 @@ class RequisitionFulfillmentService(
               this.populationSpecFingerprint = populationSpecFingerprint
               if (envelopeEncryption.hasAwsKmsParams()) {
                 val apiAwsKmsParams = envelopeEncryption.awsKmsParams
+                // Which audience is set determines how the mill authenticates to AWS STS.
+                val (awsAudience, awsCredentialSource) =
+                  when (apiAwsKmsParams.tokenAudienceCase) {
+                    TokenAudienceCase.WORKLOAD_IDENTITY_ID_TOKEN_AUDIENCE ->
+                      apiAwsKmsParams.workloadIdentityIdTokenAudience to
+                        InternalCredentialSource.GCP_WORKLOAD_IDENTITY
+                    TokenAudienceCase.CONFIDENTIAL_SPACE_ATTESTATION_TOKEN_AUDIENCE ->
+                      apiAwsKmsParams.confidentialSpaceAttestationTokenAudience to
+                        InternalCredentialSource.CONFIDENTIAL_SPACE
+                    TokenAudienceCase.TOKENAUDIENCE_NOT_SET ->
+                      failGrpc {
+                        "trus_tee.envelope_encryption.aws_kms_params.token_audience not set"
+                      }
+                  }
                 this.awsKmsParams =
                   RequisitionDetailsKt.RequisitionProtocolKt.TrusTeeKt.awsKmsParams {
                     roleArn = apiAwsKmsParams.roleArn
                     roleSession = apiAwsKmsParams.roleSession
                     region = apiAwsKmsParams.region
-                    // Which audience is set determines how the mill authenticates to AWS STS.
-                    when (apiAwsKmsParams.tokenAudienceCase) {
-                      TokenAudienceCase.WORKLOAD_IDENTITY_ID_TOKEN_AUDIENCE -> {
-                        audience = apiAwsKmsParams.workloadIdentityIdTokenAudience
-                        credentialSource = InternalCredentialSource.GCP_WORKLOAD_IDENTITY
-                      }
-                      TokenAudienceCase.CONFIDENTIAL_SPACE_ATTESTATION_TOKEN_AUDIENCE -> {
-                        audience = apiAwsKmsParams.confidentialSpaceAttestationTokenAudience
-                        credentialSource = InternalCredentialSource.CONFIDENTIAL_SPACE
-                      }
-                      TokenAudienceCase.TOKENAUDIENCE_NOT_SET ->
-                        failGrpc { "aws_kms_params.token_audience not set" }
-                    }
+                    audience = awsAudience
+                    credentialSource = awsCredentialSource
                   }
               }
             }
