@@ -120,6 +120,8 @@ data class TrusTeeConfig(
  *   protocol noise mechanism is not in this set will be refused. When empty, no multi-party noise
  *   validation is performed.
  * @param trusTeeConfig configuration for TrusTee protocol; null disables TrusTee
+ * @param deterministicTruncationBound truncation bound for deterministic truncated-Laplace Direct
+ *   noise; required when the EDP is configured for that mechanism
  */
 class DefaultFulfillerSelector(
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
@@ -133,6 +135,7 @@ class DefaultFulfillerSelector(
   private val supportedMultiPartyNoiseMechanisms: Set<NoiseMechanism>,
   private val trusTeeConfig: TrusTeeConfig? = null,
   private val kekUriToKeyNameMap: Map<String, String> = emptyMap(),
+  private val deterministicTruncationBound: Int? = null,
 ) : FulfillerSelector {
 
   init {
@@ -333,6 +336,7 @@ class DefaultFulfillerSelector(
         resultMinimumThresholds = resultMinimumThresholds,
         impressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
         totalUncappedImpressions = totalUncappedImpressions,
+        deterministicTruncationBound = deterministicTruncationBound,
       )
     return DirectMeasurementFulfiller(
       requisition.name,

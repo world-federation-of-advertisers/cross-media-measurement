@@ -22,7 +22,6 @@ import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.deterministicCount
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
@@ -46,6 +45,8 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  * @param resultMinimumThresholds Optional small-cell suppression parameters.
  * @param impressionMaxFrequencyPerUser Override for max frequency per user. -1 means no cap.
  * @param totalUncappedImpressions Total impression count without frequency capping.
+ * @param deterministicTruncationBound Required when [directNoiseMechanism] is
+ *   DETERMINISTIC_TRUNCATED_LAPLACE.
  */
 class DirectImpressionResultBuilder(
   private val directProtocolConfig: ProtocolConfig.Direct,
@@ -58,6 +59,7 @@ class DirectImpressionResultBuilder(
   private val resultMinimumThresholds: ResultMinimumThresholds?,
   private val impressionMaxFrequencyPerUser: Int?,
   private val totalUncappedImpressions: Long,
+  private val deterministicTruncationBound: Int? = null,
 ) : MeasurementResultBuilder {
 
   override suspend fun buildMeasurementResult(): Measurement.Result {
@@ -72,12 +74,7 @@ class DirectImpressionResultBuilder(
       impressionMaxFrequencyPerUser?.takeIf { it != -1 } ?: maxFrequencyFromSpec
     val impressionValue = computeImpressionCount(effectiveMaxFrequency)
 
-    val protocolConfigNoiseMechanism =
-      when (directNoiseMechanism) {
-        DirectNoiseMechanism.NONE -> NoiseMechanism.NONE
-        DirectNoiseMechanism.CONTINUOUS_LAPLACE -> NoiseMechanism.CONTINUOUS_LAPLACE
-        DirectNoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
-      }
+    val protocolConfigNoiseMechanism = directNoiseMechanism.toProtocolConfigNoiseMechanism()
     return MeasurementKt.result {
       impression = impression {
         value = impressionValue
@@ -135,22 +132,24 @@ class DirectImpressionResultBuilder(
   }
 
   private fun getImpressionValue(histogram: LongArray, maxFrequency: Int): Long {
+    if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
+      logger.info("Adding $directNoiseMechanism publisher noise to direct impression...")
+    }
     val dpParams =
-      if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
-        logger.info("Adding $directNoiseMechanism publisher noise to direct impression...")
-        require(directNoiseMechanism == DirectNoiseMechanism.CONTINUOUS_GAUSSIAN) {
-          "Only Continuous Gaussian is supported for dp noise"
-        }
-        DifferentialPrivacyParams(epsilon = privacyParams.epsilon, delta = privacyParams.delta)
-      } else {
-        null
-      }
+      DifferentialPrivacyParams(epsilon = privacyParams.epsilon, delta = privacyParams.delta)
     return ImpressionComputations.computeImpressionCount(
       rawHistogram = histogram,
-      dpParams = dpParams,
+      noiser =
+        buildDirectResultNoiser(
+          directNoiseMechanism = directNoiseMechanism,
+          frequencyData = frequencyData,
+          reachDpParams = dpParams,
+          frequencyDpParams = dpParams,
+          maxFrequencyPerUser = maxFrequency,
+          truncationBound = deterministicTruncationBound,
+        ),
       vidSamplingIntervalWidth = samplingRate.toDouble(),
       resultMinimumThresholds = resultMinimumThresholds,
-      maxFrequency = maxFrequency.toLong(),
     )
   }
 

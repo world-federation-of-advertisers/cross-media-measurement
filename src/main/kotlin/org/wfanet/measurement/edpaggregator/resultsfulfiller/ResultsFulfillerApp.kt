@@ -156,7 +156,22 @@ class ResultsFulfillerApp(
       when (fulfillerParams.noiseParams.noiseType) {
         NoiseType.NONE -> NoNoiserSelector()
         NoiseType.CONTINUOUS_GAUSSIAN -> ContinuousGaussianNoiseSelector()
+        NoiseType.DETERMINISTIC_TRUNCATED_LAPLACE -> DeterministicTruncatedLaplaceNoiseSelector()
         else -> throw Exception("Invalid noise type ${fulfillerParams.noiseParams.noiseType}")
+      }
+
+    val deterministicTruncationBound: Int? =
+      if (
+        fulfillerParams.noiseParams.noiseType == NoiseType.DETERMINISTIC_TRUNCATED_LAPLACE
+      ) {
+        val bound =
+          fulfillerParams.noiseParams.deterministicTruncatedLaplaceParams.truncationBound
+        require(bound > 0) {
+          "deterministic_truncated_laplace_params.truncation_bound must be positive, got $bound"
+        }
+        bound
+      } else {
+        null
       }
 
     val resultMinimumThresholds: ResultMinimumThresholds? =
@@ -218,6 +233,7 @@ class ResultsFulfillerApp(
         supportedMultiPartyNoiseMechanisms = supportedMultiPartyNoiseMechanisms,
         trusTeeConfig = trusTeeConfig,
         kekUriToKeyNameMap = fulfillerParams.trusteeParams.kekUriToKeyNameMap,
+        deterministicTruncationBound = deterministicTruncationBound,
       )
     val modelLineInfoMapWithAliases =
       if (fulfillerParams.modelLineMapMap.isEmpty()) {

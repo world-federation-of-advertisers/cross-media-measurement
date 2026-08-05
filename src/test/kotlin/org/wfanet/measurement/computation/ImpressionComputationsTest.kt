@@ -18,7 +18,6 @@ import com.google.common.truth.Truth.assertThat
 import kotlin.math.ln
 import kotlin.math.min
 import kotlin.math.sqrt
-import kotlin.test.assertFailsWith
 import org.junit.Test
 
 class ImpressionComputationsTest {
@@ -30,25 +29,25 @@ class ImpressionComputationsTest {
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
         vidSamplingIntervalWidth = 1.0,
-        maxFrequency = null,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = null,
       )
     assertThat(result).isEqualTo(57L)
   }
 
   @Test
-  fun `caps raw impression count with maximum frequency`() {
-    val histogram = longArrayOf(0L, 5L, 0L, 3L, 7L, 0L) // 2*5 + 4*3 + 5*7
+  fun `counts a histogram already capped at maximum frequency`() {
+    // HistogramComputations.buildHistogram folds frequencies above the cap into the top bucket, so
+    // a histogram capped at 4 has four buckets and the last holds every user seen 4 or more times.
+    val histogram = longArrayOf(0L, 5L, 0L, 10L) // 2*5 + 4*10
     val result =
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
         vidSamplingIntervalWidth = 1.0,
-        maxFrequency = 4,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = null,
       )
-    assertThat(result).isEqualTo(50L) // 2*5 + 4*3 + 4*7
+    assertThat(result).isEqualTo(50L)
   }
 
   @Test
@@ -59,8 +58,7 @@ class ImpressionComputationsTest {
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
         vidSamplingIntervalWidth = scale,
-        maxFrequency = null,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = null,
       )
     assertThat(result).isEqualTo((57L / scale).toLong())
@@ -74,8 +72,8 @@ class ImpressionComputationsTest {
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
         vidSamplingIntervalWidth = 1.0,
-        maxFrequency = maxFrequency,
-        dpParams = DP_PARAMS,
+        noiser =
+          GaussianResultNoiser(DP_PARAMS, DP_PARAMS, maxFrequency.toInt()),
         resultMinimumThresholds = null,
       )
     val rawImpressionCount =
@@ -100,8 +98,8 @@ class ImpressionComputationsTest {
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
         vidSamplingIntervalWidth = 0.5,
-        maxFrequency = maxFrequency,
-        dpParams = DP_PARAMS,
+        noiser =
+          GaussianResultNoiser(DP_PARAMS, DP_PARAMS, maxFrequency.toInt()),
         resultMinimumThresholds = null,
       )
     val rawImpressionCount =
@@ -119,20 +117,6 @@ class ImpressionComputationsTest {
   }
 
   @Test
-  fun `throws error if maxFrequency is not set but dp params are set`() {
-    val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L) // 1*2 + 2*4 + 4*8 + 7*10 + 7*2
-    assertFailsWith<IllegalStateException> {
-      ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0,
-        maxFrequency = null,
-        dpParams = DP_PARAMS,
-        resultMinimumThresholds = null,
-      )
-    }
-  }
-
-  @Test
   fun `impression count with K Anonymity is zero for too few unique users`() {
     val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L) // 1*2 + 2*4 + 4*8 + 7*10 + 7*2
     val resultMinimumThresholds = ResultMinimumThresholds(minUsers = 28, minImpressions = 50)
@@ -140,8 +124,7 @@ class ImpressionComputationsTest {
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
         vidSamplingIntervalWidth = 1.0,
-        dpParams = null,
-        maxFrequency = null,
+        noiser = NoNoise,
         resultMinimumThresholds = resultMinimumThresholds,
       )
     assertThat(result).isEqualTo(0)
@@ -155,8 +138,7 @@ class ImpressionComputationsTest {
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
         vidSamplingIntervalWidth = 1.0,
-        dpParams = null,
-        maxFrequency = null,
+        noiser = NoNoise,
         resultMinimumThresholds = resultMinimumThresholds,
       )
     assertThat(result).isEqualTo(0)
@@ -170,8 +152,7 @@ class ImpressionComputationsTest {
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
         vidSamplingIntervalWidth = 1.0,
-        dpParams = null,
-        maxFrequency = null,
+        noiser = NoNoise,
         resultMinimumThresholds = resultMinimumThresholds,
       )
     assertThat(result).isEqualTo(130)
@@ -185,8 +166,7 @@ class ImpressionComputationsTest {
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
         vidSamplingIntervalWidth = 0.5,
-        dpParams = null,
-        maxFrequency = null,
+        noiser = NoNoise,
         resultMinimumThresholds = resultMinimumThresholds,
       )
     assertThat(result).isEqualTo(260)
@@ -200,8 +180,7 @@ class ImpressionComputationsTest {
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
         vidSamplingIntervalWidth = 0.5,
-        dpParams = null,
-        maxFrequency = null,
+        noiser = NoNoise,
         resultMinimumThresholds = resultMinimumThresholds,
       )
     assertThat(result).isEqualTo(0)
