@@ -1689,7 +1689,7 @@
     "@@cross-media-measurement-api+//build:non_module_deps.bzl%non_module_deps": {
       "general": {
         "bzlTransitiveDigest": "106KtriH+KcBTg/tpZH9+v5m6bY0biSfPAuAoCsRay0=",
-        "usagesDigest": "4CzRi0uJmj9PxBSHzZXx2bTkP715zivvsisKge0aB8Q=",
+        "usagesDigest": "uX6DocM+VwqtGwe3ujwqpiUwsUD5nBZu8iPgd/skCZA=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
