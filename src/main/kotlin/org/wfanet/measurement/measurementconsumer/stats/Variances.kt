@@ -462,6 +462,10 @@ object VariancesImpl : Variances {
       NoiseMechanism.LAPLACE -> {
         error("Laplace is not supported for distributed noises.")
       }
+      NoiseMechanism.TRUNCATED_LAPLACE -> {
+        // Applied once inside the TEE, never split across duchies.
+        error("Truncated Laplace is not supported for distributed noises.")
+      }
       NoiseMechanism.GAUSSIAN -> {
         // By passing 1 to contributorCount, the function called below outputs the total distributed
         // sigma of the noiser as sigmaDistributed = sigma / sqrt(contributorCount).
