@@ -35,8 +35,31 @@ object TrusTeeProtocolConfig {
         parseTextProto(it, TrusTeeProtocolConfigConfig.getDefaultInstance())
       }
 
+    validate(configMessage.protocolConfig)
+
     protocolConfig = configMessage.protocolConfig
     duchyId = configMessage.duchyId
+  }
+
+  /**
+   * Fails fast on a config the mill would reject.
+   *
+   * [org.wfanet.measurement.duchy.mill.trustee.TrusTeeMill] requires a positive truncation bound
+   * for DETERMINISTIC_TRUNCATED_LAPLACE. Checking it here means a misconfigured Kingdom does not
+   * start, rather than failing every TrusTEE Measurement individually once requisitions are
+   * fulfilled.
+   */
+  private fun validate(protocolConfig: ProtocolConfig.TrusTee) {
+    if (
+      protocolConfig.noiseMechanism != ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
+    ) {
+      return
+    }
+    val truncationBound = protocolConfig.deterministicTruncatedLaplaceNoiseParams.truncationBound
+    require(truncationBound > 0) {
+      "truncation_bound must be greater than 0 for DETERMINISTIC_TRUNCATED_LAPLACE noise, got " +
+        "$truncationBound"
+    }
   }
 
   fun setForTest(protocolConfig: ProtocolConfig.TrusTee, duchyId: String) {

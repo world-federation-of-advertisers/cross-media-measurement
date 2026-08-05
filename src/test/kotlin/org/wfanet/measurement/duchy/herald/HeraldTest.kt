@@ -2283,36 +2283,26 @@ class HeraldTest {
     }
 
   @Test
-  fun `syncStatuses fails trusTEE computation with deterministic noise and no params`() = runTest {
-    // TrusTeeMill requires a positive truncation bound, so a config that selects the mechanism
-    // without the params message must be rejected at creation rather than reaching the mill.
-    val confirmingKnown =
-      buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
-
-    val systemApiRequisitions1 =
-      REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
-    val systemApiRequisitions2 =
-      REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
-    val confirmingUnknown =
+  fun `syncStatuses fails trusTEE computation with a non-positive truncation bound`() = runTest {
+    // TrusTeeMill requires a positive truncation bound. A present-but-default params message must
+    // be rejected here, before requisitions are fulfilled.
+    val computation =
       buildComputationAtKingdom(
-        "2",
+        COMPUTATION_GLOBAL_ID,
         Computation.State.PENDING_REQUISITION_PARAMS,
-        systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
         mpcProtocolConfig = TRUS_TEE_DETERMINISTIC_NOISE_NO_PARAMS_MPC_PROTOCOL_CONFIG,
         systemComputationParticipant = SINGLE_COMPUTATION_PARTICIPANT,
       )
-    mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
-
-    fakeComputationDatabase.addComputation(
-      globalId = confirmingKnown.key.computationId,
-      stage = TrusTee.Stage.INITIALIZED.toProtocolStage(),
-      computationDetails = TRUS_TEE_COMPUTATION_DETAILS,
-    )
+    mockStreamActiveComputationsToReturn(computation)
 
     aggregatorHerald.syncStatuses()
 
-    assertThat(fakeComputationDatabase)
-      .doesNotContainKey(confirmingUnknown.key.computationId.toLong())
+    val failRequest: FailComputationParticipantRequest = captureFirst {
+      runBlocking { verify(systemComputationParticipants).failComputationParticipant(capture()) }
+    }
+    assertThat(failRequest.failure.errorMessage)
+      .contains("truncation_bound must be greater than 0 for DETERMINISTIC_TRUNCATED_LAPLACE noise")
+    assertThat(fakeComputationDatabase).doesNotContainKey(computation.key.computationId.toLong())
   }
 
   @Test

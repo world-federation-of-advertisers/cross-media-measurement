@@ -192,9 +192,12 @@ object TrusTeeStarter {
         }
       }
       if (internalNoiseMechanism == NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE) {
-        require(mpcProtocolConfig.trusTee.hasDeterministicTruncatedLaplaceNoiseParams()) {
-          "Deterministic truncated Laplace noise params are required for " +
-            "DETERMINISTIC_TRUNCATED_LAPLACE"
+        // Matches the mill's own precondition. A present-but-default params message would
+        // otherwise pass here and fail in TrusTeeMill after requisitions are fulfilled.
+        require(
+          mpcProtocolConfig.trusTee.deterministicTruncatedLaplaceNoiseParams.truncationBound > 0
+        ) {
+          "truncation_bound must be greater than 0 for DETERMINISTIC_TRUNCATED_LAPLACE noise"
         }
         deterministicTruncatedLaplaceNoiseParams =
           internalDeterministicTruncatedLaplaceNoiseParams {

@@ -168,6 +168,7 @@ message ProtocolConfig {
     // Parameters for DETERMINISTIC_TRUNCATED_LAPLACE noise.
     message DeterministicTruncatedLaplaceNoiseParams {
       // Draws are truncated to `[-truncation_bound, truncation_bound]`.
+      // Must be positive.
       int32 truncation_bound = 1;
     }
 

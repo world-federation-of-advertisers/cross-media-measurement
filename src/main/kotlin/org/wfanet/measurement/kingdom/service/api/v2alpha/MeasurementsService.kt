@@ -478,8 +478,9 @@ class MeasurementsService(
   /**
    * Whether every `DataProvider` supports the noise mechanism the TrusTEE config selects.
    *
-   * Only DETERMINISTIC_TRUNCATED_LAPLACE is capability-gated. The others predate the capability and
-   * are treated as supported.
+   * Only DETERMINISTIC_TRUNCATED_LAPLACE is capability-gated. The public API also declares
+   * `noise_mechanism_none_supported`, which is not propagated here and not enforced anywhere in
+   * this repo, so the other mechanisms are treated as supported.
    */
   private fun Collection<InternalDataProviderCapabilities>.supportTrusTeeNoiseMechanism(): Boolean {
     if (
