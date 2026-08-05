@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.measurementconsumer.stats
 
+import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -84,6 +85,12 @@ interface Variances {
 /** Default implementation of [Variances]. */
 object VariancesImpl : Variances {
   private const val TOLERANCE = 1E-6
+
+  /**
+   * L1 sensitivity of a deterministic truncated-Laplace draw: adding or removing one VID changes a
+   * reach or per-bucket count by 1.
+   */
+  private const val DETERMINISTIC_TRUNCATED_LAPLACE_SENSITIVITY = 1.0
   private val EQUIVALENCE = Precision.doubleEquivalenceOfEpsilon(TOLERANCE)
 
   /**
@@ -97,6 +104,7 @@ object VariancesImpl : Variances {
       params.measurementParams.dpParams,
       1.0,
       params.measurementParams.noiseMechanism,
+      params.measurementParams.truncationBound,
     )
   }
 
@@ -178,7 +186,11 @@ object VariancesImpl : Variances {
     }
 
     val frequencyNoiseVariance: Double =
-      computeDirectNoiseVariance(measurementParams.dpParams, measurementParams.noiseMechanism)
+      computeDirectNoiseVariance(
+        measurementParams.dpParams,
+        measurementParams.noiseMechanism,
+        measurementParams.truncationBound,
+      )
     val varPart1 =
       reachRatio * (1.0 - reachRatio) * (1.0 - measurementParams.vidSamplingInterval.width) /
         (totalReach * measurementParams.vidSamplingInterval.width)
@@ -227,11 +239,13 @@ object VariancesImpl : Variances {
     dpParams: DpParams,
     maximumFrequencyPerUser: Double,
     noiseMechanism: NoiseMechanism,
+    truncationBound: Int? = null,
   ): Double {
     require(measurementValue >= 0.0) {
       "The scalar measurement value ($measurementValue) cannot be negative."
     }
-    val noiseVariance: Double = computeDirectNoiseVariance(dpParams, noiseMechanism)
+    val noiseVariance: Double =
+      computeDirectNoiseVariance(dpParams, noiseMechanism, truncationBound)
     val variance =
       (maximumFrequencyPerUser *
         measurementValue *
@@ -386,10 +400,35 @@ object VariancesImpl : Variances {
     }
   }
 
+  /**
+   * Variance of a Laplace(0, b) distribution confined to `[-bound, bound]`, where `b` is [scale].
+   *
+   * The truncated density is the Laplace density renormalized by `Z = 1 - exp(-bound / b)`, so
+   *
+   * ```
+   * Var = [2b^2 - exp(-bound/b) * (bound^2 + 2*bound*b + 2b^2)] / Z
+   * ```
+   *
+   * The mean is zero by symmetry. As `bound` grows this tends to `2b^2`, the untruncated Laplace
+   * variance, and truncation only ever reduces it.
+   */
+  private fun truncatedLaplaceVariance(scale: Double, bound: Int): Double {
+    require(scale > 0.0) { "Laplace scale must be positive, got $scale" }
+    require(bound > 0) { "Truncation bound must be positive, got $bound" }
+    val boundOverScale: Double = bound / scale
+    val tailMass: Double = exp(-boundOverScale)
+    val normalizer: Double = 1.0 - tailMass
+    val untruncated: Double = 2.0 * scale * scale
+    val truncatedTail: Double =
+      tailMass * (bound * bound + 2.0 * bound * scale + 2.0 * scale * scale)
+    return (untruncated - truncatedTail) / normalizer
+  }
+
   /** Computes the noise variance based on the [DpParams] and the [NoiseMechanism]. */
   private fun computeDirectNoiseVariance(
     dpParams: DpParams,
     noiseMechanism: NoiseMechanism,
+    truncationBound: Int? = null,
   ): Double {
     return when (noiseMechanism) {
       NoiseMechanism.NONE -> 0.0
@@ -398,6 +437,17 @@ object VariancesImpl : Variances {
       }
       NoiseMechanism.GAUSSIAN -> {
         GaussianNoiser(dpParams, Random.asJavaRandom()).variance
+      }
+      NoiseMechanism.TRUNCATED_LAPLACE -> {
+        // The noise is deterministic in the data, so this is the variance of the draw treating the
+        // seed as unknown: the uncertainty a consumer has before seeing the result.
+        requireNotNull(truncationBound) {
+          "Truncation bound is required for ${NoiseMechanism.TRUNCATED_LAPLACE}"
+        }
+        truncatedLaplaceVariance(
+          scale = DETERMINISTIC_TRUNCATED_LAPLACE_SENSITIVITY / dpParams.epsilon,
+          bound = truncationBound,
+        )
       }
     }
   }
