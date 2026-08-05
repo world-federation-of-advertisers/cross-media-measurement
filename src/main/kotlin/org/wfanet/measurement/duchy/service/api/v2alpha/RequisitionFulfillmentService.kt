@@ -25,7 +25,7 @@ import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.EncryptionKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest.Header
-import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.AwsKmsParams.CredentialSource as ApiCredentialSource
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.AwsKmsParams.TokenAudienceCase
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -343,22 +343,25 @@ class RequisitionFulfillmentService(
               this.impersonatedServiceAccount = envelopeEncryption.impersonatedServiceAccount
               this.populationSpecFingerprint = populationSpecFingerprint
               if (envelopeEncryption.hasAwsKmsParams()) {
+                val apiAwsKmsParams = envelopeEncryption.awsKmsParams
                 this.awsKmsParams =
                   RequisitionDetailsKt.RequisitionProtocolKt.TrusTeeKt.awsKmsParams {
-                    roleArn = envelopeEncryption.awsKmsParams.roleArn
-                    roleSession = envelopeEncryption.awsKmsParams.roleSession
-                    region = envelopeEncryption.awsKmsParams.region
-                    audience = envelopeEncryption.awsKmsParams.audience
-                    credentialSource =
-                      when (envelopeEncryption.awsKmsParams.credentialSource) {
-                        ApiCredentialSource.CONFIDENTIAL_SPACE ->
-                          InternalCredentialSource.CONFIDENTIAL_SPACE
-                        ApiCredentialSource.GCP_WORKLOAD_IDENTITY ->
-                          InternalCredentialSource.GCP_WORKLOAD_IDENTITY
-                        ApiCredentialSource.CREDENTIAL_SOURCE_UNSPECIFIED,
-                        ApiCredentialSource.UNRECOGNIZED ->
-                          InternalCredentialSource.CREDENTIAL_SOURCE_UNSPECIFIED
+                    roleArn = apiAwsKmsParams.roleArn
+                    roleSession = apiAwsKmsParams.roleSession
+                    region = apiAwsKmsParams.region
+                    // Which audience is set determines how the mill authenticates to AWS STS.
+                    when (apiAwsKmsParams.tokenAudienceCase) {
+                      TokenAudienceCase.WORKLOAD_IDENTITY_ID_TOKEN_AUDIENCE -> {
+                        audience = apiAwsKmsParams.workloadIdentityIdTokenAudience
+                        credentialSource = InternalCredentialSource.GCP_WORKLOAD_IDENTITY
                       }
+                      TokenAudienceCase.CONFIDENTIAL_SPACE_ATTESTATION_TOKEN_AUDIENCE -> {
+                        audience = apiAwsKmsParams.confidentialSpaceAttestationTokenAudience
+                        credentialSource = InternalCredentialSource.CONFIDENTIAL_SPACE
+                      }
+                      TokenAudienceCase.TOKENAUDIENCE_NOT_SET ->
+                        failGrpc { "aws_kms_params.token_audience not set" }
+                    }
                   }
               }
             }

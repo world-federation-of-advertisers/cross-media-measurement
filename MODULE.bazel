@@ -42,6 +42,15 @@ bazel_dep(
     version = "0.150.0",
     repo_name = "wfa_common_jvm",
 )
+
+# DO_NOT_SUBMIT: temporarily build against the unmerged common-jvm branch that moves the
+# Confidential Space token client onto Netty domain sockets. Remove this override and bump
+# the common-jvm version above once that PR is merged and released.
+git_override(
+    module_name = "common-jvm",
+    commit = "6fab72de9179c5c8da5f32d6f9ae9bd7230a23f8",
+    remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
+)
 bazel_dep(
     name = "common-cpp",
     version = "0.14.0",
@@ -51,6 +60,15 @@ bazel_dep(
     name = "cross-media-measurement-api",
     version = "0.98.0",
     repo_name = "wfa_measurement_proto",
+)
+
+# DO_NOT_SUBMIT: temporarily build against the unmerged cross-media-measurement-api branch
+# that replaces AwsKmsParams.credential_source with the token_audience oneof. Remove this
+# override and bump the version above once that PR is merged and released.
+git_override(
+    module_name = "cross-media-measurement-api",
+    commit = "b25b8933352504440434166e9a968f967bc30926",
+    remote = "https://github.com/world-federation-of-advertisers/cross-media-measurement-api.git",
 )
 bazel_dep(
     name = "consent-signaling-client",
