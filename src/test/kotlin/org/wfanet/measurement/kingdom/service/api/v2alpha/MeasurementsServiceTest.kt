@@ -1003,10 +1003,7 @@ class MeasurementsServiceTest {
                 this.externalDataProviderId = externalDataProviderId.value
                 details =
                   details.copy {
-                    capabilities = internalDataProviderCapabilities {
-                      trusTeeSupported = true
-                      noiseMechanismDeterministicTruncatedLaplaceSupported = false
-                    }
+                    capabilities = internalDataProviderCapabilities { trusTeeSupported = true }
                   }
               }
             }
@@ -1029,12 +1026,13 @@ class MeasurementsServiceTest {
       runBlocking { trusTeeEnabledService.createMeasurement(request) }
     }
 
+    // TrusTEE is skipped, HMSS is unsupported on these EDPs, so selection falls to LLv2.
     val internalRequest =
       captureFirst<InternalCreateMeasurementRequest> {
         runBlocking { verify(internalMeasurementsMock).createMeasurement(capture()) }
       }
     assertThat(internalRequest.measurement.details.protocolConfig)
-      .isNotEqualTo(TRUS_TEE_INTERNAL_PROTOCOL_CONFIG)
+      .isEqualTo(LLV2_INTERNAL_PROTOCOL_CONFIG)
   }
 
   @Test

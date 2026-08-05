@@ -991,7 +991,8 @@ private class DataProviders {
     )
     trusTeeSupported: Boolean? = null,
     @Option(
-      names = ["--noise-mechanism-deterministic-truncated-laplace-supported"],
+      names =
+        ["--dtl-noise-supported", "--noise-mechanism-deterministic-truncated-laplace-supported"],
       description = ["Whether the DETERMINISTIC_TRUNCATED_LAPLACE noise mechanism is supported"],
       required = false,
     )
