@@ -688,6 +688,9 @@ private fun Measurement.Result.Frequency.toInternal(
       // variance depends on the sampling interval from MeasurementSpec rather than
       // frequency_vector_size, so no additional data from the result is needed.
       deterministicDistribution = DeterministicDistribution.getDefaultInstance()
+      if (cmmsProtocol.hasDeterministicTruncatedLaplaceNoiseParams()) {
+        truncationBound = cmmsProtocol.deterministicTruncatedLaplaceNoiseParams.truncationBound
+      }
     } else if (protocolConfig.protocolsList.any { it.hasDirect() }) {
       noiseMechanism = source.noiseMechanism.toInternal()
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
@@ -739,6 +742,9 @@ private fun Measurement.Result.Reach.toInternal(
       // variance depends on the sampling interval from MeasurementSpec rather than
       // frequency_vector_size, so no additional data from the result is needed.
       deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+      if (cmmsProtocol.hasDeterministicTruncatedLaplaceNoiseParams()) {
+        truncationBound = cmmsProtocol.deterministicTruncatedLaplaceNoiseParams.truncationBound
+      }
     } else if (protocolConfig.protocolsList.any { it.hasDirect() }) {
       noiseMechanism = source.noiseMechanism.toInternal()
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
@@ -1047,7 +1053,8 @@ fun ProtocolConfig.NoiseMechanism.toInternal(): InternalNoiseMechanism {
       InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED
     ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE -> InternalNoiseMechanism.CONTINUOUS_LAPLACE
     ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN -> InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
-    ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+    ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE ->
+      InternalNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
     ProtocolConfig.NoiseMechanism.UNRECOGNIZED -> {
       throw NoiseMechanismUnrecognizedException("Noise mechanism $this is not recognized.")
     }
@@ -1181,6 +1188,7 @@ fun InternalNoiseMechanism.toStatsNoiseMechanism(): StatsNoiseMechanism {
     NoiseMechanism.CONTINUOUS_LAPLACE -> StatsNoiseMechanism.LAPLACE
     NoiseMechanism.DISCRETE_GAUSSIAN,
     NoiseMechanism.CONTINUOUS_GAUSSIAN -> StatsNoiseMechanism.GAUSSIAN
+    NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE -> StatsNoiseMechanism.TRUNCATED_LAPLACE
     NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED -> {
       throw NoiseMechanismUnspecifiedException("Internal noise mechanism should've been specified.")
     }
