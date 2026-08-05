@@ -62,7 +62,12 @@ message Video {
         version_added: 1
         grouping_spec: {
           operator: GREATER_THAN_OR_EQUAL
-          double_value_list: { values: [0.25, 0.5, 0.75, 1.0] }
+          double_value_list: {
+            values: 0.25
+            values: 0.5
+            values: 0.75
+            values: 1.0
+          }
         }
       }];
 
@@ -81,7 +86,12 @@ message Video {
         version_added: 1
         grouping_spec: {
           operator: GREATER_THAN_OR_EQUAL
-          double_value_list: { values: [0.25, 0.5, 0.75, 1.0] }
+          double_value_list: {
+            values: 0.25
+            values: 0.5
+            values: 0.75
+            values: 1.0
+          }
         }
       }];
 }
