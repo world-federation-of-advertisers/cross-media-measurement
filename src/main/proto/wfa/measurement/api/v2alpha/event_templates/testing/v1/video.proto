@@ -29,12 +29,8 @@ option java_multiple_files = true;
 // `completed_25_percent_plus`). A single double carries the same information
 // without the combinatorial field growth; the meaningful grouping thresholds
 // (e.g. 25%+, 50%+) are declared per field via the `template_field`
-// grouping-predicate annotation, and threshold filters are ordinary
-// comparisons (`completed_fraction >= 0.5`).
-//
-// TODO(world-federation-of-advertisers/cross-media-measurement-api#286):
-// declare the grouping thresholds in the `template_field` grouping-predicate
-// annotation once that annotation is released.
+// `grouping_spec`, and threshold filters are ordinary comparisons
+// (`completed_fraction >= 0.5`).
 message Video {
   option (.wfa.measurement.api.v2alpha.event_template) = {
     name: "video"
@@ -64,6 +60,10 @@ message Video {
         reporting_features: IMPRESSION_QUALIFICATION
         reporting_features: GROUPABLE
         version_added: 1
+        grouping_spec: {
+          operator: GREATER_THAN_OR_EQUAL
+          double_value_list: { values: [0.25, 0.5, 0.75, 1.0] }
+        }
       }];
 
   // Fraction of the ad's pixels that were on screen for at least 2 continuous
@@ -79,5 +79,9 @@ message Video {
         reporting_features: IMPRESSION_QUALIFICATION
         reporting_features: GROUPABLE
         version_added: 1
+        grouping_spec: {
+          operator: GREATER_THAN_OR_EQUAL
+          double_value_list: { values: [0.25, 0.5, 0.75, 1.0] }
+        }
       }];
 }

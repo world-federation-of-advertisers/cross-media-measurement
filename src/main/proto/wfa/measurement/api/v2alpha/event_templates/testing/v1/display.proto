@@ -48,5 +48,9 @@ message Display {
         reporting_features: IMPRESSION_QUALIFICATION
         reporting_features: GROUPABLE
         version_added: 1
+        grouping_spec: {
+          operator: GREATER_THAN_OR_EQUAL
+          double_value_list: { values: [0.25, 0.5, 0.75, 1.0] }
+        }
       }];
 }
