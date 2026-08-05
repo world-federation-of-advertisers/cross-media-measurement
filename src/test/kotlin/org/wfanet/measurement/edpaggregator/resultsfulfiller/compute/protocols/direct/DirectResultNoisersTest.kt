@@ -86,18 +86,28 @@ class DirectResultNoisersTest {
 
   @Test
   fun `deterministic noiser draws differ for a different frequency vector`() {
-    val first = build(DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE, truncationBound = 10)
-    val second =
+    // A wide scale (sensitivity / epsilon) keeps draws off zero, where rounding would otherwise
+    // collapse both seeds onto the same released value.
+    fun noiserFor(frequencyData: IntArray) =
       buildDirectResultNoiser(
         directNoiseMechanism = DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
-        frequencyData = IntArray(100) { if (it < 50) 1 else 2 },
-        reachDpParams = DP_PARAMS,
-        frequencyDpParams = DP_PARAMS,
+        frequencyData = frequencyData,
+        reachDpParams = WIDE_DP_PARAMS,
+        frequencyDpParams = WIDE_DP_PARAMS,
         maxFrequencyPerUser = MAX_FREQUENCY,
-        truncationBound = 10,
+        truncationBound = WIDE_TRUNCATION_BOUND,
       )
 
-    assertThat(second.noiseReach(1_000L)).isNotEqualTo(first.noiseReach(1_000L))
+    fun draws(frequencyData: IntArray) =
+      noiserFor(frequencyData).let {
+        listOf(
+          it.noiseReach(1_000L),
+          it.noiseFrequencyBucket(0, 500L),
+          it.noiseImpressionsFromFrequencyHistogram(HISTOGRAM),
+        )
+      }
+
+    assertThat(draws(IntArray(100) { if (it < 50) 1 else 2 })).isNotEqualTo(draws(FREQUENCY_DATA))
   }
 
   @Test
@@ -140,6 +150,8 @@ class DirectResultNoisersTest {
   companion object {
     private const val MAX_FREQUENCY = 10
     private val DP_PARAMS = DifferentialPrivacyParams(epsilon = 1.0, delta = 1e-9)
+    private val WIDE_DP_PARAMS = DifferentialPrivacyParams(epsilon = 0.01, delta = 1e-9)
+    private const val WIDE_TRUNCATION_BOUND = 200
     private val FREQUENCY_DATA = IntArray(100) { if (it < 90) 1 else 2 }
     private val HISTOGRAM = longArrayOf(90L, 10L)
   }
