@@ -161,11 +161,8 @@ class ResultsFulfillerApp(
       }
 
     val deterministicTruncationBound: Int? =
-      if (
-        fulfillerParams.noiseParams.noiseType == NoiseType.DETERMINISTIC_TRUNCATED_LAPLACE
-      ) {
-        val bound =
-          fulfillerParams.noiseParams.deterministicTruncatedLaplaceParams.truncationBound
+      if (fulfillerParams.noiseParams.noiseType == NoiseType.DETERMINISTIC_TRUNCATED_LAPLACE) {
+        val bound = fulfillerParams.noiseParams.deterministicTruncatedLaplaceParams.truncationBound
         require(bound > 0) {
           "deterministic_truncated_laplace_params.truncation_bound must be positive, got $bound"
         }
