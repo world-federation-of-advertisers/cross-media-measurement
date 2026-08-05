@@ -501,7 +501,7 @@ class RequisitionFulfillmentServiceTest {
             roleArn = "arn:aws:iam::123456789012:role/my-role"
             roleSession = "my-session"
             region = "us-east-1"
-            audience = "sts.amazonaws.com"
+            workloadIdentityIdTokenAudience = "sts.amazonaws.com"
           }
         }
         populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
@@ -555,6 +555,9 @@ class RequisitionFulfillmentServiceTest {
                       roleSession = "my-session"
                       region = "us-east-1"
                       audience = "sts.amazonaws.com"
+                      credentialSource =
+                        RequisitionDetails.RequisitionProtocol.TrusTee.AwsKmsParams.CredentialSource
+                          .GCP_WORKLOAD_IDENTITY
                     }
                 }
             }
