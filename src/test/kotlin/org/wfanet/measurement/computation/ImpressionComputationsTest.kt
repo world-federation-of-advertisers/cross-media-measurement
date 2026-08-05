@@ -184,8 +184,89 @@ class ImpressionComputationsTest {
     assertThat(result).isEqualTo(0)
   }
 
+  @Test
+  fun `impression count with deterministic noise stays within the truncation bound`() {
+    val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L)
+    val result =
+      ImpressionComputations.computeImpressionCount(
+        rawHistogram = histogram,
+        vidSamplingIntervalWidth = 1.0,
+        noiser = deterministicNoiser(),
+        resultMinimumThresholds = null,
+      )
+    // Capped at MAX_FREQUENCY: 1*2 + 2*4 + 4*8 + 4*10 + 4*2
+    val rawImpressionCount = 90L
+
+    assertThat(result).isAtLeast(rawImpressionCount - TRUNCATION_BOUND)
+    assertThat(result).isAtMost(rawImpressionCount + TRUNCATION_BOUND)
+  }
+
+  @Test
+  fun `impression count with deterministic noise is reproducible`() {
+    val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L)
+
+    fun compute() =
+      ImpressionComputations.computeImpressionCount(
+        rawHistogram = histogram,
+        vidSamplingIntervalWidth = 1.0,
+        noiser = deterministicNoiser(),
+        resultMinimumThresholds = null,
+      )
+
+    assertThat(compute()).isEqualTo(compute())
+  }
+
+  @Test
+  fun `impression count with deterministic noise differs for a different seed vector`() {
+    val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L)
+    val first =
+      ImpressionComputations.computeImpressionCount(
+        rawHistogram = histogram,
+        vidSamplingIntervalWidth = 1.0,
+        noiser = deterministicNoiser(seedVector = IntArray(50) { 1 }),
+        resultMinimumThresholds = null,
+      )
+    val second =
+      ImpressionComputations.computeImpressionCount(
+        rawHistogram = histogram,
+        vidSamplingIntervalWidth = 1.0,
+        noiser = deterministicNoiser(seedVector = IntArray(50) { 2 }),
+        resultMinimumThresholds = null,
+      )
+
+    assertThat(second).isNotEqualTo(first)
+  }
+
+  @Test
+  fun `impression count with deterministic noise applies K Anonymity`() {
+    val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L)
+    val result =
+      ImpressionComputations.computeImpressionCount(
+        rawHistogram = histogram,
+        vidSamplingIntervalWidth = 1.0,
+        noiser = deterministicNoiser(),
+        // 26 users in the histogram, so the user threshold cannot be met.
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 1000, minImpressions = 1),
+      )
+
+    assertThat(result).isEqualTo(0)
+  }
+
+  private fun deterministicNoiser(seedVector: IntArray = SEED_VECTOR) =
+    DeterministicTruncatedLaplaceResultNoiser(
+      combinedFrequencyVector = seedVector,
+      contributionCount = 1,
+      reachEpsilon = DP_PARAMS.epsilon,
+      frequencyEpsilon = DP_PARAMS.epsilon,
+      truncationBound = TRUNCATION_BOUND.toInt(),
+      maxFrequencyPerUser = MAX_FREQUENCY,
+    )
+
   companion object {
     private val DP_PARAMS = DifferentialPrivacyParams(epsilon = 2.0, delta = 1e-5)
+    private const val TRUNCATION_BOUND = 12L
+    private const val MAX_FREQUENCY = 4
+    private val SEED_VECTOR = IntArray(100) { if (it < 90) 1 else 2 }
 
     private fun getL2Sensitivity(l0Sensitivity: Int, lInfSensitivity: Double): Double {
       return sqrt(l0Sensitivity.toDouble()) * lInfSensitivity
