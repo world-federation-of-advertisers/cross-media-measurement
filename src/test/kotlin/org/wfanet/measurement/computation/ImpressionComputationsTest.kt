@@ -219,22 +219,26 @@ class ImpressionComputationsTest {
   @Test
   fun `impression count with deterministic noise differs for a different seed vector`() {
     val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L)
-    val first =
+
+    // A wide scale (sensitivity / epsilon) keeps draws off zero, where rounding would otherwise
+    // collapse both seeds onto the same released value.
+    fun compute(seedVector: IntArray) =
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
         vidSamplingIntervalWidth = 1.0,
-        noiser = deterministicNoiser(seedVector = IntArray(50) { 1 }),
-        resultMinimumThresholds = null,
-      )
-    val second =
-      ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0,
-        noiser = deterministicNoiser(seedVector = IntArray(50) { 2 }),
+        noiser =
+          DeterministicTruncatedLaplaceResultNoiser(
+            combinedFrequencyVector = seedVector,
+            contributionCount = 1,
+            reachEpsilon = WIDE_EPSILON,
+            frequencyEpsilon = WIDE_EPSILON,
+            truncationBound = WIDE_TRUNCATION_BOUND,
+            maxFrequencyPerUser = MAX_FREQUENCY,
+          ),
         resultMinimumThresholds = null,
       )
 
-    assertThat(second).isNotEqualTo(first)
+    assertThat(compute(IntArray(50) { 2 })).isNotEqualTo(compute(IntArray(50) { 1 }))
   }
 
   @Test
@@ -265,6 +269,8 @@ class ImpressionComputationsTest {
   companion object {
     private val DP_PARAMS = DifferentialPrivacyParams(epsilon = 2.0, delta = 1e-5)
     private const val TRUNCATION_BOUND = 12L
+    private const val WIDE_EPSILON = 0.01
+    private const val WIDE_TRUNCATION_BOUND = 200
     private const val MAX_FREQUENCY = 4
     private val SEED_VECTOR = IntArray(100) { if (it < 90) 1 else 2 }
 
