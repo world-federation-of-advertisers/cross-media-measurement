@@ -143,6 +143,7 @@ import org.wfanet.measurement.internal.reporting.v2.MetricKt as InternalMetricKt
 import org.wfanet.measurement.internal.reporting.v2.MetricKt.weightedMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequest
@@ -2445,6 +2446,20 @@ fun buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
  * @throws MeasurementVarianceNotComputableException when methodology is not supported for watch
  *   duration or methodology missing variance information.
  */
+/**
+ * The truncation bound carried on the result, or null where the noise mechanism does not use one.
+ *
+ * Only DETERMINISTIC_TRUNCATED_LAPLACE parameterizes its noise this way.
+ */
+private fun InternalMeasurement.Result.Reach.truncationBoundOrNull(): Int? =
+  if (noiseMechanism == InternalNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE) truncationBound
+  else null
+
+/** @see [InternalMeasurement.Result.Reach.truncationBoundOrNull] */
+private fun InternalMeasurement.Result.Frequency.truncationBoundOrNull(): Int? =
+  if (noiseMechanism == InternalNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE) truncationBound
+  else null
+
 fun buildStatsMethodology(
   watchDurationResult: InternalMeasurement.Result.WatchDuration
 ): WatchDurationMethodology? {
@@ -2849,6 +2864,7 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
             dpParams = frequencyPrivacyParams.toNoiserDpParams(),
             noiseMechanism = frequencyStatsNoiseMechanism,
             maximumFrequency = maximumFrequency,
+            truncationBound = frequencyResult.truncationBoundOrNull(),
           ),
       ),
     methodology = frequencyMethodology,
@@ -3107,6 +3123,7 @@ private fun buildWeightedReachMeasurementVarianceParams(
             vidSamplingInterval = vidSamplingInterval.toStatsVidSamplingInterval(),
             dpParams = privacyParams.toNoiserDpParams(),
             noiseMechanism = statsNoiseMechanism,
+            truncationBound = reachResult.truncationBoundOrNull(),
           ),
       ),
     methodology = methodology,
