@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.
 
 import com.google.common.truth.Truth.assertThat
 import kotlin.math.ln
+import kotlin.test.assertFailsWith
 import kotlin.math.sqrt
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -84,6 +85,48 @@ class DirectReachResultBuilderTest {
       assertThat(result).isAtMost((rawImpressionCount + tolerance))
     }
 
+  @Test
+  fun `buildMeasurementResult is reproducible when noise mechanism is DETERMINISTIC_TRUNCATED_LAPLACE`() =
+    runBlocking {
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
+
+      fun build() =
+        DirectReachResultBuilder(
+          directProtocolConfig = DIRECT_PROTOCOL,
+          reachPrivacyParams = REACH_PRIVACY_PARAMS,
+          samplingRate = SAMPLING_RATE,
+          directNoiseMechanism = DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+          frequencyData = frequencyData,
+          maxPopulation = null,
+          resultMinimumThresholds = null,
+          deterministicTruncationBound = TRUNCATION_BOUND,
+        )
+
+      val first = build().buildMeasurementResult()
+      val second = build().buildMeasurementResult()
+
+      assertThat(first.reach.noiseMechanism)
+        .isEqualTo(NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
+      assertThat(second.reach.value).isEqualTo(first.reach.value)
+      assertThat(first.reach.value).isWithin(TRUNCATION_BOUND.toLong()).of(100L)
+    }
+
+  @Test
+  fun `buildMeasurementResult rejects DETERMINISTIC_TRUNCATED_LAPLACE without a truncation bound`() {
+    val builder =
+      DirectReachResultBuilder(
+        directProtocolConfig = DIRECT_PROTOCOL,
+        reachPrivacyParams = REACH_PRIVACY_PARAMS,
+        samplingRate = SAMPLING_RATE,
+        directNoiseMechanism = DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+        frequencyData = IntArray(100) { 1 },
+        maxPopulation = null,
+        resultMinimumThresholds = null,
+      )
+
+    assertFailsWith<IllegalArgumentException> { runBlocking { builder.buildMeasurementResult() } }
+  }
+
   companion object {
     private val MAX_FREQUENCY = 10
     private val REACH_PRIVACY_PARAMS = differentialPrivacyParams {
@@ -92,6 +135,8 @@ class DirectReachResultBuilderTest {
     }
 
     private val SAMPLING_RATE = 1.0f
+
+    private const val TRUNCATION_BOUND = 10
 
     private val NOISE_MECHANISM = NoiseMechanism.CONTINUOUS_GAUSSIAN
 
