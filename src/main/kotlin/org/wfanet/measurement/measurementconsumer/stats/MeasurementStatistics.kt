@@ -24,6 +24,8 @@ enum class NoiseMechanism {
   NONE,
   LAPLACE,
   GAUSSIAN,
+  /** Laplace confined to `[-truncationBound, truncationBound]`, drawn deterministically. */
+  TRUNCATED_LAPLACE,
 }
 
 data class VidSamplingInterval(val start: Double, val width: Double)
@@ -33,6 +35,8 @@ data class ReachMeasurementParams(
   val vidSamplingInterval: VidSamplingInterval,
   val dpParams: DpParams,
   val noiseMechanism: NoiseMechanism,
+  /** Required when [noiseMechanism] is [NoiseMechanism.TRUNCATED_LAPLACE], unused otherwise. */
+  val truncationBound: Int? = null,
 )
 
 /** The parameters used to compute a reach-and-frequency measurement. */
@@ -41,6 +45,8 @@ data class FrequencyMeasurementParams(
   val dpParams: DpParams,
   val noiseMechanism: NoiseMechanism,
   val maximumFrequency: Int,
+  /** Required when [noiseMechanism] is [NoiseMechanism.TRUNCATED_LAPLACE], unused otherwise. */
+  val truncationBound: Int? = null,
 )
 
 /** The parameters used to compute an impression measurement. */
