@@ -1,4 +1,4 @@
-// Copyright 2023 The Cross-Media Measurement Authors
+// Copyright 2026 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,19 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+package org.wfanet.measurement.computation
 
-package wfa.measurement.internal.duchy;
-
-option java_package = "org.wfanet.measurement.internal.duchy";
-option java_multiple_files = true;
-
-// The mechanism used to generate noise in computations.
-enum NoiseMechanism {
-  NOISE_MECHANISM_UNSPECIFIED = 0;
-  GEOMETRIC = 1;
-  DISCRETE_GAUSSIAN = 2;
-  CONTINUOUS_GAUSSIAN = 3;
-  NONE = 4;
-  DETERMINISTIC_TRUNCATED_LAPLACE = 5;
-}
+/**
+ * In-sample reach and frequency, before scaling and thresholding.
+ *
+ * Carrier only: the [frequencyHistogram] array gives this type referential `equals`/`hashCode`.
+ *
+ * @property sampledReach the reach in the sample.
+ * @property frequencyHistogram counts for frequencies `1..maxFrequency` (a
+ *   [HistogramComputations.buildHistogram] result).
+ */
+data class ReachAndFrequency(val sampledReach: Long, val frequencyHistogram: LongArray)

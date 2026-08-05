@@ -25,6 +25,7 @@ import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.EncryptionKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest.Header
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.AwsKmsParams.CredentialSource as ApiCredentialSource
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -45,6 +46,7 @@ import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
+import org.wfanet.measurement.internal.duchy.RequisitionDetails.RequisitionProtocol.TrusTee.AwsKmsParams.CredentialSource as InternalCredentialSource
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.honestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.trusTee
@@ -347,6 +349,16 @@ class RequisitionFulfillmentService(
                     roleSession = envelopeEncryption.awsKmsParams.roleSession
                     region = envelopeEncryption.awsKmsParams.region
                     audience = envelopeEncryption.awsKmsParams.audience
+                    credentialSource =
+                      when (envelopeEncryption.awsKmsParams.credentialSource) {
+                        ApiCredentialSource.CONFIDENTIAL_SPACE ->
+                          InternalCredentialSource.CONFIDENTIAL_SPACE
+                        ApiCredentialSource.GCP_WORKLOAD_IDENTITY ->
+                          InternalCredentialSource.GCP_WORKLOAD_IDENTITY
+                        ApiCredentialSource.CREDENTIAL_SOURCE_UNSPECIFIED,
+                        ApiCredentialSource.UNRECOGNIZED ->
+                          InternalCredentialSource.CREDENTIAL_SOURCE_UNSPECIFIED
+                      }
                   }
               }
             }

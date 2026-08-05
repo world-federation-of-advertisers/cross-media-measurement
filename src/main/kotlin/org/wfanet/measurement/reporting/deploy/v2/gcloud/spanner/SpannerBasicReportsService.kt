@@ -604,6 +604,31 @@ class SpannerBasicReportsService(
       throw RequiredFieldNotSetException("result_details")
     }
 
+    basicReport.resultDetails.resultGroupsList.forEachIndexed { resultGroupIndex, resultGroup ->
+      resultGroup.resultsList.forEachIndexed { resultIndex, result ->
+        val componentSummaryListPath =
+          "result_details.result_groups[$resultGroupIndex].results[$resultIndex]" +
+            ".metadata.reporting_unit_summary.reporting_unit_component_summary"
+        result.metadata.reportingUnitSummary.reportingUnitComponentSummaryList.forEachIndexed {
+          componentIndex,
+          componentSummary ->
+          if (componentSummary.externalReportingSetId.isEmpty()) {
+            throw RequiredFieldNotSetException(
+              "$componentSummaryListPath[$componentIndex].external_reporting_set_id"
+            )
+          }
+        }
+        result.metricSet.reportingSetComponentsList.forEachIndexed { componentIndex, component ->
+          if (component.externalReportingSetId.isEmpty()) {
+            throw RequiredFieldNotSetException(
+              "result_details.result_groups[$resultGroupIndex].results[$resultIndex]" +
+                ".metric_set.reporting_set_components[$componentIndex].external_reporting_set_id"
+            )
+          }
+        }
+      }
+    }
+
     for (impressionQualificationFilter in basicReport.details.impressionQualificationFiltersList) {
       if (
         impressionQualificationFilter.externalImpressionQualificationFilterId.isNotEmpty() &&
