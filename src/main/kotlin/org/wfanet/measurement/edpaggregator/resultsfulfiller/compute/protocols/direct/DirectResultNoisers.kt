@@ -52,9 +52,7 @@ fun buildDirectResultNoiser(
     DirectNoiseMechanism.CONTINUOUS_GAUSSIAN ->
       GaussianResultNoiser(reachDpParams, frequencyDpParams, maxFrequencyPerUser)
     DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE -> {
-      requireNotNull(truncationBound) {
-        "truncation_bound is required for $directNoiseMechanism"
-      }
+      requireNotNull(truncationBound) { "truncation_bound is required for $directNoiseMechanism" }
       require(truncationBound > 0) { "truncation_bound must be positive, got $truncationBound" }
       DeterministicTruncatedLaplaceResultNoiser(
         combinedFrequencyVector = frequencyData,
