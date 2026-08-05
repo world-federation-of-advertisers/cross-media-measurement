@@ -28,6 +28,7 @@ import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.tink.ConfidentialSpaceToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
@@ -72,6 +73,8 @@ class TrusTeeMill(
   private val trusTeeProcessorFactory: TrusTeeProcessor.Factory,
   private val gcloudKmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
   private val gcloudToAwsKmsClientFactory: KmsClientFactory<GCloudToAwsWifCredentials>,
+  private val confidentialSpaceToAwsKmsClientFactory:
+    KmsClientFactory<ConfidentialSpaceToAwsWifCredentials>,
   private val attestationTokenPath: Path,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
@@ -167,6 +170,12 @@ class TrusTeeMill(
   /** Converts internal [TrusTee.ComputationDetails] to the internal [TrusTeeParams]. */
   fun TrusTeeDetails.toTrusTeeParams(): TrusTeeParams {
     val isNoNoise = parameters.noiseMechanism == NoiseMechanism.NONE
+    if (parameters.noiseMechanism == NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE) {
+      val truncationBound = parameters.deterministicTruncatedLaplaceNoiseParams.truncationBound
+      require(truncationBound > 0) {
+        "truncation_bound must be greater than 0 for DETERMINISTIC_TRUNCATED_LAPLACE noise, got $truncationBound"
+      }
+    }
 
     val resultMinimumThresholds: ResultMinimumThresholds? =
       if (parameters.hasResultMinimumThresholds()) {
@@ -195,6 +204,8 @@ class TrusTeeMill(
           parameters.vidSamplingIntervalWidth.toDouble(),
           if (isNoNoise) null else parameters.reachDpParams,
           resultMinimumThresholds,
+          parameters.noiseMechanism,
+          parameters.deterministicTruncatedLaplaceNoiseParams.truncationBound,
         )
       }
       TrusTeeDetails.Type.REACH_AND_FREQUENCY -> {
@@ -212,6 +223,8 @@ class TrusTeeMill(
           if (isNoNoise) null else parameters.reachDpParams,
           if (isNoNoise) null else parameters.frequencyDpParams,
           resultMinimumThresholds,
+          parameters.noiseMechanism,
+          parameters.deterministicTruncatedLaplaceNoiseParams.truncationBound,
         )
       }
       TrusTeeDetails.Type.TYPE_UNSPECIFIED,
@@ -226,20 +239,38 @@ class TrusTeeMill(
     try {
       return if (protocol.hasAwsKmsParams()) {
         val awsConfig = protocol.awsKmsParams
-        val credentials =
-          GCloudToAwsWifCredentials(
-            gcloudAudience = protocol.workloadIdentityProvider,
-            subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
-            tokenUrl = GOOGLE_STS_TOKEN_URL,
-            credentialSourceFilePath = attestationTokenPath.toString(),
-            serviceAccountImpersonationUrl =
-              IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
-            roleArn = awsConfig.roleArn,
-            roleSessionName = awsConfig.roleSession,
-            region = awsConfig.region,
-            awsAudience = awsConfig.audience,
-          )
-        gcloudToAwsKmsClientFactory.getKmsClient(credentials)
+        if (
+          awsConfig.credentialSource ==
+            RequisitionDetails.RequisitionProtocol.TrusTee.AwsKmsParams.CredentialSource
+              .CONFIDENTIAL_SPACE
+        ) {
+          // Direct Confidential Space -> AWS: present the attestation token to AWS STS, with no
+          // intermediary GCP Workload Identity pool or service account.
+          val credentials =
+            ConfidentialSpaceToAwsWifCredentials(
+              roleArn = awsConfig.roleArn,
+              roleSessionName = awsConfig.roleSession,
+              region = awsConfig.region,
+              audience = awsConfig.audience,
+            )
+          confidentialSpaceToAwsKmsClientFactory.getKmsClient(credentials)
+        } else {
+          // Two-hop: GCP WIF + service-account impersonation mints the OIDC token for AWS STS.
+          val credentials =
+            GCloudToAwsWifCredentials(
+              gcloudAudience = protocol.workloadIdentityProvider,
+              subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
+              tokenUrl = GOOGLE_STS_TOKEN_URL,
+              credentialSourceFilePath = attestationTokenPath.toString(),
+              serviceAccountImpersonationUrl =
+                IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
+              roleArn = awsConfig.roleArn,
+              roleSessionName = awsConfig.roleSession,
+              region = awsConfig.region,
+              awsAudience = awsConfig.audience,
+            )
+          gcloudToAwsKmsClientFactory.getKmsClient(credentials)
+        }
       } else {
         val credentials =
           GCloudWifCredentials(

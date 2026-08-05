@@ -21,6 +21,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.ImpressionComputations
+import org.wfanet.measurement.computation.NoNoise
 import org.wfanet.measurement.computation.ReachAndFrequencyComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
@@ -85,7 +86,7 @@ object ResultMinimumThresholder {
         rawHistogram = histogram,
         vidSamplingIntervalWidth = vidSamplingIntervalWidth,
         vectorSize = maxPopulation,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = null,
       )
     val scaledImpressions =

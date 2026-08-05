@@ -24,6 +24,7 @@ import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
 import java.io.File
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.AwsKmsParams
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.EnvelopeEncryptionKt.awsKmsParams
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.common.ProtoReflection
@@ -264,15 +265,24 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
       edpsConfig.eventDataProviderConfigList.map { edpConfig ->
         val kmsClient = buildKmsClient(edpConfig)
         val apiAwsKmsParams =
-          if (edpConfig.kmsConfig.kmsType == EventDataProviderConfig.KmsConfig.KmsType.AWS) {
-            awsKmsParams {
-              roleArn = edpConfig.kmsConfig.awsRoleArn
-              roleSession = edpConfig.kmsConfig.awsRoleSessionName
-              region = edpConfig.kmsConfig.awsRegion
-              audience = edpConfig.kmsConfig.awsAudience
-            }
-          } else {
-            null
+          when (edpConfig.kmsConfig.kmsType) {
+            EventDataProviderConfig.KmsConfig.KmsType.AWS ->
+              awsKmsParams {
+                roleArn = edpConfig.kmsConfig.awsRoleArn
+                roleSession = edpConfig.kmsConfig.awsRoleSessionName
+                region = edpConfig.kmsConfig.awsRegion
+                audience = edpConfig.kmsConfig.awsAudience
+                credentialSource = AwsKmsParams.CredentialSource.GCP_WORKLOAD_IDENTITY
+              }
+            EventDataProviderConfig.KmsConfig.KmsType.AWS_CONFIDENTIAL_SPACE ->
+              awsKmsParams {
+                roleArn = edpConfig.kmsConfig.awsRoleArn
+                roleSession = edpConfig.kmsConfig.awsRoleSessionName
+                region = edpConfig.kmsConfig.awsRegion
+                audience = edpConfig.kmsConfig.awsAudience
+                credentialSource = AwsKmsParams.CredentialSource.CONFIDENTIAL_SPACE
+              }
+            else -> null
           }
         Triple(
           edpConfig.dataProvider,
