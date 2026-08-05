@@ -52,46 +52,38 @@ message Video {
   // Fraction of the video that was played, in the range [0, 1]. The quartile
   // grouping thresholds (0.25, 0.5, 0.75, 1.0) are offered for reporting; the
   // field itself is not constrained to those values.
-  double completed_fraction = 2
-      [(.wfa.measurement.api.v2alpha.template_field) = {
-        display_name: "Completed Fraction"
-        description: "Fraction of the video that was played, in the range "
-                     "[0, 1]."
-        reporting_features: IMPRESSION_QUALIFICATION
-        reporting_features: GROUPABLE
-        version_added: 1
-        grouping_spec: {
-          operator: GREATER_THAN_OR_EQUAL
-          double_value_list: {
-            values: 0.25
-            values: 0.5
-            values: 0.75
-            values: 1.0
-          }
-        }
-      }];
+  double completed_fraction = 2 [
+    (.wfa.measurement.api.v2alpha.template_field) = {
+      display_name: "Completed Fraction"
+      description: "Fraction of the video that was played, in the range "
+                   "[0, 1]."
+      reporting_features: IMPRESSION_QUALIFICATION
+      reporting_features: GROUPABLE
+      version_added: 1
+      grouping_spec: {
+        operator: GREATER_THAN_OR_EQUAL
+        double_value_list: { values: 0.25 values: 0.5 values: 0.75 values: 1.0 }
+      }
+    }
+  ];
 
   // Fraction of the ad's pixels that were on screen for at least 2 continuous
   // seconds, in the range [0, 1]. The quartile grouping thresholds (0.25,
   // 0.5, 0.75, 1.0) are offered for reporting — 0.5 is the old MRC
   // viewability standard and 1.0 the new one; the field itself is not
   // constrained to those values.
-  double viewable_fraction = 3
-      [(.wfa.measurement.api.v2alpha.template_field) = {
-        display_name: "Viewable Fraction"
-        description: "Fraction of the ad's pixels on screen for at least 2 "
-                     "continuous seconds, in the range [0, 1]."
-        reporting_features: IMPRESSION_QUALIFICATION
-        reporting_features: GROUPABLE
-        version_added: 1
-        grouping_spec: {
-          operator: GREATER_THAN_OR_EQUAL
-          double_value_list: {
-            values: 0.25
-            values: 0.5
-            values: 0.75
-            values: 1.0
-          }
-        }
-      }];
+  double viewable_fraction = 3 [
+    (.wfa.measurement.api.v2alpha.template_field) = {
+      display_name: "Viewable Fraction"
+      description: "Fraction of the ad's pixels on screen for at least 2 "
+                   "continuous seconds, in the range [0, 1]."
+      reporting_features: IMPRESSION_QUALIFICATION
+      reporting_features: GROUPABLE
+      version_added: 1
+      grouping_spec: {
+        operator: GREATER_THAN_OR_EQUAL
+        double_value_list: { values: 0.25 values: 0.5 values: 0.75 values: 1.0 }
+      }
+    }
+  ];
 }
