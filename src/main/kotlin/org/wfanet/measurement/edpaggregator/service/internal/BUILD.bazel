@@ -39,7 +39,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_model_line_state_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:requisition_metadata_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/internal/edpaggregator:unlinked_client_account_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:vid_labeling_job_service_kt_jvm_grpc_proto",
     ],
 )
