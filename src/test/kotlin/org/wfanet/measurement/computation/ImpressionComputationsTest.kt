@@ -72,8 +72,7 @@ class ImpressionComputationsTest {
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
         vidSamplingIntervalWidth = 1.0,
-        noiser =
-          GaussianResultNoiser(DP_PARAMS, DP_PARAMS, maxFrequency.toInt()),
+        noiser = GaussianResultNoiser(DP_PARAMS, DP_PARAMS, maxFrequency.toInt()),
         resultMinimumThresholds = null,
       )
     val rawImpressionCount =
@@ -98,8 +97,7 @@ class ImpressionComputationsTest {
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
         vidSamplingIntervalWidth = 0.5,
-        noiser =
-          GaussianResultNoiser(DP_PARAMS, DP_PARAMS, maxFrequency.toInt()),
+        noiser = GaussianResultNoiser(DP_PARAMS, DP_PARAMS, maxFrequency.toInt()),
         resultMinimumThresholds = null,
       )
     val rawImpressionCount =
