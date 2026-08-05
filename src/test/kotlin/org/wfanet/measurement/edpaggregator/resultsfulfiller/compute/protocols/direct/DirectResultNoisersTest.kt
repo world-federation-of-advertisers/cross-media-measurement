@@ -79,8 +79,7 @@ class DirectResultNoisersTest {
     val second = build(DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE, truncationBound = 10)
 
     assertThat(second.noiseReach(1_000L)).isEqualTo(first.noiseReach(1_000L))
-    assertThat(second.noiseFrequencyBucket(0, 500L))
-      .isEqualTo(first.noiseFrequencyBucket(0, 500L))
+    assertThat(second.noiseFrequencyBucket(0, 500L)).isEqualTo(first.noiseFrequencyBucket(0, 500L))
     assertThat(second.noiseImpressionsFromFrequencyHistogram(HISTOGRAM))
       .isEqualTo(first.noiseImpressionsFromFrequencyHistogram(HISTOGRAM))
   }

@@ -18,8 +18,8 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.
 
 import com.google.common.truth.Truth.assertThat
 import kotlin.math.ln
-import kotlin.test.assertFailsWith
 import kotlin.math.sqrt
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
