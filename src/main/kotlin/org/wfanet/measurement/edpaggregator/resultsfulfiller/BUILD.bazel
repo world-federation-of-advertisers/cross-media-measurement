@@ -21,6 +21,7 @@ kt_jvm_library(
     ],
     deps = [
         ":continuous_gaussian_noiser_selector",
+        ":deterministic_truncated_laplace_noiser_selector",
         ":event_batch",
         ":event_processing_orchestrator",
         ":event_reader",
@@ -74,6 +75,16 @@ kt_jvm_library(
 kt_jvm_library(
     name = "continuous_gaussian_noiser_selector",
     srcs = ["ContinuousGaussianNoiseSelector.kt"],
+    deps = [
+        ":noiser_selector",
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_refusal_exception",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "deterministic_truncated_laplace_noiser_selector",
+    srcs = ["DeterministicTruncatedLaplaceNoiseSelector.kt"],
     deps = [
         ":noiser_selector",
         "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_refusal_exception",

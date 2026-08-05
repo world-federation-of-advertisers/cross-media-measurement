@@ -8,6 +8,16 @@ package(
 )
 
 kt_jvm_library(
+    name = "direct_result_noisers",
+    srcs = ["DirectResultNoisers.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:result_noiser",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
+        "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
     name = "direct_measurement_result_factory",
     srcs = ["DirectMeasurementResultFactory.kt"],
     deps = [
@@ -26,6 +36,7 @@ kt_jvm_library(
     name = "direct_reach_and_frequency_result_builder",
     srcs = ["DirectReachAndFrequencyResultBuilder.kt"],
     deps = [
+        ":direct_result_noisers",
         "//imports/java/org/apache/commons/math3",
         "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:reach_and_frequency_computations",
@@ -46,6 +57,7 @@ kt_jvm_library(
     name = "direct_reach_result_builder",
     srcs = ["DirectReachResultBuilder.kt"],
     deps = [
+        ":direct_result_noisers",
         "//imports/java/org/apache/commons/math3",
         "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:reach_and_frequency_computations",
@@ -66,6 +78,7 @@ kt_jvm_library(
     name = "direct_impression_result_builder",
     srcs = ["DirectImpressionResultBuilder.kt"],
     deps = [
+        ":direct_result_noisers",
         "//imports/java/org/apache/commons/math3",
         "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:impression_computations",

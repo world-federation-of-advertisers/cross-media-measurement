@@ -44,9 +44,8 @@ kt_jvm_library(
     name = "impression_computations",
     srcs = ["ImpressionComputations.kt"],
     deps = [
-        ":differential_privacy_params",
         ":result_minimum_thresholds",
-        "//imports/java/com/google/privacy:differential_privacy",
+        ":result_noiser",
     ],
 )
 
