@@ -91,6 +91,11 @@ object VariancesImpl : Variances {
    * reach or per-bucket count by 1.
    */
   private const val DETERMINISTIC_TRUNCATED_LAPLACE_SENSITIVITY = 1.0
+  // The system's privacy parameters for DETERMINISTIC_TRUNCATED_LAPLACE are compiled into the
+  // attested TrusTEE image; they are mirrored here so the reporting server derives the same
+  // variance.
+  private const val DETERMINISTIC_TRUNCATED_LAPLACE_EPSILON = 1.0
+  private const val DETERMINISTIC_TRUNCATED_LAPLACE_TRUNCATION_BOUND = 8
   private val EQUIVALENCE = Precision.doubleEquivalenceOfEpsilon(TOLERANCE)
 
   /**
@@ -104,7 +109,6 @@ object VariancesImpl : Variances {
       params.measurementParams.dpParams,
       1.0,
       params.measurementParams.noiseMechanism,
-      params.measurementParams.truncationBound,
     )
   }
 
@@ -186,11 +190,7 @@ object VariancesImpl : Variances {
     }
 
     val frequencyNoiseVariance: Double =
-      computeDirectNoiseVariance(
-        measurementParams.dpParams,
-        measurementParams.noiseMechanism,
-        measurementParams.truncationBound,
-      )
+      computeDirectNoiseVariance(measurementParams.dpParams, measurementParams.noiseMechanism)
     val varPart1 =
       reachRatio * (1.0 - reachRatio) * (1.0 - measurementParams.vidSamplingInterval.width) /
         (totalReach * measurementParams.vidSamplingInterval.width)
@@ -239,13 +239,11 @@ object VariancesImpl : Variances {
     dpParams: DpParams,
     maximumFrequencyPerUser: Double,
     noiseMechanism: NoiseMechanism,
-    truncationBound: Int? = null,
   ): Double {
     require(measurementValue >= 0.0) {
       "The scalar measurement value ($measurementValue) cannot be negative."
     }
-    val noiseVariance: Double =
-      computeDirectNoiseVariance(dpParams, noiseMechanism, truncationBound)
+    val noiseVariance: Double = computeDirectNoiseVariance(dpParams, noiseMechanism)
     val variance =
       (maximumFrequencyPerUser *
         measurementValue *
@@ -428,7 +426,6 @@ object VariancesImpl : Variances {
   private fun computeDirectNoiseVariance(
     dpParams: DpParams,
     noiseMechanism: NoiseMechanism,
-    truncationBound: Int? = null,
   ): Double {
     return when (noiseMechanism) {
       NoiseMechanism.NONE -> 0.0
@@ -440,13 +437,12 @@ object VariancesImpl : Variances {
       }
       NoiseMechanism.TRUNCATED_LAPLACE -> {
         // The noise is deterministic in the data, so this is the variance of the draw treating the
-        // seed as unknown: the uncertainty a consumer has before seeing the result.
-        requireNotNull(truncationBound) {
-          "Truncation bound is required for ${NoiseMechanism.TRUNCATED_LAPLACE}"
-        }
+        // seed as unknown: the uncertainty a consumer has before seeing the result. epsilon and the
+        // truncation bound are the system's compiled params, not taken from the measurement.
         truncatedLaplaceVariance(
-          scale = DETERMINISTIC_TRUNCATED_LAPLACE_SENSITIVITY / dpParams.epsilon,
-          bound = truncationBound,
+          scale =
+            DETERMINISTIC_TRUNCATED_LAPLACE_SENSITIVITY / DETERMINISTIC_TRUNCATED_LAPLACE_EPSILON,
+          bound = DETERMINISTIC_TRUNCATED_LAPLACE_TRUNCATION_BOUND,
         )
       }
     }

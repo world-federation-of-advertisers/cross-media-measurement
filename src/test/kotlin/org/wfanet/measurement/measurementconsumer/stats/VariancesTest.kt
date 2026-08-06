@@ -28,15 +28,14 @@ import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 class VariancesTest {
   @Test
   fun `computeMeasurementVariance returns the truncated Laplace variance for deterministic reach`() {
-    // Laplace(0, b) with b = sensitivity/epsilon = 1.0, confined to [-8, 8]. The closed form is
-    // [2b^2 - exp(-B/b)(B^2 + 2Bb + 2b^2)] / (1 - exp(-B/b)), verified against sampling the same
-    // inverse-transform construction the sampler uses.
+    // The system's compiled params: Laplace(0, b) with b = sensitivity/epsilon = 1.0, confined to
+    // [-8, 8]. The closed form is [2b^2 - exp(-B/b)(B^2 + 2Bb + 2b^2)] / (1 - exp(-B/b)), verified
+    // against sampling the same inverse-transform construction the sampler uses.
     val reachMeasurementParams =
       ReachMeasurementParams(
         VidSamplingInterval(0.0, 1.0),
         DpParams(1.0, 1.0),
         NoiseMechanism.TRUNCATED_LAPLACE,
-        truncationBound = 8,
       )
 
     val variance =
@@ -47,46 +46,6 @@ class VariancesTest {
 
     val expected = 1.9731539839
     assertThat(variance).isWithin(computeErrorTolerance(variance, expected)).of(expected)
-  }
-
-  @Test
-  fun `computeMeasurementVariance truncated Laplace variance falls with a tighter bound`() {
-    // Same epsilon, bound 2 instead of 8. Truncation only removes tail mass, so the variance drops
-    // well below the untruncated Laplace value of 2b^2 = 2.0.
-    val reachMeasurementParams =
-      ReachMeasurementParams(
-        VidSamplingInterval(0.0, 1.0),
-        DpParams(1.0, 1.0),
-        NoiseMechanism.TRUNCATED_LAPLACE,
-        truncationBound = 2,
-      )
-
-    val variance =
-      VariancesImpl.computeMeasurementVariance(
-        DeterministicMethodology,
-        ReachMeasurementVarianceParams(0L, reachMeasurementParams),
-      )
-
-    val expected = 0.7478588580
-    assertThat(variance).isWithin(computeErrorTolerance(variance, expected)).of(expected)
-    assertThat(variance).isLessThan(2.0)
-  }
-
-  @Test
-  fun `computeMeasurementVariance fails when the truncation bound is absent`() {
-    val reachMeasurementParams =
-      ReachMeasurementParams(
-        VidSamplingInterval(0.0, 1.0),
-        DpParams(1.0, 1.0),
-        NoiseMechanism.TRUNCATED_LAPLACE,
-      )
-
-    assertFailsWith<IllegalArgumentException> {
-      VariancesImpl.computeMeasurementVariance(
-        DeterministicMethodology,
-        ReachMeasurementVarianceParams(0L, reachMeasurementParams),
-      )
-    }
   }
 
   @Test

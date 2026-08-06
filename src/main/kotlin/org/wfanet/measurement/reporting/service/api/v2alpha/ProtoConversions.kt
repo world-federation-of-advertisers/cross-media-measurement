@@ -688,9 +688,6 @@ private fun Measurement.Result.Frequency.toInternal(
       // variance depends on the sampling interval from MeasurementSpec rather than
       // frequency_vector_size, so no additional data from the result is needed.
       deterministicDistribution = DeterministicDistribution.getDefaultInstance()
-      if (cmmsProtocol.hasDeterministicTruncatedLaplaceNoiseParams()) {
-        truncationBound = cmmsProtocol.deterministicTruncatedLaplaceNoiseParams.truncationBound
-      }
     } else if (protocolConfig.protocolsList.any { it.hasDirect() }) {
       noiseMechanism = source.noiseMechanism.toInternal()
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
@@ -742,9 +739,6 @@ private fun Measurement.Result.Reach.toInternal(
       // variance depends on the sampling interval from MeasurementSpec rather than
       // frequency_vector_size, so no additional data from the result is needed.
       deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
-      if (cmmsProtocol.hasDeterministicTruncatedLaplaceNoiseParams()) {
-        truncationBound = cmmsProtocol.deterministicTruncatedLaplaceNoiseParams.truncationBound
-      }
     } else if (protocolConfig.protocolsList.any { it.hasDirect() }) {
       noiseMechanism = source.noiseMechanism.toInternal()
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")

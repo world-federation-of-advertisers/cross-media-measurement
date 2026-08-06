@@ -81,12 +81,6 @@ message Measurement {
         HonestMajorityShareShuffle honest_majority_share_shuffle = 8;
         TrusTee trus_tee = 9;
       }
-
-      // Draws are truncated to `[-truncation_bound, truncation_bound]`. Must be
-      // positive. Set only when `noise_mechanism` is
-      // DETERMINISTIC_TRUNCATED_LAPLACE, the only mechanism that parameterizes
-      // its noise this way.
-      int32 truncation_bound = 10;
     }
     Reach reach = 1;
 
@@ -102,12 +96,6 @@ message Measurement {
         HonestMajorityShareShuffle honest_majority_share_shuffle = 7;
         TrusTee trus_tee = 8;
       }
-
-      // Draws are truncated to `[-truncation_bound, truncation_bound]`. Must be
-      // positive. Set only when `noise_mechanism` is
-      // DETERMINISTIC_TRUNCATED_LAPLACE, the only mechanism that parameterizes
-      // its noise this way.
-      int32 truncation_bound = 9;
     }
     Frequency frequency = 2;
 

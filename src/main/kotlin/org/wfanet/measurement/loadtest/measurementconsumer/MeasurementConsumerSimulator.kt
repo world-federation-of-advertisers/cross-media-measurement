@@ -781,7 +781,6 @@ abstract class MeasurementConsumerSimulator(
                 measurementSpec.reachAndFrequency.frequencyPrivacyParams.toNoiserDpParams(),
               noiseMechanism = measurementComputationInfo.noiseMechanism.toStatsNoiseMechanism(),
               maximumFrequency = measurementSpec.reachAndFrequency.maximumFrequency,
-              truncationBound = protocol.truncationBoundOrNull(),
             ),
         ),
       )
@@ -809,24 +808,10 @@ abstract class MeasurementConsumerSimulator(
             vidSamplingInterval = vidSamplingInterval.toStatsVidSamplingInterval(),
             dpParams = privacyParams.toNoiserDpParams(),
             noiseMechanism = measurementComputationInfo.noiseMechanism.toStatsNoiseMechanism(),
-            truncationBound = protocol.truncationBoundOrNull(),
           ),
       ),
     )
   }
-
-  /**
-   * The truncation bound the protocol applies, or null where the protocol has none.
-   *
-   * Only TrusTEE parameterizes its noise this way. Direct measurements report their own variance
-   * through [CustomDirectMethodology] and never reach this path.
-   */
-  private fun ProtocolConfig.Protocol.truncationBoundOrNull(): Int? =
-    if (hasTrusTee() && trusTee.hasDeterministicTruncatedLaplaceNoiseParams()) {
-      trusTee.deterministicTruncatedLaplaceNoiseParams.truncationBound
-    } else {
-      null
-    }
 
   /** Computes the margin of error, i.e. half width, of a 99.9% confidence interval. */
   private fun computeErrorMargin(variance: Double): Double {
