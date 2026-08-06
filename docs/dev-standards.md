@@ -84,7 +84,9 @@ the commit message, complex formatting creates noisy commit history and can
 interfere with
 [Git trailer](https://git-scm.com/docs/git-interpret-trailers) parsing used by
 release automation. If additional context is needed for reviewers, add it as a
-comment on the PR or in the corresponding issue.
+comment on the PR or in the corresponding issue. Investigation and background
+belong in the issue rather than being repeated across the issue, the PR
+description, and code comments.
 
 ### Use Reviewable
 
