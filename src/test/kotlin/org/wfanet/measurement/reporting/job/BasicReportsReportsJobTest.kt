@@ -2511,7 +2511,7 @@ class BasicReportsReportsJobTest {
     job.execute()
 
     val listBasicReportsCaptor: KArgumentCaptor<ListBasicReportsRequest> = argumentCaptor()
-    verifyBlocking(basicReportsMock, times(2)) {
+    verifyBlocking(basicReportsMock, times(4)) {
       listBasicReports(listBasicReportsCaptor.capture())
     }
     assertThat(listBasicReportsCaptor.allValues)
@@ -2527,8 +2527,24 @@ class BasicReportsReportsJobTest {
         listBasicReportsRequest {
           filter =
             ListBasicReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              state = BasicReport.State.CREATED
+            }
+          pageSize = BATCH_SIZE
+        },
+        listBasicReportsRequest {
+          filter =
+            ListBasicReportsRequestKt.filter {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID_2
               state = BasicReport.State.REPORT_CREATED
+            }
+          pageSize = BATCH_SIZE
+        },
+        listBasicReportsRequest {
+          filter =
+            ListBasicReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID_2
+              state = BasicReport.State.CREATED
             }
           pageSize = BATCH_SIZE
         },
