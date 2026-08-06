@@ -28,6 +28,7 @@ import com.google.type.dateTime
 import com.google.type.interval
 import com.google.type.timeZone
 import io.grpc.Status
+import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import java.nio.file.Paths
 import java.security.SecureRandom
@@ -3280,7 +3281,7 @@ class BasicReportsServiceTest {
     }
 
   @Test
-  fun `createBasicReport uses no line when model line not set and zero valid lines exist`(): Unit =
+  fun `createBasicReport throws FAILED_PRECONDITION when no valid model lines exist`(): Unit =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
@@ -3340,13 +3341,21 @@ class BasicReportsServiceTest {
         basicReportId = "a1234"
       }
 
-      val response =
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-      assertThat(response.modelLine).isEmpty()
-      assertThat(response.effectiveModelLine).isEmpty()
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
-      // Verify kingdomModelLinesStub.enumerateValidModelLines was called
-      // Verify kingdomModelLinesStub.enumerateValidModelLines was called
+      assertThat(exception).status().code().isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception)
+        .errorInfo()
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.NO_ACTIVE_MODEL_LINE.name
+          }
+        )
+
       verifyProtoArgument(
           modelLinesServiceMock,
           ModelLinesCoroutineImplBase::enumerateValidModelLines,
@@ -3362,22 +3371,31 @@ class BasicReportsServiceTest {
           }
         )
 
-      val listMetricCalculationSpecsRequest = listMetricCalculationSpecsRequest {
-        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        filter =
-          ListMetricCalculationSpecsRequestKt.filter {
-            externalCampaignGroupId = campaignGroupKey.reportingSetId
-          }
-        limit = 50
-      }
+      val internalException =
+        assertFailsWith<StatusException> {
+          internalBasicReportsService.getBasicReport(
+            internalGetBasicReportRequest {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalBasicReportId = request.basicReportId
+            }
+          )
+        }
+      assertThat(internalException).status().code().isEqualTo(Status.Code.NOT_FOUND)
 
-      val createdMetricCalculationSpecs =
-        internalMetricCalculationSpecsService
-          .listMetricCalculationSpecs(listMetricCalculationSpecsRequest)
-          .metricCalculationSpecsList
-
-      assertThat(createdMetricCalculationSpecs.map { it.cmmsModelLine }.distinct())
-        .containsExactly("")
+      val reportingSets =
+        internalReportingSetsService
+          .streamReportingSets(
+            streamReportingSetsRequest {
+              filter =
+                StreamReportingSetsRequestKt.filter {
+                  cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+                  externalCampaignGroupId = campaignGroupKey.reportingSetId
+                }
+            }
+          )
+          .toList()
+      assertThat(reportingSets.map { it.externalReportingSetId })
+        .containsExactly(campaignGroupKey.reportingSetId)
     }
 
   @Test

@@ -76,6 +76,12 @@ message TrusTee {
       int32 min_users = 2;
     }
 
+    // Parameters for DETERMINISTIC_TRUNCATED_LAPLACE noise.
+    message DeterministicTruncatedLaplaceNoiseParams {
+      // Draws are truncated to `[-truncation_bound, truncation_bound]`.
+      int32 truncation_bound = 1;
+    }
+
     // Parameters used in this computation.
     message Parameters {
       // The maximum frequency to reveal in the histogram.
@@ -90,6 +96,9 @@ message TrusTee {
       float vid_sampling_interval_width = 5;
       // Optional small-cell suppression parameters.
       ResultMinimumThresholds result_minimum_thresholds = 6;
+      // Required when `noise_mechanism` is DETERMINISTIC_TRUNCATED_LAPLACE.
+      DeterministicTruncatedLaplaceNoiseParams
+          deterministic_truncated_laplace_noise_params = 7;
     }
     Parameters parameters = 3;
   }

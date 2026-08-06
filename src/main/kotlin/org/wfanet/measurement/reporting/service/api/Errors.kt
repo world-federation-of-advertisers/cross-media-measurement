@@ -45,6 +45,7 @@ object Errors {
     IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
     MODEL_LINE_NOT_FOUND,
     MODEL_LINE_NOT_ACTIVE,
+    NO_ACTIVE_MODEL_LINE,
     DATA_PROVIDER_NOT_FOUND_FOR_CAMPAIGN_GROUP,
     /** A reference to a field in an event template is invalid for the Event message type. */
     EVENT_TEMPLATE_FIELD_INVALID,
@@ -284,6 +285,14 @@ class ModelLineNotActiveException(name: String, cause: Throwable? = null) :
     Errors.Reason.MODEL_LINE_NOT_ACTIVE,
     "ModelLine $name not active for the DataProviders within the interval",
     mapOf(Errors.Metadata.MODEL_LINE to name),
+    cause,
+  )
+
+class NoActiveModelLineException(cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.NO_ACTIVE_MODEL_LINE,
+    "No ModelLine active for the DataProviders within the interval",
+    emptyMap(),
     cause,
   )
 

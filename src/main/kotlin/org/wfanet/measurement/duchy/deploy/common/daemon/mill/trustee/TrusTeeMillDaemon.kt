@@ -24,6 +24,7 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.crypto.tink.ConfidentialSpaceToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
@@ -55,6 +56,7 @@ abstract class TrusTeeMillDaemon : Runnable {
     storageClient: StorageClient,
     gcloudKmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
     gcloudToAwsKmsClientFactory: KmsClientFactory<GCloudToAwsWifCredentials>,
+    confidentialSpaceToAwsKmsClientFactory: KmsClientFactory<ConfidentialSpaceToAwsWifCredentials>,
   ) {
     val duchyName = flags.duchy.duchyName
 
@@ -128,6 +130,7 @@ abstract class TrusTeeMillDaemon : Runnable {
         trusTeeProcessorFactory = TrusTeeProcessorImpl.Factory,
         gcloudKmsClientFactory = gcloudKmsClientFactory,
         gcloudToAwsKmsClientFactory = gcloudToAwsKmsClientFactory,
+        confidentialSpaceToAwsKmsClientFactory = confidentialSpaceToAwsKmsClientFactory,
         attestationTokenPath = flags.attestationTokenFile.toPath(),
       )
 
