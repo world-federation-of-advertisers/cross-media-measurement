@@ -24,6 +24,11 @@ package k8s
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
 
+	// A BasicReport can be in state CREATED for at most the deadline, so the age at which one is
+	// treated as stuck is derived from it.
+	_createBasicReportDeadlineSeconds: int | *300
+	_stuckBasicReportAgeSeconds:       _createBasicReportDeadlineSeconds * 3
+
 	_postgresConfig:         #PostgresConfig
 	_reportingSpannerConfig: #SpannerConfig & {
 		database: "reporting"
@@ -164,6 +169,7 @@ package k8s
 						"--health-port=8080",
 						"--basic-reports-enabled=" + Reporting._basicReportsEnabled,
 						"--disable-metrics-reuse=false",
+						"--create-basic-report-deadline=\(Reporting._createBasicReportDeadlineSeconds)s",
 						_impressionQualificationFilterConfigFileFlag,
 			] + _postgresConfig.flags + _reportingSpannerConfig.flags + _tlsArgs + _eventDescriptorArgs
 
@@ -392,6 +398,7 @@ package k8s
 							"--port=8443",
 							"--health-port=8080",
 							"--pdp-name=\(_populationDataProviderName)",
+							"--stuck-basic-report-age=\(Reporting._stuckBasicReportAgeSeconds)s",
 						] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 					}
 				}

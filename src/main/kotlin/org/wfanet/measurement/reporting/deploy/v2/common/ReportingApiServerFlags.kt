@@ -130,6 +130,18 @@ class ReportingApiServerFlags {
   var enableReportingSetReportingUnitComponents by Delegates.notNull<Boolean>()
     private set
 
+  @CommandLine.Option(
+    names = ["--create-basic-report-deadline"],
+    description =
+      [
+        "How long CreateBasicReport may spend creating the underlying Report after the " +
+          "BasicReport has been persisted. Bounds how long a BasicReport can be in state CREATED."
+      ],
+    defaultValue = "5m",
+  )
+  lateinit var createBasicReportDeadline: Duration
+    private set
+
   class ReportStart {
     class TimeOffset {
       @CommandLine.Option(

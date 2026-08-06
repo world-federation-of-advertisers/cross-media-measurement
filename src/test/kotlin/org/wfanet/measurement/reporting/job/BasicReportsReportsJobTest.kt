@@ -2504,6 +2504,8 @@ class BasicReportsReportsJobTest {
         MetricCalculationSpecsCoroutineStub(grpcTestServerRule.channel),
         ReportResultsCoroutineStub(grpcTestServerRule.channel),
         TEST_EVENT_DESCRIPTOR,
+        Clock.fixed(NOW, ZoneOffset.UTC),
+        STUCK_BASIC_REPORT_AGE,
       )
 
     job.execute()
@@ -2589,7 +2591,9 @@ class BasicReportsReportsJobTest {
 
       val listCaptor: KArgumentCaptor<ListBasicReportsRequest> = argumentCaptor()
       verifyBlocking(basicReportsMock, times(2)) { listBasicReports(listCaptor.capture()) }
-      assertThat(listCaptor.allValues.filter { it.filter.state == BasicReport.State.REPORT_CREATED })
+      assertThat(
+          listCaptor.allValues.filter { it.filter.state == BasicReport.State.REPORT_CREATED }
+        )
         .hasSize(1)
     }
 
@@ -2599,7 +2603,7 @@ class BasicReportsReportsJobTest {
       INTERNAL_BASIC_REPORT.copy {
         state = BasicReport.State.CREATED
         clearExternalReportId()
-        createTime = NOW.minus(STUCK_BASIC_REPORT_AGE).minusSeconds(1).toProtoTime()
+        createTime = STUCK_CREATE_TIME
       }
     stubListCreatedBasicReports(listOf(stuckBasicReport))
 
@@ -2621,7 +2625,7 @@ class BasicReportsReportsJobTest {
       INTERNAL_BASIC_REPORT.copy {
         state = BasicReport.State.CREATED
         clearExternalReportId()
-        createTime = NOW.minusSeconds(1).toProtoTime()
+        createTime = RECENT_CREATE_TIME
       }
     stubListCreatedBasicReports(listOf(recentBasicReport))
 
@@ -2638,7 +2642,7 @@ class BasicReportsReportsJobTest {
           state = BasicReport.State.CREATED
           externalBasicReportId = "br-stuck-0$it"
           clearExternalReportId()
-          createTime = NOW.minus(STUCK_BASIC_REPORT_AGE).minusSeconds(1).toProtoTime()
+          createTime = STUCK_CREATE_TIME
         }
       }
     stubListCreatedBasicReports(stuckBasicReports)
@@ -2656,6 +2660,14 @@ class BasicReportsReportsJobTest {
 
     private val NOW: Instant = Instant.ofEpochSecond(1735689600)
     private val STUCK_BASIC_REPORT_AGE: Duration = Duration.ofHours(1)
+
+    /** `create_time` of a BasicReport old enough to be considered stuck. */
+    private val STUCK_CREATE_TIME = timestamp {
+      seconds = NOW.minus(STUCK_BASIC_REPORT_AGE).minusSeconds(1).epochSecond
+    }
+
+    /** `create_time` of a BasicReport too recent to be considered stuck. */
+    private val RECENT_CREATE_TIME = timestamp { seconds = NOW.minusSeconds(1).epochSecond }
 
     /**
      * Returns an [Answer] for `listBasicReports` that yields [response] for the REPORT_CREATED

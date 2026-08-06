@@ -32,6 +32,7 @@ import io.grpc.StatusRuntimeException
 import java.nio.file.Paths
 import java.security.SecureRandom
 import java.time.Clock
+import java.time.Duration
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
@@ -96,6 +97,7 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.reporting.v2.AddProcessedResultValuesRequestKt
+import org.wfanet.measurement.internal.reporting.v2.BasicReport as InternalBasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt as InternalDimensionSpecKt
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt as InternalEventTemplateFieldKt
@@ -1144,6 +1146,80 @@ class BasicReportsServiceTest {
         }
 
       assertThat(response.basicReportsList).hasSize(1)
+    }
+
+  @Test
+  fun `createBasicReport throws DEADLINE_EXCEEDED when Report creation exceeds deadline`(): Unit =
+    runBlocking {
+      service =
+        BasicReportsService(
+          internalBasicReportsService,
+          internalImpressionQualificationFiltersService,
+          internalReportingSetsService,
+          internalMetricCalculationSpecsService,
+          reportsService,
+          modelLinesService,
+          TEST_EVENT_DESCRIPTOR,
+          METRIC_SPEC_CONFIG,
+          SecureRandom().asKotlinRandom(),
+          authorization,
+          MEASUREMENT_CONSUMER_CONFIGS,
+          defaultReportStartHour = null,
+          baseExternalImpressionQualificationFilterIds = emptyList(),
+          enableReportingSetReportingUnitComponents = true,
+          createBasicReportDeadline = Duration.ZERO,
+        )
+
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = internalReportingSet {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+            displayName = "displayName"
+            primitive =
+              ReportingSetKt.primitive {
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                    cmmsEventGroupId = "1235"
+                  }
+              }
+          }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport = BASIC_REPORT.copy { this.campaignGroup = campaignGroupKey.toName() }
+        basicReportId = "a1234"
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception).status().code().isEqualTo(Status.Code.DEADLINE_EXCEEDED)
+
+      val internalBasicReport =
+        internalBasicReportsService.getBasicReport(
+          internalGetBasicReportRequest {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalBasicReportId = request.basicReportId
+          }
+        )
+      assertThat(internalBasicReport.state).isEqualTo(InternalBasicReport.State.CREATED)
+      assertThat(internalBasicReport.externalReportId).isEmpty()
     }
 
   @Test

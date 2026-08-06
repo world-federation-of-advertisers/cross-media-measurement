@@ -81,7 +81,7 @@ private fun run(
   @CommandLine.Mixin eventMessageFlags: EventMessageFlags,
   @CommandLine.Option(
     names = ["--stuck-basic-report-age"],
-    defaultValue = "1h",
+    defaultValue = "15m",
     description =
       [
         "How long a BasicReport may remain in state CREATED before it is marked FAILED.",

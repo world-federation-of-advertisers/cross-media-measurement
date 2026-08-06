@@ -25,6 +25,7 @@ import com.google.type.interval
 import com.google.type.timeZone
 import io.grpc.Status
 import io.grpc.StatusException
+import java.time.Duration
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
@@ -32,7 +33,9 @@ import kotlin.collections.List
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.random.Random
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.withTimeout
 import org.projectnessie.cel.Env
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
@@ -138,6 +141,7 @@ class BasicReportsService(
   private val baseExternalImpressionQualificationFilterIds: Iterable<String>,
   private val enableReportingSetReportingUnitComponents: Boolean = false,
   private val emitCelNullGuardsForNestedMembers: Boolean = false,
+  private val createBasicReportDeadline: Duration = DEFAULT_CREATE_BASIC_REPORT_DEADLINE,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   data class ZonedHour(val hour: Int, val zoneId: ZoneId)
@@ -536,38 +540,49 @@ class BasicReportsService(
         }
       }
 
-    val report: Report =
-      try {
-        buildReport(
-          request.basicReport,
-          campaignGroupResolution.campaignGroupKey,
-          reportingSetMaps.nameByReportingSetComposite,
-          reportingSetsMetricCalculationSpecDetailsMap,
-          effectiveModelLine?.name.orEmpty(),
-          effectiveReportStart,
+    // The BasicReport stays in state CREATED until `SetExternalReportId` commits, so bounding the
+    // remaining steps bounds how long it can legitimately be in that state.
+    try {
+      withTimeout(createBasicReportDeadline.toMillis()) {
+        val report: Report =
+          try {
+            buildReport(
+              request.basicReport,
+              campaignGroupResolution.campaignGroupKey,
+              reportingSetMaps.nameByReportingSetComposite,
+              reportingSetsMetricCalculationSpecDetailsMap,
+              effectiveModelLine?.name.orEmpty(),
+              effectiveReportStart,
+            )
+          } catch (e: ReportingSetNotFoundException) {
+            throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          } catch (e: InternalReportingSetsException) {
+            throw Status.INTERNAL.withDescription(e.message).withCause(e).asRuntimeException()
+          }
+
+        val createReportRequest = createReportRequest {
+          parent = request.parent
+          this.report = report
+          requestId = createdInternalBasicReport.createReportRequestId
+          reportId = "a${UUID.randomUUID()}"
+        }
+
+        reportsStub.withForwardedTrustedCredentials().createReport(createReportRequest)
+
+        internalBasicReportsStub.setExternalReportId(
+          setExternalReportIdRequest {
+            cmmsMeasurementConsumerId = parentKey.measurementConsumerId
+            externalBasicReportId = request.basicReportId
+            externalReportId = createReportRequest.reportId
+          }
         )
-      } catch (e: ReportingSetNotFoundException) {
-        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-      } catch (e: InternalReportingSetsException) {
-        throw Status.INTERNAL.withDescription(e.message).withCause(e).asRuntimeException()
       }
-
-    val createReportRequest = createReportRequest {
-      parent = request.parent
-      this.report = report
-      requestId = createdInternalBasicReport.createReportRequestId
-      reportId = "a${UUID.randomUUID()}"
+    } catch (e: TimeoutCancellationException) {
+      throw Status.DEADLINE_EXCEEDED
+        .withDescription("Timed out creating the Report for the BasicReport")
+        .withCause(e)
+        .asRuntimeException()
     }
-
-    reportsStub.withForwardedTrustedCredentials().createReport(createReportRequest)
-
-    internalBasicReportsStub.setExternalReportId(
-      setExternalReportIdRequest {
-        cmmsMeasurementConsumerId = parentKey.measurementConsumerId
-        externalBasicReportId = request.basicReportId
-        externalReportId = createReportRequest.reportId
-      }
-    )
 
     return createdInternalBasicReport.toBasicReport(
       populateDeprecatedReportingUnitEventGroupSummaries = false
@@ -1401,6 +1416,8 @@ class BasicReportsService(
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25
     private const val SCALING_FACTOR = 10000
+
+    private val DEFAULT_CREATE_BASIC_REPORT_DEADLINE: Duration = Duration.ofMinutes(5)
 
     /** Specifies default values using [MetricSpecConfig] */
     private fun MetricSpec.withDefaults(

@@ -422,6 +422,7 @@ private object V2AlphaPublicApiServer {
             baseImpressionQualificationFilters.map { it.externalImpressionQualificationFilterId },
             reportingApiServerFlags.enableReportingSetReportingUnitComponents,
             v2AlphaPublicServerFlags.emitCelNullGuardsForNestedMembers,
+            reportingApiServerFlags.createBasicReportDeadline,
             serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
