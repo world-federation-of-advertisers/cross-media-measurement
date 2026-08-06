@@ -98,6 +98,7 @@ import org.wfanet.measurement.reporting.service.api.FieldUnimplementedException
 import org.wfanet.measurement.reporting.service.api.ImpressionQualificationFilterNotFoundException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.ModelLineNotActiveException
+import org.wfanet.measurement.reporting.service.api.NoActiveModelLineException
 import org.wfanet.measurement.reporting.service.api.ReportingSetNotFoundException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
@@ -313,8 +314,7 @@ class BasicReportsService(
         request.basicReport.reportingInterval.reportStart
       }
 
-    val reportingSetMaps: ReportingSetMaps<*> = buildReportingSetMaps(campaignGroupResolution)
-    val effectiveModelLine: ModelLine? =
+    val effectiveModelLine: ModelLine =
       try {
         getEffectiveModelLine(
           request.basicReport.modelLine,
@@ -325,17 +325,23 @@ class BasicReportsService(
         )
       } catch (e: ModelLineNotActiveException) {
         throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      } catch (e: NoActiveModelLineException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       }
 
     val requiredPermissionIds = buildSet {
       add(Permission.CREATE)
 
-      if (effectiveModelLine?.type == ModelLine.Type.DEV) {
+      if (effectiveModelLine.type == ModelLine.Type.DEV) {
         add(Permission.CREATE_WITH_DEV_MODEL_LINE)
       }
     }
 
     authorization.check(request.parent, requiredPermissionIds)
+
+    // Creates ReportingSets, so it must not run until the request is known to be valid and
+    // authorized.
+    val reportingSetMaps: ReportingSetMaps<*> = buildReportingSetMaps(campaignGroupResolution)
 
     val baseImpressionQualificationFilterKeys: List<ImpressionQualificationFilterKey> =
       baseExternalImpressionQualificationFilterIds.map { ImpressionQualificationFilterKey(it) }
@@ -507,7 +513,7 @@ class BasicReportsService(
                 effectiveReportingImpressionQualificationFilters =
                   effectiveReportingImpressionQualificationFilters,
                 impressionQualificationFilterSpecsByName = impressionQualificationFilterSpecsByName,
-                effectiveModelLine = effectiveModelLine?.name.orEmpty(),
+                effectiveModelLine = effectiveModelLine.name,
                 effectiveReportStart = effectiveReportStart,
               )
             requestId = request.requestId
@@ -551,7 +557,7 @@ class BasicReportsService(
               campaignGroupResolution.campaignGroupKey,
               reportingSetMaps.nameByReportingSetComposite,
               reportingSetsMetricCalculationSpecDetailsMap,
-              effectiveModelLine?.name.orEmpty(),
+              effectiveModelLine.name,
               effectiveReportStart,
             )
           } catch (e: ReportingSetNotFoundException) {
@@ -625,10 +631,11 @@ class BasicReportsService(
   }
 
   /**
-   * Returns the effective [ModelLine], or `null` if there is none.
+   * Returns the effective [ModelLine].
    *
    * @param requestModelLine resource name of the [ModelLine] from a request, which may be empty
    * @throws ModelLineNotActiveException if [requestModelLine] is not active
+   * @throws NoActiveModelLineException if [requestModelLine] is empty and no [ModelLine] is active
    */
   private suspend fun getEffectiveModelLine(
     requestModelLine: String,
@@ -636,7 +643,7 @@ class BasicReportsService(
     effectiveReportStart: DateTime,
     dataProviderNames: Iterable<String>,
     measurementConsumerKey: MeasurementConsumerKey,
-  ): ModelLine? {
+  ): ModelLine {
     val measurementConsumerName = measurementConsumerKey.toName()
     val measurementConsumerConfig =
       checkNotNull(measurementConsumerConfigs.configsMap[measurementConsumerName]) {
@@ -673,11 +680,7 @@ class BasicReportsService(
         .modelLinesList
 
     return if (requestModelLine.isEmpty()) {
-      if (validModelLines.isEmpty()) {
-        null
-      } else {
-        validModelLines.first()
-      }
+      validModelLines.firstOrNull() ?: throw NoActiveModelLineException()
     } else {
       validModelLines.find { it.name == requestModelLine }
         ?: throw ModelLineNotActiveException(requestModelLine)

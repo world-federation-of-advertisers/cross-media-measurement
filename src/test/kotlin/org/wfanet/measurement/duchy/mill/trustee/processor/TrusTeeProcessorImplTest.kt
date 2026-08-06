@@ -22,6 +22,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.duchy.utils.ReachAndFrequencyResult
 import org.wfanet.measurement.duchy.utils.ReachResult
+import org.wfanet.measurement.internal.duchy.NoiseMechanism
 import org.wfanet.measurement.internal.duchy.differentialPrivacyParams
 
 @RunWith(JUnit4::class)
@@ -511,6 +512,141 @@ class TrusTeeProcessorImplTest {
     assertThat(result.reach).isEqualTo(0)
   }
 
+  @Test
+  fun `computeResult with deterministic truncated-Laplace noise is reproducible`() {
+    val vector = byteArrayOf(1, 2, 0, 1, 3)
+    val first =
+      TrusTeeProcessorImpl(DETERMINISTIC_R_F_PARAMS)
+        .apply { addFrequencyVector(vector) }
+        .computeResult() as ReachAndFrequencyResult
+    val second =
+      TrusTeeProcessorImpl(DETERMINISTIC_R_F_PARAMS)
+        .apply { addFrequencyVector(vector) }
+        .computeResult() as ReachAndFrequencyResult
+
+    assertThat(first.reach).isEqualTo(second.reach)
+    assertThat(first.frequency).isEqualTo(second.frequency)
+  }
+
+  @Test
+  fun `computeResult with deterministic noise is independent of contribution order`() {
+    // The noise is seeded from the combined vector and the contribution count, both independent of
+    // the order contributions arrive in, so the same contributions in a different order yield
+    // identical results. (The count is in the seed, so a different number of contributions does
+    // reseed; that is covered by DeterministicTruncatedLaplaceNoiseTest.)
+    val forward =
+      TrusTeeProcessorImpl(DETERMINISTIC_R_F_PARAMS).apply {
+        addFrequencyVector(byteArrayOf(1, 1, 0, 2))
+        addFrequencyVector(byteArrayOf(0, 2, 0, 0))
+      }
+    val reversed =
+      TrusTeeProcessorImpl(DETERMINISTIC_R_F_PARAMS).apply {
+        addFrequencyVector(byteArrayOf(0, 2, 0, 0))
+        addFrequencyVector(byteArrayOf(1, 1, 0, 2))
+      }
+
+    val forwardResult = forward.computeResult() as ReachAndFrequencyResult
+    val reversedResult = reversed.computeResult() as ReachAndFrequencyResult
+
+    assertThat(forwardResult.reach).isEqualTo(reversedResult.reach)
+    assertThat(forwardResult.frequency).isEqualTo(reversedResult.frequency)
+  }
+
+  @Test
+  fun `computeResult with deterministic truncated-Laplace noise for Reach-Only returns a result`() {
+    val processor = TrusTeeProcessorImpl(DETERMINISTIC_REACH_PARAMS)
+    processor.addFrequencyVector(ByteArray(100) { 1 })
+    val result = processor.computeResult() as ReachResult
+
+    assertThat(result.reach).isGreaterThan(0)
+  }
+
+  @Test
+  fun `computeResult with deterministic noise releases when impressions clear the threshold`() {
+    // 100 users seen 5 times each: 500 impressions against 100 users. The threshold sits between
+    // the
+    // two, so this only clears it if repeat views count toward min_impressions. A noiser capping at
+    // 1 per user reads 100 and suppresses. The draw is bounded by the truncation bound, so the
+    // margin holds regardless of the seed.
+    val params = deterministicParamsWithThresholds(minUsers = 1, minImpressions = 200)
+    val processor = TrusTeeProcessorImpl(params)
+    processor.addFrequencyVector(ByteArray(100) { 5 })
+
+    val result = processor.computeResult() as ReachAndFrequencyResult
+
+    assertThat(result.reach).isGreaterThan(0)
+  }
+
+  @Test
+  fun `computeResult with deterministic noise suppresses when impressions miss the threshold`() {
+    // Same 100 impressions against a threshold the truncated draw cannot bridge.
+    val params = deterministicParamsWithThresholds(minUsers = 1, minImpressions = 10_000)
+    val processor = TrusTeeProcessorImpl(params)
+    processor.addFrequencyVector(ByteArray(100) { 1 })
+
+    val result = processor.computeResult() as ReachAndFrequencyResult
+
+    assertThat(result.reach).isEqualTo(0)
+  }
+
+  @Test
+  fun `addFrequencyVector rejects a negative frequency under deterministic noise`() {
+    // The suppression check must not swallow a malformed vector: a negative byte reads as reach 0,
+    // which would otherwise look sub-threshold and be dropped silently.
+    val processor =
+      TrusTeeProcessorImpl(deterministicParamsWithThresholds(minUsers = 2, minImpressions = 1))
+
+    assertFailsWith<IllegalArgumentException> {
+      processor.addFrequencyVector(byteArrayOf(-1, -1, 0, 0, 0, 0, 0, 0, 0, 0))
+    }
+  }
+
+  @Test
+  fun `computeResult with deterministic noise drops a sub-threshold vector before aggregating`() {
+    // A contribution whose own reach is below min_users is dropped before aggregation, so adding it
+    // does not change the result. This blocks recovering its marginal by differencing.
+    val params =
+      TrusTeeReachAndFrequencyParams(
+        maximumFrequency = MAX_FREQUENCY,
+        vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
+        reachDpParams = DEFAULT_DP_PARAMS,
+        frequencyDpParams = DEFAULT_DP_PARAMS,
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 2, minImpressions = 1),
+        noiseMechanism = NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+        truncationBound = TRUNCATION_BOUND,
+      )
+    val aboveThreshold = byteArrayOf(1, 1, 1, 1, 1, 0, 0, 0, 0, 0) // reaches 5 users
+    val subThreshold = byteArrayOf(0, 0, 0, 0, 0, 1, 0, 0, 0, 0) // reaches 1 user, below min_users
+
+    val withoutSubThreshold =
+      TrusTeeProcessorImpl(params).apply { addFrequencyVector(aboveThreshold) }.computeResult()
+        as ReachAndFrequencyResult
+    val withSubThreshold =
+      TrusTeeProcessorImpl(params)
+        .apply {
+          addFrequencyVector(aboveThreshold)
+          addFrequencyVector(subThreshold)
+        }
+        .computeResult() as ReachAndFrequencyResult
+
+    assertThat(withSubThreshold.reach).isEqualTo(withoutSubThreshold.reach)
+    assertThat(withSubThreshold.frequency).isEqualTo(withoutSubThreshold.frequency)
+  }
+
+  private fun deterministicParamsWithThresholds(
+    minUsers: Int,
+    minImpressions: Int,
+  ): TrusTeeReachAndFrequencyParams =
+    TrusTeeReachAndFrequencyParams(
+      maximumFrequency = MAX_FREQUENCY,
+      vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
+      reachDpParams = DEFAULT_DP_PARAMS,
+      frequencyDpParams = DEFAULT_DP_PARAMS,
+      resultMinimumThresholds = ResultMinimumThresholds(minUsers, minImpressions),
+      noiseMechanism = NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+      truncationBound = TRUNCATION_BOUND,
+    )
+
   companion object {
     private const val MAX_FREQUENCY = 5
     private const val FLOAT_COMPARISON_TOLERANCE = 1e-9
@@ -535,6 +671,28 @@ class TrusTeeProcessorImplTest {
         frequencyDpParams = DEFAULT_DP_PARAMS,
         vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
         resultMinimumThresholds = null,
+      )
+
+    private const val TRUNCATION_BOUND = 8
+
+    private val DETERMINISTIC_R_F_PARAMS =
+      TrusTeeReachAndFrequencyParams(
+        maximumFrequency = MAX_FREQUENCY,
+        vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
+        reachDpParams = DEFAULT_DP_PARAMS,
+        frequencyDpParams = DEFAULT_DP_PARAMS,
+        resultMinimumThresholds = null,
+        noiseMechanism = NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+        truncationBound = TRUNCATION_BOUND,
+      )
+
+    private val DETERMINISTIC_REACH_PARAMS =
+      TrusTeeReachParams(
+        vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
+        dpParams = DEFAULT_DP_PARAMS,
+        resultMinimumThresholds = null,
+        noiseMechanism = NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+        truncationBound = TRUNCATION_BOUND,
       )
   }
 }

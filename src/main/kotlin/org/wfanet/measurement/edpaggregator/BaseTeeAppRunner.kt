@@ -34,6 +34,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.crypto.tink.ConfidentialSpaceToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
@@ -41,6 +42,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfigs
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
+import org.wfanet.measurement.gcloud.kms.ConfidentialSpaceToAwsKmsClientFactory
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.gcloud.kms.GCloudToAwsKmsClientFactory
 import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
@@ -229,6 +231,7 @@ abstract class BaseTeeAppRunner : Runnable {
   protected fun buildKmsClient(edpConfig: EventDataProviderConfig): KmsClient {
     return when (edpConfig.kmsConfig.kmsType) {
       EventDataProviderConfig.KmsConfig.KmsType.AWS -> {
+        requireAwsKmsFields(edpConfig)
         val gcloudToAwsConfig =
           GCloudToAwsWifCredentials(
             gcloudAudience = edpConfig.kmsConfig.kmsAudience,
@@ -243,6 +246,17 @@ abstract class BaseTeeAppRunner : Runnable {
             awsAudience = edpConfig.kmsConfig.awsAudience,
           )
         GCloudToAwsKmsClientFactory().getKmsClient(gcloudToAwsConfig)
+      }
+      EventDataProviderConfig.KmsConfig.KmsType.AWS_CONFIDENTIAL_SPACE -> {
+        requireAwsKmsFields(edpConfig)
+        val confidentialSpaceToAwsConfig =
+          ConfidentialSpaceToAwsWifCredentials(
+            roleArn = edpConfig.kmsConfig.awsRoleArn,
+            roleSessionName = edpConfig.kmsConfig.awsRoleSessionName,
+            region = edpConfig.kmsConfig.awsRegion,
+            audience = edpConfig.kmsConfig.awsAudience,
+          )
+        ConfidentialSpaceToAwsKmsClientFactory().getKmsClient(confidentialSpaceToAwsConfig)
       }
       EventDataProviderConfig.KmsConfig.KmsType.GCP -> {
         val gcpConfig =
@@ -259,6 +273,27 @@ abstract class BaseTeeAppRunner : Runnable {
       EventDataProviderConfig.KmsConfig.KmsType.KMS_TYPE_UNSPECIFIED,
       EventDataProviderConfig.KmsConfig.KmsType.UNRECOGNIZED ->
         error("Unsupported KMS type: ${edpConfig.kmsConfig.kmsType}")
+    }
+  }
+
+  /**
+   * Requires the AWS fields used to assume `aws_role_arn` via STS, which both AWS KMS types share.
+   * Checking them here reports a misconfigured EDP immediately instead of as an opaque STS or KMS
+   * failure once the workload is already running.
+   */
+  private fun requireAwsKmsFields(edpConfig: EventDataProviderConfig) {
+    val kmsConfig = edpConfig.kmsConfig
+    require(kmsConfig.awsRoleArn.isNotEmpty()) {
+      "aws_role_arn is required for ${kmsConfig.kmsType} but is missing for ${edpConfig.dataProvider}"
+    }
+    require(kmsConfig.awsRoleSessionName.isNotEmpty()) {
+      "aws_role_session_name is required for ${kmsConfig.kmsType} but is missing for ${edpConfig.dataProvider}"
+    }
+    require(kmsConfig.awsRegion.isNotEmpty()) {
+      "aws_region is required for ${kmsConfig.kmsType} but is missing for ${edpConfig.dataProvider}"
+    }
+    require(kmsConfig.awsAudience.isNotEmpty()) {
+      "aws_audience is required for ${kmsConfig.kmsType} but is missing for ${edpConfig.dataProvider}"
     }
   }
 
