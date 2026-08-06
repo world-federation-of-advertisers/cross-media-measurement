@@ -45,8 +45,6 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  * @param resultMinimumThresholds Optional small-cell suppression parameters.
  * @param impressionMaxFrequencyPerUser Override for max frequency per user. -1 means no cap.
  * @param totalUncappedImpressions Total impression count without frequency capping.
- * @param deterministicTruncationBound Required when [directNoiseMechanism] is
- *   DETERMINISTIC_TRUNCATED_LAPLACE.
  */
 class DirectImpressionResultBuilder(
   private val directProtocolConfig: ProtocolConfig.Direct,
@@ -59,7 +57,6 @@ class DirectImpressionResultBuilder(
   private val resultMinimumThresholds: ResultMinimumThresholds?,
   private val impressionMaxFrequencyPerUser: Int?,
   private val totalUncappedImpressions: Long,
-  private val deterministicTruncationBound: Int? = null,
 ) : MeasurementResultBuilder {
 
   override suspend fun buildMeasurementResult(): Measurement.Result {
@@ -146,7 +143,6 @@ class DirectImpressionResultBuilder(
           reachDpParams = dpParams,
           frequencyDpParams = dpParams,
           maxFrequencyPerUser = maxFrequency,
-          truncationBound = deterministicTruncationBound,
         ),
       vidSamplingIntervalWidth = samplingRate.toDouble(),
       resultMinimumThresholds = resultMinimumThresholds,

@@ -42,8 +42,6 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  * @param directNoiseMechanism The direct noise mechanism to use.
  * @param maxPopulation The max Population that can be returned. Optional.
  * @param resultMinimumThresholds Optional small-cell suppression parameters.
- * @param deterministicTruncationBound Required when [directNoiseMechanism] is
- *   DETERMINISTIC_TRUNCATED_LAPLACE.
  */
 class DirectReachResultBuilder(
   private val directProtocolConfig: ProtocolConfig.Direct,
@@ -53,7 +51,6 @@ class DirectReachResultBuilder(
   private val directNoiseMechanism: DirectNoiseMechanism,
   private val maxPopulation: Int?,
   private val resultMinimumThresholds: ResultMinimumThresholds?,
-  private val deterministicTruncationBound: Int? = null,
 ) : MeasurementResultBuilder {
 
   override suspend fun buildMeasurementResult(): Measurement.Result {
@@ -100,7 +97,6 @@ class DirectReachResultBuilder(
           reachDpParams = reachDpParams,
           frequencyDpParams = reachDpParams,
           maxFrequencyPerUser = resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1,
-          truncationBound = deterministicTruncationBound,
         ),
       vidSamplingIntervalWidth = samplingRate.toDouble(),
       vectorSize = maxPopulation,

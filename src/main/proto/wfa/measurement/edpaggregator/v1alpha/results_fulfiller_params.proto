@@ -97,20 +97,6 @@ message ResultsFulfillerParams {
     }
     // The type of noise applied to the result
     NoiseType noise_type = 1;
-
-    // Parameters for DETERMINISTIC_TRUNCATED_LAPLACE noise.
-    message DeterministicTruncatedLaplaceParams {
-      // Draws are truncated to `[-truncation_bound, truncation_bound]`. Must be
-      // positive.
-      int32 truncation_bound = 1;
-    }
-
-    // Required when `noise_type` is DETERMINISTIC_TRUNCATED_LAPLACE.
-    //
-    // The bound is EDP-local: `ProtocolConfig.Direct` does not carry it, so the
-    // EDP reports a custom variance for results noised with this mechanism.
-    DeterministicTruncatedLaplaceParams deterministic_truncated_laplace_params =
-        2;
   }
 
   // The noise params to be applied to single EDP (direct) results only.

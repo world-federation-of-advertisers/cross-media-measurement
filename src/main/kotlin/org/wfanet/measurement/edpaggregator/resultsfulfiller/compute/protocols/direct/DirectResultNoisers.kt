@@ -30,14 +30,21 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 private const val DIRECT_CONTRIBUTION_COUNT = 1
 
 /**
+ * The system's privacy parameters for DETERMINISTIC_TRUNCATED_LAPLACE, compiled into the EDP
+ * Aggregator image rather than set by the measurement consumer. epsilon = 1 with a truncation bound
+ * of 8 encodes delta = 1/1000.
+ */
+private const val DETERMINISTIC_EPSILON = 1.0
+private const val DETERMINISTIC_TRUNCATION_BOUND = 8
+
+/**
  * Returns the [ResultNoiser] for [directNoiseMechanism].
  *
  * Reach and the impression threshold draw from [reachDpParams]; frequency buckets draw from
  * [frequencyDpParams]. A measurement that releases no frequency distribution may pass the same
- * value for both.
+ * value for both. DETERMINISTIC_TRUNCATED_LAPLACE ignores both and uses the compiled system params.
  *
  * @param frequencyData the raw frequency vector, which seeds the deterministic mechanism.
- * @param truncationBound required when [directNoiseMechanism] is DETERMINISTIC_TRUNCATED_LAPLACE.
  */
 fun buildDirectResultNoiser(
   directNoiseMechanism: DirectNoiseMechanism,
@@ -45,24 +52,20 @@ fun buildDirectResultNoiser(
   reachDpParams: DifferentialPrivacyParams,
   frequencyDpParams: DifferentialPrivacyParams,
   maxFrequencyPerUser: Int,
-  truncationBound: Int?,
 ): ResultNoiser =
   when (directNoiseMechanism) {
     DirectNoiseMechanism.NONE -> NoNoise
     DirectNoiseMechanism.CONTINUOUS_GAUSSIAN ->
       GaussianResultNoiser(reachDpParams, frequencyDpParams, maxFrequencyPerUser)
-    DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE -> {
-      requireNotNull(truncationBound) { "truncation_bound is required for $directNoiseMechanism" }
-      require(truncationBound > 0) { "truncation_bound must be positive, got $truncationBound" }
+    DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE ->
       DeterministicTruncatedLaplaceResultNoiser(
         combinedFrequencyVector = frequencyData,
         contributionCount = DIRECT_CONTRIBUTION_COUNT,
-        reachEpsilon = reachDpParams.epsilon,
-        frequencyEpsilon = frequencyDpParams.epsilon,
-        truncationBound = truncationBound,
+        reachEpsilon = DETERMINISTIC_EPSILON,
+        frequencyEpsilon = DETERMINISTIC_EPSILON,
+        truncationBound = DETERMINISTIC_TRUNCATION_BOUND,
         maxFrequencyPerUser = maxFrequencyPerUser,
       )
-    }
     DirectNoiseMechanism.CONTINUOUS_LAPLACE ->
       throw IllegalArgumentException("$directNoiseMechanism is not supported for Direct results")
   }

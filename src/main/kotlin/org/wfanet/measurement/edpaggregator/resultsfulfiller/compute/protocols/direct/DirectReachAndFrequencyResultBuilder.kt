@@ -45,8 +45,6 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  * @param samplingRate The sampling rate used to sample the events.
  * @param directNoiseMechanism The direct noise mechanism to use.
  * @param maxPopulation The max Population that can be returned.
- * @param deterministicTruncationBound Required when [directNoiseMechanism] is
- *   DETERMINISTIC_TRUNCATED_LAPLACE.
  */
 class DirectReachAndFrequencyResultBuilder(
   private val directProtocolConfig: ProtocolConfig.Direct,
@@ -58,7 +56,6 @@ class DirectReachAndFrequencyResultBuilder(
   private val directNoiseMechanism: DirectNoiseMechanism,
   private val maxPopulation: Int?,
   private val resultMinimumThresholds: ResultMinimumThresholds?,
-  private val deterministicTruncationBound: Int? = null,
 ) : MeasurementResultBuilder {
 
   override suspend fun buildMeasurementResult(): Measurement.Result {
@@ -119,7 +116,6 @@ class DirectReachAndFrequencyResultBuilder(
           reachDpParams = frequencyDpParams,
           frequencyDpParams = frequencyDpParams,
           maxFrequencyPerUser = maxFrequency,
-          truncationBound = deterministicTruncationBound,
         ),
       resultMinimumThresholds = resultMinimumThresholds,
       vidSamplingIntervalWidth = samplingRate.toDouble(),
@@ -144,7 +140,6 @@ class DirectReachAndFrequencyResultBuilder(
           reachDpParams = reachDpParams,
           frequencyDpParams = reachDpParams,
           maxFrequencyPerUser = resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1,
-          truncationBound = deterministicTruncationBound,
         ),
       vidSamplingIntervalWidth = samplingRate.toDouble(),
       vectorSize = maxPopulation,

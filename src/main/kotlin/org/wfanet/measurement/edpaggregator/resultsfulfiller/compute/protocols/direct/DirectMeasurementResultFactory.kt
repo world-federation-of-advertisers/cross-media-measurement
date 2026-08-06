@@ -40,8 +40,6 @@ object DirectMeasurementResultFactory {
    * @param impressionMaxFrequencyPerUser Optional override for max frequency per user. -1 means no
    *   frequency cap.
    * @param totalUncappedImpressions Total impression count without frequency capping.
-   * @param deterministicTruncationBound Required when [directNoiseMechanism] is
-   *   DETERMINISTIC_TRUNCATED_LAPLACE.
    * @return The measurement result.
    */
   suspend fun buildMeasurementResult(
@@ -53,7 +51,6 @@ object DirectMeasurementResultFactory {
     resultMinimumThresholds: ResultMinimumThresholds?,
     impressionMaxFrequencyPerUser: Int?,
     totalUncappedImpressions: Long,
-    deterministicTruncationBound: Int? = null,
   ): Measurement.Result {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (measurementSpec.measurementTypeCase) {
@@ -69,7 +66,6 @@ object DirectMeasurementResultFactory {
             directNoiseMechanism,
             maxPopulation,
             resultMinimumThresholds,
-            deterministicTruncationBound,
           )
         reachAndFrequencyResultBuilder.buildMeasurementResult()
       }
@@ -86,7 +82,6 @@ object DirectMeasurementResultFactory {
             resultMinimumThresholds,
             impressionMaxFrequencyPerUser,
             totalUncappedImpressions,
-            deterministicTruncationBound,
           )
         impressionResultBuilder.buildMeasurementResult()
       }
@@ -106,7 +101,6 @@ object DirectMeasurementResultFactory {
             directNoiseMechanism,
             maxPopulation,
             resultMinimumThresholds = resultMinimumThresholds,
-            deterministicTruncationBound = deterministicTruncationBound,
           )
         reachAndFrequencyResultBuilder.buildMeasurementResult()
       }

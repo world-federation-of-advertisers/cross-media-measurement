@@ -33,50 +33,34 @@ class DirectResultNoisersTest {
 
   @Test
   fun `buildDirectResultNoiser returns NoNoise for NONE`() {
-    val noiser = build(DirectNoiseMechanism.NONE, truncationBound = null)
+    val noiser = build(DirectNoiseMechanism.NONE)
 
     assertThat(noiser).isSameInstanceAs(NoNoise)
   }
 
   @Test
   fun `buildDirectResultNoiser returns a Gaussian noiser for CONTINUOUS_GAUSSIAN`() {
-    val noiser = build(DirectNoiseMechanism.CONTINUOUS_GAUSSIAN, truncationBound = null)
+    val noiser = build(DirectNoiseMechanism.CONTINUOUS_GAUSSIAN)
 
     assertThat(noiser).isInstanceOf(GaussianResultNoiser::class.java)
   }
 
   @Test
   fun `buildDirectResultNoiser returns a deterministic noiser for DETERMINISTIC_TRUNCATED_LAPLACE`() {
-    val noiser = build(DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE, truncationBound = 10)
+    val noiser = build(DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
 
     assertThat(noiser).isInstanceOf(DeterministicTruncatedLaplaceResultNoiser::class.java)
   }
 
   @Test
-  fun `buildDirectResultNoiser rejects a missing truncation bound`() {
-    assertFailsWith<IllegalArgumentException> {
-      build(DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE, truncationBound = null)
-    }
-  }
-
-  @Test
-  fun `buildDirectResultNoiser rejects a non-positive truncation bound`() {
-    assertFailsWith<IllegalArgumentException> {
-      build(DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE, truncationBound = 0)
-    }
-  }
-
-  @Test
   fun `buildDirectResultNoiser rejects CONTINUOUS_LAPLACE`() {
-    assertFailsWith<IllegalArgumentException> {
-      build(DirectNoiseMechanism.CONTINUOUS_LAPLACE, truncationBound = null)
-    }
+    assertFailsWith<IllegalArgumentException> { build(DirectNoiseMechanism.CONTINUOUS_LAPLACE) }
   }
 
   @Test
   fun `deterministic noiser draws are reproducible for the same frequency vector`() {
-    val first = build(DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE, truncationBound = 10)
-    val second = build(DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE, truncationBound = 10)
+    val first = build(DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
+    val second = build(DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
 
     assertThat(second.noiseReach(1_000L)).isEqualTo(first.noiseReach(1_000L))
     assertThat(second.noiseFrequencyBucket(0, 500L)).isEqualTo(first.noiseFrequencyBucket(0, 500L))
@@ -86,41 +70,31 @@ class DirectResultNoisersTest {
 
   @Test
   fun `deterministic noiser draws differ for a different frequency vector`() {
-    // A wide scale (sensitivity / epsilon) keeps draws off zero, where rounding would otherwise
-    // collapse both seeds onto the same released value.
-    fun noiserFor(frequencyData: IntArray) =
-      buildDirectResultNoiser(
-        directNoiseMechanism = DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
-        frequencyData = frequencyData,
-        reachDpParams = WIDE_DP_PARAMS,
-        frequencyDpParams = WIDE_DP_PARAMS,
-        maxFrequencyPerUser = MAX_FREQUENCY,
-        truncationBound = WIDE_TRUNCATION_BOUND,
-      )
-
-    fun draws(frequencyData: IntArray) =
-      noiserFor(frequencyData).let {
-        listOf(
-          it.noiseReach(1_000L),
-          it.noiseFrequencyBucket(0, 500L),
-          it.noiseImpressionsFromFrequencyHistogram(HISTOGRAM),
-        )
+    // The scale (sensitivity / epsilon = 1) is fixed by the compiled params, so a single draw can
+    // collide between seeds. Comparing every label at once makes an all-label collision negligible.
+    fun draws(frequencyData: IntArray): List<Long> {
+      val noiser = build(DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE, frequencyData)
+      return buildList {
+        add(noiser.noiseReach(1_000L))
+        for (bucket in 0 until MAX_FREQUENCY) {
+          add(noiser.noiseFrequencyBucket(bucket, 500L))
+        }
+        add(noiser.noiseImpressionsFromFrequencyHistogram(HISTOGRAM))
       }
+    }
 
     assertThat(draws(IntArray(100) { if (it < 50) 1 else 2 })).isNotEqualTo(draws(FREQUENCY_DATA))
   }
 
   @Test
   fun `deterministic noiser stays within the truncation bound`() {
-    val truncationBound = 5
-    val noiser =
-      build(DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE, truncationBound = truncationBound)
+    val noiser = build(DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
 
-    // Reach draws at unit sensitivity, so the offset cannot exceed the bound.
+    // Reach draws at unit sensitivity, so the offset cannot exceed the compiled truncation bound.
     val noised = noiser.noiseReach(1_000L)
 
-    assertThat(noised).isAtLeast(1_000L - truncationBound)
-    assertThat(noised).isAtMost(1_000L + truncationBound)
+    assertThat(noised).isAtLeast(1_000L - COMPILED_TRUNCATION_BOUND)
+    assertThat(noised).isAtMost(1_000L + COMPILED_TRUNCATION_BOUND)
   }
 
   @Test
@@ -137,21 +111,24 @@ class DirectResultNoisersTest {
       .isEqualTo(NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
   }
 
-  private fun build(directNoiseMechanism: DirectNoiseMechanism, truncationBound: Int?) =
+  private fun build(
+    directNoiseMechanism: DirectNoiseMechanism,
+    frequencyData: IntArray = FREQUENCY_DATA,
+  ) =
     buildDirectResultNoiser(
       directNoiseMechanism = directNoiseMechanism,
-      frequencyData = FREQUENCY_DATA,
+      frequencyData = frequencyData,
       reachDpParams = DP_PARAMS,
       frequencyDpParams = DP_PARAMS,
       maxFrequencyPerUser = MAX_FREQUENCY,
-      truncationBound = truncationBound,
     )
 
   companion object {
     private const val MAX_FREQUENCY = 10
+
+    // The compiled truncation bound; the mechanism ignores any measurement-supplied epsilon.
+    private const val COMPILED_TRUNCATION_BOUND = 8L
     private val DP_PARAMS = DifferentialPrivacyParams(epsilon = 1.0, delta = 1e-9)
-    private val WIDE_DP_PARAMS = DifferentialPrivacyParams(epsilon = 0.01, delta = 1e-9)
-    private const val WIDE_TRUNCATION_BOUND = 200
     private val FREQUENCY_DATA = IntArray(100) { if (it < 90) 1 else 2 }
     private val HISTOGRAM = longArrayOf(90L, 10L)
   }
