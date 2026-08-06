@@ -53,11 +53,11 @@ bazel_dep(
 )
 
 # DO_NOT_SUBMIT: temporarily build against the unmerged common-jvm branch that moves the
-# Confidential Space token client onto Netty domain sockets. Remove this override and bump
-# the common-jvm version above once that PR is merged and released.
+# Confidential Space token client onto OkHttp over a JDK Unix domain socket. Remove this
+# override and bump the common-jvm version above once that PR is merged and released.
 git_override(
     module_name = "common-jvm",
-    commit = "e096e58c93fca37f9219b300f236921608c67296",
+    commit = "f252e5ba69efc7c0245fd391e6de4a723be7e691",
     remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
 bazel_dep(
