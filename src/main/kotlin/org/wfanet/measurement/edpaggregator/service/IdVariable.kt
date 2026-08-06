@@ -33,7 +33,6 @@ internal enum class IdVariable {
   RANKER_JOB,
   RANK_INDEX_BLOB,
   POOL_ASSIGNMENT_JOB,
-  UNLINKED_CLIENT_ACCOUNT,
   WORK_ITEM,
 }
 
