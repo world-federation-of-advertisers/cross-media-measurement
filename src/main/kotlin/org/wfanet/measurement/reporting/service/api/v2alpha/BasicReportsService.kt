@@ -584,8 +584,9 @@ class BasicReportsService(
         )
       }
     } catch (e: TimeoutCancellationException) {
-      throw Status.DEADLINE_EXCEEDED
-        .withDescription("Timed out creating the Report for the BasicReport")
+      throw Status.DEADLINE_EXCEEDED.withDescription(
+          "Timed out creating the Report for the BasicReport"
+        )
         .withCause(e)
         .asRuntimeException()
     }
