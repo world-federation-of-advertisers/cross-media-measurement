@@ -613,7 +613,6 @@ class TrusTeeProcessorImplTest {
         frequencyDpParams = DEFAULT_DP_PARAMS,
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 2, minImpressions = 1),
         noiseMechanism = NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
-        truncationBound = TRUNCATION_BOUND,
       )
     val aboveThreshold = byteArrayOf(1, 1, 1, 1, 1, 0, 0, 0, 0, 0) // reaches 5 users
     val subThreshold = byteArrayOf(0, 0, 0, 0, 0, 1, 0, 0, 0, 0) // reaches 1 user, below min_users
@@ -644,7 +643,6 @@ class TrusTeeProcessorImplTest {
       frequencyDpParams = DEFAULT_DP_PARAMS,
       resultMinimumThresholds = ResultMinimumThresholds(minUsers, minImpressions),
       noiseMechanism = NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
-      truncationBound = TRUNCATION_BOUND,
     )
 
   companion object {
@@ -673,8 +671,6 @@ class TrusTeeProcessorImplTest {
         resultMinimumThresholds = null,
       )
 
-    private const val TRUNCATION_BOUND = 8
-
     private val DETERMINISTIC_R_F_PARAMS =
       TrusTeeReachAndFrequencyParams(
         maximumFrequency = MAX_FREQUENCY,
@@ -683,7 +679,6 @@ class TrusTeeProcessorImplTest {
         frequencyDpParams = DEFAULT_DP_PARAMS,
         resultMinimumThresholds = null,
         noiseMechanism = NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
-        truncationBound = TRUNCATION_BOUND,
       )
 
     private val DETERMINISTIC_REACH_PARAMS =
@@ -692,7 +687,6 @@ class TrusTeeProcessorImplTest {
         dpParams = DEFAULT_DP_PARAMS,
         resultMinimumThresholds = null,
         noiseMechanism = NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
-        truncationBound = TRUNCATION_BOUND,
       )
   }
 }

@@ -128,8 +128,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
       is TrusTeeReachParams -> {
         // A reach-only measurement has a single set of DP params, and never draws a frequency
         // bucket: computeReach noises the reach and the threshold only.
-        val noiser =
-          noiser(frequencyVector, params.dpParams, params.dpParams, params.truncationBound)
+        val noiser = noiser(frequencyVector, params.dpParams, params.dpParams)
         val reach =
           ReachAndFrequencyComputations.computeReach(
             sampledReachAndFrequency,
@@ -141,13 +140,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
         ReachResult(reach = reach, methodology = DeterministicMethodology)
       }
       is TrusTeeReachAndFrequencyParams -> {
-        val noiser =
-          noiser(
-            frequencyVector,
-            params.reachDpParams,
-            params.frequencyDpParams,
-            params.truncationBound,
-          )
+        val noiser = noiser(frequencyVector, params.reachDpParams, params.frequencyDpParams)
         val reach =
           ReachAndFrequencyComputations.computeReach(
             sampledReachAndFrequency,
@@ -179,16 +172,15 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
     frequencyVector: IntArray,
     reachDpParams: InternalDifferentialPrivacyParams?,
     frequencyDpParams: InternalDifferentialPrivacyParams?,
-    truncationBound: Int,
   ): ResultNoiser {
     if (isDeterministicTruncatedLaplace) {
+      // Privacy params are compiled into the attested image, not taken from the measurement spec.
       return DeterministicTruncatedLaplaceResultNoiser(
         frequencyVector,
         contributionCount,
-        reachEpsilon = requireNotNull(reachDpParams) { REACH_DP_PARAMS_REQUIRED }.epsilon,
-        frequencyEpsilon =
-          requireNotNull(frequencyDpParams) { FREQUENCY_DP_PARAMS_REQUIRED }.epsilon,
-        truncationBound = truncationBound,
+        reachEpsilon = DETERMINISTIC_EPSILON,
+        frequencyEpsilon = DETERMINISTIC_EPSILON,
+        truncationBound = DETERMINISTIC_TRUNCATION_BOUND,
         maxFrequencyPerUser = resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1,
       )
     }
@@ -208,10 +200,11 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
   }
 
   companion object Factory : TrusTeeProcessor.Factory {
-    private const val REACH_DP_PARAMS_REQUIRED =
-      "Reach DP params are required for DETERMINISTIC_TRUNCATED_LAPLACE noise."
-    private const val FREQUENCY_DP_PARAMS_REQUIRED =
-      "Frequency DP params are required for DETERMINISTIC_TRUNCATED_LAPLACE noise."
+    // The system's privacy parameters for DETERMINISTIC_TRUNCATED_LAPLACE, compiled into the
+    // attested TrusTEE image rather than set by the measurement consumer. epsilon = 1 with a
+    // truncation bound of 8 encodes delta = 1/1000.
+    private const val DETERMINISTIC_EPSILON = 1.0
+    private const val DETERMINISTIC_TRUNCATION_BOUND = 8
 
     override fun create(trusTeeParams: TrusTeeParams): TrusTeeProcessor {
       return TrusTeeProcessorImpl(trusTeeParams)
