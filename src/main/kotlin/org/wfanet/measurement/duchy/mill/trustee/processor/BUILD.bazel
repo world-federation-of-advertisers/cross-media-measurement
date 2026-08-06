@@ -17,6 +17,7 @@ kt_jvm_library(
     srcs = ["TrusTeeProcessorImpl.kt"],
     deps = [
         ":trus_tee_processor",
+        "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_truncated_laplace_params",
         "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:reach_and_frequency",
         "//src/main/kotlin/org/wfanet/measurement/computation:reach_and_frequency_computations",

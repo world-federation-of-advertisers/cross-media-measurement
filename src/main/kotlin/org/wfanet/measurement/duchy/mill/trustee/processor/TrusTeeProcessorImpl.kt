@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.mill.trustee.processor
 
+import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParams
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceResultNoiser
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.GaussianResultNoiser
@@ -178,9 +179,9 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
       return DeterministicTruncatedLaplaceResultNoiser(
         frequencyVector,
         contributionCount,
-        reachEpsilon = DETERMINISTIC_EPSILON,
-        frequencyEpsilon = DETERMINISTIC_EPSILON,
-        truncationBound = DETERMINISTIC_TRUNCATION_BOUND,
+        reachEpsilon = DeterministicTruncatedLaplaceParams.EPSILON,
+        frequencyEpsilon = DeterministicTruncatedLaplaceParams.EPSILON,
+        truncationBound = DeterministicTruncatedLaplaceParams.TRUNCATION_BOUND,
         maxFrequencyPerUser = resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1,
       )
     }
@@ -200,12 +201,6 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
   }
 
   companion object Factory : TrusTeeProcessor.Factory {
-    // The system's privacy parameters for DETERMINISTIC_TRUNCATED_LAPLACE, compiled into the
-    // attested TrusTEE image rather than set by the measurement consumer. epsilon = 1 with a
-    // truncation bound of 8 encodes delta = 1/1000.
-    private const val DETERMINISTIC_EPSILON = 1.0
-    private const val DETERMINISTIC_TRUNCATION_BOUND = 8
-
     override fun create(trusTeeParams: TrusTeeParams): TrusTeeProcessor {
       return TrusTeeProcessorImpl(trusTeeParams)
     }
