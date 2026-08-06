@@ -1,0 +1,162 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha.event_templates.testing.v1;
+
+import "wfa/measurement/api/v2alpha/event_annotations.proto";
+import "wfa/measurement/api/v2alpha/media_type.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing.v1";
+option java_multiple_files = true;
+
+// Common (population) attributes shared by all media types.
+message Common {
+  option (.wfa.measurement.api.v2alpha.event_template) = {
+    name: "common"
+    display_name: "Common"
+    description: "Common population attributes about the person reached by "
+                 "an event."
+  };
+
+  enum Gender {
+    GENDER_UNSPECIFIED = 0;
+    MALE = 1;
+    FEMALE = 2;
+  }
+  Gender gender = 1 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "Gender"
+    population_attribute: true
+    reporting_features: FILTERABLE
+    reporting_features: GROUPABLE
+    version_added: 1
+  }];
+
+  enum AgeGroup {
+    AGE_GROUP_UNSPECIFIED = 0;
+    YEARS_18_TO_34 = 1;
+    YEARS_35_TO_54 = 2;
+    YEARS_55_PLUS = 3;
+  }
+  AgeGroup age_group = 2 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "Age Group"
+    population_attribute: true
+    reporting_features: FILTERABLE
+    reporting_features: GROUPABLE
+    version_added: 1
+  }];
+
+  // US state or the District of Columbia. A high-cardinality attribute, to
+  // exercise grouping and filtering over a large value set. A different
+  // geography (countries, DMAs, etc.) would be modeled as its own enum and
+  // field rather than added here.
+  //
+  // Enum values are the state's FIPS 5-2 numeric code
+  // (https://transition.fcc.gov/oet/info/maps/census/fips/fips.txt). The
+  // reserved numbers are FIPS codes not assigned to a state or DC.
+  enum UsState {
+    US_STATE_UNSPECIFIED = 0;
+    reserved 3, 7, 14, 43, 52;
+    ALABAMA = 1;
+    ALASKA = 2;
+    ARIZONA = 4;
+    ARKANSAS = 5;
+    CALIFORNIA = 6;
+    COLORADO = 8;
+    CONNECTICUT = 9;
+    DELAWARE = 10;
+    DISTRICT_OF_COLUMBIA = 11;
+    FLORIDA = 12;
+    GEORGIA = 13;
+    HAWAII = 15;
+    IDAHO = 16;
+    ILLINOIS = 17;
+    INDIANA = 18;
+    IOWA = 19;
+    KANSAS = 20;
+    KENTUCKY = 21;
+    LOUISIANA = 22;
+    MAINE = 23;
+    MARYLAND = 24;
+    MASSACHUSETTS = 25;
+    MICHIGAN = 26;
+    MINNESOTA = 27;
+    MISSISSIPPI = 28;
+    MISSOURI = 29;
+    MONTANA = 30;
+    NEBRASKA = 31;
+    NEVADA = 32;
+    NEW_HAMPSHIRE = 33;
+    NEW_JERSEY = 34;
+    NEW_MEXICO = 35;
+    NEW_YORK = 36;
+    NORTH_CAROLINA = 37;
+    NORTH_DAKOTA = 38;
+    OHIO = 39;
+    OKLAHOMA = 40;
+    OREGON = 41;
+    PENNSYLVANIA = 42;
+    RHODE_ISLAND = 44;
+    SOUTH_CAROLINA = 45;
+    SOUTH_DAKOTA = 46;
+    TENNESSEE = 47;
+    TEXAS = 48;
+    UTAH = 49;
+    VERMONT = 50;
+    VIRGINIA = 51;
+    WASHINGTON = 53;
+    WEST_VIRGINIA = 54;
+    WISCONSIN = 55;
+    WYOMING = 56;
+  }
+  // `population_attribute` is true here because this models the virtual
+  // person's home state. A geo attribute indicating where the event
+  // originated, rather than the person's home geo, should instead set
+  // `population_attribute` to false.
+  UsState us_state = 3 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "US State"
+    population_attribute: true
+    reporting_features: FILTERABLE
+    reporting_features: GROUPABLE
+    version_added: 1
+  }];
+
+  // Whether the person was signed in to a first-party account for this event.
+  // A per-event (non-population) boolean, to exercise boolean-valued
+  // dimensions. It is `population_attribute: false` because it is a property
+  // of the event, not of the virtual person: the same person can be signed in
+  // for one impression and not another.
+  bool signed_in = 4 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "Signed In"
+    population_attribute: false
+    reporting_features: FILTERABLE
+    reporting_features: GROUPABLE
+    version_added: 1
+  }];
+
+  // Media type of the event, so that metrics can be grouped (sliced) and
+  // filtered by media type. It lives on `Common` — the cross-media-type
+  // template — rather than a media-specific sub-template. A per-event
+  // (non-population) field: it is a property of the event, not the virtual
+  // person.
+  wfa.measurement.api.v2alpha.MediaType media_type = 5
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Media Type"
+        population_attribute: false
+        reporting_features: FILTERABLE
+        reporting_features: GROUPABLE
+        version_added: 1
+      }];
+}
