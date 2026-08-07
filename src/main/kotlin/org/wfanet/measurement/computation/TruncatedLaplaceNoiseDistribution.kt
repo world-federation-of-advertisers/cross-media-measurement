@@ -15,32 +15,29 @@
 package org.wfanet.measurement.computation
 
 /**
- * A [Laplace distribution](https://en.wikipedia.org/wiki/Laplace_distribution) with mean 0 and
- * scale `sensitivity / epsilon`, [truncated](https://en.wikipedia.org/wiki/Truncated_distribution)
- * to `[-truncationBound, truncationBound]`.
+ * A [Laplace distribution](https://en.wikipedia.org/wiki/Laplace_distribution) with mean 0 and the
+ * given [scale], [truncated](https://en.wikipedia.org/wiki/Truncated_distribution) to `[-bound,
+ * bound]`.
+ *
+ * This is the noise primitive: it knows only [scale] and [bound], not the differential-privacy
+ * parameters they may have been calibrated from. Use
+ * [DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy] to build a sampler calibrated
+ * from an (epsilon, delta, sensitivity) target.
  *
  * [inverseCdf] maps a uniform in `[0, 1)` to a draw by
  * [inverse transform sampling](https://en.wikipedia.org/wiki/Inverse_transform_sampling). Every
  * floating-point operation uses [StrictMath] (fdlibm, specified to be identical on every JVM), so
  * the draw is bit-reproducible across builds and hosts.
  *
- * @param epsilon the Laplace scale is `sensitivity / epsilon`.
- * @param sensitivity L1 sensitivity of the noised output: the most one VID can change it.
- * @param truncationBound draws are confined to `[-truncationBound, truncationBound]`.
+ * @param scale the Laplace scale (`sensitivity / epsilon` for a DP calibration).
+ * @param bound draws are confined to `[-bound, bound]`.
  */
-class TruncatedLaplaceNoiseDistribution(
-  epsilon: Double,
-  sensitivity: Double,
-  truncationBound: Int,
-) {
+class TruncatedLaplaceNoiseDistribution(private val scale: Double, private val bound: Double) {
   init {
-    require(epsilon > 0.0) { "epsilon must be positive, got $epsilon" }
-    require(sensitivity > 0.0) { "sensitivity must be positive, got $sensitivity" }
-    require(truncationBound > 0) { "truncationBound must be positive, got $truncationBound" }
+    require(scale > 0.0) { "scale must be positive, got $scale" }
+    require(bound > 0.0) { "bound must be positive, got $bound" }
   }
 
-  private val scale: Double = sensitivity / epsilon
-  private val bound: Double = truncationBound.toDouble()
   private val cdfLow: Double = laplaceCdf(-bound)
   private val cdfHigh: Double = laplaceCdf(bound)
 

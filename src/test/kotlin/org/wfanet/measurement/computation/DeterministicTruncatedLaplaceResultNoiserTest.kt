@@ -31,22 +31,23 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
   fun `reach and bucket draws match golden`() {
     // Goldens computed outside this codebase from the documented construction: SHA-256 over the
     // length-prefixed parts, top 53 bits as the uniform, then inverseCdf and round-half-to-even.
-    // The draws are +1, -2, -1, 0, so this fails against a noiser that returns zero.
+    // The draws are +1, -4, -2, 0, so this fails against a noiser that returns zero.
     val noiser = noiser()
 
     assertThat(noiser.noiseReach(15)).isEqualTo(16L)
-    assertThat(noiser.noiseFrequencyBucket(0, 10)).isEqualTo(8L)
-    assertThat(noiser.noiseFrequencyBucket(1, 4)).isEqualTo(3L)
+    assertThat(noiser.noiseFrequencyBucket(0, 10)).isEqualTo(6L)
+    assertThat(noiser.noiseFrequencyBucket(1, 4)).isEqualTo(2L)
     assertThat(noiser.noiseFrequencyBucket(2, 1)).isEqualTo(1L)
   }
 
   @Test
   fun `impression count is capped and drawn on its own label`() {
     // Capped sum over [10, 4, 1] at 3 per user is 1*10 + 2*4 + 3*1 = 21; the draw on the impression
-    // label at sensitivity 3 is -4. Distinct from the bucket labels, so it is not the weighted sum
+    // label at sensitivity 3 is -5, using the bound derived for that sensitivity (22, not the 8 of
+    // the unit-sensitivity draws). Distinct from the bucket labels, so it is not the weighted sum
     // of the bucket draws.
     assertThat(noiser().noiseImpressionsFromFrequencyHistogram(longArrayOf(10, 4, 1)))
-      .isEqualTo(17L)
+      .isEqualTo(16L)
   }
 
   @Test
@@ -95,9 +96,6 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
   }
 
   companion object {
-    private const val REACH_EPSILON = 1.0
-    private const val FREQUENCY_EPSILON = 2.0
-    private const val BOUND = 8
     private const val CONTRIBUTION_COUNT = 3
     private const val MAX_FREQUENCY_PER_USER = 3
     private val COMBINED = intArrayOf(0, 1, 2, 1, 3, 0, 2)
@@ -106,9 +104,6 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
       DeterministicTruncatedLaplaceResultNoiser(
         COMBINED,
         CONTRIBUTION_COUNT,
-        REACH_EPSILON,
-        FREQUENCY_EPSILON,
-        BOUND,
         MAX_FREQUENCY_PER_USER,
       )
 

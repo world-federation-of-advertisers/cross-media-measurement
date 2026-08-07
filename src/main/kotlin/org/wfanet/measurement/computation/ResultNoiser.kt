@@ -103,26 +103,22 @@ class GaussianResultNoiser(
 class DeterministicTruncatedLaplaceResultNoiser(
   combinedFrequencyVector: IntArray,
   contributionCount: Int,
-  private val reachEpsilon: Double,
-  private val frequencyEpsilon: Double,
-  private val truncationBound: Int,
   private val maxFrequencyPerUser: Int = 1,
 ) : ResultNoiser {
   private val fingerprint: ByteArray = fingerprint(combinedFrequencyVector, contributionCount)
 
-  private val reachSampler by lazy {
-    DeterministicTruncatedLaplaceNoiseSampler(reachEpsilon, UNIT_SENSITIVITY, truncationBound)
-  }
-  private val frequencySampler by lazy {
-    DeterministicTruncatedLaplaceNoiseSampler(frequencyEpsilon, UNIT_SENSITIVITY, truncationBound)
-  }
-  private val impressionSampler by lazy {
-    DeterministicTruncatedLaplaceNoiseSampler(
-      reachEpsilon,
-      maxFrequencyPerUser.toDouble(),
-      truncationBound,
+  // One sampler per released quantity, each calibrated to that quantity's L1 sensitivity: reach and
+  // each frequency bucket move by 1 per VID, the capped impression count by maxFrequencyPerUser.
+  private val reachSampler by lazy { sampler(UNIT_SENSITIVITY) }
+  private val frequencySampler by lazy { sampler(UNIT_SENSITIVITY) }
+  private val impressionSampler by lazy { sampler(maxFrequencyPerUser.toDouble()) }
+
+  private fun sampler(sensitivity: Double) =
+    DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy(
+      DeterministicTruncatedLaplaceParams.EPSILON,
+      DeterministicTruncatedLaplaceParams.DELTA,
+      sensitivity,
     )
-  }
 
   override fun noiseReach(reachInSample: Long): Long =
     reachInSample + reachSampler.sampleRounded(fingerprint, label(REACH_LABEL))
