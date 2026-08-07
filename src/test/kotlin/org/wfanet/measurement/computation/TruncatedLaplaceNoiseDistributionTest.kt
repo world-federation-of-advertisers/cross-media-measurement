@@ -96,48 +96,6 @@ class TruncatedLaplaceNoiseDistributionTest {
     assertFailsWith<IllegalArgumentException> { distribution.inverseCdf(-0.1) }
   }
 
-  @Test
-  fun `forDifferentialPrivacy sets the bound from epsilon, delta and sensitivity`() {
-    // inverseCdf(0) equals -bound, so it reveals the calibrated bound. At epsilon 1, delta 1/1000,
-    // sensitivity 1, bound = ln(1 + (e - 1) / (2 * delta)).
-    val dp = TruncatedLaplaceNoiseDistribution.forDifferentialPrivacy(1.0, 1.0 / 1000, 1.0)
-    assertThat(dp.inverseCdf(0.0)).isWithin(1e-9).of(-6.7570962295802515)
-  }
-
-  @Test
-  fun `forDifferentialPrivacy scales scale and bound with sensitivity`() {
-    // Scale and bound are both proportional to sensitivity, so doubling it doubles both. inverseCdf
-    // is linear in scale, so every quantile doubles too.
-    val unit = TruncatedLaplaceNoiseDistribution.forDifferentialPrivacy(1.0, 1.0 / 1000, 1.0)
-    val doubled = TruncatedLaplaceNoiseDistribution.forDifferentialPrivacy(1.0, 1.0 / 1000, 2.0)
-    assertThat(doubled.inverseCdf(0.0)).isWithin(1e-9).of(-13.514192459160503)
-    assertThat(doubled.inverseCdf(0.3)).isWithin(1e-9).of(2.0 * unit.inverseCdf(0.3))
-  }
-
-  @Test
-  fun `forDifferentialPrivacy rejects non-positive epsilon`() {
-    assertFailsWith<IllegalArgumentException> {
-      TruncatedLaplaceNoiseDistribution.forDifferentialPrivacy(0.0, 1.0 / 1000, 1.0)
-    }
-  }
-
-  @Test
-  fun `forDifferentialPrivacy rejects delta outside the open unit interval`() {
-    assertFailsWith<IllegalArgumentException> {
-      TruncatedLaplaceNoiseDistribution.forDifferentialPrivacy(1.0, 0.0, 1.0)
-    }
-    assertFailsWith<IllegalArgumentException> {
-      TruncatedLaplaceNoiseDistribution.forDifferentialPrivacy(1.0, 1.0, 1.0)
-    }
-  }
-
-  @Test
-  fun `forDifferentialPrivacy rejects non-positive sensitivity`() {
-    assertFailsWith<IllegalArgumentException> {
-      TruncatedLaplaceNoiseDistribution.forDifferentialPrivacy(1.0, 1.0 / 1000, 0.0)
-    }
-  }
-
   companion object {
     private const val SCALE = 1.0
     private const val BOUND = 8.0

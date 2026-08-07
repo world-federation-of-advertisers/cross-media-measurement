@@ -80,7 +80,6 @@ kt_jvm_library(
         ":deterministic_truncated_laplace_noise_sampler",
         ":deterministic_truncated_laplace_params",
         ":differential_privacy_params",
-        ":truncated_laplace_noise_distribution",
         "//imports/java/com/google/privacy:differential_privacy",
     ],
 )

@@ -114,12 +114,10 @@ class DeterministicTruncatedLaplaceResultNoiser(
   private val impressionSampler by lazy { sampler(maxFrequencyPerUser.toDouble()) }
 
   private fun sampler(sensitivity: Double) =
-    DeterministicTruncatedLaplaceNoiseSampler(
-      TruncatedLaplaceNoiseDistribution.forDifferentialPrivacy(
-        DeterministicTruncatedLaplaceParams.EPSILON,
-        DeterministicTruncatedLaplaceParams.DELTA,
-        sensitivity,
-      )
+    DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy(
+      DeterministicTruncatedLaplaceParams.EPSILON,
+      DeterministicTruncatedLaplaceParams.DELTA,
+      sensitivity,
     )
 
   override fun noiseReach(reachInSample: Long): Long =

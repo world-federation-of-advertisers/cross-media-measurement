@@ -22,9 +22,9 @@ package org.wfanet.measurement.computation
  * These are compiled into the attested images that draw the noise (the TrusTEE image and the EDP
  * Aggregator image) rather than set by the measurement consumer, and the reporting server mirrors
  * them to derive the matching variance. The noise targets ([EPSILON], [DELTA])-differential
- * privacy; each draw's distribution comes from
- * [TruncatedLaplaceNoiseDistribution.forDifferentialPrivacy] with these constants and the draw's L1
- * sensitivity.
+ * privacy; each draw's sampler comes from
+ * [DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy] with these constants and the
+ * draw's L1 sensitivity.
  */
 object DeterministicTruncatedLaplaceParams {
   const val EPSILON = 1.0

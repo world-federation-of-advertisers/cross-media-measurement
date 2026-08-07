@@ -43,4 +43,33 @@ class DeterministicTruncatedLaplaceNoiseSampler(
    */
   fun sampleRounded(vararg parts: ByteArray): Long =
     StrictMath.rint(distribution.inverseCdf(uniformSampler.sample(*parts))).toLong()
+
+  companion object {
+    /**
+     * A sampler drawing ([epsilon], [delta])-differentially private truncated-Laplace noise for a
+     * query of L1 [sensitivity]. The scale is `sensitivity / epsilon` and the truncation bound is
+     * the smallest that keeps the truncated tail mass within [delta]:
+     * `bound = scale * ln(1 + (e^epsilon - 1) / (2 * delta))` (see the `LaplaceBoundedNoise`
+     * mechanism in IBM's differential-privacy-library, and Geng et al., "Privacy and Utility
+     * Tradeoff in Approximate Differential Privacy", arXiv:1810.00877).
+     *
+     * Scale and bound are derived together so they cannot drift apart at a call site. [StrictMath]
+     * keeps the bound bit-reproducible across JVMs, matching the draw it bounds and any variance
+     * derived from it.
+     */
+    fun forDifferentialPrivacy(
+      epsilon: Double,
+      delta: Double,
+      sensitivity: Double,
+    ): DeterministicTruncatedLaplaceNoiseSampler {
+      require(epsilon > 0.0) { "epsilon must be positive, got $epsilon" }
+      require(delta > 0.0 && delta < 1.0) { "delta must be in (0, 1), got $delta" }
+      require(sensitivity > 0.0) { "sensitivity must be positive, got $sensitivity" }
+      val scale = sensitivity / epsilon
+      val bound = scale * StrictMath.log(1.0 + (StrictMath.exp(epsilon) - 1.0) / (2.0 * delta))
+      return DeterministicTruncatedLaplaceNoiseSampler(
+        TruncatedLaplaceNoiseDistribution(scale, bound)
+      )
+    }
+  }
 }

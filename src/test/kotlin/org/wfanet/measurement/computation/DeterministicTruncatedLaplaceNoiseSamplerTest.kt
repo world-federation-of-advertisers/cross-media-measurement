@@ -16,6 +16,7 @@ package org.wfanet.measurement.computation
 
 import com.google.common.truth.Truth.assertThat
 import kotlin.math.abs
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -89,6 +90,44 @@ class DeterministicTruncatedLaplaceNoiseSamplerTest {
     val mean =
       (0 until 20000).map { sampler.sampleRounded("fv-$it".toByteArray(), label) }.average()
     assertThat(mean).isWithin(0.1).of(0.0)
+  }
+
+  @Test
+  fun `forDifferentialPrivacy calibrates the draw from the privacy params`() {
+    // Golden rounded draws for the same seed at two sensitivities, computed off-code from
+    // scale = sensitivity / epsilon and bound = scale * ln(1 + (e^epsilon - 1) / (2 * delta)).
+    // Larger sensitivity widens the scale, so the draw grows; the exact per-quantity bounds are
+    // pinned end-to-end by DeterministicTruncatedLaplaceResultNoiserTest.
+    val unit =
+      DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy(1.0, 1.0 / 1000, 1.0)
+    val wide =
+      DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy(1.0, 1.0 / 1000, 4.0)
+    assertThat(unit.sampleRounded(fingerprint, label)).isEqualTo(1L)
+    assertThat(wide.sampleRounded(fingerprint, label)).isEqualTo(2L)
+  }
+
+  @Test
+  fun `forDifferentialPrivacy rejects non-positive epsilon`() {
+    assertFailsWith<IllegalArgumentException> {
+      DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy(0.0, 1.0 / 1000, 1.0)
+    }
+  }
+
+  @Test
+  fun `forDifferentialPrivacy rejects delta outside the open unit interval`() {
+    assertFailsWith<IllegalArgumentException> {
+      DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy(1.0, 0.0, 1.0)
+    }
+    assertFailsWith<IllegalArgumentException> {
+      DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy(1.0, 1.0, 1.0)
+    }
+  }
+
+  @Test
+  fun `forDifferentialPrivacy rejects non-positive sensitivity`() {
+    assertFailsWith<IllegalArgumentException> {
+      DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy(1.0, 1.0 / 1000, 0.0)
+    }
   }
 
   companion object {
