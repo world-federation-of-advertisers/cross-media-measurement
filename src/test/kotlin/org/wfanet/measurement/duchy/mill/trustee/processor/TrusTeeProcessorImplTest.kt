@@ -529,6 +529,42 @@ class TrusTeeProcessorImplTest {
   }
 
   @Test
+  fun `deterministic noise ignores the measurement spec privacy params`() {
+    // The property this mechanism exists to establish: the privacy params are compiled into the
+    // image, not taken from the spec. An MC asking for a huge epsilon must not get less noise. If
+    // the mechanism read the spec params, these two runs would diverge.
+    fun paramsWithEpsilon(specEpsilon: Double) =
+      TrusTeeReachAndFrequencyParams(
+        maximumFrequency = MAX_FREQUENCY,
+        vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
+        reachDpParams =
+          differentialPrivacyParams {
+            epsilon = specEpsilon
+            delta = 0.99
+          },
+        frequencyDpParams =
+          differentialPrivacyParams {
+            epsilon = specEpsilon
+            delta = 0.99
+          },
+        resultMinimumThresholds = null,
+        noiseMechanism = NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+      )
+
+    val vector = byteArrayOf(1, 2, 0, 1, 3)
+    fun run(specEpsilon: Double) =
+      TrusTeeProcessorImpl(paramsWithEpsilon(specEpsilon))
+        .apply { addFrequencyVector(vector) }
+        .computeResult() as ReachAndFrequencyResult
+
+    val huge = run(1_000_000.0)
+    val tiny = run(0.001)
+
+    assertThat(huge.reach).isEqualTo(tiny.reach)
+    assertThat(huge.frequency).isEqualTo(tiny.frequency)
+  }
+
+  @Test
   fun `computeResult with deterministic noise is independent of contribution order`() {
     // The noise is seeded from the combined vector and the contribution count, both independent of
     // the order contributions arrive in, so the same contributions in a different order yield

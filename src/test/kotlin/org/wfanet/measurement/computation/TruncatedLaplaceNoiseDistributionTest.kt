@@ -93,7 +93,7 @@ class TruncatedLaplaceNoiseDistributionTest {
   @Test
   fun `rejects non-positive truncation bound`() {
     assertFailsWith<IllegalArgumentException> {
-      TruncatedLaplaceNoiseDistribution(EPSILON, SENSITIVITY, truncationBound = 0)
+      TruncatedLaplaceNoiseDistribution(EPSILON, SENSITIVITY, truncationBound = 0.0)
     }
   }
 
@@ -106,6 +106,6 @@ class TruncatedLaplaceNoiseDistributionTest {
   companion object {
     private const val EPSILON = 1.0
     private const val SENSITIVITY = 1.0
-    private const val BOUND = 8
+    private const val BOUND = 8.0
   }
 }

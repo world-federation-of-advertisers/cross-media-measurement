@@ -94,6 +94,6 @@ class DeterministicTruncatedLaplaceNoiseSamplerTest {
   companion object {
     private const val EPSILON = 1.0
     private const val SENSITIVITY = 1.0
-    private const val BOUND = 8
+    private const val BOUND = 8.0
   }
 }

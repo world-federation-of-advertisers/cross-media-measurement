@@ -105,24 +105,23 @@ class DeterministicTruncatedLaplaceResultNoiser(
   contributionCount: Int,
   private val reachEpsilon: Double,
   private val frequencyEpsilon: Double,
-  private val truncationBound: Int,
   private val maxFrequencyPerUser: Int = 1,
 ) : ResultNoiser {
   private val fingerprint: ByteArray = fingerprint(combinedFrequencyVector, contributionCount)
 
-  private val reachSampler by lazy {
-    DeterministicTruncatedLaplaceNoiseSampler(reachEpsilon, UNIT_SENSITIVITY, truncationBound)
-  }
-  private val frequencySampler by lazy {
-    DeterministicTruncatedLaplaceNoiseSampler(frequencyEpsilon, UNIT_SENSITIVITY, truncationBound)
-  }
-  private val impressionSampler by lazy {
+  // The truncation bound is derived per draw from its sensitivity: reach and each frequency bucket
+  // have sensitivity 1, the capped impression count has sensitivity maxFrequencyPerUser. A shared
+  // bound would conform to the target delta at only one sensitivity.
+  private val reachSampler by lazy { sampler(reachEpsilon, UNIT_SENSITIVITY) }
+  private val frequencySampler by lazy { sampler(frequencyEpsilon, UNIT_SENSITIVITY) }
+  private val impressionSampler by lazy { sampler(reachEpsilon, maxFrequencyPerUser.toDouble()) }
+
+  private fun sampler(epsilon: Double, sensitivity: Double) =
     DeterministicTruncatedLaplaceNoiseSampler(
-      reachEpsilon,
-      maxFrequencyPerUser.toDouble(),
-      truncationBound,
+      epsilon,
+      sensitivity,
+      DeterministicTruncatedLaplaceParams.truncationBound(epsilon, sensitivity),
     )
-  }
 
   override fun noiseReach(reachInSample: Long): Long =
     reachInSample + reachSampler.sampleRounded(fingerprint, label(REACH_LABEL))

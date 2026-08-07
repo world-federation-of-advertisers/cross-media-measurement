@@ -78,6 +78,7 @@ kt_jvm_library(
     srcs = ["ResultNoiser.kt"],
     deps = [
         ":deterministic_truncated_laplace_noise_sampler",
+        ":deterministic_truncated_laplace_params",
         ":differential_privacy_params",
         "//imports/java/com/google/privacy:differential_privacy",
     ],

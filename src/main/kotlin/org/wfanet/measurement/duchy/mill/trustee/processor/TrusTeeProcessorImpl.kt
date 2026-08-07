@@ -181,7 +181,6 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
         contributionCount,
         reachEpsilon = DeterministicTruncatedLaplaceParams.EPSILON,
         frequencyEpsilon = DeterministicTruncatedLaplaceParams.EPSILON,
-        truncationBound = DeterministicTruncatedLaplaceParams.TRUNCATION_BOUND,
         maxFrequencyPerUser = resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1,
       )
     }

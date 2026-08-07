@@ -31,16 +31,16 @@ package org.wfanet.measurement.computation
 class TruncatedLaplaceNoiseDistribution(
   epsilon: Double,
   sensitivity: Double,
-  truncationBound: Int,
+  truncationBound: Double,
 ) {
   init {
     require(epsilon > 0.0) { "epsilon must be positive, got $epsilon" }
     require(sensitivity > 0.0) { "sensitivity must be positive, got $sensitivity" }
-    require(truncationBound > 0) { "truncationBound must be positive, got $truncationBound" }
+    require(truncationBound > 0.0) { "truncationBound must be positive, got $truncationBound" }
   }
 
   private val scale: Double = sensitivity / epsilon
-  private val bound: Double = truncationBound.toDouble()
+  private val bound: Double = truncationBound
   private val cdfLow: Double = laplaceCdf(-bound)
   private val cdfHigh: Double = laplaceCdf(bound)
 

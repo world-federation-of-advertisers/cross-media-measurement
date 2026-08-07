@@ -31,7 +31,7 @@ class DeterministicTruncatedLaplaceNoiseSampler(
   constructor(
     epsilon: Double,
     sensitivity: Double,
-    truncationBound: Int,
+    truncationBound: Double,
   ) : this(TruncatedLaplaceNoiseDistribution(epsilon, sensitivity, truncationBound))
 
   /**
