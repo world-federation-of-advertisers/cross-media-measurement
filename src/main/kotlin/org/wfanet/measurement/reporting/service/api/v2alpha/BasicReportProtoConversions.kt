@@ -844,12 +844,17 @@ fun InternalMetricMetadata.toMetricMetadata(
                     .toName()
                 }
               displayName = internalReportingUnitComponentSummary.cmmsDataProviderDisplayName
-              reportingSet =
-                ReportingSetKey(
-                    cmmsMeasurementConsumerId,
-                    internalReportingUnitComponentSummary.externalReportingSetId,
-                  )
-                  .toName()
+              // TODO(world-federation-of-advertisers/cross-media-measurement#4289): Remove this
+              // check once BasicReports written via InsertBasicReport without
+              // external_reporting_set_id have been backfilled.
+              if (internalReportingUnitComponentSummary.externalReportingSetId.isNotEmpty()) {
+                reportingSet =
+                  ReportingSetKey(
+                      cmmsMeasurementConsumerId,
+                      internalReportingUnitComponentSummary.externalReportingSetId,
+                    )
+                    .toName()
+              }
               if (populateDeprecatedReportingUnitEventGroupSummaries) {
                 // TODO(world-federation-of-advertisers/cross-media-measurement#3919):
                 // Stop reading/setting the deprecated event_group_summaries field once
