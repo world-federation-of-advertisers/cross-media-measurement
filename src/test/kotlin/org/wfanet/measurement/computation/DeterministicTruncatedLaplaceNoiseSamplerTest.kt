@@ -139,6 +139,18 @@ class DeterministicTruncatedLaplaceNoiseSamplerTest {
     }
   }
 
+  @Test
+  fun `forDifferentialPrivacy accepts high sensitivity at the compiled epsilon of 1`() {
+    // At epsilon 1 the tail-mass bound stays above the tight optimal for every sensitivity, so a
+    // high-sensitivity draw (the impression threshold) is accepted, not rejected by the guard. The
+    // bound is ceil(126 * ln(1000)) + 1 = 872, so draws stay within +/-872.
+    val sampler =
+      DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy(1.0, 1.0 / 1000, 126.0)
+    val draw = sampler.sampleRounded(fingerprint, label)
+    assertThat(draw).isAtLeast(-872L)
+    assertThat(draw).isAtMost(872L)
+  }
+
   companion object {
     private const val SCALE = 1.0
     private const val BOUND = 8.0
