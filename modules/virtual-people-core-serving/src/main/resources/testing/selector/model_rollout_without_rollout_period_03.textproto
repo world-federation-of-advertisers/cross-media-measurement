@@ -1,0 +1,10 @@
+name: "modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelLines/AAAAAAAAAHs/modelRollouts/rollout_without_rollout_period_03"
+
+instant_rollout_date: {
+  year: 2020
+  month: 9
+  day: 13
+}
+
+model_release: "modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelReleases/rollout_without_rollout_period_03"
+

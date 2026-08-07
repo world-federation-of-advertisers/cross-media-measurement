@@ -1,0 +1,90 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "PopulationNodeHelperTest",
+    srcs = ["PopulationNodeHelperTest.kt"],
+    test_class = "org.wfanet.virtualpeople.core.model.utils.PopulationNodeHelperTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model/utils",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:label_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_test(
+    name = "FeistelTest",
+    srcs = ["FeistelTest.kt"],
+    test_class = "org.wfanet.virtualpeople.core.model.utils.FeistelTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model/utils",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "ConsistentHashTest",
+    srcs = ["ConsistentHashTest.kt"],
+    test_class = "org.wfanet.virtualpeople.core.model.utils.ConsistentHashTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model/utils",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "DistributedConsistentHashingTest",
+    srcs = ["DistributedConsistentHashingTest.kt"],
+    test_class = "org.wfanet.virtualpeople.core.model.utils.DistributedConsistentHashingTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model/utils",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "FieldFiltersMatcherTest",
+    srcs = ["FieldFiltersMatcherTest.kt"],
+    test_class = "org.wfanet.virtualpeople.core.model.utils.FieldFiltersMatcherTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model/utils",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "HashFieldMaskMatcherTest",
+    srcs = ["HashFieldMaskMatcherTest.kt"],
+    test_class = "org.wfanet.virtualpeople.core.model.utils.HashFieldMaskMatcherTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model/utils",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "UpdateMatrixHelperTest",
+    srcs = ["UpdateMatrixHelperTest.kt"],
+    test_class = "org.wfanet.virtualpeople.core.model.utils.UpdateMatrixHelperTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model/utils",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "VirtualPeopleSelectorTest",
+    srcs = ["VirtualPeopleSelectorTest.kt"],
+    test_class = "org.wfanet.virtualpeople.core.model.utils.VirtualPeopleSelectorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model/utils",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

@@ -1,0 +1,103 @@
+module(
+    name = "virtual-people-core-serving",
+    repo_name = "wfa_virtual_people_core_serving",
+)
+
+MAVEN_REPO_NAME = "maven"
+
+# WFA registry modules.
+bazel_dep(
+    name = "rules_kotlin_jvm",
+    version = "0.4.0",
+    repo_name = "wfa_rules_kotlin_jvm",
+)
+bazel_dep(
+    name = "common-cpp",
+    version = "0.14.0",
+    repo_name = "wfa_common_cpp",
+)
+bazel_dep(
+    name = "common-jvm",
+    version = "0.144.0",
+    repo_name = "wfa_common_jvm",
+)
+bazel_dep(
+    name = "cross-media-measurement-api",
+    version = "0.94.0",
+    repo_name = "wfa_measurement_proto",
+)
+bazel_dep(
+    name = "glog",
+    version = "0.6.0",
+    repo_name = "com_github_google_glog",
+)
+bazel_dep(
+    name = "virtual-people-common",
+    version = "0.8.0",
+    repo_name = "wfa_virtual_people_common",
+)
+
+# Bazel Central Registry modules.
+bazel_dep(
+    name = "rules_proto",
+    version = "6.0.2",
+)
+bazel_dep(
+    name = "protobuf",
+    version = "27.3",
+    repo_name = "com_google_protobuf",
+)
+bazel_dep(
+    name = "rules_cc",
+    version = "0.1.1",
+)
+bazel_dep(
+    name = "abseil-cpp",
+    version = "20230802.1",
+    repo_name = "com_google_absl",
+)
+bazel_dep(
+    name = "googletest",
+    version = "1.14.0.bcr.1",
+    repo_name = "com_google_googletest",
+)
+bazel_dep(
+    name = "rules_java",
+    version = "7.11.1",
+)
+bazel_dep(
+    name = "rules_jvm_external",
+    version = "6.4",
+)
+
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+maven.install(
+    name = MAVEN_REPO_NAME,
+    fail_if_repin_required = True,
+    fetch_sources = True,  # For IDE integration.
+    lock_file = "//:maven_install.json",
+    resolver = "maven",
+    strict_visibility = True,
+)
+use_repo(maven, MAVEN_REPO_NAME)
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "farmhash",
+    build_file_content = """
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "farmhash",
+    hdrs = ["src/farmhash.h"],
+    srcs = ["src/farmhash.cc"],
+)
+""",
+    sha256 = "18392cf0736e1d62ecbb8d695c31496b6507859e8c75541d7ad0ba092dc52115",
+    strip_prefix = "farmhash-0d859a811870d10f53a594927d0d0b97573ad06d",
+    urls = [
+        # 2019-05-13, final version before repo was archived
+        "https://github.com/google/farmhash/archive/0d859a811870d10f53a594927d0d0b97573ad06d.tar.gz",
+    ],
+)

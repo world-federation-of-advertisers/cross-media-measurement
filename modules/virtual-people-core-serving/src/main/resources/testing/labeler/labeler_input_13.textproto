@@ -1,0 +1,16 @@
+# No input demo. Correct to random demo.
+event_id {
+  publisher: "PUBLISHER_01"
+  id: "EVENT_13"
+}
+timestamp_usec: 1626847100000001
+geo {
+  country_id: 1
+}
+profile_info {
+  email_user_info {
+    user_id: "EMAIL_USER_07"
+    profile_version: "20210701"
+    creation_time_usec: 1626847100002001
+  }
+}

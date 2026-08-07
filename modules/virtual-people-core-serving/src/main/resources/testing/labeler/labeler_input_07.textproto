@@ -1,0 +1,24 @@
+event_id {
+  publisher: "PUBLISHER_01"
+  id: "EVENT_07"
+}
+timestamp_usec: 1626847100000001
+geo {
+  country_id: 1
+}
+profile_info {
+  email_user_info {
+    user_id: "EMAIL_USER_01"
+    profile_version: "20210701"
+    demo {
+      demo_bucket {
+        gender: GENDER_FEMALE
+        age {
+          min_age: 18
+          max_age: 24
+        }
+      }
+    }
+    creation_time_usec: 1626847100001001
+  }
+}
