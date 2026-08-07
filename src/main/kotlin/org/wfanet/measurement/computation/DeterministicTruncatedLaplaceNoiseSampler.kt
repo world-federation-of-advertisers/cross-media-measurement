@@ -47,14 +47,35 @@ class DeterministicTruncatedLaplaceNoiseSampler(
   companion object {
     /**
      * A sampler drawing ([epsilon], [delta])-differentially private truncated-Laplace noise for a
-     * query of L1 [sensitivity]. The scale is `sensitivity / epsilon` and the truncation bound is
-     * the smallest that keeps the truncated tail mass within [delta]: `bound = scale * ln(1 +
-     * (e^epsilon - 1) / (2 * delta))` (see Geng et al., "Privacy and Utility Tradeoff in
-     * Approximate Differential Privacy", arXiv:1810.00877).
+     * query of L1 [sensitivity].
      *
-     * Scale and bound are derived together so they cannot drift apart at a call site. [StrictMath]
-     * keeps the bound bit-reproducible across JVMs, matching the draw it bounds and any variance
-     * derived from it.
+     * The noise is Laplace with scale `b = sensitivity / epsilon` (the scale that makes the
+     * untruncated Laplace epsilon-DP), truncated to `[-T, T]`. T is chosen by the two-sided
+     * tail-mass rule: truncate where the discarded mass equals [delta]. For a zero-mean Laplace
+     * `P(|Y| > T) = e^(-T/b)`, so setting that to [delta] gives `T = b * ln(1 / delta)`. Discarding
+     * at most [delta] of the mass makes the truncated mechanism differ from the epsilon-DP Laplace
+     * only on an event of probability at most [delta], which is ([epsilon], [delta])-DP. T is
+     * rounded up and bumped by 1 for a strictly-conservative integer threshold:
+     * ```
+     * T = ceil((sensitivity / epsilon) * ln(1 / delta)) + 1
+     * ```
+     *
+     * This is looser than the tight optimal threshold `(sensitivity / epsilon) * ln(1 +
+     * (e^epsilon - 1) / (2 * delta))` (Geng et al., "Privacy and Utility Tradeoff in Approximate
+     * Differential Privacy", arXiv:1810.00877, Definition 3), which accounts for only the uncovered
+     * end-interval mass and so adds less noise. The conservative tail-mass form is the value
+     * compiled into the attested image.
+     *
+     * The tail-mass rule only meets the tight optimal for `epsilon <= ln(3 - 2 * delta)` (about 1.1
+     * for small [delta]). Above that the bare `ln(1 / delta)` term drops below the optimal, and the
+     * fixed `+ 1` closes the gap only at unit sensitivity; for [sensitivity] above 1 with epsilon
+     * past the crossover (the impression-threshold draw) it can under-truncate and fail to be
+     * ([epsilon], [delta])-DP. This function throws when the resulting bound is below the optimal,
+     * so an insufficient bound cannot pass silently. The compiled epsilon is 1, well below the
+     * crossover, so the bound is conservative for every sensitivity used here.
+     *
+     * [StrictMath] keeps T bit-reproducible across JVMs, matching the draw it bounds and any
+     * variance derived from it.
      */
     fun forDifferentialPrivacy(
       epsilon: Double,
@@ -65,7 +86,15 @@ class DeterministicTruncatedLaplaceNoiseSampler(
       require(delta > 0.0 && delta < 1.0) { "delta must be in (0, 1), got $delta" }
       require(sensitivity > 0.0) { "sensitivity must be positive, got $sensitivity" }
       val scale = sensitivity / epsilon
-      val bound = scale * StrictMath.log(1.0 + (StrictMath.exp(epsilon) - 1.0) / (2.0 * delta))
+      val bound = StrictMath.ceil(scale * StrictMath.log(1.0 / delta)) + 1.0
+      // The tail-mass + 1 rule can fall below the tight (epsilon, delta) threshold for epsilon
+      // above ~ln(3) with sensitivity > 1 (see above); refuse to emit non-private noise.
+      val optimalBound =
+        scale * StrictMath.log(1.0 + (StrictMath.exp(epsilon) - 1.0) / (2.0 * delta))
+      require(bound >= optimalBound) {
+        "truncation bound $bound is below the minimum $optimalBound for epsilon=$epsilon, " +
+          "delta=$delta, sensitivity=$sensitivity"
+      }
       return DeterministicTruncatedLaplaceNoiseSampler(
         TruncatedLaplaceNoiseDistribution(scale, bound)
       )
