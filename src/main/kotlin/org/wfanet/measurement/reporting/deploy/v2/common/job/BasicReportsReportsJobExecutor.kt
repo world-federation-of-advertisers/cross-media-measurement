@@ -65,6 +65,20 @@ import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineSt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import picocli.CommandLine
 
+class BasicReportsReportsJobFlags {
+  @CommandLine.Option(
+    names = ["--max-created-basic-report-age"],
+    defaultValue = "15m",
+    description =
+      [
+        "How long a BasicReport may remain in state CREATED before it is marked FAILED.",
+        "Must exceed the time CreateBasicReport takes to create the underlying Report.",
+      ],
+  )
+  lateinit var maxCreatedBasicReportAge: Duration
+    private set
+}
+
 @CommandLine.Command(
   name = "BasicReportsReportsJobExecutor",
   description =
@@ -79,16 +93,7 @@ private fun run(
   @CommandLine.Mixin v2AlphaFlags: V2AlphaFlags,
   @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
   @CommandLine.Mixin eventMessageFlags: EventMessageFlags,
-  @CommandLine.Option(
-    names = ["--max-created-basic-report-age"],
-    defaultValue = "15m",
-    description =
-      [
-        "How long a BasicReport may remain in state CREATED before it is marked FAILED.",
-        "Must exceed the time CreateBasicReport takes to create the underlying Report.",
-      ],
-  )
-  maxCreatedBasicReportAge: Duration,
+  @CommandLine.Mixin basicReportsReportsJobFlags: BasicReportsReportsJobFlags,
 ) {
   val clientCerts =
     SigningCerts.fromPemFiles(
@@ -210,7 +215,7 @@ private fun run(
       ReportResultsCoroutineStub(channel),
       eventMessageFlags.eventDescriptor,
       Clock.systemUTC(),
-      maxCreatedBasicReportAge,
+      basicReportsReportsJobFlags.maxCreatedBasicReportAge,
     )
 
   runBlocking { basicReportsReportsJob.execute() }
