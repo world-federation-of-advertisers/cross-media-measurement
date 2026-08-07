@@ -31,12 +31,12 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
   fun `reach and bucket draws match golden`() {
     // Goldens computed outside this codebase from the documented construction: SHA-256 over the
     // length-prefixed parts, top 53 bits as the uniform, then inverseCdf and round-half-to-even.
-    // The draws are +1, -2, -1, 0, so this fails against a noiser that returns zero.
+    // The draws are +1, -4, -2, 0, so this fails against a noiser that returns zero.
     val noiser = noiser()
 
     assertThat(noiser.noiseReach(15)).isEqualTo(16L)
-    assertThat(noiser.noiseFrequencyBucket(0, 10)).isEqualTo(8L)
-    assertThat(noiser.noiseFrequencyBucket(1, 4)).isEqualTo(3L)
+    assertThat(noiser.noiseFrequencyBucket(0, 10)).isEqualTo(6L)
+    assertThat(noiser.noiseFrequencyBucket(1, 4)).isEqualTo(2L)
     assertThat(noiser.noiseFrequencyBucket(2, 1)).isEqualTo(1L)
   }
 
@@ -96,8 +96,6 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
   }
 
   companion object {
-    private const val REACH_EPSILON = 1.0
-    private const val FREQUENCY_EPSILON = 2.0
     private const val CONTRIBUTION_COUNT = 3
     private const val MAX_FREQUENCY_PER_USER = 3
     private val COMBINED = intArrayOf(0, 1, 2, 1, 3, 0, 2)
@@ -106,8 +104,6 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
       DeterministicTruncatedLaplaceResultNoiser(
         COMBINED,
         CONTRIBUTION_COUNT,
-        REACH_EPSILON,
-        FREQUENCY_EPSILON,
         MAX_FREQUENCY_PER_USER,
       )
 

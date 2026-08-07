@@ -22,11 +22,11 @@ import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
 class TruncatedLaplaceNoiseDistributionTest {
-  private val distribution = TruncatedLaplaceNoiseDistribution(EPSILON, SENSITIVITY, BOUND)
+  private val distribution = TruncatedLaplaceNoiseDistribution(SCALE, BOUND)
 
   @Test
   fun `inverseCdf at zero is the lower bound`() {
-    assertThat(distribution.inverseCdf(0.0)).isWithin(1e-9).of(-BOUND.toDouble())
+    assertThat(distribution.inverseCdf(0.0)).isWithin(1e-9).of(-BOUND)
   }
 
   @Test
@@ -38,7 +38,7 @@ class TruncatedLaplaceNoiseDistributionTest {
   fun `inverseCdf near one stays within the upper bound`() {
     val draw = distribution.inverseCdf(0.999999999)
     assertThat(draw).isGreaterThan(0.0)
-    assertThat(draw).isAtMost(BOUND.toDouble())
+    assertThat(draw).isAtMost(BOUND)
   }
 
   @Test
@@ -58,8 +58,8 @@ class TruncatedLaplaceNoiseDistributionTest {
     var u = 0.0
     while (u < 1.0) {
       val draw = distribution.inverseCdf(u)
-      assertThat(draw).isAtLeast(-BOUND.toDouble())
-      assertThat(draw).isAtMost(BOUND.toDouble())
+      assertThat(draw).isAtLeast(-BOUND)
+      assertThat(draw).isAtMost(BOUND)
       u += 0.001
     }
   }
@@ -77,23 +77,16 @@ class TruncatedLaplaceNoiseDistributionTest {
   }
 
   @Test
-  fun `rejects non-positive epsilon`() {
+  fun `rejects non-positive scale`() {
     assertFailsWith<IllegalArgumentException> {
-      TruncatedLaplaceNoiseDistribution(epsilon = 0.0, SENSITIVITY, BOUND)
+      TruncatedLaplaceNoiseDistribution(scale = 0.0, bound = BOUND)
     }
   }
 
   @Test
-  fun `rejects non-positive sensitivity`() {
+  fun `rejects non-positive bound`() {
     assertFailsWith<IllegalArgumentException> {
-      TruncatedLaplaceNoiseDistribution(EPSILON, sensitivity = 0.0, BOUND)
-    }
-  }
-
-  @Test
-  fun `rejects non-positive truncation bound`() {
-    assertFailsWith<IllegalArgumentException> {
-      TruncatedLaplaceNoiseDistribution(EPSILON, SENSITIVITY, truncationBound = 0.0)
+      TruncatedLaplaceNoiseDistribution(scale = SCALE, bound = 0.0)
     }
   }
 
@@ -103,9 +96,50 @@ class TruncatedLaplaceNoiseDistributionTest {
     assertFailsWith<IllegalArgumentException> { distribution.inverseCdf(-0.1) }
   }
 
+  @Test
+  fun `forDifferentialPrivacy sets the bound from epsilon, delta and sensitivity`() {
+    // inverseCdf(0) equals -bound, so it reveals the calibrated bound. At epsilon 1, delta 1/1000,
+    // sensitivity 1, bound = ln(1 + (e - 1) / (2 * delta)).
+    val dp = TruncatedLaplaceNoiseDistribution.forDifferentialPrivacy(1.0, 1.0 / 1000, 1.0)
+    assertThat(dp.inverseCdf(0.0)).isWithin(1e-9).of(-6.7570962295802515)
+  }
+
+  @Test
+  fun `forDifferentialPrivacy scales scale and bound with sensitivity`() {
+    // Scale and bound are both proportional to sensitivity, so doubling it doubles both. inverseCdf
+    // is linear in scale, so every quantile doubles too.
+    val unit = TruncatedLaplaceNoiseDistribution.forDifferentialPrivacy(1.0, 1.0 / 1000, 1.0)
+    val doubled = TruncatedLaplaceNoiseDistribution.forDifferentialPrivacy(1.0, 1.0 / 1000, 2.0)
+    assertThat(doubled.inverseCdf(0.0)).isWithin(1e-9).of(-13.514192459160503)
+    assertThat(doubled.inverseCdf(0.3)).isWithin(1e-9).of(2.0 * unit.inverseCdf(0.3))
+  }
+
+  @Test
+  fun `forDifferentialPrivacy rejects non-positive epsilon`() {
+    assertFailsWith<IllegalArgumentException> {
+      TruncatedLaplaceNoiseDistribution.forDifferentialPrivacy(0.0, 1.0 / 1000, 1.0)
+    }
+  }
+
+  @Test
+  fun `forDifferentialPrivacy rejects delta outside the open unit interval`() {
+    assertFailsWith<IllegalArgumentException> {
+      TruncatedLaplaceNoiseDistribution.forDifferentialPrivacy(1.0, 0.0, 1.0)
+    }
+    assertFailsWith<IllegalArgumentException> {
+      TruncatedLaplaceNoiseDistribution.forDifferentialPrivacy(1.0, 1.0, 1.0)
+    }
+  }
+
+  @Test
+  fun `forDifferentialPrivacy rejects non-positive sensitivity`() {
+    assertFailsWith<IllegalArgumentException> {
+      TruncatedLaplaceNoiseDistribution.forDifferentialPrivacy(1.0, 1.0 / 1000, 0.0)
+    }
+  }
+
   companion object {
-    private const val EPSILON = 1.0
-    private const val SENSITIVITY = 1.0
+    private const val SCALE = 1.0
     private const val BOUND = 8.0
   }
 }

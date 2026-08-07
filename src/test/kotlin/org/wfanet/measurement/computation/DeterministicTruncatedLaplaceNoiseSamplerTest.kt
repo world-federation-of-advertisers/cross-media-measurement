@@ -22,7 +22,7 @@ import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
 class DeterministicTruncatedLaplaceNoiseSamplerTest {
-  private val distribution = TruncatedLaplaceNoiseDistribution(EPSILON, SENSITIVITY, BOUND)
+  private val distribution = TruncatedLaplaceNoiseDistribution(SCALE, BOUND)
   private val uniformSampler = DeterministicUniformSampler()
   private val sampler = DeterministicTruncatedLaplaceNoiseSampler(distribution, uniformSampler)
 
@@ -77,9 +77,9 @@ class DeterministicTruncatedLaplaceNoiseSamplerTest {
   }
 
   @Test
-  fun `higher sensitivity yields a larger-magnitude draw for the same parts`() {
-    val narrow = TruncatedLaplaceNoiseDistribution(EPSILON, sensitivity = 1.0, BOUND)
-    val wide = TruncatedLaplaceNoiseDistribution(EPSILON, sensitivity = 4.0, BOUND)
+  fun `larger scale yields a larger-magnitude draw for the same parts`() {
+    val narrow = TruncatedLaplaceNoiseDistribution(scale = 1.0, bound = BOUND)
+    val wide = TruncatedLaplaceNoiseDistribution(scale = 4.0, bound = BOUND)
     val u = uniformSampler.sample(fingerprint, label)
     assertThat(abs(wide.inverseCdf(u))).isGreaterThan(abs(narrow.inverseCdf(u)))
   }
@@ -92,8 +92,7 @@ class DeterministicTruncatedLaplaceNoiseSamplerTest {
   }
 
   companion object {
-    private const val EPSILON = 1.0
-    private const val SENSITIVITY = 1.0
+    private const val SCALE = 1.0
     private const val BOUND = 8.0
   }
 }

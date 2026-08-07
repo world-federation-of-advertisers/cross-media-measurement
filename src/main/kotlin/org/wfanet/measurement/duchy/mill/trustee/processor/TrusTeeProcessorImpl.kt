@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.duchy.mill.trustee.processor
 
-import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParams
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceResultNoiser
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.GaussianResultNoiser
@@ -179,8 +178,6 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
       return DeterministicTruncatedLaplaceResultNoiser(
         frequencyVector,
         contributionCount,
-        reachEpsilon = DeterministicTruncatedLaplaceParams.EPSILON,
-        frequencyEpsilon = DeterministicTruncatedLaplaceParams.EPSILON,
         maxFrequencyPerUser = resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1,
       )
     }

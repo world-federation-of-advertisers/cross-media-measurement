@@ -15,32 +15,28 @@
 package org.wfanet.measurement.computation
 
 /**
- * A [Laplace distribution](https://en.wikipedia.org/wiki/Laplace_distribution) with mean 0 and
- * scale `sensitivity / epsilon`, [truncated](https://en.wikipedia.org/wiki/Truncated_distribution)
- * to `[-truncationBound, truncationBound]`.
+ * A [Laplace distribution](https://en.wikipedia.org/wiki/Laplace_distribution) with mean 0 and the
+ * given [scale], [truncated](https://en.wikipedia.org/wiki/Truncated_distribution) to
+ * `[-bound, bound]`.
+ *
+ * This is the noise primitive: it knows only [scale] and [bound], not the differential-privacy
+ * parameters they may have been calibrated from. Use [forDifferentialPrivacy] to derive a
+ * distribution from an (epsilon, delta, sensitivity) target.
  *
  * [inverseCdf] maps a uniform in `[0, 1)` to a draw by
  * [inverse transform sampling](https://en.wikipedia.org/wiki/Inverse_transform_sampling). Every
  * floating-point operation uses [StrictMath] (fdlibm, specified to be identical on every JVM), so
  * the draw is bit-reproducible across builds and hosts.
  *
- * @param epsilon the Laplace scale is `sensitivity / epsilon`.
- * @param sensitivity L1 sensitivity of the noised output: the most one VID can change it.
- * @param truncationBound draws are confined to `[-truncationBound, truncationBound]`.
+ * @param scale the Laplace scale (`sensitivity / epsilon` for a DP calibration).
+ * @param bound draws are confined to `[-bound, bound]`.
  */
-class TruncatedLaplaceNoiseDistribution(
-  epsilon: Double,
-  sensitivity: Double,
-  truncationBound: Double,
-) {
+class TruncatedLaplaceNoiseDistribution(private val scale: Double, private val bound: Double) {
   init {
-    require(epsilon > 0.0) { "epsilon must be positive, got $epsilon" }
-    require(sensitivity > 0.0) { "sensitivity must be positive, got $sensitivity" }
-    require(truncationBound > 0.0) { "truncationBound must be positive, got $truncationBound" }
+    require(scale > 0.0) { "scale must be positive, got $scale" }
+    require(bound > 0.0) { "bound must be positive, got $bound" }
   }
 
-  private val scale: Double = sensitivity / epsilon
-  private val bound: Double = truncationBound
   private val cdfLow: Double = laplaceCdf(-bound)
   private val cdfHigh: Double = laplaceCdf(bound)
 
@@ -66,4 +62,32 @@ class TruncatedLaplaceNoiseDistribution(
 
   private fun laplaceQuantile(p: Double): Double =
     if (p < 0.5) scale * StrictMath.log(2.0 * p) else -scale * StrictMath.log(2.0 * (1.0 - p))
+
+  companion object {
+    /**
+     * The truncated-Laplace mechanism: the distribution giving ([epsilon], [delta])-differential
+     * privacy for a query of L1 [sensitivity]. The scale is `sensitivity / epsilon` and the
+     * truncation bound is the smallest that keeps the truncated tail mass within [delta]:
+     * `bound = scale * ln(1 + (e^epsilon - 1) / (2 * delta))` (see the `LaplaceBoundedNoise`
+     * mechanism in IBM's differential-privacy-library, and Geng et al., "Privacy and Utility
+     * Tradeoff in Approximate Differential Privacy", arXiv:1810.00877).
+     *
+     * Deriving scale and bound together keeps them consistent: they are two views of the same
+     * (epsilon, delta, sensitivity) and cannot drift apart at a call site. [StrictMath] keeps the
+     * bound bit-reproducible across JVMs, matching the draw it bounds and any variance derived from
+     * it.
+     */
+    fun forDifferentialPrivacy(
+      epsilon: Double,
+      delta: Double,
+      sensitivity: Double,
+    ): TruncatedLaplaceNoiseDistribution {
+      require(epsilon > 0.0) { "epsilon must be positive, got $epsilon" }
+      require(delta > 0.0 && delta < 1.0) { "delta must be in (0, 1), got $delta" }
+      require(sensitivity > 0.0) { "sensitivity must be positive, got $sensitivity" }
+      val scale = sensitivity / epsilon
+      val bound = scale * StrictMath.log(1.0 + (StrictMath.exp(epsilon) - 1.0) / (2.0 * delta))
+      return TruncatedLaplaceNoiseDistribution(scale, bound)
+    }
+  }
 }

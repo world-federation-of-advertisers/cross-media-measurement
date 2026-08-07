@@ -103,24 +103,23 @@ class GaussianResultNoiser(
 class DeterministicTruncatedLaplaceResultNoiser(
   combinedFrequencyVector: IntArray,
   contributionCount: Int,
-  private val reachEpsilon: Double,
-  private val frequencyEpsilon: Double,
   private val maxFrequencyPerUser: Int = 1,
 ) : ResultNoiser {
   private val fingerprint: ByteArray = fingerprint(combinedFrequencyVector, contributionCount)
 
-  // The truncation bound is derived per draw from its sensitivity: reach and each frequency bucket
-  // have sensitivity 1, the capped impression count has sensitivity maxFrequencyPerUser. A shared
-  // bound would conform to the target delta at only one sensitivity.
-  private val reachSampler by lazy { sampler(reachEpsilon, UNIT_SENSITIVITY) }
-  private val frequencySampler by lazy { sampler(frequencyEpsilon, UNIT_SENSITIVITY) }
-  private val impressionSampler by lazy { sampler(reachEpsilon, maxFrequencyPerUser.toDouble()) }
+  // One sampler per released quantity, each calibrated to that quantity's L1 sensitivity: reach and
+  // each frequency bucket move by 1 per VID, the capped impression count by maxFrequencyPerUser.
+  private val reachSampler by lazy { sampler(UNIT_SENSITIVITY) }
+  private val frequencySampler by lazy { sampler(UNIT_SENSITIVITY) }
+  private val impressionSampler by lazy { sampler(maxFrequencyPerUser.toDouble()) }
 
-  private fun sampler(epsilon: Double, sensitivity: Double) =
+  private fun sampler(sensitivity: Double) =
     DeterministicTruncatedLaplaceNoiseSampler(
-      epsilon,
-      sensitivity,
-      DeterministicTruncatedLaplaceParams.truncationBound(epsilon, sensitivity),
+      TruncatedLaplaceNoiseDistribution.forDifferentialPrivacy(
+        DeterministicTruncatedLaplaceParams.EPSILON,
+        DeterministicTruncatedLaplaceParams.DELTA,
+        sensitivity,
+      )
     )
 
   override fun noiseReach(reachInSample: Long): Long =

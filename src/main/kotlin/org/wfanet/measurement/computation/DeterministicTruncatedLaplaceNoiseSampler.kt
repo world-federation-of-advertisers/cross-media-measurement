@@ -28,12 +28,6 @@ class DeterministicTruncatedLaplaceNoiseSampler(
   private val distribution: TruncatedLaplaceNoiseDistribution,
   private val uniformSampler: DeterministicUniformSampler = DeterministicUniformSampler(),
 ) {
-  constructor(
-    epsilon: Double,
-    sensitivity: Double,
-    truncationBound: Double,
-  ) : this(TruncatedLaplaceNoiseDistribution(epsilon, sensitivity, truncationBound))
-
   /**
    * Returns the noise to release: a truncated-Laplace draw for [parts], rounded to an integer.
    *
