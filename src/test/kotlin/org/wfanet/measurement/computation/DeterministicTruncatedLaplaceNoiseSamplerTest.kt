@@ -95,9 +95,9 @@ class DeterministicTruncatedLaplaceNoiseSamplerTest {
   @Test
   fun `forDifferentialPrivacy calibrates the draw from the privacy params`() {
     // Golden rounded draws for the same seed at two sensitivities, computed off-code from
-    // scale = sensitivity / epsilon and bound = scale * ln(1 + (e^epsilon - 1) / (2 * delta)).
-    // Larger sensitivity widens the scale, so the draw grows; the exact per-quantity bounds are
-    // pinned end-to-end by DeterministicTruncatedLaplaceResultNoiserTest.
+    // scale = sensitivity / epsilon and bound = ceil(scale * ln(1 / delta)) + 1. Larger sensitivity
+    // widens the scale, so the draw grows; the exact per-quantity bounds are pinned end-to-end by
+    // DeterministicTruncatedLaplaceResultNoiserTest.
     val unit =
       DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy(1.0, 1.0 / 1000, 1.0)
     val wide =
