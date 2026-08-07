@@ -27,6 +27,28 @@ import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 @RunWith(JUnit4::class)
 class VariancesTest {
   @Test
+  fun `computeMeasurementVariance returns the truncated Laplace variance for deterministic reach`() {
+    // The system's compiled params: Laplace(0, b) with b = sensitivity/epsilon = 1.0, confined to
+    // [-8, 8]. The closed form is [2b^2 - exp(-B/b)(B^2 + 2Bb + 2b^2)] / (1 - exp(-B/b)), verified
+    // against sampling the same inverse-transform construction the sampler uses.
+    val reachMeasurementParams =
+      ReachMeasurementParams(
+        VidSamplingInterval(0.0, 1.0),
+        DpParams(1.0, 1.0),
+        NoiseMechanism.TRUNCATED_LAPLACE,
+      )
+
+    val variance =
+      VariancesImpl.computeMeasurementVariance(
+        DeterministicMethodology,
+        ReachMeasurementVarianceParams(0L, reachMeasurementParams),
+      )
+
+    val expected = 1.9731539839
+    assertThat(variance).isWithin(computeErrorTolerance(variance, expected)).of(expected)
+  }
+
+  @Test
   fun `computeMeasurementVariance returns a value for deterministic reach when reach is small and vid sampling interval width is large`() {
     val reach = 0L
     val vidSamplingIntervalWidth = 1.0

@@ -24,6 +24,8 @@ enum class NoiseMechanism {
   NONE,
   LAPLACE,
   GAUSSIAN,
+  /** Laplace confined to `[-truncationBound, truncationBound]`, drawn deterministically. */
+  TRUNCATED_LAPLACE,
 }
 
 data class VidSamplingInterval(val start: Double, val width: Double)

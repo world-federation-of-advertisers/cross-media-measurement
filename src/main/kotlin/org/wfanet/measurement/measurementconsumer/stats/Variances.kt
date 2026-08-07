@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.measurementconsumer.stats
 
+import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -84,6 +85,17 @@ interface Variances {
 /** Default implementation of [Variances]. */
 object VariancesImpl : Variances {
   private const val TOLERANCE = 1E-6
+
+  /**
+   * L1 sensitivity of a deterministic truncated-Laplace draw: adding or removing one VID changes a
+   * reach or per-bucket count by 1.
+   */
+  private const val DETERMINISTIC_TRUNCATED_LAPLACE_SENSITIVITY = 1.0
+  // The system's privacy parameters for DETERMINISTIC_TRUNCATED_LAPLACE are compiled into the
+  // attested TrusTEE image; they are mirrored here so the reporting server derives the same
+  // variance.
+  private const val DETERMINISTIC_TRUNCATED_LAPLACE_EPSILON = 1.0
+  private const val DETERMINISTIC_TRUNCATED_LAPLACE_TRUNCATION_BOUND = 8
   private val EQUIVALENCE = Precision.doubleEquivalenceOfEpsilon(TOLERANCE)
 
   /**
@@ -386,6 +398,30 @@ object VariancesImpl : Variances {
     }
   }
 
+  /**
+   * Variance of a Laplace(0, b) distribution confined to `[-bound, bound]`, where `b` is [scale].
+   *
+   * The truncated density is the Laplace density renormalized by `Z = 1 - exp(-bound / b)`, so
+   *
+   * ```
+   * Var = [2b^2 - exp(-bound/b) * (bound^2 + 2*bound*b + 2b^2)] / Z
+   * ```
+   *
+   * The mean is zero by symmetry. As `bound` grows this tends to `2b^2`, the untruncated Laplace
+   * variance, and truncation only ever reduces it.
+   */
+  private fun truncatedLaplaceVariance(scale: Double, bound: Int): Double {
+    require(scale > 0.0) { "Laplace scale must be positive, got $scale" }
+    require(bound > 0) { "Truncation bound must be positive, got $bound" }
+    val boundOverScale: Double = bound / scale
+    val tailMass: Double = exp(-boundOverScale)
+    val normalizer: Double = 1.0 - tailMass
+    val untruncated: Double = 2.0 * scale * scale
+    val truncatedTail: Double =
+      tailMass * (bound * bound + 2.0 * bound * scale + 2.0 * scale * scale)
+    return (untruncated - truncatedTail) / normalizer
+  }
+
   /** Computes the noise variance based on the [DpParams] and the [NoiseMechanism]. */
   private fun computeDirectNoiseVariance(
     dpParams: DpParams,
@@ -399,6 +435,16 @@ object VariancesImpl : Variances {
       NoiseMechanism.GAUSSIAN -> {
         GaussianNoiser(dpParams, Random.asJavaRandom()).variance
       }
+      NoiseMechanism.TRUNCATED_LAPLACE -> {
+        // The noise is deterministic in the data, so this is the variance of the draw treating the
+        // seed as unknown: the uncertainty a consumer has before seeing the result. epsilon and the
+        // truncation bound are the system's compiled params, not taken from the measurement.
+        truncatedLaplaceVariance(
+          scale =
+            DETERMINISTIC_TRUNCATED_LAPLACE_SENSITIVITY / DETERMINISTIC_TRUNCATED_LAPLACE_EPSILON,
+          bound = DETERMINISTIC_TRUNCATED_LAPLACE_TRUNCATION_BOUND,
+        )
+      }
     }
   }
 
@@ -411,6 +457,10 @@ object VariancesImpl : Variances {
       NoiseMechanism.NONE -> 0.0
       NoiseMechanism.LAPLACE -> {
         error("Laplace is not supported for distributed noises.")
+      }
+      NoiseMechanism.TRUNCATED_LAPLACE -> {
+        // Applied once inside the TEE, never split across duchies.
+        error("Truncated Laplace is not supported for distributed noises.")
       }
       NoiseMechanism.GAUSSIAN -> {
         // By passing 1 to contributorCount, the function called below outputs the total distributed

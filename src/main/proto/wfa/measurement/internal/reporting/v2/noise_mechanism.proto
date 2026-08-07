@@ -33,4 +33,5 @@ enum NoiseMechanism {
   CONTINUOUS_LAPLACE = 4;
   // Continuous Gaussian.
   CONTINUOUS_GAUSSIAN = 5;
+  DETERMINISTIC_TRUNCATED_LAPLACE = 6;
 }
