@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.duchy.createComputationRequest
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee.Stage
 import org.wfanet.measurement.internal.duchy.protocol.TrusTeeKt
+import org.wfanet.measurement.internal.duchy.protocol.TrusTeeKt.ComputationDetailsKt.deterministicTruncatedLaplaceNoiseParams as internalDeterministicTruncatedLaplaceNoiseParams
 import org.wfanet.measurement.internal.duchy.protocol.TrusTeeKt.ComputationDetailsKt.resultMinimumThresholds as internalResultMinimumThresholds
 import org.wfanet.measurement.system.v1alpha.Computation
 
@@ -190,6 +191,20 @@ object TrusTeeStarter {
           minUsers = mpcProtocolConfig.trusTee.resultMinimumThresholds.minUsers
         }
       }
+      if (internalNoiseMechanism == NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE) {
+        // Matches the mill's own precondition. A present-but-default params message would
+        // otherwise pass here and fail in TrusTeeMill after requisitions are fulfilled.
+        require(
+          mpcProtocolConfig.trusTee.deterministicTruncatedLaplaceNoiseParams.truncationBound > 0
+        ) {
+          "truncation_bound must be greater than 0 for DETERMINISTIC_TRUNCATED_LAPLACE noise"
+        }
+        deterministicTruncatedLaplaceNoiseParams =
+          internalDeterministicTruncatedLaplaceNoiseParams {
+            truncationBound =
+              mpcProtocolConfig.trusTee.deterministicTruncatedLaplaceNoiseParams.truncationBound
+          }
+      }
     }
   }
 
@@ -202,6 +217,8 @@ object TrusTeeStarter {
       Computation.MpcProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN ->
         NoiseMechanism.CONTINUOUS_GAUSSIAN
       Computation.MpcProtocolConfig.NoiseMechanism.NONE -> NoiseMechanism.NONE
+      Computation.MpcProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE ->
+        NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
       Computation.MpcProtocolConfig.NoiseMechanism.UNRECOGNIZED,
       Computation.MpcProtocolConfig.NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED ->
         error("Invalid system NoiseMechanism")

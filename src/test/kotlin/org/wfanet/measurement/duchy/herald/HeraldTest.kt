@@ -125,6 +125,7 @@ import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.Noise
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.liquidLegionsSketchParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.TrusTeeKt.deterministicTruncatedLaplaceNoiseParams as systemTrusTeeDeterministicNoiseParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.TrusTeeKt.resultMinimumThresholds as systemTrusTeeResultMinimumThresholds
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.honestMajorityShareShuffle
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.liquidLegionsV2
@@ -308,6 +309,19 @@ private val TRUS_TEE_MPC_PROTOCOL_CONFIG_WITH_RESULT_MINIMUM_THRESHOLDS = mpcPro
       minUsers = 5
     }
   }
+}
+
+private val TRUS_TEE_DETERMINISTIC_NOISE_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
+  trusTee = trusTee {
+    noiseMechanism = SystemNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
+    deterministicTruncatedLaplaceNoiseParams = systemTrusTeeDeterministicNoiseParams {
+      truncationBound = 8
+    }
+  }
+}
+
+private val TRUS_TEE_DETERMINISTIC_NOISE_NO_PARAMS_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
+  trusTee = trusTee { noiseMechanism = SystemNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE }
 }
 
 private const val AGGREGATOR_DUCHY_ID = "aggregator_duchy"
@@ -2230,6 +2244,65 @@ class HeraldTest {
             }
         }
       )
+  }
+
+  @Test
+  fun `syncStatuses creates trusTEE computation with deterministic truncated Laplace noise`() =
+    runTest {
+      val confirmingKnown =
+        buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
+
+      val systemApiRequisitions1 =
+        REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+      val systemApiRequisitions2 =
+        REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+      val confirmingUnknown =
+        buildComputationAtKingdom(
+          "2",
+          Computation.State.PENDING_REQUISITION_PARAMS,
+          systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
+          mpcProtocolConfig = TRUS_TEE_DETERMINISTIC_NOISE_MPC_PROTOCOL_CONFIG,
+          systemComputationParticipant = SINGLE_COMPUTATION_PARTICIPANT,
+        )
+      mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
+
+      fakeComputationDatabase.addComputation(
+        globalId = confirmingKnown.key.computationId,
+        stage = TrusTee.Stage.INITIALIZED.toProtocolStage(),
+        computationDetails = TRUS_TEE_COMPUTATION_DETAILS,
+      )
+
+      aggregatorHerald.syncStatuses()
+
+      val computationDetails =
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+      val parameters = computationDetails!!.trusTee.parameters
+      assertThat(parameters.noiseMechanism)
+        .isEqualTo(NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
+      assertThat(parameters.deterministicTruncatedLaplaceNoiseParams.truncationBound).isEqualTo(8)
+    }
+
+  @Test
+  fun `syncStatuses fails trusTEE computation with a non-positive truncation bound`() = runTest {
+    // TrusTeeMill requires a positive truncation bound. A present-but-default params message must
+    // be rejected here, before requisitions are fulfilled.
+    val computation =
+      buildComputationAtKingdom(
+        COMPUTATION_GLOBAL_ID,
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        mpcProtocolConfig = TRUS_TEE_DETERMINISTIC_NOISE_NO_PARAMS_MPC_PROTOCOL_CONFIG,
+        systemComputationParticipant = SINGLE_COMPUTATION_PARTICIPANT,
+      )
+    mockStreamActiveComputationsToReturn(computation)
+
+    aggregatorHerald.syncStatuses()
+
+    val failRequest: FailComputationParticipantRequest = captureFirst {
+      runBlocking { verify(systemComputationParticipants).failComputationParticipant(capture()) }
+    }
+    assertThat(failRequest.failure.errorMessage)
+      .contains("truncation_bound must be greater than 0 for DETERMINISTIC_TRUNCATED_LAPLACE noise")
+    assertThat(fakeComputationDatabase).doesNotContainKey(computation.key.computationId.toLong())
   }
 
   @Test
