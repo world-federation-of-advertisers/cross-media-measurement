@@ -24,7 +24,7 @@ package k8s
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
 
-	_maxCreatedBasicReportAgeSeconds: int | *900
+	_maxCreatedBasicReportAge: string | *"15m"
 
 	_postgresConfig:         #PostgresConfig
 	_reportingSpannerConfig: #SpannerConfig & {
@@ -394,7 +394,7 @@ package k8s
 							"--port=8443",
 							"--health-port=8080",
 							"--pdp-name=\(_populationDataProviderName)",
-							"--max-created-basic-report-age=\(Reporting._maxCreatedBasicReportAgeSeconds)s",
+							"--max-created-basic-report-age=\(Reporting._maxCreatedBasicReportAge)",
 						] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 					}
 				}
