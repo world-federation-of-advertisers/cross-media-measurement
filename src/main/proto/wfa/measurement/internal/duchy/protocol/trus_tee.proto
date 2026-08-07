@@ -90,8 +90,7 @@ message TrusTee {
       float vid_sampling_interval_width = 5;
       // Optional small-cell suppression parameters.
       ResultMinimumThresholds result_minimum_thresholds = 6;
-      // Was deterministic_truncated_laplace_noise_params; the truncation bound is now derived from
-      // the compiled privacy params (DeterministicTruncatedLaplaceParams), not persisted here.
+      // Field 7 (removed deterministic_truncated_laplace_noise_params).
       reserved 7;
     }
     Parameters parameters = 3;

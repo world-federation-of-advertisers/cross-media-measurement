@@ -16,8 +16,8 @@ package org.wfanet.measurement.computation
 
 /**
  * A [Laplace distribution](https://en.wikipedia.org/wiki/Laplace_distribution) with mean 0 and the
- * given [scale], [truncated](https://en.wikipedia.org/wiki/Truncated_distribution) to
- * `[-bound, bound]`.
+ * given [scale], [truncated](https://en.wikipedia.org/wiki/Truncated_distribution) to `[-bound,
+ * bound]`.
  *
  * This is the noise primitive: it knows only [scale] and [bound], not the differential-privacy
  * parameters they may have been calibrated from. Use [forDifferentialPrivacy] to derive a
@@ -67,10 +67,10 @@ class TruncatedLaplaceNoiseDistribution(private val scale: Double, private val b
     /**
      * The truncated-Laplace mechanism: the distribution giving ([epsilon], [delta])-differential
      * privacy for a query of L1 [sensitivity]. The scale is `sensitivity / epsilon` and the
-     * truncation bound is the smallest that keeps the truncated tail mass within [delta]:
-     * `bound = scale * ln(1 + (e^epsilon - 1) / (2 * delta))` (see the `LaplaceBoundedNoise`
-     * mechanism in IBM's differential-privacy-library, and Geng et al., "Privacy and Utility
-     * Tradeoff in Approximate Differential Privacy", arXiv:1810.00877).
+     * truncation bound is the smallest that keeps the truncated tail mass within [delta]: `bound =
+     * scale * ln(1 + (e^epsilon - 1) / (2 * delta))` (see the `LaplaceBoundedNoise` mechanism in
+     * IBM's differential-privacy-library, and Geng et al., "Privacy and Utility Tradeoff in
+     * Approximate Differential Privacy", arXiv:1810.00877).
      *
      * Deriving scale and bound together keeps them consistent: they are two views of the same
      * (epsilon, delta, sensitivity) and cannot drift apart at a call site. [StrictMath] keeps the
