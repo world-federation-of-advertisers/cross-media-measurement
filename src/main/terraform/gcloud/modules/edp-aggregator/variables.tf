@@ -19,6 +19,9 @@ variable "requisition_fulfiller_config" {
       subscription_name     = string
       topic_name            = string
       ack_deadline_seconds  = number
+      max_delivery_attempts = number
+      minimum_backoff       = string
+      maximum_backoff       = string
     })
     worker = object({
       instance_template_name        = string
@@ -466,6 +469,8 @@ variable "vid_labeling_workers" {
       subscription_name     = string
       ack_deadline_seconds  = number
       max_delivery_attempts = number
+      minimum_backoff       = string
+      maximum_backoff       = string
     })
     worker = object({
       instance_template_name        = string
