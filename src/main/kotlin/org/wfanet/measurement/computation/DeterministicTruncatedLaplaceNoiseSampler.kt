@@ -49,9 +49,8 @@ class DeterministicTruncatedLaplaceNoiseSampler(
      * A sampler drawing ([epsilon], [delta])-differentially private truncated-Laplace noise for a
      * query of L1 [sensitivity]. The scale is `sensitivity / epsilon` and the truncation bound is
      * the smallest that keeps the truncated tail mass within [delta]: `bound = scale * ln(1 +
-     * (e^epsilon - 1) / (2 * delta))` (see the `LaplaceBoundedNoise` mechanism in IBM's
-     * differential-privacy-library, and Geng et al., "Privacy and Utility Tradeoff in Approximate
-     * Differential Privacy", arXiv:1810.00877).
+     * (e^epsilon - 1) / (2 * delta))` (see Geng et al., "Privacy and Utility Tradeoff in
+     * Approximate Differential Privacy", arXiv:1810.00877).
      *
      * Scale and bound are derived together so they cannot drift apart at a call site. [StrictMath]
      * keeps the bound bit-reproducible across JVMs, matching the draw it bounds and any variance
