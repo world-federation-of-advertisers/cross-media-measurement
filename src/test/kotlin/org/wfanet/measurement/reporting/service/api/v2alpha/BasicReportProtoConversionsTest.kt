@@ -66,6 +66,36 @@ class BasicReportProtoConversionsTest {
   }
 
   @Test
+  fun `toBasicReport omits reporting_set when external_reporting_set_id not set`() {
+    val basicReport =
+      INTERNAL_BASIC_REPORT_WITHOUT_COMPONENT_REPORTING_SET_ID.toBasicReport(
+        populateDeprecatedReportingUnitEventGroupSummaries = true
+      )
+
+    val componentSummary = basicReport.onlyComponentSummary()
+    assertThat(componentSummary.reportingSet).isEmpty()
+    assertThat(componentSummary.component)
+      .isEqualTo(DataProviderKey(CMMS_DATA_PROVIDER_ID).toName())
+    assertThat(componentSummary.eventGroupSummariesList.map { it.eventGroup })
+      .containsExactly(
+        MeasurementConsumerEventGroupKey(CMMS_MEASUREMENT_CONSUMER_ID, CMMS_EVENT_GROUP_ID).toName()
+      )
+  }
+
+  @Test
+  fun `toBasicReport omits reporting_set when id not set and deprecated flag disabled`() {
+    val basicReport =
+      INTERNAL_BASIC_REPORT_WITHOUT_COMPONENT_REPORTING_SET_ID.toBasicReport(
+        populateDeprecatedReportingUnitEventGroupSummaries = false
+      )
+
+    val componentSummary = basicReport.onlyComponentSummary()
+    assertThat(componentSummary.reportingSet).isEmpty()
+    assertThat(componentSummary.component)
+      .isEqualTo(DataProviderKey(CMMS_DATA_PROVIDER_ID).toName())
+  }
+
+  @Test
   fun `ReportingUnit toInternal encodes DataProvider components`() {
     val internalReportingUnit =
       reportingUnit { components += DataProviderKey(CMMS_DATA_PROVIDER_ID).toName() }.toInternal()
@@ -218,7 +248,9 @@ class BasicReportProtoConversionsTest {
     private const val COMPONENT_EXTERNAL_REPORTING_SET_ID = "component-reporting-set"
     private const val CAMPAIGN_GROUP_EXTERNAL_ID = "campaign-group"
 
-    private val INTERNAL_BASIC_REPORT: InternalBasicReport = internalBasicReport {
+    private fun internalBasicReportWithComponentReportingSetId(
+      componentExternalReportingSetId: String
+    ): InternalBasicReport = internalBasicReport {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "basic-report"
       externalCampaignGroupId = CAMPAIGN_GROUP_EXTERNAL_ID
@@ -235,7 +267,7 @@ class BasicReportProtoConversionsTest {
                         InternalResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
                           cmmsDataProviderId = CMMS_DATA_PROVIDER_ID
                           cmmsDataProviderDisplayName = "display"
-                          externalReportingSetId = COMPONENT_EXTERNAL_REPORTING_SET_ID
+                          externalReportingSetId = componentExternalReportingSetId
                           eventGroupSummaries +=
                             InternalResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
                               .eventGroupSummary {
@@ -250,5 +282,11 @@ class BasicReportProtoConversionsTest {
         }
       }
     }
+
+    private val INTERNAL_BASIC_REPORT: InternalBasicReport =
+      internalBasicReportWithComponentReportingSetId(COMPONENT_EXTERNAL_REPORTING_SET_ID)
+
+    private val INTERNAL_BASIC_REPORT_WITHOUT_COMPONENT_REPORTING_SET_ID: InternalBasicReport =
+      internalBasicReportWithComponentReportingSetId("")
   }
 }
