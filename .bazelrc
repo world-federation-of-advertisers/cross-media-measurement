@@ -30,8 +30,8 @@ build --java_runtime_version=remotejdk_17
 build --tool_java_runtime_version=remotejdk_17
 build --tool_java_language_version=17
 
-# Target Java 11.
-build --java_language_version=11
+# Target Java 17.
+build --java_language_version=17
 
 # Pass environment variables for tests.
 common --test_env TESTCONTAINERS_RYUK_DISABLED=true
