@@ -24,10 +24,7 @@ package k8s
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
 
-	// A BasicReport can be in state CREATED for at most the deadline, so the age at which one is
-	// treated as stuck is derived from it.
-	_createBasicReportDeadlineSeconds: int | *300
-	_maxCreatedBasicReportAgeSeconds:  _createBasicReportDeadlineSeconds * 3
+	_maxCreatedBasicReportAgeSeconds: int | *900
 
 	_postgresConfig:         #PostgresConfig
 	_reportingSpannerConfig: #SpannerConfig & {
@@ -212,7 +209,6 @@ package k8s
 						"--event-group-metadata-descriptor-cache-duration=1h",
 						"--certificate-cache-expiration-duration=\(_certificateCacheExpirationDuration)",
 						"--data-provider-cache-expiration-duration=\(_dataProviderCacheExpirationDuration)",
-						"--create-basic-report-deadline=\(Reporting._createBasicReportDeadlineSeconds)s",
 						"--base-impression-qualification-filter=impressionQualificationFilters/ami",
 						"--base-impression-qualification-filter=impressionQualificationFilters/mrc",
 						"--pdp-name=\(_populationDataProviderName)",
