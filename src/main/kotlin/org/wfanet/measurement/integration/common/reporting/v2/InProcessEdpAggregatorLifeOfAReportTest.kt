@@ -1097,7 +1097,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         reportingServer.internalReportResultsClient,
         EventMessageDescriptor(TestEvent.getDescriptor()),
         Clock.systemUTC(),
-        STUCK_BASIC_REPORT_AGE,
+        MAX_CREATED_BASIC_REPORT_AGE,
       )
       .execute()
   }
@@ -1240,7 +1240,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
 
   companion object {
     /** Long enough that BasicReports created by these tests are never treated as stuck. */
-    private val STUCK_BASIC_REPORT_AGE: Duration = Duration.ofHours(1)
+    private val MAX_CREATED_BASIC_REPORT_AGE: Duration = Duration.ofHours(1)
 
     // edp1 has no entity_key/entity_metadata override (legacy path).
     // edp4 is configured with multi-party noise CONTINUOUS_GAUSSIAN, so it's the "restricted"

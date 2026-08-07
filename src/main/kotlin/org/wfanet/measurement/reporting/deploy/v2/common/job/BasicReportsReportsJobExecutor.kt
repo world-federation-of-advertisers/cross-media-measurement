@@ -80,7 +80,7 @@ private fun run(
   @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
   @CommandLine.Mixin eventMessageFlags: EventMessageFlags,
   @CommandLine.Option(
-    names = ["--stuck-basic-report-age"],
+    names = ["--max-created-basic-report-age"],
     defaultValue = "15m",
     description =
       [
@@ -88,7 +88,7 @@ private fun run(
         "Must exceed the time CreateBasicReport takes to create the underlying Report.",
       ],
   )
-  stuckBasicReportAge: Duration,
+  maxCreatedBasicReportAge: Duration,
 ) {
   val clientCerts =
     SigningCerts.fromPemFiles(
@@ -210,7 +210,7 @@ private fun run(
       ReportResultsCoroutineStub(channel),
       eventMessageFlags.eventDescriptor,
       Clock.systemUTC(),
-      stuckBasicReportAge,
+      maxCreatedBasicReportAge,
     )
 
   runBlocking { basicReportsReportsJob.execute() }

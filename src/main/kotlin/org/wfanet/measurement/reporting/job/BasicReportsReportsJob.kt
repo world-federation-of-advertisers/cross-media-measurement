@@ -89,13 +89,13 @@ class BasicReportsReportsJob(
   private val reportResultsStub: ReportResultsCoroutineStub,
   private val eventMessageDescriptor: EventMessageDescriptor?,
   private val clock: Clock,
-  private val stuckBasicReportAge: Duration,
+  private val maxCreatedBasicReportAge: Duration,
 ) {
 
   /**
    * For every MeasurementConsumer, all BasicReports with State REPORT_CREATED are retrieved. For
    * each of those BasicReports, the Report is retrieved. BasicReports left in State CREATED for
-   * longer than [stuckBasicReportAge] are transitioned to State FAILED.
+   * longer than [maxCreatedBasicReportAge] are transitioned to State FAILED.
    */
   suspend fun execute() {
     val eventTemplateFieldsByPath = eventMessageDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
@@ -232,7 +232,7 @@ class BasicReportsReportsJob(
 
   /**
    * Transitions every [BasicReport] that has been in State CREATED for longer than
-   * [stuckBasicReportAge] to State FAILED.
+   * [maxCreatedBasicReportAge] to State FAILED.
    *
    * A `BasicReport` is committed in State CREATED before its `Report` is created, so an
    * interruption between the two leaves it in State CREATED with no `Report` and no way to
@@ -240,7 +240,7 @@ class BasicReportsReportsJob(
    * completes concurrently is not failed.
    */
   private suspend fun failStuckBasicReports(cmmsMeasurementConsumerId: String) {
-    val cutoff: Instant = clock.instant().minus(stuckBasicReportAge)
+    val cutoff: Instant = clock.instant().minus(maxCreatedBasicReportAge)
 
     val resourceLists =
       internalBasicReportsStub.listResources { pageToken: ListBasicReportsPageToken? ->

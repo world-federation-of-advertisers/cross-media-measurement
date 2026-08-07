@@ -170,7 +170,7 @@ class BasicReportsReportsJobTest {
         ReportResultsCoroutineStub(grpcTestServerRule.channel),
         TEST_EVENT_DESCRIPTOR,
         Clock.fixed(NOW, ZoneOffset.UTC),
-        STUCK_BASIC_REPORT_AGE,
+        MAX_CREATED_BASIC_REPORT_AGE,
       )
   }
 
@@ -2505,7 +2505,7 @@ class BasicReportsReportsJobTest {
         ReportResultsCoroutineStub(grpcTestServerRule.channel),
         TEST_EVENT_DESCRIPTOR,
         Clock.fixed(NOW, ZoneOffset.UTC),
-        STUCK_BASIC_REPORT_AGE,
+        MAX_CREATED_BASIC_REPORT_AGE,
       )
 
     job.execute()
@@ -2675,11 +2675,11 @@ class BasicReportsReportsJobTest {
     private val TEST_EVENT_DESCRIPTOR = EventMessageDescriptor(TestEvent.getDescriptor())
 
     private val NOW: Instant = Instant.ofEpochSecond(1735689600)
-    private val STUCK_BASIC_REPORT_AGE: Duration = Duration.ofHours(1)
+    private val MAX_CREATED_BASIC_REPORT_AGE: Duration = Duration.ofHours(1)
 
     /** `create_time` of a BasicReport old enough to be considered stuck. */
     private val STUCK_CREATE_TIME = timestamp {
-      seconds = NOW.minus(STUCK_BASIC_REPORT_AGE).minusSeconds(1).epochSecond
+      seconds = NOW.minus(MAX_CREATED_BASIC_REPORT_AGE).minusSeconds(1).epochSecond
     }
 
     /** `create_time` of a BasicReport too recent to be considered stuck. */

@@ -655,7 +655,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         reportingServer.internalReportResultsClient,
         EventMessageDescriptor(TestEvent.getDescriptor()),
         Clock.systemUTC(),
-        STUCK_BASIC_REPORT_AGE,
+        MAX_CREATED_BASIC_REPORT_AGE,
       )
 
     basicReportsReportsJob.execute()
@@ -679,7 +679,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
   companion object {
     /** Long enough that BasicReports created by these tests are never treated as stuck. */
-    private val STUCK_BASIC_REPORT_AGE: Duration = Duration.ofHours(1)
+    private val MAX_CREATED_BASIC_REPORT_AGE: Duration = Duration.ofHours(1)
 
     internal val SECRETS_DIR: File =
       getRuntimePath(
