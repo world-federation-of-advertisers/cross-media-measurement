@@ -1239,7 +1239,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   }
 
   companion object {
-    /** Long enough that BasicReports created by these tests are never treated as stuck. */
+    /**
+     * Maximum age of a BasicReport in State CREATED. Long enough that BasicReports created
+     * by these tests are never treated as stuck.
+     */
     private val MAX_CREATED_BASIC_REPORT_AGE: Duration = Duration.ofHours(1)
 
     // edp1 has no entity_key/entity_metadata override (legacy path).
