@@ -1240,8 +1240,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
 
   companion object {
     /**
-     * Maximum age of a BasicReport in State CREATED. Long enough that BasicReports created
-     * by these tests are never treated as stuck.
+     * Maximum age of a BasicReport in State CREATED. Long enough that BasicReports created by these
+     * tests are never treated as stuck.
      */
     private val MAX_CREATED_BASIC_REPORT_AGE: Duration = Duration.ofHours(1)
 
