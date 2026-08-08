@@ -25,6 +25,10 @@ import com.google.type.dateTime
 import com.google.type.interval
 import com.google.type.timeZone
 import io.grpc.Status
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+import java.time.ZoneOffset
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -39,10 +43,12 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
+import org.mockito.stubbing.Answer
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
@@ -58,6 +64,7 @@ import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilte
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
@@ -111,7 +118,9 @@ import org.wfanet.measurement.reporting.v2alpha.univariateStatistics
 class BasicReportsReportsJobTest {
   private val basicReportsMock: BasicReportsCoroutineImplBase = mockService {
     onBlocking { listBasicReports(any()) }
-      .thenReturn(listBasicReportsResponse { basicReports += INTERNAL_BASIC_REPORT })
+      .thenAnswer(
+        listBasicReportsAnswer(listBasicReportsResponse { basicReports += INTERNAL_BASIC_REPORT })
+      )
   }
   private val reportsMock: ReportsCoroutineImplBase = mockService {
     onBlocking { getReport(any()) }.thenReturn(REPORT)
@@ -160,6 +169,45 @@ class BasicReportsReportsJobTest {
         MetricCalculationSpecsCoroutineStub(grpcTestServerRule.channel),
         ReportResultsCoroutineStub(grpcTestServerRule.channel),
         TEST_EVENT_DESCRIPTOR,
+        Clock.fixed(NOW, ZoneOffset.UTC),
+        MAX_CREATED_BASIC_REPORT_AGE,
+      )
+  }
+
+  /** Stubs `listBasicReports` to return [response] for the REPORT_CREATED filter. */
+  private suspend fun stubListBasicReports(response: ListBasicReportsResponse) {
+    whenever(basicReportsMock.listBasicReports(any())).thenAnswer(listBasicReportsAnswer(response))
+  }
+
+  /** Stubs `listBasicReports` to return [basicReports] for the CREATED filter. */
+  private suspend fun stubListCreatedBasicReports(basicReports: List<BasicReport>) {
+    whenever(basicReportsMock.listBasicReports(any()))
+      .thenAnswer(
+        Answer { invocation ->
+          val request: ListBasicReportsRequest = invocation.getArgument(0)
+          if (request.filter.state == BasicReport.State.CREATED) {
+            listBasicReportsResponse { this.basicReports += basicReports }
+          } else {
+            ListBasicReportsResponse.getDefaultInstance()
+          }
+        }
+      )
+  }
+
+  /** Asserts that the first page of BasicReports in state REPORT_CREATED was requested. */
+  private fun assertReportCreatedPageRequested() {
+    val requests: List<ListBasicReportsRequest> =
+      verifyAndCapture(basicReportsMock, BasicReportsCoroutineImplBase::listBasicReports, times(2))
+    assertThat(requests.first())
+      .isEqualTo(
+        listBasicReportsRequest {
+          filter =
+            ListBasicReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              state = BasicReport.State.REPORT_CREATED
+            }
+          pageSize = BATCH_SIZE
+        }
       )
   }
 
@@ -522,22 +570,11 @@ class BasicReportsReportsJobTest {
         }
       }
 
-      whenever(basicReportsMock.listBasicReports(any()))
-        .thenReturn(listBasicReportsResponse { basicReports += basicReport })
+      stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
 
       job.execute()
 
-      verifyProtoArgument(basicReportsMock, BasicReportsCoroutineImplBase::listBasicReports)
-        .isEqualTo(
-          listBasicReportsRequest {
-            filter =
-              ListBasicReportsRequestKt.filter {
-                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-                state = BasicReport.State.REPORT_CREATED
-              }
-            pageSize = BATCH_SIZE
-          }
-        )
+      assertReportCreatedPageRequested()
 
       verifyProtoArgument(reportsMock, ReportsCoroutineImplBase::getReport)
         .isEqualTo(
@@ -905,22 +942,11 @@ class BasicReportsReportsJobTest {
         }
       }
 
-      whenever(basicReportsMock.listBasicReports(any()))
-        .thenReturn(listBasicReportsResponse { basicReports += basicReport })
+      stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
 
       job.execute()
 
-      verifyProtoArgument(basicReportsMock, BasicReportsCoroutineImplBase::listBasicReports)
-        .isEqualTo(
-          listBasicReportsRequest {
-            filter =
-              ListBasicReportsRequestKt.filter {
-                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-                state = BasicReport.State.REPORT_CREATED
-              }
-            pageSize = BATCH_SIZE
-          }
-        )
+      assertReportCreatedPageRequested()
 
       verifyProtoArgument(reportsMock, ReportsCoroutineImplBase::getReport)
         .isEqualTo(
@@ -1094,8 +1120,7 @@ class BasicReportsReportsJobTest {
           }
       }
 
-    whenever(basicReportsMock.listBasicReports(any()))
-      .thenReturn(listBasicReportsResponse { basicReports += basicReport })
+    stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
 
     val report =
       REPORT.copy {
@@ -1165,8 +1190,7 @@ class BasicReportsReportsJobTest {
           }
       }
 
-    whenever(basicReportsMock.listBasicReports(any()))
-      .thenReturn(listBasicReportsResponse { basicReports += basicReport })
+    stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
 
     val report =
       REPORT.copy {
@@ -1253,8 +1277,7 @@ class BasicReportsReportsJobTest {
           }
       }
 
-    whenever(basicReportsMock.listBasicReports(any()))
-      .thenReturn(listBasicReportsResponse { basicReports += basicReport })
+    stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
 
     val report =
       REPORT.copy {
@@ -1589,8 +1612,7 @@ class BasicReportsReportsJobTest {
             }
         }
 
-      whenever(basicReportsMock.listBasicReports(any()))
-        .thenReturn(listBasicReportsResponse { basicReports += basicReport })
+      stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
 
       val report =
         REPORT.copy {
@@ -1677,8 +1699,7 @@ class BasicReportsReportsJobTest {
             }
         }
 
-      whenever(basicReportsMock.listBasicReports(any()))
-        .thenReturn(listBasicReportsResponse { basicReports += basicReport })
+      stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
 
       val report =
         REPORT.copy {
@@ -2403,17 +2424,7 @@ class BasicReportsReportsJobTest {
     whenever(reportsMock.getReport(any())).thenReturn(REPORT.copy { state = Report.State.RUNNING })
     job.execute()
 
-    verifyProtoArgument(basicReportsMock, BasicReportsCoroutineImplBase::listBasicReports)
-      .isEqualTo(
-        listBasicReportsRequest {
-          filter =
-            ListBasicReportsRequestKt.filter {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              state = BasicReport.State.REPORT_CREATED
-            }
-          pageSize = BATCH_SIZE
-        }
-      )
+    assertReportCreatedPageRequested()
 
     verifyProtoArgument(reportsMock, ReportsCoroutineImplBase::getReport)
       .isEqualTo(
@@ -2433,17 +2444,7 @@ class BasicReportsReportsJobTest {
 
       job.execute()
 
-      verifyProtoArgument(basicReportsMock, BasicReportsCoroutineImplBase::listBasicReports)
-        .isEqualTo(
-          listBasicReportsRequest {
-            filter =
-              ListBasicReportsRequestKt.filter {
-                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-                state = BasicReport.State.REPORT_CREATED
-              }
-            pageSize = BATCH_SIZE
-          }
-        )
+      assertReportCreatedPageRequested()
 
       verifyProtoArgument(reportsMock, ReportsCoroutineImplBase::getReport)
         .isEqualTo(
@@ -2459,6 +2460,7 @@ class BasicReportsReportsJobTest {
           failBasicReportRequest {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             externalBasicReportId = INTERNAL_BASIC_REPORT.externalBasicReportId
+            expectedState = BasicReport.State.REPORT_CREATED
           }
         )
     }
@@ -2466,13 +2468,12 @@ class BasicReportsReportsJobTest {
   @Test
   fun `execute gets report for basic report when attempt fails for a previous basic report`():
     Unit = runBlocking {
-    whenever(basicReportsMock.listBasicReports(any()))
-      .thenReturn(
-        listBasicReportsResponse {
-          basicReports += INTERNAL_BASIC_REPORT
-          basicReports += INTERNAL_BASIC_REPORT
-        }
-      )
+    stubListBasicReports(
+      listBasicReportsResponse {
+        basicReports += INTERNAL_BASIC_REPORT
+        basicReports += INTERNAL_BASIC_REPORT
+      }
+    )
     whenever(reportsMock.getReport(any()))
       .thenThrow(Status.UNKNOWN.asRuntimeException())
       .thenReturn(REPORT)
@@ -2503,12 +2504,14 @@ class BasicReportsReportsJobTest {
         MetricCalculationSpecsCoroutineStub(grpcTestServerRule.channel),
         ReportResultsCoroutineStub(grpcTestServerRule.channel),
         TEST_EVENT_DESCRIPTOR,
+        Clock.fixed(NOW, ZoneOffset.UTC),
+        MAX_CREATED_BASIC_REPORT_AGE,
       )
 
     job.execute()
 
     val listBasicReportsCaptor: KArgumentCaptor<ListBasicReportsRequest> = argumentCaptor()
-    verifyBlocking(basicReportsMock, times(2)) {
+    verifyBlocking(basicReportsMock, times(4)) {
       listBasicReports(listBasicReportsCaptor.capture())
     }
     assertThat(listBasicReportsCaptor.allValues)
@@ -2524,8 +2527,24 @@ class BasicReportsReportsJobTest {
         listBasicReportsRequest {
           filter =
             ListBasicReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              state = BasicReport.State.CREATED
+            }
+          pageSize = BATCH_SIZE
+        },
+        listBasicReportsRequest {
+          filter =
+            ListBasicReportsRequestKt.filter {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID_2
               state = BasicReport.State.REPORT_CREATED
+            }
+          pageSize = BATCH_SIZE
+        },
+        listBasicReportsRequest {
+          filter =
+            ListBasicReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID_2
+              state = BasicReport.State.CREATED
             }
           pageSize = BATCH_SIZE
         },
@@ -2559,15 +2578,19 @@ class BasicReportsReportsJobTest {
           }
         )
         .thenReturn(listBasicReportsResponse { basicReports += page2Reports })
+        .thenReturn(ListBasicReportsResponse.getDefaultInstance())
 
       job.execute()
 
-      // listBasicReports must be called twice: once for page 1, once for page 2.
+      // listBasicReports must be called twice for the REPORT_CREATED pass: once for page 1, once
+      // for page 2.
       val listCaptor: KArgumentCaptor<ListBasicReportsRequest> = argumentCaptor()
-      verifyBlocking(basicReportsMock, times(2)) { listBasicReports(listCaptor.capture()) }
-      assertThat(listCaptor.allValues).hasSize(2)
+      verifyBlocking(basicReportsMock, times(3)) { listBasicReports(listCaptor.capture()) }
+      val reportCreatedRequests =
+        listCaptor.allValues.filter { it.filter.state == BasicReport.State.REPORT_CREATED }
+      assertThat(reportCreatedRequests).hasSize(2)
       // Second call must carry the page token from the first response.
-      assertThat(listCaptor.allValues[1].pageToken).isEqualTo(pageToken)
+      assertThat(reportCreatedRequests[1].pageToken).isEqualTo(pageToken)
 
       // getReport must be called for ALL 11 BasicReports (10 on page 1 + 1 on page 2).
       verify(reportsMock, times(page1Reports.size + page2Reports.size)).getReport(any())
@@ -2578,16 +2601,102 @@ class BasicReportsReportsJobTest {
     runBlocking {
       // Single page with fewer than BATCH_SIZE items and no next page token.
       // Must not issue a second list call.
-      whenever(basicReportsMock.listBasicReports(any()))
-        .thenReturn(listBasicReportsResponse { basicReports += INTERNAL_BASIC_REPORT })
+      stubListBasicReports(listBasicReportsResponse { basicReports += INTERNAL_BASIC_REPORT })
 
       job.execute()
 
-      verifyBlocking(basicReportsMock, times(1)) { listBasicReports(any()) }
+      val listCaptor: KArgumentCaptor<ListBasicReportsRequest> = argumentCaptor()
+      verifyBlocking(basicReportsMock, times(2)) { listBasicReports(listCaptor.capture()) }
+      assertThat(
+          listCaptor.allValues.filter { it.filter.state == BasicReport.State.REPORT_CREATED }
+        )
+        .hasSize(1)
     }
+
+  @Test
+  fun `execute fails basic report stuck in CREATED`(): Unit = runBlocking {
+    val stuckBasicReport =
+      INTERNAL_BASIC_REPORT.copy {
+        state = BasicReport.State.CREATED
+        clearExternalReportId()
+        createTime = STUCK_CREATE_TIME
+      }
+    stubListCreatedBasicReports(listOf(stuckBasicReport))
+
+    job.execute()
+
+    verifyProtoArgument(basicReportsMock, BasicReportsCoroutineImplBase::failBasicReport)
+      .isEqualTo(
+        failBasicReportRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalBasicReportId = stuckBasicReport.externalBasicReportId
+          expectedState = BasicReport.State.CREATED
+        }
+      )
+  }
+
+  @Test
+  fun `execute does not fail basic report in CREATED younger than stuck age`(): Unit = runBlocking {
+    val recentBasicReport =
+      INTERNAL_BASIC_REPORT.copy {
+        state = BasicReport.State.CREATED
+        clearExternalReportId()
+        createTime = RECENT_CREATE_TIME
+      }
+    stubListCreatedBasicReports(listOf(recentBasicReport))
+
+    job.execute()
+
+    verify(basicReportsMock, times(0)).failBasicReport(any())
+  }
+
+  @Test
+  fun `execute continues when failing a stuck basic report throws`(): Unit = runBlocking {
+    val stuckBasicReports =
+      (1..2).map {
+        INTERNAL_BASIC_REPORT.copy {
+          state = BasicReport.State.CREATED
+          externalBasicReportId = "br-stuck-0$it"
+          clearExternalReportId()
+          createTime = STUCK_CREATE_TIME
+        }
+      }
+    stubListCreatedBasicReports(stuckBasicReports)
+    whenever(basicReportsMock.failBasicReport(any()))
+      .thenThrow(Status.FAILED_PRECONDITION.asRuntimeException())
+      .thenReturn(INTERNAL_BASIC_REPORT)
+
+    job.execute()
+
+    verify(basicReportsMock, times(2)).failBasicReport(any())
+  }
 
   companion object {
     private val TEST_EVENT_DESCRIPTOR = EventMessageDescriptor(TestEvent.getDescriptor())
+
+    private val NOW: Instant = Instant.ofEpochSecond(1735689600)
+    private val MAX_CREATED_BASIC_REPORT_AGE: Duration = Duration.ofHours(1)
+
+    /** `create_time` of a BasicReport old enough to be considered stuck. */
+    private val STUCK_CREATE_TIME = timestamp {
+      seconds = NOW.minus(MAX_CREATED_BASIC_REPORT_AGE).minusSeconds(1).epochSecond
+    }
+
+    /** `create_time` of a BasicReport too recent to be considered stuck. */
+    private val RECENT_CREATE_TIME = timestamp { seconds = NOW.minusSeconds(1).epochSecond }
+
+    /**
+     * Returns an [Answer] for `listBasicReports` that yields [response] for the REPORT_CREATED
+     * filter and an empty response for any other filter.
+     */
+    private fun listBasicReportsAnswer(response: ListBasicReportsResponse) = Answer { invocation ->
+      val request: ListBasicReportsRequest = invocation.getArgument(0)
+      if (request.filter.state == BasicReport.State.REPORT_CREATED) {
+        response
+      } else {
+        ListBasicReportsResponse.getDefaultInstance()
+      }
+    }
 
     /**
      * Descriptors of repeated fields in [ReportingSetResult] that are treated as unordered lists.

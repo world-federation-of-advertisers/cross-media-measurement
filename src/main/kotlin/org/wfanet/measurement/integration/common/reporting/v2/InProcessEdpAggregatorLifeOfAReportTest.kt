@@ -31,6 +31,8 @@ import com.google.type.timeZone
 import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.Clock
+import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.logging.Logger
@@ -1094,6 +1096,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         reportingServer.internalMetricCalculationSpecsClient,
         reportingServer.internalReportResultsClient,
         EventMessageDescriptor(TestEvent.getDescriptor()),
+        Clock.systemUTC(),
+        MAX_CREATED_BASIC_REPORT_AGE,
       )
       .execute()
   }
@@ -1235,6 +1239,12 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   }
 
   companion object {
+    /**
+     * Maximum age of a BasicReport in State CREATED. Long enough that BasicReports created by these
+     * tests are never treated as stuck.
+     */
+    private val MAX_CREATED_BASIC_REPORT_AGE: Duration = Duration.ofHours(1)
+
     // edp1 has no entity_key/entity_metadata override (legacy path).
     // edp4 is configured with multi-party noise CONTINUOUS_GAUSSIAN, so it's the "restricted"
     // EDP for the no-noise failure path tests; the same EDP also carries the non-default

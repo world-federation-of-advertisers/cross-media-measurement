@@ -565,15 +565,41 @@ class BasicReportsService(
       reportId = "a${UUID.randomUUID()}"
     }
 
-    reportsStub.withForwardedTrustedCredentials().createReport(createReportRequest)
+    try {
+      reportsStub.withForwardedTrustedCredentials().createReport(createReportRequest)
+    } catch (e: StatusException) {
+      throw Status.INTERNAL.withCause(e).asRuntimeException()
+    }
 
-    internalBasicReportsStub.setExternalReportId(
-      setExternalReportIdRequest {
-        cmmsMeasurementConsumerId = parentKey.measurementConsumerId
-        externalBasicReportId = request.basicReportId
-        externalReportId = createReportRequest.reportId
+    try {
+      internalBasicReportsStub.setExternalReportId(
+        setExternalReportIdRequest {
+          cmmsMeasurementConsumerId = parentKey.measurementConsumerId
+          externalBasicReportId = request.basicReportId
+          externalReportId = createReportRequest.reportId
+        }
+      )
+    } catch (e: StatusException) {
+      throw when (InternalErrors.getReason(e)) {
+        InternalErrors.Reason.BASIC_REPORT_STATE_INVALID ->
+          Status.ABORTED.withCause(e)
+            .withDescription("BasicReport is no longer in a state that can be advanced")
+            .asRuntimeException()
+        InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
+        InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
+        InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+        InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
+        InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+        InternalErrors.Reason.INVALID_FIELD_VALUE,
+        InternalErrors.Reason.METRIC_NOT_FOUND,
+        InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
+        InternalErrors.Reason.REPORT_RESULT_NOT_FOUND,
+        InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
+        InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
+        InternalErrors.Reason.INVALID_BASIC_REPORT,
+        null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
-    )
+    }
 
     return createdInternalBasicReport.toBasicReport(
       populateDeprecatedReportingUnitEventGroupSummaries = false
