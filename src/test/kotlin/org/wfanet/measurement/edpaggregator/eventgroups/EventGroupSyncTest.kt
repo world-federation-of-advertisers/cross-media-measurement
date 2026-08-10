@@ -303,10 +303,9 @@ class EventGroupSyncTest {
         .thenAnswer { invocation ->
           batchCreateUnlinkedClientAccountsResponse {
             unlinkedClientAccounts +=
-              invocation
-                .getArgument<BatchCreateUnlinkedClientAccountsRequest>(0)
-                .requestsList
-                .map { it.unlinkedClientAccount }
+              invocation.getArgument<BatchCreateUnlinkedClientAccountsRequest>(0).requestsList.map {
+                it.unlinkedClientAccount
+              }
           }
         }
       onBlocking {
@@ -4692,7 +4691,9 @@ class EventGroupSyncTest {
     // The event group is linked via its direct measurement_consumer, so the empty client-account
     // lookup does not record it as unlinked. The reconcile still lists the stored set (empty here),
     // but has nothing to create or delete.
-    verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) { listUnlinkedClientAccounts(any()) }
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
+      listUnlinkedClientAccounts(any())
+    }
     verifyBlocking(unlinkedClientAccountsServiceMock, times(0)) {
       batchCreateUnlinkedClientAccounts(any())
     }
@@ -5107,7 +5108,9 @@ class EventGroupSyncTest {
 
     // The reconcile lists the stored set (empty) and observes no unlinked accounts, so no
     // create/delete RPC is issued.
-    verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) { listUnlinkedClientAccounts(any()) }
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
+      listUnlinkedClientAccounts(any())
+    }
     verifyBlocking(unlinkedClientAccountsServiceMock, times(0)) {
       batchCreateUnlinkedClientAccounts(any())
     }
@@ -5133,7 +5136,9 @@ class EventGroupSyncTest {
 
     // A run that streams zero event groups must not reconcile, so a transient empty read never
     // wipes the stored unlinked accounts from a prior run.
-    verifyBlocking(unlinkedClientAccountsServiceMock, times(0)) { listUnlinkedClientAccounts(any()) }
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(0)) {
+      listUnlinkedClientAccounts(any())
+    }
     verifyBlocking(unlinkedClientAccountsServiceMock, times(0)) {
       batchCreateUnlinkedClientAccounts(any())
     }
@@ -5189,9 +5194,7 @@ class EventGroupSyncTest {
 
   @Test
   fun `sync does not fail the run when BatchCreateUnlinkedClientAccounts fails`() {
-    wheneverBlocking {
-        unlinkedClientAccountsServiceMock.batchCreateUnlinkedClientAccounts(any())
-      }
+    wheneverBlocking { unlinkedClientAccountsServiceMock.batchCreateUnlinkedClientAccounts(any()) }
       .thenThrow(
         StatusRuntimeException(io.grpc.Status.UNAVAILABLE.withDescription("transient outage"))
       )
