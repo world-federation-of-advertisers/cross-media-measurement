@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.edpaggregator.eventgroups
 
+import com.google.protobuf.struct
+import com.google.protobuf.value
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.GlobalOpenTelemetry
@@ -43,22 +45,27 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt as C
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListClientAccountsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListClientAccountsResponse
+import org.wfanet.measurement.api.v2alpha.ListUnlinkedClientAccountsResponse
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter as listEventGroupsFilter
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerClientAccountKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
+import org.wfanet.measurement.api.v2alpha.UnlinkedClientAccount
 import org.wfanet.measurement.api.v2alpha.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.batchCreateEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.batchCreateUnlinkedClientAccountsRequest
+import org.wfanet.measurement.api.v2alpha.batchDeleteUnlinkedClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.createUnlinkedClientAccountRequest
 import org.wfanet.measurement.api.v2alpha.deleteEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as cmmsEventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.listClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
-import org.wfanet.measurement.api.v2alpha.replaceUnlinkedClientAccountsRequest
+import org.wfanet.measurement.api.v2alpha.listUnlinkedClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.unlinkedClientAccount
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.common.Instrumentation
@@ -244,7 +251,7 @@ class EventGroupSync(
    * zero MeasurementConsumers (the confirmed-empty result). Distinct brands are unioned across
    * every EventGroup that carries the same reference ID, and one observed EventGroup (its
    * `entity_key` when present, otherwise its `event_group_reference_id`) is retained for
-   * traceability. Flushed once at the end of the run via [flushUnlinkedClientAccounts].
+   * traceability. Reconciled once at the end of the run via [reconcileUnlinkedClientAccounts].
    */
   private val unlinkedClientAccounts = mutableMapOf<String, UnlinkedClientAccountAccumulator>()
 
@@ -440,7 +447,7 @@ class EventGroupSync(
       // observed EventGroup count so a run that streamed zero EventGroups skips the reconcile
       // instead of wiping the stored set; a run that did observe EventGroups still reconciles
       // (even with zero entries) so accounts that became linked since the previous run are dropped.
-      flushUnlinkedClientAccounts(observedEventGroupCount)
+      reconcileUnlinkedClientAccounts(observedEventGroupCount)
     }
   }
 
@@ -968,7 +975,7 @@ class EventGroupSync(
    * into the account's distinct-brand set and collects the EventGroup as an observed candidate: its
    * `entity_key` when present, otherwise its `event_group_reference_id`. The winning candidate is
    * deliberately not chosen here so the result stays independent of observation order; see
-   * [flushUnlinkedClientAccounts]. Called only from the confirmed-empty lookup branch in
+   * [buildUnlinkedClientAccount]. Called only from the confirmed-empty lookup branch in
    * [resolveMeasurementConsumers].
    */
   private fun recordUnlinkedClientAccount(eventGroup: EventGroup, refId: String) {
@@ -985,72 +992,199 @@ class EventGroupSync(
   }
 
   /**
-   * Reconciles the full set of unlinked client accounts for this DataProvider with a single
-   * `ReplaceUnlinkedClientAccounts` RPC.
+   * Reconciles the stored set of [UnlinkedClientAccount]s for this DataProvider against the set
+   * observed during this run.
    *
-   * This is always issued at the end of a run — including with an empty set — so that the stored
-   * set is fully reconciled: accounts that resolved to a MeasurementConsumer in this run (and were
-   * therefore not accumulated) are dropped from storage.
+   * Lists the currently-stored accounts, diffs them against the observed set, then issues
+   * `BatchCreateUnlinkedClientAccounts` for newly-observed reference IDs and
+   * `BatchDeleteUnlinkedClientAccounts` for stored reference IDs no longer observed. Reference IDs
+   * present in both sets are left untouched, preserving their server-assigned `create_time`.
+   *
+   * This is a secondary reconcile: every EventGroup has already synced above, so each RPC is
+   * best-effort — a failure is logged, increments [EventGroupSyncMetrics.unlinkedReconcileFailure],
+   * and is left for the next reconcile run rather than failing the sync.
    */
-  private suspend fun flushUnlinkedClientAccounts(observedEventGroupCount: Int) {
+  private suspend fun reconcileUnlinkedClientAccounts(observedEventGroupCount: Int) {
     if (observedEventGroupCount == 0) {
       // A run that streamed zero EventGroups is treated as a no-op, not a signal that every account
-      // is now linked; reconciling an empty set here would wipe the stored unlinked accounts from a
+      // is now linked; deleting the stored set here would wipe the stored unlinked accounts from a
       // prior run on a transient empty read.
       logger.warning {
         "Skipping unlinked-client-account reconcile for $edpName: no EventGroups observed this run"
       }
       return
     }
-    // Entries are sorted by client_account_reference_id for a deterministic request payload.
-    val accounts =
-      unlinkedClientAccounts.entries
-        .sortedBy { it.key }
-        .map { (refId, accumulator) ->
-          unlinkedClientAccount {
-            clientAccountReferenceId = refId
-            brands += accumulator.brands.sorted()
-            // `entity_key` is preferred when any observed EventGroup carries one, falling back to
-            // `event_group_reference_id`. Among candidates of the chosen kind the lexicographically
-            // smallest is used, so repeated syncs over the same input produce the same value.
-            val entityKeyCandidate =
-              accumulator.entityKeys.minWithOrNull(compareBy({ it.entityType }, { it.entityId }))
-            if (entityKeyCandidate != null) {
-              entityKey = entityKeyCandidate.toCmmsEntityKey()
-            } else {
-              accumulator.eventGroupReferenceIds.minOrNull()?.let { eventGroupReferenceId = it }
+
+    // List the currently-stored accounts, keyed by reference ID so each stored resource `name` is
+    // available for deletes. A failure here aborts only the reconcile, not the sync.
+    val existingByRefId: Map<String, UnlinkedClientAccount> =
+      try {
+        listUnlinkedClientAccounts().associateBy { it.clientAccountReferenceId }
+      } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        logger.log(Level.SEVERE, e) {
+          "ListUnlinkedClientAccounts failed for $edpName; skipping reconcile for this run"
+        }
+        metrics.unlinkedReconcileFailure.add(1, metricAttributes())
+        return
+      }
+
+    // Build the observed set from the accumulator, sorted by client_account_reference_id for a
+    // deterministic payload.
+    val observedByRefId: Map<String, UnlinkedClientAccount> =
+      unlinkedClientAccounts.entries.sortedBy { it.key }.associate { (refId, accumulator) ->
+        refId to buildUnlinkedClientAccount(refId, accumulator)
+      }
+
+    // Diff. Reference IDs present in both sets are left untouched (preserving `create_time`); only
+    // the symmetric difference is written.
+    val toCreate: List<UnlinkedClientAccount> =
+      observedByRefId.filterKeys { it !in existingByRefId }.values.toList()
+    val toDelete: List<String> =
+      existingByRefId.filterKeys { it !in observedByRefId }.values.map { it.name }
+
+    batchCreateUnlinkedClientAccounts(toCreate)
+    batchDeleteUnlinkedClientAccounts(toDelete)
+  }
+
+  /**
+   * Builds the [UnlinkedClientAccount] observed for [refId] from its [accumulator].
+   *
+   * `entity_metadata` folds the collected brands into a `Struct` with a single `brand_name` entry
+   * set to the lexicographically smallest brand, and is omitted entirely when no brand was observed.
+   *
+   * `observed_event_group` prefers `entity_key` when any observed EventGroup carries one, falling
+   * back to `event_group_reference_id`. Among candidates of the chosen kind the lexicographically
+   * smallest is used, so repeated syncs over the same input produce the same value.
+   */
+  private fun buildUnlinkedClientAccount(
+    refId: String,
+    accumulator: UnlinkedClientAccountAccumulator,
+  ): UnlinkedClientAccount = unlinkedClientAccount {
+    clientAccountReferenceId = refId
+    accumulator.brands.minOrNull()?.let { smallestBrand ->
+      entityMetadata = struct { fields["brand_name"] = value { stringValue = smallestBrand } }
+    }
+    val entityKeyCandidate =
+      accumulator.entityKeys.minWithOrNull(compareBy({ it.entityType }, { it.entityId }))
+    if (entityKeyCandidate != null) {
+      entityKey = entityKeyCandidate.toCmmsEntityKey()
+    } else {
+      accumulator.eventGroupReferenceIds.minOrNull()?.let { eventGroupReferenceId = it }
+    }
+  }
+
+  /** Lists all stored [UnlinkedClientAccount]s for this DataProvider, paging through results. */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  private suspend fun listUnlinkedClientAccounts(): List<UnlinkedClientAccount> {
+    return unlinkedClientAccountsStub
+      .listResources { pageToken: String ->
+        val response: ListUnlinkedClientAccountsResponse =
+          throttler.onReady {
+            withSpan(
+              tracer,
+              "EventGroupSync.ListUnlinkedClientAccounts",
+              Attributes.of(AttributeKey.stringKey("data_provider_name"), edpName),
+              errorMessage = "ListUnlinkedClientAccounts failed",
+            ) { _ ->
+              unlinkedClientAccountsStub.listUnlinkedClientAccounts(
+                listUnlinkedClientAccountsRequest {
+                  parent = edpName
+                  this.pageToken = pageToken
+                }
+              )
             }
           }
-        }
-    try {
-      throttler.onReady {
-        withSpan(
-          tracer,
-          "EventGroupSync.ReplaceUnlinkedClientAccounts",
-          Attributes.of(
-            AttributeKey.longKey("unlinked_client_account_count"),
-            accounts.size.toLong(),
-            AttributeKey.stringKey("data_provider_name"),
-            edpName,
-          ),
-          errorMessage = "ReplaceUnlinkedClientAccounts failed",
-        ) { _ ->
-          unlinkedClientAccountsStub.replaceUnlinkedClientAccounts(
-            replaceUnlinkedClientAccountsRequest {
-              parent = edpName
-              unlinkedClientAccounts += accounts
-            }
-          )
-        }
+        ResourceList(response.unlinkedClientAccountsList, response.nextPageToken)
       }
-    } catch (e: Exception) {
-      if (e is CancellationException) throw e
-      // Secondary reconcile: every EventGroup already synced above, so a failure here must not
-      // abort the run. Log and let the next reconcile run catch up.
-      logger.log(Level.SEVERE, e) {
-        "ReplaceUnlinkedClientAccounts failed for $edpName; leaving for the next reconcile run"
+      .flattenConcat()
+      .toList()
+  }
+
+  /**
+   * Creates [accounts] via `BatchCreateUnlinkedClientAccounts`, chunked to [MAX_UNLINKED_BATCH_SIZE].
+   *
+   * Each chunk is best-effort per [reconcileUnlinkedClientAccounts]: a failure is logged, increments
+   * [EventGroupSyncMetrics.unlinkedReconcileFailure], and the run continues with the next chunk.
+   */
+  private suspend fun batchCreateUnlinkedClientAccounts(accounts: List<UnlinkedClientAccount>) {
+    for (chunk in accounts.chunked(MAX_UNLINKED_BATCH_SIZE)) {
+      try {
+        throttler.onReady {
+          withSpan(
+            tracer,
+            "EventGroupSync.BatchCreateUnlinkedClientAccounts",
+            Attributes.of(
+              AttributeKey.longKey("batch_size"),
+              chunk.size.toLong(),
+              AttributeKey.stringKey("data_provider_name"),
+              edpName,
+            ),
+            errorMessage = "BatchCreateUnlinkedClientAccounts failed",
+          ) { _ ->
+            unlinkedClientAccountsStub.batchCreateUnlinkedClientAccounts(
+              batchCreateUnlinkedClientAccountsRequest {
+                parent = edpName
+                requests +=
+                  chunk.map { account ->
+                    createUnlinkedClientAccountRequest {
+                      parent = edpName
+                      unlinkedClientAccount = account
+                    }
+                  }
+              }
+            )
+          }
+        }
+      } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        logger.log(Level.SEVERE, e) {
+          "BatchCreateUnlinkedClientAccounts of ${chunk.size} accounts failed for $edpName;" +
+            " leaving for the next reconcile run"
+        }
+        metrics.unlinkedReconcileFailure.add(1, metricAttributes())
       }
-      metrics.unlinkedReconcileFailure.add(1, metricAttributes())
+    }
+  }
+
+  /**
+   * Deletes the accounts named by [names] via `BatchDeleteUnlinkedClientAccounts`, chunked to
+   * [MAX_UNLINKED_BATCH_SIZE].
+   *
+   * Each chunk is best-effort per [reconcileUnlinkedClientAccounts]: a failure is logged, increments
+   * [EventGroupSyncMetrics.unlinkedReconcileFailure], and the run continues with the next chunk.
+   */
+  private suspend fun batchDeleteUnlinkedClientAccounts(names: List<String>) {
+    for (chunk in names.chunked(MAX_UNLINKED_BATCH_SIZE)) {
+      try {
+        throttler.onReady {
+          withSpan(
+            tracer,
+            "EventGroupSync.BatchDeleteUnlinkedClientAccounts",
+            Attributes.of(
+              AttributeKey.longKey("batch_size"),
+              chunk.size.toLong(),
+              AttributeKey.stringKey("data_provider_name"),
+              edpName,
+            ),
+            errorMessage = "BatchDeleteUnlinkedClientAccounts failed",
+          ) { _ ->
+            unlinkedClientAccountsStub.batchDeleteUnlinkedClientAccounts(
+              batchDeleteUnlinkedClientAccountsRequest {
+                parent = edpName
+                this.names += chunk
+              }
+            )
+          }
+        }
+      } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        logger.log(Level.SEVERE, e) {
+          "BatchDeleteUnlinkedClientAccounts of ${chunk.size} accounts failed for $edpName;" +
+            " leaving for the next reconcile run"
+        }
+        metrics.unlinkedReconcileFailure.add(1, metricAttributes())
+      }
     }
   }
 
@@ -1209,6 +1343,12 @@ class EventGroupSync(
   companion object {
     /** Maximum number of sub-requests per BatchCreate/BatchUpdate EventGroups RPC. */
     private const val MAX_BATCH_SIZE = 50
+
+    /**
+     * Maximum number of sub-requests per BatchCreate/BatchDelete UnlinkedClientAccounts RPC (server
+     * limit).
+     */
+    private const val MAX_UNLINKED_BATCH_SIZE = 1000
 
     /**
      * gRPC status codes for a failed batch RPC that are attributable to an individual sub-request
