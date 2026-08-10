@@ -22,9 +22,8 @@ START BATCH DDL;
 -- UnlinkedClientAccounts tracks advertiser client-account reference IDs that
 -- EventGroupSync could not resolve to any MeasurementConsumer.
 --
--- This is a standalone lookup table (not interleaved) scoped to a DataProvider.
--- It is maintained via a full-set reconcile keyed by the DataProvider and the
--- ClientAccountReferenceId.
+-- This is a standalone lookup table (not interleaved) scoped to a DataProvider
+-- and keyed by the DataProvider and the ClientAccountReferenceId.
 CREATE TABLE UnlinkedClientAccounts (
   -- Internal FK to DataProviders table.
   DataProviderId INT64 NOT NULL,
@@ -32,8 +31,10 @@ CREATE TABLE UnlinkedClientAccounts (
   -- Reference ID for the account in the DataProvider ecosystem.
   ClientAccountReferenceId STRING(36) NOT NULL,
 
-  -- The distinct brands observed for this client account. Display hint only.
-  Brands ARRAY<STRING(MAX)>,
+  -- Free-form metadata observed for this client account. Display hint only.
+  -- Holds a google.protobuf.Struct; the type is registered in the proto bundle
+  -- by add-event-group-entity-key.sql.
+  EntityMetadata `google.protobuf.Struct`,
 
   -- One EventGroup observed for this client account, for traceability.
   -- Exactly one of EventGroupReferenceId or the EventGroupEntityKey* pair is
@@ -48,8 +49,8 @@ CREATE TABLE UnlinkedClientAccounts (
   -- Entity ID of an observed EventGroup, set with EventGroupEntityKeyType.
   EventGroupEntityKeyId STRING(MAX),
 
-  -- The time this client account was first observed unlinked.
-  FirstObservedTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+  -- The time this client account was created.
+  CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 
   FOREIGN KEY (DataProviderId) REFERENCES DataProviders(DataProviderId),
 ) PRIMARY KEY (DataProviderId, ClientAccountReferenceId);

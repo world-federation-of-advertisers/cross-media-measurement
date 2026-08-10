@@ -17,11 +17,14 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
-import kotlinx.coroutines.flow.toList
+import com.google.protobuf.Struct as ProtobufStruct
+import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getInternalId
+import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.EventGroupKt
 import org.wfanet.measurement.internal.kingdom.UnlinkedClientAccount
 import org.wfanet.measurement.internal.kingdom.unlinkedClientAccount
@@ -37,11 +40,11 @@ class UnlinkedClientAccountReader : SpannerReader<UnlinkedClientAccountReader.Re
      SELECT
        UnlinkedClientAccounts.DataProviderId,
        UnlinkedClientAccounts.ClientAccountReferenceId,
-       UnlinkedClientAccounts.Brands,
+       UnlinkedClientAccounts.EntityMetadata,
        UnlinkedClientAccounts.EventGroupReferenceId,
        UnlinkedClientAccounts.EventGroupEntityKeyType,
        UnlinkedClientAccounts.EventGroupEntityKeyId,
-       UnlinkedClientAccounts.FirstObservedTime,
+       UnlinkedClientAccounts.CreateTime,
        DataProviders.ExternalDataProviderId
      FROM UnlinkedClientAccounts
      JOIN DataProviders USING (DataProviderId)
@@ -51,30 +54,35 @@ class UnlinkedClientAccountReader : SpannerReader<UnlinkedClientAccountReader.Re
   override suspend fun translate(struct: Struct): Result =
     Result(struct.getInternalId("DataProviderId"), buildUnlinkedClientAccount(struct))
 
-  /**
-   * Reads all [UnlinkedClientAccount] rows for [dataProviderId], ordered by reference ID.
-   *
-   * This is unpaginated and intended for the reconcile read-before-write.
-   */
-  suspend fun readByDataProviderId(
+  /** Reads the [UnlinkedClientAccount] for [externalDataProviderId] and [clientAccountReferenceId]. */
+  suspend fun readByDataProviderAndReferenceId(
     readContext: AsyncDatabaseClient.ReadContext,
-    dataProviderId: InternalId,
-  ): List<Result> {
+    externalDataProviderId: ExternalId,
+    clientAccountReferenceId: String,
+  ): Result? {
     return fillStatementBuilder {
-        appendClause("WHERE UnlinkedClientAccounts.DataProviderId = @dataProviderId")
-        bind("dataProviderId").to(dataProviderId.value)
-        appendClause("ORDER BY UnlinkedClientAccounts.ClientAccountReferenceId ASC")
+        appendClause(
+          """
+           WHERE ExternalDataProviderId = @externalDataProviderId
+             AND ClientAccountReferenceId = @clientAccountReferenceId
+           """
+            .trimIndent()
+        )
+        bind("externalDataProviderId").to(externalDataProviderId.value)
+        bind("clientAccountReferenceId").to(clientAccountReferenceId)
+        appendClause("LIMIT 1")
       }
       .execute(readContext)
-      .toList()
+      .singleOrNull()
   }
 
   private fun buildUnlinkedClientAccount(struct: Struct): UnlinkedClientAccount =
     unlinkedClientAccount {
       externalDataProviderId = struct.getLong("ExternalDataProviderId")
       clientAccountReferenceId = struct.getString("ClientAccountReferenceId")
-      if (!struct.isNull("Brands")) {
-        brands += struct.getStringList("Brands")
+      if (!struct.isNull("EntityMetadata")) {
+        entityMetadata =
+          struct.getProtoMessage("EntityMetadata", ProtobufStruct.getDefaultInstance())
       }
       if (!struct.isNull("EventGroupEntityKeyId")) {
         entityKey =
@@ -85,6 +93,6 @@ class UnlinkedClientAccountReader : SpannerReader<UnlinkedClientAccountReader.Re
       } else if (!struct.isNull("EventGroupReferenceId")) {
         eventGroupReferenceId = struct.getString("EventGroupReferenceId")
       }
-      firstObservedTime = struct.getTimestamp("FirstObservedTime").toProto()
+      createTime = struct.getTimestamp("CreateTime").toProto()
     }
 }

@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "google/protobuf/empty.proto";
 import "wfa/measurement/internal/kingdom/unlinked_client_account.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
@@ -23,20 +24,20 @@ option java_multiple_files = true;
 
 // Internal service for persistence of UnlinkedClientAccount entities.
 service UnlinkedClientAccounts {
-  // Replaces the full set of UnlinkedClientAccounts for a single DataProvider.
-  //
-  // This reconciles the stored set against the incoming set in a single
-  // transaction:
-  // * Newly-unlinked accounts are inserted, stamping `first_observed_time`.
-  // * Still-unlinked accounts are kept, preserving their existing
-  //   `first_observed_time`.
-  // * Accounts absent from the incoming set are deleted (they have been
-  //   linked).
-  //
-  // This is a full-set reconcile and is therefore idempotent: re-issuing the
-  // same request yields the same stored state.
-  rpc ReplaceUnlinkedClientAccounts(ReplaceUnlinkedClientAccountsRequest)
-      returns (ReplaceUnlinkedClientAccountsResponse);
+  rpc CreateUnlinkedClientAccount(CreateUnlinkedClientAccountRequest)
+      returns (UnlinkedClientAccount);
+
+  rpc BatchCreateUnlinkedClientAccounts(BatchCreateUnlinkedClientAccountsRequest)
+      returns (BatchCreateUnlinkedClientAccountsResponse);
+
+  rpc GetUnlinkedClientAccount(GetUnlinkedClientAccountRequest)
+      returns (UnlinkedClientAccount);
+
+  rpc DeleteUnlinkedClientAccount(DeleteUnlinkedClientAccountRequest)
+      returns (UnlinkedClientAccount);
+
+  rpc BatchDeleteUnlinkedClientAccounts(BatchDeleteUnlinkedClientAccountsRequest)
+      returns (google.protobuf.Empty);
 
   // Lists UnlinkedClientAccounts ordered by `client_account_reference_id`
   // ascending.
@@ -44,21 +45,38 @@ service UnlinkedClientAccounts {
       returns (ListUnlinkedClientAccountsResponse);
 }
 
-message ReplaceUnlinkedClientAccountsRequest {
-  // External ID of the owning `DataProvider`. Required.
-  fixed64 external_data_provider_id = 1;
-
-  // The full current set of unlinked client accounts for the DataProvider.
-  //
-  // An empty set deletes all stored accounts for this DataProvider. A maximum
-  // of 1000 `UnlinkedClientAccount`s can be replaced in a single call.
-  repeated UnlinkedClientAccount unlinked_client_accounts = 2;
+message CreateUnlinkedClientAccountRequest {
+  UnlinkedClientAccount unlinked_client_account = 1;
 }
 
-message ReplaceUnlinkedClientAccountsResponse {
-  // The reconciled set of unlinked client accounts, with `first_observed_time`
-  // populated.
+message BatchCreateUnlinkedClientAccountsRequest {
+  // External ID of the owning `DataProvider`. Required.
+  fixed64 external_data_provider_id = 1;
+  repeated CreateUnlinkedClientAccountRequest requests = 2;
+}
+
+message BatchCreateUnlinkedClientAccountsResponse {
   repeated UnlinkedClientAccount unlinked_client_accounts = 1;
+}
+
+message GetUnlinkedClientAccountRequest {
+  // External ID of the owning `DataProvider`. Required.
+  fixed64 external_data_provider_id = 1;
+  // Reference ID of the UnlinkedClientAccount. Required.
+  string client_account_reference_id = 2;
+}
+
+message DeleteUnlinkedClientAccountRequest {
+  // External ID of the owning `DataProvider`. Required.
+  fixed64 external_data_provider_id = 1;
+  // Reference ID of the UnlinkedClientAccount. Required.
+  string client_account_reference_id = 2;
+}
+
+message BatchDeleteUnlinkedClientAccountsRequest {
+  // External ID of the owning `DataProvider`. Required.
+  fixed64 external_data_provider_id = 1;
+  repeated DeleteUnlinkedClientAccountRequest requests = 2;
 }
 
 message ListUnlinkedClientAccountsRequest {
