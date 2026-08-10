@@ -141,6 +141,12 @@ class DashboardViewIsolationLocalTest {
     for (col in PLATFORM_ONLY_COLUMNS) {
       assertThat(rendered).doesNotContain(col)
     }
+    // The reworked Kingdom schema replaced Brands/FirstObservedTime with an
+    // EntityMetadata Struct and CreateTime, so the SQL must read the new columns.
+    assertThat(rendered).contains("BrandName")
+    assertThat(rendered).contains("CreateTime")
+    assertThat(rendered).doesNotContain("Brands")
+    assertThat(rendered).doesNotContain("FirstObservedTime")
   }
 
   @Test

@@ -17,20 +17,20 @@ USING (
 SELECT
   `${project_id}.dashboard.externalIdToApiId`(dp.ExternalDataProviderId) AS CmmsDataProvider,
   u.ClientAccountReferenceId,
-  u.Brands,
+  u.BrandName,
   COALESCE(u.EventGroupReferenceId, CONCAT(u.EventGroupEntityKeyType, '/', u.EventGroupEntityKeyId)) AS ObservedEventGroup,
-  u.FirstObservedTime
+  u.CreateTime
 FROM (
   SELECT * FROM EXTERNAL_QUERY(
     'projects/${project_id}/locations/${region}/connections/kingdom-conn',
     '''SELECT
       u.DataProviderId,
       u.ClientAccountReferenceId,
-      u.Brands,
+      JSON_VALUE(TO_JSON(u.EntityMetadata), '$.brand_name') AS BrandName,
       u.EventGroupReferenceId,
       u.EventGroupEntityKeyType,
       u.EventGroupEntityKeyId,
-      u.FirstObservedTime
+      u.CreateTime
     FROM UnlinkedClientAccounts u''')
 ) u
 LEFT JOIN (

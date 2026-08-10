@@ -538,9 +538,9 @@ resource "google_bigquery_table" "unlinked_accounts" {
     "mode": "NULLABLE"
   },
   {
-    "name": "Brands",
+    "name": "BrandName",
     "type": "STRING",
-    "mode": "REPEATED"
+    "mode": "NULLABLE"
   },
   {
     "name": "ObservedEventGroup",
@@ -548,7 +548,7 @@ resource "google_bigquery_table" "unlinked_accounts" {
     "mode": "NULLABLE"
   },
   {
-    "name": "FirstObservedTime",
+    "name": "CreateTime",
     "type": "TIMESTAMP",
     "mode": "NULLABLE"
   }
