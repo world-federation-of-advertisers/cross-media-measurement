@@ -131,8 +131,8 @@ class EventGroupSyncMetrics(meter: Meter) {
    *
    * Incremented when any end-of-run reconcile RPC (`ListUnlinkedClientAccounts`,
    * `BatchCreateUnlinkedClientAccounts`, or `BatchDeleteUnlinkedClientAccounts`) fails. This is a
-   * secondary reconcile: the EventGroups themselves have already synced, so a failure here is logged
-   * and left for the next run rather than failing the sync.
+   * secondary reconcile: the EventGroups themselves have already synced, so a failure here is
+   * logged and left for the next run rather than failing the sync.
    */
   val unlinkedReconcileFailure: LongCounter =
     meter
