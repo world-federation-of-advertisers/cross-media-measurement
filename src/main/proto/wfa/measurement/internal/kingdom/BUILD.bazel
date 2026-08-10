@@ -162,6 +162,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":event_group_proto",
+        "@com_google_protobuf//:struct_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -172,6 +173,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":unlinked_client_account_proto",
+        "@com_google_protobuf//:empty_proto",
     ],
 )
 

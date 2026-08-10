@@ -18,11 +18,12 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.struct
+import com.google.protobuf.value
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
-import java.time.Instant
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -34,7 +35,6 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ErrorCode
@@ -42,8 +42,12 @@ import org.wfanet.measurement.internal.kingdom.EventGroupKt
 import org.wfanet.measurement.internal.kingdom.ListUnlinkedClientAccountsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.UnlinkedClientAccount
 import org.wfanet.measurement.internal.kingdom.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.batchCreateUnlinkedClientAccountsRequest
+import org.wfanet.measurement.internal.kingdom.batchDeleteUnlinkedClientAccountsRequest
+import org.wfanet.measurement.internal.kingdom.createUnlinkedClientAccountRequest
+import org.wfanet.measurement.internal.kingdom.deleteUnlinkedClientAccountRequest
+import org.wfanet.measurement.internal.kingdom.getUnlinkedClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.listUnlinkedClientAccountsRequest
-import org.wfanet.measurement.internal.kingdom.replaceUnlinkedClientAccountsRequest
 import org.wfanet.measurement.internal.kingdom.unlinkedClientAccount
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -77,61 +81,44 @@ abstract class UnlinkedClientAccountsServiceTest<T : UnlinkedClientAccountsCorou
   }
 
   @Test
-  fun `replaceUnlinkedClientAccounts inserts new accounts`(): Unit = runBlocking {
+  fun `createUnlinkedClientAccount returns UnlinkedClientAccount`(): Unit = runBlocking {
     val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
-    val startTime = Instant.now()
+
+    val account = unlinkedClientAccount {
+      externalDataProviderId = dataProvider.externalDataProviderId
+      clientAccountReferenceId = "ref-1"
+      entityMetadata = ENTITY_METADATA
+      eventGroupReferenceId = "eg-1"
+    }
 
     val response =
-      unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-        replaceUnlinkedClientAccountsRequest {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          unlinkedClientAccounts += unlinkedClientAccount {
-            clientAccountReferenceId = "ref-1"
-            brands += "brand-a"
-            brands += "brand-b"
-            eventGroupReferenceId = "eg-1"
-          }
-        }
+      unlinkedClientAccountsService.createUnlinkedClientAccount(
+        createUnlinkedClientAccountRequest { unlinkedClientAccount = account }
       )
 
-    assertThat(response.unlinkedClientAccountsList).hasSize(1)
-    val account = response.unlinkedClientAccountsList.single()
-    assertThat(account)
-      .ignoringFields(UnlinkedClientAccount.FIRST_OBSERVED_TIME_FIELD_NUMBER)
-      .isEqualTo(
-        unlinkedClientAccount {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          clientAccountReferenceId = "ref-1"
-          brands += "brand-a"
-          brands += "brand-b"
-          eventGroupReferenceId = "eg-1"
-        }
-      )
-    assertThat(account.hasFirstObservedTime()).isTrue()
-    // FirstObservedTime is stamped with the transaction commit timestamp.
-    assertThat(account.firstObservedTime.toInstant()).isGreaterThan(startTime)
-    // The value returned equals the value persisted (the commit timestamp).
+    assertThat(response)
+      .ignoringFields(UnlinkedClientAccount.CREATE_TIME_FIELD_NUMBER)
+      .isEqualTo(account)
+    assertThat(response.hasCreateTime()).isTrue()
+
     val listed =
       unlinkedClientAccountsService.listUnlinkedClientAccounts(
         listUnlinkedClientAccountsRequest {
           this.filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
         }
       )
-    assertThat(listed.unlinkedClientAccountsList.single().firstObservedTime)
-      .isEqualTo(account.firstObservedTime)
-    // The stored row round-trips the `event_group_reference_id` oneof member.
-    assertThat(listed.unlinkedClientAccountsList.single()).isEqualTo(account)
+    assertThat(listed.unlinkedClientAccountsList.single()).isEqualTo(response)
   }
 
   @Test
-  fun `replaceUnlinkedClientAccounts round-trips entity_key`(): Unit = runBlocking {
+  fun `createUnlinkedClientAccount round-trips entity_key`(): Unit = runBlocking {
     val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
 
     val response =
-      unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-        replaceUnlinkedClientAccountsRequest {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          unlinkedClientAccounts += unlinkedClientAccount {
+      unlinkedClientAccountsService.createUnlinkedClientAccount(
+        createUnlinkedClientAccountRequest {
+          unlinkedClientAccount = unlinkedClientAccount {
+            externalDataProviderId = dataProvider.externalDataProviderId
             clientAccountReferenceId = "ref-1"
             entityKey =
               EventGroupKt.entityKey {
@@ -142,16 +129,15 @@ abstract class UnlinkedClientAccountsServiceTest<T : UnlinkedClientAccountsCorou
         }
       )
 
-    val account = response.unlinkedClientAccountsList.single()
-    assertThat(account.hasEntityKey()).isTrue()
-    assertThat(account.entityKey)
+    assertThat(response.hasEntityKey()).isTrue()
+    assertThat(response.entityKey)
       .isEqualTo(
         EventGroupKt.entityKey {
           entityType = "advertiser"
           entityId = "acct-123"
         }
       )
-    assertThat(account.hasEventGroupReferenceId()).isFalse()
+    assertThat(response.hasEventGroupReferenceId()).isFalse()
 
     val listed =
       unlinkedClientAccountsService.listUnlinkedClientAccounts(
@@ -159,106 +145,84 @@ abstract class UnlinkedClientAccountsServiceTest<T : UnlinkedClientAccountsCorou
           this.filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
         }
       )
-    // The entity_key oneof member round-trips through storage.
-    assertThat(listed.unlinkedClientAccountsList.single()).isEqualTo(account)
+    assertThat(listed.unlinkedClientAccountsList.single()).isEqualTo(response)
   }
 
   @Test
-  fun `replaceUnlinkedClientAccounts preserves FirstObservedTime for re-observed account`(): Unit =
+  fun `createUnlinkedClientAccount round-trips an unset observed_event_group`(): Unit =
     runBlocking {
       val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
 
-      val first =
-        unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-          replaceUnlinkedClientAccountsRequest {
-            externalDataProviderId = dataProvider.externalDataProviderId
-            unlinkedClientAccounts += unlinkedClientAccount { clientAccountReferenceId = "ref-1" }
-          }
-        )
-      val firstObservedTime = first.unlinkedClientAccountsList.single().firstObservedTime
-
-      val second =
-        unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-          replaceUnlinkedClientAccountsRequest {
-            externalDataProviderId = dataProvider.externalDataProviderId
-            unlinkedClientAccounts += unlinkedClientAccount {
+      val response =
+        unlinkedClientAccountsService.createUnlinkedClientAccount(
+          createUnlinkedClientAccountRequest {
+            unlinkedClientAccount = unlinkedClientAccount {
+              externalDataProviderId = dataProvider.externalDataProviderId
               clientAccountReferenceId = "ref-1"
-              brands += "brand-updated"
             }
           }
         )
-      val secondAccount = second.unlinkedClientAccountsList.single()
 
-      assertThat(secondAccount.firstObservedTime).isEqualTo(firstObservedTime)
-      assertThat(secondAccount.brandsList).containsExactly("brand-updated")
+      assertThat(response.observedEventGroupCase)
+        .isEqualTo(UnlinkedClientAccount.ObservedEventGroupCase.OBSERVEDEVENTGROUP_NOT_SET)
+      assertThat(response.hasEntityMetadata()).isFalse()
+
+      val listed =
+        unlinkedClientAccountsService.listUnlinkedClientAccounts(
+          listUnlinkedClientAccountsRequest {
+            this.filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
+          }
+        )
+      assertThat(listed.unlinkedClientAccountsList.single()).isEqualTo(response)
     }
 
   @Test
-  fun `replaceUnlinkedClientAccounts deletes accounts no longer present`(): Unit = runBlocking {
+  fun `createUnlinkedClientAccount fails when already exists`(): Unit = runBlocking {
     val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
-
-    unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-      replaceUnlinkedClientAccountsRequest {
-        externalDataProviderId = dataProvider.externalDataProviderId
-        unlinkedClientAccounts += unlinkedClientAccount { clientAccountReferenceId = "ref-1" }
-        unlinkedClientAccounts += unlinkedClientAccount { clientAccountReferenceId = "ref-2" }
-      }
-    )
-
-    unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-      replaceUnlinkedClientAccountsRequest {
-        externalDataProviderId = dataProvider.externalDataProviderId
-        unlinkedClientAccounts += unlinkedClientAccount { clientAccountReferenceId = "ref-2" }
-      }
-    )
-
-    val listResponse =
-      unlinkedClientAccountsService.listUnlinkedClientAccounts(
-        listUnlinkedClientAccountsRequest {
-          this.filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
-        }
-      )
-
-    assertThat(listResponse.unlinkedClientAccountsList.map { it.clientAccountReferenceId })
-      .containsExactly("ref-2")
-  }
-
-  @Test
-  fun `replaceUnlinkedClientAccounts with empty set deletes all accounts`(): Unit = runBlocking {
-    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
-
-    unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-      replaceUnlinkedClientAccountsRequest {
-        externalDataProviderId = dataProvider.externalDataProviderId
-        unlinkedClientAccounts += unlinkedClientAccount { clientAccountReferenceId = "ref-1" }
-      }
-    )
-
-    val response =
-      unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-        replaceUnlinkedClientAccountsRequest {
+    unlinkedClientAccountsService.createUnlinkedClientAccount(
+      createUnlinkedClientAccountRequest {
+        unlinkedClientAccount = unlinkedClientAccount {
           externalDataProviderId = dataProvider.externalDataProviderId
+          clientAccountReferenceId = "ref-1"
         }
-      )
-    assertThat(response.unlinkedClientAccountsList).isEmpty()
+      }
+    )
 
-    val listResponse =
-      unlinkedClientAccountsService.listUnlinkedClientAccounts(
-        listUnlinkedClientAccountsRequest {
-          this.filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
-        }
-      )
-    assertThat(listResponse.unlinkedClientAccountsList).isEmpty()
-  }
-
-  @Test
-  fun `replaceUnlinkedClientAccounts fails when DataProvider not found`(): Unit = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-          replaceUnlinkedClientAccountsRequest {
-            externalDataProviderId = 404L
-            unlinkedClientAccounts += unlinkedClientAccount { clientAccountReferenceId = "ref-1" }
+        unlinkedClientAccountsService.createUnlinkedClientAccount(
+          createUnlinkedClientAccountRequest {
+            unlinkedClientAccount = unlinkedClientAccount {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              clientAccountReferenceId = "ref-1"
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = KingdomInternalException.DOMAIN
+          reason = ErrorCode.UNLINKED_CLIENT_ACCOUNT_ALREADY_EXISTS.name
+          metadata["external_data_provider_id"] =
+            dataProvider.externalDataProviderId.toString()
+          metadata["client_account_reference_id"] = "ref-1"
+        }
+      )
+  }
+
+  @Test
+  fun `createUnlinkedClientAccount fails when DataProvider not found`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        unlinkedClientAccountsService.createUnlinkedClientAccount(
+          createUnlinkedClientAccountRequest {
+            unlinkedClientAccount = unlinkedClientAccount {
+              externalDataProviderId = 404L
+              clientAccountReferenceId = "ref-1"
+            }
           }
         )
       }
@@ -275,16 +239,31 @@ abstract class UnlinkedClientAccountsServiceTest<T : UnlinkedClientAccountsCorou
   }
 
   @Test
-  fun `replaceUnlinkedClientAccounts fails with duplicate reference ID`(): Unit = runBlocking {
+  fun `createUnlinkedClientAccount fails when external DataProvider ID is unset`(): Unit =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          unlinkedClientAccountsService.createUnlinkedClientAccount(
+            createUnlinkedClientAccountRequest {
+              unlinkedClientAccount = unlinkedClientAccount { clientAccountReferenceId = "ref-1" }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `createUnlinkedClientAccount fails with empty reference ID`(): Unit = runBlocking {
     val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-          replaceUnlinkedClientAccountsRequest {
-            externalDataProviderId = dataProvider.externalDataProviderId
-            unlinkedClientAccounts += unlinkedClientAccount { clientAccountReferenceId = "dup" }
-            unlinkedClientAccounts += unlinkedClientAccount { clientAccountReferenceId = "dup" }
+        unlinkedClientAccountsService.createUnlinkedClientAccount(
+          createUnlinkedClientAccountRequest {
+            unlinkedClientAccount = unlinkedClientAccount {
+              externalDataProviderId = dataProvider.externalDataProviderId
+            }
           }
         )
       }
@@ -293,16 +272,327 @@ abstract class UnlinkedClientAccountsServiceTest<T : UnlinkedClientAccountsCorou
   }
 
   @Test
-  fun `listUnlinkedClientAccounts can paginate using pageToken`(): Unit = runBlocking {
+  fun `createUnlinkedClientAccount fails when reference ID too long`(): Unit = runBlocking {
     val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
 
-    unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-      replaceUnlinkedClientAccountsRequest {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        unlinkedClientAccountsService.createUnlinkedClientAccount(
+          createUnlinkedClientAccountRequest {
+            unlinkedClientAccount = unlinkedClientAccount {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              clientAccountReferenceId = "a".repeat(37)
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `batchCreateUnlinkedClientAccounts returns accounts`(): Unit = runBlocking {
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+
+    val response =
+      unlinkedClientAccountsService.batchCreateUnlinkedClientAccounts(
+        batchCreateUnlinkedClientAccountsRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          requests += createUnlinkedClientAccountRequest {
+            unlinkedClientAccount = unlinkedClientAccount {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              clientAccountReferenceId = "batch-ref-1"
+            }
+          }
+          requests += createUnlinkedClientAccountRequest {
+            unlinkedClientAccount = unlinkedClientAccount {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              clientAccountReferenceId = "batch-ref-2"
+            }
+          }
+        }
+      )
+
+    assertThat(response.unlinkedClientAccountsList).hasSize(2)
+    for (created in response.unlinkedClientAccountsList) {
+      assertThat(created.externalDataProviderId).isEqualTo(dataProvider.externalDataProviderId)
+      assertThat(created.hasCreateTime()).isTrue()
+    }
+    assertThat(response.unlinkedClientAccountsList.map { it.clientAccountReferenceId })
+      .containsExactly("batch-ref-1", "batch-ref-2")
+      .inOrder()
+
+    val listed =
+      unlinkedClientAccountsService.listUnlinkedClientAccounts(
+        listUnlinkedClientAccountsRequest {
+          this.filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
+        }
+      )
+    assertThat(listed.unlinkedClientAccountsList.map { it.clientAccountReferenceId })
+      .containsExactly("batch-ref-1", "batch-ref-2")
+  }
+
+  @Test
+  fun `batchCreateUnlinkedClientAccounts fails with duplicate reference ID`(): Unit = runBlocking {
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        unlinkedClientAccountsService.batchCreateUnlinkedClientAccounts(
+          batchCreateUnlinkedClientAccountsRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            requests += createUnlinkedClientAccountRequest {
+              unlinkedClientAccount = unlinkedClientAccount {
+                externalDataProviderId = dataProvider.externalDataProviderId
+                clientAccountReferenceId = "dup"
+              }
+            }
+            requests += createUnlinkedClientAccountRequest {
+              unlinkedClientAccount = unlinkedClientAccount {
+                externalDataProviderId = dataProvider.externalDataProviderId
+                clientAccountReferenceId = "dup"
+              }
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `batchCreateUnlinkedClientAccounts fails when external DataProvider ID is unset`(): Unit =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          unlinkedClientAccountsService.batchCreateUnlinkedClientAccounts(
+            batchCreateUnlinkedClientAccountsRequest {
+              requests += createUnlinkedClientAccountRequest {
+                unlinkedClientAccount = unlinkedClientAccount { clientAccountReferenceId = "ref-1" }
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `getUnlinkedClientAccount returns created account`(): Unit = runBlocking {
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+    val created =
+      unlinkedClientAccountsService.createUnlinkedClientAccount(
+        createUnlinkedClientAccountRequest {
+          unlinkedClientAccount = unlinkedClientAccount {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            clientAccountReferenceId = "ref-1"
+          }
+        }
+      )
+
+    val response =
+      unlinkedClientAccountsService.getUnlinkedClientAccount(
+        getUnlinkedClientAccountRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          clientAccountReferenceId = "ref-1"
+        }
+      )
+
+    assertThat(response).isEqualTo(created)
+  }
+
+  @Test
+  fun `getUnlinkedClientAccount fails when not found`(): Unit = runBlocking {
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        unlinkedClientAccountsService.getUnlinkedClientAccount(
+          getUnlinkedClientAccountRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            clientAccountReferenceId = "missing"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = KingdomInternalException.DOMAIN
+          reason = ErrorCode.UNLINKED_CLIENT_ACCOUNT_NOT_FOUND.name
+          metadata["external_data_provider_id"] =
+            dataProvider.externalDataProviderId.toString()
+          metadata["client_account_reference_id"] = "missing"
+        }
+      )
+  }
+
+  @Test
+  fun `deleteUnlinkedClientAccount removes account`(): Unit = runBlocking {
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+    val created =
+      unlinkedClientAccountsService.createUnlinkedClientAccount(
+        createUnlinkedClientAccountRequest {
+          unlinkedClientAccount = unlinkedClientAccount {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            clientAccountReferenceId = "ref-1"
+          }
+        }
+      )
+
+    val deleted =
+      unlinkedClientAccountsService.deleteUnlinkedClientAccount(
+        deleteUnlinkedClientAccountRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          clientAccountReferenceId = "ref-1"
+        }
+      )
+    assertThat(deleted).isEqualTo(created)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        unlinkedClientAccountsService.getUnlinkedClientAccount(
+          getUnlinkedClientAccountRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            clientAccountReferenceId = "ref-1"
+          }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `deleteUnlinkedClientAccount fails when not found`(): Unit = runBlocking {
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        unlinkedClientAccountsService.deleteUnlinkedClientAccount(
+          deleteUnlinkedClientAccountRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            clientAccountReferenceId = "missing"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = KingdomInternalException.DOMAIN
+          reason = ErrorCode.UNLINKED_CLIENT_ACCOUNT_NOT_FOUND.name
+          metadata["external_data_provider_id"] =
+            dataProvider.externalDataProviderId.toString()
+          metadata["client_account_reference_id"] = "missing"
+        }
+      )
+  }
+
+  @Test
+  fun `batchDeleteUnlinkedClientAccounts removes accounts`(): Unit = runBlocking {
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+    unlinkedClientAccountsService.batchCreateUnlinkedClientAccounts(
+      batchCreateUnlinkedClientAccountsRequest {
         externalDataProviderId = dataProvider.externalDataProviderId
-        unlinkedClientAccounts += unlinkedClientAccount { clientAccountReferenceId = "ref-1" }
-        unlinkedClientAccounts += unlinkedClientAccount { clientAccountReferenceId = "ref-2" }
+        requests += createUnlinkedClientAccountRequest {
+          unlinkedClientAccount = unlinkedClientAccount {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            clientAccountReferenceId = "ref-1"
+          }
+        }
+        requests += createUnlinkedClientAccountRequest {
+          unlinkedClientAccount = unlinkedClientAccount {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            clientAccountReferenceId = "ref-2"
+          }
+        }
       }
     )
+
+    unlinkedClientAccountsService.batchDeleteUnlinkedClientAccounts(
+      batchDeleteUnlinkedClientAccountsRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        requests += deleteUnlinkedClientAccountRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          clientAccountReferenceId = "ref-1"
+        }
+        requests += deleteUnlinkedClientAccountRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          clientAccountReferenceId = "ref-2"
+        }
+      }
+    )
+
+    val listed =
+      unlinkedClientAccountsService.listUnlinkedClientAccounts(
+        listUnlinkedClientAccountsRequest {
+          this.filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
+        }
+      )
+    assertThat(listed.unlinkedClientAccountsList).isEmpty()
+  }
+
+  @Test
+  fun `batchDeleteUnlinkedClientAccounts fails when not found`(): Unit = runBlocking {
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        unlinkedClientAccountsService.batchDeleteUnlinkedClientAccounts(
+          batchDeleteUnlinkedClientAccountsRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            requests += deleteUnlinkedClientAccountRequest {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              clientAccountReferenceId = "missing"
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `listUnlinkedClientAccounts returns results`(): Unit = runBlocking {
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+    createAccount(dataProvider, "ref-1")
+    createAccount(dataProvider, "ref-2")
+
+    val response =
+      unlinkedClientAccountsService.listUnlinkedClientAccounts(
+        listUnlinkedClientAccountsRequest {
+          this.filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
+        }
+      )
+
+    assertThat(response.unlinkedClientAccountsList.map { it.clientAccountReferenceId })
+      .containsExactly("ref-1", "ref-2")
+      .inOrder()
+  }
+
+  @Test
+  fun `listUnlinkedClientAccounts is isolated per DataProvider`(): Unit = runBlocking {
+    val dataProviderA: DataProvider = population.createDataProvider(dataProvidersService)
+    val dataProviderB: DataProvider = population.createDataProvider(dataProvidersService)
+    createAccount(dataProviderA, "a-ref-1")
+    createAccount(dataProviderB, "b-ref-1")
+
+    val listA =
+      unlinkedClientAccountsService.listUnlinkedClientAccounts(
+        listUnlinkedClientAccountsRequest {
+          this.filter = filter { externalDataProviderId = dataProviderA.externalDataProviderId }
+        }
+      )
+    assertThat(listA.unlinkedClientAccountsList.map { it.clientAccountReferenceId })
+      .containsExactly("a-ref-1")
+  }
+
+  @Test
+  fun `listUnlinkedClientAccounts can paginate using pageToken`(): Unit = runBlocking {
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+    createAccount(dataProvider, "ref-1")
+    createAccount(dataProvider, "ref-2")
 
     val page1 =
       unlinkedClientAccountsService.listUnlinkedClientAccounts(
@@ -311,7 +601,6 @@ abstract class UnlinkedClientAccountsServiceTest<T : UnlinkedClientAccountsCorou
           pageSize = 1
         }
       )
-
     assertThat(page1.unlinkedClientAccountsList.map { it.clientAccountReferenceId })
       .containsExactly("ref-1")
     assertThat(page1.hasNextPageToken()).isTrue()
@@ -324,128 +613,25 @@ abstract class UnlinkedClientAccountsServiceTest<T : UnlinkedClientAccountsCorou
           pageToken = page1.nextPageToken
         }
       )
-
     assertThat(page2.unlinkedClientAccountsList.map { it.clientAccountReferenceId })
       .containsExactly("ref-2")
   }
 
   @Test
-  fun `replaceUnlinkedClientAccounts is isolated per DataProvider`(): Unit = runBlocking {
-    val dataProviderA: DataProvider = population.createDataProvider(dataProvidersService)
-    val dataProviderB: DataProvider = population.createDataProvider(dataProvidersService)
-
-    unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-      replaceUnlinkedClientAccountsRequest {
-        externalDataProviderId = dataProviderA.externalDataProviderId
-        unlinkedClientAccounts += unlinkedClientAccount { clientAccountReferenceId = "a-ref-1" }
-        unlinkedClientAccounts += unlinkedClientAccount { clientAccountReferenceId = "a-ref-2" }
-      }
-    )
-    unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-      replaceUnlinkedClientAccountsRequest {
-        externalDataProviderId = dataProviderB.externalDataProviderId
-        unlinkedClientAccounts += unlinkedClientAccount { clientAccountReferenceId = "b-ref-1" }
-      }
-    )
-
-    // Reconcile DP-A down to an empty set; DP-B rows must be untouched.
-    unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-      replaceUnlinkedClientAccountsRequest {
-        externalDataProviderId = dataProviderA.externalDataProviderId
-      }
-    )
-
-    val listA =
-      unlinkedClientAccountsService.listUnlinkedClientAccounts(
-        listUnlinkedClientAccountsRequest {
-          this.filter = filter { externalDataProviderId = dataProviderA.externalDataProviderId }
-        }
-      )
-    assertThat(listA.unlinkedClientAccountsList).isEmpty()
-
-    val listB =
-      unlinkedClientAccountsService.listUnlinkedClientAccounts(
-        listUnlinkedClientAccountsRequest {
-          this.filter = filter { externalDataProviderId = dataProviderB.externalDataProviderId }
-        }
-      )
-    assertThat(listB.unlinkedClientAccountsList.map { it.clientAccountReferenceId })
-      .containsExactly("b-ref-1")
-  }
-
-  @Test
-  fun `replaceUnlinkedClientAccounts handles insert, keep, and delete in a single call`(): Unit =
-    runBlocking {
-      val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
-
-      val first =
-        unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-          replaceUnlinkedClientAccountsRequest {
-            externalDataProviderId = dataProvider.externalDataProviderId
-            unlinkedClientAccounts += unlinkedClientAccount { clientAccountReferenceId = "keep" }
-            unlinkedClientAccounts += unlinkedClientAccount { clientAccountReferenceId = "drop" }
-          }
-        )
-      val keptFirstObservedTime =
-        first.unlinkedClientAccountsList
-          .single { it.clientAccountReferenceId == "keep" }
-          .firstObservedTime
-
-      // In a single call: keep "keep", drop "drop", and add "add".
-      val second =
-        unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-          replaceUnlinkedClientAccountsRequest {
-            externalDataProviderId = dataProvider.externalDataProviderId
-            unlinkedClientAccounts += unlinkedClientAccount { clientAccountReferenceId = "keep" }
-            unlinkedClientAccounts += unlinkedClientAccount { clientAccountReferenceId = "add" }
-          }
-        )
-
-      assertThat(second.unlinkedClientAccountsList.map { it.clientAccountReferenceId })
-        .containsExactly("keep", "add")
-      val kept = second.unlinkedClientAccountsList.single { it.clientAccountReferenceId == "keep" }
-      assertThat(kept.firstObservedTime).isEqualTo(keptFirstObservedTime)
-
-      val listResponse =
-        unlinkedClientAccountsService.listUnlinkedClientAccounts(
-          listUnlinkedClientAccountsRequest {
-            this.filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
-          }
-        )
-      assertThat(listResponse.unlinkedClientAccountsList.map { it.clientAccountReferenceId })
-        .containsExactly("keep", "add")
-    }
-
-  @Test
-  fun `replaceUnlinkedClientAccounts fails when external DataProvider ID is unset`(): Unit =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-            replaceUnlinkedClientAccountsRequest {
-              unlinkedClientAccounts += unlinkedClientAccount { clientAccountReferenceId = "ref-1" }
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    }
-
-  @Test
-  fun `replaceUnlinkedClientAccounts fails with empty reference ID`(): Unit = runBlocking {
+  fun `listUnlinkedClientAccounts coerces page size above max`(): Unit = runBlocking {
     val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+    createAccount(dataProvider, "ref-1")
 
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-          replaceUnlinkedClientAccountsRequest {
-            externalDataProviderId = dataProvider.externalDataProviderId
-            unlinkedClientAccounts += unlinkedClientAccount { brands += "brand-a" }
-          }
-        )
-      }
+    val response =
+      unlinkedClientAccountsService.listUnlinkedClientAccounts(
+        listUnlinkedClientAccountsRequest {
+          this.filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
+          pageSize = MAX_PAGE_SIZE + 1
+        }
+      )
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(response.unlinkedClientAccountsList.map { it.clientAccountReferenceId })
+      .containsExactly("ref-1")
   }
 
   @Test
@@ -465,82 +651,27 @@ abstract class UnlinkedClientAccountsServiceTest<T : UnlinkedClientAccountsCorou
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
-  @Test
-  fun `listUnlinkedClientAccounts coerces page size above max`(): Unit = runBlocking {
-    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
-
-    unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-      replaceUnlinkedClientAccountsRequest {
-        externalDataProviderId = dataProvider.externalDataProviderId
-        unlinkedClientAccounts += unlinkedClientAccount { clientAccountReferenceId = "ref-1" }
+  private suspend fun createAccount(
+    dataProvider: DataProvider,
+    referenceId: String,
+  ): UnlinkedClientAccount {
+    return unlinkedClientAccountsService.createUnlinkedClientAccount(
+      createUnlinkedClientAccountRequest {
+        unlinkedClientAccount = unlinkedClientAccount {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          clientAccountReferenceId = referenceId
+        }
       }
     )
-
-    val response =
-      unlinkedClientAccountsService.listUnlinkedClientAccounts(
-        listUnlinkedClientAccountsRequest {
-          this.filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
-          pageSize = MAX_PAGE_SIZE + 1
-        }
-      )
-
-    assertThat(response.unlinkedClientAccountsList.map { it.clientAccountReferenceId })
-      .containsExactly("ref-1")
   }
 
   companion object {
     private const val RANDOM_SEED = 1
     private const val MAX_PAGE_SIZE = 1000
-  }
 
-  @Test
-  fun `replaceUnlinkedClientAccounts fails when reference ID too long`(): Unit = runBlocking {
-    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-          replaceUnlinkedClientAccountsRequest {
-            externalDataProviderId = dataProvider.externalDataProviderId
-            unlinkedClientAccounts += unlinkedClientAccount {
-              clientAccountReferenceId = "a".repeat(37)
-            }
-          }
-        )
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  }
-
-  @Test
-  fun `replaceUnlinkedClientAccounts round-trips an unset observed_event_group`(): Unit =
-    runBlocking {
-      val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
-
-      val response =
-        unlinkedClientAccountsService.replaceUnlinkedClientAccounts(
-          replaceUnlinkedClientAccountsRequest {
-            externalDataProviderId = dataProvider.externalDataProviderId
-            unlinkedClientAccounts += unlinkedClientAccount {
-              clientAccountReferenceId = "ref-1"
-              brands += "brand-a"
-            }
-          }
-        )
-
-      val account = response.unlinkedClientAccountsList.single()
-      assertThat(account.observedEventGroupCase)
-        .isEqualTo(UnlinkedClientAccount.ObservedEventGroupCase.OBSERVEDEVENTGROUP_NOT_SET)
-      assertThat(account.hasEntityKey()).isFalse()
-      assertThat(account.hasEventGroupReferenceId()).isFalse()
-
-      val listed =
-        unlinkedClientAccountsService.listUnlinkedClientAccounts(
-          listUnlinkedClientAccountsRequest {
-            this.filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
-          }
-        )
-      // The unset oneof round-trips through storage as unset, not an empty reference ID.
-      assertThat(listed.unlinkedClientAccountsList.single()).isEqualTo(account)
+    private val ENTITY_METADATA = struct {
+      fields["brand"] = value { stringValue = "Blammo!" }
+      fields["objective"] = value { stringValue = "awareness" }
     }
+  }
 }

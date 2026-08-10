@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/kingdom/event_group.proto";
 
@@ -35,8 +36,8 @@ message UnlinkedClientAccount {
   // Must be at most 36 characters.
   string client_account_reference_id = 2;
 
-  // The distinct brands observed for this client account. Display hint only.
-  repeated string brands = 3;
+  // Free-form metadata observed for this client account. Display hint only.
+  google.protobuf.Struct entity_metadata = 3;
 
   // One EventGroup observed for this client account, for traceability.
   // Optional.
@@ -48,6 +49,6 @@ message UnlinkedClientAccount {
     EventGroup.EntityKey entity_key = 5;
   }
 
-  // The time this client account was first observed unlinked. Output-only.
-  google.protobuf.Timestamp first_observed_time = 6;
+  // The time this client account was created. Output-only.
+  google.protobuf.Timestamp create_time = 6;
 }
