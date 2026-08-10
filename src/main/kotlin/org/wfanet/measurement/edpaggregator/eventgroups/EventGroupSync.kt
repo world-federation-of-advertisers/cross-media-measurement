@@ -45,8 +45,8 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt as C
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListClientAccountsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListClientAccountsResponse
-import org.wfanet.measurement.api.v2alpha.ListUnlinkedClientAccountsResponse
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter as listEventGroupsFilter
+import org.wfanet.measurement.api.v2alpha.ListUnlinkedClientAccountsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerClientAccountKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
@@ -1032,9 +1032,11 @@ class EventGroupSync(
     // Build the observed set from the accumulator, sorted by client_account_reference_id for a
     // deterministic payload.
     val observedByRefId: Map<String, UnlinkedClientAccount> =
-      unlinkedClientAccounts.entries.sortedBy { it.key }.associate { (refId, accumulator) ->
-        refId to buildUnlinkedClientAccount(refId, accumulator)
-      }
+      unlinkedClientAccounts.entries
+        .sortedBy { it.key }
+        .associate { (refId, accumulator) ->
+          refId to buildUnlinkedClientAccount(refId, accumulator)
+        }
 
     // Diff. Reference IDs present in both sets are left untouched (preserving `create_time`); only
     // the symmetric difference is written.
@@ -1051,7 +1053,8 @@ class EventGroupSync(
    * Builds the [UnlinkedClientAccount] observed for [refId] from its [accumulator].
    *
    * `entity_metadata` folds the collected brands into a `Struct` with a single `brand_name` entry
-   * set to the lexicographically smallest brand, and is omitted entirely when no brand was observed.
+   * set to the lexicographically smallest brand, and is omitted entirely when no brand was
+   * observed.
    *
    * `observed_event_group` prefers `entity_key` when any observed EventGroup carries one, falling
    * back to `event_group_reference_id`. Among candidates of the chosen kind the lexicographically
@@ -1102,10 +1105,12 @@ class EventGroupSync(
   }
 
   /**
-   * Creates [accounts] via `BatchCreateUnlinkedClientAccounts`, chunked to [MAX_UNLINKED_BATCH_SIZE].
+   * Creates [accounts] via `BatchCreateUnlinkedClientAccounts`, chunked to
+   * [MAX_UNLINKED_BATCH_SIZE].
    *
-   * Each chunk is best-effort per [reconcileUnlinkedClientAccounts]: a failure is logged, increments
-   * [EventGroupSyncMetrics.unlinkedReconcileFailure], and the run continues with the next chunk.
+   * Each chunk is best-effort per [reconcileUnlinkedClientAccounts]: a failure is logged,
+   * increments [EventGroupSyncMetrics.unlinkedReconcileFailure], and the run continues with the
+   * next chunk.
    */
   private suspend fun batchCreateUnlinkedClientAccounts(accounts: List<UnlinkedClientAccount>) {
     for (chunk in accounts.chunked(MAX_UNLINKED_BATCH_SIZE)) {
@@ -1151,8 +1156,9 @@ class EventGroupSync(
    * Deletes the accounts named by [names] via `BatchDeleteUnlinkedClientAccounts`, chunked to
    * [MAX_UNLINKED_BATCH_SIZE].
    *
-   * Each chunk is best-effort per [reconcileUnlinkedClientAccounts]: a failure is logged, increments
-   * [EventGroupSyncMetrics.unlinkedReconcileFailure], and the run continues with the next chunk.
+   * Each chunk is best-effort per [reconcileUnlinkedClientAccounts]: a failure is logged,
+   * increments [EventGroupSyncMetrics.unlinkedReconcileFailure], and the run continues with the
+   * next chunk.
    */
   private suspend fun batchDeleteUnlinkedClientAccounts(names: List<String>) {
     for (chunk in names.chunked(MAX_UNLINKED_BATCH_SIZE)) {
