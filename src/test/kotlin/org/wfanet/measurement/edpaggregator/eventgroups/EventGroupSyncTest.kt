@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.eventgroups
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Empty
 import com.google.protobuf.listValue
 import com.google.protobuf.struct
 import com.google.protobuf.timestamp
@@ -59,6 +60,8 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.api.v2alpha.BatchCreateEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.BatchCreateUnlinkedClientAccountsRequest
+import org.wfanet.measurement.api.v2alpha.BatchDeleteUnlinkedClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
@@ -72,20 +75,22 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.ListUnlinkedClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerClientAccountKey
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
-import org.wfanet.measurement.api.v2alpha.ReplaceUnlinkedClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.batchCreateEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.batchCreateUnlinkedClientAccountsResponse
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.clientAccount
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as cmmsEventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.listClientAccountsResponse
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
-import org.wfanet.measurement.api.v2alpha.replaceUnlinkedClientAccountsResponse
+import org.wfanet.measurement.api.v2alpha.listUnlinkedClientAccountsResponse
+import org.wfanet.measurement.api.v2alpha.unlinkedClientAccount
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -290,8 +295,24 @@ class EventGroupSyncTest {
 
   private val unlinkedClientAccountsServiceMock: UnlinkedClientAccountsCoroutineImplBase =
     mockService {
-      onBlocking { replaceUnlinkedClientAccounts(any<ReplaceUnlinkedClientAccountsRequest>()) }
-        .thenAnswer { replaceUnlinkedClientAccountsResponse {} }
+      onBlocking { listUnlinkedClientAccounts(any<ListUnlinkedClientAccountsRequest>()) }
+        .thenAnswer { listUnlinkedClientAccountsResponse {} }
+      onBlocking {
+          batchCreateUnlinkedClientAccounts(any<BatchCreateUnlinkedClientAccountsRequest>())
+        }
+        .thenAnswer { invocation ->
+          batchCreateUnlinkedClientAccountsResponse {
+            unlinkedClientAccounts +=
+              invocation
+                .getArgument<BatchCreateUnlinkedClientAccountsRequest>(0)
+                .requestsList
+                .map { it.unlinkedClientAccount }
+          }
+        }
+      onBlocking {
+          batchDeleteUnlinkedClientAccounts(any<BatchDeleteUnlinkedClientAccountsRequest>())
+        }
+        .thenAnswer { Empty.getDefaultInstance() }
     }
 
   private val eventGroupsStub: EventGroupsCoroutineStub by lazy {
@@ -4484,7 +4505,7 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `sync captures unlinked client account and flushes via ReplaceUnlinkedClientAccounts`() {
+  fun `sync captures unlinked client account and creates it via BatchCreateUnlinkedClientAccounts`() {
     val unlinkedEventGroup = eventGroup {
       eventGroupReferenceId = "reference-id-unlinked"
       this.eventGroupMetadata = eventGroupMetadata {
@@ -4515,16 +4536,21 @@ class EventGroupSyncTest {
       )
     runBlocking { eventGroupSync.sync().collect() }
 
-    val captor = argumentCaptor<ReplaceUnlinkedClientAccountsRequest>()
+    val createCaptor = argumentCaptor<BatchCreateUnlinkedClientAccountsRequest>()
     verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
-      replaceUnlinkedClientAccounts(captor.capture())
+      batchCreateUnlinkedClientAccounts(createCaptor.capture())
     }
-    val request = captor.firstValue
+    val request = createCaptor.firstValue
     assertThat(request.parent).isEqualTo("edp-name")
-    val account = request.unlinkedClientAccountsList.single()
+    val account = request.requestsList.single().unlinkedClientAccount
     assertThat(account.clientAccountReferenceId).isEqualTo("client-ref-nonexistent")
-    assertThat(account.brandsList).containsExactly("brand-unlinked")
+    assertThat(account.entityMetadata.fieldsMap.getValue("brand_name").stringValue)
+      .isEqualTo("brand-unlinked")
     assertThat(account.eventGroupReferenceId).isEqualTo("reference-id-unlinked")
+    // Nothing was stored before, so there is nothing to delete.
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(0)) {
+      batchDeleteUnlinkedClientAccounts(any())
+    }
   }
 
   @Test
@@ -4565,7 +4591,10 @@ class EventGroupSyncTest {
     // mislabel the account as unlinked.
     assertFailsWith<StatusException> { runBlocking { eventGroupSync.sync().collect() } }
     verifyBlocking(unlinkedClientAccountsServiceMock, times(0)) {
-      replaceUnlinkedClientAccounts(any())
+      batchCreateUnlinkedClientAccounts(any())
+    }
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(0)) {
+      batchDeleteUnlinkedClientAccounts(any())
     }
   }
 
@@ -4618,11 +4647,12 @@ class EventGroupSyncTest {
       )
     runBlocking { eventGroupSync.sync().collect() }
 
-    val captor = argumentCaptor<ReplaceUnlinkedClientAccountsRequest>()
+    val createCaptor = argumentCaptor<BatchCreateUnlinkedClientAccountsRequest>()
     verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
-      replaceUnlinkedClientAccounts(captor.capture())
+      batchCreateUnlinkedClientAccounts(createCaptor.capture())
     }
-    val refIds = captor.firstValue.unlinkedClientAccountsList.map { it.clientAccountReferenceId }
+    val refIds =
+      createCaptor.firstValue.requestsList.map { it.unlinkedClientAccount.clientAccountReferenceId }
     assertThat(refIds).containsExactly("client-ref-nonexistent")
   }
 
@@ -4659,17 +4689,20 @@ class EventGroupSyncTest {
       )
     runBlocking { eventGroupSync.sync().collect() }
 
-    val captor = argumentCaptor<ReplaceUnlinkedClientAccountsRequest>()
-    verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
-      replaceUnlinkedClientAccounts(captor.capture())
-    }
     // The event group is linked via its direct measurement_consumer, so the empty client-account
-    // lookup does not record it as unlinked.
-    assertThat(captor.firstValue.unlinkedClientAccountsList).isEmpty()
+    // lookup does not record it as unlinked. The reconcile still lists the stored set (empty here),
+    // but has nothing to create or delete.
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) { listUnlinkedClientAccounts(any()) }
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(0)) {
+      batchCreateUnlinkedClientAccounts(any())
+    }
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(0)) {
+      batchDeleteUnlinkedClientAccounts(any())
+    }
   }
 
   @Test
-  fun `sync captures unlinked account with empty brands when brand is blank`() {
+  fun `sync captures unlinked account with no entity_metadata when brand is blank`() {
     val unlinkedEventGroup = eventGroup {
       eventGroupReferenceId = "reference-id-no-brand"
       this.eventGroupMetadata = eventGroupMetadata {
@@ -4697,13 +4730,13 @@ class EventGroupSyncTest {
       )
     runBlocking { eventGroupSync.sync().collect() }
 
-    val captor = argumentCaptor<ReplaceUnlinkedClientAccountsRequest>()
+    val createCaptor = argumentCaptor<BatchCreateUnlinkedClientAccountsRequest>()
     verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
-      replaceUnlinkedClientAccounts(captor.capture())
+      batchCreateUnlinkedClientAccounts(createCaptor.capture())
     }
-    val account = captor.firstValue.unlinkedClientAccountsList.single()
+    val account = createCaptor.firstValue.requestsList.single().unlinkedClientAccount
     assertThat(account.clientAccountReferenceId).isEqualTo("client-ref-nonexistent")
-    assertThat(account.brandsList).isEmpty()
+    assertThat(account.hasEntityMetadata()).isFalse()
     assertThat(account.eventGroupReferenceId).isEqualTo("reference-id-no-brand")
   }
 
@@ -4756,11 +4789,12 @@ class EventGroupSyncTest {
       )
     runBlocking { eventGroupSync.sync().collect() }
 
-    val captor = argumentCaptor<ReplaceUnlinkedClientAccountsRequest>()
+    val createCaptor = argumentCaptor<BatchCreateUnlinkedClientAccountsRequest>()
     verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
-      replaceUnlinkedClientAccounts(captor.capture())
+      batchCreateUnlinkedClientAccounts(createCaptor.capture())
     }
-    val refIds = captor.firstValue.unlinkedClientAccountsList.map { it.clientAccountReferenceId }
+    val refIds =
+      createCaptor.firstValue.requestsList.map { it.unlinkedClientAccount.clientAccountReferenceId }
     assertThat(refIds).containsExactly("client-ref-nonexistent", "client-ref-also-nonexistent")
   }
 
@@ -4800,13 +4834,14 @@ class EventGroupSyncTest {
       )
     runBlocking { eventGroupSync.sync().collect() }
 
-    val captor = argumentCaptor<ReplaceUnlinkedClientAccountsRequest>()
+    val createCaptor = argumentCaptor<BatchCreateUnlinkedClientAccountsRequest>()
     verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
-      replaceUnlinkedClientAccounts(captor.capture())
+      batchCreateUnlinkedClientAccounts(createCaptor.capture())
     }
-    val account = captor.firstValue.unlinkedClientAccountsList.single()
+    val account = createCaptor.firstValue.requestsList.single().unlinkedClientAccount
     assertThat(account.clientAccountReferenceId).isEqualTo("client-ref-nonexistent")
-    assertThat(account.brandsList).containsExactly("brand-entity-key")
+    assertThat(account.entityMetadata.fieldsMap.getValue("brand_name").stringValue)
+      .isEqualTo("brand-entity-key")
     assertThat(account.entityKey)
       .isEqualTo(
         cmmsEntityKey {
@@ -4891,11 +4926,11 @@ class EventGroupSyncTest {
       )
     runBlocking { eventGroupSync.sync().collect() }
 
-    val captor = argumentCaptor<ReplaceUnlinkedClientAccountsRequest>()
+    val createCaptor = argumentCaptor<BatchCreateUnlinkedClientAccountsRequest>()
     verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
-      replaceUnlinkedClientAccounts(captor.capture())
+      batchCreateUnlinkedClientAccounts(createCaptor.capture())
     }
-    val account = captor.firstValue.unlinkedClientAccountsList.single()
+    val account = createCaptor.firstValue.requestsList.single().unlinkedClientAccount
     assertThat(account.clientAccountReferenceId).isEqualTo("client-ref-nonexistent")
     // entity_key wins over the observed reference id, and the smallest key is chosen.
     assertThat(account.entityKey)
@@ -4909,13 +4944,13 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `sync flushes unlinked accounts once with deduped brands`() {
+  fun `sync folds observed brands into a single brand_name using the smallest brand`() {
     val firstEventGroup = eventGroup {
       eventGroupReferenceId = "reference-id-a"
       this.eventGroupMetadata = eventGroupMetadata {
         this.adMetadata = adMetadata {
           this.campaignMetadata = campaignMetadata {
-            brand = "brand-a"
+            brand = "brand-b"
             campaign = "campaign-a"
           }
         }
@@ -4932,7 +4967,7 @@ class EventGroupSyncTest {
       this.eventGroupMetadata = eventGroupMetadata {
         this.adMetadata = adMetadata {
           this.campaignMetadata = campaignMetadata {
-            brand = "brand-b"
+            brand = "brand-a"
             campaign = "campaign-b"
           }
         }
@@ -4960,20 +4995,103 @@ class EventGroupSyncTest {
     // The lookup is cached, so the Kingdom is queried only once for the shared reference ID.
     verifyBlocking(clientAccountsServiceMock, times(1)) { listClientAccounts(any()) }
 
-    val captor = argumentCaptor<ReplaceUnlinkedClientAccountsRequest>()
+    val createCaptor = argumentCaptor<BatchCreateUnlinkedClientAccountsRequest>()
     verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
-      replaceUnlinkedClientAccounts(captor.capture())
+      batchCreateUnlinkedClientAccounts(createCaptor.capture())
     }
-    val request = captor.firstValue
+    val request = createCaptor.firstValue
     assertThat(request.parent).isEqualTo("edp-name")
-    val account = request.unlinkedClientAccountsList.single()
+    val account = request.requestsList.single().unlinkedClientAccount
     assertThat(account.clientAccountReferenceId).isEqualTo("client-ref-nonexistent")
-    assertThat(account.brandsList).containsExactly("brand-a", "brand-b")
+    // Both brands fold into a single brand_name entry set to the lexicographically smallest brand.
+    assertThat(account.entityMetadata.fieldsMap.keys).containsExactly("brand_name")
+    assertThat(account.entityMetadata.fieldsMap.getValue("brand_name").stringValue)
+      .isEqualTo("brand-a")
     assertThat(account.eventGroupReferenceId).isEqualTo("reference-id-a")
   }
 
   @Test
-  fun `sync always calls ReplaceUnlinkedClientAccounts even with no unlinked accounts`() {
+  fun `sync deletes a stale stored account that is no longer observed`() {
+    // The stored set already contains an overlap account (still observed this run) and a stale
+    // account (no longer observed). Only the stale one should be deleted; the overlap is left
+    // untouched to preserve its create_time, and the newly-observed account is created.
+    wheneverBlocking {
+        unlinkedClientAccountsServiceMock.listUnlinkedClientAccounts(
+          any<ListUnlinkedClientAccountsRequest>()
+        )
+      }
+      .thenAnswer {
+        listUnlinkedClientAccountsResponse {
+          unlinkedClientAccounts +=
+            listOf(
+              unlinkedClientAccount {
+                name = "dataProviders/edp-name/unlinkedClientAccounts/client-ref-overlap"
+                clientAccountReferenceId = "client-ref-overlap"
+              },
+              unlinkedClientAccount {
+                name = "dataProviders/edp-name/unlinkedClientAccounts/client-ref-stale"
+                clientAccountReferenceId = "client-ref-stale"
+              },
+            )
+        }
+      }
+
+    fun unlinkedEventGroup(refId: String, clientRef: String) = eventGroup {
+      eventGroupReferenceId = refId
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-$refId"
+            campaign = "campaign-$refId"
+          }
+        }
+      }
+      clientAccountReferenceId = clientRef
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes += listOf(MediaType.OTHER)
+    }
+
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        unlinkedClientAccountsStub,
+        listOf(
+            unlinkedEventGroup("reference-id-overlap", "client-ref-overlap"),
+            unlinkedEventGroup("reference-id-new", "client-ref-nonexistent"),
+          )
+          .asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+        entityKeyTypes = emptyList(),
+      )
+    runBlocking { eventGroupSync.sync().collect() }
+
+    // Only the newly-observed account is created; the overlap is left untouched.
+    val createCaptor = argumentCaptor<BatchCreateUnlinkedClientAccountsRequest>()
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
+      batchCreateUnlinkedClientAccounts(createCaptor.capture())
+    }
+    val createdRefIds =
+      createCaptor.firstValue.requestsList.map { it.unlinkedClientAccount.clientAccountReferenceId }
+    assertThat(createdRefIds).containsExactly("client-ref-nonexistent")
+
+    // Only the stale stored account is deleted, by resource name.
+    val deleteCaptor = argumentCaptor<BatchDeleteUnlinkedClientAccountsRequest>()
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
+      batchDeleteUnlinkedClientAccounts(deleteCaptor.capture())
+    }
+    assertThat(deleteCaptor.firstValue.parent).isEqualTo("edp-name")
+    assertThat(deleteCaptor.firstValue.namesList)
+      .containsExactly("dataProviders/edp-name/unlinkedClientAccounts/client-ref-stale")
+  }
+
+  @Test
+  fun `sync issues no reconcile writes when the observed and stored sets match`() {
     val eventGroupSync =
       EventGroupSync(
         "edp-name",
@@ -4987,16 +5105,19 @@ class EventGroupSyncTest {
       )
     runBlocking { eventGroupSync.sync().collect() }
 
-    val captor = argumentCaptor<ReplaceUnlinkedClientAccountsRequest>()
-    verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
-      replaceUnlinkedClientAccounts(captor.capture())
+    // The reconcile lists the stored set (empty) and observes no unlinked accounts, so no
+    // create/delete RPC is issued.
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) { listUnlinkedClientAccounts(any()) }
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(0)) {
+      batchCreateUnlinkedClientAccounts(any())
     }
-    assertThat(captor.firstValue.parent).isEqualTo("edp-name")
-    assertThat(captor.firstValue.unlinkedClientAccountsList).isEmpty()
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(0)) {
+      batchDeleteUnlinkedClientAccounts(any())
+    }
   }
 
   @Test
-  fun `sync skips ReplaceUnlinkedClientAccounts when no event groups are observed`() {
+  fun `sync skips reconcile when no event groups are observed`() {
     val eventGroupSync =
       EventGroupSync(
         "edp-name",
@@ -5012,14 +5133,65 @@ class EventGroupSyncTest {
 
     // A run that streams zero event groups must not reconcile, so a transient empty read never
     // wipes the stored unlinked accounts from a prior run.
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(0)) { listUnlinkedClientAccounts(any()) }
     verifyBlocking(unlinkedClientAccountsServiceMock, times(0)) {
-      replaceUnlinkedClientAccounts(any())
+      batchCreateUnlinkedClientAccounts(any())
+    }
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(0)) {
+      batchDeleteUnlinkedClientAccounts(any())
     }
   }
 
   @Test
-  fun `sync does not fail the run when ReplaceUnlinkedClientAccounts fails`() {
-    wheneverBlocking { unlinkedClientAccountsServiceMock.replaceUnlinkedClientAccounts(any()) }
+  fun `sync creates unlinked accounts in multiple batches when exceeding MAX_UNLINKED_BATCH_SIZE`() {
+    // 1001 distinct unlinked client accounts must be split into two BatchCreate RPCs (1000 + 1).
+    val unlinkedEventGroups =
+      (0 until 1001).map { i ->
+        eventGroup {
+          eventGroupReferenceId = "reference-id-bulk-%04d".format(i)
+          this.eventGroupMetadata = eventGroupMetadata {
+            this.adMetadata = adMetadata {
+              this.campaignMetadata = campaignMetadata {
+                brand = "brand-bulk-%04d".format(i)
+                campaign = "campaign-bulk-%04d".format(i)
+              }
+            }
+          }
+          clientAccountReferenceId = "bulk-ref-%04d".format(i)
+          dataAvailabilityInterval = interval {
+            startTime = timestamp { seconds = 200 }
+            endTime = timestamp { seconds = 300 }
+          }
+          mediaTypes += listOf(MediaType.OTHER)
+        }
+      }
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        unlinkedClientAccountsStub,
+        unlinkedEventGroups.asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1)),
+        100,
+        entityKeyTypes = emptyList(),
+      )
+    runBlocking { eventGroupSync.sync().collect() }
+
+    val createCaptor = argumentCaptor<BatchCreateUnlinkedClientAccountsRequest>()
+    verifyBlocking(unlinkedClientAccountsServiceMock, times(2)) {
+      batchCreateUnlinkedClientAccounts(createCaptor.capture())
+    }
+    val chunkSizes = createCaptor.allValues.map { it.requestsList.size }
+    assertThat(chunkSizes).containsExactly(1000, 1).inOrder()
+    assertThat(chunkSizes.sum()).isEqualTo(1001)
+  }
+
+  @Test
+  fun `sync does not fail the run when BatchCreateUnlinkedClientAccounts fails`() {
+    wheneverBlocking {
+        unlinkedClientAccountsServiceMock.batchCreateUnlinkedClientAccounts(any())
+      }
       .thenThrow(
         StatusRuntimeException(io.grpc.Status.UNAVAILABLE.withDescription("transient outage"))
       )
@@ -5076,7 +5248,7 @@ class EventGroupSyncTest {
     // run completes and the next reconcile catches up.
     val result = runBlocking { eventGroupSync.sync().toList() }
     verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
-      replaceUnlinkedClientAccounts(any())
+      batchCreateUnlinkedClientAccounts(any())
     }
 
     // Despite the reconcile failure, the linked event group in the same run still synced: its
