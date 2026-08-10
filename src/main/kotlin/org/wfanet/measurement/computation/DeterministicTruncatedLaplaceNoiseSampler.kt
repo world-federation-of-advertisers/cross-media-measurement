@@ -57,8 +57,8 @@ class DeterministicTruncatedLaplaceNoiseSampler(
      *
      * This is the truncated Laplace mechanism of Geng et al., "Privacy and Utility Tradeoff in
      * Approximate Differential Privacy" (arXiv:1810.00877), Definition 3. T is the smallest
-     * threshold at which the mechanism is ([epsilon], [delta])-DP, proved there for all
-     * ([epsilon], [delta]) and [sensitivity], so no regime check is needed.
+     * threshold at which the mechanism is ([epsilon], [delta])-DP, proved there for all ([epsilon],
+     * [delta]) and [sensitivity], so no regime check is needed.
      *
      * [StrictMath] keeps T bit-reproducible across JVMs, matching the draw it bounds and any
      * variance derived from it.

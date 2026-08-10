@@ -44,8 +44,8 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
   fun `impression count is capped and drawn on its own label`() {
     // Capped sum over [10, 4, 1] at 3 per user is 1*10 + 2*4 + 3*1 = 21; the draw on the impression
     // label at sensitivity 3 is -5, using the bound derived for that sensitivity (20.27, not the
-    // 6.76 of the unit-sensitivity draws). Distinct from the bucket labels, so it is not the weighted sum
-    // of the bucket draws.
+    // 6.76 of the unit-sensitivity draws). Distinct from the bucket labels, so it is not the
+    // weighted sum of the bucket draws.
     assertThat(noiser().noiseImpressionsFromFrequencyHistogram(longArrayOf(10, 4, 1)))
       .isEqualTo(16L)
   }
