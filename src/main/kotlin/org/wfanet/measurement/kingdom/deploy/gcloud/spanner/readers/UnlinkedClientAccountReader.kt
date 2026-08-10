@@ -54,7 +54,9 @@ class UnlinkedClientAccountReader : SpannerReader<UnlinkedClientAccountReader.Re
   override suspend fun translate(struct: Struct): Result =
     Result(struct.getInternalId("DataProviderId"), buildUnlinkedClientAccount(struct))
 
-  /** Reads the [UnlinkedClientAccount] for [externalDataProviderId] and [clientAccountReferenceId]. */
+  /**
+   * Reads the [UnlinkedClientAccount] for [externalDataProviderId] and [clientAccountReferenceId].
+   */
   suspend fun readByDataProviderAndReferenceId(
     readContext: AsyncDatabaseClient.ReadContext,
     externalDataProviderId: ExternalId,

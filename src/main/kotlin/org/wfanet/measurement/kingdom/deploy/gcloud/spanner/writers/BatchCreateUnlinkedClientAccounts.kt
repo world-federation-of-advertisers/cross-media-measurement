@@ -82,9 +82,7 @@ class BatchCreateUnlinkedClientAccounts(
         )
       }
 
-    return batchCreateUnlinkedClientAccountsResponse {
-      unlinkedClientAccounts += createdAccounts
-    }
+    return batchCreateUnlinkedClientAccountsResponse { unlinkedClientAccounts += createdAccounts }
   }
 
   private fun TransactionScope.createUnlinkedClientAccount(

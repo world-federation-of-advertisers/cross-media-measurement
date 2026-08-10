@@ -57,9 +57,7 @@ class BatchDeleteUnlinkedClientAccounts(
       transactionContext.buffer(
         Mutation.delete(
           "UnlinkedClientAccounts",
-          KeySet.singleKey(
-            Key.of(result.dataProviderId.value, subRequest.clientAccountReferenceId)
-          ),
+          KeySet.singleKey(Key.of(result.dataProviderId.value, subRequest.clientAccountReferenceId)),
         )
       )
     }
