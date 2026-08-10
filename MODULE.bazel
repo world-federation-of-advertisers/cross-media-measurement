@@ -27,15 +27,6 @@ bazel_dep(
     version = "0.15.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
-
-# DO_NOT_SUBMIT: temporarily build against the unmerged rules_kotlin_jvm branch that raises the
-# Kotlin jvm_target to 17. Remove this override and bump the version above once that PR is merged
-# and released.
-git_override(
-    module_name = "rules_kotlin_jvm",
-    commit = "f1c65949a717e4d78923449c8f518f4bfef107d7",
-    remote = "https://github.com/world-federation-of-advertisers/rules_kotlin_jvm.git",
-)
 bazel_dep(
     name = "rules_swig",
     version = "0.1.0",
@@ -53,11 +44,11 @@ bazel_dep(
 )
 
 # DO_NOT_SUBMIT: temporarily build against the unmerged common-jvm branch that moves the
-# Confidential Space token client onto OkHttp over a JDK Unix domain socket. Remove this
-# override and bump the common-jvm version above once that PR is merged and released.
+# Confidential Space token client onto Reactor Netty. Remove this override and bump the
+# common-jvm version above once that PR is merged and released.
 git_override(
     module_name = "common-jvm",
-    commit = "f252e5ba69efc7c0245fd391e6de4a723be7e691",
+    commit = "526360966223b8b92a4422940e25162ca4cc142b",
     remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
 bazel_dep(
@@ -255,6 +246,8 @@ maven.install(
     artifacts = [
         "com.google.crypto.tink:tink-awskms:1.11.0",
         "com.google.crypto.tink:tink-gcpkms:1.9.0",
+        "com.squareup.okhttp3:okhttp",
+        "com.squareup.okhttp3:okhttp-tls",
         "com.google.privacy.differentialprivacy:differentialprivacy:4.0.0",
 
         # OpenTelemetry SDK metrics (sdk is available from common-jvm, but sdk-metrics is not exposed)
@@ -329,6 +322,7 @@ maven.install(
         "io.ktor:ktor-serialization-kotlinx-json-jvm",
     ],
     boms = [
+        "com.squareup.okhttp3:okhttp-bom:4.12.0",
         "io.ktor:ktor-bom:3.3.3",
         "org.apache.beam:beam-sdks-java-bom:" + APACHE_BEAM_VERSION,
         "org.projectnessie.cel:cel-bom:0.5.0",
