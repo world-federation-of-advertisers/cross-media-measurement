@@ -361,9 +361,9 @@ class DashboardIsolationChecks(
           setOf(
             "CmmsDataProvider",
             "ClientAccountReferenceId",
-            "Brands",
+            "BrandName",
             "ObservedEventGroup",
-            "FirstObservedTime",
+            "CreateTime",
           ),
         "requisition_overview" to
           setOf(
