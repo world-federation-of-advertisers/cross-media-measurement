@@ -50,15 +50,18 @@ class DeterministicTruncatedLaplaceNoiseSampler(
      * query of L1 [sensitivity].
      *
      * The noise is Laplace with scale `b = sensitivity / epsilon` (the scale that makes the
-     * untruncated Laplace epsilon-DP), truncated to `[-T, T]` at the optimal threshold:
+     * untruncated Laplace epsilon-DP), truncated to `[-T, T]`:
      * ```
      * T = (sensitivity / epsilon) * ln(1 + (e^epsilon - 1) / (2 * delta))
      * ```
      *
-     * This is Geng et al., "Privacy and Utility Tradeoff in Approximate Differential Privacy"
-     * (arXiv:1810.00877), Definition 3, where the truncated Laplace is proved to be the optimal
-     * ([epsilon], [delta])-DP additive-noise mechanism and this threshold is proved tight. It holds
-     * for every ([epsilon], [delta]) and [sensitivity], so no regime check is needed.
+     * This is the truncated Laplace mechanism of Geng et al., "Privacy and Utility Tradeoff in
+     * Approximate Differential Privacy" (arXiv:1810.00877), Definition 3. T is the smallest
+     * threshold at which the mechanism is ([epsilon], [delta])-DP, proved there for all
+     * ([epsilon], [delta]) and [sensitivity], so no regime check is needed. That paper also shows
+     * the mechanism minimizes noise amplitude and power among ([epsilon], [delta])-DP
+     * additive-noise mechanisms, but establishes that asymptotically in high-privacy regimes;
+     * nothing here relies on it.
      *
      * [StrictMath] keeps T bit-reproducible across JVMs, matching the draw it bounds and any
      * variance derived from it.
