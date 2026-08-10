@@ -58,8 +58,8 @@ import org.wfanet.measurement.internal.kingdom.ListUnlinkedClientAccountsRequest
 import org.wfanet.measurement.internal.kingdom.UnlinkedClientAccount as InternalUnlinkedClientAccount
 import org.wfanet.measurement.internal.kingdom.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineImplBase as InternalUnlinkedClientAccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineStub as InternalUnlinkedClientAccountsCoroutineStub
-import org.wfanet.measurement.internal.kingdom.batchCreateUnlinkedClientAccountsResponse as internalBatchCreateUnlinkedClientAccountsResponse
 import org.wfanet.measurement.internal.kingdom.batchCreateUnlinkedClientAccountsRequest as internalBatchCreateUnlinkedClientAccountsRequest
+import org.wfanet.measurement.internal.kingdom.batchCreateUnlinkedClientAccountsResponse as internalBatchCreateUnlinkedClientAccountsResponse
 import org.wfanet.measurement.internal.kingdom.batchDeleteUnlinkedClientAccountsRequest as internalBatchDeleteUnlinkedClientAccountsRequest
 import org.wfanet.measurement.internal.kingdom.createUnlinkedClientAccountRequest as internalCreateUnlinkedClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.deleteUnlinkedClientAccountRequest as internalDeleteUnlinkedClientAccountRequest
@@ -82,9 +82,7 @@ private const val REFERENCE_ID = "ref-1"
 private val UNLINKED_CLIENT_ACCOUNT_NAME =
   UnlinkedClientAccountKey(externalIdToApiId(EXTERNAL_DATA_PROVIDER_ID), REFERENCE_ID).toName()
 
-private val ENTITY_METADATA = struct {
-  fields["brand"] = value { stringValue = "Blammo!" }
-}
+private val ENTITY_METADATA = struct { fields["brand"] = value { stringValue = "Blammo!" } }
 
 private val INTERNAL_UNLINKED_CLIENT_ACCOUNT: InternalUnlinkedClientAccount =
   internalUnlinkedClientAccount {
@@ -106,8 +104,7 @@ private val UNLINKED_CLIENT_ACCOUNT: UnlinkedClientAccount = unlinkedClientAccou
 @RunWith(JUnit4::class)
 class UnlinkedClientAccountsServiceTest {
   private val internalServiceMock: InternalUnlinkedClientAccountsCoroutineImplBase = mockService {
-    onBlocking { createUnlinkedClientAccount(any()) }
-      .thenReturn(INTERNAL_UNLINKED_CLIENT_ACCOUNT)
+    onBlocking { createUnlinkedClientAccount(any()) }.thenReturn(INTERNAL_UNLINKED_CLIENT_ACCOUNT)
     onBlocking { batchCreateUnlinkedClientAccounts(any()) }
       .thenReturn(
         internalBatchCreateUnlinkedClientAccountsResponse {
@@ -590,7 +587,10 @@ class UnlinkedClientAccountsServiceTest {
     internalServiceMock.stub {
       onBlocking { getUnlinkedClientAccount(any()) }
         .thenThrow(
-          UnlinkedClientAccountNotFoundException(ExternalId(EXTERNAL_DATA_PROVIDER_ID), REFERENCE_ID)
+          UnlinkedClientAccountNotFoundException(
+              ExternalId(EXTERNAL_DATA_PROVIDER_ID),
+              REFERENCE_ID,
+            )
             .asStatusRuntimeException(Status.Code.NOT_FOUND, "UnlinkedClientAccount not found.")
         )
     }
@@ -666,8 +666,7 @@ class UnlinkedClientAccountsServiceTest {
         runBlocking { service.listUnlinkedClientAccounts(request) }
       }
 
-    assertThat(result.nextPageToken)
-      .isEqualTo(internalToken.toByteString().base64UrlEncode())
+    assertThat(result.nextPageToken).isEqualTo(internalToken.toByteString().base64UrlEncode())
   }
 
   @Test
@@ -850,7 +849,10 @@ class UnlinkedClientAccountsServiceTest {
     internalServiceMock.stub {
       onBlocking { deleteUnlinkedClientAccount(any()) }
         .thenThrow(
-          UnlinkedClientAccountNotFoundException(ExternalId(EXTERNAL_DATA_PROVIDER_ID), REFERENCE_ID)
+          UnlinkedClientAccountNotFoundException(
+              ExternalId(EXTERNAL_DATA_PROVIDER_ID),
+              REFERENCE_ID,
+            )
             .asStatusRuntimeException(Status.Code.NOT_FOUND, "UnlinkedClientAccount not found.")
         )
     }

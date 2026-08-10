@@ -206,8 +206,7 @@ abstract class UnlinkedClientAccountsServiceTest<T : UnlinkedClientAccountsCorou
         errorInfo {
           domain = KingdomInternalException.DOMAIN
           reason = ErrorCode.UNLINKED_CLIENT_ACCOUNT_ALREADY_EXISTS.name
-          metadata["external_data_provider_id"] =
-            dataProvider.externalDataProviderId.toString()
+          metadata["external_data_provider_id"] = dataProvider.externalDataProviderId.toString()
           metadata["client_account_reference_id"] = "ref-1"
         }
       )
@@ -421,8 +420,7 @@ abstract class UnlinkedClientAccountsServiceTest<T : UnlinkedClientAccountsCorou
         errorInfo {
           domain = KingdomInternalException.DOMAIN
           reason = ErrorCode.UNLINKED_CLIENT_ACCOUNT_NOT_FOUND.name
-          metadata["external_data_provider_id"] =
-            dataProvider.externalDataProviderId.toString()
+          metadata["external_data_provider_id"] = dataProvider.externalDataProviderId.toString()
           metadata["client_account_reference_id"] = "missing"
         }
       )
@@ -482,8 +480,7 @@ abstract class UnlinkedClientAccountsServiceTest<T : UnlinkedClientAccountsCorou
         errorInfo {
           domain = KingdomInternalException.DOMAIN
           reason = ErrorCode.UNLINKED_CLIENT_ACCOUNT_NOT_FOUND.name
-          metadata["external_data_provider_id"] =
-            dataProvider.externalDataProviderId.toString()
+          metadata["external_data_provider_id"] = dataProvider.externalDataProviderId.toString()
           metadata["client_account_reference_id"] = "missing"
         }
       )

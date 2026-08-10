@@ -27,7 +27,8 @@ service UnlinkedClientAccounts {
   rpc CreateUnlinkedClientAccount(CreateUnlinkedClientAccountRequest)
       returns (UnlinkedClientAccount);
 
-  rpc BatchCreateUnlinkedClientAccounts(BatchCreateUnlinkedClientAccountsRequest)
+  rpc BatchCreateUnlinkedClientAccounts(
+      BatchCreateUnlinkedClientAccountsRequest)
       returns (BatchCreateUnlinkedClientAccountsResponse);
 
   rpc GetUnlinkedClientAccount(GetUnlinkedClientAccountRequest)
@@ -36,8 +37,8 @@ service UnlinkedClientAccounts {
   rpc DeleteUnlinkedClientAccount(DeleteUnlinkedClientAccountRequest)
       returns (UnlinkedClientAccount);
 
-  rpc BatchDeleteUnlinkedClientAccounts(BatchDeleteUnlinkedClientAccountsRequest)
-      returns (google.protobuf.Empty);
+  rpc BatchDeleteUnlinkedClientAccounts(
+      BatchDeleteUnlinkedClientAccountsRequest) returns (google.protobuf.Empty);
 
   // Lists UnlinkedClientAccounts ordered by `client_account_reference_id`
   // ascending.
