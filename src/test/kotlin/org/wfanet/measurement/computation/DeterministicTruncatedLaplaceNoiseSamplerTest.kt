@@ -95,7 +95,7 @@ class DeterministicTruncatedLaplaceNoiseSamplerTest {
   @Test
   fun `forDifferentialPrivacy calibrates the draw from the privacy params`() {
     // Golden rounded draws for the same seed at two sensitivities, computed off-code from
-    // scale = sensitivity / epsilon and bound = ceil(scale * ln(1 / delta)) + 1. Larger sensitivity
+    // scale = sensitivity / epsilon and the Geng et al. Definition 3 bound. Larger sensitivity
     // widens the scale, so the draw grows; the exact per-quantity bounds are pinned end-to-end by
     // DeterministicTruncatedLaplaceResultNoiserTest.
     val unit =
@@ -131,24 +131,14 @@ class DeterministicTruncatedLaplaceNoiseSamplerTest {
   }
 
   @Test
-  fun `forDifferentialPrivacy rejects params where the bound falls below the optimal`() {
-    // High epsilon with sensitivity > 1: the tail-mass + 1 threshold undershoots the tight
-    // (epsilon, delta) bound, so it would not be (epsilon, delta)-DP.
-    assertFailsWith<IllegalArgumentException> {
-      DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy(2.0, 1.0 / 1000, 126.0)
-    }
-  }
-
-  @Test
-  fun `forDifferentialPrivacy accepts high sensitivity at the compiled epsilon of 1`() {
-    // At epsilon 1 the tail-mass bound stays above the tight optimal for every sensitivity, so a
-    // high-sensitivity draw (the impression threshold) is accepted, not rejected by the guard. The
-    // bound is ceil(126 * ln(1000)) + 1 = 872, so draws stay within +/-872.
+  fun `forDifferentialPrivacy bounds a high-sensitivity draw`() {
+    // The impression-threshold draw, at the largest sensitivity in use. The bound is
+    // 126 * ln(1 + (e - 1) / 0.002) = 851.39, so draws stay within +/-851.
     val sampler =
       DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy(1.0, 1.0 / 1000, 126.0)
     val draw = sampler.sampleRounded(fingerprint, label)
-    assertThat(draw).isAtLeast(-872L)
-    assertThat(draw).isAtMost(872L)
+    assertThat(draw).isAtLeast(-851L)
+    assertThat(draw).isAtMost(851L)
   }
 
   companion object {
