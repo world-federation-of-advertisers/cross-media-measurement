@@ -341,6 +341,23 @@ class UnlinkedClientAccountsServiceTest {
   }
 
   @Test
+  fun `createUnlinkedClientAccount throws INVALID_ARGUMENT when reference id is not URL-safe`() {
+    val request = createUnlinkedClientAccountRequest {
+      parent = DATA_PROVIDER_NAME
+      unlinkedClientAccount = unlinkedClientAccount { clientAccountReferenceId = "not/url safe" }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.createUnlinkedClientAccount(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("URL-safe")
+  }
+
+  @Test
   fun `createUnlinkedClientAccount throws NOT_FOUND when DataProvider not found`() {
     internalServiceMock.stub {
       onBlocking { createUnlinkedClientAccount(any()) }
@@ -466,6 +483,45 @@ class UnlinkedClientAccountsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `batchCreateUnlinkedClientAccounts allows unset parent in child request`() {
+    val request = batchCreateUnlinkedClientAccountsRequest {
+      parent = DATA_PROVIDER_NAME
+      requests += createUnlinkedClientAccountRequest {
+        unlinkedClientAccount = unlinkedClientAccount {
+          clientAccountReferenceId = REFERENCE_ID
+          entityMetadata = ENTITY_METADATA
+          eventGroupReferenceId = "eg-1"
+        }
+      }
+    }
+
+    val result =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.batchCreateUnlinkedClientAccounts(request) }
+      }
+
+    assertThat(result.unlinkedClientAccountsList).containsExactly(UNLINKED_CLIENT_ACCOUNT)
+
+    verifyProtoArgument(
+        internalServiceMock,
+        InternalUnlinkedClientAccountsCoroutineImplBase::batchCreateUnlinkedClientAccounts,
+      )
+      .isEqualTo(
+        internalBatchCreateUnlinkedClientAccountsRequest {
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          requests += internalCreateUnlinkedClientAccountRequest {
+            unlinkedClientAccount = internalUnlinkedClientAccount {
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+              clientAccountReferenceId = REFERENCE_ID
+              entityMetadata = ENTITY_METADATA
+              eventGroupReferenceId = "eg-1"
+            }
+          }
+        }
+      )
   }
 
   @Test
@@ -767,6 +823,55 @@ class UnlinkedClientAccountsServiceTest {
   }
 
   @Test
+  fun `listUnlinkedClientAccounts uses default page size when unspecified`() {
+    val request = listUnlinkedClientAccountsRequest { parent = DATA_PROVIDER_NAME }
+
+    withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+      runBlocking { service.listUnlinkedClientAccounts(request) }
+    }
+
+    verifyProtoArgument(
+        internalServiceMock,
+        InternalUnlinkedClientAccountsCoroutineImplBase::listUnlinkedClientAccounts,
+      )
+      .isEqualTo(
+        internalListUnlinkedClientAccountsRequest {
+          filter =
+            ListUnlinkedClientAccountsRequestKt.filter {
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            }
+          pageSize = 50
+        }
+      )
+  }
+
+  @Test
+  fun `listUnlinkedClientAccounts coerces page size above max`() {
+    val request = listUnlinkedClientAccountsRequest {
+      parent = DATA_PROVIDER_NAME
+      pageSize = 5000
+    }
+
+    withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+      runBlocking { service.listUnlinkedClientAccounts(request) }
+    }
+
+    verifyProtoArgument(
+        internalServiceMock,
+        InternalUnlinkedClientAccountsCoroutineImplBase::listUnlinkedClientAccounts,
+      )
+      .isEqualTo(
+        internalListUnlinkedClientAccountsRequest {
+          filter =
+            ListUnlinkedClientAccountsRequestKt.filter {
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            }
+          pageSize = 1000
+        }
+      )
+  }
+
+  @Test
   fun `listUnlinkedClientAccounts throws INVALID_ARGUMENT when page size negative`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -913,6 +1018,24 @@ class UnlinkedClientAccountsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `batchDeleteUnlinkedClientAccounts throws INVALID_ARGUMENT when name duplicated`() {
+    val request = batchDeleteUnlinkedClientAccountsRequest {
+      parent = DATA_PROVIDER_NAME
+      names += UNLINKED_CLIENT_ACCOUNT_NAME
+      names += UNLINKED_CLIENT_ACCOUNT_NAME
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.batchDeleteUnlinkedClientAccounts(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("duplicate")
   }
 
   @Test

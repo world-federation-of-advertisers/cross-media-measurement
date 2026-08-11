@@ -265,7 +265,9 @@ class UnlinkedClientAccountsService(
         ListUnlinkedClientAccountsRequestKt.filter {
           this.externalDataProviderId = externalDataProviderId
         }
-      pageSize = request.pageSize
+      pageSize =
+        if (request.pageSize == 0) DEFAULT_PAGE_SIZE
+        else request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
       if (internalPageToken != null) {
         pageToken = internalPageToken
       }
@@ -349,6 +351,7 @@ class UnlinkedClientAccountsService(
       "names count exceeds maximum batch size of $MAX_BATCH_SIZE"
     }
 
+    val referenceIds = mutableSetOf<String>()
     val keys =
       request.namesList.map { name ->
         val key =
@@ -360,6 +363,9 @@ class UnlinkedClientAccountsService(
               "Resource $name does not match parent ${request.parent}"
             )
             .asRuntimeException()
+        }
+        grpcRequire(referenceIds.add(key.unlinkedClientAccountId)) {
+          "Resource name $name is a duplicate"
         }
         key
       }
@@ -394,11 +400,18 @@ class UnlinkedClientAccountsService(
     grpcRequire(referenceId.length <= MAX_REFERENCE_ID_LENGTH) {
       "unlinked_client_account.client_account_reference_id must be <= $MAX_REFERENCE_ID_LENGTH characters"
     }
+    grpcRequire(RESOURCE_ID_REGEX.matches(referenceId)) {
+      "unlinked_client_account.client_account_reference_id must be URL-safe"
+    }
   }
 
   companion object {
     private const val MAX_BATCH_SIZE = 1000
     private const val MAX_REFERENCE_ID_LENGTH = 36
+    private const val DEFAULT_PAGE_SIZE = 50
+    private const val MAX_PAGE_SIZE = 1000
+    // Unreserved characters per RFC 3986; URL-encoding or -decoding is a no-op.
+    private val RESOURCE_ID_REGEX = Regex("^[a-zA-Z0-9._~-]+$")
   }
 }
 
