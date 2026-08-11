@@ -23,8 +23,10 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.internal.kingdom.UnlinkedClientAccount
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountAlreadyExistsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.UnlinkedClientAccountAlreadyExistsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ClientAccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.UnlinkedClientAccountReader
 
@@ -57,6 +59,20 @@ class CreateUnlinkedClientAccount(private val unlinkedClientAccount: UnlinkedCli
         )
     if (existing != null) {
       throw UnlinkedClientAccountAlreadyExistsException(
+        externalDataProviderId,
+        unlinkedClientAccount.clientAccountReferenceId,
+      )
+    }
+
+    val existingClientAccount =
+      ClientAccountReader()
+        .readByDataProviderAndReferenceId(
+          transactionContext,
+          externalDataProviderId,
+          unlinkedClientAccount.clientAccountReferenceId,
+        )
+    if (existingClientAccount != null) {
+      throw ClientAccountAlreadyExistsException(
         externalDataProviderId,
         unlinkedClientAccount.clientAccountReferenceId,
       )

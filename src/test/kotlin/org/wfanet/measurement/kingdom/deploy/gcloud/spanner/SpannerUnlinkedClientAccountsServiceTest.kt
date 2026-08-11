@@ -42,6 +42,9 @@ class SpannerUnlinkedClientAccountsServiceTest :
     return Services(
       spannerServices.unlinkedClientAccountsService as SpannerUnlinkedClientAccountsService,
       spannerServices.dataProvidersService,
+      spannerServices.clientAccountsService,
+      spannerServices.measurementConsumersService,
+      spannerServices.accountsService,
     )
   }
 

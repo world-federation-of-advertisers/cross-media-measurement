@@ -37,6 +37,7 @@ import org.wfanet.measurement.internal.kingdom.UnlinkedClientAccount
 import org.wfanet.measurement.internal.kingdom.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.listUnlinkedClientAccountsPageToken
 import org.wfanet.measurement.internal.kingdom.listUnlinkedClientAccountsResponse
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountAlreadyExistsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
@@ -277,6 +278,11 @@ class SpannerUnlinkedClientAccountsService(
       throw e.asStatusRuntimeException(
         Status.Code.ALREADY_EXISTS,
         "UnlinkedClientAccount with this reference ID already exists for DataProvider.",
+      )
+    } catch (e: ClientAccountAlreadyExistsException) {
+      throw e.asStatusRuntimeException(
+        Status.Code.ALREADY_EXISTS,
+        "A ClientAccount with this reference ID already exists for DataProvider.",
       )
     }
   }

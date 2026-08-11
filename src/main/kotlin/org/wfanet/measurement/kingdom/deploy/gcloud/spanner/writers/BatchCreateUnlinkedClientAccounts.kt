@@ -25,8 +25,10 @@ import org.wfanet.measurement.internal.kingdom.BatchCreateUnlinkedClientAccounts
 import org.wfanet.measurement.internal.kingdom.UnlinkedClientAccount
 import org.wfanet.measurement.internal.kingdom.batchCreateUnlinkedClientAccountsResponse
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ClientAccountAlreadyExistsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.UnlinkedClientAccountAlreadyExistsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ClientAccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.UnlinkedClientAccountReader
 
@@ -67,6 +69,20 @@ class BatchCreateUnlinkedClientAccounts(
           )
       if (existing != null) {
         throw UnlinkedClientAccountAlreadyExistsException(
+          externalDataProviderId,
+          subRequest.unlinkedClientAccount.clientAccountReferenceId,
+        )
+      }
+
+      val existingClientAccount =
+        ClientAccountReader()
+          .readByDataProviderAndReferenceId(
+            transactionContext,
+            externalDataProviderId,
+            subRequest.unlinkedClientAccount.clientAccountReferenceId,
+          )
+      if (existingClientAccount != null) {
+        throw ClientAccountAlreadyExistsException(
           externalDataProviderId,
           subRequest.unlinkedClientAccount.clientAccountReferenceId,
         )

@@ -53,6 +53,7 @@ message CreateUnlinkedClientAccountRequest {
 message BatchCreateUnlinkedClientAccountsRequest {
   // External ID of the owning `DataProvider`. Required.
   fixed64 external_data_provider_id = 1;
+  // A maximum of 1000 UnlinkedClientAccounts can be created in a batch.
   repeated CreateUnlinkedClientAccountRequest requests = 2;
 }
 
@@ -77,6 +78,7 @@ message DeleteUnlinkedClientAccountRequest {
 message BatchDeleteUnlinkedClientAccountsRequest {
   // External ID of the owning `DataProvider`. Required.
   fixed64 external_data_provider_id = 1;
+  // A maximum of 1000 UnlinkedClientAccounts can be deleted in a batch.
   repeated DeleteUnlinkedClientAccountRequest requests = 2;
 }
 

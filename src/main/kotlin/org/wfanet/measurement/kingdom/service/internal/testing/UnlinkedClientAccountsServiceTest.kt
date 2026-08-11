@@ -35,15 +35,20 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.EventGroupKt
 import org.wfanet.measurement.internal.kingdom.ListUnlinkedClientAccountsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.UnlinkedClientAccount
 import org.wfanet.measurement.internal.kingdom.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.batchCreateUnlinkedClientAccountsRequest
 import org.wfanet.measurement.internal.kingdom.batchDeleteUnlinkedClientAccountsRequest
+import org.wfanet.measurement.internal.kingdom.clientAccount
+import org.wfanet.measurement.internal.kingdom.createClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.createUnlinkedClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.deleteUnlinkedClientAccountRequest
 import org.wfanet.measurement.internal.kingdom.getUnlinkedClientAccountRequest
@@ -59,6 +64,9 @@ abstract class UnlinkedClientAccountsServiceTest<T : UnlinkedClientAccountsCorou
   protected data class Services<T>(
     val unlinkedClientAccountsService: T,
     val dataProvidersService: DataProvidersCoroutineImplBase,
+    val clientAccountsService: ClientAccountsCoroutineImplBase,
+    val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
+    val accountsService: AccountsCoroutineImplBase,
   )
 
   private val clock: Clock = Clock.systemUTC()
@@ -71,6 +79,15 @@ abstract class UnlinkedClientAccountsServiceTest<T : UnlinkedClientAccountsCorou
   protected lateinit var dataProvidersService: DataProvidersCoroutineImplBase
     private set
 
+  protected lateinit var clientAccountsService: ClientAccountsCoroutineImplBase
+    private set
+
+  protected lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
+    private set
+
+  protected lateinit var accountsService: AccountsCoroutineImplBase
+    private set
+
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
   @Before
@@ -78,6 +95,9 @@ abstract class UnlinkedClientAccountsServiceTest<T : UnlinkedClientAccountsCorou
     val services = newServices(idGenerator)
     unlinkedClientAccountsService = services.unlinkedClientAccountsService
     dataProvidersService = services.dataProvidersService
+    clientAccountsService = services.clientAccountsService
+    measurementConsumersService = services.measurementConsumersService
+    accountsService = services.accountsService
   }
 
   @Test
@@ -211,6 +231,80 @@ abstract class UnlinkedClientAccountsServiceTest<T : UnlinkedClientAccountsCorou
         }
       )
   }
+
+  @Test
+  fun `createUnlinkedClientAccount fails when a ClientAccount already exists`(): Unit =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider = population.createDataProvider(dataProvidersService)
+      clientAccountsService.createClientAccount(
+        createClientAccountRequest {
+          clientAccount = clientAccount {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            externalDataProviderId = dataProvider.externalDataProviderId
+            clientAccountReferenceId = "ref-1"
+          }
+        }
+      )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          unlinkedClientAccountsService.createUnlinkedClientAccount(
+            createUnlinkedClientAccountRequest {
+              unlinkedClientAccount = unlinkedClientAccount {
+                externalDataProviderId = dataProvider.externalDataProviderId
+                clientAccountReferenceId = "ref-1"
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = KingdomInternalException.DOMAIN
+            reason = ErrorCode.CLIENT_ACCOUNT_ALREADY_EXISTS.name
+            metadata["external_data_provider_id"] = dataProvider.externalDataProviderId.toString()
+            metadata["client_account_reference_id"] = "ref-1"
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateUnlinkedClientAccounts fails when a ClientAccount already exists`(): Unit =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider = population.createDataProvider(dataProvidersService)
+      clientAccountsService.createClientAccount(
+        createClientAccountRequest {
+          clientAccount = clientAccount {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            externalDataProviderId = dataProvider.externalDataProviderId
+            clientAccountReferenceId = "ref-1"
+          }
+        }
+      )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          unlinkedClientAccountsService.batchCreateUnlinkedClientAccounts(
+            batchCreateUnlinkedClientAccountsRequest {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              requests += createUnlinkedClientAccountRequest {
+                unlinkedClientAccount = unlinkedClientAccount {
+                  externalDataProviderId = dataProvider.externalDataProviderId
+                  clientAccountReferenceId = "ref-1"
+                }
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    }
 
   @Test
   fun `createUnlinkedClientAccount fails when DataProvider not found`(): Unit = runBlocking {
