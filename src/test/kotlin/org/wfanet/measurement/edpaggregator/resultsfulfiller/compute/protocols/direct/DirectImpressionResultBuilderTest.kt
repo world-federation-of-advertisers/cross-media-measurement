@@ -179,27 +179,26 @@ class DirectImpressionResultBuilderTest {
     }
 
   @Test
-  fun `buildMeasurementResult skips the noiser for uncapped impressions`() =
-    runBlocking {
-      // impressionMaxFrequencyPerUser of -1 takes totalUncappedImpressions directly, bypassing the
-      // histogram and the noiser, so the deterministic mechanism must not perturb it.
-      val result =
-        DirectImpressionResultBuilder(
-            directProtocolConfig = DIRECT_PROTOCOL,
-            frequencyData = IntArray(100) { 2 },
-            privacyParams = PRIVACY_PARAMS,
-            samplingRate = SAMPLING_RATE,
-            directNoiseMechanism = DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
-            maxPopulation = null,
-            maxFrequencyFromSpec = MAX_FREQUENCY,
-            resultMinimumThresholds = null,
-            impressionMaxFrequencyPerUser = -1,
-            totalUncappedImpressions = 500L,
-          )
-          .buildMeasurementResult()
+  fun `buildMeasurementResult skips the noiser for uncapped impressions`() = runBlocking {
+    // impressionMaxFrequencyPerUser of -1 takes totalUncappedImpressions directly, bypassing the
+    // histogram and the noiser, so the deterministic mechanism must not perturb it.
+    val result =
+      DirectImpressionResultBuilder(
+          directProtocolConfig = DIRECT_PROTOCOL,
+          frequencyData = IntArray(100) { 2 },
+          privacyParams = PRIVACY_PARAMS,
+          samplingRate = SAMPLING_RATE,
+          directNoiseMechanism = DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+          maxPopulation = null,
+          maxFrequencyFromSpec = MAX_FREQUENCY,
+          resultMinimumThresholds = null,
+          impressionMaxFrequencyPerUser = -1,
+          totalUncappedImpressions = 500L,
+        )
+        .buildMeasurementResult()
 
-      assertThat(result.impression.value).isEqualTo(500L)
-    }
+    assertThat(result.impression.value).isEqualTo(500L)
+  }
 
   companion object {
     private val MAX_FREQUENCY = 2
