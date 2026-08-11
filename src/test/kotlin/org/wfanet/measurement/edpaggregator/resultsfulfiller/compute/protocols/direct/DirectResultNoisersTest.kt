@@ -54,9 +54,7 @@ class DirectResultNoisersTest {
 
   @Test
   fun `buildDirectResultNoiser rejects CONTINUOUS_LAPLACE`() {
-    assertFailsWith<IllegalArgumentException> {
-      build(DirectNoiseMechanism.CONTINUOUS_LAPLACE)
-    }
+    assertFailsWith<IllegalArgumentException> { build(DirectNoiseMechanism.CONTINUOUS_LAPLACE) }
   }
 
   @Test

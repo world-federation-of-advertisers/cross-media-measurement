@@ -148,6 +148,59 @@ class DirectImpressionResultBuilderTest {
       assertThat(result.impression.value).isEqualTo(110)
     }
 
+  @Test
+  fun `buildMeasurementResult is reproducible when noise mechanism is DETERMINISTIC_TRUNCATED_LAPLACE`() =
+    runBlocking {
+      // 100 users at frequency 2, capped at MAX_FREQUENCY: 200 impressions, not 100. Catches a
+      // noiser built with the wrong per-user cap, since the cap sets the draw's sensitivity.
+      val frequencyData = IntArray(100) { 2 }
+
+      fun build() =
+        DirectImpressionResultBuilder(
+          directProtocolConfig = DIRECT_PROTOCOL,
+          frequencyData = frequencyData,
+          privacyParams = PRIVACY_PARAMS,
+          samplingRate = SAMPLING_RATE,
+          directNoiseMechanism = DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+          maxPopulation = null,
+          maxFrequencyFromSpec = MAX_FREQUENCY,
+          resultMinimumThresholds = null,
+          impressionMaxFrequencyPerUser = null,
+          totalUncappedImpressions = 200L,
+        )
+
+      val first = build().buildMeasurementResult()
+      val second = build().buildMeasurementResult()
+
+      assertThat(second).isEqualTo(first)
+      assertThat(first.impression.noiseMechanism)
+        .isEqualTo(NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
+      assertThat(first.impression.value).isWithin(CAP_SENSITIVITY_BOUND).of(200L)
+    }
+
+  @Test
+  fun `buildMeasurementResult skips the noiser for uncapped impressions`() =
+    runBlocking {
+      // impressionMaxFrequencyPerUser of -1 takes totalUncappedImpressions directly, bypassing the
+      // histogram and the noiser, so the deterministic mechanism must not perturb it.
+      val result =
+        DirectImpressionResultBuilder(
+            directProtocolConfig = DIRECT_PROTOCOL,
+            frequencyData = IntArray(100) { 2 },
+            privacyParams = PRIVACY_PARAMS,
+            samplingRate = SAMPLING_RATE,
+            directNoiseMechanism = DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+            maxPopulation = null,
+            maxFrequencyFromSpec = MAX_FREQUENCY,
+            resultMinimumThresholds = null,
+            impressionMaxFrequencyPerUser = -1,
+            totalUncappedImpressions = 500L,
+          )
+          .buildMeasurementResult()
+
+      assertThat(result.impression.value).isEqualTo(500L)
+    }
+
   companion object {
     private val MAX_FREQUENCY = 2
     private val PRIVACY_PARAMS = differentialPrivacyParams {
@@ -156,6 +209,9 @@ class DirectImpressionResultBuilderTest {
     }
 
     private val SAMPLING_RATE = 1.0f
+
+    /** ceil of the compiled bound at sensitivity MAX_FREQUENCY: 2 * 6.7571 = 13.51. */
+    private const val CAP_SENSITIVITY_BOUND = 14L
 
     private val NOISE_MECHANISM = NoiseMechanism.CONTINUOUS_GAUSSIAN
 
