@@ -48,7 +48,7 @@ bazel_dep(
 # common-jvm version above once that PR is merged and released.
 git_override(
     module_name = "common-jvm",
-    commit = "b157e35eea442ed5a1aa437cc180e8300f3b3ea7",
+    commit = "fe8106d6fefc03eb2ea1ae3cd495f615baa5995b",
     remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
 bazel_dep(
