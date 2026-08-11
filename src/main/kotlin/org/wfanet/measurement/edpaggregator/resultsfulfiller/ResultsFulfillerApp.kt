@@ -156,11 +156,11 @@ class ResultsFulfillerApp(
       when (fulfillerParams.noiseParams.noiseType) {
         NoiseType.NONE -> NoNoiserSelector()
         NoiseType.CONTINUOUS_GAUSSIAN -> ContinuousGaussianNoiseSelector()
-        // TODO(world-federation-of-advertisers/cross-media-measurement#4340): The Kingdom cannot
-        // offer this for Direct yet. V2alphaPublicApiServer rejects it for
-        // --direct-noise-mechanism, so it never reaches ProtocolConfig.Direct.noise_mechanisms and
-        // this selector refuses every requisition. Accept it there once #4185 lands, since the
-        // reporting server cannot map the mechanism until then.
+        // TODO(@raimundoltdf): The Kingdom cannot offer this for Direct yet.
+        // V2alphaPublicApiServer rejects it for --direct-noise-mechanism, so it never reaches
+        // ProtocolConfig.Direct.noise_mechanisms and this selector refuses every requisition.
+        // Accepting it there needs the reporting server to map the mechanism first; both land in
+        // a follow-up.
         NoiseType.DETERMINISTIC_TRUNCATED_LAPLACE -> DeterministicTruncatedLaplaceNoiseSelector()
         else -> throw Exception("Invalid noise type ${fulfillerParams.noiseParams.noiseType}")
       }
