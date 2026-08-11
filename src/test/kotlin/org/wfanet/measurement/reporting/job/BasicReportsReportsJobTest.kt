@@ -2460,7 +2460,6 @@ class BasicReportsReportsJobTest {
           failBasicReportRequest {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             externalBasicReportId = INTERNAL_BASIC_REPORT.externalBasicReportId
-            expectedState = BasicReport.State.REPORT_CREATED
           }
         )
     }
@@ -2630,7 +2629,6 @@ class BasicReportsReportsJobTest {
         failBasicReportRequest {
           cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
           externalBasicReportId = stuckBasicReport.externalBasicReportId
-          expectedState = BasicReport.State.CREATED
         }
       )
   }

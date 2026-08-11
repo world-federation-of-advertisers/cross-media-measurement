@@ -188,7 +188,6 @@ class BasicReportsReportsJob(
                     failBasicReport(
                       cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
                       externalBasicReportId = basicReport.externalBasicReportId,
-                      expectedState = BasicReport.State.REPORT_CREATED,
                     )
                     continue
                   }
@@ -206,7 +205,6 @@ class BasicReportsReportsJob(
                 failBasicReport(
                   cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
                   externalBasicReportId = basicReport.externalBasicReportId,
-                  expectedState = BasicReport.State.REPORT_CREATED,
                 )
               }
 
@@ -236,8 +234,7 @@ class BasicReportsReportsJob(
    *
    * A `BasicReport` is committed in State CREATED before its `Report` is created, so an
    * interruption between the two leaves it in State CREATED with no `Report` and no way to
-   * progress. The transition is conditioned on State CREATED so that a `CreateBasicReport` that
-   * completes concurrently is not failed.
+   * progress.
    */
   private suspend fun failStuckBasicReports(cmmsMeasurementConsumerId: String) {
     val cutoff: Instant = clock.instant().minus(maxCreatedBasicReportAge)
@@ -272,7 +269,6 @@ class BasicReportsReportsJob(
           failBasicReport(
             cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
             externalBasicReportId = basicReport.externalBasicReportId,
-            expectedState = BasicReport.State.CREATED,
           )
         } catch (e: StatusException) {
           logger.log(
@@ -779,13 +775,11 @@ class BasicReportsReportsJob(
   private suspend fun failBasicReport(
     cmmsMeasurementConsumerId: String,
     externalBasicReportId: String,
-    expectedState: BasicReport.State,
   ) {
     internalBasicReportsStub.failBasicReport(
       failBasicReportRequest {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         this.externalBasicReportId = externalBasicReportId
-        this.expectedState = expectedState
       }
     )
   }

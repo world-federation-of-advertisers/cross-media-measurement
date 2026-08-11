@@ -51,6 +51,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.mockito.kotlin.wheneverBlocking
@@ -142,6 +143,7 @@ import org.wfanet.measurement.internal.reporting.v2.dataProviderKey
 import org.wfanet.measurement.internal.reporting.v2.dimensionSpec as internalDimensionSpec
 import org.wfanet.measurement.internal.reporting.v2.eventFilter as internalEventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField as internalEventTemplateField
+import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest as internalFailBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilter as internalImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilterSpec as internalImpressionQualificationFilterSpec
@@ -1134,8 +1136,10 @@ class BasicReportsServiceTest {
         requestId = UUID.randomUUID().toString()
       }
 
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      val createdBasicReport =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      val repeatedBasicReport =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
 
       val response =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
@@ -1145,7 +1149,76 @@ class BasicReportsServiceTest {
         }
 
       assertThat(response.basicReportsList).hasSize(1)
+      assertThat(repeatedBasicReport.name).isEqualTo(createdBasicReport.name)
+      // The repeated request does not create a second Report.
+      verify(reportsServiceMock, times(1)).createReport(any())
     }
+
+  @Test
+  fun `createBasicReport throws ABORTED when request id is repeated after BasicReport failed`():
+    Unit = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = internalReportingSet {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+          externalCampaignGroupId = campaignGroupKey.reportingSetId
+          displayName = "displayName"
+          primitive =
+            ReportingSetKt.primitive {
+              eventGroupKeys +=
+                ReportingSetKt.PrimitiveKt.eventGroupKey {
+                  cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                  cmmsEventGroupId = "1235"
+                }
+            }
+        }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport = BASIC_REPORT.copy { this.campaignGroup = campaignGroupKey.toName() }
+      basicReportId = "a1234"
+      requestId = UUID.randomUUID().toString()
+    }
+
+    withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+    internalBasicReportsService.failBasicReport(
+      internalFailBasicReportRequest {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        externalBasicReportId = request.basicReportId
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+    // No second Report is created for the failed BasicReport.
+    verify(reportsServiceMock, times(1)).createReport(any())
+
+    val retrievedBasicReport =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        service.getBasicReport(
+          getBasicReportRequest {
+            name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
+          }
+        )
+      }
+    assertThat(retrievedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
+  }
 
   @Test
   fun `createBasicReport does not overwrite report_start when default exists`(): Unit =

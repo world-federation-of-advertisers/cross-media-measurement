@@ -46,9 +46,12 @@ service BasicReports {
   // Sets the `BasicReport.external_report_id` field and transitions the
   // `BasicReport` to the `BasicReport.State.REPORT_CREATED` state.
   //
+  // The `BasicReport` must be in the `BasicReport.State.CREATED` state.
+  //
   // Error reasons:
   // * `REQUIRED_FIELD_NOT_SET`
   // * `BASIC_REPORT_NOT_FOUND`
+  // * `BASIC_REPORT_STATE_INVALID`
   rpc SetExternalReportId(SetExternalReportIdRequest) returns (BasicReport);
 
   // Error reasons:
@@ -64,6 +67,8 @@ service BasicReports {
       returns (ListBasicReportsResponse);
 
   // Transitions the `BasicReport` to the `BasicReport.State.FAILED` state.
+  //
+  // The `BasicReport` must not already be in a terminal state.
   //
   // Error reasons:
   // * `REQUIRED_FIELD_NOT_SET`
@@ -144,7 +149,4 @@ message ListBasicReportsResponse {
 message FailBasicReportRequest {
   string cmms_measurement_consumer_id = 1;
   string external_basic_report_id = 2;
-
-  // State the `BasicReport` must be in for the transition to be applied.
-  BasicReport.State expected_state = 3;
 }

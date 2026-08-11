@@ -542,6 +542,29 @@ class BasicReportsService(
         }
       }
 
+    // A repeated request with the same request ID returns the existing BasicReport, which may have
+    // already been advanced or failed.
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums cannot be null.
+    when (createdInternalBasicReport.state) {
+      InternalBasicReport.State.CREATED -> {}
+      InternalBasicReport.State.REPORT_CREATED,
+      InternalBasicReport.State.UNPROCESSED_RESULTS_READY,
+      InternalBasicReport.State.SUCCEEDED ->
+        return createdInternalBasicReport.toBasicReport(
+          populateDeprecatedReportingUnitEventGroupSummaries = false
+        )
+      InternalBasicReport.State.FAILED,
+      InternalBasicReport.State.INVALID ->
+        throw Status.ABORTED.withDescription(
+            "BasicReport is in a terminal state and cannot be advanced"
+          )
+          .asRuntimeException()
+      InternalBasicReport.State.STATE_UNSPECIFIED,
+      InternalBasicReport.State.UNRECOGNIZED ->
+        throw Status.INTERNAL.withDescription("BasicReport has an unrecognized state")
+          .asRuntimeException()
+    }
+
     val report: Report =
       try {
         buildReport(

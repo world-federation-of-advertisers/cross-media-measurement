@@ -430,6 +430,13 @@ class SpannerBasicReportsService(
               externalBasicReportId = request.externalBasicReportId,
             )
             .also {
+              if (it.basicReport.state != BasicReport.State.CREATED) {
+                throw BasicReportStateInvalidException(
+                  request.cmmsMeasurementConsumerId,
+                  request.externalBasicReportId,
+                  it.basicReport.state,
+                )
+              }
               txn.setExternalReportId(
                 it.measurementConsumerId,
                 it.basicReportId,
@@ -439,6 +446,8 @@ class SpannerBasicReportsService(
         }
       } catch (e: BasicReportNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      } catch (e: BasicReportStateInvalidException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       }
 
     val campaignGroup =
@@ -476,10 +485,7 @@ class SpannerBasicReportsService(
               externalBasicReportId = request.externalBasicReportId,
             )
             .also {
-              if (
-                request.expectedState != BasicReport.State.STATE_UNSPECIFIED &&
-                  it.basicReport.state != request.expectedState
-              ) {
+              if (it.basicReport.state !in FAILABLE_STATES) {
                 throw BasicReportStateInvalidException(
                   request.cmmsMeasurementConsumerId,
                   request.externalBasicReportId,
@@ -894,6 +900,14 @@ class SpannerBasicReportsService(
   companion object {
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25
+
+    /** States from which a [BasicReport] can transition to [BasicReport.State.FAILED]. */
+    private val FAILABLE_STATES =
+      setOf(
+        BasicReport.State.CREATED,
+        BasicReport.State.REPORT_CREATED,
+        BasicReport.State.UNPROCESSED_RESULTS_READY,
+      )
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
