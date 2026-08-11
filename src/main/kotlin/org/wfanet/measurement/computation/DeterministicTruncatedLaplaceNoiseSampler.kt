@@ -28,12 +28,6 @@ class DeterministicTruncatedLaplaceNoiseSampler(
   private val distribution: TruncatedLaplaceNoiseDistribution,
   private val uniformSampler: DeterministicUniformSampler = DeterministicUniformSampler(),
 ) {
-  constructor(
-    epsilon: Double,
-    sensitivity: Double,
-    truncationBound: Int,
-  ) : this(TruncatedLaplaceNoiseDistribution(epsilon, sensitivity, truncationBound))
-
   /**
    * Returns the noise to release: a truncated-Laplace draw for [parts], rounded to an integer.
    *
@@ -49,4 +43,39 @@ class DeterministicTruncatedLaplaceNoiseSampler(
    */
   fun sampleRounded(vararg parts: ByteArray): Long =
     StrictMath.rint(distribution.inverseCdf(uniformSampler.sample(*parts))).toLong()
+
+  companion object {
+    /**
+     * A sampler drawing ([epsilon], [delta])-differentially private truncated-Laplace noise for a
+     * query of L1 [sensitivity].
+     *
+     * The noise is Laplace with scale `b = sensitivity / epsilon` (the scale that makes the
+     * untruncated Laplace epsilon-DP), truncated to `[-T, T]`:
+     * ```
+     * T = (sensitivity / epsilon) * ln(1 + (e^epsilon - 1) / (2 * delta))
+     * ```
+     *
+     * This is the truncated Laplace mechanism of Geng et al., "Privacy and Utility Tradeoff in
+     * Approximate Differential Privacy" (arXiv:1810.00877), Definition 3. T is the smallest
+     * threshold at which the mechanism is ([epsilon], [delta])-DP, proved there for all ([epsilon],
+     * [delta]) and [sensitivity], so no regime check is needed.
+     *
+     * [StrictMath] keeps T bit-reproducible across JVMs, matching the draw it bounds and any
+     * variance derived from it.
+     */
+    fun forDifferentialPrivacy(
+      epsilon: Double,
+      delta: Double,
+      sensitivity: Double,
+    ): DeterministicTruncatedLaplaceNoiseSampler {
+      require(epsilon > 0.0) { "epsilon must be positive, got $epsilon" }
+      require(delta > 0.0 && delta < 1.0) { "delta must be in (0, 1), got $delta" }
+      require(sensitivity > 0.0) { "sensitivity must be positive, got $sensitivity" }
+      val scale = sensitivity / epsilon
+      val bound = scale * StrictMath.log(1.0 + (StrictMath.exp(epsilon) - 1.0) / (2.0 * delta))
+      return DeterministicTruncatedLaplaceNoiseSampler(
+        TruncatedLaplaceNoiseDistribution(scale, bound)
+      )
+    }
+  }
 }
