@@ -173,6 +173,11 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private val hmssEnabled: Boolean,
   private val trusTeeEnabled: Boolean,
   private val multiEdpDisplayNames: Set<String> = emptySet(),
+  /**
+   * Whether the EDPs declare support for DETERMINISTIC_TRUNCATED_LAPLACE. The Kingdom offers
+   * TrusTEE with that mechanism only when every DataProvider reports it.
+   */
+  private val deterministicTruncatedLaplaceSupported: Boolean = false,
 ) {
 
   protected val expectedProtocol: PublicProtocolConfig.Protocol.ProtocolCase =
@@ -350,21 +355,29 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               DataProviderKt.capabilities {
                 honestMajorityShareShuffleSupported = hmssEnabled
                 trusTeeSupported = trusTeeEnabled
+                noiseMechanismDeterministicTruncatedLaplaceSupported =
+                  deterministicTruncatedLaplaceSupported
               },
             "edp2" to
               DataProviderKt.capabilities {
                 honestMajorityShareShuffleSupported = hmssEnabled
                 trusTeeSupported = trusTeeEnabled
+                noiseMechanismDeterministicTruncatedLaplaceSupported =
+                  deterministicTruncatedLaplaceSupported
               },
             "edp3" to
               DataProviderKt.capabilities {
                 honestMajorityShareShuffleSupported = hmssEnabled
                 trusTeeSupported = trusTeeEnabled
+                noiseMechanismDeterministicTruncatedLaplaceSupported =
+                  deterministicTruncatedLaplaceSupported
               },
             "edp4" to
               DataProviderKt.capabilities {
                 honestMajorityShareShuffleSupported = hmssEnabled
                 trusTeeSupported = trusTeeEnabled
+                noiseMechanismDeterministicTruncatedLaplaceSupported =
+                  deterministicTruncatedLaplaceSupported
               },
           ),
           duchyMap,

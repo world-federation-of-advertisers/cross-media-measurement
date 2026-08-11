@@ -43,6 +43,7 @@ abstract class InProcessEdpAggregatorTrusTeeThresholdTest(
   accessServicesFactory: AccessServicesFactory,
   reportingDataServicesProviderRule: ProviderRule<Services>,
   duchyNames: List<String> = ALL_DUCHY_NAMES,
+  deterministicTruncatedLaplaceSupported: Boolean = false,
 ) :
   InProcessEdpAggregatorLifeOfAReportTest(
     kingdomDataServicesRule,
@@ -54,6 +55,7 @@ abstract class InProcessEdpAggregatorTrusTeeThresholdTest(
     hmssEnabled = false,
     trusTeeEnabled = true,
     multiEdpDisplayNames = setOf("edp1", "edp2"),
+    deterministicTruncatedLaplaceSupported = deterministicTruncatedLaplaceSupported,
   ) {
 
   // Noisy tests use approximate assertions instead of exact equality. Subclasses override

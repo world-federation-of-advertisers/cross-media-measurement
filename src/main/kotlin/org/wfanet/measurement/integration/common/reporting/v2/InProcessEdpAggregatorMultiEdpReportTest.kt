@@ -54,6 +54,7 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
   duchyNames: List<String> = ALL_DUCHY_NAMES,
   hmssEnabled: Boolean,
   trusTeeEnabled: Boolean,
+  deterministicTruncatedLaplaceSupported: Boolean = false,
 ) :
   InProcessEdpAggregatorLifeOfAReportTest(
     kingdomDataServicesRule,
@@ -65,6 +66,7 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
     hmssEnabled,
     trusTeeEnabled,
     multiEdpDisplayNames = setOf("edp1", "edp2"),
+    deterministicTruncatedLaplaceSupported = deterministicTruncatedLaplaceSupported,
   ) {
 
   @Test
