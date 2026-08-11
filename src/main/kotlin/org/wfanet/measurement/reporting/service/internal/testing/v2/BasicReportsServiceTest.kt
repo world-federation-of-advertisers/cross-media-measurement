@@ -757,13 +757,20 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           }
         }
       }
-      state = BasicReport.State.SUCCEEDED
-      externalReportId = "report-extern-rs"
       resultDetails = basicReportResultDetails {}
+      createReportRequestId = "1235"
     }
 
     val createdBasicReport =
-      service.insertBasicReport(insertBasicReportRequest { this.basicReport = basicReport })
+      service.createBasicReport(createBasicReportRequest { this.basicReport = basicReport })
+
+    service.setExternalReportId(
+      setExternalReportIdRequest {
+        cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
+        externalBasicReportId = createdBasicReport.externalBasicReportId
+        externalReportId = "report-extern-rs"
+      }
+    )
 
     val reportResult =
       reportResultsService.createReportResult(
