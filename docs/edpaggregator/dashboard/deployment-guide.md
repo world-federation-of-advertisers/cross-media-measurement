@@ -22,8 +22,8 @@ The dashboard creates the following resources:
 | `requisition_overview` | Shared (row-filtered) | Requisition status, fulfillment times, report state |
 | `mc_details` | Platform only | Event group details with cross-EDP coverage metrics |
 | `mc_details_edp` | Per-EDP | Event group details (own data only) |
-| `report_detail` | Platform only | Per-report event group associations with EDP count |
-| `report_detail_edp` | Per-EDP | Per-report event group associations (own data only) |
+| `report_detail` | Platform only | Per-report event group associations with EDP count and report state |
+| `report_detail_edp` | Per-EDP | Per-report event group associations and report state (own data only) |
 
 ### Security Model
 
@@ -414,9 +414,10 @@ wrong value matches no rows. Correct it and re-run the deploy.
 
 The compliance check `report_detail_edp is empty (expected data after
 scheduled queries)` and the corresponding isolation test both FAIL until the
-new EDP has at least one BasicReport in state `SUCCEEDED` that references one
-of its event groups. On fresh environments (and after adding any new EDPA
-EDP), you must seed a BasicReport manually — the CI `run-tests` job
+new EDP has at least one BasicReport in a terminal state (`SUCCEEDED` or
+`FAILED`) that references one of its event groups. On fresh environments (and
+after adding any new EDPA EDP with no terminal reports yet), you must seed a
+BasicReport manually — the CI `run-tests` job
 only creates reports against simulator event groups (`sim-eg-*` prefix), not
 against EDPA-owned event groups. See the *Seed a BasicReport for the new
 EDP* step in the onboarding guide.
@@ -427,9 +428,10 @@ If a new EDP's compliance and isolation checks fail because `report_detail_edp`
 hasn't refreshed yet, `rerun-failed-jobs` on `Update CMMS` won't help: the
 `trigger-scheduled-queries` job already succeeded (firing the queries succeeds
 regardless of their output), so it isn't re-run and the checks re-run against
-stale data. Confirm the BasicReport is `SUCCEEDED`, refresh the data (wait for
-the next hourly cycle or trigger the query manually — see *Trigger Scheduled
-Queries Manually*), then re-run the failed jobs.
+stale data. Confirm the BasicReport reached a terminal state (`SUCCEEDED` or
+`FAILED`), refresh the data (wait for the next hourly cycle or trigger the
+query manually — see *Trigger Scheduled Queries Manually*), then re-run the
+failed jobs.
 
 ### Cross-project connection failures
 

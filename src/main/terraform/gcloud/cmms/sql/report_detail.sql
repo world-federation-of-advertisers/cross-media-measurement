@@ -20,6 +20,9 @@
 -- (event group -> campaign/brand/entity metadata).
 -- NOTE: Only primitive campaign groups (direct ReportingSetEventGroups rows) are
 -- resolved; composite campaign groups would need set-expression resolution.
+-- Includes SUCCEEDED (4) and FAILED (5) reports; the ReportState column carries
+-- the state so consumers can distinguish. Failed reports' composition helps
+-- diagnose which campaigns were in a report that failed.
 
 MERGE INTO `${project_id}.${dataset}.${table_name}` T
 USING (
@@ -32,6 +35,15 @@ FROM (
 SELECT
   base.ExternalReportId,
   base.CmmsDataProvider,
+  CASE ANY_VALUE(base.State)
+    WHEN 1 THEN 'CREATED'
+    WHEN 2 THEN 'REPORT_CREATED'
+    WHEN 3 THEN 'UNPROCESSED_RESULTS_READY'
+    WHEN 4 THEN 'SUCCEEDED'
+    WHEN 5 THEN 'FAILED'
+    WHEN 6 THEN 'INVALID'
+    ELSE 'UNSPECIFIED'
+  END AS ReportState,
   COUNT(DISTINCT base.CmmsEventGroupId) AS EventGroupCount,
   ARRAY_AGG(DISTINCT base.CmmsEventGroupId) AS CmmsEventGroupIds,
   ARRAY_AGG(DISTINCT base.CampaignName IGNORE NULLS) AS CampaignNames,
@@ -44,6 +56,7 @@ SELECT
 FROM (
   SELECT
     br.ExternalReportId,
+    br.State,
     cg.CmmsDataProvider,
     cg.CmmsEventGroupId,
     keg.CampaignName,
@@ -56,9 +69,10 @@ FROM (
       'projects/${project_id}/locations/${region}/connections/reporting-conn',
       '''SELECT
         br.ExternalReportId,
-        br.ExternalCampaignGroupId
+        br.ExternalCampaignGroupId,
+        br.State
       FROM BasicReports br
-      WHERE br.State = 4''')
+      WHERE br.State IN (4, 5)''')
   ) br
   JOIN (
     -- Reporting Postgres: campaign group -> event groups + data provider

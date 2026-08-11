@@ -439,6 +439,11 @@ resource "google_bigquery_table" "report_detail" {
     "mode": "NULLABLE"
   },
   {
+    "name": "ReportState",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
     "name": "EventGroupCount",
     "type": "INT64",
     "mode": "NULLABLE"
@@ -482,6 +487,11 @@ resource "google_bigquery_table" "report_detail_edp" {
   },
   {
     "name": "CmmsDataProvider",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ReportState",
     "type": "STRING",
     "mode": "NULLABLE"
   },
