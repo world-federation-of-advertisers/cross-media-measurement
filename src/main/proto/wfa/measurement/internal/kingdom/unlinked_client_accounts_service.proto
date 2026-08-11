@@ -40,8 +40,8 @@ service UnlinkedClientAccounts {
   rpc BatchDeleteUnlinkedClientAccounts(
       BatchDeleteUnlinkedClientAccountsRequest) returns (google.protobuf.Empty);
 
-  // Lists UnlinkedClientAccounts ordered by `client_account_reference_id`
-  // ascending.
+  // Lists UnlinkedClientAccounts ordered by `external_data_provider_id`
+  // then `client_account_reference_id` ascending.
   rpc ListUnlinkedClientAccounts(ListUnlinkedClientAccountsRequest)
       returns (ListUnlinkedClientAccountsResponse);
 }
