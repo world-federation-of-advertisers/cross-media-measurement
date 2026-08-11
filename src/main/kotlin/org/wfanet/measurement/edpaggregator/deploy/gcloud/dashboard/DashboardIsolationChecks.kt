@@ -62,7 +62,7 @@ class DashboardIsolationChecks(
           // healthy rather than a failure. Every other table always has data for
           // an active EDP, so an empty result there is still a failure. The
           // cross-EDP assertion below still applies whenever rows do exist.
-          val emptyIsHealthy = tableName == "unlinked_accounts"
+          val emptyIsHealthy = tableName in EMPTY_IS_HEALTHY
           results.add(
             CheckResult(
               "${edp.name}: $tableName",
@@ -844,13 +844,14 @@ class DashboardIsolationChecks(
    */
   fun checkUnlinkedAccountsPipeline(bq: BigQuery): List<CheckResult> {
     return try {
-      val sourceCount =
+      val staleSourceCount =
         bq
           .query(
             QueryJobConfiguration.of(
               "SELECT COUNT(*) AS cnt FROM EXTERNAL_QUERY(" +
                 "'projects/$project/locations/$region/connections/kingdom-conn', " +
-                "'''SELECT ClientAccountReferenceId FROM UnlinkedClientAccounts''')"
+                "'''SELECT ClientAccountReferenceId FROM UnlinkedClientAccounts " +
+                "WHERE CreateTime < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 HOUR)''')"
             )
           )
           .iterateAll()
@@ -868,15 +869,16 @@ class DashboardIsolationChecks(
           .first()
           .get("cnt")
           .longValue
-      val healthy = !(sourceCount > 0 && destCount == 0L)
+      val healthy = !(staleSourceCount > 0 && destCount == 0L)
       listOf(
         CheckResult(
           "unlinked_accounts pipeline",
           healthy,
-          if (healthy) "unlinked_accounts: source=$sourceCount dest=$destCount (MERGE current)"
+          if (healthy)
+            "unlinked_accounts: stale_source=$staleSourceCount dest=$destCount (MERGE current)"
           else
-            "unlinked_accounts: source has $sourceCount rows but dashboard is empty " +
-              "(MERGE broken?)",
+            "unlinked_accounts: $staleSourceCount source rows older than 2h but dashboard is " +
+              "empty (MERGE broken?)",
         )
       )
     } catch (e: BigQueryException) {
@@ -888,5 +890,10 @@ class DashboardIsolationChecks(
         )
       )
     }
+  }
+
+  companion object {
+    // Tables that record an edge condition and are legitimately often empty.
+    private val EMPTY_IS_HEALTHY = setOf("unlinked_accounts")
   }
 }
