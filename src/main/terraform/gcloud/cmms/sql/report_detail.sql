@@ -20,9 +20,8 @@
 -- (event group -> campaign/brand/entity metadata).
 -- NOTE: Only primitive campaign groups (direct ReportingSetEventGroups rows) are
 -- resolved; composite campaign groups would need set-expression resolution.
--- Includes SUCCEEDED (4) and FAILED (5) reports; the ReportState column carries
--- the state so consumers can distinguish. Failed reports' composition helps
--- diagnose which campaigns were in a report that failed.
+-- Includes all terminal reports -- SUCCEEDED (4), FAILED (5), and INVALID (6);
+-- the ReportState column carries the state so consumers can distinguish.
 
 MERGE INTO `${project_id}.${dataset}.${table_name}` T
 USING (
@@ -74,7 +73,7 @@ FROM (
         br.ExternalCampaignGroupId,
         br.State
       FROM BasicReports br
-      WHERE br.State IN (4, 5)''')
+      WHERE br.State IN (4, 5, 6)''')
   ) br
   JOIN (
     -- Reporting Postgres: campaign group -> event groups + data provider

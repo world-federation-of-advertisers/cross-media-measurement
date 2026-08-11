@@ -125,11 +125,11 @@ This creates:
 ### Step 4: Seed a BasicReport for the new EDP
 
 The dashboard's `report_detail_edp` scheduled query only populates a row for an
-EDP when at least one BasicReport in a terminal state (`SUCCEEDED` or `FAILED`)
-references one of that EDP's event groups. On a fresh EDP with no such reports
-yet, the compliance check `report_detail_edp is empty` and the isolation test
-both FAIL — a false-negative that will keep failing every deploy until at least
-one terminal BasicReport exists for the EDP.
+EDP when at least one BasicReport in a terminal state (`SUCCEEDED`, `FAILED`,
+or `INVALID`) references one of that EDP's event groups. On a fresh EDP with no
+such reports yet, the compliance check `report_detail_edp is empty` and the
+isolation test both FAIL — a false-negative that will keep failing every deploy
+until at least one terminal BasicReport exists for the EDP.
 
 The CI `run-tests` job only creates BasicReports against simulator event groups
 (`sim-eg-*` prefix), never against EDPA-owned event groups. New EDPA EDPs must
@@ -180,9 +180,8 @@ To seed:
 
 The seed BasicReport can be trivial (single-day reporting interval, single
 event group, `impressionQualificationFilters/ami`) — it just needs to
-exist and reach a terminal state (`SUCCEEDED` or `FAILED`). It stays in the
-environment permanently; no cleanup
-is required.
+exist and reach a terminal state; the steps above create a `SUCCEEDED`
+one. It stays in the environment permanently; no cleanup is required.
 
 ### Step 5: Verify Isolation
 

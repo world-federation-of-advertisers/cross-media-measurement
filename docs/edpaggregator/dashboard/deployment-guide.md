@@ -414,10 +414,10 @@ wrong value matches no rows. Correct it and re-run the deploy.
 
 The compliance check `report_detail_edp is empty (expected data after
 scheduled queries)` and the corresponding isolation test both FAIL until the
-new EDP has at least one BasicReport in a terminal state (`SUCCEEDED` or
-`FAILED`) that references one of its event groups. On fresh environments (and
-after adding any new EDPA EDP with no terminal reports yet), you must seed a
-BasicReport manually — the CI `run-tests` job
+new EDP has at least one BasicReport in a terminal state (`SUCCEEDED`,
+`FAILED`, or `INVALID`) that references one of its event groups. On fresh
+environments (and after adding any new EDPA EDP with no terminal reports yet),
+you must seed a BasicReport manually — the CI `run-tests` job
 only creates reports against simulator event groups (`sim-eg-*` prefix), not
 against EDPA-owned event groups. See the *Seed a BasicReport for the new
 EDP* step in the onboarding guide.
@@ -428,10 +428,10 @@ If a new EDP's compliance and isolation checks fail because `report_detail_edp`
 hasn't refreshed yet, `rerun-failed-jobs` on `Update CMMS` won't help: the
 `trigger-scheduled-queries` job already succeeded (firing the queries succeeds
 regardless of their output), so it isn't re-run and the checks re-run against
-stale data. Confirm the BasicReport reached a terminal state (`SUCCEEDED` or
-`FAILED`), refresh the data (wait for the next hourly cycle or trigger the
-query manually — see *Trigger Scheduled Queries Manually*), then re-run the
-failed jobs.
+stale data. Confirm the BasicReport reached a terminal state (`SUCCEEDED`,
+`FAILED`, or `INVALID`), refresh the data (wait for the next hourly cycle or
+trigger the query manually — see *Trigger Scheduled Queries Manually*), then
+re-run the failed jobs.
 
 ### Cross-project connection failures
 
