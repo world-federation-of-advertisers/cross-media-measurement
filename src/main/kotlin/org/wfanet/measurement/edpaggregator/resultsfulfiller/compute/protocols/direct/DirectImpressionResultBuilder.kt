@@ -22,6 +22,7 @@ import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.deterministicCount
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
@@ -71,7 +72,10 @@ class DirectImpressionResultBuilder(
       impressionMaxFrequencyPerUser?.takeIf { it != -1 } ?: maxFrequencyFromSpec
     val impressionValue = computeImpressionCount(effectiveMaxFrequency)
 
-    val protocolConfigNoiseMechanism = directNoiseMechanism.toProtocolConfigNoiseMechanism()
+    // The uncapped path bypasses the noiser, so the result carries no noise to describe.
+    val protocolConfigNoiseMechanism =
+      if (impressionMaxFrequencyPerUser == -1) NoiseMechanism.NONE
+      else directNoiseMechanism.toProtocolConfigNoiseMechanism()
     return MeasurementKt.result {
       impression = impression {
         value = impressionValue

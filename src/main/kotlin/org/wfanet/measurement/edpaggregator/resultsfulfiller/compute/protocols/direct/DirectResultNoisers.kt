@@ -34,7 +34,8 @@ private const val DIRECT_CONTRIBUTION_COUNT = 1
  *
  * Reach and the impression threshold draw from [reachDpParams]; frequency buckets draw from
  * [frequencyDpParams]. A measurement that releases no frequency distribution may pass the same
- * value for both.
+ * value for both. Both are unused for DETERMINISTIC_TRUNCATED_LAPLACE, whose privacy params are
+ * compiled into the image.
  *
  * @param frequencyData the raw frequency vector, which seeds the deterministic mechanism.
  */
