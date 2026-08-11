@@ -19,8 +19,6 @@ import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.rules.Timeout
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
@@ -31,6 +29,8 @@ import org.wfanet.measurement.integration.deploy.gcloud.InternalReportingService
 import org.wfanet.measurement.integration.deploy.gcloud.KingdomDataServicesProviderRule
 import org.wfanet.measurement.integration.deploy.gcloud.SpannerAccessServicesFactory
 import org.wfanet.measurement.integration.deploy.gcloud.SpannerDuchyDependencyProviderRule
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.hmssProtocolConfigConfig
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPORTING_CHANGELOG_PATH as POSTGRES_REPORTING_CHANGELOG_PATH
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
