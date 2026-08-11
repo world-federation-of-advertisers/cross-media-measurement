@@ -164,17 +164,6 @@ message ProtocolConfig {
 
     // Optional small-cell suppression parameters.
     ResultMinimumThresholds result_minimum_thresholds = 2;
-
-    // Parameters for DETERMINISTIC_TRUNCATED_LAPLACE noise.
-    message DeterministicTruncatedLaplaceNoiseParams {
-      // Draws are truncated to `[-truncation_bound, truncation_bound]`.
-      // Must be positive.
-      int32 truncation_bound = 1;
-    }
-
-    // Required when `noise_mechanism` is DETERMINISTIC_TRUNCATED_LAPLACE.
-    DeterministicTruncatedLaplaceNoiseParams
-        deterministic_truncated_laplace_noise_params = 3;
   }
 
   // Configuration for the specific protocol.

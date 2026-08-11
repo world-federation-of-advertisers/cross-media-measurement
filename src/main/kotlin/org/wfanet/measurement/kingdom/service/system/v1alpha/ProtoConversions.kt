@@ -35,7 +35,6 @@ import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.Noise
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.liquidLegionsSketchParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
-import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.TrusTeeKt.deterministicTruncatedLaplaceNoiseParams as systemDeterministicTruncatedLaplaceNoiseParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.TrusTeeKt.resultMinimumThresholds as systemResultMinimumThresholds
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.honestMajorityShareShuffle
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.liquidLegionsV2
@@ -352,13 +351,6 @@ private fun buildMpcProtocolConfig(
               minImpressions = protocolConfig.trusTee.resultMinimumThresholds.minImpressions
               minUsers = protocolConfig.trusTee.resultMinimumThresholds.minUsers
             }
-          }
-          if (protocolConfig.trusTee.hasDeterministicTruncatedLaplaceNoiseParams()) {
-            deterministicTruncatedLaplaceNoiseParams =
-              systemDeterministicTruncatedLaplaceNoiseParams {
-                truncationBound =
-                  protocolConfig.trusTee.deterministicTruncatedLaplaceNoiseParams.truncationBound
-              }
           }
         }
       }
