@@ -91,6 +91,9 @@ message ResultsFulfillerParams {
       NONE = 1;
       // Continuous gaussian noise applied.
       CONTINUOUS_GAUSSIAN = 2;
+      // Deterministic truncated Laplace noise applied. Draws are a pure
+      // function of the frequency vector, so a re-run yields the same result.
+      DETERMINISTIC_TRUNCATED_LAPLACE = 3;
     }
     // The type of noise applied to the result
     NoiseType noise_type = 1;
