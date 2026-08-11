@@ -439,11 +439,6 @@ resource "google_bigquery_table" "report_detail" {
     "mode": "NULLABLE"
   },
   {
-    "name": "ReportState",
-    "type": "STRING",
-    "mode": "NULLABLE"
-  },
-  {
     "name": "EventGroupCount",
     "type": "INT64",
     "mode": "NULLABLE"
@@ -467,6 +462,11 @@ resource "google_bigquery_table" "report_detail" {
     "name": "EdpCount",
     "type": "INT64",
     "mode": "NULLABLE"
+  },
+  {
+    "name": "ReportState",
+    "type": "STRING",
+    "mode": "NULLABLE"
   }
 ]
 EOF
@@ -487,11 +487,6 @@ resource "google_bigquery_table" "report_detail_edp" {
   },
   {
     "name": "CmmsDataProvider",
-    "type": "STRING",
-    "mode": "NULLABLE"
-  },
-  {
-    "name": "ReportState",
     "type": "STRING",
     "mode": "NULLABLE"
   },
@@ -524,6 +519,11 @@ resource "google_bigquery_table" "report_detail_edp" {
     "name": "EntityIds",
     "type": "STRING",
     "mode": "REPEATED"
+  },
+  {
+    "name": "ReportState",
+    "type": "STRING",
+    "mode": "NULLABLE"
   }
 ]
 EOF

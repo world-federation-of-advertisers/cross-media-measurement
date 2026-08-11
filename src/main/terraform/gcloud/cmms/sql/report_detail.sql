@@ -28,22 +28,14 @@ MERGE INTO `${project_id}.${dataset}.${table_name}` T
 USING (
 %{ if include_platform_columns }
 SELECT
-  *,
-  COUNT(DISTINCT CmmsDataProvider) OVER (PARTITION BY ExternalReportId) AS EdpCount
+  * EXCEPT (ReportState),
+  COUNT(DISTINCT CmmsDataProvider) OVER (PARTITION BY ExternalReportId) AS EdpCount,
+  ReportState
 FROM (
 %{ endif }
 SELECT
   base.ExternalReportId,
   base.CmmsDataProvider,
-  CASE ANY_VALUE(base.State)
-    WHEN 1 THEN 'CREATED'
-    WHEN 2 THEN 'REPORT_CREATED'
-    WHEN 3 THEN 'UNPROCESSED_RESULTS_READY'
-    WHEN 4 THEN 'SUCCEEDED'
-    WHEN 5 THEN 'FAILED'
-    WHEN 6 THEN 'INVALID'
-    ELSE 'UNSPECIFIED'
-  END AS ReportState,
   COUNT(DISTINCT base.CmmsEventGroupId) AS EventGroupCount,
   ARRAY_AGG(DISTINCT base.CmmsEventGroupId) AS CmmsEventGroupIds,
   ARRAY_AGG(DISTINCT base.CampaignName IGNORE NULLS) AS CampaignNames,
@@ -53,6 +45,16 @@ SELECT
   ARRAY_AGG(DISTINCT base.EntityType IGNORE NULLS) AS EntityTypes,
   ARRAY_AGG(DISTINCT base.EntityId IGNORE NULLS) AS EntityIds
 %{ endif }
+  ,
+  CASE ANY_VALUE(base.State)
+    WHEN 1 THEN 'CREATED'
+    WHEN 2 THEN 'REPORT_CREATED'
+    WHEN 3 THEN 'UNPROCESSED_RESULTS_READY'
+    WHEN 4 THEN 'SUCCEEDED'
+    WHEN 5 THEN 'FAILED'
+    WHEN 6 THEN 'INVALID'
+    ELSE 'UNSPECIFIED'
+  END AS ReportState
 FROM (
   SELECT
     br.ExternalReportId,
