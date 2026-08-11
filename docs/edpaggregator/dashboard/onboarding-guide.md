@@ -131,10 +131,6 @@ yet, the compliance check `report_detail_edp is empty` and the isolation test
 both FAIL — a false-negative that will keep failing every deploy until at least
 one terminal BasicReport exists for the EDP.
 
-You only need to seed manually if the EDP has no terminal (`SUCCEEDED` or
-`FAILED`) report referencing its event groups. An EDP that already has a failed
-report gets a row automatically.
-
 The CI `run-tests` job only creates BasicReports against simulator event groups
 (`sim-eg-*` prefix), never against EDPA-owned event groups. New EDPA EDPs must
 be seeded manually.
