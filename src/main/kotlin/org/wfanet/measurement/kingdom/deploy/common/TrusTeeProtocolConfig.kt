@@ -35,7 +35,6 @@ object TrusTeeProtocolConfig {
         parseTextProto(it, TrusTeeProtocolConfigConfig.getDefaultInstance())
       }
 
-
     protocolConfig = configMessage.protocolConfig
     duchyId = configMessage.duchyId
   }
