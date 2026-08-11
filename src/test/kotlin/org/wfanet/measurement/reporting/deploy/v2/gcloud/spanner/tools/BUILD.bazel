@@ -1,0 +1,32 @@
+load(
+    "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl",
+    "spanner_emulator_test",
+)
+
+spanner_emulator_test(
+    name = "BasicReportReportingSetBackfillerTest",
+    srcs = ["BasicReportReportingSetBackfillerTest.kt"],
+    tags = [
+        "cpu:2",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools.BasicReportReportingSetBackfillerTest",
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/db:basic_reports",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/db:measurement_consumers",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:backfill_basic_report_reporting_sets",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres:services",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/readers",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
