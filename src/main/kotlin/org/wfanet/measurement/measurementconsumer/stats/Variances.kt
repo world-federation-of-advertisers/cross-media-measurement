@@ -427,7 +427,12 @@ object VariancesImpl : Variances {
     return (untruncated - truncatedTail) / normalizer
   }
 
-  /** Computes the noise variance based on the [DpParams] and the [NoiseMechanism]. */
+  /**
+   * Computes the noise variance based on the [DpParams] and the [NoiseMechanism].
+   *
+   * [dpParams] is unused for [NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE], whose privacy params
+   * are compiled into the images that draw the noise.
+   */
   private fun computeDirectNoiseVariance(
     dpParams: DpParams,
     noiseMechanism: NoiseMechanism,
