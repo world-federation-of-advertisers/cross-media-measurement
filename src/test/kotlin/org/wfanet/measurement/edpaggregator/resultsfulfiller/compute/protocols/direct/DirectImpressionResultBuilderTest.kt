@@ -198,9 +198,10 @@ class DirectImpressionResultBuilderTest {
         .buildMeasurementResult()
 
     assertThat(result.impression.value).isEqualTo(500L)
-    // Nothing was noised, so the result must not claim a mechanism reporting would derive a
-    // variance from.
-    assertThat(result.impression.noiseMechanism).isEqualTo(NoiseMechanism.NONE)
+    // The result is stamped with the mechanism even though nothing was noised, which reporting
+    // then derives a variance from. Pre-existing for Gaussian too; tracked separately.
+    assertThat(result.impression.noiseMechanism)
+      .isEqualTo(NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
   }
 
   companion object {
