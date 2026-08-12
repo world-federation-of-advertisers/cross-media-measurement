@@ -346,6 +346,23 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         val kingdomChannel = inProcessCmmsComponents.kingdom.publicApiChannel
         val duchyMap =
           inProcessCmmsComponents.duchies.map { it.externalDuchyId to it.publicApiChannel }.toMap()
+        val gaussianNoiseTypes =
+          listOf(ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN)
+        val deterministicNoiseTypes =
+          listOf(ResultsFulfillerParams.NoiseParams.NoiseType.DETERMINISTIC_TRUNCATED_LAPLACE)
+        // edp1 and edp2 are the multi-EDP measurement participants. Pinning the mechanism in their
+        // fulfiller params puts DefaultFulfillerSelector.validateMultiPartyNoiseMechanism on the
+        // path, so a requisition only fulfills if the EDP Aggregator recognizes the mechanism.
+        val multiPartyNoiseTypes =
+          if (deterministicTruncatedLaplaceSupported) {
+            mapOf(
+              "edp1" to deterministicNoiseTypes,
+              "edp2" to deterministicNoiseTypes,
+              "edp4" to gaussianNoiseTypes,
+            )
+          } else {
+            mapOf("edp4" to gaussianNoiseTypes)
+          }
         inProcessEdpAggregatorComponents.startDaemons(
           kingdomChannel,
           measurementConsumerData,
@@ -388,10 +405,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               "edp3" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
               "edp4" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
             ),
-          edpMultiPartyNoiseTypes =
-            mapOf(
-              "edp4" to listOf(ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN)
-            ),
+          edpMultiPartyNoiseTypes = multiPartyNoiseTypes,
         )
         runBlocking {
           registerDataAvailabilityIntervals(kingdomChannel, edpDisplayNameToResourceMap)
