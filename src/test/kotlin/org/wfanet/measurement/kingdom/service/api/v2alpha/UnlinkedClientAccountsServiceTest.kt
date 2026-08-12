@@ -762,6 +762,22 @@ class UnlinkedClientAccountsServiceTest {
   }
 
   @Test
+  fun `listUnlinkedClientAccounts throws INVALID_ARGUMENT when page token is malformed`() {
+    val request = listUnlinkedClientAccountsRequest {
+      parent = DATA_PROVIDER_NAME
+      pageToken = "not a valid token"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.listUnlinkedClientAccounts(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
   fun `listUnlinkedClientAccounts throws INVALID_ARGUMENT when page token DP mismatch`() {
     val internalToken = internalListUnlinkedClientAccountsPageToken {
       after =
