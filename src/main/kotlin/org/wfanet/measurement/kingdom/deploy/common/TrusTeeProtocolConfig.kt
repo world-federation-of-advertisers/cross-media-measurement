@@ -26,6 +26,14 @@ object TrusTeeProtocolConfig {
   lateinit var protocolConfig: ProtocolConfig.TrusTee
     private set
 
+  /**
+   * Noise mechanisms in preference order.
+   *
+   * Never empty. A config that specifies no preference yields [protocolConfig]'s own mechanism.
+   */
+  lateinit var noiseMechanismPreference: List<ProtocolConfig.NoiseMechanism>
+    private set
+
   lateinit var duchyId: String
 
   fun initializeFromFlags(flags: TrusTeeProtocolConfigFlags) {
@@ -36,14 +44,25 @@ object TrusTeeProtocolConfig {
       }
 
     protocolConfig = configMessage.protocolConfig
+    noiseMechanismPreference = configMessage.noiseMechanismPreferenceList.toPreference()
     duchyId = configMessage.duchyId
   }
 
-  fun setForTest(protocolConfig: ProtocolConfig.TrusTee, duchyId: String) {
+  fun setForTest(
+    protocolConfig: ProtocolConfig.TrusTee,
+    duchyId: String,
+    noiseMechanismPreference: List<ProtocolConfig.NoiseMechanism> = emptyList(),
+  ) {
     require(!TrusTeeProtocolConfig::protocolConfig.isInitialized)
 
     TrusTeeProtocolConfig.protocolConfig = protocolConfig
+    TrusTeeProtocolConfig.noiseMechanismPreference = noiseMechanismPreference.toPreference()
     TrusTeeProtocolConfig.duchyId = duchyId
+  }
+
+  private fun List<ProtocolConfig.NoiseMechanism>.toPreference():
+    List<ProtocolConfig.NoiseMechanism> {
+    return ifEmpty { listOf(protocolConfig.noiseMechanism) }
   }
 }
 

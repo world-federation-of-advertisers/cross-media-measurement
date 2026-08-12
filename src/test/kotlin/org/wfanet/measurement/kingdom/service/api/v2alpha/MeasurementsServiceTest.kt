@@ -991,9 +991,9 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `createMeasurement skips trusTEE when an EDP lacks the noise mechanism capability`() {
-    // The configured TrusTEE mechanism is DETERMINISTIC_TRUNCATED_LAPLACE, so an EDP that supports
-    // TrusTEE but not the mechanism must not get a TrusTEE protocol config.
+  fun `createMeasurement falls back to the next noise mechanism the EDPs support`() {
+    // The preference is DETERMINISTIC_TRUNCATED_LAPLACE then CONTINUOUS_GAUSSIAN. An EDP that
+    // supports TrusTEE but not the deterministic mechanism gets TrusTEE under the second.
     internalDataProvidersMock.stub {
       onBlocking { batchGetDataProviders(any()) }
         .thenReturn(
@@ -1026,13 +1026,17 @@ class MeasurementsServiceTest {
       runBlocking { trusTeeEnabledService.createMeasurement(request) }
     }
 
-    // TrusTEE is skipped, HMSS is unsupported on these EDPs, so selection falls to LLv2.
     val internalRequest =
       captureFirst<InternalCreateMeasurementRequest> {
         runBlocking { verify(internalMeasurementsMock).createMeasurement(capture()) }
       }
     assertThat(internalRequest.measurement.details.protocolConfig)
-      .isEqualTo(LLV2_INTERNAL_PROTOCOL_CONFIG)
+      .isEqualTo(
+        TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.copy {
+          trusTee =
+            trusTee.copy { noiseMechanism = InternalNoiseMechanism.CONTINUOUS_GAUSSIAN }
+        }
+      )
   }
 
   @Test
@@ -3104,7 +3108,14 @@ class MeasurementsServiceTest {
         "worker2",
         "aggregator",
       )
-      TrusTeeProtocolConfig.setForTest(TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.trusTee, "aggregator")
+      TrusTeeProtocolConfig.setForTest(
+        TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.trusTee,
+        "aggregator",
+        listOf(
+          InternalNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+          InternalNoiseMechanism.CONTINUOUS_GAUSSIAN,
+        ),
+      )
     }
 
     private val API_VERSION = Version.V2_ALPHA
