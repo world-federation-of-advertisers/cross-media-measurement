@@ -607,6 +607,55 @@ abstract class ClientAccountsServiceTest<T : ClientAccountsCoroutineImplBase> {
   }
 
   @Test
+  fun `batchCreateClientAccounts deletes matching UnlinkedClientAccounts and preserves others`():
+    Unit = runBlocking {
+    val measurementConsumer: MeasurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+
+    for (refId in listOf("linked-ref-1", "linked-ref-2", "other-ref")) {
+      unlinkedClientAccountsService.createUnlinkedClientAccount(
+        createUnlinkedClientAccountRequest {
+          unlinkedClientAccount = unlinkedClientAccount {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            clientAccountReferenceId = refId
+          }
+        }
+      )
+    }
+
+    clientAccountsService.batchCreateClientAccounts(
+      batchCreateClientAccountsRequest {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        requests += createClientAccountRequest {
+          clientAccount = clientAccount {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            externalDataProviderId = dataProvider.externalDataProviderId
+            clientAccountReferenceId = "linked-ref-1"
+          }
+        }
+        requests += createClientAccountRequest {
+          clientAccount = clientAccount {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            externalDataProviderId = dataProvider.externalDataProviderId
+            clientAccountReferenceId = "linked-ref-2"
+          }
+        }
+      }
+    )
+
+    // The two matching UnlinkedClientAccounts are auto-deleted; the non-matching one is preserved.
+    val listResponse =
+      unlinkedClientAccountsService.listUnlinkedClientAccounts(
+        listUnlinkedClientAccountsRequest {
+          filter = unlinkedFilter { externalDataProviderId = dataProvider.externalDataProviderId }
+        }
+      )
+    assertThat(listResponse.unlinkedClientAccountsList.map { it.clientAccountReferenceId })
+      .containsExactly("other-ref")
+  }
+
+  @Test
   fun `createClientAccount deletes matching UnlinkedClientAccount`(): Unit = runBlocking {
     val measurementConsumer: MeasurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)

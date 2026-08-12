@@ -42,6 +42,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.UnlinkedClie
  * @throws [DataProviderNotFoundException] when the DataProvider is not found
  * @throws [UnlinkedClientAccountAlreadyExistsException] when an UnlinkedClientAccount with the same
  *   reference ID already exists for the DataProvider
+ * @throws [ClientAccountAlreadyExistsException] when a ClientAccount with the same reference ID
+ *   already exists for the DataProvider
  */
 class BatchCreateUnlinkedClientAccounts(
   private val request: BatchCreateUnlinkedClientAccountsRequest

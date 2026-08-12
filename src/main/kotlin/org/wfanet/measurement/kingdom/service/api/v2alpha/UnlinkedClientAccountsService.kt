@@ -251,7 +251,13 @@ class UnlinkedClientAccountsService(
       if (request.pageToken.isEmpty()) {
         null
       } else {
-        InternalListUnlinkedClientAccountsPageToken.parseFrom(request.pageToken.base64UrlDecode())
+        try {
+          InternalListUnlinkedClientAccountsPageToken.parseFrom(request.pageToken.base64UrlDecode())
+        } catch (e: Exception) {
+          throw Status.INVALID_ARGUMENT.withDescription("page_token is malformed")
+            .withCause(e)
+            .asRuntimeException()
+        }
       }
 
     if (internalPageToken != null) {
