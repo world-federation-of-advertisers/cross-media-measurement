@@ -173,6 +173,11 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private val hmssEnabled: Boolean,
   private val trusTeeEnabled: Boolean,
   private val multiEdpDisplayNames: Set<String> = emptySet(),
+  /**
+   * Whether the EDPs declare support for DETERMINISTIC_TRUNCATED_LAPLACE. The Kingdom offers
+   * TrusTEE with that mechanism only when every DataProvider reports it.
+   */
+  private val deterministicTruncatedLaplaceSupported: Boolean = false,
 ) {
 
   protected val expectedProtocol: PublicProtocolConfig.Protocol.ProtocolCase =
@@ -341,6 +346,20 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         val kingdomChannel = inProcessCmmsComponents.kingdom.publicApiChannel
         val duchyMap =
           inProcessCmmsComponents.duchies.map { it.externalDuchyId to it.publicApiChannel }.toMap()
+        val gaussianNoiseTypes =
+          listOf(ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN)
+        val deterministicNoiseTypes =
+          listOf(ResultsFulfillerParams.NoiseParams.NoiseType.DETERMINISTIC_TRUNCATED_LAPLACE)
+        // Pinning the mechanism in the measurement participants' fulfiller params puts
+        // DefaultFulfillerSelector.validateMultiPartyNoiseMechanism on the path, so a requisition
+        // only fulfills if the EDP Aggregator recognizes the mechanism.
+        val multiPartyNoiseTypes =
+          if (deterministicTruncatedLaplaceSupported) {
+            multiEdpDisplayNames.associateWith { deterministicNoiseTypes } +
+              mapOf("edp4" to gaussianNoiseTypes)
+          } else {
+            mapOf("edp4" to gaussianNoiseTypes)
+          }
         inProcessEdpAggregatorComponents.startDaemons(
           kingdomChannel,
           measurementConsumerData,
@@ -350,21 +369,29 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               DataProviderKt.capabilities {
                 honestMajorityShareShuffleSupported = hmssEnabled
                 trusTeeSupported = trusTeeEnabled
+                noiseMechanismDeterministicTruncatedLaplaceSupported =
+                  deterministicTruncatedLaplaceSupported
               },
             "edp2" to
               DataProviderKt.capabilities {
                 honestMajorityShareShuffleSupported = hmssEnabled
                 trusTeeSupported = trusTeeEnabled
+                noiseMechanismDeterministicTruncatedLaplaceSupported =
+                  deterministicTruncatedLaplaceSupported
               },
             "edp3" to
               DataProviderKt.capabilities {
                 honestMajorityShareShuffleSupported = hmssEnabled
                 trusTeeSupported = trusTeeEnabled
+                noiseMechanismDeterministicTruncatedLaplaceSupported =
+                  deterministicTruncatedLaplaceSupported
               },
             "edp4" to
               DataProviderKt.capabilities {
                 honestMajorityShareShuffleSupported = hmssEnabled
                 trusTeeSupported = trusTeeEnabled
+                noiseMechanismDeterministicTruncatedLaplaceSupported =
+                  deterministicTruncatedLaplaceSupported
               },
           ),
           duchyMap,
@@ -375,10 +402,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               "edp3" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
               "edp4" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
             ),
-          edpMultiPartyNoiseTypes =
-            mapOf(
-              "edp4" to listOf(ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN)
-            ),
+          edpMultiPartyNoiseTypes = multiPartyNoiseTypes,
         )
         runBlocking {
           registerDataAvailabilityIntervals(kingdomChannel, edpDisplayNameToResourceMap)
