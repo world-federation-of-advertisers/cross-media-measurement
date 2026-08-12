@@ -991,9 +991,9 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `createMeasurement skips trusTEE when an EDP lacks the noise mechanism capability`() {
-    // The configured TrusTEE mechanism is DETERMINISTIC_TRUNCATED_LAPLACE, so an EDP that supports
-    // TrusTEE but not the mechanism must not get a TrusTEE protocol config.
+  fun `createMeasurement uses trusTEE fallback when an EDP lacks the mechanism capability`() {
+    // The configured TrusTEE mechanism is DETERMINISTIC_TRUNCATED_LAPLACE. An EDP that supports
+    // TrusTEE but not the mechanism gets the fallback config, staying on TrusTEE.
     internalDataProvidersMock.stub {
       onBlocking { batchGetDataProviders(any()) }
         .thenReturn(
@@ -1026,13 +1026,12 @@ class MeasurementsServiceTest {
       runBlocking { trusTeeEnabledService.createMeasurement(request) }
     }
 
-    // TrusTEE is skipped, HMSS is unsupported on these EDPs, so selection falls to LLv2.
     val internalRequest =
       captureFirst<InternalCreateMeasurementRequest> {
         runBlocking { verify(internalMeasurementsMock).createMeasurement(capture()) }
       }
     assertThat(internalRequest.measurement.details.protocolConfig)
-      .isEqualTo(LLV2_INTERNAL_PROTOCOL_CONFIG)
+      .isEqualTo(TRUS_TEE_FALLBACK_INTERNAL_PROTOCOL_CONFIG)
   }
 
   @Test
@@ -3104,7 +3103,11 @@ class MeasurementsServiceTest {
         "worker2",
         "aggregator",
       )
-      TrusTeeProtocolConfig.setForTest(TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.trusTee, "aggregator")
+      TrusTeeProtocolConfig.setForTest(
+        TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.trusTee,
+        "aggregator",
+        TRUS_TEE_FALLBACK_INTERNAL_PROTOCOL_CONFIG.trusTee,
+      )
     }
 
     private val API_VERSION = Version.V2_ALPHA
@@ -3210,6 +3213,14 @@ class MeasurementsServiceTest {
       trusTee =
         InternalProtocolConfigKt.trusTee {
           noiseMechanism = InternalNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
+        }
+    }
+
+    private val TRUS_TEE_FALLBACK_INTERNAL_PROTOCOL_CONFIG = internalProtocolConfig {
+      externalProtocolConfigId = "trustee"
+      trusTee =
+        InternalProtocolConfigKt.trusTee {
+          noiseMechanism = InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
         }
     }
 

@@ -476,20 +476,48 @@ class MeasurementsService(
   }
 
   /**
-   * Whether every `DataProvider` supports the noise mechanism the TrusTEE config selects.
+   * Whether every `DataProvider` supports [noiseMechanism].
    *
    * Only DETERMINISTIC_TRUNCATED_LAPLACE is capability-gated. The public API also declares
    * `noise_mechanism_none_supported`, which is not propagated here and not enforced anywhere in
    * this repo, so the other mechanisms are treated as supported.
    */
-  private fun Collection<InternalDataProviderCapabilities>.supportTrusTeeNoiseMechanism(): Boolean {
-    if (
-      TrusTeeProtocolConfig.protocolConfig.noiseMechanism !=
-        InternalProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
-    ) {
+  private fun Collection<InternalDataProviderCapabilities>.supportNoiseMechanism(
+    noiseMechanism: InternalProtocolConfig.NoiseMechanism
+  ): Boolean {
+    if (noiseMechanism != InternalProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE) {
       return true
     }
     return all { it.noiseMechanismDeterministicTruncatedLaplaceSupported }
+  }
+
+  /**
+   * The TrusTEE config to offer for a `Measurement` on these `DataProvider`s, or `null` if TrusTEE
+   * cannot be offered.
+   *
+   * Prefers the configured [TrusTeeProtocolConfig.protocolConfig]. When a `DataProvider` lacks the
+   * capability for its noise mechanism, falls back to
+   * [TrusTeeProtocolConfig.fallbackProtocolConfig] if the deployment configured one, keeping the
+   * `Measurement` on TrusTEE rather than dropping it to an MPC protocol.
+   */
+  private fun selectTrusTeeProtocolConfig(
+    dataProviderCapabilities: Collection<InternalDataProviderCapabilities>,
+    measurementConsumerName: String,
+  ): InternalProtocolConfig.TrusTee? {
+    if (measurementConsumerName !in trusTeeEnabledMeasurementConsumers && !trusTeeEnabled) {
+      return null
+    }
+    if (!dataProviderCapabilities.all { it.trusTeeSupported }) {
+      return null
+    }
+    val protocolConfig = TrusTeeProtocolConfig.protocolConfig
+    if (dataProviderCapabilities.supportNoiseMechanism(protocolConfig.noiseMechanism)) {
+      return protocolConfig
+    }
+    val fallbackProtocolConfig = TrusTeeProtocolConfig.fallbackProtocolConfig ?: return null
+    return fallbackProtocolConfig.takeIf {
+      dataProviderCapabilities.supportNoiseMechanism(it.noiseMechanism)
+    }
   }
 
   private fun buildInternalProtocolConfig(
@@ -516,14 +544,12 @@ class MeasurementsService(
               }
           }
         } else {
-          if (
-            (measurementConsumerName in trusTeeEnabledMeasurementConsumers || trusTeeEnabled) &&
-              dataProviderCapabilities.all { it.trusTeeSupported } &&
-              dataProviderCapabilities.supportTrusTeeNoiseMechanism()
-          ) {
+          val trusTeeProtocolConfig =
+            selectTrusTeeProtocolConfig(dataProviderCapabilities, measurementConsumerName)
+          if (trusTeeProtocolConfig != null) {
             protocolConfig {
               externalProtocolConfigId = TrusTeeProtocolConfig.NAME
-              trusTee = TrusTeeProtocolConfig.protocolConfig
+              trusTee = trusTeeProtocolConfig
             }
           } else if (
             (measurementConsumerName in hmssEnabledMeasurementConsumers || hmssEnabled) &&
@@ -565,14 +591,12 @@ class MeasurementsService(
               }
           }
         } else {
-          if (
-            (measurementConsumerName in trusTeeEnabledMeasurementConsumers || trusTeeEnabled) &&
-              dataProviderCapabilities.all { it.trusTeeSupported } &&
-              dataProviderCapabilities.supportTrusTeeNoiseMechanism()
-          ) {
+          val trusTeeProtocolConfig =
+            selectTrusTeeProtocolConfig(dataProviderCapabilities, measurementConsumerName)
+          if (trusTeeProtocolConfig != null) {
             protocolConfig {
               externalProtocolConfigId = TrusTeeProtocolConfig.NAME
-              trusTee = TrusTeeProtocolConfig.protocolConfig
+              trusTee = trusTeeProtocolConfig
             }
           } else if (
             (measurementConsumerName in hmssEnabledMeasurementConsumers || hmssEnabled) &&

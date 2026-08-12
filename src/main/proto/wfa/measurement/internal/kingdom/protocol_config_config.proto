@@ -52,4 +52,11 @@ message TrusTeeProtocolConfigConfig {
   ProtocolConfig.TrusTee protocol_config = 1;
   // The id of the duchy executing the computation.
   string duchy_id = 2;
+  // The TrusTee protocol config to offer when a `DataProvider` on the
+  // `Measurement` lacks the capability for the `noise_mechanism` in
+  // `protocol_config`.
+  //
+  // If unset, TrusTee is not offered at all in that case and selection falls
+  // through to the next protocol.
+  ProtocolConfig.TrusTee fallback_protocol_config = 3;
 }

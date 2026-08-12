@@ -26,6 +26,10 @@ object TrusTeeProtocolConfig {
   lateinit var protocolConfig: ProtocolConfig.TrusTee
     private set
 
+  /** Offered when a `DataProvider` lacks the capability for [protocolConfig]'s noise mechanism. */
+  var fallbackProtocolConfig: ProtocolConfig.TrusTee? = null
+    private set
+
   lateinit var duchyId: String
 
   fun initializeFromFlags(flags: TrusTeeProtocolConfigFlags) {
@@ -36,13 +40,20 @@ object TrusTeeProtocolConfig {
       }
 
     protocolConfig = configMessage.protocolConfig
+    fallbackProtocolConfig =
+      if (configMessage.hasFallbackProtocolConfig()) configMessage.fallbackProtocolConfig else null
     duchyId = configMessage.duchyId
   }
 
-  fun setForTest(protocolConfig: ProtocolConfig.TrusTee, duchyId: String) {
+  fun setForTest(
+    protocolConfig: ProtocolConfig.TrusTee,
+    duchyId: String,
+    fallbackProtocolConfig: ProtocolConfig.TrusTee? = null,
+  ) {
     require(!TrusTeeProtocolConfig::protocolConfig.isInitialized)
 
     TrusTeeProtocolConfig.protocolConfig = protocolConfig
+    TrusTeeProtocolConfig.fallbackProtocolConfig = fallbackProtocolConfig
     TrusTeeProtocolConfig.duchyId = duchyId
   }
 }
