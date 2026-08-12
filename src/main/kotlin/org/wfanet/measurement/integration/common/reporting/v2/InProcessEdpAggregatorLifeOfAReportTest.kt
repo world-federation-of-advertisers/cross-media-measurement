@@ -355,8 +355,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         // only fulfills if the EDP Aggregator recognizes the mechanism.
         val multiPartyNoiseTypes =
           if (deterministicTruncatedLaplaceSupported) {
-            multiEdpDisplayNames.associateWith { deterministicNoiseTypes } +
-              mapOf("edp4" to gaussianNoiseTypes)
+            // Every EDP declares the capability below, so every EDP that pins a list must include
+            // the mechanism. A pinned list that omits it contradicts the declared capability.
+            mapOf("edp4" to gaussianNoiseTypes + deterministicNoiseTypes) +
+              multiEdpDisplayNames.associateWith { deterministicNoiseTypes }
           } else {
             mapOf("edp4" to gaussianNoiseTypes)
           }
