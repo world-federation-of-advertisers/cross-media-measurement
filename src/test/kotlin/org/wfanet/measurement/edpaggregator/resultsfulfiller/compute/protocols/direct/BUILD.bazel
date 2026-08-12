@@ -1,6 +1,18 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
+    name = "DirectResultNoisersTest",
+    srcs = ["DirectResultNoisersTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectResultNoisersTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:result_noiser",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute/protocols/direct:direct_result_noisers",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
     name = "DirectReachAndFrequencyResultBuilderTest",
     srcs = ["DirectReachAndFrequencyResultBuilderTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectReachAndFrequencyResultBuilderTest",
