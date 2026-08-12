@@ -125,7 +125,7 @@ class TrusTeeConfigTest {
             roleArn = "arn:aws:iam::123456789012:role/my-role"
             roleSession = "my-session"
             region = "us-east-1"
-            audience = "sts.amazonaws.com"
+            workloadIdentityIdTokenAudience = "sts.amazonaws.com"
           },
       )
     val uri = "aws-kms://arn:aws:kms:us-east-1:123456789012:key/my-key"
@@ -136,6 +136,6 @@ class TrusTeeConfigTest {
     assertThat(resultAwsKmsParams.roleArn).isEqualTo("arn:aws:iam::123456789012:role/my-role")
     assertThat(resultAwsKmsParams.roleSession).isEqualTo("my-session")
     assertThat(resultAwsKmsParams.region).isEqualTo("us-east-1")
-    assertThat(resultAwsKmsParams.audience).isEqualTo("sts.amazonaws.com")
+    assertThat(resultAwsKmsParams.workloadIdentityIdTokenAudience).isEqualTo("sts.amazonaws.com")
   }
 }
