@@ -93,8 +93,7 @@ object ResultMinimumThresholder {
       ImpressionComputations.computeImpressionCount(
         rawHistogram = histogram,
         vidSamplingIntervalWidth = vidSamplingIntervalWidth,
-        maxFrequency = null,
-        dpParams = null,
+        noiser = NoNoise,
         resultMinimumThresholds = null,
       )
 
