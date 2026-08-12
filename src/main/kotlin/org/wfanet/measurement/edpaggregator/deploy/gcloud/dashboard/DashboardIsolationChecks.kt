@@ -62,7 +62,7 @@ class DashboardIsolationChecks(
           // healthy rather than a failure. Every other table always has data for
           // an active EDP, so an empty result there is still a failure. The
           // cross-EDP assertion below still applies whenever rows do exist.
-          val emptyIsHealthy = tableName in EMPTY_IS_HEALTHY
+          val emptyIsHealthy = isEmptyResultHealthy(tableName)
           results.add(
             CheckResult(
               "${edp.name}: $tableName",
@@ -871,7 +871,7 @@ class DashboardIsolationChecks(
           .first()
           .get("cnt")
           .longValue
-      val healthy = !(staleSourceCount > 0 && destCount == 0L)
+      val healthy = unlinkedAccountsPipelineHealthy(staleSourceCount, destCount)
       listOf(
         CheckResult(
           "unlinked_accounts pipeline",
@@ -897,5 +897,16 @@ class DashboardIsolationChecks(
   companion object {
     // Tables that record an edge condition and are legitimately often empty.
     private val EMPTY_IS_HEALTHY = setOf("unlinked_accounts")
+
+    /** Whether an empty result for [tableName] is healthy (legitimately often empty). */
+    fun isEmptyResultHealthy(tableName: String): Boolean = tableName in EMPTY_IS_HEALTHY
+
+    /**
+     * Whether the unlinked_accounts pipeline is healthy given the count of source rows old enough
+     * that a scheduled MERGE should have picked them up and the dashboard table row count. Stale
+     * source rows with an empty dashboard table mean the MERGE is broken.
+     */
+    fun unlinkedAccountsPipelineHealthy(staleSourceCount: Long, destCount: Long): Boolean =
+      !(staleSourceCount > 0 && destCount == 0L)
   }
 }
