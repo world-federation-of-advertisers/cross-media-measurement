@@ -3,15 +3,17 @@
 This guide describes how to enable the `DETERMINISTIC_TRUNCATED_LAPLACE` noise
 mechanism for TrusTEE reach and frequency measurements.
 
-The noise is drawn inside the TEE from a public seed derived from the frequency
-vector, so it is reproducible: an Event Data Provider (EDP) that runs a Privacy
-Budget Manager (PBM) can recompute the draw and remove it. Repeating a query
-returns the same result rather than a fresh draw, so the noise cannot be
-averaged away.
+The noise is drawn inside the TEE from a seed derived from the aggregated
+frequency vector and the number of contributions to it. Repeating a query over
+unchanged data returns the same result rather than a fresh draw, so the noise
+cannot be averaged away. Changing the underlying data changes the seed, and with
+it the result.
 
 The privacy parameters are compiled into the attested TrusTEE image rather than
-taken from the `MeasurementSpec`. A Measurement Consumer does not choose epsilon
-for these measurements, and there is no per-query privacy budget accounting.
+taken from the `MeasurementSpec`. `reach_dp_params` and `frequency_dp_params`
+are still carried on the `MeasurementSpec` and still reach the Duchy, but the
+TEE discards them for this mechanism, so the epsilon a Measurement Consumer sets
+has no effect on the result.
 
 ## Steps
 
@@ -40,7 +42,7 @@ The mechanism is carried to the Duchy as a new value in the system API
 The mechanism does not change what an EDP sends. For TrusTEE the EDP encrypts
 the same frequency vector to the TEE, which draws the noise itself. What changes
 is whether the EDP's fulfillment path accepts a requisition carrying the
-mechanism, and how an EDP that runs a PBM accounts for it.
+mechanism.
 
 Complete this step before step 3.
 
@@ -72,16 +74,10 @@ An EDP that fulfills requisitions with its own implementation has no
 frequency vector sent for a TrusTEE requisition is the same under every
 mechanism.
 
-Two things are worth checking:
-
-*   If the implementation validates the mechanism on
-    `ProtocolConfig.Protocol.TrusTee.noise_mechanism` before fulfilling, it must
-    accept `DETERMINISTIC_TRUNCATED_LAPLACE`, otherwise it will refuse every
-    affected requisition once the Kingdom starts selecting it.
-*   If the implementation runs a PBM, decide how to account for these
-    measurements before declaring the capability. The noise is reproducible from
-    public values, so it can be recomputed and removed, and the privacy
-    parameters are fixed by the attested image rather than chosen per query.
+If the implementation validates the mechanism on
+`ProtocolConfig.Protocol.TrusTee.noise_mechanism` before fulfilling, it must
+accept `DETERMINISTIC_TRUNCATED_LAPLACE`, otherwise it will refuse every
+affected requisition once the Kingdom starts selecting it.
 
 ### 3. Declare the EDP capability
 
@@ -128,8 +124,8 @@ With this configuration, a `Measurement` whose EDPs do not all declare the
 capability is not offered TrusTEE at all, and selection falls through to HMSS
 and then LLv2.
 
-To keep those measurements on TrusTEE under a weaker mechanism instead, add an
-ordered fallback:
+To offer TrusTEE under a different mechanism in that case, configure an ordered
+fallback:
 
 ```textproto
 protocol_config {
@@ -168,14 +164,20 @@ val noiseMechanism = trusTeeProtocol.trusTee.noiseMechanism
 The `ProtocolConfig` can also be inspected in `MeasurementDetails` in the
 `Measurements` table in the Kingdom.
 
-A `Measurement` that landed on HMSS or LLv2, or on TrusTEE with a fallback
-mechanism, means the capability gate did not pass. Compare
-`DataProvider.capabilities` across every EDP on the `Measurement` to find which
-one is missing it.
+A `Measurement` that did not get this mechanism failed one of the gates, in the
+order the Kingdom applies them:
 
-Because the noise is deterministic, rerunning an identical query returns an
-identical result. A differing result on a rerun indicates the measurement did
-not use this mechanism.
+1.  TrusTEE is not enabled for the `MeasurementConsumer`, via `--enable-trustee`
+    or `--trustee-enabled-measurement-consumers`. The `Measurement` lands on
+    HMSS or LLv2.
+2.  Some EDP has `trus_tee_supported` false. Same outcome.
+3.  Some EDP has `noise_mechanism_deterministic_truncated_laplace_supported`
+    false. The `Measurement` lands on TrusTEE under a
+    `fallback_noise_mechanisms` entry, or on the next protocol if no fallback is
+    configured.
+
+Compare `DataProvider.capabilities` across every EDP on the `Measurement` to
+find which one is missing a capability.
 
 ## Emergency Rollback
 

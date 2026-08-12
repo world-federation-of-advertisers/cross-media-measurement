@@ -486,8 +486,15 @@ class MeasurementsService(
    * configures no fallback keeps the previous behavior: TrusTEE is not offered and selection falls
    * through to the next protocol.
    */
-  private fun Collection<InternalDataProviderCapabilities>.selectTrusTeeProtocolConfig():
-    InternalProtocolConfig.TrusTee? {
+  private fun Collection<InternalDataProviderCapabilities>.selectTrusTeeProtocolConfig(
+    measurementConsumerName: String
+  ): InternalProtocolConfig.TrusTee? {
+    if (measurementConsumerName !in trusTeeEnabledMeasurementConsumers && !trusTeeEnabled) {
+      return null
+    }
+    if (!all { it.trusTeeSupported }) {
+      return null
+    }
     val protocolConfig = TrusTeeProtocolConfig.protocolConfig
     if (supportNoiseMechanism(protocolConfig.noiseMechanism)) {
       return protocolConfig
@@ -502,7 +509,8 @@ class MeasurementsService(
    * Whether every `DataProvider` supports [noiseMechanism].
    *
    * The public API also declares `noise_mechanism_none_supported`, which is not propagated to the
-   * internal API and not enforced anywhere in this repo, so NONE is treated as supported.
+   * internal API and not enforced anywhere in this repo, so NONE is treated as supported. See
+   * #4347.
    */
   private fun Collection<InternalDataProviderCapabilities>.supportNoiseMechanism(
     noiseMechanism: InternalProtocolConfig.NoiseMechanism
@@ -546,14 +554,7 @@ class MeasurementsService(
           }
         } else {
           val trusTeeProtocolConfig =
-            if (
-              (measurementConsumerName in trusTeeEnabledMeasurementConsumers || trusTeeEnabled) &&
-                dataProviderCapabilities.all { it.trusTeeSupported }
-            ) {
-              dataProviderCapabilities.selectTrusTeeProtocolConfig()
-            } else {
-              null
-            }
+            dataProviderCapabilities.selectTrusTeeProtocolConfig(measurementConsumerName)
           if (trusTeeProtocolConfig != null) {
             protocolConfig {
               externalProtocolConfigId = TrusTeeProtocolConfig.NAME
@@ -600,14 +601,7 @@ class MeasurementsService(
           }
         } else {
           val trusTeeProtocolConfig =
-            if (
-              (measurementConsumerName in trusTeeEnabledMeasurementConsumers || trusTeeEnabled) &&
-                dataProviderCapabilities.all { it.trusTeeSupported }
-            ) {
-              dataProviderCapabilities.selectTrusTeeProtocolConfig()
-            } else {
-              null
-            }
+            dataProviderCapabilities.selectTrusTeeProtocolConfig(measurementConsumerName)
           if (trusTeeProtocolConfig != null) {
             protocolConfig {
               externalProtocolConfigId = TrusTeeProtocolConfig.NAME
