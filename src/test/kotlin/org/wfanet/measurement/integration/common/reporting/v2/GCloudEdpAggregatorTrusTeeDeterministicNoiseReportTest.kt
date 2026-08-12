@@ -19,6 +19,7 @@ import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.rules.Timeout
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig as PublicProtocolConfig
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
@@ -59,8 +60,8 @@ class GCloudEdpAggregatorTrusTeeDeterministicNoiseReportTest :
     deterministicTruncatedLaplaceSupported = true,
   ) {
 
-  override val useNoisyAssertions: Boolean
-    get() = true
+  override val expectedTrusTeeNoiseMechanism: PublicProtocolConfig.NoiseMechanism
+    get() = PublicProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
 
   @get:Rule val timeout: Timeout = Timeout.seconds(180)
 

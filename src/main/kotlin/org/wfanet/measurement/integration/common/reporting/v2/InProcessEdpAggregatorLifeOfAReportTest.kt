@@ -350,16 +350,13 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           listOf(ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN)
         val deterministicNoiseTypes =
           listOf(ResultsFulfillerParams.NoiseParams.NoiseType.DETERMINISTIC_TRUNCATED_LAPLACE)
-        // edp1 and edp2 are the multi-EDP measurement participants. Pinning the mechanism in their
-        // fulfiller params puts DefaultFulfillerSelector.validateMultiPartyNoiseMechanism on the
-        // path, so a requisition only fulfills if the EDP Aggregator recognizes the mechanism.
+        // Pinning the mechanism in the measurement participants' fulfiller params puts
+        // DefaultFulfillerSelector.validateMultiPartyNoiseMechanism on the path, so a requisition
+        // only fulfills if the EDP Aggregator recognizes the mechanism.
         val multiPartyNoiseTypes =
           if (deterministicTruncatedLaplaceSupported) {
-            mapOf(
-              "edp1" to deterministicNoiseTypes,
-              "edp2" to deterministicNoiseTypes,
-              "edp4" to gaussianNoiseTypes,
-            )
+            multiEdpDisplayNames.associateWith { deterministicNoiseTypes } +
+              mapOf("edp4" to gaussianNoiseTypes)
           } else {
             mapOf("edp4" to gaussianNoiseTypes)
           }

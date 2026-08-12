@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
@@ -72,6 +73,12 @@ abstract class InProcessEdpAggregatorTrusTeeThresholdTest(
   // correction) cause reports to fail. Subclasses override this to test those failure paths.
   open val expectedTrusTeeBasicReportState: BasicReport.State
     get() = BasicReport.State.SUCCEEDED
+
+  // The noise mechanism the Kingdom is expected to stamp on TrusTee measurements. Subclasses
+  // override this to assert that protocol config selection picked the configured mechanism, rather
+  // than reaching TrusTee by some other path.
+  open val expectedTrusTeeNoiseMechanism: ProtocolConfig.NoiseMechanism?
+    get() = null
 
   // Subclasses override this to use approximate assertions for noisy results or to check
   // different expected values for threshold configurations.
@@ -129,6 +136,16 @@ abstract class InProcessEdpAggregatorTrusTeeThresholdTest(
     assertWithMessage("at least one measurement used TrusTee protocol")
       .that(trusTeeProtocolMeasurements)
       .isNotEmpty()
+
+    val expectedNoiseMechanism = expectedTrusTeeNoiseMechanism
+    if (expectedNoiseMechanism != null) {
+      for (measurement in trusTeeProtocolMeasurements) {
+        val trusTee = measurement.protocolConfig.protocolsList.first { it.hasTrusTee() }.trusTee
+        assertWithMessage("TrusTee noise mechanism on ${measurement.name}")
+          .that(trusTee.noiseMechanism)
+          .isEqualTo(expectedNoiseMechanism)
+      }
+    }
 
     if (expectedTrusTeeBasicReportState == BasicReport.State.SUCCEEDED) {
       assertStructuralResults(completedBasicReport)

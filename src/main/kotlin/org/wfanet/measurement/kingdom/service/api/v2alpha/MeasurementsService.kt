@@ -476,47 +476,24 @@ class MeasurementsService(
   }
 
   /**
-   * Whether every `DataProvider` supports [noiseMechanism].
+   * Whether every `DataProvider` supports the noise mechanism the TrusTEE config selects.
    *
-   * Only DETERMINISTIC_TRUNCATED_LAPLACE is capability-gated. The public API also declares
-   * `noise_mechanism_none_supported`, which is not propagated here and not enforced anywhere in
-   * this repo, so the other mechanisms are treated as supported.
+   * The public API also declares `noise_mechanism_none_supported`, which is not propagated to the
+   * internal API and not enforced anywhere in this repo, so NONE is treated as supported.
    */
-  private fun Collection<InternalDataProviderCapabilities>.supportNoiseMechanism(
-    noiseMechanism: InternalProtocolConfig.NoiseMechanism
-  ): Boolean {
-    if (noiseMechanism != InternalProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE) {
-      return true
-    }
-    return all { it.noiseMechanismDeterministicTruncatedLaplaceSupported }
-  }
-
-  /**
-   * The TrusTEE config to offer for a `Measurement` on these `DataProvider`s, or `null` if TrusTEE
-   * cannot be offered.
-   *
-   * Prefers the configured [TrusTeeProtocolConfig.protocolConfig]. When a `DataProvider` lacks the
-   * capability for its noise mechanism, falls back to
-   * [TrusTeeProtocolConfig.fallbackProtocolConfig] if the deployment configured one, keeping the
-   * `Measurement` on TrusTEE rather than dropping it to an MPC protocol.
-   */
-  private fun selectTrusTeeProtocolConfig(
-    dataProviderCapabilities: Collection<InternalDataProviderCapabilities>,
-    measurementConsumerName: String,
-  ): InternalProtocolConfig.TrusTee? {
-    if (measurementConsumerName !in trusTeeEnabledMeasurementConsumers && !trusTeeEnabled) {
-      return null
-    }
-    if (!dataProviderCapabilities.all { it.trusTeeSupported }) {
-      return null
-    }
-    val protocolConfig = TrusTeeProtocolConfig.protocolConfig
-    if (dataProviderCapabilities.supportNoiseMechanism(protocolConfig.noiseMechanism)) {
-      return protocolConfig
-    }
-    val fallbackProtocolConfig = TrusTeeProtocolConfig.fallbackProtocolConfig ?: return null
-    return fallbackProtocolConfig.takeIf {
-      dataProviderCapabilities.supportNoiseMechanism(it.noiseMechanism)
+  private fun Collection<InternalDataProviderCapabilities>.supportTrusTeeNoiseMechanism(): Boolean {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    return when (TrusTeeProtocolConfig.protocolConfig.noiseMechanism) {
+      InternalProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE ->
+        all { it.noiseMechanismDeterministicTruncatedLaplaceSupported }
+      InternalProtocolConfig.NoiseMechanism.NONE,
+      InternalProtocolConfig.NoiseMechanism.GEOMETRIC,
+      InternalProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN,
+      InternalProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE,
+      InternalProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN -> true
+      InternalProtocolConfig.NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
+      InternalProtocolConfig.NoiseMechanism.UNRECOGNIZED ->
+        error("Invalid internal NoiseMechanism")
     }
   }
 
@@ -544,12 +521,14 @@ class MeasurementsService(
               }
           }
         } else {
-          val trusTeeProtocolConfig =
-            selectTrusTeeProtocolConfig(dataProviderCapabilities, measurementConsumerName)
-          if (trusTeeProtocolConfig != null) {
+          if (
+            (measurementConsumerName in trusTeeEnabledMeasurementConsumers || trusTeeEnabled) &&
+              dataProviderCapabilities.all { it.trusTeeSupported } &&
+              dataProviderCapabilities.supportTrusTeeNoiseMechanism()
+          ) {
             protocolConfig {
               externalProtocolConfigId = TrusTeeProtocolConfig.NAME
-              trusTee = trusTeeProtocolConfig
+              trusTee = TrusTeeProtocolConfig.protocolConfig
             }
           } else if (
             (measurementConsumerName in hmssEnabledMeasurementConsumers || hmssEnabled) &&
@@ -591,12 +570,14 @@ class MeasurementsService(
               }
           }
         } else {
-          val trusTeeProtocolConfig =
-            selectTrusTeeProtocolConfig(dataProviderCapabilities, measurementConsumerName)
-          if (trusTeeProtocolConfig != null) {
+          if (
+            (measurementConsumerName in trusTeeEnabledMeasurementConsumers || trusTeeEnabled) &&
+              dataProviderCapabilities.all { it.trusTeeSupported } &&
+              dataProviderCapabilities.supportTrusTeeNoiseMechanism()
+          ) {
             protocolConfig {
               externalProtocolConfigId = TrusTeeProtocolConfig.NAME
-              trusTee = trusTeeProtocolConfig
+              trusTee = TrusTeeProtocolConfig.protocolConfig
             }
           } else if (
             (measurementConsumerName in hmssEnabledMeasurementConsumers || hmssEnabled) &&
