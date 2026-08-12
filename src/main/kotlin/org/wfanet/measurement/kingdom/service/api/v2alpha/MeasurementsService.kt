@@ -509,8 +509,8 @@ class MeasurementsService(
    * Whether every `DataProvider` supports [noiseMechanism].
    *
    * The public API also declares `noise_mechanism_none_supported`, which is not propagated to the
-   * internal API and not enforced anywhere in this repo, so NONE is treated as supported. See
-   * #4347.
+   * internal API and not enforced anywhere in this repo, so NONE is treated as supported.
+   * See #4347.
    */
   private fun Collection<InternalDataProviderCapabilities>.supportNoiseMechanism(
     noiseMechanism: InternalProtocolConfig.NoiseMechanism
