@@ -60,19 +60,17 @@ class DeterministicTruncatedLaplaceNoiseSampler(
      * threshold at which the mechanism is ([epsilon], [delta])-DP, proved there for all ([epsilon],
      * [delta]) and [sensitivity], so no regime check is needed.
      *
-     * [StrictMath] keeps T bit-reproducible across JVMs, matching the draw it bounds and any
-     * variance derived from it.
+     * T comes from [DeterministicTruncatedLaplaceParams.truncationBoundFor], which is also what the
+     * reporting server uses, and is bit-reproducible across JVMs.
      */
     fun forDifferentialPrivacy(
       epsilon: Double,
       delta: Double,
       sensitivity: Double,
     ): DeterministicTruncatedLaplaceNoiseSampler {
-      require(epsilon > 0.0) { "epsilon must be positive, got $epsilon" }
-      require(delta > 0.0 && delta < 1.0) { "delta must be in (0, 1), got $delta" }
-      require(sensitivity > 0.0) { "sensitivity must be positive, got $sensitivity" }
       val scale = sensitivity / epsilon
-      val bound = scale * StrictMath.log(1.0 + (StrictMath.exp(epsilon) - 1.0) / (2.0 * delta))
+      val bound =
+        DeterministicTruncatedLaplaceParams.truncationBoundFor(epsilon, delta, sensitivity)
       return DeterministicTruncatedLaplaceNoiseSampler(
         TruncatedLaplaceNoiseDistribution(scale, bound)
       )
