@@ -76,9 +76,7 @@ class GCloudEdpAggregatorTrusTeeDeterministicNoiseReportTest :
 
     // The magnitude of the draw is covered by unit tests. What this asserts is that a report
     // completes with results at all, which requires every stage to know the mechanism.
-    assertWithMessage("cross-publisher reach")
-      .that(reportingUnitCumulative.reach)
-      .isGreaterThan(0L)
+    assertWithMessage("cross-publisher reach").that(reportingUnitCumulative.reach).isGreaterThan(0L)
     assertWithMessage("cross-publisher impressions")
       .that(reportingUnitCumulative.impressions)
       .isGreaterThan(0L)
