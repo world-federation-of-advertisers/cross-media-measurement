@@ -1,0 +1,97 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha.event_templates.testing.v1;
+
+import "google/protobuf/duration.proto";
+import "wfa/measurement/api/v2alpha/event_annotations.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing.v1";
+option java_multiple_files = true;
+
+// Video ad engagement attributes.
+//
+// Completion and viewability are modeled as fraction-valued doubles rather
+// than families of conditional-threshold booleans (e.g.
+// `completed_25_percent_plus`). A single double carries the same information
+// without the combinatorial field growth; the meaningful grouping thresholds
+// (e.g. 25%+, 50%+) are declared per field via the `template_field`
+// `grouping_spec`, and threshold filters are ordinary comparisons
+// (`completed_fraction >= 0.5`).
+message Video {
+  option (.wfa.measurement.api.v2alpha.event_template) = {
+    name: "video"
+    display_name: "Video Ad"
+    description: "Video ad engagement attributes."
+    media_type: VIDEO
+  };
+
+  // Amount of the video that was played, i.e. the video's length multiplied
+  // by `completed_fraction`. This is a completion measure, not a viewability
+  // one.
+  google.protobuf.Duration completed_duration = 1
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Completed Duration"
+        reporting_features: FILTERABLE
+        version_added: 1
+      }];
+
+  // Fraction of the video that was played, in the range [0, 1]. The grouping
+  // thresholds (0, 0.25, 0.5, 0.75, 1.0) are offered for reporting; the field
+  // itself is not constrained to those values.
+  float completed_fraction = 2
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Completed Fraction"
+        description: "Fraction of the video that was played, in the range "
+                     "[0, 1]."
+        reporting_features: IMPRESSION_QUALIFICATION
+        reporting_features: GROUPABLE
+        version_added: 1
+        grouping_spec: {
+          operator: GREATER_THAN_OR_EQUAL
+          double_value_list: {
+            values: 0.0
+            values: 0.25
+            values: 0.5
+            values: 0.75
+            values: 1.0
+          }
+        }
+      }];
+
+  // Fraction of the ad's pixels that were on screen for at least 2 continuous
+  // seconds, in the range [0, 1]. The grouping thresholds (0, 0.25, 0.5, 0.75,
+  // 1.0) are offered for reporting — 0.5 is the old MRC viewability standard
+  // and 1.0 the new one; the field itself is not constrained to those values.
+  float viewable_fraction = 3 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "Viewable Fraction"
+    description: "Fraction of the ad's pixels on screen for at least 2 "
+                 "continuous seconds, in the range [0, 1]."
+    reporting_features: IMPRESSION_QUALIFICATION
+    reporting_features: GROUPABLE
+    version_added: 1
+    grouping_spec: {
+      operator: GREATER_THAN_OR_EQUAL
+      double_value_list: {
+        values: 0.0
+        values: 0.25
+        values: 0.5
+        values: 0.75
+        values: 1.0
+      }
+    }
+  }];
+}

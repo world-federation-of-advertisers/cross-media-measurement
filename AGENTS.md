@@ -90,7 +90,7 @@ assertThat(service.internalCache.size())
 
 ## Git Workflow
 
-Full guide: [docs/dev-standards.md](docs/dev-standards.md)
+Full guide: @docs/dev-standards.md
 
 **Conventional Commits** — see [docs/dev-standards.md](docs/dev-standards.md) for full format, types, and commit message requirements.
 
@@ -111,6 +111,7 @@ Issue: #123
 - **No Java modules** — this project doesn't use `module-info.java`
 - All public service APIs follow [AIPs](https://aip.dev/) unless explicitly noted
 - TODOs must be actionable — see [docs/code-style.md#todos](docs/code-style.md#todos) for format. When an agent creates a TODO, it must also create a corresponding GitHub issue
+- **Keep comments and PR descriptions concise** — generated text tends to be verbose, to narrate the change rather than describe the code, and to duplicate the linked issue. Edit it down before submitting. See [docs/code-style.md#comments](docs/code-style.md#comments) and [docs/dev-standards.md](docs/dev-standards.md)
 
 ## Architecture
 
