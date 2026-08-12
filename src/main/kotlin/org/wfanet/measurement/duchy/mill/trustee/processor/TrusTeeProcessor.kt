@@ -23,11 +23,6 @@ import org.wfanet.measurement.internal.duchy.NoiseMechanism
 sealed interface TrusTeeParams {
   /** Mechanism used to generate noise. */
   val noiseMechanism: NoiseMechanism
-  /**
-   * Truncation bound for [NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE]. Unused by other
-   * mechanisms.
-   */
-  val truncationBound: Int
 }
 
 /** TrusTEE parameters for a Reach-only measurement. */
@@ -36,7 +31,6 @@ data class TrusTeeReachParams(
   val dpParams: DifferentialPrivacyParams?,
   val resultMinimumThresholds: ResultMinimumThresholds?,
   override val noiseMechanism: NoiseMechanism = NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
-  override val truncationBound: Int = 0,
 ) : TrusTeeParams
 
 /** TrusTEE parameters for a Reach-and-Frequency measurement. */
@@ -47,7 +41,6 @@ data class TrusTeeReachAndFrequencyParams(
   val frequencyDpParams: DifferentialPrivacyParams?,
   val resultMinimumThresholds: ResultMinimumThresholds?,
   override val noiseMechanism: NoiseMechanism = NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
-  override val truncationBound: Int = 0,
 ) : TrusTeeParams
 
 /**

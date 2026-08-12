@@ -24,6 +24,11 @@ enum class NoiseMechanism {
   NONE,
   LAPLACE,
   GAUSSIAN,
+  /**
+   * Laplace drawn deterministically from the data and confined to a bound derived from the privacy
+   * params compiled into the attested images. Its variance is specific to those params.
+   */
+  DETERMINISTIC_TRUNCATED_LAPLACE,
 }
 
 data class VidSamplingInterval(val start: Double, val width: Double)

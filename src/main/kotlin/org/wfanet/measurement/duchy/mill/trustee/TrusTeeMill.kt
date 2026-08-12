@@ -170,12 +170,6 @@ class TrusTeeMill(
   /** Converts internal [TrusTee.ComputationDetails] to the internal [TrusTeeParams]. */
   fun TrusTeeDetails.toTrusTeeParams(): TrusTeeParams {
     val isNoNoise = parameters.noiseMechanism == NoiseMechanism.NONE
-    if (parameters.noiseMechanism == NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE) {
-      val truncationBound = parameters.deterministicTruncatedLaplaceNoiseParams.truncationBound
-      require(truncationBound > 0) {
-        "truncation_bound must be greater than 0 for DETERMINISTIC_TRUNCATED_LAPLACE noise, got $truncationBound"
-      }
-    }
 
     val resultMinimumThresholds: ResultMinimumThresholds? =
       if (parameters.hasResultMinimumThresholds()) {
@@ -205,7 +199,6 @@ class TrusTeeMill(
           if (isNoNoise) null else parameters.reachDpParams,
           resultMinimumThresholds,
           parameters.noiseMechanism,
-          parameters.deterministicTruncatedLaplaceNoiseParams.truncationBound,
         )
       }
       TrusTeeDetails.Type.REACH_AND_FREQUENCY -> {
@@ -224,7 +217,6 @@ class TrusTeeMill(
           if (isNoNoise) null else parameters.frequencyDpParams,
           resultMinimumThresholds,
           parameters.noiseMechanism,
-          parameters.deterministicTruncatedLaplaceNoiseParams.truncationBound,
         )
       }
       TrusTeeDetails.Type.TYPE_UNSPECIFIED,

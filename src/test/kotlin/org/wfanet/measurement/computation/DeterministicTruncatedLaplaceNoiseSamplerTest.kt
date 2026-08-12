@@ -16,13 +16,14 @@ package org.wfanet.measurement.computation
 
 import com.google.common.truth.Truth.assertThat
 import kotlin.math.abs
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
 class DeterministicTruncatedLaplaceNoiseSamplerTest {
-  private val distribution = TruncatedLaplaceNoiseDistribution(EPSILON, SENSITIVITY, BOUND)
+  private val distribution = TruncatedLaplaceNoiseDistribution(SCALE, BOUND)
   private val uniformSampler = DeterministicUniformSampler()
   private val sampler = DeterministicTruncatedLaplaceNoiseSampler(distribution, uniformSampler)
 
@@ -77,9 +78,9 @@ class DeterministicTruncatedLaplaceNoiseSamplerTest {
   }
 
   @Test
-  fun `higher sensitivity yields a larger-magnitude draw for the same parts`() {
-    val narrow = TruncatedLaplaceNoiseDistribution(EPSILON, sensitivity = 1.0, BOUND)
-    val wide = TruncatedLaplaceNoiseDistribution(EPSILON, sensitivity = 4.0, BOUND)
+  fun `larger scale yields a larger-magnitude draw for the same parts`() {
+    val narrow = TruncatedLaplaceNoiseDistribution(scale = 1.0, bound = BOUND)
+    val wide = TruncatedLaplaceNoiseDistribution(scale = 4.0, bound = BOUND)
     val u = uniformSampler.sample(fingerprint, label)
     assertThat(abs(wide.inverseCdf(u))).isGreaterThan(abs(narrow.inverseCdf(u)))
   }
@@ -91,9 +92,57 @@ class DeterministicTruncatedLaplaceNoiseSamplerTest {
     assertThat(mean).isWithin(0.1).of(0.0)
   }
 
+  @Test
+  fun `forDifferentialPrivacy calibrates the draw from the privacy params`() {
+    // Golden rounded draws for the same seed at two sensitivities, computed off-code from
+    // scale = sensitivity / epsilon and the Geng et al. Definition 3 bound. Larger sensitivity
+    // widens the scale, so the draw grows; the exact per-quantity bounds are pinned end-to-end by
+    // DeterministicTruncatedLaplaceResultNoiserTest.
+    val unit =
+      DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy(1.0, 1.0 / 1000, 1.0)
+    val wide =
+      DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy(1.0, 1.0 / 1000, 4.0)
+    assertThat(unit.sampleRounded(fingerprint, label)).isEqualTo(1L)
+    assertThat(wide.sampleRounded(fingerprint, label)).isEqualTo(2L)
+  }
+
+  @Test
+  fun `forDifferentialPrivacy rejects non-positive epsilon`() {
+    assertFailsWith<IllegalArgumentException> {
+      DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy(0.0, 1.0 / 1000, 1.0)
+    }
+  }
+
+  @Test
+  fun `forDifferentialPrivacy rejects delta outside the open unit interval`() {
+    assertFailsWith<IllegalArgumentException> {
+      DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy(1.0, 0.0, 1.0)
+    }
+    assertFailsWith<IllegalArgumentException> {
+      DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy(1.0, 1.0, 1.0)
+    }
+  }
+
+  @Test
+  fun `forDifferentialPrivacy rejects non-positive sensitivity`() {
+    assertFailsWith<IllegalArgumentException> {
+      DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy(1.0, 1.0 / 1000, 0.0)
+    }
+  }
+
+  @Test
+  fun `forDifferentialPrivacy bounds a high-sensitivity draw`() {
+    // The impression-threshold draw, at the largest sensitivity in use. The bound is
+    // 126 * ln(1 + (e - 1) / 0.002) = 851.39, so draws stay within +/-851.
+    val sampler =
+      DeterministicTruncatedLaplaceNoiseSampler.forDifferentialPrivacy(1.0, 1.0 / 1000, 126.0)
+    val draw = sampler.sampleRounded(fingerprint, label)
+    assertThat(draw).isAtLeast(-851L)
+    assertThat(draw).isAtMost(851L)
+  }
+
   companion object {
-    private const val EPSILON = 1.0
-    private const val SENSITIVITY = 1.0
-    private const val BOUND = 8
+    private const val SCALE = 1.0
+    private const val BOUND = 8.0
   }
 }

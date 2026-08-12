@@ -27,6 +27,54 @@ import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 @RunWith(JUnit4::class)
 class VariancesTest {
   @Test
+  fun `computeMeasurementVariance returns the truncated Laplace variance for deterministic reach`() {
+    // The system's compiled params: Laplace(0, b) with b = sensitivity/epsilon = 1.0, confined to
+    // the Geng et al. threshold B = b * ln(1 + (e^epsilon - 1) / (2 * delta)) = 6.7571, the same
+    // bound the sampler derives. The closed form is
+    // [2b^2 - exp(-B/b)(B^2 + 2Bb + 2b^2)] / (1 - exp(-B/b)), below the untruncated 2b^2 = 2.0.
+    val reachMeasurementParams =
+      ReachMeasurementParams(
+        VidSamplingInterval(0.0, 1.0),
+        DpParams(1.0, 1.0),
+        NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+      )
+
+    val variance =
+      VariancesImpl.computeMeasurementVariance(
+        DeterministicMethodology,
+        ReachMeasurementVarianceParams(0L, reachMeasurementParams),
+      )
+
+    val expected = 1.9311259178
+    assertThat(variance).isWithin(computeErrorTolerance(variance, expected)).of(expected)
+    assertThat(variance).isLessThan(2.0)
+  }
+
+  @Test
+  fun `computeMeasurementVariance scales the truncated Laplace variance by impression cap`() {
+    // The impression draw is taken at sensitivity maximumFrequencyPerUser, and both the scale and
+    // the bound scale linearly with sensitivity, so its variance is the unit-sensitivity variance
+    // times the cap squared. With no sampling and zero impressions only the noise term remains.
+    val maximumFrequencyPerUser = 3
+    val variance =
+      VariancesImpl.computeMeasurementVariance(
+        DeterministicMethodology,
+        ImpressionMeasurementVarianceParams(
+          0L,
+          ImpressionMeasurementParams(
+            VidSamplingInterval(0.0, 1.0),
+            DpParams(1.0, 1.0),
+            maximumFrequencyPerUser,
+            NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+          ),
+        ),
+      )
+
+    val expected = 1.9311259178 * maximumFrequencyPerUser * maximumFrequencyPerUser
+    assertThat(variance).isWithin(computeErrorTolerance(variance, expected)).of(expected)
+  }
+
+  @Test
   fun `computeMeasurementVariance returns a value for deterministic reach when reach is small and vid sampling interval width is large`() {
     val reach = 0L
     val vidSamplingIntervalWidth = 1.0
