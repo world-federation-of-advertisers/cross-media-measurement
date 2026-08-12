@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
+import com.google.protobuf.Empty
 import com.google.protobuf.TextFormat
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.kotlin.toByteString
@@ -54,6 +55,8 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.BatchCreateEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.BatchCreateUnlinkedClientAccountsRequest
+import org.wfanet.measurement.api.v2alpha.BatchDeleteUnlinkedClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
@@ -63,18 +66,19 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata as cmm
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ListClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.ListUnlinkedClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
-import org.wfanet.measurement.api.v2alpha.ReplaceUnlinkedClientAccountsRequest
 import org.wfanet.measurement.api.v2alpha.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.batchCreateEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.batchCreateUnlinkedClientAccountsResponse
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as cmmsEventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.listClientAccountsResponse
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
-import org.wfanet.measurement.api.v2alpha.replaceUnlinkedClientAccountsResponse
+import org.wfanet.measurement.api.v2alpha.listUnlinkedClientAccountsResponse
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
@@ -208,8 +212,23 @@ class EventGroupSyncFunctionTest() {
 
   private val unlinkedClientAccountsServiceMock: UnlinkedClientAccountsCoroutineImplBase =
     mockService {
-      onBlocking { replaceUnlinkedClientAccounts(any<ReplaceUnlinkedClientAccountsRequest>()) }
-        .thenReturn(replaceUnlinkedClientAccountsResponse {})
+      onBlocking { listUnlinkedClientAccounts(any<ListUnlinkedClientAccountsRequest>()) }
+        .thenAnswer { listUnlinkedClientAccountsResponse {} }
+      onBlocking {
+          batchCreateUnlinkedClientAccounts(any<BatchCreateUnlinkedClientAccountsRequest>())
+        }
+        .thenAnswer { invocation ->
+          batchCreateUnlinkedClientAccountsResponse {
+            unlinkedClientAccounts +=
+              invocation.getArgument<BatchCreateUnlinkedClientAccountsRequest>(0).requestsList.map {
+                it.unlinkedClientAccount
+              }
+          }
+        }
+      onBlocking {
+          batchDeleteUnlinkedClientAccounts(any<BatchDeleteUnlinkedClientAccountsRequest>())
+        }
+        .thenAnswer { Empty.getDefaultInstance() }
     }
 
   @get:Rule
@@ -363,7 +382,7 @@ class EventGroupSyncFunctionTest() {
   }
 
   @Test
-  fun `sync writes unlinked client accounts via ReplaceUnlinkedClientAccounts`() {
+  fun `sync writes unlinked client accounts`() {
     val unlinkedEventGroup = eventGroup {
       eventGroupReferenceId = "reference-id-unlinked"
       this.eventGroupMetadata = eventGroupMetadata {
@@ -372,6 +391,9 @@ class EventGroupSyncFunctionTest() {
             brand = "brand-unlinked"
             campaign = "campaign-unlinked"
           }
+        }
+        this.entityMetadata = struct {
+          fields["brand_name"] = value { stringValue = "brand-unlinked" }
         }
       }
       clientAccountReferenceId = "client-ref-unlinked"
@@ -429,15 +451,16 @@ class EventGroupSyncFunctionTest() {
     val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
     assertThat(getResponse.statusCode()).isEqualTo(200)
 
-    val captor = argumentCaptor<ReplaceUnlinkedClientAccountsRequest>()
+    val captor = argumentCaptor<BatchCreateUnlinkedClientAccountsRequest>()
     verifyBlocking(unlinkedClientAccountsServiceMock, times(1)) {
-      replaceUnlinkedClientAccounts(captor.capture())
+      batchCreateUnlinkedClientAccounts(captor.capture())
     }
     val request = captor.firstValue
     assertThat(request.parent).isEqualTo("dataProviders/some-data-provider")
-    val account = request.unlinkedClientAccountsList.single()
+    val account = request.requestsList.single().unlinkedClientAccount
     assertThat(account.clientAccountReferenceId).isEqualTo("client-ref-unlinked")
-    assertThat(account.brandsList).containsExactly("brand-unlinked")
+    assertThat(account.entityMetadata.fieldsMap["brand_name"]?.stringValue)
+      .isEqualTo("brand-unlinked")
     assertThat(account.eventGroupReferenceId).isEqualTo("reference-id-unlinked")
   }
 
