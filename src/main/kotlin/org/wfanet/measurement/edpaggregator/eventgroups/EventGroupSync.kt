@@ -16,8 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.eventgroups
 
-import com.google.protobuf.struct
-import com.google.protobuf.value
+import com.google.protobuf.Struct
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.GlobalOpenTelemetry
@@ -248,24 +247,29 @@ class EventGroupSync(
    * `client_account_reference_id`.
    *
    * An entry is recorded only when a `client_account_reference_id` lookup completes and resolves to
-   * zero MeasurementConsumers (the confirmed-empty result). Distinct brands are unioned across
-   * every EventGroup that carries the same reference ID, and one observed EventGroup (its
-   * `entity_key` when present, otherwise its `event_group_reference_id`) is retained for
-   * traceability. Reconciled once at the end of the run via [reconcileUnlinkedClientAccounts].
+   * zero MeasurementConsumers (the confirmed-empty result). Every EventGroup carrying the same
+   * reference ID is retained as an observed candidate; the winning `observed_event_group` and the
+   * `entity_metadata` that belongs to it are chosen at flush time via [buildUnlinkedClientAccount].
+   * Reconciled once at the end of the run via [reconcileUnlinkedClientAccounts].
    */
   private val unlinkedClientAccounts = mutableMapOf<String, UnlinkedClientAccountAccumulator>()
 
+  /** One observed EventGroup and the `entity_metadata` that belongs to it. */
+  private data class ObservedEventGroup(
+    val entityKey: EventGroup.EntityKey?,
+    val eventGroupReferenceId: String?,
+    val entityMetadata: Struct?,
+  )
+
   /**
-   * Mutable accumulator for the distinct brands and observed-EventGroup candidates of an unlinked
-   * account.
+   * Mutable accumulator for the observed-EventGroup candidates of an unlinked account.
    *
-   * Both candidate collections are gathered as-is; the winning `observed_event_group` is chosen at
-   * flush time so the result is independent of the order EventGroups were observed in.
+   * Candidates are gathered as-is; the winning `observed_event_group` (and the `entity_metadata`
+   * that belongs to it) is chosen at flush time so the result is independent of the order
+   * EventGroups were observed in.
    */
   private class UnlinkedClientAccountAccumulator {
-    val brands = mutableSetOf<String>()
-    val eventGroupReferenceIds = mutableSetOf<String>()
-    val entityKeys = mutableSetOf<EventGroup.EntityKey>()
+    val observed = mutableListOf<ObservedEventGroup>()
   }
 
   /** Creates metric attributes with data provider name. */
@@ -324,7 +328,6 @@ class EventGroupSync(
       // Collect the EDP EventGroups as a stream rather than materializing the full decoded list.
       var observedEventGroupCount = 0
       eventGroups.collect { eventGroup ->
-        observedEventGroupCount++
         if (eventGroup.state == EventGroup.State.DELETED) {
           // A delete acts on an entity-keyed EventGroup, and only needs to act as a barrier when a
           // queued create/update targets that same EventGroup: flushing first keeps the buffered
@@ -397,6 +400,10 @@ class EventGroupSync(
           return@collect
         }
 
+        // Count only EventGroups that reach measurement-consumer resolution; deletes and
+        // validation failures return above, so counting them would let a delete-only run pass
+        // the reconcile guard and wipe the stored set.
+        observedEventGroupCount++
         val measurementConsumerKeys: Set<MeasurementConsumerKey> =
           try {
             resolveMeasurementConsumers(eventGroup)
@@ -948,8 +955,10 @@ class EventGroupSync(
       // transient Kingdom outage propagates out of this function and never reaches here — an RPC
       // error can therefore never record an account as unlinked. An account that resolves to >=1
       // MC (non-empty `lookedUpKeys`) is linked and is not captured (the cross-MC reconcile
-      // guarantee); neither is an EventGroup already linked via a direct `measurement_consumer`
-      // (`measurementConsumerKeys` already holds it, added above before the lookup).
+      // guarantee). An EventGroup with a well-formed direct `measurement_consumer` is likewise
+      // not captured (`measurementConsumerKeys` already holds it, added above before the
+      // lookup); note a malformed direct `measurement_consumer` was ignored above, so such an
+      // EventGroup can still be recorded as unlinked.
       if (lookedUpKeys.isEmpty() && measurementConsumerKeys.isEmpty()) {
         recordUnlinkedClientAccount(eventGroup, refId)
       }
@@ -971,24 +980,28 @@ class EventGroupSync(
   /**
    * Accumulates an unlinked-client-account observation for [refId].
    *
-   * Unions the EventGroup's brand (from `event_group_metadata.ad_metadata.campaign_metadata.brand`)
-   * into the account's distinct-brand set and collects the EventGroup as an observed candidate: its
-   * `entity_key` when present, otherwise its `event_group_reference_id`. The winning candidate is
-   * deliberately not chosen here so the result stays independent of observation order; see
+   * Collects the EventGroup as an observed candidate: its `entity_key` when present, its
+   * `event_group_reference_id`, and its own `entity_metadata` (forwarded verbatim, per the
+   * `UnlinkedClientAccount.entity_metadata` contract). The winning candidate is deliberately not
+   * chosen here so the result stays independent of observation order; see
    * [buildUnlinkedClientAccount]. Called only from the confirmed-empty lookup branch in
    * [resolveMeasurementConsumers].
    */
   private fun recordUnlinkedClientAccount(eventGroup: EventGroup, refId: String) {
     val accumulator = unlinkedClientAccounts.getOrPut(refId) { UnlinkedClientAccountAccumulator() }
-    val brand = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.brand
-    if (brand.isNotBlank()) {
-      accumulator.brands.add(brand)
-    }
-    if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
-      accumulator.entityKeys.add(eventGroup.entityKey)
-    } else if (eventGroup.eventGroupReferenceId.isNotBlank()) {
-      accumulator.eventGroupReferenceIds.add(eventGroup.eventGroupReferenceId)
-    }
+    val metadata = eventGroup.eventGroupMetadata
+    accumulator.observed.add(
+      ObservedEventGroup(
+        entityKey =
+          if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
+            eventGroup.entityKey
+          } else {
+            null
+          },
+        eventGroupReferenceId = eventGroup.eventGroupReferenceId.ifBlank { null },
+        entityMetadata = if (metadata.hasEntityMetadata()) metadata.entityMetadata else null,
+      )
+    )
   }
 
   /**
@@ -999,6 +1012,11 @@ class EventGroupSync(
    * `BatchCreateUnlinkedClientAccounts` for newly-observed reference IDs and
    * `BatchDeleteUnlinkedClientAccounts` for stored reference IDs no longer observed. Reference IDs
    * present in both sets are left untouched, preserving their server-assigned `create_time`.
+   *
+   * The delete side assumes each run observes this DataProvider's complete EventGroup set: any
+   * stored reference ID not observed this run is treated as no longer unlinked and deleted. A run
+   * that observed zero EventGroups skips the reconcile entirely (guarded below), so a partial or
+   * transient-empty read never wipes the stored set.
    *
    * This is a secondary reconcile: every EventGroup has already synced above, so each RPC is
    * best-effort — a failure is logged, increments [EventGroupSyncMetrics.unlinkedReconcileFailure],
@@ -1043,7 +1061,7 @@ class EventGroupSync(
     val toCreate: List<UnlinkedClientAccount> =
       observedByRefId.filterKeys { it !in existingByRefId }.values.toList()
     val toDelete: List<String> =
-      existingByRefId.filterKeys { it !in observedByRefId }.values.map { it.name }
+      existingByRefId.filterKeys { it !in observedByRefId }.toSortedMap().values.map { it.name }
 
     batchCreateUnlinkedClientAccounts(toCreate)
     batchDeleteUnlinkedClientAccounts(toDelete)
@@ -1052,28 +1070,32 @@ class EventGroupSync(
   /**
    * Builds the [UnlinkedClientAccount] observed for [refId] from its [accumulator].
    *
-   * `entity_metadata` folds the collected brands into a `Struct` with a single `brand_name` entry
-   * set to the lexicographically smallest brand, and is omitted entirely when no brand was
-   * observed.
-   *
    * `observed_event_group` prefers `entity_key` when any observed EventGroup carries one, falling
    * back to `event_group_reference_id`. Among candidates of the chosen kind the lexicographically
    * smallest is used, so repeated syncs over the same input produce the same value.
+   *
+   * `entity_metadata` carries the winning EventGroup's own `entity_metadata` verbatim (same schema
+   * as `EventGroupMetadata.entity_metadata`), and is omitted when the winner carried none.
    */
   private fun buildUnlinkedClientAccount(
     refId: String,
     accumulator: UnlinkedClientAccountAccumulator,
   ): UnlinkedClientAccount = unlinkedClientAccount {
     clientAccountReferenceId = refId
-    accumulator.brands.minOrNull()?.let { smallestBrand ->
-      entityMetadata = struct { fields["brand_name"] = value { stringValue = smallestBrand } }
-    }
-    val entityKeyCandidate =
-      accumulator.entityKeys.minWithOrNull(compareBy({ it.entityType }, { it.entityId }))
-    if (entityKeyCandidate != null) {
-      entityKey = entityKeyCandidate.toCmmsEntityKey()
-    } else {
-      accumulator.eventGroupReferenceIds.minOrNull()?.let { eventGroupReferenceId = it }
+    val winner: ObservedEventGroup? =
+      accumulator.observed
+        .filter { it.entityKey != null }
+        .minWithOrNull(compareBy({ it.entityKey!!.entityType }, { it.entityKey!!.entityId }))
+        ?: accumulator.observed
+          .filter { it.eventGroupReferenceId != null }
+          .minByOrNull { it.eventGroupReferenceId!! }
+    if (winner != null) {
+      if (winner.entityKey != null) {
+        entityKey = winner.entityKey.toCmmsEntityKey()
+      } else {
+        eventGroupReferenceId = winner.eventGroupReferenceId!!
+      }
+      winner.entityMetadata?.let { entityMetadata = it }
     }
   }
 
