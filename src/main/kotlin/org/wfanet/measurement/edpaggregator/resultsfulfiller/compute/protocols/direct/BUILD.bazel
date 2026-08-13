@@ -75,8 +75,8 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "deterministic_dynamic_clipping",
-    srcs = ["DeterministicDynamicClipping.kt"],
+    name = "direct_dynamic_clipping",
+    srcs = ["DirectDynamicClipping.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_gaussian_noise_sampler",
         "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_truncated_laplace_params",
@@ -91,7 +91,7 @@ kt_jvm_library(
     name = "direct_impression_result_builder",
     srcs = ["DirectImpressionResultBuilder.kt"],
     deps = [
-        ":deterministic_dynamic_clipping",
+        ":direct_dynamic_clipping",
         ":direct_result_noisers",
         "//imports/java/org/apache/commons/math3",
         "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",

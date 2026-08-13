@@ -20,6 +20,8 @@ import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParams
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceResultNoiser
 import org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClipping
 import org.wfanet.measurement.eventdataprovider.differentialprivacy.StandardNormalNoiseSource
+import org.wfanet.measurement.eventdataprovider.differentialprivacy.StochasticStandardNormalNoiseSource
+import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpParamsConverter
 
@@ -42,33 +44,57 @@ private const val CLIP_SEARCH_DOMAIN = 1
 private const val BAR_SENSITIVITY = 1.0
 
 /**
- * Returns a [DynamicClipping] whose threshold and noised histogram are a deterministic function of
- * [frequencyData], so a re-run of the same measurement yields the same clip and the same count.
+ * Returns a [DynamicClipping] configured for [directNoiseMechanism].
  *
- * The charge comes from the privacy parameters compiled into this image rather than from the
- * measurement spec, so a measurement consumer cannot widen it by asking for a larger epsilon. The
- * distribution stays Gaussian, which leaves [DynamicClipping]'s calibration, stopping rule and
- * remaining-charge weighting exactly as analyzed; only the source of the draws changes.
+ * The algorithm noises its histogram with Gaussian draws under either mechanism, so what the
+ * mechanism decides is where the charge comes from and whether the draws are reproducible:
+ * - [DirectNoiseMechanism.CONTINUOUS_GAUSSIAN] charges the measurement's own privacy params and
+ *   draws fresh randomness, which is the composition the algorithm was written against.
+ * - [DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE] charges the params compiled into this
+ *   image, so a measurement consumer cannot widen them, and seeds the draws from the frequency
+ *   vector so a re-run yields the same clip and the same count. The draws stay Gaussian, which
+ *   leaves the calibration, the stopping rule and the remaining-charge weighting as analyzed.
+ *
+ * @param frequencyData the raw frequency vector, which seeds the deterministic mechanism.
+ * @param dpParams the measurement's privacy params, unused by the deterministic mechanism.
  */
-fun buildDeterministicDynamicClipping(frequencyData: IntArray): DynamicClipping {
-  val acdpCharge =
-    AcdpParamsConverter.getDirectAcdpCharge(
-      DpParams(
-        DeterministicTruncatedLaplaceParams.EPSILON,
-        DeterministicTruncatedLaplaceParams.DELTA,
-      ),
-      BAR_SENSITIVITY,
-    )
-  return DynamicClipping(
-    queryRho = acdpCharge.rho,
-    measurementType = DynamicClipping.MeasurementType.IMPRESSION,
-    noiseSource =
-      FrequencyVectorSeededNoiseSource(
-        DeterministicTruncatedLaplaceResultNoiser.fingerprint(
-          frequencyData,
-          DIRECT_CONTRIBUTION_COUNT,
+fun buildDirectDynamicClipping(
+  directNoiseMechanism: DirectNoiseMechanism,
+  frequencyData: IntArray,
+  dpParams: DpParams,
+): DynamicClipping {
+  val queryDpParams: DpParams
+  val noiseSource: StandardNormalNoiseSource
+  when (directNoiseMechanism) {
+    DirectNoiseMechanism.CONTINUOUS_GAUSSIAN -> {
+      queryDpParams = dpParams
+      noiseSource = StochasticStandardNormalNoiseSource()
+    }
+    DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE -> {
+      queryDpParams =
+        DpParams(
+          DeterministicTruncatedLaplaceParams.EPSILON,
+          DeterministicTruncatedLaplaceParams.DELTA,
         )
-      ),
+      noiseSource =
+        FrequencyVectorSeededNoiseSource(
+          DeterministicTruncatedLaplaceResultNoiser.fingerprint(
+            frequencyData,
+            DIRECT_CONTRIBUTION_COUNT,
+          )
+        )
+    }
+    DirectNoiseMechanism.NONE,
+    DirectNoiseMechanism.CONTINUOUS_LAPLACE ->
+      throw IllegalArgumentException(
+        "$directNoiseMechanism does not support dynamic impression capping"
+      )
+  }
+
+  return DynamicClipping(
+    queryRho = AcdpParamsConverter.getDirectAcdpCharge(queryDpParams, BAR_SENSITIVITY).rho,
+    measurementType = DynamicClipping.MeasurementType.IMPRESSION,
+    noiseSource = noiseSource,
   )
 }
 

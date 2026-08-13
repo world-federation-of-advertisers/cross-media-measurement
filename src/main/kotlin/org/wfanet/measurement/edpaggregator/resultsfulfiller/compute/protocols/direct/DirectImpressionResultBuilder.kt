@@ -35,6 +35,7 @@ import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.MeasurementResultBuilder
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
+import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 
 /**
  * Builder for direct impression measurement results.
@@ -102,13 +103,12 @@ class DirectImpressionResultBuilder(
    * the noise is spread across the bars, so the variance is reported as a custom direct methodology
    * and the clip itself is not carried on the result.
    *
-   * The draws are Gaussian rather than truncated Laplace: the clip search calibrates its noise to
-   * the L2 sensitivity of the cumulative histogram it releases, and truncated Laplace would pay L1
-   * across those same bars. The result is still stamped
-   * [DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE], because what that mechanism denotes
-   * downstream is that the draws are seeded from the frequency vector and so cannot be averaged
-   * away, which holds either way. Nothing derives a variance from the stamp for this result, since
-   * it carries its own.
+   * The draws are Gaussian under either supported mechanism, since the clip search calibrates its
+   * noise to the L2 sensitivity of the cumulative histogram it releases and truncated Laplace would
+   * pay L1 across those same bars. Under [DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE] the
+   * result still carries that stamp, because what the mechanism denotes downstream is that the
+   * draws are seeded from the frequency vector and so cannot be averaged away, which holds either
+   * way. Nothing derives a variance from the stamp for this result, since it carries its own.
    */
   private fun buildDynamicallyClippedResult(): Measurement.Result {
     if (!directProtocolConfig.hasCustomDirectMethodology()) {
@@ -117,11 +117,11 @@ class DirectImpressionResultBuilder(
         "Dynamic impression capping requires the custom direct methodology.",
       )
     }
-    if (directNoiseMechanism != DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE) {
+    if (directNoiseMechanism !in DYNAMIC_CAP_NOISE_MECHANISMS) {
       throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.SPEC_INVALID,
-        "Dynamic impression capping requires " +
-          "${DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE}, got $directNoiseMechanism.",
+        "Dynamic impression capping requires one of $DYNAMIC_CAP_NOISE_MECHANISMS, " +
+          "got $directNoiseMechanism.",
       )
     }
 
@@ -138,7 +138,12 @@ class DirectImpressionResultBuilder(
         // No user contributed an impression, so there is no distribution to search.
         DynamicallyClippedImpressions(value = 0L, variance = 0.0)
       } else {
-        val clipping = buildDeterministicDynamicClipping(frequencyData)
+        val clipping =
+          buildDirectDynamicClipping(
+            directNoiseMechanism = directNoiseMechanism,
+            frequencyData = frequencyData,
+            dpParams = DpParams(privacyParams.epsilon, privacyParams.delta),
+          )
         val result = clipping.computeImpressionCappedHistogram(frequencyMap)
         logger.info("Dynamic impression clip chosen: ${result.threshold}")
         ImpressionComputations.computeDynamicallyClippedImpressionCount(
@@ -229,5 +234,15 @@ class DirectImpressionResultBuilder(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    /**
+     * The mechanisms dynamic capping supports. Both noise the cumulative histogram with Gaussian
+     * draws; they differ in where the charge comes from and whether the draws are reproducible.
+     */
+    private val DYNAMIC_CAP_NOISE_MECHANISMS =
+      setOf(
+        DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
+        DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+      )
   }
 }
