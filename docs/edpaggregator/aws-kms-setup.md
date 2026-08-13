@@ -163,10 +163,11 @@ Notes:
   the workloads.
 
 > **An image with more than one signature sends one concatenated tag value.**
-> `container.signatures.key_ids` is not a list. Confidential Space joins multiple
-> signature key IDs into a single `=`-separated string, sorted alphabetically — so an
-> image signed with both `SIGNING_KEY_ID_1` and `SIGNING_KEY_ID_2` presents
-> `SIGNING_KEY_ID_1=SIGNING_KEY_ID_2`, which matches neither key ID on its own. List
+> The policy above lists the values the condition accepts, as any `StringEquals` policy
+> may; the tag the workload sends is a single string. Confidential Space joins multiple
+> signature key IDs with `=`, sorted alphabetically, so an image signed with both
+> `SIGNING_KEY_ID_1` and `SIGNING_KEY_ID_2` presents the one value
+> `SIGNING_KEY_ID_1=SIGNING_KEY_ID_2`, which equals neither key ID on its own. Enumerate
 > every combination the workload can legitimately present, as above. Omitting the
 > combined value fails with `Not authorized to perform sts:AssumeRoleWithWebIdentity`
 > only for the double-signed images, so it can pass in one environment and fail in
