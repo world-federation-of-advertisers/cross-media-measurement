@@ -24,6 +24,26 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "StandardNormalNoiseDistributionTest",
+    srcs = ["StandardNormalNoiseDistributionTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:standard_normal_noise_distribution",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "DeterministicGaussianNoiseSamplerTest",
+    srcs = ["DeterministicGaussianNoiseSamplerTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_gaussian_noise_sampler",
+        "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_uniform_sampler",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+    ],
+)
+
+kt_jvm_test(
     name = "TruncatedLaplaceNoiseDistributionTest",
     srcs = ["TruncatedLaplaceNoiseDistributionTest.kt"],
     deps = [
