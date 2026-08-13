@@ -59,6 +59,15 @@ object RawImpressionColumns {
   /** Person age group as the event-template enum value name (e.g. "YEARS_18_TO_34"). */
   const val PERSON_AGE_GROUP = "person_age_group"
 
+  /**
+   * Fraction of the video ad that was viewed, in `[0, 1]`.
+   *
+   * Projected because the measurement filter predicates on it. A column the filter reads but the
+   * schema omits comes back as the field default, which silently fails the predicate for every
+   * labeled impression rather than raising.
+   */
+  const val VIDEO_AD_VIEWED_FRACTION = "video_ad_viewed_fraction"
+
   /** The entity_type used for the person entity key. */
   const val ENTITY_TYPE_PERSON = "person"
 

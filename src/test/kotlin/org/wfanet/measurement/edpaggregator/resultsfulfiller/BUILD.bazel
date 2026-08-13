@@ -137,6 +137,18 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "DeterministicTruncatedLaplaceNoiseSelectorTest",
+    srcs = ["DeterministicTruncatedLaplaceNoiseSelectorTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.DeterministicTruncatedLaplaceNoiseSelectorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:deterministic_truncated_laplace_noiser_selector",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
     name = "KmsConstantsTest",
     srcs = ["KmsConstantsTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.KmsConstantsTest",

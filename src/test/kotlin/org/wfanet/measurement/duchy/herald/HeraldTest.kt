@@ -310,6 +310,10 @@ private val TRUS_TEE_MPC_PROTOCOL_CONFIG_WITH_RESULT_MINIMUM_THRESHOLDS = mpcPro
   }
 }
 
+private val TRUS_TEE_DETERMINISTIC_NOISE_MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
+  trusTee = trusTee { noiseMechanism = SystemNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE }
+}
+
 private const val AGGREGATOR_DUCHY_ID = "aggregator_duchy"
 private const val AGGREGATOR_HERALD_ID = "aggregator_herald"
 private const val NON_AGGREGATOR_DUCHY_ID = "worker_duchy"
@@ -2231,6 +2235,41 @@ class HeraldTest {
         }
       )
   }
+
+  @Test
+  fun `syncStatuses creates trusTEE computation with deterministic truncated Laplace noise`() =
+    runTest {
+      val confirmingKnown =
+        buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
+
+      val systemApiRequisitions1 =
+        REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+      val systemApiRequisitions2 =
+        REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+      val confirmingUnknown =
+        buildComputationAtKingdom(
+          "2",
+          Computation.State.PENDING_REQUISITION_PARAMS,
+          systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
+          mpcProtocolConfig = TRUS_TEE_DETERMINISTIC_NOISE_MPC_PROTOCOL_CONFIG,
+          systemComputationParticipant = SINGLE_COMPUTATION_PARTICIPANT,
+        )
+      mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
+
+      fakeComputationDatabase.addComputation(
+        globalId = confirmingKnown.key.computationId,
+        stage = TrusTee.Stage.INITIALIZED.toProtocolStage(),
+        computationDetails = TRUS_TEE_COMPUTATION_DETAILS,
+      )
+
+      aggregatorHerald.syncStatuses()
+
+      val computationDetails =
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+      val parameters = computationDetails!!.trusTee.parameters
+      assertThat(parameters.noiseMechanism)
+        .isEqualTo(NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
+    }
 
   @Test
   fun `syncStatuses creates trusTEE computation with NONE noise`() = runTest {

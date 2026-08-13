@@ -16,27 +16,20 @@
 
 package org.wfanet.measurement.computation
 
-import com.google.privacy.differentialprivacy.GaussianNoise
-import kotlin.math.min
-
 object ImpressionComputations {
-  private const val L_0_SENSITIVITY: Int = 1
-
   /**
-   * Computes the impression count from a histogram of frequencies, applying differential privacy
-   * noise if parameters are provided.
+   * Computes the impression count from a histogram of frequencies, applying noise through [noiser].
    *
-   * The impression count is calculated as the weighted sum of histogram entries, where each
-   * frequency bucket contributes (frequency * count) to the total.
+   * The impression count is the weighted sum of histogram entries, where each frequency bucket
+   * contributes (frequency * count) to the total. [rawHistogram] is expected to be already capped
+   * at the measurement's maximum frequency per user, as [HistogramComputations.buildHistogram]
+   * produces it.
    *
    * @param rawHistogram A histogram represented as a [LongArray], where each element corresponds to
    *   the count of impressions at a given frequency.
    * @param vidSamplingIntervalWidth The width of the sampling interval for VIDs, used to scale the
    *   impression count.
-   * @param maxFrequency The maximum impression frequency per user. Used for both impression
-   *   calculations as well as the lInfiniteSensitivity, if noise is applied.
-   * @param dpParams Optional differential privacy parameters. If `null`, no noise is added and the
-   *   raw impression count is scaled and returned.
+   * @param noiser The mechanism applied to the released quantities. Pass [NoNoise] for none.
    * @param resultMinimumThresholds Optional result minimum thresholds.
    * @return The (potentially noised) impression count as a [Long]. If noise results in a negative
    *   count, zero is returned instead.
@@ -44,67 +37,28 @@ object ImpressionComputations {
   fun computeImpressionCount(
     rawHistogram: LongArray,
     vidSamplingIntervalWidth: Double,
-    maxFrequency: Long?,
-    dpParams: DifferentialPrivacyParams?,
+    noiser: ResultNoiser,
     resultMinimumThresholds: ResultMinimumThresholds?,
   ): Long {
-    val rawImpressionCount =
-      rawHistogram.withIndex().sumOf { (index, count) ->
-        val frequency =
-          if (maxFrequency == null) {
-            index + 1L
-          } else {
-            min(maxFrequency, index + 1L)
-          }
-        frequency * count
-      }
+    val noisedImpressionCount = noiser.noiseImpressionsFromFrequencyHistogram(rawHistogram)
     val scaledImpressionCount: Long =
-      if (dpParams == null) {
-        (rawImpressionCount / vidSamplingIntervalWidth).toLong()
-      } else {
-        check(maxFrequency != null) { "maxFrequency cannot be null if dpParams are set" }
-        val noise = GaussianNoise()
-        val noisedImpressionCount =
-          noise.addNoise(
-            rawImpressionCount,
-            L_0_SENSITIVITY,
-            maxFrequency,
-            dpParams.epsilon,
-            dpParams.delta,
-          )
-        if (noisedImpressionCount < 0) 0L
-        else (noisedImpressionCount / vidSamplingIntervalWidth).toLong()
-      }
+      if (noisedImpressionCount < 0) 0L
+      else (noisedImpressionCount / vidSamplingIntervalWidth).toLong()
+
     if (resultMinimumThresholds == null) {
       return scaledImpressionCount
     }
-    val thresholdedImpressionCount = run {
-      val rawUserCount = rawHistogram.sum()
-      val scaledUserCount: Long =
-        if (dpParams == null) {
-          (rawUserCount / vidSamplingIntervalWidth).toLong()
-        } else {
-          val noise = GaussianNoise()
-          val lInfSensitivity = 1L
-          val noisedUserCount =
-            noise.addNoise(
-              rawUserCount,
-              L_0_SENSITIVITY,
-              lInfSensitivity,
-              dpParams.epsilon,
-              dpParams.delta,
-            )
-          if (noisedUserCount < 0) 0L else (noisedUserCount / vidSamplingIntervalWidth).toLong()
-        }
-      if (
-        scaledImpressionCount < resultMinimumThresholds.minImpressions ||
-          scaledUserCount < resultMinimumThresholds.minUsers
-      ) {
-        0
-      } else {
-        scaledImpressionCount
-      }
+    // The user count is a distinct-user quantity, so it takes the reach draw's unit sensitivity.
+    val noisedUserCount = noiser.noiseReach(rawHistogram.sum())
+    val scaledUserCount: Long =
+      if (noisedUserCount < 0) 0L else (noisedUserCount / vidSamplingIntervalWidth).toLong()
+    return if (
+      scaledImpressionCount < resultMinimumThresholds.minImpressions ||
+        scaledUserCount < resultMinimumThresholds.minUsers
+    ) {
+      0
+    } else {
+      scaledImpressionCount
     }
-    return thresholdedImpressionCount
   }
 }

@@ -24,7 +24,6 @@ import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
 import java.io.File
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
-import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.AwsKmsParams
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.EnvelopeEncryptionKt.awsKmsParams
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.common.ProtoReflection
@@ -271,16 +270,14 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
                 roleArn = edpConfig.kmsConfig.awsRoleArn
                 roleSession = edpConfig.kmsConfig.awsRoleSessionName
                 region = edpConfig.kmsConfig.awsRegion
-                audience = edpConfig.kmsConfig.awsAudience
-                credentialSource = AwsKmsParams.CredentialSource.GCP_WORKLOAD_IDENTITY
+                workloadIdentityIdTokenAudience = edpConfig.kmsConfig.awsAudience
               }
             EventDataProviderConfig.KmsConfig.KmsType.AWS_CONFIDENTIAL_SPACE ->
               awsKmsParams {
                 roleArn = edpConfig.kmsConfig.awsRoleArn
                 roleSession = edpConfig.kmsConfig.awsRoleSessionName
                 region = edpConfig.kmsConfig.awsRegion
-                audience = edpConfig.kmsConfig.awsAudience
-                credentialSource = AwsKmsParams.CredentialSource.CONFIDENTIAL_SPACE
+                confidentialSpaceAttestationTokenAudience = edpConfig.kmsConfig.awsAudience
               }
             else -> null
           }

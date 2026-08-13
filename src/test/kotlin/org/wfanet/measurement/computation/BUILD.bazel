@@ -8,6 +8,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/computation:differential_privacy_params",
         "//src/main/kotlin/org/wfanet/measurement/computation:impression_computations",
+        "//src/main/kotlin/org/wfanet/measurement/computation:result_noiser",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
@@ -40,6 +41,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_uniform_sampler",
         "//src/main/kotlin/org/wfanet/measurement/computation:truncated_laplace_noise_distribution",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
 
