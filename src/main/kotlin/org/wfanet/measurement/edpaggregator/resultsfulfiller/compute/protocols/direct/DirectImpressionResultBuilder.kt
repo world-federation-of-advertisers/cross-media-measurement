@@ -103,12 +103,11 @@ class DirectImpressionResultBuilder(
    * the noise is spread across the bars, so the variance is reported as a custom direct methodology
    * and the clip itself is not carried on the result.
    *
-   * The draws are Gaussian under either supported mechanism, since the clip search calibrates its
-   * noise to the L2 sensitivity of the cumulative histogram it releases and truncated Laplace would
-   * pay L1 across those same bars. Under [DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE] the
-   * result still carries that stamp, because what the mechanism denotes downstream is that the
-   * draws are seeded from the frequency vector and so cannot be averaged away, which holds either
-   * way. Nothing derives a variance from the stamp for this result, since it carries its own.
+   * Draws are Gaussian under both supported mechanisms, because the clip search calibrates to the
+   * L2 sensitivity of the histogram it releases and truncated Laplace would pay L1 across the same
+   * bars. So under [DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE] the stamp names a
+   * distribution the draw did not use. It is kept because the stamp is read for whether draws are
+   * seeded, not for which distribution they came from, and this result carries its own variance.
    */
   private fun buildDynamicallyClippedResult(): Measurement.Result {
     if (!directProtocolConfig.hasCustomDirectMethodology()) {
