@@ -451,6 +451,7 @@ class InProcessCmmsComponents(
         TrusTeeProtocolConfig.setForTest(
           trusTeeProtocolConfigConfig.protocolConfig,
           trusTeeProtocolConfigConfig.duchyId,
+          trusTeeProtocolConfigConfig.fallbackNoiseMechanismsList,
         )
       }
       DuchyInfo.initializeFromConfig(

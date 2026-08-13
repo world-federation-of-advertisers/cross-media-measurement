@@ -201,7 +201,11 @@ class ResultsFulfillerApp(
           when (noiseType) {
             NoiseType.NONE -> ProtocolConfig.NoiseMechanism.NONE
             NoiseType.CONTINUOUS_GAUSSIAN -> ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
-            else -> throw IllegalArgumentException("Unsupported multi-party noise type: $noiseType")
+            NoiseType.DETERMINISTIC_TRUNCATED_LAPLACE ->
+              ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
+            NoiseType.UNSPECIFIED,
+            NoiseType.UNRECOGNIZED ->
+              throw IllegalArgumentException("Unsupported multi-party noise type: $noiseType")
           }
         }
         .toSet()

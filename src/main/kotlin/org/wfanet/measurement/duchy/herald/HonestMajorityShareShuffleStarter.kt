@@ -258,6 +258,11 @@ object HonestMajorityShareShuffleStarter {
       Computation.MpcProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN ->
         NoiseMechanism.CONTINUOUS_GAUSSIAN
       Computation.MpcProtocolConfig.NoiseMechanism.NONE -> NoiseMechanism.NONE
+      Computation.MpcProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE ->
+        error(
+          "Honest Majority Share Shuffle does not support " +
+            "NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE"
+        )
       Computation.MpcProtocolConfig.NoiseMechanism.UNRECOGNIZED,
       Computation.MpcProtocolConfig.NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED ->
         error("Invalid system NoiseMechanism")

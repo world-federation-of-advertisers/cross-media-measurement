@@ -360,6 +360,8 @@ object LiquidLegionsV2Starter {
       SystemNoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
       SystemNoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
       SystemNoiseMechanism.NONE -> error("Liquid Legions V2 does not support NoiseMechanism.NONE")
+      SystemNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE ->
+        error("Liquid Legions V2 does not support NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE")
       SystemNoiseMechanism.UNRECOGNIZED,
       SystemNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED -> error("Invalid system NoiseMechanism")
     }
