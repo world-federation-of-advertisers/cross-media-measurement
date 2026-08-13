@@ -16,7 +16,6 @@ package org.wfanet.measurement.eventdataprovider.differentialprivacy
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
-import org.apache.commons.math3.distribution.NormalDistribution
 import org.jetbrains.annotations.VisibleForTesting
 
 /**
@@ -27,13 +26,23 @@ import org.jetbrains.annotations.VisibleForTesting
  * @param queryRho ACDP rho of the query converted from dpParams(epsilon, delta).
  * @param measurementType Impression or Duration type.
  * @param maxThreshold (Optional)The maximum threshold in the cumulativeHistogramList.
+ * @param noiseSource (Optional)The source of the standard-normal draws added to the bars. Pass a
+ *   deterministic source to make the threshold and the noised histogram reproducible; the default
+ *   draws fresh randomness.
  */
 class DynamicClipping(
   private val queryRho: Double,
   measurementType: MeasurementType,
   private val maxThreshold: Int = defaultMaxThreshold(measurementType),
+  private val noiseSource: StandardNormalNoiseSource = StochasticStandardNormalNoiseSource(),
 ) {
   private lateinit var cumulativeHistogramList: List<Double>
+
+  /** Which noising pass [generateNoisedCumulativeHistogram] is on, addressing the draws. */
+  private var noisingPass: Int = 0
+
+  /** The noise variance each bar of the current estimate carries. */
+  private var barNoiseVariance: Double = 0.0
   private val slidingWindowSize: Int =
     when (measurementType) {
       MeasurementType.IMPRESSION -> IMPRESSION_SLIDING_WINDOW_SIZE
@@ -53,10 +62,12 @@ class DynamicClipping(
    * @return [Result] Data class of noisedCumulativeHistogramList and threshold.
    */
   fun computeImpressionCappedHistogram(frequencyMap: Map<Long, Long>): Result {
+    noisingPass = 0
     cumulativeHistogramList = generateCumulativeHistogram(frequencyHistogramMapToList(frequencyMap))
 
     var localMaxThreshold = maxThreshold
     var noisedCumulativeHistogramList = generateNoisedCumulativeHistogram(maxThreshold, queryRho)
+    barNoiseVariance = sigmaFor(maxThreshold, queryRho).let { it * it }
 
     // Find out the threshold we stopped at based on the stopping criterion.
     var threshold = defaultChooseThreshold(noisedCumulativeHistogramList, maxThreshold, queryRho)
@@ -93,7 +104,7 @@ class DynamicClipping(
         useRemainingCharge(noisedCumulativeHistogramList, threshold, rhoRemaining)
     }
 
-    return Result(noisedCumulativeHistogramList, threshold)
+    return Result(noisedCumulativeHistogramList, threshold, barNoiseVariance)
   }
 
   /**
@@ -137,12 +148,17 @@ class DynamicClipping(
    *   noise sample is [Double].
    */
   private fun generateNoisedCumulativeHistogram(maxThreshold: Int, rho: Double): List<Double> {
-    val sigma = BAR_SENSITIVITY * sqrt(maxThreshold.toDouble() / (2 * rho))
-    // Generate noise samples from Gaussian distribution.
-    val normalDistribution = NormalDistribution(0.0, sigma)
+    val sigma = sigmaFor(maxThreshold, rho)
+    val pass = noisingPass++
 
-    return cumulativeHistogramList.map { it + normalDistribution.sample() }
+    return cumulativeHistogramList.mapIndexed { index, bar ->
+      bar + sigma * noiseSource.sample(pass, index)
+    }
   }
+
+  /** The standard deviation a bar is noised with when [rho] covers [maxThreshold] bars. */
+  private fun sigmaFor(maxThreshold: Int, rho: Double): Double =
+    BAR_SENSITIVITY * sqrt(maxThreshold.toDouble() / (2 * rho))
 
   /**
    * A default method to choose and output a clipping threshold based on a stopping condition. Note
@@ -203,6 +219,12 @@ class DynamicClipping(
     val w1 = variance2 / (variance1 + variance2)
     val w2 = variance1 / (variance1 + variance2)
 
+    // The variance the weights actually produce, from the standard deviations actually drawn. The
+    // weights above are derived from charge rather than from these, so the two only coincide when
+    // both passes cover the same number of bars.
+    val sigma2 = sigmaFor(maxThreshold, rhoRemaining)
+    barNoiseVariance = (w1 * w1 * barNoiseVariance) + (w2 * w2 * sigma2 * sigma2)
+
     val noisedCumulativeHistogramList =
       noisedCumulativeHistogramList2.mapIndexed { index, count ->
         (w1 * noisedCumulativeHistogramList1[index]) + (w2 * count)
@@ -224,8 +246,15 @@ class DynamicClipping(
    *   histogram bar. It's a list of [Double] since the continuous Gaussian noise sample is
    *   [Double].The total impression/duration count will be the sum of all the bars.
    * @param threshold Optimized dynamic impression/duration cutoff threshold.
+   * @param barNoiseVariance The noise variance each bar carries, for a caller deriving the variance
+   *   of a total it sums from the bars. Independent across bars, so a sum of `n` bars carries `n`
+   *   times this.
    */
-  data class Result(val noisedCumulativeHistogramList: List<Double>, val threshold: Int)
+  data class Result(
+    val noisedCumulativeHistogramList: List<Double>,
+    val threshold: Int,
+    val barNoiseVariance: Double,
+  )
 
   companion object {
     // The default max thresholds are based on analysis result and are subject to change.

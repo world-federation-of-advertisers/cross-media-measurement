@@ -16,7 +16,87 @@
 
 package org.wfanet.measurement.computation
 
+import kotlin.math.min
+
+/**
+ * A dynamically clipped impression count and the variance of that released value.
+ *
+ * @param value The released impression count.
+ * @param variance The variance of [value], which the caller reports as a custom direct methodology
+ *   because the reporting server cannot derive it: the clip is data-derived and the noise is spread
+ *   over the bars rather than applied as a single draw.
+ */
+data class DynamicallyClippedImpressions(val value: Long, val variance: Double)
+
 object ImpressionComputations {
+  /**
+   * Computes the impression count from a dynamically clipped noised cumulative histogram.
+   *
+   * `noisedCumulativeHistogram[k]` is the noised count of users with frequency at least `k + 1`, so
+   * summing the first [clip] bars is the impression count with each user clipped at [clip]. Bars at
+   * or above [clip] are dropped rather than released: the clip search never reads past its own
+   * choice, so leaving them out is what keeps the released quantities within the charge the search
+   * already paid.
+   *
+   * Bar 0 is the noised user count, which gates `min_users` without a further draw.
+   *
+   * @param noisedCumulativeHistogram The noised cumulative histogram, already carrying its noise.
+   * @param clip The per-user clip the histogram was searched for.
+   * @param barNoiseVariance The noise variance a single bar carries.
+   * @param vidSamplingIntervalWidth The width of the sampling interval for VIDs.
+   * @param resultMinimumThresholds Optional result minimum thresholds.
+   */
+  fun computeDynamicallyClippedImpressionCount(
+    noisedCumulativeHistogram: List<Double>,
+    clip: Int,
+    barNoiseVariance: Double,
+    vidSamplingIntervalWidth: Double,
+    resultMinimumThresholds: ResultMinimumThresholds?,
+  ): DynamicallyClippedImpressions {
+    require(clip > 0) { "clip must be positive, got $clip" }
+    require(vidSamplingIntervalWidth > 0.0) {
+      "vidSamplingIntervalWidth must be positive, got $vidSamplingIntervalWidth"
+    }
+
+    val barsSummed: Int = min(clip, noisedCumulativeHistogram.size)
+    val noisedImpressionCount: Double = noisedCumulativeHistogram.take(clip).sum()
+    val scaledImpressionCount: Long =
+      if (noisedImpressionCount < 0) 0L
+      else (noisedImpressionCount / vidSamplingIntervalWidth).toLong()
+
+    val value: Long =
+      if (resultMinimumThresholds == null) {
+        scaledImpressionCount
+      } else {
+        val noisedUserCount: Double = noisedCumulativeHistogram.firstOrNull() ?: 0.0
+        val scaledUserCount: Long =
+          if (noisedUserCount < 0) 0L else (noisedUserCount / vidSamplingIntervalWidth).toLong()
+        if (
+          scaledImpressionCount < resultMinimumThresholds.minImpressions ||
+            scaledUserCount < resultMinimumThresholds.minUsers
+        ) {
+          0L
+        } else {
+          scaledImpressionCount
+        }
+      }
+
+    // The sampling term mirrors the reporting server's deterministic scalar variance at a cap of
+    // [clip]. The noise term differs: the count sums [barsSummed] independent bar draws rather than
+    // taking one draw calibrated to [clip], so it grows linearly in the bar count, not with its
+    // square.
+    val samplingVariance: Double =
+      clip.toDouble() *
+        value.toDouble() *
+        vidSamplingIntervalWidth *
+        (1.0 - vidSamplingIntervalWidth)
+    val noiseVariance: Double = barsSummed.toDouble() * barNoiseVariance
+    val variance: Double =
+      (samplingVariance + noiseVariance) / (vidSamplingIntervalWidth * vidSamplingIntervalWidth)
+
+    return DynamicallyClippedImpressions(value, variance.coerceAtLeast(0.0))
+  }
+
   /**
    * Computes the impression count from a histogram of frequencies, applying noise through [noiser].
    *

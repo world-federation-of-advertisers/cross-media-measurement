@@ -17,19 +17,23 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
 import java.util.logging.Logger
+import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams as CmmsDpParams
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.customDirectMethodology
 import org.wfanet.measurement.api.v2alpha.deterministicCount
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
+import org.wfanet.measurement.computation.DynamicallyClippedImpressions
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.ImpressionComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.MeasurementResultBuilder
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
 /**
@@ -45,6 +49,7 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  * @param resultMinimumThresholds Optional small-cell suppression parameters.
  * @param impressionMaxFrequencyPerUser Override for max frequency per user. -1 means no cap.
  * @param totalUncappedImpressions Total impression count without frequency capping.
+ * @param impressionCapMode How the per-user cap is chosen.
  */
 class DirectImpressionResultBuilder(
   private val directProtocolConfig: ProtocolConfig.Direct,
@@ -57,9 +62,14 @@ class DirectImpressionResultBuilder(
   private val resultMinimumThresholds: ResultMinimumThresholds?,
   private val impressionMaxFrequencyPerUser: Int?,
   private val totalUncappedImpressions: Long,
+  private val impressionCapMode: ImpressionCapMode = ImpressionCapMode.LEGACY_CAP_MODE,
 ) : MeasurementResultBuilder {
 
   override suspend fun buildMeasurementResult(): Measurement.Result {
+    if (impressionCapMode == ImpressionCapMode.DYNAMIC) {
+      return buildDynamicallyClippedResult()
+    }
+
     if (!directProtocolConfig.hasDeterministicCount()) {
       throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.DECLINED,
@@ -78,6 +88,71 @@ class DirectImpressionResultBuilder(
         this.noiseMechanism = protocolConfigNoiseMechanism
         this.deterministicCount = deterministicCount {
           customMaximumFrequencyPerUser = effectiveMaxFrequency
+        }
+      }
+    }
+  }
+
+  /**
+   * Builds a result whose per-user clip is derived from this measurement's frequency distribution.
+   *
+   * The clip search and the released count come out of one charge: summing the noised cumulative
+   * histogram below the clip is the clipped impression count, so no further draw is taken. The
+   * reporting server cannot derive the variance of that value, since the clip is data-derived and
+   * the noise is spread across the bars, so the variance is reported as a custom direct methodology
+   * and the clip itself is not carried on the result.
+   *
+   * The draws are Gaussian rather than truncated Laplace: the clip search calibrates its noise to
+   * the L2 sensitivity of the cumulative histogram it releases, and truncated Laplace would pay L1
+   * across those same bars. The result is still stamped
+   * [DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE], because what that mechanism denotes
+   * downstream is that the draws are seeded from the frequency vector and so cannot be averaged
+   * away, which holds either way. Nothing derives a variance from the stamp for this result, since
+   * it carries its own.
+   */
+  private fun buildDynamicallyClippedResult(): Measurement.Result {
+    if (!directProtocolConfig.hasCustomDirectMethodology()) {
+      throw RequisitionRefusalException.Default(
+        Requisition.Refusal.Justification.DECLINED,
+        "Dynamic impression capping requires the custom direct methodology.",
+      )
+    }
+    if (directNoiseMechanism != DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE) {
+      throw RequisitionRefusalException.Default(
+        Requisition.Refusal.Justification.SPEC_INVALID,
+        "Dynamic impression capping requires " +
+          "${DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE}, got $directNoiseMechanism.",
+      )
+    }
+
+    val frequencyMap: Map<Long, Long> =
+      frequencyData.asSequence().filter { it > 0 }.groupingBy { it.toLong() }.eachCount().mapValues {
+        it.value.toLong()
+      }
+
+    val clipped: DynamicallyClippedImpressions =
+      if (frequencyMap.isEmpty()) {
+        // No user contributed an impression, so there is no distribution to search.
+        DynamicallyClippedImpressions(value = 0L, variance = 0.0)
+      } else {
+        val clipping = buildDeterministicDynamicClipping(frequencyData)
+        val result = clipping.computeImpressionCappedHistogram(frequencyMap)
+        logger.info("Dynamic impression clip chosen: ${result.threshold}")
+        ImpressionComputations.computeDynamicallyClippedImpressionCount(
+          noisedCumulativeHistogram = result.noisedCumulativeHistogramList,
+          clip = result.threshold,
+          barNoiseVariance = result.barNoiseVariance,
+          vidSamplingIntervalWidth = samplingRate.toDouble(),
+          resultMinimumThresholds = resultMinimumThresholds,
+        )
+      }
+
+    return MeasurementKt.result {
+      impression = impression {
+        value = clipped.value
+        noiseMechanism = directNoiseMechanism.toProtocolConfigNoiseMechanism()
+        customDirectMethodology = customDirectMethodology {
+          variance = CustomDirectMethodologyKt.variance { scalar = clipped.variance }
         }
       }
     }
