@@ -97,17 +97,15 @@ class DirectImpressionResultBuilder(
   /**
    * Builds a result whose per-user clip is derived from this measurement's frequency distribution.
    *
-   * The clip search and the released count come out of one charge: summing the noised cumulative
-   * histogram below the clip is the clipped impression count, so no further draw is taken. The
-   * reporting server cannot derive the variance of that value, since the clip is data-derived and
-   * the noise is spread across the bars, so the variance is reported as a custom direct methodology
-   * and the clip itself is not carried on the result.
+   * Summing the noised cumulative histogram below the clip is the clipped impression count, so the
+   * search and the count come out of one charge with no further draw.
    *
-   * Draws are Gaussian under both supported mechanisms, because the clip search calibrates to the
-   * L2 sensitivity of the histogram it releases and truncated Laplace would pay L1 across the same
-   * bars. So under [DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE] the stamp names a
-   * distribution the draw did not use. It is kept because the stamp is read for whether draws are
-   * seeded, not for which distribution they came from, and this result carries its own variance.
+   * The result carries the variance as a custom direct methodology rather than the clip, since the
+   * two share a oneof and the reporting server cannot derive this variance: the noise is spread
+   * across the bars rather than applied as a single draw.
+   *
+   * Draws are Gaussian under both mechanisms. The stamp records whether they are seeded, not which
+   * distribution they came from.
    */
   private fun buildDynamicallyClippedResult(): Measurement.Result {
     if (!directProtocolConfig.hasCustomDirectMethodology()) {
