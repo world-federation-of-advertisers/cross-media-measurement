@@ -14,10 +14,13 @@
 
 package org.wfanet.measurement.integration.common.reporting.v2
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import kotlinx.coroutines.runBlocking
 import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
+import org.junit.Test
 import org.junit.rules.Timeout
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig as PublicProtocolConfig
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
@@ -36,6 +39,8 @@ import org.wfanet.measurement.internal.kingdom.hmssProtocolConfigConfig
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPORTING_CHANGELOG_PATH as POSTGRES_REPORTING_CHANGELOG_PATH
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
+import org.wfanet.measurement.reporting.v2alpha.ResultGroup
+import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
 
 /**
  * TrusTEE with DETERMINISTIC_TRUNCATED_LAPLACE, end to end.
@@ -64,6 +69,53 @@ class GCloudEdpAggregatorTrusTeeDeterministicNoiseReportTest :
     get() = PublicProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
 
   @get:Rule val timeout: Timeout = Timeout.seconds(180)
+
+  /**
+   * The draw is a pure function of the aggregated frequency vector and the contribution count, so
+   * two reports over the same event groups must agree exactly. A stochastic mechanism fails this.
+   */
+  @Test
+  fun `rerunning the same report returns identical results`() = runBlocking {
+    val firstMetricSet = runTotalReport("trustee-rerun-campaign-1", "trustee-rerun-1")
+    val secondMetricSet = runTotalReport("trustee-rerun-campaign-2", "trustee-rerun-2")
+
+    assertThat(secondMetricSet).isEqualTo(firstMetricSet)
+  }
+
+  /** Runs a BasicReport over the multi-EDP event groups and returns its total metric set. */
+  private suspend fun runTotalReport(
+    campaignGroupId: String,
+    basicReportId: String,
+  ): ResultGroup.MetricSet {
+    val eventGroups = getMultiEdpEventGroups()
+    val createBasicReportRequest =
+      buildCreateBasicReportRequest(
+        eventGroups,
+        campaignGroupId,
+        basicReportId,
+        includeIqfFilter = false,
+      )
+    val createdBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(createBasicReportRequest)
+
+    executeBasicReportsReportsJob(createdBasicReport.name)
+    executeReportProcessorJob()
+
+    val completedBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+    assertWithMessage("state of $basicReportId")
+      .that(completedBasicReport.state)
+      .isEqualTo(BasicReport.State.SUCCEEDED)
+
+    val resultGroup = completedBasicReport.resultGroupsList.single()
+    return resultGroup.resultsList
+      .single { it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL }
+      .metricSet
+  }
 
   override fun assertTrusTeeMetricResults(basicReport: BasicReport) {
     val resultGroup = basicReport.resultGroupsList.single()
