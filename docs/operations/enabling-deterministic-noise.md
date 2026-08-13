@@ -145,6 +145,9 @@ supports. Only the mechanism varies; `result_minimum_thresholds` is stamped as
 written, so it does not depend on EDP capabilities.
 
 `CONTINUOUS_GAUSSIAN` is assumed to be supported by every EDP and needs no
+capability. It still has to appear in each EDP's `supported_noise_types` if that
+list is populated: a fallback requisition is refused by any EDP whose list omits
+the mechanism the Kingdom stamped, including EDPs that do have the deterministic
 capability.
 
 The config is read once at startup. Restart the Kingdom to apply a change.
