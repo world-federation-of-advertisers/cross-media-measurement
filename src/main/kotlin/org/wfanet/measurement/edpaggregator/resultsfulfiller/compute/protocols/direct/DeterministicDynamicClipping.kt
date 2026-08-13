@@ -53,7 +53,10 @@ private const val BAR_SENSITIVITY = 1.0
 fun buildDeterministicDynamicClipping(frequencyData: IntArray): DynamicClipping {
   val acdpCharge =
     AcdpParamsConverter.getDirectAcdpCharge(
-      DpParams(DeterministicTruncatedLaplaceParams.EPSILON, DeterministicTruncatedLaplaceParams.DELTA),
+      DpParams(
+        DeterministicTruncatedLaplaceParams.EPSILON,
+        DeterministicTruncatedLaplaceParams.DELTA,
+      ),
       BAR_SENSITIVITY,
     )
   return DynamicClipping(

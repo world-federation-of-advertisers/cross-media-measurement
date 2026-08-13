@@ -126,9 +126,12 @@ class DirectImpressionResultBuilder(
     }
 
     val frequencyMap: Map<Long, Long> =
-      frequencyData.asSequence().filter { it > 0 }.groupingBy { it.toLong() }.eachCount().mapValues {
-        it.value.toLong()
-      }
+      frequencyData
+        .asSequence()
+        .filter { it > 0 }
+        .groupingBy { it.toLong() }
+        .eachCount()
+        .mapValues { it.value.toLong() }
 
     val clipped: DynamicallyClippedImpressions =
       if (frequencyMap.isEmpty()) {

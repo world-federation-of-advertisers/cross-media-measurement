@@ -24,9 +24,8 @@ package org.wfanet.measurement.computation
  * so the guarantee is non-averageability resting on the secrecy of the input (the frequency vector
  * the consumer never sees), not computational DP.
  *
- * Draws are standard normal. A caller calibrating noise to a standard deviation multiplies the
- * draw by it, which lets one sampler serve a mechanism whose standard deviation changes between
- * draws.
+ * Draws are standard normal. A caller calibrating noise to a standard deviation multiplies the draw
+ * by it, which lets one sampler serve a mechanism whose standard deviation changes between draws.
  *
  * Unlike a stream-based generator, a draw is addressed by its parts rather than by its position in
  * a sequence, so a mechanism that varies how many draws it takes still reproduces each individual
@@ -42,5 +41,6 @@ class DeterministicGaussianNoiseSampler(
    * The draw is continuous, so it must not be released as noise on its own; round the aggregate it
    * noises to an integer before release. See [StandardNormalNoiseDistribution.inverseCdf].
    */
-  fun sample(vararg parts: ByteArray): Double = distribution.inverseCdf(uniformSampler.sample(*parts))
+  fun sample(vararg parts: ByteArray): Double =
+    distribution.inverseCdf(uniformSampler.sample(*parts))
 }
