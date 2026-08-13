@@ -6,7 +6,6 @@ kt_jvm_library(
     name = "dynamic_clipping",
     srcs = [
         "DynamicClipping.kt",
-        "StandardNormalNoiseSource.kt",
     ],
     deps = [
         "//imports/java/org/apache/commons/math3",

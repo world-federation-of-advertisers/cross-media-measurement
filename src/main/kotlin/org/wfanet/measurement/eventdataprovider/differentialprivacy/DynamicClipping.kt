@@ -16,6 +16,7 @@ package org.wfanet.measurement.eventdataprovider.differentialprivacy
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
+import org.apache.commons.math3.distribution.NormalDistribution
 import org.jetbrains.annotations.VisibleForTesting
 
 /**
@@ -283,4 +284,29 @@ class DynamicClipping(
       return histogramList
     }
   }
+}
+
+/**
+ * Supplies the standard-normal draws [DynamicClipping] adds to its histogram bars.
+ *
+ * Draws are addressed by ([pass], [barIndex]) rather than taken from a stream, because
+ * [DynamicClipping] noises the bars more than once and how many passes it makes depends on the
+ * data. A source that reproduces a draw from its address therefore reproduces the whole algorithm,
+ * while one that reproduces a stream in order would not.
+ */
+fun interface StandardNormalNoiseSource {
+  /**
+   * Returns the standard-normal draw for the bar at [barIndex] in noising [pass].
+   *
+   * Draws must be independent across distinct ([pass], [barIndex]) pairs: [DynamicClipping]
+   * combines the passes by inverse-variance weights, which assumes they are independent estimates.
+   */
+  fun sample(pass: Int, barIndex: Int): Double
+}
+
+/** The default [StandardNormalNoiseSource], drawing fresh randomness per call. */
+class StochasticStandardNormalNoiseSource : StandardNormalNoiseSource {
+  private val distribution = NormalDistribution(0.0, 1.0)
+
+  override fun sample(pass: Int, barIndex: Int): Double = distribution.sample()
 }
