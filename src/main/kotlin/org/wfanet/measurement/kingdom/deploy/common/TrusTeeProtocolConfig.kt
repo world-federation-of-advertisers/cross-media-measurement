@@ -26,6 +26,10 @@ object TrusTeeProtocolConfig {
   lateinit var protocolConfig: ProtocolConfig.TrusTee
     private set
 
+  /** Noise mechanisms to offer, in order, when [protocolConfig]'s own mechanism is unsupported. */
+  lateinit var fallbackNoiseMechanisms: List<ProtocolConfig.NoiseMechanism>
+    private set
+
   lateinit var duchyId: String
 
   fun initializeFromFlags(flags: TrusTeeProtocolConfigFlags) {
@@ -36,13 +40,19 @@ object TrusTeeProtocolConfig {
       }
 
     protocolConfig = configMessage.protocolConfig
+    fallbackNoiseMechanisms = configMessage.fallbackNoiseMechanismsList
     duchyId = configMessage.duchyId
   }
 
-  fun setForTest(protocolConfig: ProtocolConfig.TrusTee, duchyId: String) {
+  fun setForTest(
+    protocolConfig: ProtocolConfig.TrusTee,
+    duchyId: String,
+    fallbackNoiseMechanisms: List<ProtocolConfig.NoiseMechanism> = emptyList(),
+  ) {
     require(!TrusTeeProtocolConfig::protocolConfig.isInitialized)
 
     TrusTeeProtocolConfig.protocolConfig = protocolConfig
+    TrusTeeProtocolConfig.fallbackNoiseMechanisms = fallbackNoiseMechanisms
     TrusTeeProtocolConfig.duchyId = duchyId
   }
 }

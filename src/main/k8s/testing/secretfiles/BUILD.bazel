@@ -272,6 +272,8 @@ SECRET_FILES = [
     "trustee_protocol_config_config_noise_thresholds.textproto",
     "trustee_protocol_config_config_noise_thresholds_high.textproto",
     "trustee_protocol_config_config_noise_thresholds_low.textproto",
+    "trustee_protocol_config_config_deterministic_noise.textproto",
+    "trustee_protocol_config_config_deterministic_noise_fallback.textproto",
     "trustee_protocol_config_config_noise_no_thresholds.textproto",
     "trustee_protocol_config_config_thresholds_no_noise.textproto",
     "trustee_protocol_config_config_thresholds_no_noise_high.textproto",
