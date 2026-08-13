@@ -14,13 +14,10 @@
 
 package org.wfanet.measurement.integration.common.reporting.v2
 
-import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
-import kotlinx.coroutines.runBlocking
 import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
-import org.junit.Test
 import org.junit.rules.Timeout
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig as PublicProtocolConfig
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
@@ -28,7 +25,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.IMPRESSION_QUALIFICATION_FILTER_MAPPING
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
-import org.wfanet.measurement.integration.common.TRUSTEE_PROTOCOL_CONFIG_CONFIG_DETERMINISTIC_NOISE
+import org.wfanet.measurement.integration.common.TRUSTEE_PROTOCOL_CONFIG_CONFIG_DETERMINISTIC_NOISE_THRESHOLDS_HIGH
 import org.wfanet.measurement.integration.deploy.gcloud.InternalReportingServicesProviderRule
 import org.wfanet.measurement.integration.deploy.gcloud.KingdomDataServicesProviderRule
 import org.wfanet.measurement.integration.deploy.gcloud.SpannerAccessServicesFactory
@@ -39,18 +36,20 @@ import org.wfanet.measurement.internal.kingdom.hmssProtocolConfigConfig
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPORTING_CHANGELOG_PATH as POSTGRES_REPORTING_CHANGELOG_PATH
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
-import org.wfanet.measurement.reporting.v2alpha.ResultGroup
-import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
 
 /**
- * TrusTEE with DETERMINISTIC_TRUNCATED_LAPLACE, end to end.
+ * Input suppression under DETERMINISTIC_TRUNCATED_LAPLACE.
  *
- * Exercises the whole path the mechanism has to survive: the Kingdom offering it, gated on every
- * DataProvider reporting the capability; the herald carrying it to the Duchy; the TEE drawing the
- * noise; and the reporting server mapping the mechanism and deriving a variance for it. Any of
- * those missing fails the report rather than the assertion.
+ * Under this mechanism the TEE drops a contribution whose own reach is below `min_users` before it
+ * enters the aggregate, so that its marginal cannot be recovered by differencing overlapping
+ * regions. No other mechanism does this.
+ *
+ * `min_users` is 4500. Each EDP's own reach on this synthetic data is below that, 3937 and 3638, so
+ * both contributions are dropped and the aggregate is empty. Their combined reach of 5330 is above
+ * the threshold, so a report that only applied the thresholds to the aggregated output would report
+ * roughly 5330. Zero is what distinguishes input suppression from output thresholding.
  */
-class GCloudEdpAggregatorTrusTeeDeterministicNoiseReportTest :
+class GCloudEdpAggregatorTrusTeeDeterministicNoiseThresholdsHighReportTest :
   InProcessEdpAggregatorTrusTeeThresholdTest(
     kingdomDataServicesRule = KingdomDataServicesProviderRule(spannerEmulator),
     duchyDependenciesRule = SpannerDuchyDependencyProviderRule(spannerEmulator, ALL_DUCHY_NAMES),
@@ -70,92 +69,23 @@ class GCloudEdpAggregatorTrusTeeDeterministicNoiseReportTest :
 
   @get:Rule val timeout: Timeout = Timeout.seconds(180)
 
-  /**
-   * The draw is a pure function of the aggregated frequency vector and the contribution count, so
-   * two reports over the same event groups must agree exactly. A stochastic mechanism fails this.
-   */
-  @Test
-  fun `rerunning the same report returns identical results`() = runBlocking {
-    val firstMetricSet = runTotalReport("trustee-rerun-campaign-1", "trustee-rerun-1")
-    val secondMetricSet = runTotalReport("trustee-rerun-campaign-2", "trustee-rerun-2")
-
-    assertThat(secondMetricSet).isEqualTo(firstMetricSet)
-  }
-
-  /** Runs a BasicReport over the multi-EDP event groups and returns its total metric set. */
-  private suspend fun runTotalReport(
-    campaignGroupId: String,
-    basicReportId: String,
-  ): ResultGroup.MetricSet {
-    val eventGroups = getMultiEdpEventGroups()
-    val createBasicReportRequest =
-      buildCreateBasicReportRequest(
-        eventGroups,
-        campaignGroupId,
-        basicReportId,
-        includeIqfFilter = false,
-      )
-    val createdBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .createBasicReport(createBasicReportRequest)
-
-    executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
-
-    val completedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-    assertWithMessage("state of $basicReportId")
-      .that(completedBasicReport.state)
-      .isEqualTo(BasicReport.State.SUCCEEDED)
-
-    val resultGroup = completedBasicReport.resultGroupsList.single()
-    return resultGroup.resultsList
-      .single { it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL }
-      .metricSet
-  }
-
   override fun assertTrusTeeMetricResults(basicReport: BasicReport) {
     val resultGroup = basicReport.resultGroupsList.single()
-    val totalResults =
-      resultGroup.resultsList.filter {
+    val result =
+      resultGroup.resultsList.single {
         it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
       }
-    val result = totalResults.single()
     val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
 
-    // Reach and impressions are each a single draw of L1 sensitivity 1 over the no-noise ground
-    // truth, so they cannot move further than the truncation bound.
-    assertWithinNoiseBound(
-      "cross-publisher reach",
-      reportingUnitCumulative.reach,
-      NO_NOISE_CROSS_PUBLISHER_REACH,
-    )
-    assertWithinNoiseBound(
-      "cross-publisher impressions",
-      reportingUnitCumulative.impressions,
-      NO_NOISE_CROSS_PUBLISHER_IMPRESSIONS,
-    )
-
-    // Each k+ bucket carries its own draw and is then normalized, so the error compounds and an
-    // absolute bound would be arbitrary. These hold for any draw.
-    val kPlusReach = reportingUnitCumulative.kPlusReachList
-    assertWithMessage("1+ reach equals total reach")
-      .that(kPlusReach.first())
-      .isEqualTo(reportingUnitCumulative.reach)
-    assertWithMessage("k+ reach is non-increasing")
-      .that(kPlusReach)
-      .isInOrder(Comparator.reverseOrder<Long>())
+    assertWithMessage("cross-publisher reach with every contribution dropped")
+      .that(reportingUnitCumulative.reach)
+      .isEqualTo(0L)
+    assertWithMessage("k+ reach with every contribution dropped")
+      .that(reportingUnitCumulative.kPlusReachList.toSet())
+      .containsExactly(0L)
   }
 
   companion object {
-    // Ground truth for the synthetic data, taken from the no-noise TrusTEE tests over the same
-    // event groups.
-    private const val NO_NOISE_CROSS_PUBLISHER_REACH = 5330L
-    private const val NO_NOISE_CROSS_PUBLISHER_IMPRESSIONS = 8860L
-
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
 
     @get:ClassRule
@@ -167,7 +97,8 @@ class GCloudEdpAggregatorTrusTeeDeterministicNoiseReportTest :
     @JvmStatic
     fun initConfig() {
       InProcessCmmsComponents.initConfig(
-        trusTeeProtocolConfigConfig = TRUSTEE_PROTOCOL_CONFIG_CONFIG_DETERMINISTIC_NOISE,
+        trusTeeProtocolConfigConfig =
+          TRUSTEE_PROTOCOL_CONFIG_CONFIG_DETERMINISTIC_NOISE_THRESHOLDS_HIGH,
         hmssProtocolConfigConfig =
           hmssProtocolConfigConfig {
             protocolConfig =

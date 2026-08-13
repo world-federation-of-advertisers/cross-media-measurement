@@ -16,10 +16,13 @@ package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import kotlin.math.abs
+import kotlin.math.ceil
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParams
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
@@ -93,6 +96,22 @@ abstract class InProcessEdpAggregatorTrusTeeThresholdTest(
     )
   }
 
+  /**
+   * Asserts [actual] is within one deterministic truncated-Laplace draw of [expected].
+   *
+   * The draw is truncated to a bound derived from the compiled privacy params, so a single noised
+   * quantity of L1 sensitivity 1 cannot move further than that. The extra unit absorbs the
+   * truncation to `Long` when the result is scaled. Taking the bound from
+   * [DeterministicTruncatedLaplaceParams] rather than a recorded value keeps this in step with the
+   * params instead of with a particular seed.
+   */
+  protected fun assertWithinNoiseBound(label: String, actual: Long, expected: Long) {
+    val bound = ceil(DeterministicTruncatedLaplaceParams.truncationBound(UNIT_SENSITIVITY)).toLong()
+    assertWithMessage("$label: $actual is further than ${bound + 1} from $expected")
+      .that(abs(actual - expected))
+      .isAtMost(bound + 1)
+  }
+
   @Test
   fun `TrusTee basic report has the expected result`() = runBlocking {
     val eventGroups = getMultiEdpEventGroups()
@@ -151,5 +170,10 @@ abstract class InProcessEdpAggregatorTrusTeeThresholdTest(
       assertStructuralResults(completedBasicReport)
       assertTrusTeeMetricResults(completedBasicReport)
     }
+  }
+
+  companion object {
+    /** L1 sensitivity of reach and of a single frequency bucket: one VID moves either by 1. */
+    private const val UNIT_SENSITIVITY = 1.0
   }
 }
