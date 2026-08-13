@@ -1077,6 +1077,17 @@ module "dashboard_compliance_cloud_scheduler" {
   depends_on = [module.dashboard_compliance_cloud_function]
 }
 
+# The terraform SA pre-creates the metric descriptors below, which needs
+# monitoring.metricDescriptors.create. roles/monitoring.alertPolicyEditor does not
+# grant it; monitoring.metricWriter is the minimal role that does -- the same role
+# the function's runtime SA gets to export these metrics at runtime.
+resource "google_project_iam_member" "terraform_metric_writer" {
+  count   = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  project = data.google_client_config.default.project
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${var.terraform_service_account}"
+}
+
 # Pre-create the custom metric descriptors the alert policy below filters on. Cloud
 # Monitoring only auto-registers these the first time the Cloud Function emits them, so on a
 # brand-new environment the alert policy would fail with "Cannot find metric(s)..." until the
@@ -1084,6 +1095,7 @@ module "dashboard_compliance_cloud_scheduler" {
 # single apply. Kinds/labels mirror what the OpenTelemetry exporter emits.
 resource "google_monitoring_metric_descriptor" "dashboard_compliance_failed_checks" {
   count        = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  depends_on   = [google_project_iam_member.terraform_metric_writer]
   type         = "workload.googleapis.com/edpa.dashboard_compliance.failed_checks"
   metric_kind  = "GAUGE"
   value_type   = "INT64"
@@ -1097,6 +1109,7 @@ resource "google_monitoring_metric_descriptor" "dashboard_compliance_failed_chec
 
 resource "google_monitoring_metric_descriptor" "dashboard_compliance_errors" {
   count        = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  depends_on   = [google_project_iam_member.terraform_metric_writer]
   type         = "workload.googleapis.com/edpa.dashboard_compliance.errors"
   metric_kind  = "CUMULATIVE"
   value_type   = "INT64"
