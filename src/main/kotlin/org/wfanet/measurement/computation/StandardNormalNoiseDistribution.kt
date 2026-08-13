@@ -27,9 +27,9 @@ import org.apache.commons.math3.special.Erf
  *
  * Reproducibility rests on [Erf.erfInv], a rational approximation evaluated in pure Java double
  * arithmetic, so it yields the same bits on every JVM for a given commons-math version.
- * commons-math is version-pinned in MODULE.bazel, and StandardNormalNoiseDistributionTest holds
- * golden vectors so a version bump that moves the values fails loudly rather than silently changing
- * noise.
+ * commons-math is version-pinned in MODULE.bazel. StandardNormalNoiseDistributionTest asserts
+ * quantiles to a tolerance rather than to the bit, so it catches a version bump that changes the
+ * approximation but not one that moves only the last bits.
  */
 class StandardNormalNoiseDistribution {
   /**

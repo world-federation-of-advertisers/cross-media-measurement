@@ -16,8 +16,6 @@
 
 package org.wfanet.measurement.computation
 
-import kotlin.math.min
-
 /**
  * A dynamically clipped impression count and the variance of that released value.
  *
@@ -38,7 +36,10 @@ object ImpressionComputations {
    * choice, so leaving them out is what keeps the released quantities within the charge the search
    * already paid.
    *
-   * Bar 0 is the noised user count, which gates `min_users` without a further draw.
+   * Bar 0 is the noised user count, which gates `min_users` without a further draw. It carries the
+   * bar noise, which is calibrated across the whole histogram and so is larger than the
+   * unit-sensitivity draw the fixed-cap path gates on. The gate therefore admits and rejects more
+   * often near the threshold; raise `min_users` if the suppression needs to bite as hard.
    *
    * @param noisedCumulativeHistogram The noised cumulative histogram, already carrying its noise.
    * @param clip The per-user clip the histogram was searched for.
@@ -58,7 +59,6 @@ object ImpressionComputations {
       "vidSamplingIntervalWidth must be positive, got $vidSamplingIntervalWidth"
     }
 
-    val barsSummed: Int = min(clip, noisedCumulativeHistogram.size)
     val noisedImpressionCount: Double = noisedCumulativeHistogram.take(clip).sum()
     val scaledImpressionCount: Long =
       if (noisedImpressionCount < 0) 0L
@@ -81,16 +81,20 @@ object ImpressionComputations {
         }
       }
 
+    // Both terms are in [clip], never in the number of bars actually summed. The histogram is only
+    // as long as the highest frequency in the data, so a bar count would put that raw value into a
+    // released quantity; [clip] comes out of the noised search and is already safe to release. When
+    // the clip overshoots the histogram this overstates the variance, which is the safe direction.
+    //
     // The sampling term mirrors the reporting server's deterministic scalar variance at a cap of
-    // [clip]. The noise term differs: the count sums [barsSummed] independent bar draws rather than
-    // taking one draw calibrated to [clip], so it grows linearly in the bar count, not with its
-    // square.
+    // [clip]. The noise term differs: the count sums one draw per bar rather than taking a single
+    // draw calibrated to [clip], so it grows linearly in the clip, not with its square.
     val samplingVariance: Double =
       clip.toDouble() *
         value.toDouble() *
         vidSamplingIntervalWidth *
         (1.0 - vidSamplingIntervalWidth)
-    val noiseVariance: Double = barsSummed.toDouble() * barNoiseVariance
+    val noiseVariance: Double = clip.toDouble() * barNoiseVariance
     val variance: Double =
       (samplingVariance + noiseVariance) / (vidSamplingIntervalWidth * vidSamplingIntervalWidth)
 

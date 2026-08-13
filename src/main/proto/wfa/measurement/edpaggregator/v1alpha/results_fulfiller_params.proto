@@ -178,7 +178,10 @@ message ResultsFulfillerParams {
     LEGACY_CAP_MODE = 0;
     // Derive the cap from the frequency distribution of the measurement. The
     // noise on the released count is spread over the cumulative histogram the
-    // cap is derived from, so `impression_max_frequency_per_user` is ignored.
+    // cap is derived from. Both `impression_max_frequency_per_user` and the
+    // MeasurementSpec's `maximum_frequency_per_user` are ignored, so the result
+    // is capped at the derived value rather than at the one the measurement
+    // consumer asked for.
     DYNAMIC = 1;
   }
 

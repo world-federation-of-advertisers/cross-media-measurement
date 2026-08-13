@@ -129,28 +129,28 @@ class DirectImpressionResultBuilder(
         .groupingBy { it.toLong() }
         .eachCount()
         .mapValues { it.value.toLong() }
+        // A vector with no impressions has no maximum frequency to size a histogram from. Give the
+        // search a single empty bar rather than returning zero directly: an exact zero here, next
+        // to a noised value for a vector holding one impression, would leave the two
+        // distinguishable.
+        .ifEmpty { mapOf(1L to 0L) }
 
+    val clipping =
+      buildDirectDynamicClipping(
+        directNoiseMechanism = directNoiseMechanism,
+        frequencyData = frequencyData,
+        dpParams = DpParams(privacyParams.epsilon, privacyParams.delta),
+      )
+    val result = clipping.computeImpressionCappedHistogram(frequencyMap)
+    logger.info("Dynamic impression clip chosen: ${result.threshold}")
     val clipped: DynamicallyClippedImpressions =
-      if (frequencyMap.isEmpty()) {
-        // No user contributed an impression, so there is no distribution to search.
-        DynamicallyClippedImpressions(value = 0L, variance = 0.0)
-      } else {
-        val clipping =
-          buildDirectDynamicClipping(
-            directNoiseMechanism = directNoiseMechanism,
-            frequencyData = frequencyData,
-            dpParams = DpParams(privacyParams.epsilon, privacyParams.delta),
-          )
-        val result = clipping.computeImpressionCappedHistogram(frequencyMap)
-        logger.info("Dynamic impression clip chosen: ${result.threshold}")
-        ImpressionComputations.computeDynamicallyClippedImpressionCount(
-          noisedCumulativeHistogram = result.noisedCumulativeHistogramList,
-          clip = result.threshold,
-          barNoiseVariance = result.barNoiseVariance,
-          vidSamplingIntervalWidth = samplingRate.toDouble(),
-          resultMinimumThresholds = resultMinimumThresholds,
-        )
-      }
+      ImpressionComputations.computeDynamicallyClippedImpressionCount(
+        noisedCumulativeHistogram = result.noisedCumulativeHistogramList,
+        clip = result.threshold,
+        barNoiseVariance = result.barNoiseVariance,
+        vidSamplingIntervalWidth = samplingRate.toDouble(),
+        resultMinimumThresholds = resultMinimumThresholds,
+      )
 
     return MeasurementKt.result {
       impression = impression {

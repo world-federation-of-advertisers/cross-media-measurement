@@ -359,9 +359,10 @@ class ImpressionComputationsTest {
   }
 
   @Test
-  fun `bars beyond the histogram do not contribute noise`() {
-    // A clip past the end of the histogram sums fewer bars than the clip, and the noise term counts
-    // the bars actually summed.
+  fun `variance scales by the clip even when it overshoots the histogram`() {
+    // The histogram is only as long as the highest frequency in the data, so scaling by the bars
+    // actually summed would put that raw value into a released quantity. The clip comes out of the
+    // noised search, so the variance uses it and overstates rather than leaks.
     val result =
       ImpressionComputations.computeDynamicallyClippedImpressionCount(
         noisedCumulativeHistogram = CUMULATIVE_HISTOGRAM,
@@ -371,7 +372,30 @@ class ImpressionComputationsTest {
         resultMinimumThresholds = null,
       )
 
-    assertThat(result.variance).isWithin(1.0e-9).of(CUMULATIVE_HISTOGRAM.size * 9.0)
+    assertThat(result.variance).isWithin(1.0e-9).of(900.0)
+  }
+
+  @Test
+  fun `variance does not depend on the histogram length`() {
+    // Two histograms of different length, same clip: a variance that read the length would differ.
+    val short =
+      ImpressionComputations.computeDynamicallyClippedImpressionCount(
+        noisedCumulativeHistogram = listOf(10.0),
+        clip = 50,
+        barNoiseVariance = 4.0,
+        vidSamplingIntervalWidth = 1.0,
+        resultMinimumThresholds = null,
+      )
+    val long =
+      ImpressionComputations.computeDynamicallyClippedImpressionCount(
+        noisedCumulativeHistogram = listOf(10.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        clip = 50,
+        barNoiseVariance = 4.0,
+        vidSamplingIntervalWidth = 1.0,
+        resultMinimumThresholds = null,
+      )
+
+    assertThat(short.variance).isEqualTo(long.variance)
   }
 
   private fun deterministicNoiser(seedVector: IntArray = SEED_VECTOR) =
