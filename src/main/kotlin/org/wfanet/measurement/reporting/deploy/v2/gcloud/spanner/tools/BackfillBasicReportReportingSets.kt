@@ -19,11 +19,12 @@ package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.db.postgres.PostgresFlags
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.postgres.PostgresConnectionFactories
+import org.wfanet.measurement.gcloud.postgres.PostgresFlags as GCloudPostgresFlags
 import org.wfanet.measurement.gcloud.spanner.SpannerDatabaseConnector
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import org.wfanet.measurement.reporting.deploy.v2.common.SpannerFlags
@@ -45,7 +46,7 @@ import picocli.CommandLine
 class BackfillBasicReportReportingSets : Runnable {
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
-  @CommandLine.Mixin private lateinit var postgresFlags: PostgresFlags
+  @CommandLine.Mixin private lateinit var postgresFlags: GCloudPostgresFlags
 
   @CommandLine.Option(
     names = ["--dry-run"],
@@ -55,7 +56,10 @@ class BackfillBasicReportReportingSets : Runnable {
 
   override fun run() {
     runBlocking {
-      val postgresClient = PostgresDatabaseClient.fromFlags(postgresFlags)
+      val postgresClient =
+        PostgresDatabaseClient.fromConnectionFactory(
+          PostgresConnectionFactories.buildConnectionFactory(postgresFlags)
+        )
 
       spannerFlags.usingSpanner { spanner: SpannerDatabaseConnector ->
         BasicReportReportingSetBackfiller(

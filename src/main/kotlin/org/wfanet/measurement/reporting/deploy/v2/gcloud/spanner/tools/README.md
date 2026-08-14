@@ -44,11 +44,13 @@ The tool reads and writes the Reporting Spanner database, and reads and writes
 the Reporting Postgres database. `BasicReport`s are stored in Spanner while
 `ReportingSet`s are stored in Postgres, so both must be reachable.
 
-Neither database is generally accessible outside of the K8s cluster. For
-Postgres, forward the service port to your local machine using `kubectl`, in the
-same manner as described in the
-[Kingdom CLI tools](../../../../../../kingdom/deploy/tools/README.md#port-forwarding)
-documentation.
+Postgres is reached through the Cloud SQL connector, using the same
+`--postgres-cloud-sql-connection-name`, `--postgres-database` and
+`--postgres-user` options as the internal Reporting server deployment. IAM
+authentication is handled by the connector, so no password is passed and no
+Cloud SQL Auth Proxy is required.
+
+The credentials used must have read and write access to both databases.
 
 ### Examples
 
@@ -63,11 +65,9 @@ include the full path to the executable.
       --spanner-project=halo-cmm-dev \
       --spanner-instance=dev-instance \
       --spanner-database=reporting \
-      --postgres-host=localhost \
-      --postgres-port=5432 \
-      --postgres-user=reporting \
-      --postgres-password=password \
-      --postgres-database=reporting \
+      --postgres-cloud-sql-connection-name=halo-cmm-dev:us-central1:dev-postgres \
+      --postgres-database=reporting-v2 \
+      --postgres-user=reporting-v2-internal@halo-cmm-dev.iam \
       --dry-run
     ```
 
@@ -78,11 +78,9 @@ include the full path to the executable.
       --spanner-project=halo-cmm-dev \
       --spanner-instance=dev-instance \
       --spanner-database=reporting \
-      --postgres-host=localhost \
-      --postgres-port=5432 \
-      --postgres-user=reporting \
-      --postgres-password=password \
-      --postgres-database=reporting
+      --postgres-cloud-sql-connection-name=halo-cmm-dev:us-central1:dev-postgres \
+      --postgres-database=reporting-v2 \
+      --postgres-user=reporting-v2-internal@halo-cmm-dev.iam
     ```
 
 ### Output
