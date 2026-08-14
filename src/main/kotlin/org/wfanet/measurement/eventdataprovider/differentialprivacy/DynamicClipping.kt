@@ -34,7 +34,7 @@ class DynamicClipping(
   private val queryRho: Double,
   measurementType: MeasurementType,
   private val maxThreshold: Int = defaultMaxThreshold(measurementType),
-  private val noiseSource: StandardNormalNoiseSource = StochasticStandardNormalNoiseSource(),
+  private val noiseSource: DynamicClippingNoiseSource = StochasticStandardNormalNoiseSource(),
 ) {
   private lateinit var cumulativeHistogramList: List<Double>
 

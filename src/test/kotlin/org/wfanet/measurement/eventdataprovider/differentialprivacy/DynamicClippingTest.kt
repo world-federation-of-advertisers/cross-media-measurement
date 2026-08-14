@@ -244,11 +244,11 @@ class DynamicClippingTest {
   }
 
   /**
-   * A [StandardNormalNoiseSource] that is a pure function of its address, standing in for the
+   * A [DynamicClippingNoiseSource] that is a pure function of its address, standing in for the
    * frequency-vector-seeded source the EDP Aggregator supplies. The distribution does not matter
    * here, only that the same address always yields the same draw.
    */
-  private fun seededNoiseSource(seed: Int = 0) = StandardNormalNoiseSource { pass, barIndex ->
+  private fun seededNoiseSource(seed: Int = 0) = DynamicClippingNoiseSource { pass, barIndex ->
     val mixed = ((seed * 31L + pass) * 31L + barIndex) * 2654435761L
     (mixed % 2000L).toDouble() / 1000.0 - 1.0
   }

@@ -17,7 +17,7 @@
 package org.wfanet.measurement.computation
 
 import org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClipping
-import org.wfanet.measurement.eventdataprovider.differentialprivacy.StandardNormalNoiseSource
+import org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClippingNoiseSource
 
 /**
  * A dynamically clipped impression count.
@@ -104,7 +104,7 @@ object ImpressionComputations {
   fun computeDynamicallyClippedImpressionCount(
     frequencyVector: IntArray,
     queryRho: Double,
-    noiseSource: StandardNormalNoiseSource,
+    noiseSource: DynamicClippingNoiseSource,
     vidSamplingIntervalWidth: Double,
     resultMinimumThresholds: ResultMinimumThresholds?,
   ): DynamicallyClippedImpressions {

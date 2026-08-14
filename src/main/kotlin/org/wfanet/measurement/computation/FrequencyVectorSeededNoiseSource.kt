@@ -15,10 +15,10 @@
 package org.wfanet.measurement.computation
 
 import java.nio.ByteBuffer
-import org.wfanet.measurement.eventdataprovider.differentialprivacy.StandardNormalNoiseSource
+import org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClippingNoiseSource
 
 /**
- * A [StandardNormalNoiseSource] whose draws are a pure function of [fingerprint] and the draw's
+ * A [DynamicClippingNoiseSource] whose draws are a pure function of [fingerprint] and the draw's
  * address, so a mechanism taking a varying number of passes still reproduces each draw.
  *
  * [fingerprint] identifies the data being noised, and is what makes the draws non-averageable: seed
@@ -30,7 +30,7 @@ import org.wfanet.measurement.eventdataprovider.differentialprivacy.StandardNorm
 class FrequencyVectorSeededNoiseSource(
   private val fingerprint: ByteArray,
   private val domain: Int,
-) : StandardNormalNoiseSource {
+) : DynamicClippingNoiseSource {
   private val sampler = DeterministicGaussianNoiseSampler()
 
   override fun sample(pass: Int, barIndex: Int): Double =

@@ -20,7 +20,7 @@ import org.wfanet.measurement.computation.DynamicallyClippedImpressions
 import org.wfanet.measurement.computation.FrequencyVectorSeededNoiseSource
 import org.wfanet.measurement.computation.ImpressionComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
-import org.wfanet.measurement.eventdataprovider.differentialprivacy.StandardNormalNoiseSource
+import org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClippingNoiseSource
 import org.wfanet.measurement.eventdataprovider.differentialprivacy.StochasticStandardNormalNoiseSource
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
@@ -66,7 +66,7 @@ fun computeDirectDynamicallyClippedImpressions(
   resultMinimumThresholds: ResultMinimumThresholds?,
 ): DynamicallyClippedImpressions {
   val queryDpParams: DpParams
-  val noiseSource: StandardNormalNoiseSource
+  val noiseSource: DynamicClippingNoiseSource
   when (directNoiseMechanism) {
     DirectNoiseMechanism.CONTINUOUS_GAUSSIAN -> {
       queryDpParams = dpParams

@@ -20,7 +20,7 @@ import kotlin.math.min
 import kotlin.math.sqrt
 import kotlin.test.assertFailsWith
 import org.junit.Test
-import org.wfanet.measurement.eventdataprovider.differentialprivacy.StandardNormalNoiseSource
+import org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClippingNoiseSource
 
 class ImpressionComputationsTest {
 
@@ -382,7 +382,7 @@ class ImpressionComputationsTest {
   companion object {
 
     /** Draws nothing, so the bars are exact and the assertions can be too. */
-    private val NO_NOISE = StandardNormalNoiseSource { _, _ -> 0.0 }
+    private val NO_NOISE = DynamicClippingNoiseSource { _, _ -> 0.0 }
 
     private const val DYNAMIC_MAX_FREQUENCY = 5
 
