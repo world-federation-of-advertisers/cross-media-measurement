@@ -11,9 +11,6 @@ registering your campaigns, answering measurement requests, adding privacy noise
 signing results — is run for you by the market operator, inside hardware that cannot
 show your data to anyone, including the operator.
 
-This page starts from zero and gets more detailed as you scroll. Stop wherever you have
-what you need.
-
 | I want to… | Go to |
 | --- | --- |
 | Understand what this is in 60 seconds | [1. The idea](#1-the-idea) |
@@ -35,12 +32,10 @@ often** — counted once across every publisher, not once per publisher.
 Getting that number has always meant one of two bad options: publishers ship
 user-level data to a third party, or nobody gets a cross-publisher answer. Halo's
 answer is that **nobody ever sees anybody's raw data**. Each publisher's data is
-decrypted only inside sealed hardware that can prove which code it is running, and only
-aggregate, noise-protected numbers ever come out.
+decrypted only inside a trusted execution environment that can prove which code it is
+running, and only aggregate, noise-protected numbers ever come out.
 
-The EDP Aggregator is the part that makes participating in that cheap for you.
-Without it, you would run measurement software in your own infrastructure and keep it
-in sync with the platform forever. With it:
+The EDP Aggregator is the part that makes participating in that cheap for you:
 
 | You do | The operator does |
 | --- | --- |
@@ -68,7 +63,7 @@ any time by changing a policy in your own cloud account.
 flowchart LR
   A["You<br/>encrypt a day of impressions<br/>with your own key"]
   B["A private bucket<br/>you upload to it;<br/>the bytes are unreadable<br/>to everyone, including<br/>the operator"]
-  C["A sealed enclave<br/>your key unwraps the data<br/>only in here, and only for<br/>code you approved"]
+  C["A trusted execution environment<br/>(Google Confidential Space)<br/>your key unwraps the data<br/>only in here, and only for<br/>code you approved"]
   D["An anonymised answer<br/>reach and frequency,<br/>privacy-noised,<br/>signed on your behalf"]
   A --> B --> C --> D
 ```
@@ -89,12 +84,12 @@ flowchart TB
   subgraph AGG["What the aggregator does, automatically"]
     direction TB
     REG["3 · Registers your campaigns with the Halo coordinator"]
-    LAB["4 · OPTIONAL: assigns virtual-person IDs to your<br/>impressions, inside a sealed enclave"]
+    LAB["4 · OPTIONAL: assigns virtual-person IDs to your<br/>impressions, inside a trusted execution environment"]
     AV["5 · Records which days you now cover,<br/>so the coordinator knows what you can answer"]
     PULL["6 · Picks up measurement requests addressed to you"]
   end
 
-  subgraph TEE["Inside a sealed enclave"]
+  subgraph TEE["Inside a trusted execution environment (Google Confidential Space)"]
     ANS["7 · Asks your key manager to unwrap the data,<br/>decrypts, counts, adds privacy noise,<br/>signs the result on your behalf"]
   end
 
@@ -123,7 +118,7 @@ Step by step:
 4. **Optionally, the system labels your impressions for you.** Halo counts *people*, not
    cookies or devices, so every impression needs a virtual-person ID (**VID**). You can
    assign those yourself before uploading, or upload unlabeled impressions and have the
-   system assign them inside a sealed enclave. See
+   system assign them inside a trusted execution environment. See
    [section 4](#41-decision-1--who-assigns-the-virtual-person-ids).
 
 5. **Your coverage is recorded.** The system notes which dates you now have data for.
@@ -133,20 +128,20 @@ Step by step:
    the coordinator creates a request addressed to you. The aggregator polls for it and
    queues up the work — you are not called, and you do not need an endpoint.
 
-7. **The answer is computed inside a sealed enclave.** This is the only moment your
-   data exists in the clear, and it happens on hardware that proves what code it is
-   running before your key manager will unwrap anything. The enclave counts, applies
-   differential-privacy noise and any minimum-audience thresholds, signs the result with
-   a consent key held for you, and hands it back.
+7. **The answer is computed inside a trusted execution environment.** This is the only
+   moment your data exists in the clear, and it happens on hardware that proves what code
+   it is running before your key manager will unwrap anything. The workload counts,
+   applies differential-privacy noise and any minimum-audience thresholds, signs the
+   result with a consent key held for you, and hands it back.
 
 8. **The advertiser gets a report** — aggregate numbers only.
 
 For a cross-publisher measurement there is one extra hop: instead of releasing your
-numbers, the enclave re-encrypts an intermediate frequency vector and sends it to a
-second enclave that combines the vectors from every participating publisher. No
-publisher's individual contribution is ever revealed. That protocol is called
-**TrusTEE**, and supporting it is optional — see
-[section 4.4](#44-decision-4--single-publisher-only-or-cross-publisher-too).
+numbers, the workload re-encrypts an intermediate frequency vector and sends it to a
+second trusted execution environment that combines the vectors from every participating
+publisher. No publisher's individual contribution is ever revealed. That protocol is
+called **TrusTEE**, and it changes what your key must permit — see
+[section 4.4](#44-cross-publisher-measurement-is-not-optional-but-it-does-need-setup).
 
 ---
 
@@ -163,32 +158,40 @@ key, and there is no copy of it anywhere in the system.
 
 ### 3.2 The only thing that can unwrap it is attested code
 
-The workload that reads your data runs in a **Confidential Space** enclave. Before it
-can use your key it must present a hardware-signed attestation describing exactly what
-it is: the container image and its signature, the enclave software, the project it runs
-in, whether it is a debug build.
+The workload that reads your data runs in **Google Confidential Space**. Before it can
+use your key it must present a hardware-signed attestation, and that attestation states,
+among other things:
+
+- **which container image is running, and who signed it** — for Halo builds, the image
+  carries Halo's official signing key;
+- **that it really is Confidential Space**, and that it is a production image, **not a
+  debug build** — a debug image would allow log access into the workload;
+- **which Google Cloud project the operator is running it in**;
+- **which operator service account it is running as**.
 
 You write the policy that judges that attestation. It lives in your cloud account, and
-it typically says: *only a workload running in a genuine, non-debug Confidential Space,
-running an image signed with this exact key, may obtain a short-lived decrypt-only
-credential for this key.* If the operator rebuilds the image with different code, the
-signature changes, your policy rejects it, and your data stays encrypted.
+it typically says: *only a workload running in genuine, non-debug Confidential Space,
+running an image signed with Halo's official signing key, in the Google Cloud project my
+operator told me they use, may obtain a short-lived decrypt-only credential for this
+key.* If the operator rebuilds the image with different code, the signature changes,
+your policy rejects it, and your data stays encrypted. If a workload shows up from a
+project you did not approve, same outcome.
 
 ```mermaid
 flowchart LR
-  T["The enclave<br/>proves what code it runs"]
+  T["The trusted execution environment<br/>proves what code it runs"]
   P["Your policy<br/>you write it, in your account"]
   K["Your key<br/>in your KMS"]
-  D["The day's data key<br/>unwrapped, in memory,<br/>inside the enclave only"]
+  D["The day's data key<br/>unwrapped, in memory,<br/>inside the TEE only"]
   T -->|hardware attestation| P
   P -->|"short-lived,<br/>decrypt-only credential"| K
   K --> D
 ```
 
-### 3.3 Nobody can look inside the enclave — including the operator
+### 3.3 Nobody can look inside the trusted execution environment — including the operator
 
-Confidential Space memory is encrypted by the CPU and the operator has no shell, no
-debugger and no log access into a production enclave. Plaintext impressions exist only
+Confidential Space memory is encrypted by the CPU, and the operator has no shell, no
+debugger and no log access into a production workload. Plaintext impressions exist only
 in that memory, only for the duration of one computation.
 
 ### 3.4 Only privacy-protected aggregates come out
@@ -209,8 +212,8 @@ the operator required.
 
 ## 4. Choose your path
 
-Four decisions. Most publishers can make all four in a few minutes. Each has a
-recommended default.
+Three decisions, each with a recommended default, and one thing that is not a decision
+but does need setting up.
 
 ### 4.1 Decision 1 — who assigns the virtual-person IDs?
 
@@ -229,38 +232,39 @@ person identifier — before it can be counted.
 **Recommended: B, if your market has it enabled.** Running someone else's identity model
 inside your own stack, and re-running it every time the model changes, is the single
 largest ongoing cost of participating. Option B removes it: you export the columns you
-already have, and labeling happens inside the same enclave protection as everything else.
+already have, and labeling happens inside the same TEE protection as everything else.
 
 Choose A if you already run the model, or if you are not willing to ship the
 demographic signals the model needs even in encrypted form.
 
 You can also mix: this is decided per *model line*, so you can move over gradually.
 
-### 4.2 Decision 2 — where does your key live, and how does the enclave reach it?
+### 4.2 Decision 2 — where does your key live, and how does the workload reach it?
 
-Three supported paths. They differ only in how the enclave proves its identity to your
-key manager; the data flow is identical.
+Three supported paths. They differ only in how the trusted execution environment proves
+its identity to your key manager; the data flow is identical.
 
 | | **Your KMS** | **You must operate** | **The chain** | **Pick this if** |
 | --- | --- | --- | --- | --- |
-| **G · Google Cloud KMS** | GCP | A GCP project with a Workload Identity Pool and a service account | attestation → your identity pool → your service account → your key | You are on Google Cloud |
-| **A1 · AWS KMS, direct** | AWS | An AWS account. **No GCP project at all.** | attestation → your key | You are on AWS *(recommended for AWS)* |
-| **A2 · AWS KMS via Google federation** | AWS | An AWS account **and** a GCP project with a Workload Identity Pool | attestation → your identity pool → your service account → AWS STS → your key | You are on AWS and have a specific reason to keep a Google identity pool in the chain |
+| **Google Cloud KMS** | GCP | A GCP project with a Workload Identity Pool and a service account | attestation → your identity pool → your service account → your key | You are on Google Cloud |
+| **AWS KMS, direct** | AWS | An AWS account. **No GCP project at all.** | attestation → your key | You are on AWS *(recommended for AWS)* |
+| **AWS KMS via Google federation** | AWS | An AWS account **and** a GCP project with a Workload Identity Pool | attestation → your identity pool → your service account → AWS STS → your key | You are on AWS and have a specific reason to keep a Google identity pool in the chain |
 
-**Recommended: G if you are on Google Cloud, A1 if you are on AWS.** A1 registers the
-Confidential Space attestation issuer directly as an OIDC provider in your AWS account,
-so the enclave's attestation is validated by AWS itself, with no intermediary. It is
-fewer moving parts and fewer things to get wrong.
+**Recommended: Google Cloud KMS if you are on Google Cloud, AWS KMS direct if you are on
+AWS.** The direct AWS path registers the Confidential Space attestation issuer itself as
+an OIDC provider in your AWS account, so AWS validates the attestation with no
+intermediary. Fewer moving parts, fewer things to get wrong.
 
 Whichever you choose, the property in [section 3.2](#32-the-only-thing-that-can-unwrap-it-is-attested-code)
 holds: the policy that decides which workloads may use your key is **yours**, in **your**
-account. In path A2 in particular, the Google identity pool must be in *your* GCP
-project, never the operator's — otherwise the operator could mint tokens without a
-genuine enclave.
+account. On the federated AWS path in particular, the Google identity pool must live in
+*your* GCP project, never the operator's — otherwise the operator could mint tokens
+without a genuine trusted execution environment behind them.
 
-> Setup for G is in the [EDP Onboarding Guide](edp-onboarding.md#22-kms-setup--google-cloud).
-> Setup for A1 and A2 is in the [AWS KMS Setup Guide](aws-kms-setup.md), which calls them
-> Option 1 and Option 2.
+> Google Cloud KMS setup is in the
+> [EDP Onboarding Guide](edp-onboarding.md#22-kms-setup--google-cloud). Both AWS paths
+> are in the [AWS KMS Setup Guide](aws-kms-setup.md), where the direct path is Option 1
+> and the federated path is Option 2.
 
 ### 4.3 Decision 3 — how do your campaigns get registered?
 
@@ -268,33 +272,36 @@ genuine enclave.
 | --- | --- | --- |
 | You publish | A campaign list naming the advertiser directly | A campaign list naming your own internal account id |
 | The operator does | Nothing extra | Links your account ids to advertiser identities once |
-| Pick this if | You know the advertiser's Halo identity | You want to publish campaigns using your own account ids and let the operator resolve them |
+| Pick this if | You want to register each new advertiser yourself | You would rather the operator register new advertisers on your behalf |
 
 Both are supported at the same time; the campaign record carries either an advertiser
 identity or your own account reference id. See the
 [Self-Serve Onboarding Guide](self-serve-onboarding.md) for the operator side.
 
-### 4.4 Decision 4 — single-publisher only, or cross-publisher too?
+### 4.4 Cross-publisher measurement is not optional, but it does need setup
 
-| | **Single-publisher** | **Cross-publisher (TrusTEE)** |
+Deduplicated reach across publishers is the reason Halo exists. Once you are onboarded
+in a market, an advertiser can request a cross-publisher measurement that includes your
+inventory — that is not something you accept or decline per request. So plan for it from
+the start.
+
+Mechanically it is a small, additive change to the setup in
+[decision 4.2](#42-decision-2--where-does-your-key-live-and-how-does-the-workload-reach-it).
+Instead of releasing your numbers, the workload re-encrypts an intermediate frequency
+vector and hands it to a second trusted execution environment, which combines the
+vectors from every participating publisher. Two consequences for your key:
+
+| | **Single-publisher only** | **Also cross-publisher (TrusTEE)** |
 | --- | --- | --- |
-| Answers | Reach and frequency across your inventory | Deduplicated reach across all participating publishers |
-| Your key must allow | Decrypt | Decrypt **and** encrypt |
-| Your policy must trust | The answering workload | The answering workload **and** the aggregating enclave |
-| Extra key needed | No | Optional — you may use one key for both, or a dedicated second key on the same key ring |
+| Your key must allow | Decrypt | Decrypt **and** encrypt — encrypt is what wraps the frequency vector for the aggregating workload |
+| Your policy must trust | The answering workload | The answering workload **and** the aggregating workload |
+| Extra key | — | Your choice: reuse the one key, or add a dedicated re-encryption key on the same key ring for isolation and independent rotation |
 
-Cross-publisher measurement is the reason Halo exists, but it is opt-in and it is a
-strictly additive change to your setup — you can start single-publisher and enable it
-later. Details in the
-[EDP Onboarding Guide](edp-onboarding.md#6-enabling-trustee-optional).
+**The only real choice here is one key or two.** Reusing your key is simpler; a dedicated
+re-encryption key keeps the decrypt and encrypt roles separate. Either way, tell your
+operator which you are using.
 
-### 4.5 Three worked profiles
-
-| Profile | 4.1 | 4.2 | 4.3 | 4.4 |
-| --- | --- | --- | --- | --- |
-| **Google-Cloud publisher, wants the least work** | B — system labels | G — GCP KMS | Operator-linked | Enable later |
-| **AWS publisher, already runs the VID model** | A — you label | A1 — AWS direct | Self-published | Enable now |
-| **Publisher trialling the platform** | A — you label | G — GCP KMS | Self-published | Single-publisher only |
+Details in the [EDP Onboarding Guide](edp-onboarding.md#6-enabling-trustee-optional).
 
 ---
 
@@ -324,13 +331,19 @@ You have already assigned a VID to every impression.
 
 **Layout**
 
+Put all three files in the same date folder:
+
 ```
+{your-impression-prefix}/model-line/{modelLineId}/{YYYY-MM-DD}/impressions.enc.recordio
 {your-impression-prefix}/model-line/{modelLineId}/{YYYY-MM-DD}/metadata.binpb
 {your-impression-prefix}/model-line/{modelLineId}/{YYYY-MM-DD}/done
-{...}/the encrypted impressions blob            (may live in a separate tree)
 ```
 
-**The impressions blob** — a stream of `LabeledImpression` messages, RecordIO-framed,
+The data file's name is not significant — it is located through the `blob_uri` inside the
+metadata file, not by its filename. The metadata file's name **must contain the string
+`metadata`**, and `done` must be written last.
+
+**The impressions file** — a stream of `LabeledImpression` messages, RecordIO-framed,
 envelope-encrypted with that day's data key.
 
 | Field | Type | Required | What it is |
@@ -338,8 +351,8 @@ envelope-encrypted with that day's data key.
 | `event_time` | `Timestamp` | yes | When the impression happened |
 | `vid` | `int64` | yes | The virtual person you assigned |
 | `event` | `Any` | yes | Your market's event message (see its event template) |
-| `event_group_reference_id` | `string` | yes | Which campaign this belongs to |
-| `entity_keys` | repeated `EntityKey` | no | `{entity_type, entity_id}` tags — creative, placement, and so on — for downstream filtering |
+| `entity_keys` | repeated `EntityKey` | **yes — at least one** | `{entity_type, entity_id}` tags — person, creative, placement, and so on. This is how an impression is matched to a campaign and filtered downstream |
+| `event_group_reference_id` | `string` | legacy | **Deprecated**, superseded by `entity_keys`. Still accepted during the deprecation window; new integrations should not set it |
 
 **The metadata sidecar** — one small file per impressions blob whose filename *contains*
 the string `metadata` (for example `metadata.binpb`). It holds a **`BlobDetails`**
@@ -349,18 +362,19 @@ bare encrypted-key message.
 | Field | Required | What it is |
 | --- | --- | --- |
 | `blob_uri` | yes | Where the encrypted impressions blob is |
-| `encrypted_dek` | yes | The day's data key, wrapped by your master key — this is how the enclave unwraps it |
+| `encrypted_dek` | yes | The day's data key, wrapped by your master key — this is how the TEE unwraps it |
 | `model_line` | yes | Which model line these impressions belong to; must match the `{modelLineId}` in the path |
 | `interval` | yes | The time range this data covers |
-| `entity_keys` | yes | The entity keys present in the blob |
-| `event_group_reference_id` | legacy | Still accepted; new writers should populate `entity_keys` |
+| `entity_keys` | yes | The entity keys present in the data file |
+| `event_group_reference_id` | legacy | Deprecated; new writers populate `entity_keys` instead |
 
 Full field-level detail: [EDP Onboarding Guide § 3](edp-onboarding.md#3-data-formatting).
 
 ### 5.2 Option B — you upload raw impressions and the system labels them
 
 You upload **unlabeled** impressions as encrypted **Parquet**, and the pipeline assigns
-the VIDs inside an enclave, then writes labeled output in the Option A format on your
+the VIDs inside a trusted execution environment, then writes labeled output in the
+Option A format on your
 behalf. From that point on the flow is identical.
 
 **Layout** — note there is no model line in the path. The system resolves which model
@@ -371,7 +385,14 @@ lines apply and can label the same day for several of them.
 {your-raw-impression-prefix}/{YYYY-MM-DD}/done
 ```
 
-**One file holds exactly one day of events.** Multiple files per day are fine.
+**One file holds exactly one day of events — and you want many files per day, not one.**
+A file is the unit of work distribution: the pipeline parallelises across files and
+bin-packs them into labeling jobs by total size, and it cannot split one file across
+workers. A single large file therefore serialises a whole day onto one worker.
+
+**Aim for one file per campaign per day, and keep each file under about 1 GB.** Split a
+big campaign across several files if you need to — any number of files per date folder
+is fine.
 
 **Columns.** One flat column per input, one row per impression. **The column names are
 yours** — you tell your operator which column carries which concept, and they configure
@@ -414,7 +435,7 @@ parquet.encryption.plaintext.footer  = true
 
 The plaintext footer is deliberate: it lets the pipeline read the schema and the
 `event_date` with a cheap tail read and **no key access at all**, while every column of
-actual data stays encrypted. Your key is still only reachable by an attested enclave.
+actual data stays encrypted. Your key is still only reachable by an attested TEE.
 
 **You write no metadata sidecar for raw impressions.** When `done` appears, the system
 lists the folder and registers the files itself.
@@ -453,14 +474,14 @@ values.
 - [ ] Your `DataProvider` resource name — your identity in Halo
 - [ ] The bucket URI and the prefixes assigned to you (campaigns, impressions, and — for
       option B — raw impressions)
-- [ ] The service account of the answering workload, and of the aggregating enclave if
-      you are enabling cross-publisher measurement
+- [ ] The service account of the answering workload, and of the aggregating workload for
+      cross-publisher measurement
 - [ ] The container image signature fingerprint you should trust
 - [ ] The market's event template, and the model line(s) you will supply data for
 
 **Set up on your side:**
 
-- [ ] A symmetric master key in your own KMS ([decision 4.2](#42-decision-2--where-does-your-key-live-and-how-does-the-enclave-reach-it))
+- [ ] A symmetric master key in your own KMS ([decision 4.2](#42-decision-2--where-does-your-key-live-and-how-does-the-workload-reach-it))
 - [ ] The attestation policy that gates it — a Workload Identity Provider on Google
       Cloud, or an IAM role trust policy on AWS
 - [ ] An export job that writes your campaign list
@@ -472,8 +493,8 @@ values.
 - [ ] For Google Cloud: the identity-pool provider resource name and the service account
 - [ ] For AWS: the role ARN, region, and audience
 - [ ] For option B: which column carries which concept, so they can configure the mapping
-- [ ] Whether you support cross-publisher measurement, and if so whether you use a
-      dedicated re-encryption key
+- [ ] Whether you use one key or a dedicated re-encryption key for cross-publisher
+      measurement
 
 **Then validate:** upload one day, confirm your coverage is registered, and run a test
 measurement against it with your operator.
@@ -489,7 +510,7 @@ You never send: a private key, an unencrypted impression, or a certificate.
 | Guide | What it covers |
 | --- | --- |
 | [EDP Onboarding Guide](edp-onboarding.md) | The full integration: key setup, attestation policy, schemas, encryption, upload paths, the daily workflow, and enabling cross-publisher measurement |
-| [AWS KMS Setup Guide](aws-kms-setup.md) | Both AWS paths from [decision 4.2](#42-decision-2--where-does-your-key-live-and-how-does-the-enclave-reach-it), end to end, with trust policies |
+| [AWS KMS Setup Guide](aws-kms-setup.md) | Both AWS paths from [decision 4.2](#42-decision-2--where-does-your-key-live-and-how-does-the-workload-reach-it), end to end, with trust policies |
 | [Dashboard EDP Onboarding Guide](dashboard/onboarding-guide.md) | Getting access to your own reporting dashboard data |
 
 ### If you are a market operator
@@ -526,12 +547,12 @@ Here is the map.
 | Campaign registration | **EventGroupSync** |
 | Coverage registration | **DataAvailabilitySync** (with **DataAvailabilityCleanup** and **DataAvailabilityMonitor**) |
 | Request pickup | **RequisitionFetcher** |
-| The answering workload in the enclave | **ResultsFulfiller** |
+| The answering workload in the TEE | **ResultsFulfiller** |
 | The labeling service ([option B](#52-option-b--you-upload-raw-impressions-and-the-system-labels-them)) | The **VID Labeling pipeline** — **VidLabelingDispatcher**, **SubpoolAssigner** (phase 0), **VidRankBuilder** (phase 1), **VidLabeler** (phase 2), **VidLabelingMonitor** |
 | The bookkeeping service | **EDP Aggregator (Metadata Storage) API** — `ImpressionMetadata`, `RequisitionMetadata` |
 | The work router and queues | **Secure Computation API** + Pub/Sub |
 | Cross-publisher aggregation | **TrusTEE**, run by a **TrusTEE Duchy** |
-| Sealed enclave | **Confidential Space** TEE |
+| Trusted execution environment (TEE) | **Google Confidential Space** |
 | Your master key | **KEK** (key-encryption key) |
 | The day's single-use data key | **DEK** (data-encryption key) |
 
@@ -547,9 +568,9 @@ Here is the map.
 | **Event template** | The market-defined schema of an impression's event payload — what fields a measurement may filter on. |
 | **Entity key** | A `{type, id}` tag on an impression or campaign (person, creative, placement…) used to match impressions to campaigns and to filter results. |
 | **Reach / frequency** | How many distinct people saw a campaign, and how many times each. |
-| **Attestation** | A hardware-signed statement of exactly what code an enclave is running. Your key policy judges it. |
+| **Attestation** | A hardware-signed statement of exactly what code a trusted execution environment is running. Your key policy judges it. |
 | **TEE / Confidential Space** | Trusted Execution Environment — hardware-isolated, memory-encrypted compute the host cannot inspect. |
 | **KEK / DEK** | Your master key, in your KMS / the single-use key that encrypts one batch of data, wrapped by the KEK. |
 | **PME** | Parquet Modular Encryption — column-level encryption native to Parquet, used for [option B](#52-option-b--you-upload-raw-impressions-and-the-system-labels-them). |
 | **RecordIO** | A framing format for writing a stream of protobuf messages to one file. |
-| **TrusTEE** | The protocol that combines several publishers' encrypted intermediate results inside a single enclave to produce deduplicated cross-publisher reach. |
+| **TrusTEE** | The protocol that combines several publishers' encrypted intermediate results inside a single trusted execution environment to produce deduplicated cross-publisher reach. |
