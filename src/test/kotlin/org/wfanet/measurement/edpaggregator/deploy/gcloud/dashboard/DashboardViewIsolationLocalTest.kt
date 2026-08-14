@@ -112,6 +112,13 @@ class DashboardViewIsolationLocalTest {
   }
 
   @Test
+  fun reportDetailCarriesReportStateInBothVariants() {
+    val sql = readSqlFile("report_detail.sql")
+    assertThat(render(sql, platformEnabled = true)).contains("ReportState")
+    assertThat(render(sql, platformEnabled = false)).contains("ReportState")
+  }
+
+  @Test
   fun entityColumnsAreEdpOnly() {
     run {
       val sql = readSqlFile("report_detail.sql")

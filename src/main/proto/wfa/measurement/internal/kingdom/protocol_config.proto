@@ -37,6 +37,7 @@ message ProtocolConfig {
     DISCRETE_GAUSSIAN = 2;
     CONTINUOUS_LAPLACE = 4;
     CONTINUOUS_GAUSSIAN = 5;
+    DETERMINISTIC_TRUNCATED_LAPLACE = 6;
   }
 
   // Configuration for the Direct protocol.

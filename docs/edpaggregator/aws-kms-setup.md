@@ -138,7 +138,11 @@ value goes in the trust policy (Step 3) and the EDP config (Step 5).
           "confidentialcomputing.googleapis.com:aud": "AUDIENCE",
           "aws:RequestTag/swname": "CONFIDENTIAL_SPACE",
           "aws:RequestTag/confidential_space.support_attributes": "LATEST=STABLE=USABLE",
-          "aws:RequestTag/container.signatures.key_ids": ["SIGNING_KEY_ID_1", "SIGNING_KEY_ID_2"],
+          "aws:RequestTag/container.signatures.key_ids": [
+            "SIGNING_KEY_ID_1",
+            "SIGNING_KEY_ID_2",
+            "SIGNING_KEY_ID_1=SIGNING_KEY_ID_2"
+          ],
           "aws:RequestTag/gce.project_id": ["OPERATOR_PROJECT_1", "OPERATOR_PROJECT_2"]
         }
       }
@@ -157,6 +161,24 @@ Notes:
   `e117571844aad697303b883969daec142b3dd12ac6c8a73cba620f029a653864`.
 * `gce.project_id` values are strings, and are the projects in which the operator runs
   the workloads.
+
+> **An image with more than one signature sends one concatenated tag value.**
+> The policy above lists the values the condition accepts, as any `StringEquals` policy
+> may; the tag the workload sends is a single string. Confidential Space joins multiple
+> signature key IDs with `=`, sorted alphabetically, so an image signed with both
+> `SIGNING_KEY_ID_1` and `SIGNING_KEY_ID_2` presents the one value
+> `SIGNING_KEY_ID_1=SIGNING_KEY_ID_2`, which equals neither key ID on its own. Enumerate
+> every combination the workload can legitimately present, as above. Omitting the
+> combined value fails with `Not authorized to perform sts:AssumeRoleWithWebIdentity`
+> only for the double-signed images, so it can pass in one environment and fail in
+> another that signs the same code with an additional key.
+>
+> Do **not** reach for `ForAnyValue:` / `ForAllValues:` here.
+> [`aws:RequestTag/tag-key` is a single-valued context key][aws-multivalue], and AWS
+> warns that set operators on single-valued keys can produce overly permissive
+> policies.
+
+[aws-multivalue]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-single-vs-multi-valued-context-keys.html
 
 ## Step 4 — Grant the role `kms:Decrypt` on the key
 
@@ -212,7 +234,11 @@ event_data_provider_config {
    and AWS KMS `Decrypt` succeeds.
 
 > AWS CloudTrail's `AssumeRoleWithWebIdentity` events are the authoritative place to
-> see which trust policy conditions matched.
+> see which trust policy conditions matched. Note that CloudTrail records
+> `requestParameters` — including the session tags — only for calls that **succeed**;
+> on an `AccessDenied` they are redacted, so a denial shows which role and provider were
+> used but not which condition rejected it. Comparing against a successful call from
+> another environment is usually the fastest way to spot the differing claim.
 
 ---
 

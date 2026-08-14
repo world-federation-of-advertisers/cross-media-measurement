@@ -243,12 +243,20 @@ class SeedRawImpressionsRule(
     }
   }
 
-  /** Demographic columns projected from the event message (enum value names). */
+  /**
+   * Event columns projected from the event message.
+   *
+   * Must cover every field the measurement's filter expression reads, otherwise the labeled
+   * impression carries the field default and the filter drops it. Demographics are written as enum
+   * value names; `viewed_fraction` is a double.
+   */
   private fun testEventColumns(event: TestEvent): Map<String, ParquetValue> =
     mapOf(
       RawImpressionColumns.PERSON_GENDER to parquetValue { stringValue = event.person.gender.name },
       RawImpressionColumns.PERSON_AGE_GROUP to
         parquetValue { stringValue = event.person.ageGroup.name },
+      RawImpressionColumns.VIDEO_AD_VIEWED_FRACTION to
+        parquetValue { doubleValue = event.videoAd.viewedFraction },
     )
 
   private fun deleteExistingRawImpressions(storage: Storage) {

@@ -462,6 +462,11 @@ resource "google_bigquery_table" "report_detail" {
     "name": "EdpCount",
     "type": "INT64",
     "mode": "NULLABLE"
+  },
+  {
+    "name": "ReportState",
+    "type": "STRING",
+    "mode": "NULLABLE"
   }
 ]
 EOF
@@ -514,6 +519,11 @@ resource "google_bigquery_table" "report_detail_edp" {
     "name": "EntityIds",
     "type": "STRING",
     "mode": "REPEATED"
+  },
+  {
+    "name": "ReportState",
+    "type": "STRING",
+    "mode": "NULLABLE"
   }
 ]
 EOF
