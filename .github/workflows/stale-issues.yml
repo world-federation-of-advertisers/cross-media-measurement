@@ -1,0 +1,54 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Check Stale Issues
+
+# DO_NOT_SUBMIT: use cron
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check-stale-issues:
+    # Don't run this in forks
+    if: github.repository == 'world-federation-of-advertisers/cross-media-measurement'
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+      pull-requests: write    
+    steps:
+      - name: Check stale issues and PRs
+        uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
+        with:
+          # DO_NOT_SUBMIT: fix commented inputs
+          #days-before-pr-stale:
+          days-before-close: 30
+          exempt-issue-labels: stale-exempt
+          #exempt-pr-labels
+          #days-before-pr-close:
+          # DO_NOT_SUBMIT: replace N, M
+          stale-issue-message: >
+            This issue has been marked as stale because it has had no activity in the past N days.
+            If it has no activity in the next M days, it will be closed. Thank you.
+          #stale-pr-message:
+          close-issue-message: >
+            This issue has been closed because it has had no activity in the past M days after being marked as stale.
+            Please feel free to reopen if you'd like to work on this further.
+          #close-pr-message:
+          #operations-per-run
+          debug-only: true
+          #delete-branch
+          #exempt-all-milestones
