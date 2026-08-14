@@ -50,27 +50,45 @@ There is no credentials option: the Spanner client falls back to Application
 Default Credentials, and the Postgres connection uses Cloud SQL IAM database
 authentication, which resolves them as well.
 
-Run the tool as the Reporting internal service account, by impersonating it:
+#### Identify the service account to run as
+
+The Postgres schema is created by the internal Reporting server's schema-update
+init containers, so the service account that server runs as owns the reporting
+tables. In PostgreSQL only a table's owner can grant access to it, so running
+the tool as that same service account avoids provisioning any additional
+database credentials.
+
+Its Cloud SQL IAM database username is the value the internal Reporting server
+passes as `--postgres-user`:
+
+```shell
+kubectl get deployment postgres-internal-reporting-server-deployment \
+  -o jsonpath='{.spec.template.spec.containers[0].args}' | tr ',' '\n' | grep postgres-user
+```
+
+For a deployment provisioned by the Reporting Terraform this is
+`reporting-internal@PROJECT.iam`, corresponding to the service account
+`reporting-internal@PROJECT.iam.gserviceaccount.com`.
+
+#### Authenticate as it
 
 ```shell
 gcloud auth application-default login \
-  --impersonate-service-account=reporting-internal@PROJECT.iam.gserviceaccount.com
+  --impersonate-service-account=SERVICE_ACCOUNT_EMAIL
 ```
 
-That service account owns the Postgres tables and already holds
-`roles/cloudsql.instanceUser`, `roles/cloudsql.client` and
-`roles/spanner.databaseUser`, so no further database setup is required. To
-impersonate it, your account needs `roles/iam.serviceAccountTokenCreator` on
-that service account. The Reporting Terraform grants this to every member of
-`reporting_operators`.
+Then pass its database username, the value read above, to `--postgres-user`.
 
-Pass that same service account to `--postgres-user`, without the
-`.gserviceaccount.com` suffix, as that is its Cloud SQL IAM database username.
+That service account already holds `roles/cloudsql.instanceUser`,
+`roles/cloudsql.client` and `roles/spanner.databaseUser`, so no further database
+setup is required. To impersonate it, your account needs
+`roles/iam.serviceAccountTokenCreator` on it. The Reporting Terraform grants
+this to every member of `reporting_operators`; a deployment not provisioned by
+that Terraform must grant it separately.
 
 Running as a human user instead requires provisioning a separate identity: a
 `roles/cloudsql.instanceUser` grant, a `CLOUD_IAM_USER` Cloud SQL user, table
-privileges granted by the table owner, and `roles/spanner.databaseUser`. None of
-that is provisioned by the Reporting Terraform.
+privileges granted by the table owner, and `roles/spanner.databaseUser`.
 
 ### Examples
 
