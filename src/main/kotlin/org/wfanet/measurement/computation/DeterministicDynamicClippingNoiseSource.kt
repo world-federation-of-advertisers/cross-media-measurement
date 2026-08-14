@@ -27,7 +27,7 @@ import org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClipp
  *
  * @param domain separates these draws from any other drawn against the same fingerprint.
  */
-class FrequencyVectorSeededNoiseSource(
+class DeterministicDynamicClippingNoiseSource(
   private val fingerprint: ByteArray,
   private val domain: Int,
 ) : DynamicClippingNoiseSource {

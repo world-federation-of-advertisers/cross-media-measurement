@@ -62,10 +62,9 @@ kt_jvm_library(
     ],
 )
 
-
 kt_jvm_library(
-    name = "frequency_vector_seeded_noise_source",
-    srcs = ["FrequencyVectorSeededNoiseSource.kt"],
+    name = "deterministic_dynamic_clipping_noise_source",
+    srcs = ["DeterministicDynamicClippingNoiseSource.kt"],
     deps = [
         ":deterministic_gaussian_noise_sampler",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/differentialprivacy:dynamic_clipping",

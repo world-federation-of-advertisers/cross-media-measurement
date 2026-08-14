@@ -14,10 +14,10 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
+import org.wfanet.measurement.computation.DeterministicDynamicClippingNoiseSource
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParams
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceResultNoiser
 import org.wfanet.measurement.computation.DynamicallyClippedImpressions
-import org.wfanet.measurement.computation.FrequencyVectorSeededNoiseSource
 import org.wfanet.measurement.computation.ImpressionComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClippingNoiseSource
@@ -79,7 +79,7 @@ fun computeDirectDynamicallyClippedImpressions(
           DeterministicTruncatedLaplaceParams.DELTA,
         )
       noiseSource =
-        FrequencyVectorSeededNoiseSource(
+        DeterministicDynamicClippingNoiseSource(
           fingerprint =
             DeterministicTruncatedLaplaceResultNoiser.fingerprint(
               frequencyData,
