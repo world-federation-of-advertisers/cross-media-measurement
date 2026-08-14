@@ -108,12 +108,6 @@ class DirectImpressionResultBuilder(
    * distribution they came from.
    */
   private fun buildDynamicallyClippedResult(): Measurement.Result {
-    if (!directProtocolConfig.hasCustomDirectMethodology()) {
-      throw RequisitionRefusalException.Default(
-        Requisition.Refusal.Justification.DECLINED,
-        "Dynamic impression capping requires the custom direct methodology.",
-      )
-    }
     if (directNoiseMechanism !in DYNAMIC_CAP_NOISE_MECHANISMS) {
       throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.SPEC_INVALID,
@@ -122,35 +116,15 @@ class DirectImpressionResultBuilder(
       )
     }
 
-    val frequencyMap: Map<Long, Long> =
-      frequencyData
-        .asSequence()
-        .filter { it > 0 }
-        .groupingBy { it.toLong() }
-        .eachCount()
-        .mapValues { it.value.toLong() }
-        // A vector with no impressions has no maximum frequency to size a histogram from. Give the
-        // search a single empty bar rather than returning zero directly: an exact zero here, next
-        // to a noised value for a vector holding one impression, would leave the two
-        // distinguishable.
-        .ifEmpty { mapOf(1L to 0L) }
-
-    val clipping =
-      buildDirectDynamicClipping(
+    val clipped: DynamicallyClippedImpressions =
+      computeDirectDynamicallyClippedImpressions(
         directNoiseMechanism = directNoiseMechanism,
         frequencyData = frequencyData,
         dpParams = DpParams(privacyParams.epsilon, privacyParams.delta),
-      )
-    val result = clipping.computeImpressionCappedHistogram(frequencyMap)
-    logger.info("Dynamic impression clip chosen: ${result.threshold}")
-    val clipped: DynamicallyClippedImpressions =
-      ImpressionComputations.computeDynamicallyClippedImpressionCount(
-        noisedCumulativeHistogram = result.noisedCumulativeHistogramList,
-        clip = result.threshold,
-        barNoiseVariance = result.barNoiseVariance,
         vidSamplingIntervalWidth = samplingRate.toDouble(),
         resultMinimumThresholds = resultMinimumThresholds,
       )
+    logger.info("Dynamic impression clip chosen: ${clipped.clip}")
 
     return MeasurementKt.result {
       impression = impression {

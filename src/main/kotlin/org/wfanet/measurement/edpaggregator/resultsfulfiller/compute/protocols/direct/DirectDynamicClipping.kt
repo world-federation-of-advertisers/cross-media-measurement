@@ -14,11 +14,12 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
-import java.nio.ByteBuffer
-import org.wfanet.measurement.computation.DeterministicGaussianNoiseSampler
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParams
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceResultNoiser
-import org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClipping
+import org.wfanet.measurement.computation.DynamicallyClippedImpressions
+import org.wfanet.measurement.computation.FrequencyVectorSeededNoiseSource
+import org.wfanet.measurement.computation.ImpressionComputations
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.eventdataprovider.differentialprivacy.StandardNormalNoiseSource
 import org.wfanet.measurement.eventdataprovider.differentialprivacy.StochasticStandardNormalNoiseSource
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
@@ -31,38 +32,39 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpPara
 private const val DIRECT_CONTRIBUTION_COUNT = 1
 
 /**
- * Separates these draws from the result draws taken against the same frequency vector, so the clip
- * search and the noise on a released quantity never share a draw.
+ * Separates the clip search's draws from the result draws taken against the same frequency vector.
  */
 private const val CLIP_SEARCH_DOMAIN = 1
 
 /**
  * One user moves any single bar of the cumulative histogram by at most one, which is the
- * sensitivity the charge conversion is calibrated to. [DynamicClipping] scales it up for the number
+ * sensitivity the charge conversion is calibrated to. The clip search scales it up for the number
  * of bars it releases.
  */
 private const val BAR_SENSITIVITY = 1.0
 
 /**
- * Returns a [DynamicClipping] configured for [directNoiseMechanism].
+ * Counts the impressions in [frequencyData] with a clip derived from its own distribution, for a
+ * Direct measurement under [directNoiseMechanism].
  *
- * The algorithm noises its histogram with Gaussian draws under either mechanism, so what the
- * mechanism decides is where the charge comes from and whether the draws are reproducible:
+ * The count itself is mechanism-agnostic. What the mechanism decides is where the charge comes from
+ * and whether the draws reproduce:
  * - [DirectNoiseMechanism.CONTINUOUS_GAUSSIAN] charges the measurement's own privacy params and
- *   draws fresh randomness, which is the composition the algorithm was written against.
+ *   draws fresh randomness, which is the composition the clip search was written against.
  * - [DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE] charges the params compiled into this
  *   image, so a measurement consumer cannot widen them, and seeds the draws from the frequency
  *   vector so a re-run yields the same clip and the same count. The draws stay Gaussian, which
  *   leaves the calibration, the stopping rule and the remaining-charge weighting as analyzed.
  *
- * @param frequencyData the raw frequency vector, which seeds the deterministic mechanism.
  * @param dpParams the measurement's privacy params, unused by the deterministic mechanism.
  */
-fun buildDirectDynamicClipping(
+fun computeDirectDynamicallyClippedImpressions(
   directNoiseMechanism: DirectNoiseMechanism,
   frequencyData: IntArray,
   dpParams: DpParams,
-): DynamicClipping {
+  vidSamplingIntervalWidth: Double,
+  resultMinimumThresholds: ResultMinimumThresholds?,
+): DynamicallyClippedImpressions {
   val queryDpParams: DpParams
   val noiseSource: StandardNormalNoiseSource
   when (directNoiseMechanism) {
@@ -78,10 +80,12 @@ fun buildDirectDynamicClipping(
         )
       noiseSource =
         FrequencyVectorSeededNoiseSource(
-          DeterministicTruncatedLaplaceResultNoiser.fingerprint(
-            frequencyData,
-            DIRECT_CONTRIBUTION_COUNT,
-          )
+          fingerprint =
+            DeterministicTruncatedLaplaceResultNoiser.fingerprint(
+              frequencyData,
+              DIRECT_CONTRIBUTION_COUNT,
+            ),
+          domain = CLIP_SEARCH_DOMAIN,
         )
     }
     DirectNoiseMechanism.NONE,
@@ -91,24 +95,11 @@ fun buildDirectDynamicClipping(
       )
   }
 
-  return DynamicClipping(
+  return ImpressionComputations.computeDynamicallyClippedImpressionCount(
+    frequencyVector = frequencyData,
     queryRho = AcdpParamsConverter.getDirectAcdpCharge(queryDpParams, BAR_SENSITIVITY).rho,
-    measurementType = DynamicClipping.MeasurementType.IMPRESSION,
     noiseSource = noiseSource,
+    vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+    resultMinimumThresholds = resultMinimumThresholds,
   )
-}
-
-/**
- * A [StandardNormalNoiseSource] whose draws are a pure function of [fingerprint] and the draw's
- * address, so a varying number of passes still reproduces each draw.
- */
-private class FrequencyVectorSeededNoiseSource(private val fingerprint: ByteArray) :
-  StandardNormalNoiseSource {
-  private val sampler = DeterministicGaussianNoiseSampler()
-
-  override fun sample(pass: Int, barIndex: Int): Double =
-    sampler.sample(fingerprint, label(CLIP_SEARCH_DOMAIN), label(pass), label(barIndex))
-
-  private fun label(value: Int): ByteArray =
-    ByteBuffer.allocate(Int.SIZE_BYTES).putInt(value).array()
 }

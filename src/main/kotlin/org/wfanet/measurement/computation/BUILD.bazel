@@ -62,12 +62,23 @@ kt_jvm_library(
     ],
 )
 
+
+kt_jvm_library(
+    name = "frequency_vector_seeded_noise_source",
+    srcs = ["FrequencyVectorSeededNoiseSource.kt"],
+    deps = [
+        ":deterministic_gaussian_noise_sampler",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/differentialprivacy:dynamic_clipping",
+    ],
+)
+
 kt_jvm_library(
     name = "impression_computations",
     srcs = ["ImpressionComputations.kt"],
     deps = [
         ":result_minimum_thresholds",
         ":result_noiser",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/differentialprivacy:dynamic_clipping",
     ],
 )
 

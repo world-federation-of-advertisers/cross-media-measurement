@@ -18,7 +18,9 @@ import com.google.common.truth.Truth.assertThat
 import kotlin.math.ln
 import kotlin.math.min
 import kotlin.math.sqrt
+import kotlin.test.assertFailsWith
 import org.junit.Test
+import org.wfanet.measurement.eventdataprovider.differentialprivacy.StandardNormalNoiseSource
 
 class ImpressionComputationsTest {
 
@@ -252,151 +254,123 @@ class ImpressionComputationsTest {
   }
 
   @Test
-  fun `dynamically clipped count sums the bars below the clip`() {
-    // Users at frequency {1: 100, 2: 50, 3: 20, 5: 5}, so the cumulative histogram counts users at
-    // frequency at least k+1: 175, 75, 25, 5, 5. Summing all of it is the uncapped total, 285.
-    val result =
-      ImpressionComputations.computeDynamicallyClippedImpressionCount(
-        noisedCumulativeHistogram = CUMULATIVE_HISTOGRAM,
-        clip = 5,
-        barNoiseVariance = 0.0,
-        vidSamplingIntervalWidth = 1.0,
-        resultMinimumThresholds = null,
-      )
+  fun `dynamically clipped count includes every impression when the clip exceeds the tail`() {
+    // A large charge makes the search run to the end of the tail, landing past frequency 5, so
+    // nobody is clipped and the count is the uncapped total.
+    val result = dynamicallyClipped(PRECISE_RHO)
 
+    assertThat(result.clip).isGreaterThan(DYNAMIC_MAX_FREQUENCY)
     assertThat(result.value).isEqualTo(285L)
   }
 
   @Test
-  fun `clip truncates the sum to the clipped total`() {
-    // Clipping at 3 is sum(min(freq, 3)) = 100 + 100 + 60 + 15 = 275, which is the first three
-    // bars: 175 + 75 + 25.
-    val result =
-      ImpressionComputations.computeDynamicallyClippedImpressionCount(
-        noisedCumulativeHistogram = CUMULATIVE_HISTOGRAM,
-        clip = 3,
-        barNoiseVariance = 0.0,
-        vidSamplingIntervalWidth = 1.0,
-        resultMinimumThresholds = null,
-      )
+  fun `dynamically clipped count clips each user at the derived clip`() {
+    val result = dynamicallyClipped(COARSE_RHO)
 
-    assertThat(result.value).isEqualTo(275L)
+    // sum(min(frequency, 4)) = 100*1 + 50*2 + 20*3 + 5*4.
+    assertThat(result.clip).isEqualTo(4)
+    assertThat(result.value).isEqualTo(280L)
   }
 
   @Test
   fun `dynamically clipped count is scaled by vidSamplingIntervalWidth`() {
-    val result =
-      ImpressionComputations.computeDynamicallyClippedImpressionCount(
-        noisedCumulativeHistogram = CUMULATIVE_HISTOGRAM,
-        clip = 5,
-        barNoiseVariance = 0.0,
-        vidSamplingIntervalWidth = 0.5,
-        resultMinimumThresholds = null,
-      )
+    val result = dynamicallyClipped(COARSE_RHO, vidSamplingIntervalWidth = 0.5)
 
-    assertThat(result.value).isEqualTo(570L)
+    assertThat(result.value).isEqualTo(560L)
   }
 
   @Test
-  fun `a negative noised total is clamped to zero`() {
+  fun `an all-zero frequency vector is still noised`() {
+    // The empty case has no distribution to search, but releasing an exact zero beside a noised
+    // value for a vector holding one impression would leave the two distinguishable.
     val result =
       ImpressionComputations.computeDynamicallyClippedImpressionCount(
-        noisedCumulativeHistogram = listOf(-40.0, -30.0),
-        clip = 2,
-        barNoiseVariance = 1.0,
+        frequencyVector = IntArray(100),
+        queryRho = COARSE_RHO,
+        noiseSource = { _, _ -> 1.0 },
         vidSamplingIntervalWidth = 1.0,
         resultMinimumThresholds = null,
+      )
+
+    assertThat(result.value).isGreaterThan(0L)
+  }
+
+  @Test
+  fun `dynamically clipped variance does not depend on the highest frequency in the data`() {
+    // Both vectors agree on every bar the clip covers, so they yield the same clip and the same
+    // count, and differ only in how long the histogram is. A variance that read the histogram
+    // length would publish that raw value.
+    val short = dynamicallyClipped(COARSE_RHO)
+    val long = dynamicallyClipped(COARSE_RHO, frequencyVector = LONG_TAILED_FREQUENCY_VECTOR)
+
+    assertThat(long.clip).isEqualTo(short.clip)
+    assertThat(long.value).isEqualTo(short.value)
+    assertThat(long.variance).isEqualTo(short.variance)
+  }
+
+  @Test
+  fun `dynamically clipped variance falls as the charge rises`() {
+    val noisy = dynamicallyClipped(COARSE_RHO)
+    val precise = dynamicallyClipped(PRECISE_RHO)
+
+    assertThat(noisy.variance).isGreaterThan(0.0)
+    assertThat(precise.variance).isLessThan(noisy.variance)
+  }
+
+  @Test
+  fun `dynamically clipped count below the minimum impressions is suppressed`() {
+    val result =
+      dynamicallyClipped(
+        COARSE_RHO,
+        thresholds = ResultMinimumThresholds(minUsers = 1, minImpressions = 500),
       )
 
     assertThat(result.value).isEqualTo(0L)
   }
 
   @Test
-  fun `a result below the minimum impressions is suppressed`() {
+  fun `dynamically clipped count with too few users is suppressed`() {
+    // Bar 0 is the noised user count, 175 here, so it fails a threshold above that.
     val result =
-      ImpressionComputations.computeDynamicallyClippedImpressionCount(
-        noisedCumulativeHistogram = CUMULATIVE_HISTOGRAM,
-        clip = 5,
-        barNoiseVariance = 0.0,
-        vidSamplingIntervalWidth = 1.0,
-        resultMinimumThresholds = ResultMinimumThresholds(minImpressions = 300, minUsers = 1),
+      dynamicallyClipped(
+        COARSE_RHO,
+        thresholds = ResultMinimumThresholds(minUsers = 200, minImpressions = 1),
       )
 
     assertThat(result.value).isEqualTo(0L)
   }
 
   @Test
-  fun `the first bar gates the minimum users`() {
-    // Bar 0 is the noised user count, 175, so it fails a threshold above that without any further
-    // draw being taken.
+  fun `dynamically clipped count meeting both thresholds passes through`() {
     val result =
-      ImpressionComputations.computeDynamicallyClippedImpressionCount(
-        noisedCumulativeHistogram = CUMULATIVE_HISTOGRAM,
-        clip = 5,
-        barNoiseVariance = 0.0,
-        vidSamplingIntervalWidth = 1.0,
-        resultMinimumThresholds = ResultMinimumThresholds(minImpressions = 1, minUsers = 200),
+      dynamicallyClipped(
+        COARSE_RHO,
+        thresholds = ResultMinimumThresholds(minUsers = 100, minImpressions = 100),
       )
 
-    assertThat(result.value).isEqualTo(0L)
+    assertThat(result.value).isEqualTo(280L)
   }
 
   @Test
-  fun `noise variance grows with the number of bars summed`() {
-    // The count sums `clip` independent bar draws, so the noise term is clip * barNoiseVariance
-    // rather than one draw calibrated to the clip. With no VID sampling term at width 1, the
-    // variance is exactly that.
-    val result =
-      ImpressionComputations.computeDynamicallyClippedImpressionCount(
-        noisedCumulativeHistogram = CUMULATIVE_HISTOGRAM,
-        clip = 4,
-        barNoiseVariance = 9.0,
-        vidSamplingIntervalWidth = 1.0,
-        resultMinimumThresholds = null,
-      )
-
-    assertThat(result.variance).isWithin(1.0e-9).of(36.0)
+  fun `a non-positive vidSamplingIntervalWidth is rejected for dynamic clipping`() {
+    assertFailsWith<IllegalArgumentException> {
+      dynamicallyClipped(COARSE_RHO, vidSamplingIntervalWidth = 0.0)
+    }
   }
 
-  @Test
-  fun `variance scales by the clip even when it overshoots the histogram`() {
-    // The histogram is only as long as the highest frequency in the data, so scaling by the bars
-    // actually summed would put that raw value into a released quantity. The clip comes out of the
-    // noised search, so the variance uses it and overstates rather than leaks.
-    val result =
-      ImpressionComputations.computeDynamicallyClippedImpressionCount(
-        noisedCumulativeHistogram = CUMULATIVE_HISTOGRAM,
-        clip = 100,
-        barNoiseVariance = 9.0,
-        vidSamplingIntervalWidth = 1.0,
-        resultMinimumThresholds = null,
-      )
-
-    assertThat(result.variance).isWithin(1.0e-9).of(900.0)
-  }
-
-  @Test
-  fun `variance does not depend on the histogram length`() {
-    // Two histograms of different length, same clip: a variance that read the length would differ.
-    val short =
-      ImpressionComputations.computeDynamicallyClippedImpressionCount(
-        noisedCumulativeHistogram = listOf(10.0),
-        clip = 50,
-        barNoiseVariance = 4.0,
-        vidSamplingIntervalWidth = 1.0,
-        resultMinimumThresholds = null,
-      )
-    val long =
-      ImpressionComputations.computeDynamicallyClippedImpressionCount(
-        noisedCumulativeHistogram = listOf(10.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-        clip = 50,
-        barNoiseVariance = 4.0,
-        vidSamplingIntervalWidth = 1.0,
-        resultMinimumThresholds = null,
-      )
-
-    assertThat(short.variance).isEqualTo(long.variance)
-  }
+  private fun dynamicallyClipped(
+    queryRho: Double,
+    frequencyVector: IntArray = DYNAMIC_FREQUENCY_VECTOR,
+    vidSamplingIntervalWidth: Double = 1.0,
+    thresholds: ResultMinimumThresholds? = null,
+  ) =
+    ImpressionComputations.computeDynamicallyClippedImpressionCount(
+      frequencyVector = frequencyVector,
+      queryRho = queryRho,
+      noiseSource = NO_NOISE,
+      vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+      resultMinimumThresholds = thresholds,
+    )
 
   private fun deterministicNoiser(seedVector: IntArray = SEED_VECTOR) =
     DeterministicTruncatedLaplaceResultNoiser(
@@ -406,11 +380,30 @@ class ImpressionComputationsTest {
     )
 
   companion object {
+
+    /** Draws nothing, so the bars are exact and the assertions can be too. */
+    private val NO_NOISE = StandardNormalNoiseSource { _, _ -> 0.0 }
+
+    private const val DYNAMIC_MAX_FREQUENCY = 5
+
     /**
-     * The cumulative histogram for users at frequency {1: 100, 2: 50, 3: 20, 5: 5}: entry `k` is
-     * the number of users with frequency at least `k + 1`. Noise-free, so the assertions are exact.
+     * 175 users at frequencies {1: 100, 2: 50, 3: 20, 5: 5}, so the cumulative histogram is
+     * [175, 75, 25, 5, 5] and the uncapped total is 285.
      */
-    private val CUMULATIVE_HISTOGRAM = listOf(175.0, 75.0, 25.0, 5.0, 5.0)
+    private val DYNAMIC_FREQUENCY_VECTOR: IntArray =
+      (List(100) { 1 } + List(50) { 2 } + List(20) { 3 } + List(5) { DYNAMIC_MAX_FREQUENCY })
+        .toIntArray()
+
+    /** The same distribution with its tail stretched to frequency 9, doubling the histogram. */
+    private val LONG_TAILED_FREQUENCY_VECTOR: IntArray =
+      (List(100) { 1 } + List(50) { 2 } + List(20) { 3 } + List(5) { 9 }).toIntArray()
+
+    /** Large enough that the search runs the tail out to its end. */
+    private const val PRECISE_RHO = 1e10
+
+    /** Sized so the stopping rule cuts at frequency 4, inside the histogram. */
+    private const val COARSE_RHO = 2e-4
+
     private val DP_PARAMS = DifferentialPrivacyParams(epsilon = 2.0, delta = 1e-5)
     /** ceil of the compiled bound at sensitivity MAX_FREQUENCY: 4 * 6.7571 = 27.03. */
     private const val TRUNCATION_BOUND = 28L
