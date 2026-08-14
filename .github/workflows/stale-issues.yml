@@ -27,6 +27,7 @@ jobs:
     if: github.repository == 'world-federation-of-advertisers/cross-media-measurement'
     runs-on: ubuntu-24.04
     permissions:
+      # DO_NOT_SUBMIT: review permissions
       issues: write
       pull-requests: write    
     steps:
