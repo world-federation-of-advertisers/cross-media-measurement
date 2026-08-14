@@ -44,13 +44,33 @@ The tool reads and writes the Reporting Spanner database, and reads and writes
 the Reporting Postgres database. `BasicReport`s are stored in Spanner while
 `ReportingSet`s are stored in Postgres, so both must be reachable.
 
-Postgres is reached through the Cloud SQL connector, using the same
-`--postgres-cloud-sql-connection-name`, `--postgres-database` and
-`--postgres-user` options as the internal Reporting server deployment. IAM
-authentication is handled by the connector, so no password is passed and no
-Cloud SQL Auth Proxy is required.
+Credentials come from
+[Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials).
+There is no credentials option: the Spanner client falls back to Application
+Default Credentials, and the Postgres connection uses Cloud SQL IAM database
+authentication, which resolves them as well.
 
-The credentials used must have read and write access to both databases.
+Run the tool as the Reporting internal service account, by impersonating it:
+
+```shell
+gcloud auth application-default login \
+  --impersonate-service-account=reporting-internal@PROJECT.iam.gserviceaccount.com
+```
+
+That service account owns the Postgres tables and already holds
+`roles/cloudsql.instanceUser`, `roles/cloudsql.client` and
+`roles/spanner.databaseUser`, so no further database setup is required. To
+impersonate it, your account needs `roles/iam.serviceAccountTokenCreator` on
+that service account. The Reporting Terraform grants this to every member of
+`reporting_operators`.
+
+Pass that same service account to `--postgres-user`, without the
+`.gserviceaccount.com` suffix, as that is its Cloud SQL IAM database username.
+
+Running as a human user instead requires provisioning a separate identity: a
+`roles/cloudsql.instanceUser` grant, a `CLOUD_IAM_USER` Cloud SQL user, table
+privileges granted by the table owner, and `roles/spanner.databaseUser`. None of
+that is provisioned by the Reporting Terraform.
 
 ### Examples
 
