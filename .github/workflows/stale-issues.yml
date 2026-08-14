@@ -14,7 +14,7 @@
 
 name: Check Stale Issues
 
-# DO_NOT_SUBMIT: use cron
+# DO_NOT_SUBMIT: use cron, schedule at night. Add comment about API rate usage.
 on:
   pull_request:
 
