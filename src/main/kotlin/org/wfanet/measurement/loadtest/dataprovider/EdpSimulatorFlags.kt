@@ -124,7 +124,7 @@ class EdpSimulatorFlags {
       [
         "Path to a v2alpha PopulationSpec " +
           "(wfa.measurement.api.v2alpha.PopulationSpec) message in text format.",
-        "Each SubPopulation must declare its template attributes inline (e.g. a Person message " +
+        "Each SubPopulation must declare its template attributes inline (e.g. a Common message " +
           "embedded in a google.protobuf.Any) so that synthetic event generation can populate " +
           "population fields from the descriptor.",
       ],
@@ -199,7 +199,7 @@ class EdpSimulatorFlags {
 
   companion object {
     const val TEST_EVENT_MESSAGE_TYPE =
-      "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+      "wfa.measurement.api.v2alpha.event_templates.testing.v1.TestEvent"
 
     /** Default value of [eventMessageTypeUrl]: the [TEST_EVENT_MESSAGE_TYPE] type URL. */
     const val DEFAULT_EVENT_MESSAGE_TYPE_URL = "type.googleapis.com/$TEST_EVENT_MESSAGE_TYPE"

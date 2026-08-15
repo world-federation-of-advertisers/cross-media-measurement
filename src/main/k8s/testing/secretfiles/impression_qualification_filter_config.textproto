@@ -22,11 +22,25 @@ impression_qualification_filters {
   impression_qualification_filter_id: 2
   filter_specs {
     media_type: DISPLAY
+    # Terms within a filter are disjunctive, so this selects a viewable fraction
+    # of at least 0.5 over the field's grouping values.
     filters: {
       terms: {
-        path: "banner_ad.viewable"
+        path: "display.viewable_fraction"
         value {
-          bool_value: true
+          float_value: 0.5
+        }
+      }
+      terms: {
+        path: "display.viewable_fraction"
+        value {
+          float_value: 0.75
+        }
+      }
+      terms: {
+        path: "display.viewable_fraction"
+        value {
+          float_value: 1.0
         }
       }
     }

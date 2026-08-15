@@ -71,8 +71,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCorouti
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig as PublicProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
@@ -1350,7 +1350,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       getRuntimePath(TEST_RESULTS_FULFILLER_DATA_PATH)!!
 
     private val POPULATION_SPEC_TYPE_REGISTRY: TypeRegistry =
-      TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
+      TypeRegistry.newBuilder().add(Common.getDescriptor()).build()
 
     val populationSpec: PopulationSpec =
       parseTextProto(
@@ -1392,8 +1392,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
             mediaType = MediaType.DISPLAY
             filters += eventFilter {
               terms += eventTemplateField {
-                path = "banner_ad.viewable"
-                value = EventTemplateFieldKt.fieldValue { boolValue = true }
+                path = "display.viewable_fraction"
+                value = EventTemplateFieldKt.fieldValue { floatValue = 1.0f }
               }
             }
           }

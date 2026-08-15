@@ -28,7 +28,7 @@ import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -120,9 +120,9 @@ abstract class InProcessMultiEdpReportIntegrationTest(
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
         eventGroupsByEdpDisplayName.getValue(edpDisplayNames[0]).first() to
-          "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
+          "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}",
         eventGroupsByEdpDisplayName.getValue(edpDisplayNames[1]).first() to
-          "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}",
+          "common.age_group == ${Common.AgeGroup.YEARS_55_PLUS_VALUE}",
       )
     val primitiveReportingSets: List<ReportingSet> =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name)
@@ -234,10 +234,10 @@ abstract class InProcessMultiEdpReportIntegrationTest(
                 metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
                 dimensionSpec = dimensionSpec {
                   grouping =
-                    DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+                    DimensionSpecKt.grouping { eventTemplateFields += "common.us_state" }
                   filters += eventFilter {
                     terms += eventTemplateField {
-                      path = "person.age_group"
+                      path = "common.age_group"
                       value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                     }
                   }
@@ -296,10 +296,10 @@ abstract class InProcessMultiEdpReportIntegrationTest(
                 metricFrequency = metricFrequencySpec { total = true }
                 dimensionSpec = dimensionSpec {
                   grouping =
-                    DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+                    DimensionSpecKt.grouping { eventTemplateFields += "common.us_state" }
                   filters += eventFilter {
                     terms += eventTemplateField {
-                      path = "person.age_group"
+                      path = "common.age_group"
                       value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                     }
                   }
@@ -599,10 +599,10 @@ abstract class InProcessMultiEdpReportIntegrationTest(
                 metricFrequency = metricFrequencySpec { total = true }
                 dimensionSpec = dimensionSpec {
                   grouping =
-                    DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+                    DimensionSpecKt.grouping { eventTemplateFields += "common.us_state" }
                   filters += eventFilter {
                     terms += eventTemplateField {
-                      path = "person.age_group"
+                      path = "common.age_group"
                       value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                     }
                   }

@@ -36,8 +36,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.api.v2alpha.unpack
@@ -180,8 +180,8 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val eventGroups = listEventGroups()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
-        eventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_35_TO_54_VALUE}",
-        eventGroups[1] to "person.age_group <= ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
+        eventGroups[0] to "common.age_group == ${Common.AgeGroup.YEARS_35_TO_54_VALUE}",
+        eventGroups[1] to "common.age_group <= ${Common.AgeGroup.YEARS_18_TO_34_VALUE}",
       )
 
     val createdPrimitiveReportingSets: List<ReportingSet> =
@@ -233,7 +233,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
               metricSpec = metricSpec {
                 populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
               }
-              filters += "person.gender == ${Person.Gender.MALE_VALUE}"
+              filters += "common.gender == ${Common.Gender.MALE_VALUE}"
               modelLine = inProcessCmmsComponents.modelLineResourceName
             }
           }
@@ -247,7 +247,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val expectedResult =
       MeasurementResults.computePopulation(
         inProcessCmmsComponents.getPopulationData().populationSpec,
-        "(person.gender == ${Person.Gender.MALE_VALUE}) && (person.age_group <= ${Person.AgeGroup.YEARS_35_TO_54_VALUE})",
+        "(common.gender == ${Common.Gender.MALE_VALUE}) && (common.age_group <= ${Common.AgeGroup.YEARS_35_TO_54_VALUE})",
         TestEvent.getDescriptor(),
       )
     assertThat(retrievedMetric.result.populationCount.value).isEqualTo(expectedResult)
@@ -259,8 +259,8 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val eventGroups = listEventGroups()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
-        eventGroups[0] to "person.age_group <= ${Person.AgeGroup.YEARS_35_TO_54_VALUE}",
-        eventGroups[1] to "person.age_group <= ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
+        eventGroups[0] to "common.age_group <= ${Common.AgeGroup.YEARS_35_TO_54_VALUE}",
+        eventGroups[1] to "common.age_group <= ${Common.AgeGroup.YEARS_18_TO_34_VALUE}",
       )
 
     val createdPrimitiveReportingSets: List<ReportingSet> =
@@ -312,7 +312,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
               metricSpec = metricSpec {
                 populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
               }
-              filters += "person.gender == ${Person.Gender.MALE_VALUE}"
+              filters += "common.gender == ${Common.Gender.MALE_VALUE}"
               modelLine = inProcessCmmsComponents.modelLineResourceName
             }
           }
@@ -326,7 +326,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val expectedResult =
       MeasurementResults.computePopulation(
         inProcessCmmsComponents.getPopulationData().populationSpec,
-        "(person.gender == ${Person.Gender.MALE_VALUE}) && (person.age_group == ${Person.AgeGroup.YEARS_35_TO_54_VALUE})",
+        "(common.gender == ${Common.Gender.MALE_VALUE}) && (common.age_group == ${Common.AgeGroup.YEARS_35_TO_54_VALUE})",
         TestEvent.getDescriptor(),
       )
     assertThat(retrievedMetric.result.populationCount.value).isEqualTo(expectedResult)
@@ -357,7 +357,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
               metricSpec = metricSpec {
                 populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
               }
-              filters += "person.gender == ${Person.Gender.MALE_VALUE}"
+              filters += "common.gender == ${Common.Gender.MALE_VALUE}"
               modelLine = inProcessCmmsComponents.modelLineResourceName
             }
           }
@@ -371,7 +371,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val expectedResult =
       MeasurementResults.computePopulation(
         inProcessCmmsComponents.getPopulationData().populationSpec,
-        "(person.gender == ${Person.Gender.MALE_VALUE})",
+        "(common.gender == ${Common.Gender.MALE_VALUE})",
         TestEvent.getDescriptor(),
       )
     assertThat(retrievedMetric.result.populationCount.value).isEqualTo(expectedResult)
@@ -413,8 +413,8 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val eventGroup = eventGroups.first()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
-        eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
-        eventGroup to "person.gender == ${Person.Gender.MALE_VALUE}",
+        eventGroup to "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}",
+        eventGroup to "common.gender == ${Common.Gender.MALE_VALUE}",
       )
     val createdPrimitiveReportingSets: List<ReportingSet> =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name)
@@ -505,8 +505,8 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     assertExpectedProtocolUsed(getMeasurementsForReport(retrievedReport.name))
 
     val equivalentFilter =
-      "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE} && " +
-        "person.gender == ${Person.Gender.FEMALE_VALUE}"
+      "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE} && " +
+        "common.gender == ${Common.Gender.FEMALE_VALUE}"
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
       listOf(buildEventGroupSpec(eventGroup, equivalentFilter, EVENT_RANGE.toInterval()))
     val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
@@ -531,8 +531,8 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val eventGroup = eventGroups.first()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
-        eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
-        eventGroup to "person.gender == ${Person.Gender.FEMALE_VALUE}",
+        eventGroup to "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}",
+        eventGroup to "common.gender == ${Common.Gender.FEMALE_VALUE}",
       )
     val createdPrimitiveReportingSets: List<ReportingSet> =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name)
@@ -636,7 +636,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val eventGroups = listEventGroups()
     val eventGroup = eventGroups.first()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
-      listOf(eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+      listOf(eventGroup to "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}")
     val createdPrimitiveReportingSet: ReportingSet =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
 
@@ -714,7 +714,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val eventGroups = listEventGroups()
     val eventGroup = eventGroups.first()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
-      listOf(eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+      listOf(eventGroup to "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}")
     val createdPrimitiveReportingSet: ReportingSet =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
 
@@ -791,8 +791,8 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val eventGroup = eventGroups.first()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
-        eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
-        eventGroup to "person.gender == ${Person.Gender.MALE_VALUE}",
+        eventGroup to "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}",
+        eventGroup to "common.gender == ${Common.Gender.MALE_VALUE}",
       )
     val createdPrimitiveReportingSets: List<ReportingSet> =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name)
@@ -903,7 +903,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val eventGroups = listEventGroups()
     val eventGroup = eventGroups.first()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
-      listOf(eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+      listOf(eventGroup to "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}")
     val createdPrimitiveReportingSet: ReportingSet =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
 
@@ -995,7 +995,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val eventGroups = listEventGroups()
     val eventGroup = eventGroups.first()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
-      listOf(eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+      listOf(eventGroup to "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}")
     val createdPrimitiveReportingSet: ReportingSet =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
 
@@ -1106,10 +1106,10 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val createdPrimitiveReportingSet: ReportingSet =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
 
-    val grouping1Predicate1 = "person.age_group == ${Person.AgeGroup.YEARS_35_TO_54_VALUE}"
-    val grouping1Predicate2 = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
-    val grouping2Predicate1 = "person.gender == ${Person.Gender.FEMALE_VALUE}"
-    val grouping2Predicate2 = "person.gender == ${Person.Gender.MALE_VALUE}"
+    val grouping1Predicate1 = "common.age_group == ${Common.AgeGroup.YEARS_35_TO_54_VALUE}"
+    val grouping1Predicate2 = "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}"
+    val grouping2Predicate1 = "common.gender == ${Common.Gender.FEMALE_VALUE}"
+    val grouping2Predicate2 = "common.gender == ${Common.Gender.MALE_VALUE}"
 
     val createdMetricCalculationSpec =
       publicMetricCalculationSpecsClient
@@ -1191,7 +1191,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val eventGroups = listEventGroups()
     val eventGroup = eventGroups.first()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
-      listOf(eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+      listOf(eventGroup to "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}")
     val createdPrimitiveReportingSet: ReportingSet =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
 
@@ -1238,7 +1238,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val eventGroups = listEventGroups()
     val eventGroup = eventGroups.first()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
-      listOf(eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+      listOf(eventGroup to "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}")
     val createdPrimitiveReportingSet: ReportingSet =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
 
@@ -1296,7 +1296,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val eventGroups = listEventGroups()
     val eventGroup = eventGroups.first()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
-      listOf(eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+      listOf(eventGroup to "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}")
     val createdPrimitiveReportingSet: ReportingSet =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
 
@@ -1372,7 +1372,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val eventGroups = listEventGroups()
     val eventGroup = eventGroups.first()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
-      listOf(eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+      listOf(eventGroup to "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}")
     val createdPrimitiveReportingSet: ReportingSet =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
 
@@ -1456,7 +1456,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val eventGroups = listEventGroups()
     val eventGroup = eventGroups.first()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
-      listOf(eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+      listOf(eventGroup to "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}")
     val createdPrimitiveReportingSet: ReportingSet =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
 
@@ -1513,7 +1513,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val eventGroups = listEventGroups()
     val eventGroup = eventGroups.first()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
-      listOf(eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+      listOf(eventGroup to "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}")
     val createdPrimitiveReportingSet: ReportingSet =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
 
@@ -1560,7 +1560,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val eventGroups = listEventGroups()
     val eventGroup = eventGroups.first()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
-      listOf(eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+      listOf(eventGroup to "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}")
     val createdPrimitiveReportingSet: ReportingSet =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
 
@@ -1597,7 +1597,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val eventGroups = listEventGroups()
     val eventGroup = eventGroups.first()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
-      listOf(eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+      listOf(eventGroup to "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}")
     val createdPrimitiveReportingSet: ReportingSet =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
 
@@ -1608,7 +1608,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
         reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
         vidSamplingInterval = VID_SAMPLING_INTERVAL
       }
-      filters += "person.gender == ${Person.Gender.MALE_VALUE}"
+      filters += "common.gender == ${Common.Gender.MALE_VALUE}"
     }
 
     val createdMetric =
@@ -1647,7 +1647,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
     val eventGroups = listEventGroups()
     val eventGroup = eventGroups.first()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
-      listOf(eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+      listOf(eventGroup to "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}")
     val createdPrimitiveReportingSet: ReportingSet =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
 
@@ -1661,7 +1661,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
         reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
         vidSamplingInterval = VID_SAMPLING_INTERVAL
       }
-      filters += "person.gender == ${Person.Gender.MALE_VALUE}"
+      filters += "common.gender == ${Common.Gender.MALE_VALUE}"
     }
 
     val createdMetric =
@@ -1717,10 +1717,10 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
                 metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
                 dimensionSpec = dimensionSpec {
                   grouping =
-                    DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+                    DimensionSpecKt.grouping { eventTemplateFields += "common.us_state" }
                   filters += eventFilter {
                     terms += eventTemplateField {
-                      path = "person.age_group"
+                      path = "common.age_group"
                       value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                     }
                   }
@@ -1760,10 +1760,10 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
                 metricFrequency = metricFrequencySpec { total = true }
                 dimensionSpec = dimensionSpec {
                   grouping =
-                    DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+                    DimensionSpecKt.grouping { eventTemplateFields += "common.us_state" }
                   filters += eventFilter {
                     terms += eventTemplateField {
-                      path = "person.age_group"
+                      path = "common.age_group"
                       value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                     }
                   }
@@ -2018,8 +2018,8 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
               mediaType = MediaType.DISPLAY
               filters += eventFilter {
                 terms += eventTemplateField {
-                  path = "banner_ad.viewable"
-                  value = EventTemplateFieldKt.fieldValue { boolValue = true }
+                  path = "display.viewable_fraction"
+                  value = EventTemplateFieldKt.fieldValue { floatValue = 1.0f }
                 }
               }
             }
@@ -2030,10 +2030,10 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
         reportingUnit = reportingUnit { components += dataProvider.name }
         metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
         dimensionSpec = dimensionSpec {
-          grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+          grouping = DimensionSpecKt.grouping { eventTemplateFields += "common.us_state" }
           filters += eventFilter {
             terms += eventTemplateField {
-              path = "person.age_group"
+              path = "common.age_group"
               value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
             }
           }
@@ -2130,8 +2130,16 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
                 mediaType = MediaType.DISPLAY
                 filters += eventFilter {
                   terms += eventTemplateField {
-                    path = "banner_ad.viewable"
-                    value = EventTemplateFieldKt.fieldValue { boolValue = true }
+                    path = "display.viewable_fraction"
+                    value = EventTemplateFieldKt.fieldValue { floatValue = 0.5f }
+                  }
+                  terms += eventTemplateField {
+                    path = "display.viewable_fraction"
+                    value = EventTemplateFieldKt.fieldValue { floatValue = 0.75f }
+                  }
+                  terms += eventTemplateField {
+                    path = "display.viewable_fraction"
+                    value = EventTemplateFieldKt.fieldValue { floatValue = 1.0f }
                   }
                 }
               }

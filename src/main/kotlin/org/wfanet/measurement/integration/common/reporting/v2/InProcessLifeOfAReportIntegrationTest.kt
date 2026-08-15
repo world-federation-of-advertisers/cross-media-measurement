@@ -57,7 +57,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCorouti
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
@@ -609,8 +609,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               mediaType = MediaType.DISPLAY
               filters += eventFilter {
                 terms += eventTemplateField {
-                  path = "banner_ad.viewable"
-                  value = EventTemplateFieldKt.fieldValue { boolValue = true }
+                  path = "display.viewable_fraction"
+                  value = EventTemplateFieldKt.fieldValue { floatValue = 1.0f }
                 }
               }
             }

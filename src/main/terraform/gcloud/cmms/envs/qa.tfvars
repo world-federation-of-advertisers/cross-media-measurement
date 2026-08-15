@@ -4,6 +4,6 @@ edpa_config_files_bucket_name                     = "edpa-configs-storage-qa-buc
 vid_models_storage_bucket_name                    = "vid-models-storage-qa-bucket"
 key_ring_name                                     = "halo"
 results_fulfiller_event_proto_descriptor_blob_uri = "gs://edpa-configs-storage-qa-bucket/results_fulfiller_event_proto_descriptor.pb"
-results_fulfiller_event_template_type_name        = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+results_fulfiller_event_template_type_name        = "wfa.measurement.api.v2alpha.event_templates.testing.v1.TestEvent"
 results_fulfiller_population_spec_blob_uri        = "gs://edpa-configs-storage-qa-bucket/results-fulfiller-population-spec.textproto"
 edpa_model_line_map                               = "modelProviders/eaaPUbwUC5c/modelSuites/NMtDnLwcnNo/modelLines/AcQdbXsZIzw"

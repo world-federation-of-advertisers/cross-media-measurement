@@ -112,6 +112,27 @@ locals {
     }
   }
 
+  # The ResultsFulfiller resolves the population spec, event descriptor and event
+  # template type per model line, so each entry contributes its own flag group.
+  results_fulfiller_model_lines = concat(
+    [{
+      model_line               = var.edpa_model_line_map
+      population_spec_blob_uri = var.results_fulfiller_population_spec_blob_uri
+      descriptor_blob_uri      = var.results_fulfiller_event_proto_descriptor_blob_uri
+      event_template_type_name = var.results_fulfiller_event_template_type_name
+    }],
+    var.additional_results_fulfiller_model_lines,
+  )
+
+  results_fulfiller_model_line_flags = flatten([
+    for model_line in local.results_fulfiller_model_lines : [
+      "--model-line", model_line.model_line,
+      "--population-spec-file-blob-uri", model_line.population_spec_blob_uri,
+      "--event-template-descriptor-blob-uri", model_line.descriptor_blob_uri,
+      "--event-template-type-name", model_line.event_template_type_name,
+    ]
+  ])
+
   requisition_fulfiller_config = {
     queue = {
       subscription_name     = "results-fulfiller-subscription"
@@ -137,7 +158,8 @@ locals {
       java_tool_options             = "-Xmx24G"
       docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
       mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
-      app_flags                     = [
+      app_flags                     = concat(
+                                        [
                                           "--edpa-tls-cert-secret-id", "edpa-tee-app-tls-pem",
                                           "--edpa-tls-cert-file-path", "/tmp/edpa_certs/edpa_tee_app_tls.pem",
                                           "--edpa-tls-key-secret-id", "edpa-tee-app-tls-key",
@@ -153,10 +175,9 @@ locals {
                                           "--metadata-storage-public-api-target", var.metadata_storage_public_api_target,
                                           "--subscription-id", "results-fulfiller-subscription",
                                           "--google-project-id", data.google_client_config.default.project,
-                                          "--model-line", var.edpa_model_line_map,
-                                          "--population-spec-file-blob-uri", var.results_fulfiller_population_spec_blob_uri,
-                                          "--event-template-descriptor-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri,
-                                          "--event-template-type-name", var.results_fulfiller_event_template_type_name,
+                                        ],
+                                        local.results_fulfiller_model_line_flags,
+                                        [
                                           "--duchy-id", var.duchy_worker1_id,
                                           "--duchy-target", var.duchy_worker1_target,
                                           "--duchy-cert-host", "localhost",
@@ -166,7 +187,8 @@ locals {
                                           "--duchy-id", var.duchy_aggregator_id,
                                           "--duchy-target", var.duchy_aggregator_target,
                                           "--duchy-cert-host", "localhost",
-                                        ]
+                                        ],
+                                      )
     }
   }
 

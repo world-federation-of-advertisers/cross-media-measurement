@@ -32,7 +32,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.common.FileExistsHealth
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.SettableHealth
@@ -56,7 +56,7 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
    *
    * Parsed lazily so that [typeRegistry] is constructed first; the textproto is parsed with the
    * runner's [typeRegistry] so that template attribute messages packed in `google.protobuf.Any`
-   * (e.g. a `Person` event template attribute) can be resolved.
+   * (e.g. a `Common` event template attribute) can be resolved.
    */
   protected val populationSpec: PopulationSpec by lazy {
     parseTextProto(flags.populationSpecFile, PopulationSpec.getDefaultInstance(), typeRegistry)

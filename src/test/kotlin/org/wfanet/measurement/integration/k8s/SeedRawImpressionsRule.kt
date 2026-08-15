@@ -38,7 +38,7 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.integration.common.EventGroupConfig
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
@@ -252,9 +252,9 @@ class SeedRawImpressionsRule(
    */
   private fun testEventColumns(event: TestEvent): Map<String, ParquetValue> =
     mapOf(
-      RawImpressionColumns.PERSON_GENDER to parquetValue { stringValue = event.person.gender.name },
+      RawImpressionColumns.PERSON_GENDER to parquetValue { stringValue = event.common.gender.name },
       RawImpressionColumns.PERSON_AGE_GROUP to
-        parquetValue { stringValue = event.person.ageGroup.name },
+        parquetValue { stringValue = event.common.ageGroup.name },
       RawImpressionColumns.VIDEO_AD_VIEWED_FRACTION to
         parquetValue { doubleValue = event.videoAd.viewedFraction },
     )
