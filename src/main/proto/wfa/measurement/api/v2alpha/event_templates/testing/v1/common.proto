@@ -138,11 +138,13 @@ message Common {
   // dimensions. It is `population_attribute: false` because it is a property
   // of the event, not of the virtual person: the same person can be signed in
   // for one impression and not another.
+  //
+  // Only `FILTERABLE` because the reporting server currently supports grouping
+  // over enum-valued fields alone.
   bool signed_in = 4 [(.wfa.measurement.api.v2alpha.template_field) = {
     display_name: "Signed In"
     population_attribute: false
     reporting_features: FILTERABLE
-    reporting_features: GROUPABLE
     version_added: 1
   }];
 

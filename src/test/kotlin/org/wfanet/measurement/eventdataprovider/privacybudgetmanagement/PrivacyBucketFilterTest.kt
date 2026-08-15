@@ -43,7 +43,7 @@ class PrivacyBucketFilterTest {
   fun `Mapper fails for invalid filter expression`() {
     val privacyLandscapeMask =
       LandscapeMask(
-        listOf(EventGroupSpec("person.age_group", timeRange)),
+        listOf(EventGroupSpec("common.age_group", timeRange)),
         0.0f,
         PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
       )
@@ -57,7 +57,7 @@ class PrivacyBucketFilterTest {
   fun `Filter succeeds for filter expression with only privacy budget Fields`() {
     val privacyLandscapeMask =
       LandscapeMask(
-        listOf(EventGroupSpec("person.age_group in [1] && person.gender == 2", timeRange)),
+        listOf(EventGroupSpec("common.age_group in [1] && common.gender == 2", timeRange)),
         0.0f,
         PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
       )
@@ -111,7 +111,7 @@ class PrivacyBucketFilterTest {
       LandscapeMask(
         listOf(
           EventGroupSpec(
-            "person.age_group in [1] && person.gender == 2 && " + "banner_ad.viewable == true",
+            "common.age_group in [1] && common.gender == 2 && " + "display.viewable_fraction == 1.0",
             timeRange,
           )
         ),
@@ -166,7 +166,7 @@ class PrivacyBucketFilterTest {
   fun `Mapper succeeds with left out privacy budget Fields`() {
     val privacyLandscapeMask =
       LandscapeMask(
-        listOf(EventGroupSpec("person.age_group in [1] ", timeRange)),
+        listOf(EventGroupSpec("common.age_group in [1] ", timeRange)),
         0.0f,
         PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
       )
@@ -256,7 +256,7 @@ class PrivacyBucketFilterTest {
       LandscapeMask(
         listOf(
           EventGroupSpec(
-            "person.age_group in [0] && person.gender == 1 || " + "banner_ad.viewable == true",
+            "common.age_group in [0] && common.gender == 1 || " + "display.viewable_fraction == 1.0",
             timeRange,
           )
         ),
@@ -274,7 +274,7 @@ class PrivacyBucketFilterTest {
   fun `getPrivacyBucketGroups returns all groups when mapper operativeFields is empty`() {
     val privacyLandscapeMask =
       LandscapeMask(
-        listOf(EventGroupSpec("person.age_group in [1] ", timeRange)),
+        listOf(EventGroupSpec("common.age_group in [1] ", timeRange)),
         0.0f,
         PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
       )

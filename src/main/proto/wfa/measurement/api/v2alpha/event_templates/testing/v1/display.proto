@@ -37,15 +37,17 @@ message Display {
   };
 
   // Fraction of the ad's pixels that were on screen for at least 1 continuous
-  // second, in the range [0, 1]. The grouping thresholds (0, 0.25, 0.5, 0.75,
-  // 1.0) are offered for reporting — 0.5 is the MRC display viewability
-  // standard; the field itself is not constrained to those values.
+  // second, in the range [0, 1]. The field is not constrained to the values in
+  // `grouping_spec`; 0.5 is the MRC display viewability standard.
+  //
+  // Not `GROUPABLE`: the reporting server currently supports grouping over
+  // enum-valued fields alone. `grouping_spec` records the thresholds to offer
+  // once it supports numeric groupings.
   float viewable_fraction = 1 [(.wfa.measurement.api.v2alpha.template_field) = {
     display_name: "Viewable Fraction"
     description: "Fraction of the ad's pixels on screen for at least 1 "
                  "continuous second, in the range [0, 1]."
     reporting_features: IMPRESSION_QUALIFICATION
-    reporting_features: GROUPABLE
     version_added: 1
     grouping_spec: {
       operator: GREATER_THAN_OR_EQUAL
