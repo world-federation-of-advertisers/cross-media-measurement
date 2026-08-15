@@ -248,15 +248,15 @@ class SeedRawImpressionsRule(
    *
    * Must cover every field the measurement's filter expression reads, otherwise the labeled
    * impression carries the field default and the filter drops it. Demographics are written as enum
-   * value names; `viewed_fraction` is a double.
+   * value names; `completed_fraction` is a double.
    */
   private fun testEventColumns(event: TestEvent): Map<String, ParquetValue> =
     mapOf(
       RawImpressionColumns.PERSON_GENDER to parquetValue { stringValue = event.common.gender.name },
       RawImpressionColumns.PERSON_AGE_GROUP to
         parquetValue { stringValue = event.common.ageGroup.name },
-      RawImpressionColumns.VIDEO_AD_VIEWED_FRACTION to
-        parquetValue { doubleValue = event.videoAd.viewedFraction },
+      RawImpressionColumns.VIDEO_COMPLETED_FRACTION to
+        parquetValue { doubleValue = event.video.completedFraction.toDouble() },
     )
 
   private fun deleteExistingRawImpressions(storage: Storage) {
