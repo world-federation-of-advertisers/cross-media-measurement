@@ -706,7 +706,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
             }
           attributes +=
             ProtoAny.pack(
-              person {
+              common {
                 gender = Common.Gender.FEMALE
                 ageGroup = Common.AgeGroup.YEARS_18_TO_34
                 usState = Common.UsState.CALIFORNIA
