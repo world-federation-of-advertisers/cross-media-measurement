@@ -23,7 +23,7 @@ impression_qualification_filters {
   filter_specs {
     media_type: DISPLAY
     # Terms within a filter are disjunctive, so this selects a viewable fraction
-    # of at least 0.5 over the field's grouping values.
+    # of at least 0.5 over the quartile values the synthetic data carries.
     filters: {
       terms: {
         path: "display.viewable_fraction"

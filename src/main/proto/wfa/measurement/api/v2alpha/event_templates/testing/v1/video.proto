@@ -24,13 +24,11 @@ option java_multiple_files = true;
 
 // Video ad engagement attributes.
 //
-// Completion and viewability are modeled as fraction-valued doubles rather
-// than families of conditional-threshold booleans (e.g.
-// `completed_25_percent_plus`). A single double carries the same information
-// without the combinatorial field growth; the meaningful grouping thresholds
-// (e.g. 25%+, 50%+) are declared per field via the `template_field`
-// `grouping_spec`, and threshold filters are ordinary comparisons
-// (`completed_fraction >= 0.5`).
+// Completion and viewability are modeled as fraction-valued floats rather than
+// families of conditional-threshold booleans (e.g.
+// `completed_25_percent_plus`). A single float carries the same information
+// without the combinatorial field growth, and threshold filters are ordinary
+// comparisons (`completed_fraction >= 0.5`).
 message Video {
   option (.wfa.measurement.api.v2alpha.event_template) = {
     name: "video"
@@ -49,12 +47,10 @@ message Video {
         version_added: 1
       }];
 
-  // Fraction of the video that was played, in the range [0, 1]. The field is
-  // not constrained to the values in `grouping_spec`.
+  // Fraction of the video that was played, in the range [0, 1].
   //
-  // Not `GROUPABLE`: the reporting server currently supports grouping over
-  // enum-valued fields alone. `grouping_spec` records the thresholds to offer
-  // once it supports numeric groupings.
+  // Not `GROUPABLE`: the reporting server supports grouping over enum-valued
+  // fields alone.
   float completed_fraction = 2
       [(.wfa.measurement.api.v2alpha.template_field) = {
         display_name: "Completed Fraction"
@@ -62,41 +58,19 @@ message Video {
                      "[0, 1]."
         reporting_features: IMPRESSION_QUALIFICATION
         version_added: 1
-        grouping_spec: {
-          operator: GREATER_THAN_OR_EQUAL
-          double_value_list: {
-            values: 0.0
-            values: 0.25
-            values: 0.5
-            values: 0.75
-            values: 1.0
-          }
-        }
       }];
 
   // Fraction of the ad's pixels that were on screen for at least 2 continuous
-  // seconds, in the range [0, 1]. The field is not constrained to the values in
-  // `grouping_spec`; 0.5 is the old MRC viewability standard and 1.0 the new
-  // one.
+  // seconds, in the range [0, 1]. 0.5 is the old MRC viewability standard and
+  // 1.0 the new one.
   //
-  // Not `GROUPABLE`: the reporting server currently supports grouping over
-  // enum-valued fields alone. `grouping_spec` records the thresholds to offer
-  // once it supports numeric groupings.
+  // Not `GROUPABLE`: the reporting server supports grouping over enum-valued
+  // fields alone.
   float viewable_fraction = 3 [(.wfa.measurement.api.v2alpha.template_field) = {
     display_name: "Viewable Fraction"
     description: "Fraction of the ad's pixels on screen for at least 2 "
                  "continuous seconds, in the range [0, 1]."
     reporting_features: IMPRESSION_QUALIFICATION
     version_added: 1
-    grouping_spec: {
-      operator: GREATER_THAN_OR_EQUAL
-      double_value_list: {
-        values: 0.0
-        values: 0.25
-        values: 0.5
-        values: 0.75
-        values: 1.0
-      }
-    }
   }];
 }
