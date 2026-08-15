@@ -111,7 +111,8 @@ class PrivacyBucketFilterTest {
       LandscapeMask(
         listOf(
           EventGroupSpec(
-            "common.age_group in [1] && common.gender == 2 && " + "display.viewable_fraction == 1.0",
+            "common.age_group in [1] && common.gender == 2 && " +
+              "display.viewable_fraction == 1.0",
             timeRange,
           )
         ),
@@ -256,7 +257,8 @@ class PrivacyBucketFilterTest {
       LandscapeMask(
         listOf(
           EventGroupSpec(
-            "common.age_group in [0] && common.gender == 1 || " + "display.viewable_fraction == 1.0",
+            "common.age_group in [0] && common.gender == 1 || " +
+              "display.viewable_fraction == 1.0",
             timeRange,
           )
         ),
