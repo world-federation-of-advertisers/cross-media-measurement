@@ -28,8 +28,7 @@ import org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClipp
  * The draw is rounded before it is added, the way
  * [DeterministicTruncatedLaplaceNoiseSampler.sampleRounded] rounds its own. That puts every noised
  * bar on the integer lattice regardless of the bar's low bits, so anything computed from the bars
- * afterwards is post-processing of an already-released quantity. Rounding costs half a unit of
- * quantization against a standard deviation in the tens or hundreds.
+ * afterwards is post-processing of an already-released quantity.
  *
  * @param domain separates these draws from any other drawn against the same fingerprint.
  */

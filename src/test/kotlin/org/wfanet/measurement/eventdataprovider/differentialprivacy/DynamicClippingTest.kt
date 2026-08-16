@@ -15,10 +15,10 @@ package org.wfanet.measurement.eventdataprovider.differentialprivacy
 
 import com.google.common.truth.Truth.assertThat
 import kotlin.math.abs
-import kotlin.math.sqrt
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.computation.DeterministicDynamicClippingNoiseSource
 
 @RunWith(JUnit4::class)
 class DynamicClippingTest {
@@ -244,20 +244,18 @@ class DynamicClippingTest {
     assertThat(precise.barNoiseVariance).isLessThan(noisy.barNoiseVariance)
   }
 
-  /**
-   * A [DynamicClippingNoiseSource] that is a pure function of its address, standing in for the
-   * frequency-vector-seeded source the EDP Aggregator supplies. The distribution does not matter
-   * here, only that the same address always yields the same draw.
-   */
+  /** The source the EDP Aggregator supplies, seeded from a distinct frequency vector per [seed]. */
   private fun seededNoiseSource(seed: Int = 0) =
-    DynamicClippingNoiseSource { pass, barIndex, bar, l2Sensitivity, rho ->
-      val mixed = ((seed * 31L + pass) * 31L + barIndex) * 2654435761L
-      val draw = (mixed % 2000L).toDouble() / 1000.0 - 1.0
-      bar + (l2Sensitivity / sqrt(2.0 * rho)) * draw
-    }
+    DeterministicDynamicClippingNoiseSource(
+      fingerprint = "frequency-vector-$seed".toByteArray(),
+      domain = CLIP_SEARCH_DOMAIN,
+    )
 
   private companion object {
     private val IMPRESSION_MEASUREMENT_TYPE = DynamicClipping.MeasurementType.IMPRESSION
+    /** Any value; these draws share no fingerprint with a result noiser. */
+    private const val CLIP_SEARCH_DOMAIN = 1
+
     /** Small enough that the bars carry visible noise. */
     private const val SMALL_RHO = 1E-2
     private const val EPSILON = 0.00558073744893074
