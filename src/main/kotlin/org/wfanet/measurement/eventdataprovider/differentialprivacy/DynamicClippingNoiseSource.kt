@@ -14,10 +14,14 @@
 
 package org.wfanet.measurement.eventdataprovider.differentialprivacy
 
-import org.apache.commons.math3.distribution.NormalDistribution
+import com.google.privacy.differentialprivacy.GaussianNoise
 
 /**
- * Supplies the standard-normal draws [DynamicClipping] adds to its histogram bars.
+ * Noises the histogram bars [DynamicClipping] searches.
+ *
+ * The source owns the calibration rather than receiving a standard deviation, because a mechanism
+ * hardened against the floating-point attacks on differential privacy has to control the lattice
+ * its output lands on, which it cannot do if the caller rescales the draw afterwards.
  *
  * Draws are addressed by ([pass], [barIndex]) rather than taken from a stream, because
  * [DynamicClipping] noises the bars more than once and how many passes it makes depends on the
@@ -26,17 +30,30 @@ import org.apache.commons.math3.distribution.NormalDistribution
  */
 fun interface DynamicClippingNoiseSource {
   /**
-   * Returns the standard-normal draw for the bar at [barIndex] in noising [pass].
+   * Returns [bar] with noise, for the bar at [barIndex] in noising [pass], charged [rho] against
+   * [l2Sensitivity].
    *
    * Draws must be independent across distinct ([pass], [barIndex]) pairs: [DynamicClipping]
    * combines the passes by inverse-variance weights, which assumes they are independent estimates.
    */
-  fun sample(pass: Int, barIndex: Int): Double
+  fun noise(pass: Int, barIndex: Int, bar: Double, l2Sensitivity: Double, rho: Double): Double
 }
 
-/** A [DynamicClippingNoiseSource] drawing fresh randomness per call. */
+/**
+ * The default [DynamicClippingNoiseSource], drawing fresh randomness per call.
+ *
+ * Delegates to the same [GaussianNoise] the Direct result noisers use, which draws from
+ * [java.security.SecureRandom] and snaps its output to a power-of-two lattice chosen independently
+ * of the value being noised.
+ */
 class StochasticStandardNormalNoiseSource : DynamicClippingNoiseSource {
-  private val distribution = NormalDistribution(0.0, 1.0)
+  private val gaussianNoise = GaussianNoise()
 
-  override fun sample(pass: Int, barIndex: Int): Double = distribution.sample()
+  override fun noise(
+    pass: Int,
+    barIndex: Int,
+    bar: Double,
+    l2Sensitivity: Double,
+    rho: Double,
+  ): Double = gaussianNoise.addNoiseDefinedByRho(bar, l2Sensitivity, rho)
 }

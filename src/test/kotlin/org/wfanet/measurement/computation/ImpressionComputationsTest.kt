@@ -287,7 +287,9 @@ class ImpressionComputationsTest {
       ImpressionComputations.computeDynamicallyClippedImpressionCount(
         frequencyVector = IntArray(100),
         queryRho = COARSE_RHO,
-        noiseSource = { _, _ -> 1.0 },
+        noiseSource = { _, _, bar, l2Sensitivity, rho ->
+          bar + l2Sensitivity / Math.sqrt(2.0 * rho)
+        },
         vidSamplingIntervalWidth = 1.0,
         resultMinimumThresholds = null,
       )
@@ -382,7 +384,7 @@ class ImpressionComputationsTest {
   companion object {
 
     /** Draws nothing, so the bars are exact and the assertions can be too. */
-    private val NO_NOISE = DynamicClippingNoiseSource { _, _ -> 0.0 }
+    private val NO_NOISE = DynamicClippingNoiseSource { _, _, bar, _, _ -> bar }
 
     private const val DYNAMIC_MAX_FREQUENCY = 5
 

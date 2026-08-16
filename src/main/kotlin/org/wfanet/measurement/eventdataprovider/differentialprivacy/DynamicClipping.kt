@@ -148,17 +148,30 @@ class DynamicClipping(
    *   noise sample is [Double].
    */
   private fun generateNoisedCumulativeHistogram(maxThreshold: Int, rho: Double): List<Double> {
-    val sigma = sigmaFor(maxThreshold, rho)
+    val l2Sensitivity = l2SensitivityFor(maxThreshold)
     val pass = noisingPass++
 
     return cumulativeHistogramList.mapIndexed { index, bar ->
-      bar + sigma * noiseSource.sample(pass, index)
+      noiseSource.noise(pass, index, bar, l2Sensitivity, rho)
     }
   }
 
-  /** The standard deviation a bar is noised with when [rho] covers [maxThreshold] bars. */
+  /**
+   * The L2 sensitivity of releasing [maxThreshold] bars: one user moves each bar by at most
+   * [BAR_SENSITIVITY] and can move every one of them.
+   */
+  private fun l2SensitivityFor(maxThreshold: Int): Double =
+    BAR_SENSITIVITY * sqrt(maxThreshold.toDouble())
+
+  /**
+   * The standard deviation a bar is noised with when [rho] covers [maxThreshold] bars.
+   *
+   * Used only to report [Result.barNoiseVariance]. A source that snaps or rounds its output carries
+   * a little more variance than this, by the square of its lattice spacing over twelve, which is
+   * negligible against a standard deviation in the tens or hundreds.
+   */
   private fun sigmaFor(maxThreshold: Int, rho: Double): Double =
-    BAR_SENSITIVITY * sqrt(maxThreshold.toDouble() / (2 * rho))
+    l2SensitivityFor(maxThreshold) / sqrt(2 * rho)
 
   /**
    * A default method to choose and output a clipping threshold based on a stopping condition. Note

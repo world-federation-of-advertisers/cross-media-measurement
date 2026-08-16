@@ -9,7 +9,7 @@ kt_jvm_library(
         "DynamicClippingNoiseSource.kt",
     ],
     deps = [
-        "//imports/java/org/apache/commons/math3",
+        "//imports/java/com/google/privacy:differential_privacy",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
     ],
 )
