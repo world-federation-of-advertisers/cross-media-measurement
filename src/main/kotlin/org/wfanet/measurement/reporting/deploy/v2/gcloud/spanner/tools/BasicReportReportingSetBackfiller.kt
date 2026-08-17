@@ -16,6 +16,9 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools
 
+import com.google.protobuf.Timestamp
+import com.google.protobuf.util.Timestamps
+import java.time.Instant
 import java.util.UUID
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.map
@@ -72,7 +75,21 @@ class BasicReportReportingSetBackfiller(
     val reportingSetsCreated: Int,
     val unresolvedComponents: Int,
     val unresolvableMetricSetComponents: Int,
-  )
+    /** Earliest create_time among the backfilled BasicReports, if any. */
+    val earliestCreateTime: Timestamp?,
+    /** Latest create_time among the backfilled BasicReports, if any. */
+    val latestCreateTime: Timestamp?,
+  ) {
+    // Timestamp's own toString is multi-line, which would break this onto several lines.
+    override fun toString(): String =
+      "Result(examined=$examined, alreadyValid=$alreadyValid, updated=$updated, " +
+        "skipped=$skipped, reportingSetsReused=$reportingSetsReused, " +
+        "reportingSetsCreated=$reportingSetsCreated, " +
+        "unresolvedComponents=$unresolvedComponents, " +
+        "unresolvableMetricSetComponents=$unresolvableMetricSetComponents, " +
+        "earliestCreateTime=${formatTime(earliestCreateTime)}, " +
+        "latestCreateTime=${formatTime(latestCreateTime)})"
+  }
 
   private var alreadyValid = 0
   private var updated = 0
@@ -81,6 +98,8 @@ class BasicReportReportingSetBackfiller(
   private var reportingSetsCreated = 0
   private var unresolvedComponents = 0
   private var unresolvableMetricSetComponents = 0
+  private var earliestCreateTime: Timestamp? = null
+  private var latestCreateTime: Timestamp? = null
 
   /** ReportingSet membership index per Campaign Group, reused across `BasicReport`s. */
   private val reportingSetIdsByCampaignGroup:
@@ -112,7 +131,10 @@ class BasicReportReportingSetBackfiller(
         reportingSetsCreated = reportingSetsCreated,
         unresolvedComponents = unresolvedComponents,
         unresolvableMetricSetComponents = unresolvableMetricSetComponents,
+        earliestCreateTime = earliestCreateTime,
+        latestCreateTime = latestCreateTime,
       )
+    printSummary(result)
     logger.info { result.toString() }
     return result
   }
@@ -206,11 +228,8 @@ class BasicReportReportingSetBackfiller(
       return
     }
 
+    recordCreateTime(basicReport.createTime)
     if (dryRun) {
-      logger.info {
-        "[dry run] Would update BasicReport $externalBasicReportId " +
-          "(${emptyComponentSummaries.size} component summaries)"
-      }
       updated++
       return
     }
@@ -223,11 +242,49 @@ class BasicReportReportingSetBackfiller(
         resultDetails = resultDetails,
       )
     }
-    logger.info {
-      "Updated BasicReport $externalBasicReportId " +
-        "(${emptyComponentSummaries.size} component summaries)"
-    }
     updated++
+  }
+
+  private fun recordCreateTime(createTime: Timestamp) {
+    val earliest = earliestCreateTime
+    if (earliest == null || Timestamps.compare(createTime, earliest) < 0) {
+      earliestCreateTime = createTime
+    }
+    val latest = latestCreateTime
+    if (latest == null || Timestamps.compare(createTime, latest) > 0) {
+      latestCreateTime = createTime
+    }
+  }
+
+  /**
+   * Prints a summary of [result] to stdout.
+   *
+   * The create_time range covers only the backfilled BasicReports, so it can be compared against
+   * the window in which the affected BasicReports were known to have been created.
+   */
+  private fun printSummary(result: Result) {
+    val verb = if (dryRun) "would be" else "were"
+    val rows =
+      listOf(
+        "BasicReports examined" to result.examined.toString(),
+        "Already valid" to result.alreadyValid.toString(),
+        "Backfilled" to result.updated.toString(),
+        "Skipped (unresolved components)" to result.skipped.toString(),
+        "Backfilled create_time from" to formatTime(result.earliestCreateTime),
+        "Backfilled create_time to" to formatTime(result.latestCreateTime),
+        "ReportingSets reused" to result.reportingSetsReused.toString(),
+        "ReportingSets created" to result.reportingSetsCreated.toString(),
+        "Unresolved components" to result.unresolvedComponents.toString(),
+        "Unresolvable metric_set components" to result.unresolvableMetricSetComponents.toString(),
+      )
+    val width = rows.maxOf { it.first.length }
+    println()
+    println(if (dryRun) "Backfill summary (dry run, nothing written)" else "Backfill summary")
+    for ((label, value) in rows) {
+      println("  ${label.padEnd(width)}  $value")
+    }
+    println("  ${result.updated} BasicReport(s) $verb backfilled.")
+    println()
   }
 
   /** Indexes the Campaign Group's unfiltered primitive children by their EventGroup membership. */
@@ -296,5 +353,9 @@ class BasicReportReportingSetBackfiller(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private fun formatTime(timestamp: Timestamp?): String =
+      if (timestamp == null) "-"
+      else Instant.ofEpochSecond(timestamp.seconds, timestamp.nanos.toLong()).toString()
   }
 }
