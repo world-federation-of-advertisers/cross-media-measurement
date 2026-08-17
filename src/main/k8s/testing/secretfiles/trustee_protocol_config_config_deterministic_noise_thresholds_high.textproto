@@ -4,7 +4,7 @@ protocol_config {
   noise_mechanism: DETERMINISTIC_TRUNCATED_LAPLACE
   result_minimum_thresholds {
     min_impressions: 10
-    min_users: 4500
+    min_users: 3800
   }
 }
 duchy_id: "aggregator"

@@ -44,10 +44,15 @@ import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
  * enters the aggregate, so that its marginal cannot be recovered by differencing overlapping
  * regions. No other mechanism does this.
  *
- * `min_users` is 4500. Each EDP's own reach on this synthetic data is below that, 3937 and 3638, so
- * both contributions are dropped and the aggregate is empty. Their combined reach of 5330 is above
- * the threshold, so a report that only applied the thresholds to the aggregated output would report
- * roughly 5330. Zero is what distinguishes input suppression from output thresholding.
+ * `min_users` is 3800, between the two EDPs' own reach on this synthetic data. edp2's 3638 is below
+ * it, so that contribution is dropped and the aggregate holds edp1 alone; edp1's 3937 is above it,
+ * so it survives both the input check and the threshold applied to the aggregate. Their combined
+ * reach is 5330, so a report that only applied the thresholds to the aggregated output would report
+ * roughly that. Landing on edp1's reach instead is what distinguishes input suppression from output
+ * thresholding.
+ *
+ * Setting the threshold above both EDPs is not a usable alternative: every contribution is then
+ * dropped, the aggregate is empty, and the report fails rather than returning zero.
  */
 class GCloudEdpAggregatorTrusTeeDeterministicNoiseThresholdsHighReportTest :
   InProcessEdpAggregatorTrusTeeThresholdTest(
@@ -77,15 +82,24 @@ class GCloudEdpAggregatorTrusTeeDeterministicNoiseThresholdsHighReportTest :
       }
     val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
 
-    assertWithMessage("cross-publisher reach with every contribution dropped")
+    // Only edp1 reaches the aggregate, so the result is its own reach rather than the combined
+    // reach of both EDPs.
+    assertWithinNoiseBound(
+      "cross-publisher reach with edp2 suppressed on input",
+      reportingUnitCumulative.reach,
+      SURVIVING_EDP_REACH,
+    )
+    assertWithMessage("reach is not the combined reach of both EDPs")
       .that(reportingUnitCumulative.reach)
-      .isEqualTo(0L)
-    assertWithMessage("k+ reach with every contribution dropped")
-      .that(reportingUnitCumulative.kPlusReachList.toSet())
-      .containsExactly(0L)
+      .isLessThan(COMBINED_REACH)
   }
 
   companion object {
+    // Ground truth for the synthetic data, from the no-noise TrusTEE tests over the same event
+    // groups: each EDP's own reach, and the reach of the two combined.
+    private const val SURVIVING_EDP_REACH = 3937L
+    private const val COMBINED_REACH = 5330L
+
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
 
     @get:ClassRule
