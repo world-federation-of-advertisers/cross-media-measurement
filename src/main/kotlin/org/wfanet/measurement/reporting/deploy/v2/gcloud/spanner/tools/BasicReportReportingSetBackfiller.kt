@@ -420,7 +420,10 @@ class BasicReportReportingSetBackfiller(
   }
 
   companion object {
-    private const val PAGE_SIZE = 100
+    // A page is held in memory as parsed protos, so peak heap scales with this. Measured
+    // over 20k BasicReports with result details up to 1.5 MiB: 100 peaked at 4.7 GiB of
+    // resident memory, 20 at 1.0 GiB, for a 2.4x increase in wall time.
+    private const val PAGE_SIZE = 20
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
