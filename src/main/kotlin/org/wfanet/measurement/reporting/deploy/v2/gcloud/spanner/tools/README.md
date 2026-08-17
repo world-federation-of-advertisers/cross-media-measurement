@@ -20,7 +20,12 @@ Run the tool with `--help` for usage information.
 ### What it does
 
 Every `BasicReport` in state `SUCCEEDED`, across all `MeasurementConsumer`s, is
-examined. For each component summary missing `external_reporting_set_id`:
+examined, one `MeasurementConsumer` at a time and a page at a time. Use
+`--create-time-after` to restrict this to `BasicReport`s created after a given
+time, which both bounds the work and makes it impossible to modify a
+`BasicReport` outside that window.
+
+For each component summary missing `external_reporting_set_id`:
 
 1.  The component's membership is taken from its own `event_group_summaries`,
     paired with the component's `cmms_data_provider_id`.
@@ -106,6 +111,7 @@ include the full path to the executable.
       --postgres-cloud-sql-connection-name=halo-cmm-dev:us-central1:dev-postgres \
       --postgres-database=reporting-v2 \
       --postgres-user=reporting-v2-internal@halo-cmm-dev.iam \
+      --create-time-after=2026-06-01T00:00:00Z \
       --dry-run
     ```
 
@@ -118,7 +124,8 @@ include the full path to the executable.
       --spanner-database=reporting \
       --postgres-cloud-sql-connection-name=halo-cmm-dev:us-central1:dev-postgres \
       --postgres-database=reporting-v2 \
-      --postgres-user=reporting-v2-internal@halo-cmm-dev.iam
+      --postgres-user=reporting-v2-internal@halo-cmm-dev.iam \
+      --create-time-after=2026-06-01T00:00:00Z
     ```
 
 ### Output
@@ -130,3 +137,7 @@ any components that could not be resolved.
 Run with `--dry-run` first. The unresolved counts should both be zero; a
 non-zero count means some component summaries would remain unserveable, and the
 per-`BasicReport` reasons are logged.
+
+Check the reported `create_time` range as well. It covers only the
+`BasicReport`s that were backfilled, so it can be compared against the window in
+which the affected `BasicReport`s are known to have been created.

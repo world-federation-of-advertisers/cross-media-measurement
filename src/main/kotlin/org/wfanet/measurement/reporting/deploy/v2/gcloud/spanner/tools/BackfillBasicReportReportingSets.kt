@@ -16,6 +16,10 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools
 
+import com.google.protobuf.Timestamp
+import com.google.protobuf.util.Timestamps
+import java.time.Instant
+import java.time.format.DateTimeParseException
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.commandLineMain
@@ -44,6 +48,8 @@ import picocli.CommandLine
   showDefaultValues = true,
 )
 class BackfillBasicReportReportingSets : Runnable {
+  @CommandLine.Spec private lateinit var spec: CommandLine.Model.CommandSpec
+
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
   @CommandLine.Mixin private lateinit var postgresFlags: GCloudPostgresFlags
@@ -53,6 +59,16 @@ class BackfillBasicReportReportingSets : Runnable {
     description = ["Report what would change without writing to any database."],
   )
   private var dryRun: Boolean = false
+
+  @CommandLine.Option(
+    names = ["--create-time-after"],
+    description =
+      [
+        "Only examine BasicReports created after this RFC 3339 time, e.g. 2026-06-01T00:00:00Z.",
+        "When unset, all SUCCEEDED BasicReports are examined.",
+      ],
+  )
+  private var createTimeAfter: String? = null
 
   override fun run() {
     runBlocking {
@@ -67,9 +83,23 @@ class BackfillBasicReportReportingSets : Runnable {
             postgresClient = postgresClient,
             idGenerator = LegacyRandomIdGenerator(),
             dryRun = dryRun,
+            createTimeAfter = parseCreateTimeAfter(),
           )
           .run()
       }
+    }
+  }
+
+  private fun parseCreateTimeAfter(): Timestamp? {
+    val value = createTimeAfter ?: return null
+    return try {
+      Timestamps.fromMillis(Instant.parse(value).toEpochMilli())
+    } catch (e: DateTimeParseException) {
+      throw CommandLine.ParameterException(
+        spec.commandLine(),
+        "Invalid --create-time-after '$value': expected an RFC 3339 time such as " +
+          "2026-06-01T00:00:00Z",
+      )
     }
   }
 

@@ -26,13 +26,17 @@ import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportResultDetails
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
+import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
@@ -58,6 +62,8 @@ class BasicReportReportingSetBackfiller(
   private val postgresClient: PostgresDatabaseClient,
   private val idGenerator: IdGenerator,
   private val dryRun: Boolean,
+  /** When set, only BasicReports created after this are examined. */
+  private val createTimeAfter: Timestamp? = null,
 ) {
   /** Identifies a Campaign Group. `ReportingSet` IDs are unique per `MeasurementConsumer`. */
   private data class CampaignGroupKey(
@@ -100,6 +106,7 @@ class BasicReportReportingSetBackfiller(
   private var unresolvableMetricSetComponents = 0
   private var earliestCreateTime: Timestamp? = null
   private var latestCreateTime: Timestamp? = null
+  private var examined = 0
 
   /** ReportingSet membership index per Campaign Group, reused across `BasicReport`s. */
   private val reportingSetIdsByCampaignGroup:
@@ -107,23 +114,26 @@ class BasicReportReportingSetBackfiller(
     mutableMapOf()
 
   suspend fun run(): Result {
-    val basicReportResults: List<BasicReportResult> =
+    // BasicReports is interleaved in MeasurementConsumers, so scoping each query to a
+    // MeasurementConsumer turns a full table scan into a key-range read.
+    val cmmsMeasurementConsumerIds: List<String> =
       spannerClient.readOnlyTransaction().use { txn ->
         txn
-          .readBasicReports(
-            ListBasicReportsRequestKt.filter { state = BasicReport.State.SUCCEEDED }
-          )
+          .executeQuery(statement("SELECT CmmsMeasurementConsumerId FROM MeasurementConsumers"))
+          .map { it.getString("CmmsMeasurementConsumerId") }
           .toList()
       }
-    logger.info { "Examining ${basicReportResults.size} SUCCEEDED BasicReport(s)" }
+    logger.info { "Scanning ${cmmsMeasurementConsumerIds.size} MeasurementConsumer(s)" }
 
-    for (basicReportResult in basicReportResults) {
-      backfillBasicReport(basicReportResult)
+    for (cmmsMeasurementConsumerId in cmmsMeasurementConsumerIds) {
+      backfillMeasurementConsumer(cmmsMeasurementConsumerId)
+      // Campaign Groups belong to a single MeasurementConsumer.
+      reportingSetIdsByCampaignGroup.clear()
     }
 
     val result =
       Result(
-        examined = basicReportResults.size,
+        examined = examined,
         alreadyValid = alreadyValid,
         updated = updated,
         skipped = skipped,
@@ -137,6 +147,52 @@ class BasicReportReportingSetBackfiller(
     printSummary(result)
     logger.info { result.toString() }
     return result
+  }
+
+  /** Pages through one MeasurementConsumer's SUCCEEDED BasicReports. */
+  private suspend fun backfillMeasurementConsumer(measurementConsumerId: String) {
+    var pageToken: ListBasicReportsPageToken? = null
+    do {
+      val page: List<BasicReportResult> =
+        spannerClient.readOnlyTransaction().use { txn ->
+          txn
+            .readBasicReports(
+              filter =
+                ListBasicReportsRequestKt.filter {
+                  cmmsMeasurementConsumerId = measurementConsumerId
+                  state = BasicReport.State.SUCCEEDED
+                  if (this@BasicReportReportingSetBackfiller.createTimeAfter != null) {
+                    createTimeAfter = this@BasicReportReportingSetBackfiller.createTimeAfter
+                  }
+                },
+              limit = PAGE_SIZE + 1,
+              pageToken = pageToken,
+            )
+            .toList()
+        }
+
+      val hasNextPage = page.size == PAGE_SIZE + 1
+      val basicReportResults = if (hasNextPage) page.subList(0, PAGE_SIZE) else page
+      for (basicReportResult in basicReportResults) {
+        examined++
+        backfillBasicReport(basicReportResult)
+      }
+
+      pageToken =
+        if (hasNextPage) {
+          val last = basicReportResults.last().basicReport
+          listBasicReportsPageToken {
+            lastBasicReport =
+              ListBasicReportsPageTokenKt.previousPageEnd {
+                createTime = last.createTime
+                cmmsMeasurementConsumerId = last.cmmsMeasurementConsumerId
+                externalBasicReportId = last.externalBasicReportId
+              }
+          }
+        } else {
+          null
+        }
+    } while (pageToken != null)
   }
 
   private suspend fun backfillBasicReport(basicReportResult: BasicReportResult) {
@@ -352,6 +408,8 @@ class BasicReportReportingSetBackfiller(
   }
 
   companion object {
+    private const val PAGE_SIZE = 100
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     private fun formatTime(timestamp: Timestamp?): String =
