@@ -77,6 +77,7 @@ class BasicReportReportingSetBackfiller(
     val alreadyValid: Int,
     val updated: Int,
     val skipped: Int,
+    val componentSummariesFilled: Int,
     val reportingSetsReused: Int,
     val reportingSetsCreated: Int,
     val unresolvedComponents: Int,
@@ -89,7 +90,8 @@ class BasicReportReportingSetBackfiller(
     // Timestamp's own toString is multi-line, which would break this onto several lines.
     override fun toString(): String =
       "Result(examined=$examined, alreadyValid=$alreadyValid, updated=$updated, " +
-        "skipped=$skipped, reportingSetsReused=$reportingSetsReused, " +
+        "skipped=$skipped, componentSummariesFilled=$componentSummariesFilled, " +
+        "reportingSetsReused=$reportingSetsReused, " +
         "reportingSetsCreated=$reportingSetsCreated, " +
         "unresolvedComponents=$unresolvedComponents, " +
         "unresolvableMetricSetComponents=$unresolvableMetricSetComponents, " +
@@ -100,7 +102,9 @@ class BasicReportReportingSetBackfiller(
   private var alreadyValid = 0
   private var updated = 0
   private var skipped = 0
-  private var reportingSetsReused = 0
+  private var componentSummariesFilled = 0
+  private val reusedReportingSetIds = mutableSetOf<String>()
+  private val mintedReportingSetIds = mutableSetOf<String>()
   private var reportingSetsCreated = 0
   private var unresolvedComponents = 0
   private var unresolvableMetricSetComponents = 0
@@ -137,7 +141,8 @@ class BasicReportReportingSetBackfiller(
         alreadyValid = alreadyValid,
         updated = updated,
         skipped = skipped,
-        reportingSetsReused = reportingSetsReused,
+        componentSummariesFilled = componentSummariesFilled,
+        reportingSetsReused = reusedReportingSetIds.size,
         reportingSetsCreated = reportingSetsCreated,
         unresolvedComponents = unresolvedComponents,
         unresolvableMetricSetComponents = unresolvableMetricSetComponents,
@@ -264,13 +269,19 @@ class BasicReportReportingSetBackfiller(
       val existingId: String? = reportingSetIdsByMembership[membership]
       if (existingId != null) {
         componentSummary.externalReportingSetId = existingId
-        reportingSetsReused++
+        componentSummariesFilled++
+        // A ReportingSet this run created and then found again in the index is not a reuse.
+        if (existingId !in mintedReportingSetIds) {
+          reusedReportingSetIds.add(existingId)
+        }
         continue
       }
 
       val mintedId: String = mintReportingSet(campaignGroupKey, membership)
       reportingSetIdsByMembership[membership] = mintedId
       componentSummary.externalReportingSetId = mintedId
+      componentSummariesFilled++
+      mintedReportingSetIds.add(mintedId)
       reportingSetsCreated++
     }
 
@@ -326,6 +337,7 @@ class BasicReportReportingSetBackfiller(
         "Already valid" to result.alreadyValid.toString(),
         "Backfilled" to result.updated.toString(),
         "Skipped (unresolved components)" to result.skipped.toString(),
+        "Component summaries filled" to result.componentSummariesFilled.toString(),
         "Backfilled create_time from" to formatTime(result.earliestCreateTime),
         "Backfilled create_time to" to formatTime(result.latestCreateTime),
         "ReportingSets reused" to result.reportingSetsReused.toString(),
