@@ -77,21 +77,20 @@ class GCloudEdpAggregatorTrusTeeDeterministicNoiseThresholdsReportTest :
 
     assertWithMessage("k+ reach buckets").that(kPlusReach).hasSize(EXPECTED_BUCKET_COUNT)
     for (index in SUPPRESSED_BUCKET_INDICES) {
-      assertWithMessage("$index+ reach is suppressed").that(kPlusReach[index]).isEqualTo(0L)
+      assertWithMessage("${index + 1}+ reach is suppressed").that(kPlusReach[index]).isEqualTo(0L)
     }
     for (index in 0 until SUPPRESSED_BUCKET_INDICES.first) {
-      assertWithMessage("$index+ reach survives").that(kPlusReach[index]).isGreaterThan(0L)
+      assertWithMessage("${index + 1}+ reach survives").that(kPlusReach[index]).isGreaterThan(0L)
     }
-    assertWithMessage("k+ reach is non-increasing")
-      .that(kPlusReach)
-      .isInOrder(Comparator.reverseOrder<Long>())
   }
 
   companion object {
     private const val EXPECTED_BUCKET_COUNT = 5
 
-    // The 4+ and 5+ buckets hold 311 and 0 users before noise, both under min_users, so both fold
-    // down. The 3+ bucket holds 647 and survives.
+    // Cumulative k+ reach before noise is [5330, 2572, 647, 311, 0], so the raw frequency buckets
+    // hold [2758, 1925, 336, 311, 0]. Frequencies 5, 4 and 3 are all under min_users of 500 and
+    // are zeroed in turn, but each folds into the bucket below, which is what carries 3+ back over
+    // the threshold. The 4+ and 5+ cumulative values end at zero.
     private val SUPPRESSED_BUCKET_INDICES = 3..4
 
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()

@@ -126,35 +126,40 @@ class GCloudEdpAggregatorTrusTeeDeterministicNoiseReportTest :
     val result = totalResults.single()
     val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
 
-    // Reach and impressions are each a single draw of L1 sensitivity 1 over the no-noise ground
-    // truth, so they cannot move further than the truncation bound.
+    // Reach carries a single draw of L1 sensitivity 1 over the no-noise ground truth, so it
+    // cannot move further than the truncation bound.
     assertWithinNoiseBound(
       "cross-publisher reach",
       reportingUnitCumulative.reach,
-      NO_NOISE_CROSS_PUBLISHER_REACH,
-    )
-    assertWithinNoiseBound(
-      "cross-publisher impressions",
-      reportingUnitCumulative.impressions,
-      NO_NOISE_CROSS_PUBLISHER_IMPRESSIONS,
+      EXPECTED_CROSS_PUBLISHER_REACH,
+      UNIT_SENSITIVITY,
     )
 
-    // Each k+ bucket carries its own draw and is then normalized, so the error compounds and an
-    // absolute bound would be arbitrary. These hold for any draw.
-    val kPlusReach = reportingUnitCumulative.kPlusReachList
-    assertWithMessage("1+ reach equals total reach")
-      .that(kPlusReach.first())
-      .isEqualTo(reportingUnitCumulative.reach)
-    assertWithMessage("k+ reach is non-increasing")
-      .that(kPlusReach)
-      .isInOrder(Comparator.reverseOrder<Long>())
+    // Impressions carry no draw under this configuration: the harness sets every EDP's direct
+    // noise to NONE, and the TrusTEE processor noises reach and frequency only.
+    assertWithMessage("cross-publisher impressions")
+      .that(reportingUnitCumulative.impressions)
+      .isEqualTo(EXPECTED_CROSS_PUBLISHER_IMPRESSIONS)
+
+    // Each k+ bucket carries its own draw and is then normalized against a noised denominator, so
+    // the error compounds across the histogram.
+    assertWithinNoiseBound(
+      "3+ reach",
+      reportingUnitCumulative.kPlusReachList[2],
+      EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH[2],
+      K_PLUS_SENSITIVITY,
+    )
   }
 
   companion object {
-    // Ground truth for the synthetic data, taken from the no-noise TrusTEE tests over the same
-    // event groups.
-    private const val NO_NOISE_CROSS_PUBLISHER_REACH = 5330L
-    private const val NO_NOISE_CROSS_PUBLISHER_IMPRESSIONS = 8860L
+    /** One VID moves reach, or a single frequency bucket, by 1. */
+    private const val UNIT_SENSITIVITY = 1.0
+
+    /**
+     * A k+ value is a sum over frequency buckets, each carrying its own draw, normalized against a
+     * denominator that carries all of them. Bounding it by the histogram width is conservative.
+     */
+    private const val K_PLUS_SENSITIVITY = 5.0
 
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
 

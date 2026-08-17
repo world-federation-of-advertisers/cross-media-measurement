@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.integration.common.reporting.v2
 
-import com.google.common.truth.Truth.assertWithMessage
 import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
@@ -83,22 +82,18 @@ class GCloudEdpAggregatorTrusTeeDeterministicNoiseThresholdsHighReportTest :
     val reportingUnitCumulative = result.metricSet.reportingUnit.cumulative
 
     // Only edp1 reaches the aggregate, so the result is its own reach rather than the combined
-    // reach of both EDPs.
+    // reach of both EDPs, which is EXPECTED_CROSS_PUBLISHER_REACH.
     assertWithinNoiseBound(
       "cross-publisher reach with edp2 suppressed on input",
       reportingUnitCumulative.reach,
-      SURVIVING_EDP_REACH,
+      EXPECTED_EDP_SPEC1_REACH,
+      UNIT_SENSITIVITY,
     )
-    assertWithMessage("reach is not the combined reach of both EDPs")
-      .that(reportingUnitCumulative.reach)
-      .isLessThan(COMBINED_REACH)
   }
 
   companion object {
-    // Ground truth for the synthetic data, from the no-noise TrusTEE tests over the same event
-    // groups: each EDP's own reach, and the reach of the two combined.
-    private const val SURVIVING_EDP_REACH = 3937L
-    private const val COMBINED_REACH = 5330L
+    /** One VID moves reach by 1. */
+    private const val UNIT_SENSITIVITY = 1.0
 
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
 

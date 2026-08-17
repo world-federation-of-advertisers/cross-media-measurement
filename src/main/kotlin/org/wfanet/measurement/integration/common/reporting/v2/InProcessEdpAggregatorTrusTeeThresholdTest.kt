@@ -99,14 +99,19 @@ abstract class InProcessEdpAggregatorTrusTeeThresholdTest(
   /**
    * Asserts [actual] is within one deterministic truncated-Laplace draw of [expected].
    *
-   * The draw is truncated to a bound derived from the compiled privacy params, so a single noised
-   * quantity of L1 sensitivity 1 cannot move further than that. The extra unit absorbs the
-   * truncation to `Long` when the result is scaled. Taking the bound from
+   * The draw is truncated to a bound derived from the compiled privacy params and scaled by the
+   * quantity's L1 [sensitivity], so a single noised quantity cannot move further than that. The
+   * extra unit absorbs the truncation to `Long` when the result is scaled. Taking the bound from
    * [DeterministicTruncatedLaplaceParams] rather than a recorded value keeps this in step with the
    * params instead of with a particular seed.
    */
-  protected fun assertWithinNoiseBound(label: String, actual: Long, expected: Long) {
-    val bound = ceil(DeterministicTruncatedLaplaceParams.truncationBound(UNIT_SENSITIVITY)).toLong()
+  protected fun assertWithinNoiseBound(
+    label: String,
+    actual: Long,
+    expected: Long,
+    sensitivity: Double,
+  ) {
+    val bound = ceil(DeterministicTruncatedLaplaceParams.truncationBound(sensitivity)).toLong()
     assertWithMessage("$label: $actual is further than ${bound + 1} from $expected")
       .that(abs(actual - expected))
       .isAtMost(bound + 1)
@@ -170,10 +175,5 @@ abstract class InProcessEdpAggregatorTrusTeeThresholdTest(
       assertStructuralResults(completedBasicReport)
       assertTrusTeeMetricResults(completedBasicReport)
     }
-  }
-
-  companion object {
-    /** L1 sensitivity of reach and of a single frequency bucket: one VID moves either by 1. */
-    private const val UNIT_SENSITIVITY = 1.0
   }
 }
