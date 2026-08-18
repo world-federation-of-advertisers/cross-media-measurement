@@ -325,6 +325,7 @@ class VidLabelingDispatcherFunctionTest {
   private fun fileSystemVidLabelingConfig() = vidLabelingConfig {
     dataProvider = DATA_PROVIDER
     edpImpressionPath = "edp7"
+    maxFileBatchSizeBytes = 1_000_000_000
     rawImpressionsStorageParams = storageParams {
       gcs = gcsStorage {
         projectId = "test-project"
