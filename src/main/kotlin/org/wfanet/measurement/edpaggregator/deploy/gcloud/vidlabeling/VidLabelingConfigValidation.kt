@@ -86,14 +86,8 @@ fun requireValidStalenessThreshold(config: VidLabelingConfig) {
 }
 
 /**
- * Fails fast (at Cloud Function boot / first tick) if [config]'s max_file_batch_size_bytes is unset
- * or non-positive.
- *
- * The bin-packing cap is REQUIRED by both dispatch paths, but only the non-memoized one rejects it
- * at dispatch, where `VidLabelingDispatchSequencer` bin-packs the upload's files itself. The
- * memoized path forwards the value onto `SubpoolAssignerParams.max_file_batch_size_bytes`, where it
- * is REQUIRED, so an unset value would otherwise only surface inside the TEE at the Phase-0
- * last-shard-out, behind Pub/Sub retries and a DLQ FAILED cascade.
+ * Fails fast (at Cloud Function boot / first tick) if [config] omits max_file_batch_size_bytes,
+ * which the memoized path would otherwise only reject inside the TEE at Phase-0.
  */
 fun requireValidMaxFileBatchSizeBytes(config: VidLabelingConfig) {
   require(config.maxFileBatchSizeBytes > 0) {

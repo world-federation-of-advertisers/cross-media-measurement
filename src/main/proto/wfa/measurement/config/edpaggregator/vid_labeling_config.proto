@@ -167,15 +167,9 @@ message VidLabelingConfig {
       [(google.api.field_behavior) = OPTIONAL];
 
   // Maximum total `RawImpressionUploadFile.size_bytes` packed into a single
-  // Phase-2 `VidLabelingJob` (the bin-packing threshold).
-  //
-  // REQUIRED by both dispatch paths, with no built-in default: too high a cap
-  // OOMs the Phase-2 VM and too low a cap under-utilizes it, so the operator
-  // MUST choose it explicitly. The non-memoized dispatcher enforces it (`> 0`)
-  // at dispatch; the memoized path forwards it verbatim onto
-  // `SubpoolAssignerParams.max_file_batch_size_bytes` (REQUIRED) so the Phase-1
-  // last-`RankerJob`-out bin-packs identically. Validated at Cloud Function
-  // boot by `requireValidMaxFileBatchSizeBytes`.
+  // Phase-2 `VidLabelingJob` (the bin-packing threshold). Required by both
+  // dispatch paths, with no default: too high a cap OOMs the Phase-2 VM and
+  // too low a cap under-utilizes it.
   int64 max_file_batch_size_bytes = 17 [(google.api.field_behavior) = REQUIRED];
 
   // Per-EDP folder segment for this EDP's VID-labeled impression output, placed

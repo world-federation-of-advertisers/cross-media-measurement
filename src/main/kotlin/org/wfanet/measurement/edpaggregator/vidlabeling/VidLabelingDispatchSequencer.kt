@@ -390,9 +390,8 @@ class VidLabelingDispatchSequencer(
       "model_storage_params missing for memoized model line ${modelLine.cmmsModelLine}; " +
         "set it on VidLabelingConfig for this DataProvider"
     }
-    // Mirrors the non-memoized guard in `dispatchNonMemoizedBundle`: the bin-packing cap is
-    // REQUIRED on `SubpoolAssignerParams`, so reject it here rather than publishing a WorkItem the
-    // TEE only rejects at the Phase-0 last-shard-out.
+    // The bin-packing cap is REQUIRED on `SubpoolAssignerParams`, so an unset one fails here
+    // rather than inside the TEE at the Phase-0 last-shard-out.
     require(subpoolAssignerParamsTemplate.maxFileBatchSizeBytes > 0) {
       "max_file_batch_size_bytes missing for memoized model line ${modelLine.cmmsModelLine}; " +
         "set it on VidLabelingConfig for this DataProvider"
