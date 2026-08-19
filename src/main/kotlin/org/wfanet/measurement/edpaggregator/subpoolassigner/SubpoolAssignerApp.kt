@@ -22,8 +22,10 @@ import com.google.protobuf.Parser
 import java.time.Instant
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigestExtractor
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
+import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
@@ -156,7 +158,7 @@ class SubpoolAssignerApp(
     val eventIdColumn = eventIdMapping.scalar.column
 
     val rawImpressionSource =
-      RawImpressionSource(
+      RawImpressionSource<ParquetDigestedEvent>(
         parquetStorageClient =
           buildParquetStorageClient(
             getRawImpressionsStorageConfig(params.rawImpressionStorageParams),
@@ -168,6 +170,7 @@ class SubpoolAssignerApp(
         shardIndex = params.shardIndex,
         totalShards = params.totalShards,
         eventIdDigestExtractor = eventIdDigestExtractor,
+        toEvent = { row, digest -> DigestedEvent(row, checkNotNull(digest)) },
       )
 
     val mapper = LabelerInputMapper(params.labelerInputFieldMappingList)

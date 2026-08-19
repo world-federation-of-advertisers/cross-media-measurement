@@ -115,6 +115,12 @@ sections of this when reviewing others’ code.
     structure is required by the API (e.g. `zip`, `mapOf`).
 *   Use `kotlin.text.Regex` instead of `java.util.regex.Pattern`.
 
+#### Documentation
+
+*   Use idiomatic KDoc tags (`@param`, `@return`, `@throws`) rather than prose
+    restating the same information. See [Comments](#comments) for general
+    guidance.
+
 #### Namespacing & Imports
 
 *   Wildcard imports are not allowed.
@@ -260,6 +266,25 @@ tool.
 
 [`clang-format`](https://clang.llvm.org/docs/ClangFormat.html) supports
 formatting for multiple languages. Run it with `--style=Google`.
+
+## Comments
+
+Comments carry the same maintenance burden as the code they describe, with the
+added problem that refactoring tools understand code but not comments. Given the
+high readability bar for this codebase, prefer fewer and shorter comments.
+
+*   Comments are evergreen. Describe the code as it is, not how it used to be.
+    Don't reference previous behavior, the change being made, or the issue that
+    motivated it.
+    *   To explain a change to a reviewer, leave a PR comment instead.
+*   Don't duplicate information that is documented elsewhere, such as in the
+    protobuf definition of a field that the code operates on.
+*   Document the contract, not the callers. Avoid describing what callers happen
+    to do with a result, which is the caller's prerogative and goes stale.
+*   Keep implementation rationale in the function body rather than in its
+    documentation comment.
+*   Document an invariant on the type or property that holds it, not at each
+    site that relies on it.
 
 ## TODOs
 

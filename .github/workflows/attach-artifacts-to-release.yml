@@ -59,6 +59,13 @@ jobs:
           //src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/tools:Reporting_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/access/deploy/tools:Access_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/kingdom/deploy/tools:ModelRepository_deploy.jar
+          //src/main/kotlin/org/wfanet/measurement/common/tools:OpenIdProvider_deploy.jar
+          //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard/tools:DashboardComplianceCheck_deploy.jar
+          //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:SyncEventGroupActivities_deploy.jar
+          //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:VidLabelingHeal_deploy.jar
+          //src/main/kotlin/org/wfanet/measurement/kingdom/deploy/tools:CreateResource_deploy.jar
+          //src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:GenerateSyntheticData_deploy.jar
+          //src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:VerifySyntheticData_deploy.jar
 
       - name: Build CLI pyzips
         run: >
@@ -98,6 +105,13 @@ jobs:
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/tools/Reporting_deploy.jar
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/access/deploy/tools/Access_deploy.jar
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/tools/ModelRepository_deploy.jar
+            ./bazel-bin/src/main/kotlin/org/wfanet/measurement/common/tools/OpenIdProvider_deploy.jar
+            ./bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard/tools/DashboardComplianceCheck_deploy.jar
+            ./bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/tools/SyncEventGroupActivities_deploy.jar
+            ./bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/tools/VidLabelingHeal_deploy.jar
+            ./bazel-bin/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/tools/CreateResource_deploy.jar
+            ./bazel-bin/src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools/GenerateSyntheticData_deploy.jar
+            ./bazel-bin/src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools/VerifySyntheticData_deploy.jar
             ./bazel-bin/src/main/python/wfa/measurement/reporting/postprocessing/tools/log_processor.zip
             reporting_api_specs.tar.gz
           )

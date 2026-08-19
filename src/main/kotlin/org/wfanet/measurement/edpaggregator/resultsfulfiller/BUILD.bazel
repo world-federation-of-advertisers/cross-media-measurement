@@ -21,6 +21,7 @@ kt_jvm_library(
     ],
     deps = [
         ":continuous_gaussian_noiser_selector",
+        ":deterministic_truncated_laplace_noiser_selector",
         ":event_batch",
         ":event_processing_orchestrator",
         ":event_reader",
@@ -54,7 +55,9 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:requisition_metadata_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
     ],
@@ -72,6 +75,16 @@ kt_jvm_library(
 kt_jvm_library(
     name = "continuous_gaussian_noiser_selector",
     srcs = ["ContinuousGaussianNoiseSelector.kt"],
+    deps = [
+        ":noiser_selector",
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_refusal_exception",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "deterministic_truncated_laplace_noiser_selector",
+    srcs = ["DeterministicTruncatedLaplaceNoiseSelector.kt"],
     deps = [
         ":noiser_selector",
         "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_refusal_exception",
@@ -156,6 +169,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
     ],
@@ -284,6 +298,8 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
     ],
 )
@@ -458,6 +474,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/computation:impression_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:reach_and_frequency_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
+        "//src/main/kotlin/org/wfanet/measurement/computation:result_noiser",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
         "//src/main/proto/wfa/frequency_count:frequency_vector_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",

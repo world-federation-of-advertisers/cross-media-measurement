@@ -24,7 +24,7 @@ PYTHON_VERSION = "3.11"
 # See https://github.com/bazelbuild/bazel/discussions/23075.
 bazel_dep(
     name = "rules_kotlin_jvm",
-    version = "0.14.0",
+    version = "0.15.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
 bazel_dep(
@@ -39,23 +39,15 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.147.0",
+    version = "0.151.0",
     repo_name = "wfa_common_jvm",
 )
 
 # DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#399)
 git_override(
     module_name = "common-jvm",
-    commit = "daa07f37713ac84c11d7e9269d711b442e19202c",
+    commit = "0e3749156e9e876ab4bbf4bcabef4d18cb888301",
     remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
-)
-
-# DO_NOT_SUBMIT(world-federation-of-advertisers/rules_kotlin_jvm#27): temporary until
-# rules_kotlin_jvm releases protobuf 4.33.6 (required by Tink 1.23).
-git_override(
-    module_name = "rules_kotlin_jvm",
-    commit = "7acc3aa0d3233fbae4bcbc83af462c020ced8ab8",
-    remote = "https://github.com/world-federation-of-advertisers/rules_kotlin_jvm.git",
 )
 
 bazel_dep(
@@ -65,7 +57,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.96.0",
+    version = "0.100.0",
     repo_name = "wfa_measurement_proto",
 )
 bazel_dep(
@@ -107,7 +99,6 @@ bazel_dep(
     name = "grpc_ecosystem_grpc_gateway",
     version = "2.26.0.bzlmod.1",
 )
-
 # Must also be updated in src/main/k8s/local/BUILD.bazel
 bazel_dep(
     name = "cloud-spanner-emulator-bin",
@@ -170,7 +161,6 @@ bazel_dep(
     name = "grpc",
     version = "1.74.1",
 )
-
 # Must be compatible with the protobuf version declared in requirements.txt
 bazel_dep(
     name = "protobuf",
@@ -220,7 +210,6 @@ single_version_override(
         "//build/cosign/patches:sign_dot_bzl.patch",
     ],
 )
-
 bazel_dep(
     name = "rules_multirun",
     version = "0.12.0",
@@ -342,13 +331,13 @@ maven.install(
     fetch_sources = True,  # For IDE integration.
     known_contributing_modules = [
         "any-sketch-java",
-        "bazel_worker_java",
         "common-jvm",
         "consent-signaling-client",
         "cross-media-measurement-system",
         "protobuf",
         "rules_kotlin_jvm",
         "virtual-people-common",
+        "virtual-people-core-serving",
     ],
     lock_file = "//:maven_install.json",
     repositories = [

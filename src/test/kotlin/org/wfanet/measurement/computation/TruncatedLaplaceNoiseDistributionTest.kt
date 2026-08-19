@@ -22,11 +22,11 @@ import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
 class TruncatedLaplaceNoiseDistributionTest {
-  private val distribution = TruncatedLaplaceNoiseDistribution(EPSILON, SENSITIVITY, BOUND)
+  private val distribution = TruncatedLaplaceNoiseDistribution(SCALE, BOUND)
 
   @Test
   fun `inverseCdf at zero is the lower bound`() {
-    assertThat(distribution.inverseCdf(0.0)).isWithin(1e-9).of(-BOUND.toDouble())
+    assertThat(distribution.inverseCdf(0.0)).isWithin(1e-9).of(-BOUND)
   }
 
   @Test
@@ -38,7 +38,7 @@ class TruncatedLaplaceNoiseDistributionTest {
   fun `inverseCdf near one stays within the upper bound`() {
     val draw = distribution.inverseCdf(0.999999999)
     assertThat(draw).isGreaterThan(0.0)
-    assertThat(draw).isAtMost(BOUND.toDouble())
+    assertThat(draw).isAtMost(BOUND)
   }
 
   @Test
@@ -58,8 +58,8 @@ class TruncatedLaplaceNoiseDistributionTest {
     var u = 0.0
     while (u < 1.0) {
       val draw = distribution.inverseCdf(u)
-      assertThat(draw).isAtLeast(-BOUND.toDouble())
-      assertThat(draw).isAtMost(BOUND.toDouble())
+      assertThat(draw).isAtLeast(-BOUND)
+      assertThat(draw).isAtMost(BOUND)
       u += 0.001
     }
   }
@@ -77,23 +77,16 @@ class TruncatedLaplaceNoiseDistributionTest {
   }
 
   @Test
-  fun `rejects non-positive epsilon`() {
+  fun `rejects non-positive scale`() {
     assertFailsWith<IllegalArgumentException> {
-      TruncatedLaplaceNoiseDistribution(epsilon = 0.0, SENSITIVITY, BOUND)
+      TruncatedLaplaceNoiseDistribution(scale = 0.0, bound = BOUND)
     }
   }
 
   @Test
-  fun `rejects non-positive sensitivity`() {
+  fun `rejects non-positive bound`() {
     assertFailsWith<IllegalArgumentException> {
-      TruncatedLaplaceNoiseDistribution(EPSILON, sensitivity = 0.0, BOUND)
-    }
-  }
-
-  @Test
-  fun `rejects non-positive truncation bound`() {
-    assertFailsWith<IllegalArgumentException> {
-      TruncatedLaplaceNoiseDistribution(EPSILON, SENSITIVITY, truncationBound = 0)
+      TruncatedLaplaceNoiseDistribution(scale = SCALE, bound = 0.0)
     }
   }
 
@@ -104,8 +97,7 @@ class TruncatedLaplaceNoiseDistributionTest {
   }
 
   companion object {
-    private const val EPSILON = 1.0
-    private const val SENSITIVITY = 1.0
-    private const val BOUND = 8
+    private const val SCALE = 1.0
+    private const val BOUND = 8.0
   }
 }

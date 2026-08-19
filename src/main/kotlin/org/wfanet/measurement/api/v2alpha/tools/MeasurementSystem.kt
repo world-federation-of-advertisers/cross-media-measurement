@@ -994,6 +994,12 @@ private class DataProviders {
       required = false,
     )
     trusTeeSupported: Boolean? = null,
+    @Option(
+      names = ["--noise-mechanism-deterministic-truncated-laplace-supported"],
+      description = ["Whether the DETERMINISTIC_TRUNCATED_LAPLACE noise mechanism is supported"],
+      required = false,
+    )
+    noiseMechanismDeterministicTruncatedLaplaceSupported: Boolean? = null,
   ) {
     val capabilities: DataProvider.Capabilities =
       runBlocking(parentCommand.rpcDispatcher) {
@@ -1009,6 +1015,10 @@ private class DataProviders {
           }
           if (trusTeeSupported != null) {
             this.trusTeeSupported = trusTeeSupported
+          }
+          if (noiseMechanismDeterministicTruncatedLaplaceSupported != null) {
+            this.noiseMechanismDeterministicTruncatedLaplaceSupported =
+              noiseMechanismDeterministicTruncatedLaplaceSupported
           }
         }
     }

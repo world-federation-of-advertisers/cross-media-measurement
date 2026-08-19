@@ -20,6 +20,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.ByteString
 import java.security.MessageDigest
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
@@ -98,24 +99,74 @@ class RankIndexStore(storageClient: ConditionalOperationStorageClient, kmsClient
     blobKey: String,
     encryptedDek: EncryptedDek,
     expectedChecksum: ByteString? = null,
-  ): Flow<RankIndexMap> = flow {
-    val blob = encryptedClient(encryptedDek).getBlob(blobKey) ?: return@flow
-    val digest =
-      if (expectedChecksum != null && !expectedChecksum.isEmpty) {
-        MessageDigest.getInstance("SHA-256")
-      } else {
-        null
+    recordBufferCapacity: Int = DEFAULT_READ_RECORD_BUFFER,
+  ): Flow<RankIndexMap> =
+    flow {
+        val blob = encryptedClient(encryptedDek).getBlob(blobKey) ?: return@flow
+        val digest =
+          if (expectedChecksum != null && !expectedChecksum.isEmpty) {
+            MessageDigest.getInstance("SHA-256")
+          } else {
+            null
+          }
+        blob.read().collect { record ->
+          // Hashing PLAINTEXT record bytes: the encrypted storage client has already decrypted at
+          // this point. If this ever swaps to a raw storage client, the hash target changes and
+          // expectedChecksum must be recomputed accordingly.
+          digest?.update(record.asReadOnlyByteBuffer())
+          emit(RankIndexMap.parseFrom(record))
+        }
+        if (digest != null) {
+          val actual = ByteString.copyFrom(digest.digest())
+          check(actual == expectedChecksum) {
+            "RankIndexBlob $blobKey checksum mismatch; cumulative blob is corrupt"
+          }
+        }
       }
-    blob.read().collect { record ->
-      digest?.update(record.asReadOnlyByteBuffer())
-      emit(RankIndexMap.parseFrom(record))
-    }
-    if (digest != null) {
-      val actual = ByteString.copyFrom(digest.digest())
-      check(actual == expectedChecksum) {
-        "RankIndexBlob $blobKey checksum mismatch; cumulative blob is corrupt"
-      }
-    }
+      .buffer(recordBufferCapacity)
+
+  /**
+   * Opens [blobKey] with a SINGLE `getBlob`, returning its on-disk (ciphertext) byte size together
+   * with a [readBlob]-equivalent record [Flow], or `null` when the blob is absent.
+   *
+   * A caller that needs both the size (e.g. to pre-size a map) and the contents would otherwise
+   * call [blobSize] and [readBlob], each doing its own `getBlob`. This resolves the blob handle
+   * once and reuses it for both. The returned flow streams the same `RankIndexMap` records as
+   * [readBlob] and enforces [expectedChecksum] identically (hashing the plaintext payload as it
+   * streams and throwing at end-of-stream on mismatch). Memory stays bounded: only the blob handle
+   * is resolved eagerly; record bytes stream lazily on collection.
+   */
+  suspend fun openBlob(
+    blobKey: String,
+    encryptedDek: EncryptedDek,
+    expectedChecksum: ByteString? = null,
+    recordBufferCapacity: Int = DEFAULT_READ_RECORD_BUFFER,
+  ): Pair<Long, Flow<RankIndexMap>>? {
+    val blob = encryptedClient(encryptedDek).getBlob(blobKey) ?: return null
+    val readFlow =
+      flow {
+          val digest =
+            if (expectedChecksum != null && !expectedChecksum.isEmpty) {
+              MessageDigest.getInstance("SHA-256")
+            } else {
+              null
+            }
+          blob.read().collect { record ->
+            // Hashing PLAINTEXT record bytes: the encrypted storage client has already decrypted at
+            // this point. If this ever swaps to a raw storage client, the hash target changes and
+            // expectedChecksum must be recomputed accordingly.
+            digest?.update(record.asReadOnlyByteBuffer())
+            emit(RankIndexMap.parseFrom(record))
+          }
+          if (digest != null) {
+            val actual = ByteString.copyFrom(digest.digest())
+            check(actual == expectedChecksum) {
+              "RankIndexBlob $blobKey checksum mismatch; cumulative blob is corrupt"
+            }
+          }
+        }
+        .buffer(recordBufferCapacity)
+    return blob.size to readFlow
   }
 
   /** Deletes [blobKey] from Cloud Storage if present (used to evict aged-out rank-index blobs). */
@@ -123,7 +174,34 @@ class RankIndexStore(storageClient: ConditionalOperationStorageClient, kmsClient
     storageClient.getBlob(blobKey)?.delete()
   }
 
+  /**
+   * Byte size of the SNAPSHOT blob at [blobKey], or 0 if absent. This is the ciphertext (on-disk)
+   * byte count as reported by the encrypted storage client, not the plaintext size. The Phase-2
+   * index load uses it to pre-size its per-subpool map: on disk each entry is
+   * ~[ON_DISK_BYTES_PER_ENTRY] bytes (12-byte fingerprint + 4-byte fixed32 rank + 2-byte last-seen
+   * day), so the entry count is approximately `size / ON_DISK_BYTES_PER_ENTRY`. This is only a
+   * sizing hint: RecordIO framing and StreamingAead padding make the true per-entry size vary, so
+   * it may under- or over-shoot the real count — the map auto-resizes if under-sized (the pre-size
+   * just aims to avoid that).
+   */
+  suspend fun blobSize(blobKey: String, encryptedDek: EncryptedDek): Long =
+    encryptedClient(encryptedDek).getBlob(blobKey)?.size ?: 0L
+
   companion object {
+    /**
+     * Approximate on-disk bytes per rank-index entry: 12-byte fingerprint + 4-byte fixed32 rank +
+     * 2-byte last-seen day. Used to pre-size the Phase-2 load map from the blob byte size.
+     */
+    const val ON_DISK_BYTES_PER_ENTRY = 18L
+
+    /**
+     * Prefetch depth (in RankIndexMap records, ~18 MiB each at 1M entries/record) between the
+     * read/decrypt/parse producer and the map-insert consumer, so the GCS read runs ahead of
+     * inserts instead of stalling on them. Small on purpose: memory ~= capacity x ~18 MiB x
+     * concurrent readers (Phase-2 loads up to 6 subpools at once => ~430 MiB total at 4).
+     */
+    const val DEFAULT_READ_RECORD_BUFFER = 4
+
     /**
      * Storage key for a cumulative `SNAPSHOT` blob of [poolOffset], scoped to the (upload, model
      * line) run and to a single write [attemptId].

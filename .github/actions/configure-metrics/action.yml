@@ -33,7 +33,7 @@ runs:
     shell: bash
     run: |
       # Delete old collector which may be incompatible.
-      kubectl delete opentelemetrycollectors.opentelemetry.io default
+      kubectl delete opentelemetrycollectors.opentelemetry.io default --ignore-not-found
 
       kubectl apply -f "$BAZEL_BIN/src/main/k8s/dev/open_telemetry_gke.yaml"
       

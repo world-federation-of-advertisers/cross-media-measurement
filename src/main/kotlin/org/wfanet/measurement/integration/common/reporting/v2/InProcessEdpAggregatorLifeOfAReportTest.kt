@@ -31,6 +31,8 @@ import com.google.type.timeZone
 import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.Clock
+import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.logging.Logger
@@ -173,6 +175,11 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private val hmssEnabled: Boolean,
   private val trusTeeEnabled: Boolean,
   private val multiEdpDisplayNames: Set<String> = emptySet(),
+  /**
+   * Whether the EDPs declare support for DETERMINISTIC_TRUNCATED_LAPLACE. The Kingdom offers
+   * TrusTEE with that mechanism only when every DataProvider reports it.
+   */
+  private val deterministicTruncatedLaplaceSupported: Boolean = false,
 ) {
 
   protected val expectedProtocol: PublicProtocolConfig.Protocol.ProtocolCase =
@@ -341,6 +348,22 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         val kingdomChannel = inProcessCmmsComponents.kingdom.publicApiChannel
         val duchyMap =
           inProcessCmmsComponents.duchies.map { it.externalDuchyId to it.publicApiChannel }.toMap()
+        val gaussianNoiseTypes =
+          listOf(ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN)
+        val deterministicNoiseTypes =
+          listOf(ResultsFulfillerParams.NoiseParams.NoiseType.DETERMINISTIC_TRUNCATED_LAPLACE)
+        // Pinning the mechanism in the measurement participants' fulfiller params puts
+        // DefaultFulfillerSelector.validateMultiPartyNoiseMechanism on the path, so a requisition
+        // only fulfills if the EDP Aggregator recognizes the mechanism.
+        val multiPartyNoiseTypes =
+          if (deterministicTruncatedLaplaceSupported) {
+            // Every EDP declares the capability below, so every EDP that pins a list must include
+            // the mechanism. A pinned list that omits it contradicts the declared capability.
+            mapOf("edp4" to gaussianNoiseTypes + deterministicNoiseTypes) +
+              multiEdpDisplayNames.associateWith { deterministicNoiseTypes }
+          } else {
+            mapOf("edp4" to gaussianNoiseTypes)
+          }
         inProcessEdpAggregatorComponents.startDaemons(
           kingdomChannel,
           measurementConsumerData,
@@ -350,21 +373,29 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               DataProviderKt.capabilities {
                 honestMajorityShareShuffleSupported = hmssEnabled
                 trusTeeSupported = trusTeeEnabled
+                noiseMechanismDeterministicTruncatedLaplaceSupported =
+                  deterministicTruncatedLaplaceSupported
               },
             "edp2" to
               DataProviderKt.capabilities {
                 honestMajorityShareShuffleSupported = hmssEnabled
                 trusTeeSupported = trusTeeEnabled
+                noiseMechanismDeterministicTruncatedLaplaceSupported =
+                  deterministicTruncatedLaplaceSupported
               },
             "edp3" to
               DataProviderKt.capabilities {
                 honestMajorityShareShuffleSupported = hmssEnabled
                 trusTeeSupported = trusTeeEnabled
+                noiseMechanismDeterministicTruncatedLaplaceSupported =
+                  deterministicTruncatedLaplaceSupported
               },
             "edp4" to
               DataProviderKt.capabilities {
                 honestMajorityShareShuffleSupported = hmssEnabled
                 trusTeeSupported = trusTeeEnabled
+                noiseMechanismDeterministicTruncatedLaplaceSupported =
+                  deterministicTruncatedLaplaceSupported
               },
           ),
           duchyMap,
@@ -375,10 +406,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               "edp3" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
               "edp4" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
             ),
-          edpMultiPartyNoiseTypes =
-            mapOf(
-              "edp4" to listOf(ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN)
-            ),
+          edpMultiPartyNoiseTypes = multiPartyNoiseTypes,
         )
         runBlocking {
           registerDataAvailabilityIntervals(kingdomChannel, edpDisplayNameToResourceMap)
@@ -1094,6 +1122,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         reportingServer.internalMetricCalculationSpecsClient,
         reportingServer.internalReportResultsClient,
         EventMessageDescriptor(TestEvent.getDescriptor()),
+        Clock.systemUTC(),
+        MAX_CREATED_BASIC_REPORT_AGE,
       )
       .execute()
   }
@@ -1235,6 +1265,12 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   }
 
   companion object {
+    /**
+     * Maximum age of a BasicReport in State CREATED. Long enough that BasicReports created by these
+     * tests are never treated as stuck.
+     */
+    private val MAX_CREATED_BASIC_REPORT_AGE: Duration = Duration.ofHours(1)
+
     // edp1 has no entity_key/entity_metadata override (legacy path).
     // edp4 is configured with multi-party noise CONTINUOUS_GAUSSIAN, so it's the "restricted"
     // EDP for the no-noise failure path tests; the same EDP also carries the non-default
@@ -1365,10 +1401,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
     // All computation methods (HMSS, TrusTee, etc.) are expected to produce exactly the same
     // results when using the same input data and no noise.
-    internal const val EXPECTED_CROSS_PUBLISHER_REACH = 5330L
-    internal const val EXPECTED_CROSS_PUBLISHER_IMPRESSIONS = 8860L
-    internal val EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH = listOf(5330L, 2572L, 647L, 311L, 0L)
-    internal const val EXPECTED_EDP_SPEC1_REACH = 3937L
+    const val EXPECTED_CROSS_PUBLISHER_REACH = 5330L
+    const val EXPECTED_CROSS_PUBLISHER_IMPRESSIONS = 8860L
+    val EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH = listOf(5330L, 2572L, 647L, 311L, 0L)
+    const val EXPECTED_EDP_SPEC1_REACH = 3937L
     internal const val EXPECTED_EDP_SPEC2_REACH = 3638L
 
     internal const val EXPECTED_SINGLE_EDP_SPEC2_REACH = 3638L

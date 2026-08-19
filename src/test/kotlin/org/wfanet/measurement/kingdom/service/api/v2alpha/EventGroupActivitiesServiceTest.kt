@@ -34,6 +34,8 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.ListEventGroupActivitiesRequestKt
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerEventGroupKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupActivityRequest
 import org.wfanet.measurement.api.v2alpha.batchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupActivitiesRequest
@@ -46,6 +48,7 @@ import org.wfanet.measurement.api.v2alpha.listEventGroupActivitiesResponse
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.updateEventGroupActivityRequest
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -78,6 +81,14 @@ private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 private val SECOND_EVENT_GROUP_NAME = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAJs"
 private val SECOND_EVENT_GROUP_EXTERNAL_ID =
   apiIdToExternalId(EventGroupKey.fromName(SECOND_EVENT_GROUP_NAME)!!.eventGroupId)
+private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
+private val MEASUREMENT_CONSUMER_EXTERNAL_ID =
+  apiIdToExternalId(
+    MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
+  )
+private val MC_EVENT_GROUP_NAME = "$MEASUREMENT_CONSUMER_NAME/eventGroups/AAAAAAAAAHs"
+private val MC_EVENT_GROUP_EXTERNAL_ID =
+  apiIdToExternalId(MeasurementConsumerEventGroupKey.fromName(MC_EVENT_GROUP_NAME)!!.eventGroupId)
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
@@ -728,6 +739,119 @@ class EventGroupActivitiesServiceTest {
           pageSize = DEFAULT_PAGE_SIZE
         }
       )
+  }
+
+  @Test
+  fun `listEventGroupActivities forwards MeasurementConsumer scope for MC-rooted parent`() {
+    val activityDate = date {
+      year = 2023
+      month = 10
+      day = 10
+    }
+    val request = listEventGroupActivitiesRequest { parent = MC_EVENT_GROUP_NAME }
+
+    internalServiceMock.stub {
+      onBlocking { listEventGroupActivities(any()) }
+        .thenReturn(
+          internalListEventGroupActivitiesResponse {
+            eventGroupActivities += createInternalEventGroupActivity(activityDate)
+          }
+        )
+    }
+
+    val response =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listEventGroupActivities(request) }
+      }
+
+    verifyProtoArgument(
+        internalServiceMock,
+        EventGroupActivitiesCoroutineImplBase::listEventGroupActivities,
+      )
+      .isEqualTo(
+        internalListEventGroupActivitiesRequest {
+          externalMeasurementConsumerId = MEASUREMENT_CONSUMER_EXTERNAL_ID
+          externalEventGroupId = MC_EVENT_GROUP_EXTERNAL_ID
+          pageSize = DEFAULT_PAGE_SIZE
+        }
+      )
+
+    // Activities are DataProvider-owned, so an MC-rooted list returns DP-rooted activity names.
+    assertThat(response)
+      .isEqualTo(
+        listEventGroupActivitiesResponse {
+          eventGroupActivities += eventGroupActivity {
+            name = "$EVENT_GROUP_NAME/eventGroupActivities/2023-10-10"
+            date = activityDate
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `listEventGroupActivities forwards MeasurementConsumer scope for MC-rooted wildcard parent`() {
+    val request = listEventGroupActivitiesRequest {
+      parent = "$MEASUREMENT_CONSUMER_NAME/eventGroups/-"
+    }
+
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      runBlocking { service.listEventGroupActivities(request) }
+    }
+
+    verifyProtoArgument(
+        internalServiceMock,
+        EventGroupActivitiesCoroutineImplBase::listEventGroupActivities,
+      )
+      .isEqualTo(
+        internalListEventGroupActivitiesRequest {
+          externalMeasurementConsumerId = MEASUREMENT_CONSUMER_EXTERNAL_ID
+          pageSize = DEFAULT_PAGE_SIZE
+        }
+      )
+  }
+
+  @Test
+  fun `listEventGroupActivities throws PERMISSION_DENIED for MC-rooted parent with wrong principal`() {
+    val request = listEventGroupActivitiesRequest { parent = MC_EVENT_GROUP_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.listEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `listEventGroupActivities throws PERMISSION_DENIED for DP-rooted parent with MC principal`() {
+    val request = listEventGroupActivitiesRequest { parent = EVENT_GROUP_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.listEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `listEventGroupActivities throws INVALID_ARGUMENT when MeasurementConsumer is wildcard`() {
+    val request = listEventGroupActivitiesRequest {
+      parent = "measurementConsumers/-/eventGroups/AAAAAAAAAHs"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.listEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test

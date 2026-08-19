@@ -171,6 +171,18 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
   )
   private var pipelineWorkers: Int = 0
 
+  @CommandLine.Option(
+    names = ["--pipeline-read-concurrency"],
+    description =
+      [
+        "Maximum number of impression blobs read and DEK-decrypted concurrently. Bounds the " +
+          "outbound Cloud Storage and Cloud KMS fan-out so a work item cannot exhaust Cloud NAT " +
+          "ports or overwhelm KMS."
+      ],
+    defaultValue = "16",
+  )
+  private var pipelineReadConcurrency: Int = 16
+
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)
   }
@@ -219,6 +231,7 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
         channelCapacity = pipelineChannelCapacity,
         threadPoolSize = if (pipelineThreadPoolSize > 0) pipelineThreadPoolSize else cpuCount,
         workers = if (pipelineWorkers > 0) pipelineWorkers else cpuCount,
+        readConcurrency = pipelineReadConcurrency,
       )
     pipelineConfiguration.validate()
 
@@ -251,15 +264,22 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
       edpsConfig.eventDataProviderConfigList.map { edpConfig ->
         val kmsClient = buildKmsClient(edpConfig)
         val apiAwsKmsParams =
-          if (edpConfig.kmsConfig.kmsType == EventDataProviderConfig.KmsConfig.KmsType.AWS) {
-            awsKmsParams {
-              roleArn = edpConfig.kmsConfig.awsRoleArn
-              roleSession = edpConfig.kmsConfig.awsRoleSessionName
-              region = edpConfig.kmsConfig.awsRegion
-              audience = edpConfig.kmsConfig.awsAudience
-            }
-          } else {
-            null
+          when (edpConfig.kmsConfig.kmsType) {
+            EventDataProviderConfig.KmsConfig.KmsType.AWS ->
+              awsKmsParams {
+                roleArn = edpConfig.kmsConfig.awsRoleArn
+                roleSession = edpConfig.kmsConfig.awsRoleSessionName
+                region = edpConfig.kmsConfig.awsRegion
+                workloadIdentityIdTokenAudience = edpConfig.kmsConfig.awsAudience
+              }
+            EventDataProviderConfig.KmsConfig.KmsType.AWS_CONFIDENTIAL_SPACE ->
+              awsKmsParams {
+                roleArn = edpConfig.kmsConfig.awsRoleArn
+                roleSession = edpConfig.kmsConfig.awsRoleSessionName
+                region = edpConfig.kmsConfig.awsRegion
+                confidentialSpaceAttestationTokenAudience = edpConfig.kmsConfig.awsAudience
+              }
+            else -> null
           }
         Triple(
           edpConfig.dataProvider,

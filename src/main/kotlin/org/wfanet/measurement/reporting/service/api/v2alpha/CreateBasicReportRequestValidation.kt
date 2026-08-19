@@ -388,11 +388,6 @@ object CreateBasicReportRequestValidation {
       if (eventFilter.termsList.isEmpty()) {
         throw RequiredFieldNotSetException("$filterFieldPath.terms")
       }
-      if (eventFilter.termsList.size > 1) {
-        throw InvalidFieldValueException("$filterFieldPath.terms") { fieldName ->
-          "$fieldName can only have a size of 1"
-        }
-      }
 
       eventFilter.termsList.forEachIndexed { index, term ->
         val termFieldPath = "$filterFieldPath.terms[$index]"
@@ -873,11 +868,6 @@ object CreateBasicReportRequestValidation {
           val filterFieldPath = "$filterSpecFieldPath.filters[$filterIndex]"
           if (filter.termsList.isEmpty()) {
             throw RequiredFieldNotSetException("$filterFieldPath.terms")
-          }
-          if (filter.termsList.size > 1) {
-            throw InvalidFieldValueException("$filterFieldPath.terms") { fieldName ->
-              "$fieldName can only have a size of 1"
-            }
           }
 
           filter.termsList.forEachIndexed { termIndex, term ->

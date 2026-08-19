@@ -287,6 +287,8 @@ fun InternalNoiseMechanism.toNoiseMechanism(): NoiseMechanism {
     InternalNoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
     InternalNoiseMechanism.CONTINUOUS_LAPLACE -> NoiseMechanism.CONTINUOUS_LAPLACE
     InternalNoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
+    InternalNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE ->
+      NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
     InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
     InternalNoiseMechanism.UNRECOGNIZED -> error("invalid internal noise mechanism.")
   }
@@ -300,7 +302,8 @@ fun NoiseMechanism.toInternal(): InternalNoiseMechanism {
     NoiseMechanism.NONE -> InternalNoiseMechanism.NONE
     NoiseMechanism.CONTINUOUS_LAPLACE -> InternalNoiseMechanism.CONTINUOUS_LAPLACE
     NoiseMechanism.CONTINUOUS_GAUSSIAN -> InternalNoiseMechanism.CONTINUOUS_GAUSSIAN
-    NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+    NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE ->
+      InternalNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
     NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
     NoiseMechanism.UNRECOGNIZED -> error("invalid internal noise mechanism.")
   }

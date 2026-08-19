@@ -34,6 +34,14 @@ resource "google_pubsub_subscription" "subscription" {
     max_delivery_attempts = var.max_delivery_attempts
   }
 
+  # Without this, a nacked message is redelivered immediately, so a subscriber that
+  # nacks on a transient dependency failure exhausts max_delivery_attempts within
+  # seconds and dead-letters work that would have succeeded moments later.
+  retry_policy {
+    minimum_backoff = var.minimum_backoff
+    maximum_backoff = var.maximum_backoff
+  }
+
   enable_exactly_once_delivery = true
 
 }

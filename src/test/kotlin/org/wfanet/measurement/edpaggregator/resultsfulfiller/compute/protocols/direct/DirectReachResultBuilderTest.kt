@@ -84,6 +84,31 @@ class DirectReachResultBuilderTest {
       assertThat(result).isAtMost((rawImpressionCount + tolerance))
     }
 
+  @Test
+  fun `buildMeasurementResult is reproducible when noise mechanism is DETERMINISTIC_TRUNCATED_LAPLACE`() =
+    runBlocking {
+      val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
+
+      fun build() =
+        DirectReachResultBuilder(
+          directProtocolConfig = DIRECT_PROTOCOL,
+          reachPrivacyParams = REACH_PRIVACY_PARAMS,
+          samplingRate = SAMPLING_RATE,
+          directNoiseMechanism = DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+          frequencyData = frequencyData,
+          maxPopulation = null,
+          resultMinimumThresholds = null,
+        )
+
+      val first = build().buildMeasurementResult()
+      val second = build().buildMeasurementResult()
+
+      assertThat(first.reach.noiseMechanism)
+        .isEqualTo(NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
+      assertThat(second.reach.value).isEqualTo(first.reach.value)
+      assertThat(first.reach.value).isWithin(TRUNCATION_BOUND.toLong()).of(100L)
+    }
+
   companion object {
     private val MAX_FREQUENCY = 10
     private val REACH_PRIVACY_PARAMS = differentialPrivacyParams {
@@ -92,6 +117,9 @@ class DirectReachResultBuilderTest {
     }
 
     private val SAMPLING_RATE = 1.0f
+
+    /** ceil of the compiled unit-sensitivity bound, 6.7571. */
+    private const val TRUNCATION_BOUND = 7
 
     private val NOISE_MECHANISM = NoiseMechanism.CONTINUOUS_GAUSSIAN
 

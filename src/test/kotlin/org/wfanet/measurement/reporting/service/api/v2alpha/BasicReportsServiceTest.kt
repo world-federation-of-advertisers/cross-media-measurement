@@ -28,6 +28,7 @@ import com.google.type.dateTime
 import com.google.type.interval
 import com.google.type.timeZone
 import io.grpc.Status
+import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import java.nio.file.Paths
 import java.security.SecureRandom
@@ -50,6 +51,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.mockito.kotlin.wheneverBlocking
@@ -141,6 +143,7 @@ import org.wfanet.measurement.internal.reporting.v2.dataProviderKey
 import org.wfanet.measurement.internal.reporting.v2.dimensionSpec as internalDimensionSpec
 import org.wfanet.measurement.internal.reporting.v2.eventFilter as internalEventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField as internalEventTemplateField
+import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest as internalFailBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilter as internalImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilterSpec as internalImpressionQualificationFilterSpec
@@ -1133,8 +1136,10 @@ class BasicReportsServiceTest {
         requestId = UUID.randomUUID().toString()
       }
 
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      val createdBasicReport =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      val repeatedBasicReport =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
 
       val response =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
@@ -1144,7 +1149,76 @@ class BasicReportsServiceTest {
         }
 
       assertThat(response.basicReportsList).hasSize(1)
+      assertThat(repeatedBasicReport.name).isEqualTo(createdBasicReport.name)
+      // The repeated request does not create a second Report.
+      verify(reportsServiceMock, times(1)).createReport(any())
     }
+
+  @Test
+  fun `createBasicReport throws ABORTED when request id is repeated after BasicReport failed`():
+    Unit = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = internalReportingSet {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+          externalCampaignGroupId = campaignGroupKey.reportingSetId
+          displayName = "displayName"
+          primitive =
+            ReportingSetKt.primitive {
+              eventGroupKeys +=
+                ReportingSetKt.PrimitiveKt.eventGroupKey {
+                  cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                  cmmsEventGroupId = "1235"
+                }
+            }
+        }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport = BASIC_REPORT.copy { this.campaignGroup = campaignGroupKey.toName() }
+      basicReportId = "a1234"
+      requestId = UUID.randomUUID().toString()
+    }
+
+    withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+    internalBasicReportsService.failBasicReport(
+      internalFailBasicReportRequest {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        externalBasicReportId = request.basicReportId
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+    // No second Report is created for the failed BasicReport.
+    verify(reportsServiceMock, times(1)).createReport(any())
+
+    val retrievedBasicReport =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        service.getBasicReport(
+          getBasicReportRequest {
+            name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
+          }
+        )
+      }
+    assertThat(retrievedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
+  }
 
   @Test
   fun `createBasicReport does not overwrite report_start when default exists`(): Unit =
@@ -3280,7 +3354,7 @@ class BasicReportsServiceTest {
     }
 
   @Test
-  fun `createBasicReport uses no line when model line not set and zero valid lines exist`(): Unit =
+  fun `createBasicReport throws FAILED_PRECONDITION when no valid model lines exist`(): Unit =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
@@ -3340,13 +3414,21 @@ class BasicReportsServiceTest {
         basicReportId = "a1234"
       }
 
-      val response =
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-      assertThat(response.modelLine).isEmpty()
-      assertThat(response.effectiveModelLine).isEmpty()
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
 
-      // Verify kingdomModelLinesStub.enumerateValidModelLines was called
-      // Verify kingdomModelLinesStub.enumerateValidModelLines was called
+      assertThat(exception).status().code().isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception)
+        .errorInfo()
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.NO_ACTIVE_MODEL_LINE.name
+          }
+        )
+
       verifyProtoArgument(
           modelLinesServiceMock,
           ModelLinesCoroutineImplBase::enumerateValidModelLines,
@@ -3362,22 +3444,31 @@ class BasicReportsServiceTest {
           }
         )
 
-      val listMetricCalculationSpecsRequest = listMetricCalculationSpecsRequest {
-        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        filter =
-          ListMetricCalculationSpecsRequestKt.filter {
-            externalCampaignGroupId = campaignGroupKey.reportingSetId
-          }
-        limit = 50
-      }
+      val internalException =
+        assertFailsWith<StatusException> {
+          internalBasicReportsService.getBasicReport(
+            internalGetBasicReportRequest {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalBasicReportId = request.basicReportId
+            }
+          )
+        }
+      assertThat(internalException).status().code().isEqualTo(Status.Code.NOT_FOUND)
 
-      val createdMetricCalculationSpecs =
-        internalMetricCalculationSpecsService
-          .listMetricCalculationSpecs(listMetricCalculationSpecsRequest)
-          .metricCalculationSpecsList
-
-      assertThat(createdMetricCalculationSpecs.map { it.cmmsModelLine }.distinct())
-        .containsExactly("")
+      val reportingSets =
+        internalReportingSetsService
+          .streamReportingSets(
+            streamReportingSetsRequest {
+              filter =
+                StreamReportingSetsRequestKt.filter {
+                  cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+                  externalCampaignGroupId = campaignGroupKey.reportingSetId
+                }
+            }
+          )
+          .toList()
+      assertThat(reportingSets.map { it.externalReportingSetId })
+        .containsExactly(campaignGroupKey.reportingSetId)
     }
 
   @Test
@@ -7145,7 +7236,7 @@ class BasicReportsServiceTest {
     }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when dimension spec filter 2 terms`() =
+  fun `createBasicReport returns basic report when dimension spec filter has multiple terms`() =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
@@ -7176,14 +7267,17 @@ class BasicReportsServiceTest {
               resultGroupSpecs[0].copy {
                 dimensionSpec =
                   BASIC_REPORT.resultGroupSpecsList[0].dimensionSpec.copy {
-                    filters += eventFilter {
+                    // Replaces the single-term `person.age_group` filter with a two-term
+                    // disjunction, retaining the sibling `person.gender` filter so that the
+                    // dimension spec is a conjunction of filters where one is a disjunction.
+                    filters[0] = eventFilter {
                       terms += eventTemplateField {
                         path = "person.age_group"
-                        value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_TO_18_TO_34" }
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                       }
                       terms += eventTemplateField {
-                        path = "person.gender"
-                        value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+                        path = "person.age_group"
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_35_TO_54" }
                       }
                     }
                   }
@@ -7191,22 +7285,23 @@ class BasicReportsServiceTest {
           }
         basicReportId = "a1234"
       }
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-        }
 
-      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception)
-        .errorInfo()
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs[0].dimension_spec.filters[2].terms"
-          }
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+      assertThat(response.createTime.seconds).isAtLeast(1)
+      assertThat(response.resultGroupSpecsList[0].dimensionSpec.filtersList[0].termsList)
+        .containsExactly(
+          eventTemplateField {
+            path = "person.age_group"
+            value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+          },
+          eventTemplateField {
+            path = "person.age_group"
+            value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_35_TO_54" }
+          },
         )
+        .inOrder()
     }
 
   @Test
@@ -8136,7 +8231,7 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when custom IQF filter 2 terms`() = runBlocking {
+  fun `createBasicReport returns basic report when custom IQF filter has 2 terms`() = runBlocking {
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
@@ -8184,22 +8279,21 @@ class BasicReportsServiceTest {
         }
       basicReportId = "a1234"
     }
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-      }
 
-    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception)
-      .errorInfo()
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] =
-            "basic_report.impression_qualification_filters[0].custom.filter_specs[0].filters[0].terms"
-        }
+    val response = withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+    assertThat(response.createTime.seconds).isAtLeast(1)
+    assertThat(
+        response.impressionQualificationFiltersList
+          .single()
+          .custom
+          .filterSpecList
+          .single()
+          .filtersList
+          .single()
+          .termsList
       )
+      .hasSize(2)
   }
 
   @Test

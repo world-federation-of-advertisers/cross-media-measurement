@@ -23,7 +23,6 @@ import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.HistogramComputations
@@ -69,12 +68,7 @@ class DirectReachResultBuilder(
 
     val reachValue = getReachValue(histogram)
 
-    val protocolConfigNoiseMechanism =
-      when (directNoiseMechanism) {
-        DirectNoiseMechanism.NONE -> NoiseMechanism.NONE
-        DirectNoiseMechanism.CONTINUOUS_LAPLACE -> NoiseMechanism.CONTINUOUS_LAPLACE
-        DirectNoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
-      }
+    val protocolConfigNoiseMechanism = directNoiseMechanism.toProtocolConfigNoiseMechanism()
 
     return MeasurementKt.result {
       reach = reach {
@@ -86,22 +80,24 @@ class DirectReachResultBuilder(
   }
 
   private fun getReachValue(histogram: LongArray): Long {
+    if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
+      logger.info("Adding $directNoiseMechanism publisher noise to direct reach...")
+    }
     val reachDpParams =
-      if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
-        logger.info("Adding $directNoiseMechanism publisher noise to direct reach...")
-        require(directNoiseMechanism == DirectNoiseMechanism.CONTINUOUS_GAUSSIAN) {
-          "Only Continuous Gaussian is supported for dp noise"
-        }
-        DifferentialPrivacyParams(
-          epsilon = reachPrivacyParams.epsilon,
-          delta = reachPrivacyParams.delta,
-        )
-      } else {
-        null
-      }
+      DifferentialPrivacyParams(
+        epsilon = reachPrivacyParams.epsilon,
+        delta = reachPrivacyParams.delta,
+      )
     return ReachAndFrequencyComputations.computeReach(
       rawHistogram = histogram,
-      dpParams = reachDpParams,
+      noiser =
+        buildDirectResultNoiser(
+          directNoiseMechanism = directNoiseMechanism,
+          frequencyData = frequencyData,
+          reachDpParams = reachDpParams,
+          frequencyDpParams = reachDpParams,
+          maxFrequencyPerUser = resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1,
+        ),
       vidSamplingIntervalWidth = samplingRate.toDouble(),
       vectorSize = maxPopulation,
       resultMinimumThresholds = resultMinimumThresholds,
