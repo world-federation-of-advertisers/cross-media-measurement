@@ -233,7 +233,7 @@ abstract class InProcessMultiEdpReportIntegrationTest(
                 }
                 metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
                 dimensionSpec = dimensionSpec {
-                  grouping = DimensionSpecKt.grouping { eventTemplateFields += "common.us_state" }
+                  grouping = DimensionSpecKt.grouping { eventTemplateFields += "common.gender" }
                   filters += eventFilter {
                     terms += eventTemplateField {
                       path = "common.age_group"
@@ -294,7 +294,7 @@ abstract class InProcessMultiEdpReportIntegrationTest(
                 }
                 metricFrequency = metricFrequencySpec { total = true }
                 dimensionSpec = dimensionSpec {
-                  grouping = DimensionSpecKt.grouping { eventTemplateFields += "common.us_state" }
+                  grouping = DimensionSpecKt.grouping { eventTemplateFields += "common.gender" }
                   filters += eventFilter {
                     terms += eventTemplateField {
                       path = "common.age_group"
@@ -596,7 +596,7 @@ abstract class InProcessMultiEdpReportIntegrationTest(
                 }
                 metricFrequency = metricFrequencySpec { total = true }
                 dimensionSpec = dimensionSpec {
-                  grouping = DimensionSpecKt.grouping { eventTemplateFields += "common.us_state" }
+                  grouping = DimensionSpecKt.grouping { eventTemplateFields += "common.gender" }
                   filters += eventFilter {
                     terms += eventTemplateField {
                       path = "common.age_group"
