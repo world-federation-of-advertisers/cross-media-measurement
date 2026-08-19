@@ -304,7 +304,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_message_descriptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/service:impression_qualification_filters_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:impression_qualification_filter_mapping",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/v1:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/reporting:impression_qualification_filter_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:impression_qualification_filter_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:impression_qualification_filters_service_kt_jvm_grpc_proto",

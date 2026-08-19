@@ -41,6 +41,8 @@ message Display {
   //
   // Not `GROUPABLE`: the reporting server supports grouping over enum-valued
   // fields alone.
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4370): Restore `GROUPABLE` and
+  // `grouping_spec` once threshold grouping is supported.
   float viewable_fraction = 1 [(.wfa.measurement.api.v2alpha.template_field) = {
     display_name: "Viewable Fraction"
     description: "Fraction of the ad's pixels on screen for at least 1 "

@@ -141,6 +141,8 @@ message Common {
   //
   // Only `FILTERABLE` because the reporting server currently supports grouping
   // over enum-valued fields alone.
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4370): Consider `GROUPABLE` once
+  // boolean grouping is supported.
   bool signed_in = 4 [(.wfa.measurement.api.v2alpha.template_field) = {
     display_name: "Signed In"
     population_attribute: false

@@ -2010,17 +2010,12 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
         }
       }
       impressionQualificationFilters += reportingImpressionQualificationFilter {
+        // TODO(world-federation-of-advertisers/cross-media-measurement#4370): Add a term once
+        // threshold comparisons are supported. Every IMPRESSION_QUALIFICATION field on the
+        // event message is a fraction, and filter terms render as `==`.
         custom =
           ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-            filterSpec += impressionQualificationFilterSpec {
-              mediaType = MediaType.DISPLAY
-              filters += eventFilter {
-                terms += eventTemplateField {
-                  path = "display.viewable_fraction"
-                  value = EventTemplateFieldKt.fieldValue { floatValue = 1.0f }
-                }
-              }
-            }
+            filterSpec += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
           }
       }
       resultGroupSpecs += resultGroupSpec {

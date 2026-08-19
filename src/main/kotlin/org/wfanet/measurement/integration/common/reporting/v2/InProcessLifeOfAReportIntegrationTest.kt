@@ -96,7 +96,6 @@ import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsC
 import org.wfanet.measurement.reporting.v2alpha.CreateBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.Metric
@@ -112,8 +111,6 @@ import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineSt
 import org.wfanet.measurement.reporting.v2alpha.basicReport
 import org.wfanet.measurement.reporting.v2alpha.createBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
-import org.wfanet.measurement.reporting.v2alpha.eventFilter
-import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.getMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
@@ -603,17 +600,12 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         }
       }
       impressionQualificationFilters += reportingImpressionQualificationFilter {
+        // TODO(world-federation-of-advertisers/cross-media-measurement#4370): Add a term once
+        // threshold comparisons are supported. Every IMPRESSION_QUALIFICATION field on the
+        // event message is a fraction, and filter terms render as `==`.
         custom =
           ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-            filterSpec += impressionQualificationFilterSpec {
-              mediaType = MediaType.DISPLAY
-              filters += eventFilter {
-                terms += eventTemplateField {
-                  path = "display.viewable_fraction"
-                  value = EventTemplateFieldKt.fieldValue { floatValue = 1.0f }
-                }
-              }
-            }
+            filterSpec += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
           }
       }
     }
