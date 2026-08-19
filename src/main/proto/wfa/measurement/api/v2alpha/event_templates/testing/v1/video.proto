@@ -51,8 +51,9 @@ message Video {
   //
   // Not `GROUPABLE`: the reporting server supports grouping over enum-valued
   // fields alone.
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4370): Restore `GROUPABLE` and
-  // `grouping_spec` once threshold grouping is supported.
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4370):
+  // Restore `GROUPABLE` and `grouping_spec` once threshold grouping is
+  // supported.
   float completed_fraction = 2
       [(.wfa.measurement.api.v2alpha.template_field) = {
         display_name: "Completed Fraction"
@@ -68,8 +69,9 @@ message Video {
   //
   // Not `GROUPABLE`: the reporting server supports grouping over enum-valued
   // fields alone.
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4370): Restore `GROUPABLE` and
-  // `grouping_spec` once threshold grouping is supported.
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4370):
+  // Restore `GROUPABLE` and `grouping_spec` once threshold grouping is
+  // supported.
   float viewable_fraction = 3 [(.wfa.measurement.api.v2alpha.template_field) = {
     display_name: "Viewable Fraction"
     description: "Fraction of the ad's pixels on screen for at least 2 "
