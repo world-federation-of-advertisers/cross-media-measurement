@@ -390,6 +390,12 @@ class VidLabelingDispatchSequencer(
       "model_storage_params missing for memoized model line ${modelLine.cmmsModelLine}; " +
         "set it on VidLabelingConfig for this DataProvider"
     }
+    // The bin-packing cap is REQUIRED on `SubpoolAssignerParams`, so an unset one fails here
+    // rather than inside the TEE at the Phase-0 last-shard-out.
+    require(subpoolAssignerParamsTemplate.maxFileBatchSizeBytes > 0) {
+      "max_file_batch_size_bytes missing for memoized model line ${modelLine.cmmsModelLine}; " +
+        "set it on VidLabelingConfig for this DataProvider"
+    }
     val modelLineConfig =
       requireNotNull(modelLineConfigs[modelLine.cmmsModelLine]) {
         "No ModelLineConfig found for model line: ${modelLine.cmmsModelLine}"
