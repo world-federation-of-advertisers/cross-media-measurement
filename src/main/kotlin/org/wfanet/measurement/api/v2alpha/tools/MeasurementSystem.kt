@@ -270,6 +270,14 @@ private class Accounts {
     AccountsCoroutineStub(parentCommand.kingdomChannel)
   }
 
+  companion object {
+    init {
+      // Register the JWT key parsers before any keyset is read, so keys are parsed as JWT key
+      // types rather than LegacyProtoKey.
+      JwtSignatureConfig.register()
+    }
+  }
+
   @Command
   fun authenticate(
     @Option(
@@ -286,9 +294,6 @@ private class Accounts {
       }
 
     // TODO(@SanjayVas): Use a util from common.crypto rather than directly interacting with Tink.
-    // Tink 1.23 parses key types as LegacyProtoKey unless their parser is registered before
-    // the keyset is read, which later breaks JwtPublicKeyVerify. Register JWT first.
-    JwtSignatureConfig.register()
     val keysetHandle: KeysetHandle =
       siopKey.inputStream().use { input ->
         CleartextKeysetHandle.read(BinaryKeysetReader.withInputStream(input))
