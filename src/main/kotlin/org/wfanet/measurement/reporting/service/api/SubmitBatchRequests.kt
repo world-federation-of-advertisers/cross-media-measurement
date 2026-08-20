@@ -52,13 +52,19 @@ fun <T> Flow<T>.chunked(chunkSize: Int): Flow<List<T>> {
 /**
  * Submits multiple RPCs by dividing the input items to batches.
  *
+ * @param concurrency the number of batch requests that may be in flight at once. There is no
+ *   universally-safe default: appropriate values depend on how much concurrent load the downstream
+ *   service can tolerate, so callers must specify one explicitly. Most callers in this codebase
+ *   pass 3, matching this batching mechanism's original hardcoded behavior; Kingdom measurement
+ *   creation passes a higher value (8 by default, via the --kingdom-measurement-batch-concurrency
+ *   flag) because it has been observed to tolerate more concurrent load.
  * @return [Flow] that emits [List]s containing the results of the multiple RPCs.
  */
 suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
   items: Flow<ITEM>,
   limit: Int,
   callRpc: suspend (List<ITEM>) -> RESP,
-  concurrency: Int = 3,
+  concurrency: Int,
   parseResponse: (RESP) -> List<RESULT>,
 ): Flow<List<RESULT>> {
   if (limit <= 0) {
@@ -68,9 +74,8 @@ suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
     )
   }
 
-  // For network requests, the number of concurrent coroutines needs to be capped. The default of
-  // 3 is conservative; callers dispatching to services known to tolerate more concurrency (e.g.
-  // Kingdom measurement creation) may pass a higher value.
+  // For network requests, the number of concurrent coroutines needs to be capped; see the
+  // `concurrency` parameter doc for how callers choose a value.
   val batchSemaphore = Semaphore(concurrency)
   return flow {
     coroutineScope {

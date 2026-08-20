@@ -678,6 +678,7 @@ class ReportSchedulesService(
             externalReportingSetIdSet.asFlow(),
             BATCH_GET_REPORTING_SETS_LIMIT,
             callRpc,
+            concurrency = 3,
           ) { response ->
             externalReportingSetIdSet.clear()
             response.reportingSetsList

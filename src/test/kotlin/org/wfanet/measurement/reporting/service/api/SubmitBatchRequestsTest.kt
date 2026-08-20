@@ -92,6 +92,7 @@ class SubmitBatchRequestsTest {
             items,
             BATCH_GET_REPORTING_SETS_LIMIT,
             ::batchGetReportingSets,
+            concurrency = 3,
             parseResponse = parseResponse,
           )
           .toList()
@@ -125,6 +126,7 @@ class SubmitBatchRequestsTest {
             items,
             BATCH_GET_REPORTING_SETS_LIMIT,
             ::batchGetReportingSets,
+            concurrency = 3,
             parseResponse = parseResponse,
           )
           .toList()
@@ -158,21 +160,22 @@ class SubmitBatchRequestsTest {
   }
 
   @Test
-  fun `submitBatchRequests defaults concurrency to 3 when not specified`() = runBlocking {
-    val activeCalls = AtomicInteger(0)
-    val maxObservedConcurrency = AtomicInteger(0)
-    val callRpc: suspend (List<Int>) -> List<Int> = { batch ->
-      val current = activeCalls.incrementAndGet()
-      maxObservedConcurrency.updateAndGet { previous -> maxOf(previous, current) }
-      delay(50)
-      activeCalls.decrementAndGet()
-      batch
+  fun `submitBatchRequests limits concurrent calls to 3 when concurrency is explicitly 3`() =
+    runBlocking {
+      val activeCalls = AtomicInteger(0)
+      val maxObservedConcurrency = AtomicInteger(0)
+      val callRpc: suspend (List<Int>) -> List<Int> = { batch ->
+        val current = activeCalls.incrementAndGet()
+        maxObservedConcurrency.updateAndGet { previous -> maxOf(previous, current) }
+        delay(50)
+        activeCalls.decrementAndGet()
+        batch
+      }
+
+      submitBatchRequests((1..10).asFlow(), 1, callRpc, concurrency = 3) { it }.toList()
+
+      assertThatValue(maxObservedConcurrency.get()).isEqualTo(3)
     }
-
-    submitBatchRequests((1..10).asFlow(), 1, callRpc) { it }.toList()
-
-    assertThatValue(maxObservedConcurrency.get()).isEqualTo(3)
-  }
 
   @Test
   fun `submitBatchRequests returns empty list when the number of requests is 0`() = runBlocking {
@@ -185,6 +188,7 @@ class SubmitBatchRequestsTest {
           emptyFlow(),
           BATCH_GET_REPORTING_SETS_LIMIT,
           ::batchGetReportingSets,
+          concurrency = 3,
           parseResponse = parseResponse,
         )
         .toList()

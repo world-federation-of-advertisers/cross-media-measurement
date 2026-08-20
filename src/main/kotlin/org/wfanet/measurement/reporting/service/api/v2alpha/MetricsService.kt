@@ -263,7 +263,7 @@ class MetricsService(
   keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
   cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
-  kingdomMeasurementBatchConcurrency: Int = 8,
+  kingdomMeasurementBatchConcurrency: Int,
 ) : MetricsCoroutineImplBase(coroutineContext) {
   private data class DataProviderInfo(
     val dataProviderName: String,
@@ -305,7 +305,7 @@ class MetricsService(
     private val keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
     cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
     private val populationDataProvider: String,
-    private val kingdomMeasurementBatchConcurrency: Int = 8,
+    private val kingdomMeasurementBatchConcurrency: Int,
   ) {
     data class RunningMetric(
       val internalMetric: InternalMetric,
@@ -422,6 +422,7 @@ class MetricsService(
           },
           BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT,
           callBatchSetCmmsMeasurementIdsRpc,
+          concurrency = 3,
         ) { _: Unit ->
           emptyList<Unit>()
         }
@@ -925,6 +926,7 @@ class MetricsService(
             succeededMeasurements,
             BATCH_SET_MEASUREMENT_RESULTS_LIMIT,
             callBatchSetInternalMeasurementResultsRpc,
+            concurrency = 3,
           ) { _: Unit ->
             emptyList<Unit>()
           }
@@ -946,6 +948,7 @@ class MetricsService(
             failedMeasurements.asFlow(),
             BATCH_SET_MEASUREMENT_FAILURES_LIMIT,
             callBatchSetInternalMeasurementFailuresRpc,
+            concurrency = 3,
           ) { _: Unit ->
             emptyList<Unit>()
           }
@@ -1046,6 +1049,7 @@ class MetricsService(
         measurementNames,
         BATCH_KINGDOM_MEASUREMENTS_LIMIT,
         callBatchGetMeasurementsRpc,
+        concurrency = 3,
       ) { response: BatchGetMeasurementsResponse ->
         response.measurementsList
       }
@@ -1626,8 +1630,12 @@ class MetricsService(
     }
 
     val reportingSetNameToInternalReportingSetMap: Map<String, InternalReportingSet> = buildMap {
-      submitBatchRequests(reportingSetNames.asFlow(), BATCH_GET_REPORTING_SETS_LIMIT, callRpc) {
-          response ->
+      submitBatchRequests(
+          reportingSetNames.asFlow(),
+          BATCH_GET_REPORTING_SETS_LIMIT,
+          callRpc,
+          concurrency = 3,
+        ) { response ->
           response.reportingSetsList
         }
         .collect { reportingSetsList ->
@@ -1851,6 +1859,7 @@ class MetricsService(
           externalPrimitiveReportingSetIds,
           BATCH_GET_REPORTING_SETS_LIMIT,
           callBatchGetInternalReportingSetsRpc,
+          concurrency = 3,
         ) { response: BatchGetReportingSetsResponse ->
           response.reportingSetsList
         }

@@ -145,6 +145,7 @@ private fun run(
         keyReaderContext = Dispatchers.IO,
         cacheLoaderContext = Dispatchers.Default,
         populationDataProvider = reportingApiServerFlags.populationDataProvider,
+        kingdomMeasurementBatchConcurrency = 3,
       )
       .withTrustedPrincipalAuthentication()
 
