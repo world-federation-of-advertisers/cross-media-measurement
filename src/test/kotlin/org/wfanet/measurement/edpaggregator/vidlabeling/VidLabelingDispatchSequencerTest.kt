@@ -1101,10 +1101,6 @@ class VidLabelingDispatchSequencerTest {
           gcsProjectId = "test-project"
           impressionsBlobPrefix = "gs://vid-labeled-bucket"
         }
-      vidRepoConnection = transportLayerSecurityParams {
-        clientCertResourcePath = "cert"
-        clientPrivateKeyResourcePath = "key"
-      }
     }
 
     private val SUBPOOL_ASSIGNER_PARAMS_TEMPLATE: SubpoolAssignerParams = subpoolAssignerParams {

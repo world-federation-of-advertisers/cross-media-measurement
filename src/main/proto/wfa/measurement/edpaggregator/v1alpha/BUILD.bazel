@@ -105,7 +105,6 @@ proto_library(
     deps = [
         ":labeled_impression_proto",
         ":labeler_input_field_mapping_proto",
-        ":transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:timestamp_proto",
