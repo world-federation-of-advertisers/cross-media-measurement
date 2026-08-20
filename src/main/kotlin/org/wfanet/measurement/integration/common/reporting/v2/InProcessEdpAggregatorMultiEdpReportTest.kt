@@ -644,16 +644,16 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
       // (for that bucket alone). Report window is ~4 days -> two weekly buckets on Monday
       // cadence.
       //
-      // Whole-report cumulative reach / impressions == deterministic cross-publisher totals
-      // ( /  pinned in
-      //  by the synthetic-data setup; reused by other
-      // no-noise assertions in this file).
+      // The expected cross-publisher totals are pinned by the synthetic-data setup and reused by
+      // other no-noise assertions in this file.
       val resultGroup = completedBasicReport.resultGroupsList.single()
-      val weeklyResults =
-        resultGroup.resultsList.filter {
-          it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.WEEKLY
-        }
-      assertWithMessage("weekly results").that(weeklyResults).isNotEmpty()
+      val weeklyResults = resultGroup.resultsList
+      assertWithMessage("weekly results").that(weeklyResults).hasSize(2)
+      weeklyResults.forEach { result ->
+        assertWithMessage("result uses weekly cadence")
+          .that(result.metadata.metricFrequency.selectorCase)
+          .isEqualTo(MetricFrequencySpec.SelectorCase.WEEKLY)
+      }
 
       val wholeReportEntry = weeklyResults.maxBy { it.metadata.metricEndTime.seconds }
       val wholeReportCumulative = wholeReportEntry.metricSet.reportingUnit.cumulative
@@ -691,8 +691,7 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
           .that(cum.reach)
           .isAtLeast(nc.reach)
       }
-      // Union cumulative reach is monotonically non-decreasing across increasing
-      // s.
+      // Union cumulative reach is monotonically non-decreasing by metric end time.
       val cumulativeReachesByEndTime =
         weeklyResults
           .sortedBy { it.metadata.metricEndTime.seconds }
@@ -701,9 +700,8 @@ abstract class InProcessEdpAggregatorMultiEdpReportTest(
         .that(cumulativeReachesByEndTime.zipWithNext { a, b -> b >= a }.all { it })
         .isTrue()
 
-      // Union-only-request assertion: this request has NO component.* spec, so no result entry
-      // should carry per-EDP components. Under the pre-fix bug, per-EDP subset enumeration
-      // over-triggered and populated componentsList even when the caller did not request it.
+      // This also verifies that the request remained union-only: no result entry should carry
+      // per-EDP components when the spec omits component.*.
       weeklyResults.forEach { r ->
         assertWithMessage("componentsList empty for union-only request")
           .that(r.metricSet.componentsList)
