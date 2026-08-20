@@ -243,6 +243,10 @@ maven.artifact(
 )
 maven.install(
     artifacts = [
+        # tink-awskms 2.0.0 rewrites AwsKmsClient on AWS SDK v2, changing default credential/
+        # region resolution for callers that construct it with no explicit config (see panelmatch's
+        # CustomStorageFlags.kt, AddAllResources.kt, AwsExampleDaemon.kt). See commit message for
+        # BREAKING-CHANGE detail.
         "com.google.crypto.tink:tink-awskms:2.0.0",
         "com.google.crypto.tink:tink-gcpkms:1.11.0",
         "com.squareup.okhttp3:okhttp",
