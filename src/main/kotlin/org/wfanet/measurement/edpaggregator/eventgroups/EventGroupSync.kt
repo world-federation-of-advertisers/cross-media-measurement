@@ -1407,6 +1407,11 @@ class EventGroupSync(
       ) {
         "Either Event Group Reference Id or Entity Key with entity ID must be set"
       }
+      if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
+        check(eventGroup.entityKey.entityType.isNotBlank()) {
+          "EventGroup.entity_key.entity_type must be non-blank when entity_id is set"
+        }
+      }
       if (eventGroup.measurementConsumer.isNotBlank()) {
         val mcKey = MeasurementConsumerKey.fromName(eventGroup.measurementConsumer)
         check(mcKey != null && mcKey.measurementConsumerId.isNotBlank()) {

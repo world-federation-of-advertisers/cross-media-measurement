@@ -323,13 +323,13 @@ class EventGroupSyncFunction() : HttpFunction {
       val privateKeyFile = File(cmmsConnection.privateKeyFilePath)
       val trustedCertCollectionFile = File(cmmsConnection.certCollectionFilePath)
       require(certificateFile.isFile) {
-        "cmms_connection.cert_file_path must point to an existing file"
+        "cmms_connection.cert_file_path must point to an existing file: ${certificateFile.path}"
       }
       require(privateKeyFile.isFile) {
-        "cmms_connection.private_key_file_path must point to an existing file"
+        "cmms_connection.private_key_file_path must point to an existing file: ${privateKeyFile.path}"
       }
       require(trustedCertCollectionFile.isFile) {
-        "cmms_connection.cert_collection_file_path must point to an existing file"
+        "cmms_connection.cert_collection_file_path must point to an existing file: ${trustedCertCollectionFile.path}"
       }
       val signingCerts =
         SigningCerts.fromPemFiles(
