@@ -1,0 +1,107 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "UpdateMatrixImplTest",
+    srcs = ["UpdateMatrixImplTest.kt"],
+    test_class = "org.wfanet.virtualpeople.core.model.UpdateMatrixImplTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "UpdateTreeImplTest",
+    srcs = ["UpdateTreeImplTest.kt"],
+    test_class = "org.wfanet.virtualpeople.core.model.UpdateTreeImplTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "SparseUpdateMatrixImplTest",
+    srcs = ["SparseUpdateMatrixImplTest.kt"],
+    test_class = "org.wfanet.virtualpeople.core.model.SparseUpdateMatrixImplTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "ConditionalAssignmentImplTest",
+    srcs = ["ConditionalAssignmentImplTest.kt"],
+    test_class = "org.wfanet.virtualpeople.core.model.ConditionalAssignmentImplTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:demographic_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_test(
+    name = "ConditionalMergeImplTest",
+    srcs = ["ConditionalMergeImplTest.kt"],
+    test_class = "org.wfanet.virtualpeople.core.model.ConditionalMergeImplTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "MultiplicityImplTest",
+    srcs = ["MultiplicityImplTest.kt"],
+    test_class = "org.wfanet.virtualpeople.core.model.MultiplicityImplTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "PopulationNodeImplTest",
+    srcs = ["PopulationNodeImplTest.kt"],
+    test_class = "org.wfanet.virtualpeople.core.model.PopulationNodeImplTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "BranchNodeImplTest",
+    srcs = ["BranchNodeImplTest.kt"],
+    test_class = "org.wfanet.virtualpeople.core.model.BranchNodeImplTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "GeometricShredderImplTest",
+    srcs = ["GeometricShredderImplTest.kt"],
+    test_class = "org.wfanet.virtualpeople.core.model.GeometricShredderImplTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/virtualpeople/core/model:model_node",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

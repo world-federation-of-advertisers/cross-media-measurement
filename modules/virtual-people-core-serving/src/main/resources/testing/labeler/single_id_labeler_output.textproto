@@ -1,0 +1,13 @@
+# labeler output of single_id_model
+people {
+  virtual_person_id: 10000
+  label {
+    demo {
+      gender: GENDER_MALE
+      age {
+        min_age: 18
+        max_age: 24
+      }
+    }
+  }
+}

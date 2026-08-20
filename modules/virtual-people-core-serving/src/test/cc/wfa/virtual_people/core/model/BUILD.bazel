@@ -1,0 +1,167 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
+package(default_visibility = ["//visibility:private"])
+
+cc_test(
+    name = "ranked_population_node_impl_test",
+    srcs = ["ranked_population_node_impl_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/virtual_people/core/model:model_node",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_cc_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:label_cc_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "population_node_impl_test",
+    srcs = ["population_node_impl_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/virtual_people/core/model:model_node",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:common_matchers",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:label_cc_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "branch_node_impl_test",
+    srcs = ["branch_node_impl_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/virtual_people/core/model:model_node",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:label_cc_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "update_matrix_impl_test",
+    srcs = ["update_matrix_impl_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/virtual_people/core/model:model_node",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "update_tree_impl_test",
+    srcs = ["update_tree_impl_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/virtual_people/core/model:model_node",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "sparse_update_matrix_impl_test",
+    srcs = ["sparse_update_matrix_impl_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/virtual_people/core/model:model_node",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "conditional_merge_impl_test",
+    srcs = ["conditional_merge_impl_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/virtual_people/core/model:model_node",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "conditional_assignment_impl_test",
+    srcs = ["conditional_assignment_impl_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/virtual_people/core/model:model_node",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:common_matchers",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:demographic_cc_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "geometric_shredder_impl_test",
+    srcs = ["geometric_shredder_impl_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/virtual_people/core/model:model_node",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:common_matchers",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:demographic_cc_proto",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "multiplicity_impl_test",
+    srcs = ["multiplicity_impl_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/virtual_people/core/model:model_node",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "model_serializer_test",
+    srcs = ["model_serializer_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/virtual_people/core/model:model_serializer",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:common_matchers",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:model_cc_proto",
+    ],
+)

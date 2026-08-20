@@ -1,0 +1,22 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
+package(default_visibility = ["//visibility:private"])
+
+cc_test(
+    name = "vid_model_selector_test",
+    srcs = ["vid_model_selector_test.cc"],
+    data = [
+        "//src/main/resources/testing/selector:selector_test_data",
+    ],
+    deps = [
+        "//src/main/cc/wfa/virtual_people/core/selector:vid_model_selector",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
+        "@wfa_common_cpp//src/main/cc/common_cpp/protobuf_util:textproto_io",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:common_matchers",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+        "@wfa_virtual_people_common//src/main/proto/wfa/virtual_people/common:event_cc_proto",
+    ],
+)

@@ -84,8 +84,12 @@ bazel_dep(
 )
 bazel_dep(
     name = "virtual-people-core-serving",
-    version = "0.4.0",
+    version = "0.0.0",
     repo_name = "wfa_virtual_people_core_serving",
+)
+local_path_override(
+    module_name = "virtual-people-core-serving",
+    path = "modules/virtual-people-core-serving",
 )
 bazel_dep(
     name = "grpc_ecosystem_grpc_gateway",

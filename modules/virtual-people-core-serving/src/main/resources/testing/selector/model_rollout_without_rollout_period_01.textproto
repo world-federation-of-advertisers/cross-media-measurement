@@ -1,0 +1,10 @@
+name: "modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelLines/AAAAAAAAAHs/modelRollouts/rollout_without_rollout_period_01"
+
+instant_rollout_date: {
+  year: 2012
+  month: 10
+  day: 12
+}
+
+model_release: "modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelReleases/rollout_without_rollout_period_01"
+
