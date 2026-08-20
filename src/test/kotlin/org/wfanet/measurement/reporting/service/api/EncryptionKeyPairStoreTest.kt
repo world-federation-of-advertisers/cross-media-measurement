@@ -17,8 +17,9 @@ package org.wfanet.measurement.reporting.service.api
 import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.proto.Keyset
 import com.google.protobuf.ByteString
-import com.google.protobuf.UnknownFieldSet
+import com.google.protobuf.CodedOutputStream
 import com.google.protobuf.kotlin.toByteStringUtf8
+import java.io.ByteArrayOutputStream
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
@@ -48,7 +49,6 @@ private val NON_EXISTENT_PUBLIC_KEY = "non existent public key".toByteStringUtf8
 private val PRINCIPAL_NAME = "measurement_consumer1"
 private val NON_EXISTENT_PRINCIPAL_NAME = "measurement_consumer2"
 private val PLAIN_TEXT = "THis is plain text".toByteStringUtf8()
-private const val ARBITRARY_UNKNOWN_FIELD_NUMBER = 999
 
 @RunWith(JUnit4::class)
 class EncryptionKeyPairStoreTest {
@@ -96,26 +96,31 @@ class EncryptionKeyPairStoreTest {
 
   /**
    * Returns a serialization of [publicKey]'s underlying keyset that differs, byte for byte, from
-   * [publicKey] while still parsing to the same key -- simulating two components on different Tink
-   * versions serializing the same logical key differently.
+   * [publicKey] while still parsing to the same key.
+   *
+   * [Keyset] has exactly two fields -- `primary_key_id` (1) and `key` (2) -- and the standard
+   * generated writer always emits them in that, ascending, field-number order. Writing them in the
+   * opposite order by hand produces a wire-format-valid encoding of the identical, fully-recognized
+   * content that no field-number-ordered writer would ever produce -- the kind of byte-level
+   * difference a different serializer implementation (e.g. a different Tink version) could
+   * introduce for the same logical key, as opposed to an artificial unknown field.
    */
   private fun reserialize(publicKey: ByteString): ByteString {
     val keyset = Keyset.parseFrom(publicKey)
-    val reserialized =
-      keyset
-        .toBuilder()
-        .mergeUnknownFields(
-          UnknownFieldSet.newBuilder()
-            .addField(
-              ARBITRARY_UNKNOWN_FIELD_NUMBER,
-              UnknownFieldSet.Field.newBuilder().addVarint(1).build(),
-            )
-            .build()
-        )
-        .build()
-        .toByteString()
+    val outputStream = ByteArrayOutputStream()
+    val codedOutput = CodedOutputStream.newInstance(outputStream)
+    for (key in keyset.keyList) {
+      codedOutput.writeMessage(2, key)
+    }
+    codedOutput.writeUInt32(1, keyset.primaryKeyId)
+    codedOutput.flush()
+    val reserialized = ByteString.copyFrom(outputStream.toByteArray())
+
     check(reserialized != publicKey) {
       "Expected a different serialization for this test to be meaningful"
+    }
+    check(Keyset.parseFrom(reserialized) == keyset) {
+      "Expected the reordered serialization to parse back to an identical Keyset"
     }
     return reserialized
   }
