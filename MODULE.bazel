@@ -46,7 +46,7 @@ bazel_dep(
 # DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#399)
 git_override(
     module_name = "common-jvm",
-    commit = "0e3749156e9e876ab4bbf4bcabef4d18cb888301",
+    commit = "e4d1ba9314059325ef31d584a3a71808a637d502",
     remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
 
@@ -243,12 +243,11 @@ maven.artifact(
 )
 maven.install(
     artifacts = [
-        # tink-awskms 2.0.0 rewrites AwsKmsClient on AWS SDK v2, changing default credential/
-        # region resolution for callers that construct it with no explicit config (see panelmatch's
-        # CustomStorageFlags.kt, AddAllResources.kt, AwsExampleDaemon.kt). See commit message for
-        # BREAKING-CHANGE detail.
-        "com.google.crypto.tink:tink-awskms:2.0.0",
-        "com.google.crypto.tink:tink-gcpkms:1.11.0",
+        # tink-awskms and tink-gcpkms are pinned by common-jvm at the same versions; not
+        # re-pinned here to avoid a second place to keep in sync. tink-awskms 2.0.0 rewrites
+        # AwsKmsClient on AWS SDK v2, changing default credential/region resolution for callers
+        # that construct it with no explicit config (see panelmatch's CustomStorageFlags.kt,
+        # AddAllResources.kt, AwsExampleDaemon.kt). See commit message for BREAKING-CHANGE detail.
         "com.squareup.okhttp3:okhttp",
         "com.squareup.okhttp3:okhttp-tls",
         "com.google.privacy.differentialprivacy:differentialprivacy:4.0.0",
