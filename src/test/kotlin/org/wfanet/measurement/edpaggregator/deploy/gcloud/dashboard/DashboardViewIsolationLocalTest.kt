@@ -29,7 +29,12 @@ class DashboardViewIsolationLocalTest {
     private val PLATFORM_ONLY_COLUMNS = setOf("CoveragePercent", "TotalMcs", "EdpCount")
 
     private val SQL_FILES =
-      listOf("mc_details.sql", "report_detail.sql", "requisition_overview.sql")
+      listOf(
+        "mc_details.sql",
+        "report_detail.sql",
+        "requisition_overview.sql",
+        "unlinked_accounts.sql",
+      )
   }
 
   private fun readSqlFile(fileName: String): String {
@@ -152,6 +157,26 @@ class DashboardViewIsolationLocalTest {
     for (col in PLATFORM_ONLY_COLUMNS) {
       assertThat(sql).doesNotContain(col)
     }
+  }
+
+  @Test
+  fun unlinkedAccountsIsEdpIsolated() {
+    // Guards against drift with the DashboardIsolationChecks mapping of
+    // "unlinked_accounts" to "CmmsDataProvider": the rendered SQL must select the
+    // isolation column the checker keys on and must not leak any platform-only
+    // columns.
+    val sql = readSqlFile("unlinked_accounts.sql")
+    val rendered = render(sql, platformEnabled = false)
+    assertThat(rendered).contains("CmmsDataProvider")
+    for (col in PLATFORM_ONLY_COLUMNS) {
+      assertThat(rendered).doesNotContain(col)
+    }
+    // The reworked Kingdom schema replaced Brands/FirstObservedTime with an
+    // EntityMetadata Struct and CreateTime, so the SQL must read the new columns.
+    assertThat(rendered).contains("BrandName")
+    assertThat(rendered).contains("CreateTime")
+    assertThat(rendered).doesNotContain("Brands")
+    assertThat(rendered).doesNotContain("FirstObservedTime")
   }
 
   @Test

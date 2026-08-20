@@ -757,6 +757,30 @@ class VidLabelingDispatchSequencerTest {
     }
 
   @Test
+  fun `dispatchNext fails fast when a memoized model line lacks max_file_batch_size_bytes`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = true)
+      val templateMissingMaxFileBatchSize =
+        SUBPOOL_ASSIGNER_PARAMS_TEMPLATE.copy { maxFileBatchSizeBytes = 0 }
+
+      val exception =
+        assertFailsWith<Exception> {
+          createSequencer(subpoolAssignerParamsTemplate = templateMissingMaxFileBatchSize)
+            .dispatchNext()
+        }
+
+      assertThat(exception).hasMessageThat().contains("max_file_batch_size_bytes missing")
+      verifyBlocking(poolAssignmentJobService, never()) { batchCreatePoolAssignmentJobs(any()) }
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        markRawImpressionUploadModelLinePoolAssigning(any())
+      }
+    }
+
+  @Test
   fun `dispatchNext selects the oldest CREATED upload`() =
     runBlocking<Unit> {
       val older =

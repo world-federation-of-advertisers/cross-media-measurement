@@ -84,3 +84,13 @@ fun requireValidStalenessThreshold(config: VidLabelingConfig) {
       "last-out as if it were stuck"
   }
 }
+
+/**
+ * Fails fast (at Cloud Function boot / first tick) if [config] omits max_file_batch_size_bytes,
+ * which the memoized path would otherwise only reject inside the TEE at Phase-0.
+ */
+fun requireValidMaxFileBatchSizeBytes(config: VidLabelingConfig) {
+  require(config.maxFileBatchSizeBytes > 0) {
+    "max_file_batch_size_bytes must be set (> 0) for data provider: ${config.dataProvider}"
+  }
+}
