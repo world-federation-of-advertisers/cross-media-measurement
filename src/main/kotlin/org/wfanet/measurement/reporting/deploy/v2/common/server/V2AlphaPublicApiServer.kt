@@ -273,7 +273,7 @@ private object V2AlphaPublicApiServer {
         coroutineContext = serviceDispatcher,
         populationDataProvider = reportingApiServerFlags.populationDataProvider,
         kingdomMeasurementBatchConcurrency =
-          v2AlphaPublicServerFlags.kingdomMeasurementBatchConcurrency,
+          reportingApiServerFlags.kingdomMeasurementBatchConcurrency,
       )
 
     startInProcessServerWithService(
@@ -487,18 +487,6 @@ private object V2AlphaPublicApiServer {
       required = false,
     )
     var emitCelNullGuardsForNestedMembers: Boolean = false
-      private set
-
-    @CommandLine.Option(
-      names = ["--kingdom-measurement-batch-concurrency"],
-      description =
-        [
-          "Number of concurrent batch requests to the Kingdom's BatchCreateMeasurements RPC " +
-            "when dispatching Measurements for a Report or Metric."
-        ],
-      required = false,
-    )
-    var kingdomMeasurementBatchConcurrency: Int = 8
       private set
   }
 }

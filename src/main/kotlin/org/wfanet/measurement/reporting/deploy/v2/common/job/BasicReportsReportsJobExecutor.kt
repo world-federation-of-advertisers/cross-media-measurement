@@ -162,7 +162,12 @@ private fun run(
         keyReaderContext = Dispatchers.IO,
         cacheLoaderContext = Dispatchers.Default,
         populationDataProvider = reportingApiServerFlags.populationDataProvider,
-        kingdomMeasurementBatchConcurrency = 3,
+        // BasicReportsReportsJob only calls reportsStub.getReport (read-only) and never
+        // CreateReport/BatchCreateMetrics, so this MetricsService instance never dispatches new
+        // Measurements and this value has no effect in practice. Wired to the shared flag rather
+        // than a separate literal so there is exactly one place this default comes from.
+        kingdomMeasurementBatchConcurrency =
+          reportingApiServerFlags.kingdomMeasurementBatchConcurrency,
       )
       .withTrustedPrincipalAuthentication()
 
