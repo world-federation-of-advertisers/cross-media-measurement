@@ -559,8 +559,8 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.23.0/MODULE.bazel": "5fde5a3f897ec6a39300666bc745cb309b4c12e74ce4fcddef6429e5e4a627a2",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.23.0/source.json": "3798af185e6c71cabea6550303035ea4ad325a6d53854ab056ee6c93acf03b89",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/crc32c/1.1.0/MODULE.bazel": "not found",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.100.0/MODULE.bazel": "91b09d1825bfd4086e34d8f58905bc302adaa80b05cf04d2b246c4063a4a9f3b",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.100.0/source.json": "3cf89dbbe684647f0d653fcb34276473afc2f4fa90f4675f2483dce8f356f615",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.101.0/MODULE.bazel": "b70d89f6882c22feed56d71395b611f701ae9b5f9e6ff7efe926023b07937610",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.101.0/source.json": "7ae94291c2075b7d6763e63dd88bd47586697e766d4cbd16645e6ac1bd431959",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.87.0/MODULE.bazel": "c678b3f46885c8dea8e0de6215dc3b935ff93d632eec5d603e0690ce61571398",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.94.0/MODULE.bazel": "c47c3a60edd160e22cf491c4567347275909483bfd74aff233149f0a5c7124a5",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/curl/8.4.0/MODULE.bazel": "not found",
@@ -1701,7 +1701,7 @@
     "@@cross-media-measurement-api+//build:non_module_deps.bzl%non_module_deps": {
       "general": {
         "bzlTransitiveDigest": "106KtriH+KcBTg/tpZH9+v5m6bY0biSfPAuAoCsRay0=",
-        "usagesDigest": "Al3DTIX7TMwT+mA2kylVwWxC8O9vBJKDlICjBmHg0Y4=",
+        "usagesDigest": "YXlqhNzhps+/O1B9TTo0yNO1pXs9ypl8KnrGIJ6VjDw=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},

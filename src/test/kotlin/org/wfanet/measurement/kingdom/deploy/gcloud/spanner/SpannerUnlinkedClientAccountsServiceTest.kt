@@ -23,25 +23,28 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.Schemata
-import org.wfanet.measurement.kingdom.service.internal.testing.ClientAccountsServiceTest
+import org.wfanet.measurement.kingdom.service.internal.testing.UnlinkedClientAccountsServiceTest
 
 @RunWith(JUnit4::class)
-class SpannerClientAccountsServiceTest : ClientAccountsServiceTest<SpannerClientAccountsService>() {
+class SpannerUnlinkedClientAccountsServiceTest :
+  UnlinkedClientAccountsServiceTest<SpannerUnlinkedClientAccountsService>() {
   @get:Rule
   val spannerDatabase =
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.KINGDOM_CHANGELOG_PATH)
   private val clock = Clock.systemUTC()
 
-  override fun newServices(idGenerator: IdGenerator): Services<SpannerClientAccountsService> {
+  override fun newServices(
+    idGenerator: IdGenerator
+  ): Services<SpannerUnlinkedClientAccountsService> {
     val spannerServices =
       SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient).buildDataServices()
 
     return Services(
-      spannerServices.clientAccountsService as SpannerClientAccountsService,
-      spannerServices.measurementConsumersService,
+      spannerServices.unlinkedClientAccountsService as SpannerUnlinkedClientAccountsService,
       spannerServices.dataProvidersService,
+      spannerServices.clientAccountsService,
+      spannerServices.measurementConsumersService,
       spannerServices.accountsService,
-      spannerServices.unlinkedClientAccountsService,
     )
   }
 
