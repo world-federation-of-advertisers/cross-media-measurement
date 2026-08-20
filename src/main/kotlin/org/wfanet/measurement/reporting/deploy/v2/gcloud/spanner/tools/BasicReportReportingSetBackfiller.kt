@@ -53,7 +53,13 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReporti
  * equals the component's `event_group_summaries`; a `ReportingSet` is created for a membership that
  * has no match.
  *
- * A `BasicReport` is written only when all of its component summaries resolve.
+ * Neither database is written for a `BasicReport` unless all of its component summaries resolve:
+ * every membership is resolved before any `ReportingSet` is created, so a `BasicReport` that is
+ * skipped leaves no `ReportingSet` behind.
+ *
+ * Concurrent invocations are not safe. Each run builds its own in-memory view of the existing
+ * `ReportingSet`s, and the minted IDs are random, so two runs against the same environment can
+ * create duplicate `ReportingSet`s with identical membership without either reporting an error.
  *
  * @param dryRun when true, no write is issued to either database
  */
@@ -241,14 +247,19 @@ class BasicReportReportingSetBackfiller(
         readCampaignGroupMembershipIndex(campaignGroupKey)
       }
 
-    var unresolved = 0
-    for (componentSummary in emptyComponentSummaries) {
-      // The component's own EventGroups are what the BasicReport was computed over. The internal
-      // EventGroupSummary carries only the EventGroup ID, so the DataProvider comes from the
-      // component summary.
-      @Suppress("DEPRECATION") // Only source of membership for these BasicReports.
-      val membership: Set<ReportingSet.Primitive.EventGroupKey> =
-        componentSummary.eventGroupSummariesList
+    // Resolution is separated from minting so that the Postgres writes are gated on the same
+    // all-or-nothing guarantee as the Spanner write. Minting inline would leave a ReportingSet
+    // orphaned whenever a later component summary in the same BasicReport turns out unresolvable,
+    // since the BasicReport itself is then skipped.
+    //
+    // The component's own EventGroups are what the BasicReport was computed over. The internal
+    // EventGroupSummary carries only the EventGroup ID, so the DataProvider comes from the
+    // component summary.
+    val memberships: List<Set<ReportingSet.Primitive.EventGroupKey>> =
+      emptyComponentSummaries.map { componentSummary ->
+        @Suppress("DEPRECATION") // Only source of membership for these BasicReports.
+        val eventGroupSummaries = componentSummary.eventGroupSummariesList
+        eventGroupSummaries
           .map {
             ReportingSetKt.PrimitiveKt.eventGroupKey {
               cmmsDataProviderId = componentSummary.cmmsDataProviderId
@@ -256,16 +267,31 @@ class BasicReportReportingSetBackfiller(
             }
           }
           .toSet()
+      }
 
+    var unresolved = 0
+    for ((componentSummary, membership) in emptyComponentSummaries.zip(memberships)) {
       if (membership.isEmpty()) {
         logger.warning {
           "BasicReport $externalBasicReportId has a component summary for DataProvider " +
             "${componentSummary.cmmsDataProviderId} with no EventGroups. Cannot resolve."
         }
         unresolved++
-        continue
       }
+    }
 
+    unresolvedComponents += unresolved
+    if (unresolved > 0) {
+      logger.warning {
+        "BasicReport $externalBasicReportId left with $unresolved unresolved component(s); " +
+          "not updating."
+      }
+      skipped++
+      return
+    }
+
+    // Every component summary resolved, so minting cannot strand a ReportingSet.
+    for ((componentSummary, membership) in emptyComponentSummaries.zip(memberships)) {
       val existingId: String? = reportingSetIdsByMembership[membership]
       if (existingId != null) {
         componentSummary.externalReportingSetId = existingId
@@ -283,16 +309,6 @@ class BasicReportReportingSetBackfiller(
       componentSummariesFilled++
       mintedReportingSetIds.add(mintedId)
       reportingSetsCreated++
-    }
-
-    unresolvedComponents += unresolved
-    if (unresolved > 0) {
-      logger.warning {
-        "BasicReport $externalBasicReportId left with $unresolved unresolved component(s); " +
-          "not updating."
-      }
-      skipped++
-      return
     }
 
     recordCreateTime(basicReport.createTime)

@@ -57,6 +57,9 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementCo
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
+import org.wfanet.measurement.reporting.service.api.v2alpha.toBasicReport
+import org.wfanet.measurement.reporting.v2alpha.BasicReport as PublicBasicReport
 
 @RunWith(JUnit4::class)
 class BasicReportReportingSetBackfillerTest {
@@ -173,6 +176,85 @@ class BasicReportReportingSetBackfillerTest {
       assertThat(readComponentSummaryReportingSetId()).isEmpty()
     }
 
+  @Test
+  fun `mints nothing when a sibling component summary in the same BasicReport is unresolvable`() =
+    runBlocking<Unit> {
+      createCampaignGroup()
+      insertTestBasicReport(
+        listOf(
+          // Resolvable, and no existing child matches, so this would be minted on its own.
+          ComponentSpec(cmmsEventGroupIds = listOf(EVENT_GROUP_ID_1, EVENT_GROUP_ID_2)),
+          // Unresolvable: carries no EventGroups at all.
+          ComponentSpec(
+            cmmsDataProviderId = OTHER_CMMS_DATA_PROVIDER_ID,
+            cmmsEventGroupIds = emptyList(),
+          ),
+        )
+      )
+
+      val result = newBackfiller(dryRun = false).run()
+
+      assertThat(result.unresolvedComponents).isEqualTo(1)
+      assertThat(result.skipped).isEqualTo(1)
+      assertThat(result.updated).isEqualTo(0)
+      assertThat(result.reportingSetsCreated).isEqualTo(0)
+      // The resolvable component must not have left an orphaned ReportingSet behind.
+      assertThat(readCampaignGroupReportingSets().map { it.externalReportingSetId })
+        .containsExactly(CAMPAIGN_GROUP_ID)
+      assertThat(readComponentSummaryReportingSetIds()).containsExactly("", "")
+    }
+
+  @Test
+  fun `leaves an already valid component summary untouched while backfilling its sibling`() =
+    runBlocking<Unit> {
+      createCampaignGroup()
+      val childId = createChildReportingSet(listOf(EVENT_GROUP_ID_1, EVENT_GROUP_ID_2))
+      insertTestBasicReport(
+        listOf(
+          ComponentSpec(externalReportingSetId = childId),
+          ComponentSpec(
+            cmmsDataProviderId = OTHER_CMMS_DATA_PROVIDER_ID,
+            cmmsEventGroupIds = listOf(OTHER_EVENT_GROUP_ID),
+          ),
+        )
+      )
+
+      val result = newBackfiller(dryRun = false).run()
+
+      assertThat(result.updated).isEqualTo(1)
+      assertThat(result.reportingSetsCreated).isEqualTo(1)
+      val reportingSetIds: List<String> = readComponentSummaryReportingSetIds()
+      assertThat(reportingSetIds).hasSize(2)
+      assertThat(reportingSetIds[0]).isEqualTo(childId)
+      assertThat(reportingSetIds[1]).isNotEmpty()
+      assertThat(reportingSetIds[1]).isNotEqualTo(childId)
+    }
+
+  @Test
+  fun `backfilled BasicReport exposes reporting_set through the public read path`() =
+    runBlocking<Unit> {
+      createCampaignGroup()
+      val childId = createChildReportingSet(listOf(EVENT_GROUP_ID_1, EVENT_GROUP_ID_2))
+      insertTestBasicReport()
+
+      assertThat(newBackfiller(dryRun = false).run().updated).isEqualTo(1)
+
+      // The read path silently omits reporting_set for an unbackfilled component summary, so this
+      // is what actually proves the BasicReport is serveable again.
+      val componentSummary =
+        readPublicBasicReport()
+          .resultGroupsList
+          .single()
+          .resultsList
+          .single()
+          .metadata
+          .reportingUnitSummary
+          .reportingUnitComponentSummaryList
+          .single()
+      assertThat(componentSummary.reportingSet)
+        .isEqualTo(ReportingSetKey(CMMS_MEASUREMENT_CONSUMER_ID, childId).toName())
+    }
+
   private fun newBackfiller(dryRun: Boolean) =
     BasicReportReportingSetBackfiller(spannerClient, postgresClient, ID_GENERATOR, dryRun)
 
@@ -223,10 +305,28 @@ class BasicReportReportingSetBackfillerTest {
       this.cmmsEventGroupId = cmmsEventGroupId
     }
 
+  /** One `ReportingUnitComponentSummary` to seed into the test `BasicReport`. */
+  private data class ComponentSpec(
+    val cmmsDataProviderId: String = CMMS_DATA_PROVIDER_ID,
+    val cmmsEventGroupIds: List<String> = listOf(EVENT_GROUP_ID_1, EVENT_GROUP_ID_2),
+    val externalReportingSetId: String = "",
+  )
+
   private suspend fun insertTestBasicReport(
     externalReportingSetId: String = "",
     cmmsEventGroupIds: List<String> = listOf(EVENT_GROUP_ID_1, EVENT_GROUP_ID_2),
-  ) {
+  ) =
+    insertTestBasicReport(
+      listOf(
+        ComponentSpec(
+          cmmsEventGroupIds = cmmsEventGroupIds,
+          externalReportingSetId = externalReportingSetId,
+        )
+      )
+    )
+
+  /** Inserts a `BasicReport` with one `ReportingUnitComponentSummary` per entry in [components]. */
+  private suspend fun insertTestBasicReport(components: List<ComponentSpec>) {
     val basicReport = internalBasicReport {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = EXTERNAL_BASIC_REPORT_ID
@@ -241,20 +341,23 @@ class BasicReportReportingSetBackfillerTest {
                 InternalResultGroupKt.metricMetadata {
                   reportingUnitSummary =
                     InternalResultGroupKt.MetricMetadataKt.reportingUnitSummary {
-                      reportingUnitComponentSummary +=
-                        InternalResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
-                          cmmsDataProviderId = CMMS_DATA_PROVIDER_ID
-                          this.externalReportingSetId = externalReportingSetId
-                          for (id in cmmsEventGroupIds) {
-                            @Suppress("DEPRECATION") // Legacy BasicReports carry this field.
-                            eventGroupSummaries +=
-                              InternalResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
-                                .eventGroupSummary {
-                                  cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-                                  cmmsEventGroupId = id
-                                }
+                      for (component in components) {
+                        reportingUnitComponentSummary +=
+                          InternalResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
+                            cmmsDataProviderId = component.cmmsDataProviderId
+                            externalReportingSetId = component.externalReportingSetId
+                            for (id in component.cmmsEventGroupIds) {
+                              @Suppress("DEPRECATION") // Legacy BasicReports carry this field.
+                              eventGroupSummaries +=
+                                InternalResultGroupKt.MetricMetadataKt
+                                  .ReportingUnitComponentSummaryKt
+                                  .eventGroupSummary {
+                                    cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                                    cmmsEventGroupId = id
+                                  }
+                            }
                           }
-                        }
+                      }
                     }
                 }
               metricSet = InternalResultGroupKt.metricSet {}
@@ -274,21 +377,34 @@ class BasicReportReportingSetBackfillerTest {
     }
   }
 
-  private suspend fun readComponentSummaryReportingSetId(): String {
-    val basicReportResult =
-      spannerClient.readOnlyTransaction().use { txn ->
-        txn.getBasicReportByExternalId(CMMS_MEASUREMENT_CONSUMER_ID, EXTERNAL_BASIC_REPORT_ID)
-      }
-    return basicReportResult.basicReport.resultDetails.resultGroupsList
+  private suspend fun readComponentSummaryReportingSetId(): String =
+    readComponentSummaryReportingSetIds().single()
+
+  /** The `external_reporting_set_id` of every component summary, in order. */
+  private suspend fun readComponentSummaryReportingSetIds(): List<String> =
+    readInternalBasicReport()
+      .resultDetails
+      .resultGroupsList
       .single()
       .resultsList
       .single()
       .metadata
       .reportingUnitSummary
       .reportingUnitComponentSummaryList
-      .single()
-      .externalReportingSetId
-  }
+      .map { it.externalReportingSetId }
+
+  private suspend fun readInternalBasicReport(): BasicReport =
+    spannerClient
+      .readOnlyTransaction()
+      .use { txn ->
+        txn.getBasicReportByExternalId(CMMS_MEASUREMENT_CONSUMER_ID, EXTERNAL_BASIC_REPORT_ID)
+      }
+      .basicReport
+
+  /** Reads the stored `BasicReport` back through the public read path. */
+  private suspend fun readPublicBasicReport(): PublicBasicReport =
+    readInternalBasicReport()
+      .toBasicReport(populateDeprecatedReportingUnitEventGroupSummaries = false)
 
   /** All ReportingSets under the Campaign Group, including the Campaign Group itself. */
   private suspend fun readCampaignGroupReportingSets(): List<ReportingSet> {

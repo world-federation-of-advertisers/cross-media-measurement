@@ -35,13 +35,30 @@ For each component summary missing `external_reporting_set_id`:
 3.  Otherwise a `ReportingSet` with that membership is created under the
     Campaign Group, and its ID is used.
 
-A `BasicReport` is written only when all of its component summaries resolve. A
-component summary with no `event_group_summaries` cannot be resolved, and its
+Neither database is written for a `BasicReport` unless all of its component
+summaries resolve. Every membership is resolved before any `ReportingSet` is
+created, so a skipped `BasicReport` leaves no `ReportingSet` behind. A component
+summary with no `event_group_summaries` cannot be resolved, and its
 `BasicReport` is left unmodified and reported.
 
 Note that `metric_set.reporting_set_components` entries carry no membership, so
 an entry missing `external_reporting_set_id` cannot be backfilled. Any such
 entry is counted and reported.
+
+### Concurrency
+
+Do not run two instances of this tool against the same environment at the same
+time.
+
+Each run builds its own in-memory view of the `ReportingSet`s that already exist
+under a Campaign Group. If two runs read that view before either has created a
+`ReportingSet` for the same missing membership, both create one. The minted
+`external_reporting_set_id` is a random UUID, so there is no unique constraint
+to violate: neither run fails, and neither summary reports anything unusual. The
+result is duplicate `ReportingSet`s with identical membership under the same
+Campaign Group, which silently defeats the reuse the tool otherwise guarantees.
+
+There is no lock or lease. Serialising runs is the operator's responsibility.
 
 ### Database access
 
