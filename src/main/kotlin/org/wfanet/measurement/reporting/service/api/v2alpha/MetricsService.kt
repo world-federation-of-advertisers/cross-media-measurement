@@ -1561,28 +1561,48 @@ class MetricsService(
         }
       }
 
-    val requiredPermissionIds = buildSet {
-      add(Permission.CREATE)
-      for (effectiveModelLineName in effectiveModelLineNames) {
-        if (effectiveModelLineName.isEmpty()) {
-          continue
-        }
-        val modelLine =
-          try {
-            kingdomModelLinesStub
-              .withAuthenticationKey(measurementConsumerCreds.callCredentials.apiAuthenticationKey)
-              .getModelLine(getModelLineRequest { name = effectiveModelLineName })
-          } catch (e: StatusException) {
-            throw when (e.status.code) {
-              Status.Code.NOT_FOUND ->
-                ModelLineNotFoundException(effectiveModelLineName, e)
-                  .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-              else -> StatusRuntimeException(Status.INTERNAL)
+    // Resolve each distinct model line once instead of once per request: a batch commonly has
+    // many requests that share the same model line, and each resolution is a network call.
+    val modelLineTypeByName: Map<String, ModelLine.Type> =
+      effectiveModelLineNames
+        .filter { it.isNotEmpty() }
+        .distinct()
+        .let { distinctNames ->
+          if (distinctNames.isEmpty()) {
+            emptyMap()
+          } else {
+            coroutineScope {
+              distinctNames
+                .map { effectiveModelLineName ->
+                  async {
+                    val modelLine =
+                      try {
+                        kingdomModelLinesStub
+                          .withAuthenticationKey(
+                            measurementConsumerCreds.callCredentials.apiAuthenticationKey
+                          )
+                          .getModelLine(getModelLineRequest { name = effectiveModelLineName })
+                      } catch (e: StatusException) {
+                        throw when (e.status.code) {
+                          Status.Code.NOT_FOUND ->
+                            ModelLineNotFoundException(effectiveModelLineName, e)
+                              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+                          else -> StatusRuntimeException(Status.INTERNAL)
+                        }
+                      }
+                    effectiveModelLineName to modelLine.type
+                  }
+                }
+                .awaitAll()
+                .toMap()
             }
           }
-        if (modelLine.type == ModelLine.Type.DEV) {
-          add(Permission.CREATE_WITH_DEV_MODEL_LINE)
         }
+
+    val requiredPermissionIds = buildSet {
+      add(Permission.CREATE)
+      if (modelLineTypeByName.containsValue(ModelLine.Type.DEV)) {
+        add(Permission.CREATE_WITH_DEV_MODEL_LINE)
       }
     }
     authorization.check(measurementConsumerName, requiredPermissionIds)

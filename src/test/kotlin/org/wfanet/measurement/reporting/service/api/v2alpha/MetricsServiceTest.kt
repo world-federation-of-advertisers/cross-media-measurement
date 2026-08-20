@@ -120,6 +120,7 @@ import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.liquidLegionsDistribution
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
@@ -5921,6 +5922,82 @@ class MetricsServiceTest {
     assertThat(exception)
       .hasMessageThat()
       .contains(MetricsService.Permission.CREATE_WITH_DEV_MODEL_LINE)
+  }
+
+  @Test
+  fun `batchCreateMetrics calls GetModelLine once per distinct model line, not once per request`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+
+    val sharedModelLine = "modelProviders/mp-1/modelSuites/ms-1/modelLines/prod-line"
+    val metricCount = 10
+    val request = batchCreateMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      for (i in 1..metricCount) {
+        requests += createMetricRequest {
+          parent = MEASUREMENT_CONSUMERS.values.first().name
+          metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { modelLine = sharedModelLine }
+          metricId = "metric-id-$i"
+        }
+      }
+    }
+
+    withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+      runBlocking {
+        try {
+          service.batchCreateMetrics(request)
+        } catch (e: Exception) {
+          // Downstream internal-metrics mock response is fixed-size from an unrelated test
+          // and won't line up with metricCount requests; irrelevant here since GetModelLine
+          // calls (what this test measures) happen earlier, during permission resolution.
+        }
+      }
+    }
+
+    verifyBlocking(modelLinesMock, times(1)) { getModelLine(any()) }
+  }
+
+  @Test
+  fun `batchCreateMetrics calls GetModelLine once per distinct model line when requests span multiple model lines`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+
+    val modelLineA = "modelProviders/mp-1/modelSuites/ms-1/modelLines/line-a"
+    val modelLineB = "modelProviders/mp-1/modelSuites/ms-1/modelLines/line-b"
+    val requestModelLines =
+      listOf(modelLineA, modelLineA, modelLineA, modelLineB, modelLineB, modelLineB)
+    val request = batchCreateMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      for ((i, modelLine) in requestModelLines.withIndex()) {
+        requests += createMetricRequest {
+          parent = MEASUREMENT_CONSUMERS.values.first().name
+          metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { this.modelLine = modelLine }
+          metricId = "metric-id-${i + 1}"
+        }
+      }
+    }
+
+    withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+      runBlocking {
+        try {
+          service.batchCreateMetrics(request)
+        } catch (e: Exception) {
+          // Downstream internal-metrics mock response is fixed-size from an unrelated test
+          // and won't line up with requestModelLines.size; irrelevant here since GetModelLine
+          // calls (what this test measures) happen earlier, during permission resolution.
+        }
+      }
+    }
+
+    verifyBlocking(modelLinesMock, times(1)) {
+      getModelLine(eq(getModelLineRequest { name = modelLineA }))
+    }
+    verifyBlocking(modelLinesMock, times(1)) {
+      getModelLine(eq(getModelLineRequest { name = modelLineB }))
+    }
+    verifyBlocking(modelLinesMock, times(2)) { getModelLine(any()) }
   }
 
   @Test
