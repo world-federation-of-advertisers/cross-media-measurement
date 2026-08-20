@@ -929,8 +929,8 @@ resource "google_bigquery_dataset_iam_member" "terraform_data_editor" {
 
 # --- Table-level IAM ---
 
-# Operators get dataViewer on platform-only tables (mc_details, report_detail)
-# and the shared table (requisition_overview).
+# Operators get dataViewer on platform-only tables (mc_details, report_detail),
+# the shared table (requisition_overview), and unlinked_accounts.
 resource "google_bigquery_table_iam_member" "requisition_overview_platform_viewer" {
   for_each   = toset(var.dashboard_operators)
   project    = data.google_client_config.default.project
@@ -968,7 +968,7 @@ resource "google_bigquery_table_iam_member" "report_detail_platform_viewer" {
 }
 
 # EDP SAs get dataViewer on shared tables only (requisition_overview, mc_details_edp,
-# report_detail_edp). EDP SAs have no access to platform-only tables (mc_details,
+# report_detail_edp, unlinked_accounts). EDP SAs have no access to platform-only tables (mc_details,
 # report_detail) — they get 403.
 
 resource "google_bigquery_table_iam_member" "requisition_overview_viewer" {
