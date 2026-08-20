@@ -59,6 +59,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
@@ -316,6 +317,8 @@ class InProcessEdpAggregatorComponents(
         EventGroupsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
       val clientAccountsClient: ClientAccountsCoroutineStub =
         ClientAccountsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
+      val unlinkedClientAccountsClient: UnlinkedClientAccountsCoroutineStub =
+        UnlinkedClientAccountsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
       val edpPrivateKey = getDataProviderPrivateEncryptionKey(edpAggregatorShortName)
 
       val requisitionsValidator = RequisitionsValidator(edpPrivateKey)
@@ -354,6 +357,7 @@ class InProcessEdpAggregatorComponents(
           edpResourceName,
           eventGroupsClient,
           clientAccountsClient,
+          unlinkedClientAccountsClient,
           eventGroups.asFlow(),
           throttler,
           entityKeyTypes = emptyList(),
@@ -769,10 +773,13 @@ class InProcessEdpAggregatorComponents(
       EventGroupsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
     val clientAccountsClient =
       ClientAccountsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
+    val unlinkedClientAccountsClient =
+      UnlinkedClientAccountsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
     EventGroupSync(
         edpResourceName,
         eventGroupsClient,
         clientAccountsClient,
+        unlinkedClientAccountsClient,
         sources.asFlow(),
         throttler,
         entityKeyTypes = entityKeyTypes,
