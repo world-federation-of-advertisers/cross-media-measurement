@@ -40,12 +40,22 @@ _accessPublicApiAddressName:                          "access-public"
 // Metric rows for reports with large numbers of metrics, since the inherited default heap
 // left almost no working memory once other JVM overhead (metaspace, thread stacks, netty
 // buffers) was accounted for within the old 384Mi container limit.
+//
+// CPU was separately bumped from 100m (a tenth of a core) with no limit at all: real
+// in-process measurement showed the write logic itself only needs milliseconds per batch,
+// so the multi-second slowdowns actually observed under load point at CPU throttling, not
+// the write path. A JVM doing real serialization work for a large batch, on top of GC
+// activity from the larger heap above, needs real CPU headroom, not a tenth of a core with
+// no ceiling. No existing precedent in this file's sibling configs sets an explicit CPU
+// limit, so 500m request / 2 cores limit is a judgment call: enough guaranteed share to
+// stop throttling under normal load, with a bounded ceiling rather than unlimited burst.
 #InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu:    "100m"
+		cpu:    "500m"
 		memory: "1Gi"
 	}
 	limits: {
+		cpu:    "2"
 		memory: ResourceRequirements.requests.memory
 	}
 }
