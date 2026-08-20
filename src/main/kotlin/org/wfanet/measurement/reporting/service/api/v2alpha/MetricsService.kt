@@ -263,6 +263,7 @@ class MetricsService(
   keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
   cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
+  kingdomMeasurementBatchConcurrency: Int = 8,
 ) : MetricsCoroutineImplBase(coroutineContext) {
   private data class DataProviderInfo(
     val dataProviderName: String,
@@ -286,6 +287,7 @@ class MetricsService(
       keyReaderContext,
       cacheLoaderContext,
       populationDataProvider,
+      kingdomMeasurementBatchConcurrency,
     )
 
   private class MeasurementSupplier(
@@ -303,6 +305,7 @@ class MetricsService(
     private val keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
     cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
     private val populationDataProvider: String,
+    private val kingdomMeasurementBatchConcurrency: Int = 8,
   ) {
     data class RunningMetric(
       val internalMetric: InternalMetric,
@@ -395,6 +398,7 @@ class MetricsService(
             cmmsCreateMeasurementRequests,
             BATCH_KINGDOM_MEASUREMENTS_LIMIT,
             callBatchCreateMeasurementsRpc,
+            concurrency = kingdomMeasurementBatchConcurrency,
           ) { response: BatchCreateMeasurementsResponse ->
             response.measurementsList
           }

@@ -58,6 +58,7 @@ suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
   items: Flow<ITEM>,
   limit: Int,
   callRpc: suspend (List<ITEM>) -> RESP,
+  concurrency: Int = 3,
   parseResponse: (RESP) -> List<RESULT>,
 ): Flow<List<RESULT>> {
   if (limit <= 0) {
@@ -67,9 +68,10 @@ suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
     )
   }
 
-  // For network requests, the number of concurrent coroutines needs to be capped. To be on the safe
-  // side, a low number is chosen.
-  val batchSemaphore = Semaphore(3)
+  // For network requests, the number of concurrent coroutines needs to be capped. The default of
+  // 3 is conservative; callers dispatching to services known to tolerate more concurrency (e.g.
+  // Kingdom measurement creation) may pass a higher value.
+  val batchSemaphore = Semaphore(concurrency)
   return flow {
     coroutineScope {
       val deferred: List<Deferred<List<RESULT>>> = buildList {
