@@ -87,6 +87,6 @@ class InMemoryEncryptionKeyPairStore(
   }
 
   companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val logger: Logger = Logger.getLogger(InMemoryEncryptionKeyPairStore::class.java.name)
   }
 }
