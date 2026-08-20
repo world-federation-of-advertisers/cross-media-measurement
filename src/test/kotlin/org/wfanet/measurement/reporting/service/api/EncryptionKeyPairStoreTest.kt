@@ -15,7 +15,9 @@
 package org.wfanet.measurement.reporting.service.api
 
 import com.google.common.truth.Truth.assertThat
+import com.google.crypto.tink.proto.Keyset
 import com.google.protobuf.ByteString
+import com.google.protobuf.UnknownFieldSet
 import com.google.protobuf.kotlin.toByteStringUtf8
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -46,6 +48,7 @@ private val NON_EXISTENT_PUBLIC_KEY = "non existent public key".toByteStringUtf8
 private val PRINCIPAL_NAME = "measurement_consumer1"
 private val NON_EXISTENT_PRINCIPAL_NAME = "measurement_consumer2"
 private val PLAIN_TEXT = "THis is plain text".toByteStringUtf8()
+private const val ARBITRARY_UNKNOWN_FIELD_NUMBER = 999
 
 @RunWith(JUnit4::class)
 class EncryptionKeyPairStoreTest {
@@ -77,11 +80,44 @@ class EncryptionKeyPairStoreTest {
       .isNull()
   }
 
+  @Test
+  fun `InMemoryEncryptionKeyPairStore returns PrivateKeyHandle for a different serialization of the same public key`() {
+    val keyPairStore = InMemoryEncryptionKeyPairStore(getKeyPairs())
+
+    verifyKeyPair(keyPairStore, PRINCIPAL_NAME, reserialize(PUBLIC_KEY_1))
+  }
+
   private fun getKeyPairs(): Map<String, List<Pair<ByteString, PrivateKeyHandle>>> {
     return mapOf(
       PRINCIPAL_NAME to
         listOf(PUBLIC_KEY_1 to PRIVATE_KEY_HANDLE_1, PUBLIC_KEY_2 to PRIVATE_KEY_HANDLE_2)
     )
+  }
+
+  /**
+   * Returns a serialization of [publicKey]'s underlying keyset that differs, byte for byte, from
+   * [publicKey] while still parsing to the same key -- simulating two components on different Tink
+   * versions serializing the same logical key differently.
+   */
+  private fun reserialize(publicKey: ByteString): ByteString {
+    val keyset = Keyset.parseFrom(publicKey)
+    val reserialized =
+      keyset
+        .toBuilder()
+        .mergeUnknownFields(
+          UnknownFieldSet.newBuilder()
+            .addField(
+              ARBITRARY_UNKNOWN_FIELD_NUMBER,
+              UnknownFieldSet.Field.newBuilder().addVarint(1).build(),
+            )
+            .build()
+        )
+        .build()
+        .toByteString()
+    check(reserialized != publicKey) {
+      "Expected a different serialization for this test to be meaningful"
+    }
+    return reserialized
   }
 
   private fun verifyKeyPair(

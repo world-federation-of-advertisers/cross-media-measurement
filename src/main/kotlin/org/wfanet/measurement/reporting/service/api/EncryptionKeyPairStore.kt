@@ -17,6 +17,7 @@ package org.wfanet.measurement.reporting.service.api
 import com.google.common.hash.Hashing.goodFastHash
 import com.google.protobuf.ByteString
 import java.security.GeneralSecurityException
+import java.util.logging.Level
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
@@ -40,7 +41,8 @@ class InMemoryEncryptionKeyPairStore(
   private val hashFunction = goodFastHash(DEFAULT_HASH_MINIMUM_BITS)
 
   /**
-   * Fingerprints the of an [EncryptionPublicKey] in a Tink-version-stable way.
+   * Fingerprints [key], the serialized `data` field of an [EncryptionPublicKey], in a
+   * Tink-version-stable way.
    *
    * Tink public-key serialization is not guaranteed to be stable across Tink releases, so the same
    * underlying key can have different serialized bytes depending on the Tink version that produced
@@ -54,6 +56,10 @@ class InMemoryEncryptionKeyPairStore(
     return hashFunction.hashBytes(normalized.toByteArray()).toString()
   }
 
+  // Deliberately eager and unguarded: a malformed entry here is an operator configuration
+  // error, not caller input, so it should fail server startup immediately rather than be
+  // silently dropped -- contrast with the request path in getPrivateKeyHandle below, which
+  // treats the same GeneralSecurityException as recoverable because it comes from a caller.
   private val principalToKeyPairs: Map<String, Map<String, PrivateKeyHandle>> =
     principalToKeyPairs.mapValues { (_, keyPairs) ->
       keyPairs.associate { (publicKey, privateKey) -> fingerprint(publicKey) to privateKey }
@@ -64,15 +70,17 @@ class InMemoryEncryptionKeyPairStore(
     publicKey: ByteString,
   ): PrivateKeyHandle? {
     // A caller-supplied public key that is not a parseable Tink keyset cannot match any stored
-    // key, so report it as not found (null) rather than propagating a low-level crypto exception.
+    // key, so report it as not found (null) rather than propagating a low-level crypto exception
+    // -- unlike the constructor above, this data comes from the request, not from trusted
+    // configuration, so failing the whole server is not appropriate.
     val fingerprint =
       try {
         fingerprint(publicKey)
       } catch (e: GeneralSecurityException) {
-        logger.warning(
+        logger.log(Level.WARNING, e) {
           "Public key for principal $principal is not a parseable Tink keyset; treating as not " +
             "found"
-        )
+        }
         return null
       }
     return principalToKeyPairs[principal]?.get(fingerprint)
