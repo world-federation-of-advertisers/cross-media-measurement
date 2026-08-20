@@ -46,9 +46,12 @@ service BasicReports {
   // Sets the `BasicReport.external_report_id` field and transitions the
   // `BasicReport` to the `BasicReport.State.REPORT_CREATED` state.
   //
+  // The `BasicReport` must be in the `BasicReport.State.CREATED` state.
+  //
   // Error reasons:
   // * `REQUIRED_FIELD_NOT_SET`
   // * `BASIC_REPORT_NOT_FOUND`
+  // * `BASIC_REPORT_STATE_INVALID`
   rpc SetExternalReportId(SetExternalReportIdRequest) returns (BasicReport);
 
   // Error reasons:
@@ -65,9 +68,12 @@ service BasicReports {
 
   // Transitions the `BasicReport` to the `BasicReport.State.FAILED` state.
   //
+  // The `BasicReport` must not already be in a terminal state.
+  //
   // Error reasons:
   // * `REQUIRED_FIELD_NOT_SET`
   // * `BASIC_REPORT_NOT_FOUND`
+  // * `BASIC_REPORT_STATE_INVALID`
   rpc FailBasicReport(FailBasicReportRequest) returns (BasicReport);
 }
 

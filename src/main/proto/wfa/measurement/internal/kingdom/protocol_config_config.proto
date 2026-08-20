@@ -52,4 +52,15 @@ message TrusTeeProtocolConfigConfig {
   ProtocolConfig.TrusTee protocol_config = 1;
   // The id of the duchy executing the computation.
   string duchy_id = 2;
+  // Noise mechanisms to fall back to, in order, when a `DataProvider` on the
+  // `Measurement` does not support `protocol_config.noise_mechanism`.
+  //
+  // The Kingdom stamps the first one every `DataProvider` supports, leaving the
+  // rest of `protocol_config` unchanged, so `result_minimum_thresholds` does
+  // not vary with `DataProvider` capabilities.
+  //
+  // When empty, TrusTee is offered only under
+  // `protocol_config.noise_mechanism`, and selection falls through to the next
+  // protocol when that is unsupported.
+  repeated ProtocolConfig.NoiseMechanism fallback_noise_mechanisms = 3;
 }

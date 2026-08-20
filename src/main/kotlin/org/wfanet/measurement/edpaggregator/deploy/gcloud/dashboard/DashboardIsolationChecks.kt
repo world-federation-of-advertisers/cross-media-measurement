@@ -390,6 +390,7 @@ class DashboardIsolationChecks(
             "BrandNames",
             "EntityTypes",
             "EntityIds",
+            "ReportState",
           ),
         "mc_details" to
           setOf(
@@ -416,6 +417,7 @@ class DashboardIsolationChecks(
             "CampaignNames",
             "BrandNames",
             "EdpCount",
+            "ReportState",
           ),
       )
     try {

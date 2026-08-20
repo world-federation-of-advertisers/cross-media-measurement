@@ -107,6 +107,27 @@ val TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_THRESHOLDS_HIGH: TrusTeeProtocolConfigC
     "trustee_protocol_config_config_noise_thresholds_high.textproto",
     TrusTeeProtocolConfigConfig.getDefaultInstance(),
   )
+val TRUSTEE_PROTOCOL_CONFIG_CONFIG_DETERMINISTIC_NOISE: TrusTeeProtocolConfigConfig =
+  loadTextProto(
+    "trustee_protocol_config_config_deterministic_noise.textproto",
+    TrusTeeProtocolConfigConfig.getDefaultInstance(),
+  )
+val TRUSTEE_PROTOCOL_CONFIG_CONFIG_DETERMINISTIC_NOISE_FALLBACK: TrusTeeProtocolConfigConfig =
+  loadTextProto(
+    "trustee_protocol_config_config_deterministic_noise_fallback.textproto",
+    TrusTeeProtocolConfigConfig.getDefaultInstance(),
+  )
+val TRUSTEE_PROTOCOL_CONFIG_CONFIG_DETERMINISTIC_NOISE_THRESHOLDS: TrusTeeProtocolConfigConfig =
+  loadTextProto(
+    "trustee_protocol_config_config_deterministic_noise_thresholds.textproto",
+    TrusTeeProtocolConfigConfig.getDefaultInstance(),
+  )
+val TRUSTEE_PROTOCOL_CONFIG_CONFIG_DETERMINISTIC_NOISE_THRESHOLDS_HIGH:
+  TrusTeeProtocolConfigConfig =
+  loadTextProto(
+    "trustee_protocol_config_config_deterministic_noise_thresholds_high.textproto",
+    TrusTeeProtocolConfigConfig.getDefaultInstance(),
+  )
 val TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_NO_THRESHOLDS: TrusTeeProtocolConfigConfig =
   loadTextProto(
     "trustee_protocol_config_config_noise_no_thresholds.textproto",

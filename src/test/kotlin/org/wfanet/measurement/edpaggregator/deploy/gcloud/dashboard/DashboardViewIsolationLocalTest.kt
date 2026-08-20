@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import java.nio.file.Files
 import java.nio.file.Paths
 import org.junit.Test
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.tools.DashboardComplianceMetrics
 
 /** Validates dashboard SQL templates for correct EDP isolation structure. */
 class DashboardViewIsolationLocalTest {
@@ -35,6 +36,13 @@ class DashboardViewIsolationLocalTest {
     val runfilesDir = System.getenv("TEST_SRCDIR") ?: "."
     val workspace = System.getenv("TEST_WORKSPACE") ?: "__main__"
     val path = Paths.get(runfilesDir, workspace, "src/main/terraform/gcloud/cmms/sql", fileName)
+    return Files.readString(path)
+  }
+
+  private fun readTerraformFile(fileName: String): String {
+    val runfilesDir = System.getenv("TEST_SRCDIR") ?: "."
+    val workspace = System.getenv("TEST_WORKSPACE") ?: "__main__"
+    val path = Paths.get(runfilesDir, workspace, "src/main/terraform/gcloud/cmms", fileName)
     return Files.readString(path)
   }
 
@@ -75,6 +83,21 @@ class DashboardViewIsolationLocalTest {
   }
 
   @Test
+  fun metricDescriptorLabelsMatchEmittedAttributes() {
+    // The metric shape is declared both in DashboardComplianceMetrics and in the
+    // google_monitoring_metric_descriptor resources in dashboard.tf. If they drift, Cloud
+    // Monitoring rejects the exporter's writes and the isolation alert goes silently dead.
+    // Deriving the label from SECTION_ATTR means renaming the attribute breaks the build.
+    val terraform = readTerraformFile("dashboard.tf")
+    val sectionLabel = DashboardComplianceMetrics.SECTION_ATTR.key.replace('.', '_')
+
+    assertThat(terraform).contains("key = \"$sectionLabel\"")
+    for (label in listOf("instrumentation_source", "service_name", "instrumentation_version")) {
+      assertThat(terraform).contains("key = \"$label\"")
+    }
+  }
+
+  @Test
   fun platformColumnsOnlyInsideConditionalBlocks() {
     for (fileName in listOf("mc_details.sql", "report_detail.sql")) {
       val sql = readSqlFile(fileName)
@@ -86,6 +109,13 @@ class DashboardViewIsolationLocalTest {
         assertThat(rendered).doesNotContain(col)
       }
     }
+  }
+
+  @Test
+  fun reportDetailCarriesReportStateInBothVariants() {
+    val sql = readSqlFile("report_detail.sql")
+    assertThat(render(sql, platformEnabled = true)).contains("ReportState")
+    assertThat(render(sql, platformEnabled = false)).contains("ReportState")
   }
 
   @Test

@@ -462,6 +462,11 @@ resource "google_bigquery_table" "report_detail" {
     "name": "EdpCount",
     "type": "INT64",
     "mode": "NULLABLE"
+  },
+  {
+    "name": "ReportState",
+    "type": "STRING",
+    "mode": "NULLABLE"
   }
 ]
 EOF
@@ -514,6 +519,11 @@ resource "google_bigquery_table" "report_detail_edp" {
     "name": "EntityIds",
     "type": "STRING",
     "mode": "REPEATED"
+  },
+  {
+    "name": "ReportState",
+    "type": "STRING",
+    "mode": "NULLABLE"
   }
 ]
 EOF
@@ -1077,13 +1087,60 @@ module "dashboard_compliance_cloud_scheduler" {
   depends_on = [module.dashboard_compliance_cloud_function]
 }
 
+# The terraform SA pre-creates the metric descriptors below, which needs
+# monitoring.metricDescriptors.create. roles/monitoring.alertPolicyEditor does not
+# grant it; monitoring.metricWriter is the minimal role that does -- the same role
+# the function's runtime SA gets to export these metrics at runtime.
+resource "google_project_iam_member" "terraform_metric_writer" {
+  count   = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  project = data.google_client_config.default.project
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${var.terraform_service_account}"
+}
+
+# Pre-create the custom metric descriptors the alert policy below filters on. Cloud
+# Monitoring only auto-registers these the first time the Cloud Function emits them, so on a
+# brand-new environment the alert policy would fail with "Cannot find metric(s)..." until the
+# function had run once. Declaring them here lets a fresh deploy create the alert policy in a
+# single apply. Kinds/labels mirror what the OpenTelemetry exporter emits.
+resource "google_monitoring_metric_descriptor" "dashboard_compliance_failed_checks" {
+  count        = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  depends_on   = [google_project_iam_member.terraform_metric_writer]
+  type         = "workload.googleapis.com/edpa.dashboard_compliance.failed_checks"
+  metric_kind  = "GAUGE"
+  value_type   = "INT64"
+  display_name = "edpa.dashboard_compliance.failed_checks"
+  description  = "Number of failed dashboard compliance checks in the most recent run"
+  labels { key = "instrumentation_source" }
+  labels { key = "service_name" }
+  labels { key = "instrumentation_version" }
+  labels { key = "edpa_dashboard_compliance_section" }
+}
+
+resource "google_monitoring_metric_descriptor" "dashboard_compliance_errors" {
+  count        = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  depends_on   = [google_project_iam_member.terraform_metric_writer]
+  type         = "workload.googleapis.com/edpa.dashboard_compliance.errors"
+  metric_kind  = "CUMULATIVE"
+  value_type   = "INT64"
+  display_name = "edpa.dashboard_compliance.errors"
+  description  = "Number of DashboardComplianceCheckFunction execution errors"
+  labels { key = "instrumentation_source" }
+  labels { key = "service_name" }
+  labels { key = "instrumentation_version" }
+}
+
 # Metric-based alert policy. The function records failed-check counts per section to the
 # edpa.dashboard_compliance.failed_checks gauge and increments edpa.dashboard_compliance.errors
 # on a genuine crash; this policy fires on either. Channels are attached out-of-band (as with
 # the
 # gcs-bucket DLQ alert); with none configured the policy still records incidents but pages no one.
 resource "google_monitoring_alert_policy" "dashboard_compliance_failures" {
-  count        = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  count = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  depends_on = [
+    google_monitoring_metric_descriptor.dashboard_compliance_failed_checks,
+    google_monitoring_metric_descriptor.dashboard_compliance_errors,
+  ]
   display_name = "Dashboard Compliance Check Failures"
   combiner     = "OR"
 
