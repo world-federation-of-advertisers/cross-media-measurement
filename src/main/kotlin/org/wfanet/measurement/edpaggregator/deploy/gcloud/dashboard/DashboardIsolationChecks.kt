@@ -46,6 +46,7 @@ class DashboardIsolationChecks(
         "requisition_overview" to "DataProviderResourceId",
         "mc_details_edp" to "CmmsDataProvider",
         "report_detail_edp" to "CmmsDataProvider",
+        "unlinked_accounts" to "CmmsDataProvider",
       )) {
       val (tableName, column) = table
       try {
@@ -55,11 +56,20 @@ class DashboardIsolationChecks(
           )
         val ids = result.iterateAll().map { it[column].stringValue }.toSet()
         if (ids.isEmpty()) {
+          // unlinked_accounts records an edge/error condition and can legitimately
+          // be empty (an EDP with zero unlinked accounts, or a clean deployment
+          // with none). Empty means there is nothing to leak, so treat it as
+          // healthy rather than a failure. Every other table always has data for
+          // an active EDP, so an empty result there is still a failure. The
+          // cross-EDP assertion below still applies whenever rows do exist.
+          val emptyIsHealthy = isEmptyResultHealthy(tableName)
           results.add(
             CheckResult(
               "${edp.name}: $tableName",
-              false,
-              "${edp.name}: $tableName is empty (expected data after scheduled queries)",
+              emptyIsHealthy,
+              if (emptyIsHealthy)
+                "${edp.name}: $tableName is empty (no unlinked accounts; nothing to leak)"
+              else "${edp.name}: $tableName is empty (expected data after scheduled queries)",
             )
           )
         } else if (ids == setOf(edp.resourceId)) {
@@ -246,6 +256,7 @@ class DashboardIsolationChecks(
         "mc_details_edp",
         "report_detail",
         "report_detail_edp",
+        "unlinked_accounts",
       )
     try {
       val result =
@@ -310,7 +321,8 @@ class DashboardIsolationChecks(
         Regex("(?i).*total.?mcs.*"),
         Regex("(?i).*coverage.?percent.*"),
       )
-    val edpTables = listOf("requisition_overview", "mc_details_edp", "report_detail_edp")
+    val edpTables =
+      listOf("requisition_overview", "mc_details_edp", "report_detail_edp", "unlinked_accounts")
     try {
       val result =
         bq.query(
@@ -345,6 +357,14 @@ class DashboardIsolationChecks(
     // Check deployed table schemas match expected columns
     val expectedColumns =
       mapOf(
+        "unlinked_accounts" to
+          setOf(
+            "CmmsDataProvider",
+            "ClientAccountReferenceId",
+            "BrandName",
+            "ObservedEventGroup",
+            "CreateTime",
+          ),
         "requisition_overview" to
           setOf(
             "DataProviderResourceId",
@@ -475,6 +495,7 @@ class DashboardIsolationChecks(
         "requisition_overview" to "DataProviderResourceId",
         "mc_details_edp" to "CmmsDataProvider",
         "report_detail_edp" to "CmmsDataProvider",
+        "unlinked_accounts" to "CmmsDataProvider",
       )
     for ((tableName, column) in edpTableColumns) {
       try {
@@ -767,6 +788,10 @@ class DashboardIsolationChecks(
   fun checkFreshness(bq: BigQuery): List<CheckResult> {
     val results = mutableListOf<CheckResult>()
     val stalenessThresholdHours = 3
+    // unlinked_accounts is intentionally excluded from the staleness assertion:
+    // it records an edge/error condition and is often legitimately empty, and an
+    // hourly MERGE that affects zero rows does not bump lastModifiedTime. For this
+    // table "not recently modified" is a healthy state, not staleness.
     for (tableName in listOf("requisition_overview", "mc_details", "mc_details_edp")) {
       try {
         val table = bq.getTable(TableId.of(project, dataset, tableName))
@@ -806,5 +831,82 @@ class DashboardIsolationChecks(
       }
     }
     return results
+  }
+
+  /**
+   * Detects a silently-broken `unlinked_accounts` MERGE.
+   *
+   * `unlinked_accounts` is exempt from both the empty-result isolation check and the staleness
+   * check because it is legitimately often empty. Those two exemptions together leave a blind spot:
+   * a broken federation connection, a type error, or a permissions change can leave the dashboard
+   * table empty forever and look identical to "legitimately empty". This distinguishes the two by
+   * comparing the federated Kingdom Spanner source row count to the dashboard table row count — if
+   * the source has rows but the dashboard table is empty, the scheduled MERGE is broken. It reuses
+   * the existing BigQuery client and EXTERNAL_QUERY federation, so it needs no new dependency.
+   */
+  fun checkUnlinkedAccountsPipeline(bq: BigQuery): List<CheckResult> {
+    return try {
+      val staleSourceCount =
+        bq
+          .query(
+            QueryJobConfiguration.of(
+              "SELECT COUNT(*) AS cnt FROM EXTERNAL_QUERY(" +
+                "'projects/$project/locations/$region/connections/kingdom-conn', " +
+                "'''SELECT ClientAccountReferenceId FROM UnlinkedClientAccounts " +
+                "WHERE CreateTime < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 HOUR)''')"
+            )
+          )
+          .iterateAll()
+          .first()
+          .get("cnt")
+          .longValue
+      val destCount =
+        bq
+          .query(
+            QueryJobConfiguration.of(
+              "SELECT COUNT(*) AS cnt FROM `$project.$dataset.unlinked_accounts`"
+            )
+          )
+          .iterateAll()
+          .first()
+          .get("cnt")
+          .longValue
+      val healthy = unlinkedAccountsPipelineHealthy(staleSourceCount, destCount)
+      listOf(
+        CheckResult(
+          "unlinked_accounts pipeline",
+          healthy,
+          if (healthy)
+            "unlinked_accounts: stale_source=$staleSourceCount dest=$destCount (MERGE current)"
+          else
+            "unlinked_accounts: $staleSourceCount source rows older than 2h but dashboard is " +
+              "empty (MERGE broken?)",
+        )
+      )
+    } catch (e: BigQueryException) {
+      listOf(
+        CheckResult(
+          "unlinked_accounts pipeline",
+          false,
+          "unlinked_accounts pipeline health check failed: ${e.message}",
+        )
+      )
+    }
+  }
+
+  companion object {
+    // Tables that record an edge condition and are legitimately often empty.
+    private val EMPTY_IS_HEALTHY = setOf("unlinked_accounts")
+
+    /** Whether an empty result for [tableName] is healthy (legitimately often empty). */
+    fun isEmptyResultHealthy(tableName: String): Boolean = tableName in EMPTY_IS_HEALTHY
+
+    /**
+     * Whether the unlinked_accounts pipeline is healthy given the count of source rows old enough
+     * that a scheduled MERGE should have picked them up and the dashboard table row count. Stale
+     * source rows with an empty dashboard table mean the MERGE is broken.
+     */
+    fun unlinkedAccountsPipelineHealthy(staleSourceCount: Long, destCount: Long): Boolean =
+      !(staleSourceCount > 0 && destCount == 0L)
   }
 }

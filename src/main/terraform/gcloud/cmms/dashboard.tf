@@ -529,6 +529,43 @@ resource "google_bigquery_table" "report_detail_edp" {
 EOF
 }
 
+resource "google_bigquery_table" "unlinked_accounts" {
+  dataset_id          = google_bigquery_dataset.dashboard.dataset_id
+  project             = data.google_client_config.default.project
+  table_id            = "unlinked_accounts"
+  deletion_protection = var.dashboard_deletion_protection
+
+  schema = <<EOF
+[
+  {
+    "name": "CmmsDataProvider",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ClientAccountReferenceId",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "BrandName",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ObservedEventGroup",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "CreateTime",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  }
+]
+EOF
+}
+
 # Terraform SA needs serviceAccountUser on itself to create scheduled queries
 resource "google_service_account_iam_member" "terraform_sa_act_as_self" {
   service_account_id = "projects/${data.google_client_config.default.project}/serviceAccounts/${var.terraform_service_account}"
@@ -656,6 +693,25 @@ resource "google_bigquery_data_transfer_config" "report_detail_edp" {
   }
 }
 
+resource "google_bigquery_data_transfer_config" "unlinked_accounts" {
+  depends_on           = [google_service_account_iam_member.terraform_sa_act_as_self]
+  display_name         = "Dashboard: unlinked_accounts"
+  data_source_id       = "scheduled_query"
+  schedule             = "every 1 hours"
+  project              = data.google_client_config.default.project
+  location             = data.google_client_config.default.region
+  service_account_name = var.terraform_service_account
+
+  params = {
+    query = templatefile("${path.module}/sql/unlinked_accounts.sql", {
+      project_id = data.google_client_config.default.project
+      region     = data.google_client_config.default.region
+      dataset    = google_bigquery_dataset.dashboard.dataset_id
+      table_name = "unlinked_accounts"
+    })
+  }
+}
+
 # --- Per-EDP Service Accounts ---
 
 resource "google_service_account" "edp_dashboard" {
@@ -673,6 +729,15 @@ resource "google_bigquery_row_access_policy" "requisition_overview_platform" {
   project          = data.google_client_config.default.project
   dataset_id       = google_bigquery_dataset.dashboard.dataset_id
   table_id         = google_bigquery_table.requisition_overview.table_id
+  policy_id        = "platform_full_access"
+  filter_predicate = "TRUE"
+  grantees         = concat(["serviceAccount:${var.terraform_service_account}"], var.dashboard_operators)
+}
+
+resource "google_bigquery_row_access_policy" "unlinked_accounts_platform" {
+  project          = data.google_client_config.default.project
+  dataset_id       = google_bigquery_dataset.dashboard.dataset_id
+  table_id         = google_bigquery_table.unlinked_accounts.table_id
   policy_id        = "platform_full_access"
   filter_predicate = "TRUE"
   grantees         = concat(["serviceAccount:${var.terraform_service_account}"], var.dashboard_operators)
@@ -703,6 +768,16 @@ resource "google_bigquery_row_access_policy" "requisition_overview" {
   table_id         = google_bigquery_table.requisition_overview.table_id
   policy_id        = "${each.key}_filter"
   filter_predicate = "DataProviderResourceId = '${each.value}'"
+  grantees         = ["serviceAccount:${google_service_account.edp_dashboard[each.key].email}"]
+}
+
+resource "google_bigquery_row_access_policy" "unlinked_accounts" {
+  for_each         = var.data_provider_resource_ids
+  project          = data.google_client_config.default.project
+  dataset_id       = google_bigquery_dataset.dashboard.dataset_id
+  table_id         = google_bigquery_table.unlinked_accounts.table_id
+  policy_id        = "${each.key}_filter"
+  filter_predicate = "CmmsDataProvider = '${each.value}'"
   grantees         = ["serviceAccount:${google_service_account.edp_dashboard[each.key].email}"]
 }
 
@@ -854,13 +929,22 @@ resource "google_bigquery_dataset_iam_member" "terraform_data_editor" {
 
 # --- Table-level IAM ---
 
-# Operators get dataViewer on platform-only tables (mc_details, report_detail)
-# and the shared table (requisition_overview).
+# Operators get dataViewer on platform-only tables (mc_details, report_detail),
+# the shared table (requisition_overview), and unlinked_accounts.
 resource "google_bigquery_table_iam_member" "requisition_overview_platform_viewer" {
   for_each   = toset(var.dashboard_operators)
   project    = data.google_client_config.default.project
   dataset_id = google_bigquery_dataset.dashboard.dataset_id
   table_id   = google_bigquery_table.requisition_overview.table_id
+  role       = "roles/bigquery.dataViewer"
+  member     = each.value
+}
+
+resource "google_bigquery_table_iam_member" "unlinked_accounts_platform_viewer" {
+  for_each   = toset(var.dashboard_operators)
+  project    = data.google_client_config.default.project
+  dataset_id = google_bigquery_dataset.dashboard.dataset_id
+  table_id   = google_bigquery_table.unlinked_accounts.table_id
   role       = "roles/bigquery.dataViewer"
   member     = each.value
 }
@@ -884,7 +968,7 @@ resource "google_bigquery_table_iam_member" "report_detail_platform_viewer" {
 }
 
 # EDP SAs get dataViewer on shared tables only (requisition_overview, mc_details_edp,
-# report_detail_edp). EDP SAs have no access to platform-only tables (mc_details,
+# report_detail_edp, unlinked_accounts). EDP SAs have no access to platform-only tables (mc_details,
 # report_detail) — they get 403.
 
 resource "google_bigquery_table_iam_member" "requisition_overview_viewer" {
@@ -892,6 +976,15 @@ resource "google_bigquery_table_iam_member" "requisition_overview_viewer" {
   project    = data.google_client_config.default.project
   dataset_id = google_bigquery_dataset.dashboard.dataset_id
   table_id   = google_bigquery_table.requisition_overview.table_id
+  role       = "roles/bigquery.dataViewer"
+  member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
+}
+
+resource "google_bigquery_table_iam_member" "unlinked_accounts_viewer" {
+  for_each   = var.data_provider_resource_ids
+  project    = data.google_client_config.default.project
+  dataset_id = google_bigquery_dataset.dashboard.dataset_id
+  table_id   = google_bigquery_table.unlinked_accounts.table_id
   role       = "roles/bigquery.dataViewer"
   member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }

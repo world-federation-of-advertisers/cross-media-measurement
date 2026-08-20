@@ -48,6 +48,7 @@ import org.wfanet.measurement.api.v2alpha.ModelRolloutKey
 import org.wfanet.measurement.api.v2alpha.ModelShardKey
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.PopulationKey
+import org.wfanet.measurement.api.v2alpha.UnlinkedClientAccountKey
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.asRuntimeException
 import org.wfanet.measurement.common.grpc.errorInfo
@@ -876,6 +877,33 @@ fun Status.toExternalStatusRuntimeException(
         put("clientAccountReferenceId", clientAccountReferenceId)
         errorMessage =
           "ClientAccount with reference ID $clientAccountReferenceId already exists for DataProvider $dataProviderName."
+      }
+      ErrorCode.UNLINKED_CLIENT_ACCOUNT_NOT_FOUND -> {
+        val unlinkedClientAccountName =
+          UnlinkedClientAccountKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
+              ),
+              checkNotNull(errorInfo.metadataMap["client_account_reference_id"]),
+            )
+            .toName()
+        put("unlinkedClientAccount", unlinkedClientAccountName)
+        errorMessage = "UnlinkedClientAccount $unlinkedClientAccountName not found."
+      }
+      ErrorCode.UNLINKED_CLIENT_ACCOUNT_ALREADY_EXISTS -> {
+        val dataProviderName =
+          DataProviderKey(
+              externalIdToApiId(
+                checkNotNull(errorInfo.metadataMap["external_data_provider_id"]).toLong()
+              )
+            )
+            .toName()
+        val clientAccountReferenceId =
+          checkNotNull(errorInfo.metadataMap["client_account_reference_id"])
+        put("dataProvider", dataProviderName)
+        put("clientAccountReferenceId", clientAccountReferenceId)
+        errorMessage =
+          "UnlinkedClientAccount with reference ID $clientAccountReferenceId already exists for DataProvider $dataProviderName."
       }
       ErrorCode.UNKNOWN_ERROR -> {
         errorMessage = "Unknown exception."
