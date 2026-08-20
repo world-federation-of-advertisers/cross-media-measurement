@@ -9,6 +9,27 @@ repositories owned by the WFA.
 
 ## Code Review
 
+### What Do Code Reviewers Look For?
+
+Code reviews should look at:
+
+*   **Design**: Is the code well-designed and appropriate for your system?
+*   **Functionality**: Does the code behave as the author likely intended? Is
+    the way the code behaves good for its users?
+*   **Complexity**: Could the code be made simpler? Would another developer be
+    able to easily understand and use this code when they come across it in the
+    future?
+*   **Tests**: Does the code have correct and well-designed automated tests?
+*   **Naming**: Did the author choose clear names for variables, classes,
+    methods, etc.?
+*   **Comments**: Are the comments clear and useful?
+*   **Style**: Does the code follow our [style guides](code-style.md)?
+*   **Documentation**: Did the author also update relevant documentation?
+
+See
+[How to do a code review](https://google.github.io/eng-practices/review/reviewer/)
+for more information.
+
 ### Commit Message Format
 
 The final commit message must adhere strictly to the format below. This enables
@@ -49,6 +70,10 @@ The `body` and `footer(s)` elements of the commit message are optional, and
 should be used to add additional context. The `footer(s)` must be formatted as
 valid Git trailers.
 
+The guidance from [Writing good CL
+descriptions](https://google.github.io/eng-practices/review/developer/cl-descriptions.html)
+applies to the `description` (the first line of the commit message) and `body`.
+
 This project uses the following additional trailers:
 
 *   `Issue`
@@ -58,7 +83,8 @@ This project uses the following additional trailers:
     [short link format](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls#issues-and-pull-requests)
     as TODOs, *not* full URLs.
 
-    Every significant PR should be associated with at least one GitHub issue.
+    Every significant PR should be associated with at least one GitHub issue. The issues should contain the *context* for why the change is being made, allowing the commit message to remain concise.
+
     Note that this trailer is in addition to any closing keywords used in the
     `body` element.
 
@@ -133,8 +159,12 @@ sacrificing code quality):
 
 *   Don’t block PRs needlessly.
 
-    *   Consider proactively suggesting that the author add a TODO and file a
-        GitHub issue instead of fixing some non-pressing problems.
+    *   If a PR exposes surrounding problems that it would be impractical to
+        address immediately, consider proactively suggesting that the author add
+        a TODO and file a GitHub issue instead.
+        *   See
+            [Cleaning It Up Later](https://google.github.io/eng-practices/review/reviewer/pushback.html#later)
+            for more detailed guidance.
     *   Consider preemptively approving PRs as you post comments if it’s
         straightforward for the PR author to fix the issues and you don’t feel
         the need to verify the fixes – in such situations, it is acceptable for
