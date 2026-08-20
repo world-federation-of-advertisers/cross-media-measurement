@@ -45,6 +45,29 @@ Note that `metric_set.reporting_set_components` entries carry no membership, so
 an entry missing `external_reporting_set_id` cannot be backfilled. Any such
 entry is counted and reported.
 
+### After the backfill
+
+The public read path tolerates a `BasicReport` whose component summaries still
+lack `external_reporting_set_id`: it omits `reporting_set` rather than failing,
+so an incomplete resource is served without any error. A run of this tool that
+misses records therefore produces no visible symptom.
+
+Each such `BasicReport` is logged once per read, at `WARNING`, by the Reporting
+public API server:
+
+```
+BasicReport <id> of MeasurementConsumer <id> has N component summary/summaries
+without external_reporting_set_id.
+```
+
+That warning is the completion signal. It going quiet means every affected
+`BasicReport` has been repaired and no new ones are being written. It recurring
+after a completed run means records are still being written without the field,
+by a path that the `InsertBasicReport` validation does not cover.
+
+The tolerance in the read path should be removed only once the warning has
+stayed silent over a sustained period, not on a schedule.
+
 ### Concurrency
 
 Do not run two instances of this tool against the same environment at the same
