@@ -35,10 +35,15 @@ _accessPublicApiAddressName:                          "access-public"
 // Name of K8s service account for the Access internal API server.
 #InternalAccessServerServiceAccount: "internal-access-server"
 
+// Bumped from cpu 100m / memory 384Mi (heap default -Xmx64M): the internal reporting
+// server was suffering GC-pressure slowdowns and OOMKilled crashes while persisting the
+// Metric rows for reports with large numbers of metrics, since the inherited default heap
+// left almost no working memory once other JVM overhead (metaspace, thread stacks, netty
+// buffers) was accounted for within the old 384Mi container limit.
 #InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "100m"
-		memory: "384Mi"
+		memory: "1Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -135,7 +140,10 @@ reporting: #Reporting & {
 
 	deployments: {
 		"postgres-internal-reporting-server": {
-			_container: resources: #InternalServerResourceRequirements
+			_container: {
+				_javaOptions: maxHeapSize: "512M"
+				resources:    #InternalServerResourceRequirements
+			}
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalServerServiceAccount
 			}
