@@ -44,11 +44,15 @@ jobs:
           stale-issue-message: >
             This issue has been marked as stale because it has had no activity in the past N days.
             If it has no activity in the next M days, it will be closed. Thank you.
-          #stale-pr-message:
           close-issue-message: >
             This issue has been closed because it has had no activity in the past M days after being marked as stale.
             Please feel free to reopen if you'd like to work on this further.
-          #close-pr-message:
+          stale-pr-message: >
+            This PR has been marked as stale because it has had no activity in the past N days.
+            If it has no activity in the next M days, it will be closed. Thank you.
+          close-pr-message: >
+            This issue has been closed because it has had no activity in the past M days after being marked as stale.
+            Please feel free to reopen if you'd like to work on this further.
           operations-per-run: 10000
           debug-only: true
           #delete-branch
