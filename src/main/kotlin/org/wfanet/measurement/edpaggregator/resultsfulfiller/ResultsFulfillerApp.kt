@@ -156,6 +156,12 @@ class ResultsFulfillerApp(
       when (fulfillerParams.noiseParams.noiseType) {
         NoiseType.NONE -> NoNoiserSelector()
         NoiseType.CONTINUOUS_GAUSSIAN -> ContinuousGaussianNoiseSelector()
+        // TODO(@raimundoltdf): The Kingdom cannot offer this for Direct yet.
+        // V2alphaPublicApiServer rejects it for --direct-noise-mechanism, so it never reaches
+        // ProtocolConfig.Direct.noise_mechanisms and this selector refuses every requisition.
+        // Accepting it there needs the reporting server to map the mechanism first; both land in
+        // a follow-up.
+        NoiseType.DETERMINISTIC_TRUNCATED_LAPLACE -> DeterministicTruncatedLaplaceNoiseSelector()
         else -> throw Exception("Invalid noise type ${fulfillerParams.noiseParams.noiseType}")
       }
 
@@ -195,7 +201,11 @@ class ResultsFulfillerApp(
           when (noiseType) {
             NoiseType.NONE -> ProtocolConfig.NoiseMechanism.NONE
             NoiseType.CONTINUOUS_GAUSSIAN -> ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN
-            else -> throw IllegalArgumentException("Unsupported multi-party noise type: $noiseType")
+            NoiseType.DETERMINISTIC_TRUNCATED_LAPLACE ->
+              ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
+            NoiseType.UNSPECIFIED,
+            NoiseType.UNRECOGNIZED ->
+              throw IllegalArgumentException("Unsupported multi-party noise type: $noiseType")
           }
         }
         .toSet()
@@ -298,6 +308,7 @@ class ResultsFulfillerApp(
         channelCapacity = 64,
         threadPoolSize = cpuCount,
         workers = cpuCount,
+        readConcurrency = 16,
       )
   }
 }

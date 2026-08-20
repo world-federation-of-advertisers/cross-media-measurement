@@ -22,6 +22,8 @@ import com.google.type.dateTime
 import com.google.type.timeZone
 import java.io.File
 import java.nio.file.Paths
+import java.time.Clock
+import java.time.Duration
 import java.time.LocalDate
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -652,6 +654,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         reportingServer.internalMetricCalculationSpecsClient,
         reportingServer.internalReportResultsClient,
         EventMessageDescriptor(TestEvent.getDescriptor()),
+        Clock.systemUTC(),
+        MAX_CREATED_BASIC_REPORT_AGE,
       )
 
     basicReportsReportsJob.execute()
@@ -674,6 +678,12 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   companion object {
+    /**
+     * Maximum age of a BasicReport in State CREATED. Long enough that BasicReports created by these
+     * tests are never treated as stuck.
+     */
+    private val MAX_CREATED_BASIC_REPORT_AGE: Duration = Duration.ofHours(1)
+
     internal val SECRETS_DIR: File =
       getRuntimePath(
           Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")

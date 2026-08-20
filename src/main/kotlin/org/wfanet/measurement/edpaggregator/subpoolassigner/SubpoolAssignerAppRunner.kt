@@ -21,7 +21,7 @@ import com.google.protobuf.Parser
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.edpaggregator.BaseVidLabelingTeeAppRunner
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.gcsHadoopConfiguration
+import org.wfanet.measurement.edpaggregator.rawimpressions.gcsHadoopConfiguration
 import org.wfanet.measurement.edpaggregator.runBlockingWithTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub

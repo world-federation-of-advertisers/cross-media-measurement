@@ -46,3 +46,15 @@ databaseChangeLog:
   - include:
       file: create-vid-labeling-schema.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-raw-impression-upload-file-event-date.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: drop-raw-impression-metadata-batch-schema.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: create-unlinked-client-accounts-schema.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: drop-unlinked-client-accounts-table.sql
+      relativeToChangeLogFile: true

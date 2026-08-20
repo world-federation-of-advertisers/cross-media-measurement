@@ -84,8 +84,10 @@ class DataWatcherFunction(
         }
       }
 
-      // Extract custom metadata from the GCS object
-      val objectMetadata: Map<String, String> = data.metadataMap
+      // Extract custom metadata from the GCS object, plus the object generation (the
+      // VidLabelingDispatcher requires it as the X-DataWatcher-Generation header).
+      val objectMetadata: Map<String, String> =
+        data.metadataMap + (DataWatcher.GENERATION_METADATA_KEY to data.generation.toString())
 
       Tracing.withW3CTraceContext(event) {
         Tracing.trace(

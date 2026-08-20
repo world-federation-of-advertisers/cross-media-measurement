@@ -5,6 +5,7 @@ load("//src/main/docker:macros.bzl", "java_image")
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__subpackages__",
 ])
 
 kt_jvm_library(
@@ -25,6 +26,7 @@ kt_jvm_library(
     name = "memoized_rank_index",
     srcs = [
         "MemoizedRankIndex.kt",
+        "MemoizedRankIndexCache.kt",
         "MemoizedRankIndexMetrics.kt",
     ],
     deps = [
@@ -33,6 +35,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:event_id_digest",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:rank_index_store",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/utils:bytes12_int_map",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:event_id_digest_bytes",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_service_kt_jvm_grpc_proto",
@@ -51,7 +54,6 @@ kt_jvm_library(
     srcs = [
         "EntityKeyMapper.kt",
         "EventMessageMapper.kt",
-        "FileEntityKeys.kt",
         "ImpressionConverter.kt",
         "ParquetImpressionConverter.kt",
         "VidLabeler.kt",
@@ -67,6 +69,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:event_id_digest",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:labeler_input_mapper",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:proto_row_projector",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:raw_impression_file_metadata",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:raw_impression_source",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/utils:active_window",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
@@ -102,6 +105,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:event_id_digest_extractor",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:rank_index_store",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:raw_impression_file_metadata",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:raw_impression_source",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/utils:active_window",
@@ -145,6 +149,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:base_tee_app_runner",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:base_vid_labeling_tee_app_runner",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:gcs_hadoop_configuration",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:raw_impression_source",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_service_kt_jvm_grpc_proto",

@@ -20,11 +20,18 @@ import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Semaphore
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -42,6 +49,8 @@ class SubpoolFingerprintsStoreTest {
   @Before
   fun setUp() {
     AeadConfig.register()
+    // The per-writer DEK uses a StreamingAead key template (see EncryptedRecordIoStore).
+    StreamingAeadConfig.register()
     kmsClient =
       FakeKmsClient().apply {
         setAead(
@@ -73,6 +82,26 @@ class SubpoolFingerprintsStoreTest {
     return out.toByteString()
   }
 
+  private fun bs(bytes: ByteArray): ByteString = ByteString.copyFrom(bytes)
+
+  /** Decrypts [key] and returns its 12-byte fingerprints as a SET (order-independent). */
+  private suspend fun fingerprintSet(
+    store: SubpoolFingerprintsStore,
+    key: String,
+    dek: EncryptedDek,
+  ): Set<ByteString> {
+    val set = mutableSetOf<ByteString>()
+    store.readBlob(key, dek).toList().forEach { record ->
+      val bytes = record.fingerprints
+      var i = 0
+      while (i < bytes.size()) {
+        set.add(bytes.substring(i, i + 12))
+        i += 12
+      }
+    }
+    return set
+  }
+
   @Test
   fun `writeBlob writes one record per chunk and readBlob round-trips`() = runBlocking {
     val store = SubpoolFingerprintsStore(storageClient, kmsClient)
@@ -94,28 +123,62 @@ class SubpoolFingerprintsStoreTest {
   }
 
   @Test
-  fun `mergeSubpool concatenates disjoint shard blobs`() = runBlocking {
-    val store = SubpoolFingerprintsStore(storageClient, kmsClient)
-    val dek0 = store.generateDek(kekUri)
-    val dek1 = store.generateDek(kekUri)
-    store.writeBlob("shard-0/subpool-7", dek0, 7L, flowOf(pack(listOf(fp(0x11), fp(0x22)))))
-    store.writeBlob("shard-1/subpool-7", dek1, 7L, flowOf(pack(listOf(fp(0x33)))))
+  fun `mergeSubpool merges disjoint shard blobs and skips a missing input`() =
+    runBlocking<Unit> {
+      val store = SubpoolFingerprintsStore(storageClient, kmsClient)
+      val dek0 = store.generateDek(kekUri)
+      val dek1 = store.generateDek(kekUri)
+      store.writeBlob("shard-0/subpool-7", dek0, 7L, flowOf(pack(listOf(fp(0x11), fp(0x22)))))
+      store.writeBlob("shard-1/subpool-7", dek1, 7L, flowOf(pack(listOf(fp(0x33)))))
 
-    val mergedDek = store.generateDek(kekUri)
-    store.mergeSubpool(
-      listOf(
-        SubpoolFingerprintsStore.SubpoolBlob("shard-0/subpool-7", dek0),
-        SubpoolFingerprintsStore.SubpoolBlob("shard-1/subpool-7", dek1),
-        // A shard with no blob for this subpool is skipped.
-        SubpoolFingerprintsStore.SubpoolBlob("shard-2/subpool-7", dek1),
-      ),
-      outputKey = "merged/subpool-7",
-      outputEncryptedDek = mergedDek,
-    )
+      val mergedDek = store.generateDek(kekUri)
+      store.mergeSubpool(
+        listOf(
+          SubpoolFingerprintsStore.SubpoolBlob("shard-0/subpool-7", dek0),
+          SubpoolFingerprintsStore.SubpoolBlob("shard-1/subpool-7", dek1),
+          // A shard with no blob for this subpool is skipped.
+          SubpoolFingerprintsStore.SubpoolBlob("shard-2/subpool-7", dek1),
+        ),
+        outputKey = "merged/subpool-7",
+        outputEncryptedDek = mergedDek,
+        readSemaphore = Semaphore(16),
+      )
 
-    assertThat(readAll(store, "merged/subpool-7", mergedDek))
-      .isEqualTo(pack(listOf(fp(0x11), fp(0x22), fp(0x33))))
-  }
+      // Reads run concurrently, so records may interleave across shards; assert on the SET.
+      assertThat(fingerprintSet(store, "merged/subpool-7", mergedDek))
+        .containsExactly(bs(fp(0x11)), bs(fp(0x22)), bs(fp(0x33)))
+    }
+
+  @Test
+  fun `writeBlob builds its own client per writer and is safe under concurrent writers`() =
+    runBlocking<Unit> {
+      // Review #4235: per-subpool uploads run concurrently on one store (SubpoolAssigner's
+      // uploadSemaphore). encryptedClient() must build a FRESH client per call — sharing one client
+      // across concurrent writeBlob interleaves its mutable write state and mixes fingerprints
+      // between subpool blobs. InMemoryStorageClient is a thread-safe backend, so any corruption
+      // here is the client, not the storage layer.
+      val countingKms = CountingKmsClient(kmsClient)
+      val store = SubpoolFingerprintsStore(InMemoryStorageClient(), countingKms)
+      val dek = store.generateDek(kekUri)
+      countingKms.unwrapCount.set(0)
+
+      val n = 16
+      val chunks = (0 until n).associateWith { pack(listOf(fp(it))) }
+      coroutineScope {
+        (0 until n).map { i ->
+          launch(Dispatchers.IO) {
+            store.writeBlob("subpool-" + i, dek, i.toLong(), flowOf(chunks.getValue(i)))
+          }
+        }
+      }
+
+      // One client (one KEK->DEK unwrap) PER concurrent writer — no shared/cached client.
+      assertThat(countingKms.unwrapCount.get()).isEqualTo(n)
+      // ...and no cross-writer corruption: each blob round-trips to exactly its own bytes.
+      for (i in 0 until n) {
+        assertThat(readAll(store, "subpool-" + i, dek)).isEqualTo(chunks.getValue(i))
+      }
+    }
 
   @Test
   fun `delete removes a blob`() = runBlocking {
@@ -126,6 +189,18 @@ class SubpoolFingerprintsStoreTest {
     store.delete("shard-0/subpool-7")
 
     assertThat(store.readBlob("shard-0/subpool-7", dek).toList()).isEmpty()
+  }
+
+  @Test
+  fun `blobSize returns the blob byte size and 0 when the blob is absent`() = runBlocking {
+    val store = SubpoolFingerprintsStore(storageClient, kmsClient)
+    val dek = store.generateDek(kekUri)
+    // Absent blob -> 0 so the forward rank build falls back to MIN_CAPACITY.
+    assertThat(store.blobSize("shard-0/subpool-7", dek)).isEqualTo(0L)
+    store.writeBlob("shard-0/subpool-7", dek, 7L, flowOf(pack(listOf(fp(0x11), fp(0x22)))))
+    // Present blob -> a positive byte size the caller divides by EventIdDigestBytes.WIDTH to
+    // estimate the fingerprint count.
+    assertThat(store.blobSize("shard-0/subpool-7", dek)).isGreaterThan(0L)
   }
 
   @Test
@@ -147,5 +222,33 @@ class SubpoolFingerprintsStoreTest {
         SubpoolFingerprintsStore.mergedSubpoolKey("maps/", upload, modelLine, poolOffset = 7L)
       )
       .isEqualTo("maps/upload/abc-123/modelLine/ml1/merged/subpoolOffset/7")
+  }
+
+  /**
+   * Wraps a [KmsClient] to count KEK->DEK unwraps, i.e. how many times a wrapped DEK is decrypted
+   * under its KEK Aead. Building an encrypted client unwraps exactly once; DEK generation (wrap)
+   * uses `encrypt`, so it is not counted.
+   */
+  private class CountingKmsClient(private val delegate: KmsClient) : KmsClient {
+    val unwrapCount = AtomicInteger()
+
+    override fun doesSupport(keyUri: String?): Boolean = delegate.doesSupport(keyUri)
+
+    override fun withCredentials(credentialPath: String?): KmsClient = this
+
+    override fun withDefaultCredentials(): KmsClient = this
+
+    override fun getAead(keyUri: String?): Aead {
+      val delegateAead = delegate.getAead(keyUri)
+      return object : Aead {
+        override fun encrypt(plaintext: ByteArray?, associatedData: ByteArray?): ByteArray =
+          delegateAead.encrypt(plaintext, associatedData)
+
+        override fun decrypt(ciphertext: ByteArray?, associatedData: ByteArray?): ByteArray {
+          unwrapCount.incrementAndGet()
+          return delegateAead.decrypt(ciphertext, associatedData)
+        }
+      }
+    }
   }
 }

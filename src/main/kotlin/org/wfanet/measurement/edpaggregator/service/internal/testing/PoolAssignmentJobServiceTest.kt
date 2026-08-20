@@ -106,6 +106,7 @@ abstract class PoolAssignmentJobServiceTest {
     val job: PoolAssignmentJob =
       service.createPoolAssignmentJob(
         createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           poolAssignmentJob = poolAssignmentJob {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -198,6 +199,7 @@ abstract class PoolAssignmentJobServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.createPoolAssignmentJob(
             createPoolAssignmentJobRequest {
+              this.requestId = UUID.randomUUID().toString()
               poolAssignmentJob = poolAssignmentJob {
                 rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
                 cmmsModelLine = CMMS_MODEL_LINE
@@ -226,6 +228,7 @@ abstract class PoolAssignmentJobServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.createPoolAssignmentJob(
             createPoolAssignmentJobRequest {
+              this.requestId = UUID.randomUUID().toString()
               poolAssignmentJob = poolAssignmentJob {
                 dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
                 cmmsModelLine = CMMS_MODEL_LINE
@@ -272,6 +275,7 @@ abstract class PoolAssignmentJobServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.createPoolAssignmentJob(
           createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
             poolAssignmentJob = poolAssignmentJob {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -321,6 +325,33 @@ abstract class PoolAssignmentJobServiceTest {
   }
 
   @Test
+  fun `createPoolAssignmentJob throws INVALID_ARGUMENT if request_id not set`() = runBlocking {
+    val exception: StatusRuntimeException =
+      assertFailsWith<StatusRuntimeException> {
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            poolAssignmentJob = poolAssignmentJob {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+        }
+      )
+  }
+
+  @Test
   fun `batchCreatePoolAssignmentJobs creates multiple`() =
     runBlocking<Unit> {
       val response =
@@ -329,6 +360,7 @@ abstract class PoolAssignmentJobServiceTest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             requests += createPoolAssignmentJobRequest {
+              this.requestId = UUID.randomUUID().toString()
               poolAssignmentJob = poolAssignmentJob {
                 dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
                 rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -337,6 +369,7 @@ abstract class PoolAssignmentJobServiceTest {
               }
             }
             requests += createPoolAssignmentJobRequest {
+              this.requestId = UUID.randomUUID().toString()
               poolAssignmentJob = poolAssignmentJob {
                 dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
                 rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -356,6 +389,7 @@ abstract class PoolAssignmentJobServiceTest {
     val created: PoolAssignmentJob =
       service.createPoolAssignmentJob(
         createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           poolAssignmentJob = poolAssignmentJob {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -429,6 +463,7 @@ abstract class PoolAssignmentJobServiceTest {
   fun `listPoolAssignmentJobs returns resources`() = runBlocking {
     service.createPoolAssignmentJob(
       createPoolAssignmentJobRequest {
+        this.requestId = UUID.randomUUID().toString()
         poolAssignmentJob = poolAssignmentJob {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -439,6 +474,7 @@ abstract class PoolAssignmentJobServiceTest {
     )
     service.createPoolAssignmentJob(
       createPoolAssignmentJobRequest {
+        this.requestId = UUID.randomUUID().toString()
         poolAssignmentJob = poolAssignmentJob {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -464,6 +500,7 @@ abstract class PoolAssignmentJobServiceTest {
     for (i in 0..2) {
       service.createPoolAssignmentJob(
         createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           poolAssignmentJob = poolAssignmentJob {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -492,6 +529,7 @@ abstract class PoolAssignmentJobServiceTest {
     val created: PoolAssignmentJob =
       service.createPoolAssignmentJob(
         createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           poolAssignmentJob = poolAssignmentJob {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -502,6 +540,7 @@ abstract class PoolAssignmentJobServiceTest {
       )
     service.createPoolAssignmentJob(
       createPoolAssignmentJobRequest {
+        this.requestId = UUID.randomUUID().toString()
         poolAssignmentJob = poolAssignmentJob {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -513,6 +552,7 @@ abstract class PoolAssignmentJobServiceTest {
 
     service.markPoolAssignmentJobSucceeded(
       markPoolAssignmentJobSucceededRequest {
+        this.requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
@@ -542,6 +582,7 @@ abstract class PoolAssignmentJobServiceTest {
   fun `listPoolAssignmentJobs filters by cmms_model_line`() = runBlocking {
     service.createPoolAssignmentJob(
       createPoolAssignmentJobRequest {
+        this.requestId = UUID.randomUUID().toString()
         poolAssignmentJob = poolAssignmentJob {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -552,6 +593,7 @@ abstract class PoolAssignmentJobServiceTest {
     )
     service.createPoolAssignmentJob(
       createPoolAssignmentJobRequest {
+        this.requestId = UUID.randomUUID().toString()
         poolAssignmentJob = poolAssignmentJob {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -579,6 +621,7 @@ abstract class PoolAssignmentJobServiceTest {
     for (i in 0..2) {
       service.createPoolAssignmentJob(
         createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           poolAssignmentJob = poolAssignmentJob {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -620,6 +663,7 @@ abstract class PoolAssignmentJobServiceTest {
     val created: PoolAssignmentJob =
       service.createPoolAssignmentJob(
         createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           poolAssignmentJob = poolAssignmentJob {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -632,6 +676,7 @@ abstract class PoolAssignmentJobServiceTest {
     val response: MarkPoolAssignmentJobSucceededResponse =
       service.markPoolAssignmentJobSucceeded(
         markPoolAssignmentJobSucceededRequest {
+          this.requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
@@ -650,6 +695,7 @@ abstract class PoolAssignmentJobServiceTest {
     val created: PoolAssignmentJob =
       service.createPoolAssignmentJob(
         createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           poolAssignmentJob = poolAssignmentJob {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -691,6 +737,7 @@ abstract class PoolAssignmentJobServiceTest {
     val created: PoolAssignmentJob =
       service.createPoolAssignmentJob(
         createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           poolAssignmentJob = poolAssignmentJob {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -704,6 +751,7 @@ abstract class PoolAssignmentJobServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.markPoolAssignmentJobSucceeded(
           markPoolAssignmentJobSucceededRequest {
+            this.requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
@@ -722,6 +770,7 @@ abstract class PoolAssignmentJobServiceTest {
       val created: PoolAssignmentJob =
         service.createPoolAssignmentJob(
           createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
             poolAssignmentJob = poolAssignmentJob {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -734,6 +783,7 @@ abstract class PoolAssignmentJobServiceTest {
       val response =
         service.markPoolAssignmentJobSucceeded(
           markPoolAssignmentJobSucceededRequest {
+            this.requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
@@ -746,6 +796,7 @@ abstract class PoolAssignmentJobServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.markPoolAssignmentJobSucceeded(
             markPoolAssignmentJobSucceededRequest {
+              this.requestId = UUID.randomUUID().toString()
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
@@ -763,6 +814,7 @@ abstract class PoolAssignmentJobServiceTest {
     val created: PoolAssignmentJob =
       service.createPoolAssignmentJob(
         createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           poolAssignmentJob = poolAssignmentJob {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -775,6 +827,7 @@ abstract class PoolAssignmentJobServiceTest {
     val job: PoolAssignmentJob =
       service.markPoolAssignmentJobFailed(
         markPoolAssignmentJobFailedRequest {
+          this.requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
@@ -792,6 +845,7 @@ abstract class PoolAssignmentJobServiceTest {
     val created: PoolAssignmentJob =
       service.createPoolAssignmentJob(
         createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           poolAssignmentJob = poolAssignmentJob {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -805,6 +859,7 @@ abstract class PoolAssignmentJobServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.markPoolAssignmentJobFailed(
           markPoolAssignmentJobFailedRequest {
+            this.requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
@@ -823,6 +878,7 @@ abstract class PoolAssignmentJobServiceTest {
       val created: PoolAssignmentJob =
         service.createPoolAssignmentJob(
           createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
             poolAssignmentJob = poolAssignmentJob {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -835,6 +891,7 @@ abstract class PoolAssignmentJobServiceTest {
       val response =
         service.markPoolAssignmentJobSucceeded(
           markPoolAssignmentJobSucceededRequest {
+            this.requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
@@ -847,6 +904,7 @@ abstract class PoolAssignmentJobServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.markPoolAssignmentJobFailed(
             markPoolAssignmentJobFailedRequest {
+              this.requestId = UUID.randomUUID().toString()
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
@@ -860,11 +918,283 @@ abstract class PoolAssignmentJobServiceTest {
     }
 
   @Test
+  fun `markPoolAssignmentJobFailed is idempotent with same request_id`() = runBlocking {
+    val requestId = UUID.randomUUID().toString()
+    val created: PoolAssignmentJob =
+      service.createPoolAssignmentJob(
+        createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
+          poolAssignmentJob = poolAssignmentJob {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            cmmsModelLine = CMMS_MODEL_LINE
+            shardIndex = 0
+          }
+        }
+      )
+
+    val job1: PoolAssignmentJob =
+      service.markPoolAssignmentJobFailed(
+        markPoolAssignmentJobFailedRequest {
+          this.requestId = requestId
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
+          etag = created.etag
+          errorMessage = "something went wrong"
+        }
+      )
+
+    val job2: PoolAssignmentJob =
+      service.markPoolAssignmentJobFailed(
+        markPoolAssignmentJobFailedRequest {
+          this.requestId = requestId
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
+          etag = job1.etag
+          errorMessage = "something went wrong"
+        }
+      )
+
+    assertThat(job2).isEqualTo(job1)
+  }
+
+  @Test
+  fun `markPoolAssignmentJobFailed preserves original error_message on same-request_id replay`() =
+    runBlocking {
+      val requestId = UUID.randomUUID().toString()
+      val created: PoolAssignmentJob =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
+            poolAssignmentJob = poolAssignmentJob {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
+          }
+        )
+
+      val job1: PoolAssignmentJob =
+        service.markPoolAssignmentJobFailed(
+          markPoolAssignmentJobFailedRequest {
+            this.requestId = requestId
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
+            etag = created.etag
+            errorMessage = "first failure"
+          }
+        )
+
+      // A replay with the same request_id but a different error_message returns the row with the
+      // ORIGINAL error_message (AIP-155: the first response is returned as-is).
+      val job2: PoolAssignmentJob =
+        service.markPoolAssignmentJobFailed(
+          markPoolAssignmentJobFailedRequest {
+            this.requestId = requestId
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
+            etag = job1.etag
+            errorMessage = "second failure"
+          }
+        )
+
+      assertThat(job2.errorMessage).isEqualTo("first failure")
+      assertThat(job2).isEqualTo(job1)
+    }
+
+  @Test
+  fun `markPoolAssignmentJobFailed replays after the resource advances to SUCCEEDED`() =
+    runBlocking {
+      val failRequestId = UUID.randomUUID().toString()
+      val created: PoolAssignmentJob =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
+            poolAssignmentJob = poolAssignmentJob {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
+          }
+        )
+
+      val failed: PoolAssignmentJob =
+        service.markPoolAssignmentJobFailed(
+          markPoolAssignmentJobFailedRequest {
+            this.requestId = failRequestId
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
+            etag = created.etag
+            errorMessage = "transient failure"
+          }
+        )
+
+      // A later legitimate MarkSucceeded advances FAILED -> SUCCEEDED.
+      val succeeded =
+        service.markPoolAssignmentJobSucceeded(
+          markPoolAssignmentJobSucceededRequest {
+            this.requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
+            etag = failed.etag
+            encryptedDek = ENCRYPTED_DEK
+          }
+        )
+
+      // A redelivery of the original MarkFailed replays as an idempotent no-op: it returns the row
+      // as-is (now SUCCEEDED) instead of throwing FAILED_PRECONDITION, and the stale etag is
+      // ignored because the replay short-circuits before the etag check.
+      val replayed: PoolAssignmentJob =
+        service.markPoolAssignmentJobFailed(
+          markPoolAssignmentJobFailedRequest {
+            this.requestId = failRequestId
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
+            etag = "stale-etag"
+            errorMessage = "transient failure"
+          }
+        )
+
+      assertThat(replayed.state).isEqualTo(PoolAssignmentState.POOL_ASSIGNMENT_STATE_SUCCEEDED)
+      assertThat(replayed).isEqualTo(succeeded.poolAssignmentJob)
+    }
+
+  @Test
+  fun `markPoolAssignmentJobFailed throws INVALID_ARGUMENT if request_id not set`() = runBlocking {
+    val created: PoolAssignmentJob =
+      service.createPoolAssignmentJob(
+        createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
+          poolAssignmentJob = poolAssignmentJob {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            cmmsModelLine = CMMS_MODEL_LINE
+            shardIndex = 0
+          }
+        }
+      )
+
+    val exception: StatusRuntimeException =
+      assertFailsWith<StatusRuntimeException> {
+        service.markPoolAssignmentJobFailed(
+          markPoolAssignmentJobFailedRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
+            etag = created.etag
+            errorMessage = "something went wrong"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+        }
+      )
+  }
+
+  @Test
+  fun `markPoolAssignmentJobFailed throws INVALID_ARGUMENT for malformed request_id`() =
+    runBlocking {
+      val created: PoolAssignmentJob =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
+            poolAssignmentJob = poolAssignmentJob {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
+          }
+        )
+
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.markPoolAssignmentJobFailed(
+            markPoolAssignmentJobFailedRequest {
+              requestId = "not-a-valid-uuid"
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
+              etag = created.etag
+              errorMessage = "something went wrong"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+          }
+        )
+    }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded throws INVALID_ARGUMENT if request_id not set`() =
+    runBlocking {
+      val created: PoolAssignmentJob =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
+            poolAssignmentJob = poolAssignmentJob {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
+          }
+        )
+
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          service.markPoolAssignmentJobSucceeded(
+            markPoolAssignmentJobSucceededRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
+              etag = created.etag
+              encryptedDek = ENCRYPTED_DEK
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+          }
+        )
+    }
+
+  @Test
   fun `markPoolAssignmentJobSucceeded throws NOT_FOUND when not found`() = runBlocking {
     val exception: StatusRuntimeException =
       assertFailsWith<StatusRuntimeException> {
         service.markPoolAssignmentJobSucceeded(
           markPoolAssignmentJobSucceededRequest {
+            this.requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = "nonexistent-job"
@@ -883,6 +1213,7 @@ abstract class PoolAssignmentJobServiceTest {
       val created: PoolAssignmentJob =
         service.createPoolAssignmentJob(
           createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
             poolAssignmentJob = poolAssignmentJob {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -896,6 +1227,7 @@ abstract class PoolAssignmentJobServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.markPoolAssignmentJobSucceeded(
             markPoolAssignmentJobSucceededRequest {
+              this.requestId = UUID.randomUUID().toString()
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
@@ -920,6 +1252,7 @@ abstract class PoolAssignmentJobServiceTest {
     val created: PoolAssignmentJob =
       service.createPoolAssignmentJob(
         createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           poolAssignmentJob = poolAssignmentJob {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -932,6 +1265,7 @@ abstract class PoolAssignmentJobServiceTest {
     val response: MarkPoolAssignmentJobSucceededResponse =
       service.markPoolAssignmentJobSucceeded(
         markPoolAssignmentJobSucceededRequest {
+          this.requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
@@ -959,6 +1293,7 @@ abstract class PoolAssignmentJobServiceTest {
       val shard0: PoolAssignmentJob =
         service.createPoolAssignmentJob(
           createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
             poolAssignmentJob = poolAssignmentJob {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -970,6 +1305,7 @@ abstract class PoolAssignmentJobServiceTest {
       val shard1: PoolAssignmentJob =
         service.createPoolAssignmentJob(
           createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
             poolAssignmentJob = poolAssignmentJob {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -982,6 +1318,7 @@ abstract class PoolAssignmentJobServiceTest {
       // Non-last shard: the parent's merged DEK stays unset even though this shard has a DEK.
       service.markPoolAssignmentJobSucceeded(
         markPoolAssignmentJobSucceededRequest {
+          this.requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           poolAssignmentJobResourceId = shard0.poolAssignmentJobResourceId
@@ -1001,6 +1338,7 @@ abstract class PoolAssignmentJobServiceTest {
       // Last shard out: this final shard's encrypted_dek is promoted onto the parent model line.
       service.markPoolAssignmentJobSucceeded(
         markPoolAssignmentJobSucceededRequest {
+          this.requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           poolAssignmentJobResourceId = shard1.poolAssignmentJobResourceId
@@ -1026,6 +1364,7 @@ abstract class PoolAssignmentJobServiceTest {
       val shard0: PoolAssignmentJob =
         service.createPoolAssignmentJob(
           createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
             poolAssignmentJob = poolAssignmentJob {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -1037,6 +1376,7 @@ abstract class PoolAssignmentJobServiceTest {
       val shard1: PoolAssignmentJob =
         service.createPoolAssignmentJob(
           createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
             poolAssignmentJob = poolAssignmentJob {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -1049,6 +1389,7 @@ abstract class PoolAssignmentJobServiceTest {
       val firstResponse: MarkPoolAssignmentJobSucceededResponse =
         service.markPoolAssignmentJobSucceeded(
           markPoolAssignmentJobSucceededRequest {
+            this.requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = shard0.poolAssignmentJobResourceId
@@ -1061,6 +1402,7 @@ abstract class PoolAssignmentJobServiceTest {
       val lastResponse: MarkPoolAssignmentJobSucceededResponse =
         service.markPoolAssignmentJobSucceeded(
           markPoolAssignmentJobSucceededRequest {
+            this.requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = shard1.poolAssignmentJobResourceId
@@ -1081,6 +1423,7 @@ abstract class PoolAssignmentJobServiceTest {
       val shard: PoolAssignmentJob =
         service.createPoolAssignmentJob(
           createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
             poolAssignmentJob = poolAssignmentJob {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -1093,6 +1436,7 @@ abstract class PoolAssignmentJobServiceTest {
       val response: MarkPoolAssignmentJobSucceededResponse =
         service.markPoolAssignmentJobSucceeded(
           markPoolAssignmentJobSucceededRequest {
+            this.requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = shard.poolAssignmentJobResourceId
@@ -1110,6 +1454,7 @@ abstract class PoolAssignmentJobServiceTest {
       val shard: PoolAssignmentJob =
         service.createPoolAssignmentJob(
           createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
             poolAssignmentJob = poolAssignmentJob {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -1122,6 +1467,7 @@ abstract class PoolAssignmentJobServiceTest {
       val response: MarkPoolAssignmentJobSucceededResponse =
         service.markPoolAssignmentJobSucceeded(
           markPoolAssignmentJobSucceededRequest {
+            this.requestId = UUID.randomUUID().toString()
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             poolAssignmentJobResourceId = shard.poolAssignmentJobResourceId
@@ -1146,6 +1492,7 @@ abstract class PoolAssignmentJobServiceTest {
       val shard: PoolAssignmentJob =
         service.createPoolAssignmentJob(
           createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
             poolAssignmentJob = poolAssignmentJob {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -1200,6 +1547,7 @@ abstract class PoolAssignmentJobServiceTest {
       val shard0: PoolAssignmentJob =
         service.createPoolAssignmentJob(
           createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
             poolAssignmentJob = poolAssignmentJob {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -1211,6 +1559,7 @@ abstract class PoolAssignmentJobServiceTest {
       val shard1: PoolAssignmentJob =
         service.createPoolAssignmentJob(
           createPoolAssignmentJobRequest {
+            this.requestId = UUID.randomUUID().toString()
             poolAssignmentJob = poolAssignmentJob {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -1236,6 +1585,7 @@ abstract class PoolAssignmentJobServiceTest {
       // Drain the group: shard1 is the last shard and reaches SUCCEEDED after shard0.
       service.markPoolAssignmentJobSucceeded(
         markPoolAssignmentJobSucceededRequest {
+          this.requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           poolAssignmentJobResourceId = shard1.poolAssignmentJobResourceId
@@ -1273,6 +1623,7 @@ abstract class PoolAssignmentJobServiceTest {
     val modelLineAShard0: PoolAssignmentJob =
       service.createPoolAssignmentJob(
         createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           poolAssignmentJob = poolAssignmentJob {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -1284,6 +1635,7 @@ abstract class PoolAssignmentJobServiceTest {
     val modelLineAShard1: PoolAssignmentJob =
       service.createPoolAssignmentJob(
         createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           poolAssignmentJob = poolAssignmentJob {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -1296,6 +1648,7 @@ abstract class PoolAssignmentJobServiceTest {
     // whole test, so it can neither trigger nor suppress model line A's last-shard result.
     service.createPoolAssignmentJob(
       createPoolAssignmentJobRequest {
+        this.requestId = UUID.randomUUID().toString()
         poolAssignmentJob = poolAssignmentJob {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -1310,6 +1663,7 @@ abstract class PoolAssignmentJobServiceTest {
     val firstResponse: MarkPoolAssignmentJobSucceededResponse =
       service.markPoolAssignmentJobSucceeded(
         markPoolAssignmentJobSucceededRequest {
+          this.requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           poolAssignmentJobResourceId = modelLineAShard0.poolAssignmentJobResourceId
@@ -1324,6 +1678,7 @@ abstract class PoolAssignmentJobServiceTest {
     val lastResponse: MarkPoolAssignmentJobSucceededResponse =
       service.markPoolAssignmentJobSucceeded(
         markPoolAssignmentJobSucceededRequest {
+          this.requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           poolAssignmentJobResourceId = modelLineAShard1.poolAssignmentJobResourceId
@@ -1345,6 +1700,7 @@ abstract class PoolAssignmentJobServiceTest {
     val created: PoolAssignmentJob =
       service.createPoolAssignmentJob(
         createPoolAssignmentJobRequest {
+          this.requestId = UUID.randomUUID().toString()
           poolAssignmentJob = poolAssignmentJob {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -1357,6 +1713,7 @@ abstract class PoolAssignmentJobServiceTest {
     val failed: PoolAssignmentJob =
       service.markPoolAssignmentJobFailed(
         markPoolAssignmentJobFailedRequest {
+          this.requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
@@ -1369,6 +1726,7 @@ abstract class PoolAssignmentJobServiceTest {
     val succeeded: MarkPoolAssignmentJobSucceededResponse =
       service.markPoolAssignmentJobSucceeded(
         markPoolAssignmentJobSucceededRequest {
+          this.requestId = UUID.randomUUID().toString()
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
           poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
@@ -1389,7 +1747,7 @@ abstract class PoolAssignmentJobServiceTest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         requests += createPoolAssignmentJobRequest {
-          requestId = UUID.randomUUID().toString()
+          this.requestId = UUID.randomUUID().toString()
           poolAssignmentJob = poolAssignmentJob {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -1398,7 +1756,7 @@ abstract class PoolAssignmentJobServiceTest {
           }
         }
         requests += createPoolAssignmentJobRequest {
-          requestId = UUID.randomUUID().toString()
+          this.requestId = UUID.randomUUID().toString()
           poolAssignmentJob = poolAssignmentJob {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -1465,6 +1823,7 @@ abstract class PoolAssignmentJobServiceTest {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               requests += createPoolAssignmentJobRequest {
+                this.requestId = UUID.randomUUID().toString()
                 poolAssignmentJob = poolAssignmentJob {
                   dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
                   rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -1473,6 +1832,7 @@ abstract class PoolAssignmentJobServiceTest {
                 }
               }
               requests += createPoolAssignmentJobRequest {
+                this.requestId = UUID.randomUUID().toString()
                 poolAssignmentJob = poolAssignmentJob {
                   dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
                   rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
@@ -1498,6 +1858,7 @@ abstract class PoolAssignmentJobServiceTest {
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               for (i in 0..MAX_BATCH_SIZE) {
                 requests += createPoolAssignmentJobRequest {
+                  this.requestId = UUID.randomUUID().toString()
                   poolAssignmentJob = poolAssignmentJob {
                     dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
                     rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID

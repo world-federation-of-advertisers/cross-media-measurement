@@ -1,15 +1,18 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
-package(default_visibility = [
+_DEFAULT_VISIBILITY = [
     "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute/protocols/direct:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common:__pkg__",
+    "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:__pkg__",
     "//src/test/kotlin/org/wfanet/measurement/computation:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/duchy/mill/trustee:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__subpackages__",
-])
+]
+
+package(default_visibility = _DEFAULT_VISIBILITY)
 
 kt_jvm_library(
     name = "computation_params",
@@ -22,12 +25,40 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "deterministic_truncated_laplace_params",
+    srcs = ["DeterministicTruncatedLaplaceParams.kt"],
+    visibility = _DEFAULT_VISIBILITY + [
+        # The report harness asserts results against the same truncation bound the sampler applies.
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:__pkg__",
+    ],
+)
+
+kt_jvm_library(
+    name = "truncated_laplace_noise_distribution",
+    srcs = ["TruncatedLaplaceNoiseDistribution.kt"],
+)
+
+kt_jvm_library(
+    name = "deterministic_uniform_sampler",
+    srcs = ["DeterministicUniformSampler.kt"],
+)
+
+kt_jvm_library(
+    name = "deterministic_truncated_laplace_noise_sampler",
+    srcs = ["DeterministicTruncatedLaplaceNoiseSampler.kt"],
+    deps = [
+        ":deterministic_truncated_laplace_params",
+        ":deterministic_uniform_sampler",
+        ":truncated_laplace_noise_distribution",
+    ],
+)
+
+kt_jvm_library(
     name = "impression_computations",
     srcs = ["ImpressionComputations.kt"],
     deps = [
-        ":differential_privacy_params",
         ":result_minimum_thresholds",
-        "//imports/java/com/google/privacy:differential_privacy",
+        ":result_noiser",
     ],
 )
 
@@ -45,11 +76,27 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "reach_and_frequency",
+    srcs = ["ReachAndFrequency.kt"],
+)
+
+kt_jvm_library(
+    name = "result_noiser",
+    srcs = ["ResultNoiser.kt"],
+    deps = [
+        ":deterministic_truncated_laplace_noise_sampler",
+        ":deterministic_truncated_laplace_params",
+        ":differential_privacy_params",
+        "//imports/java/com/google/privacy:differential_privacy",
+    ],
+)
+
+kt_jvm_library(
     name = "reach_and_frequency_computations",
     srcs = ["ReachAndFrequencyComputations.kt"],
     deps = [
-        ":differential_privacy_params",
+        ":reach_and_frequency",
         ":result_minimum_thresholds",
-        "//imports/java/com/google/privacy:differential_privacy",
+        ":result_noiser",
     ],
 )

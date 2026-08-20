@@ -73,6 +73,7 @@ import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoro
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt.PublicKeysCoroutineStub as InternalPublicKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub as InternalRecurringExchangesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineStub as InternalUnlinkedClientAccountsCoroutineStub
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfigFlags
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
@@ -106,6 +107,7 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelSuitesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.PopulationsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.PublicKeysService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.UnlinkedClientAccountsService
 import picocli.CommandLine
 
 private const val SERVER_NAME = "V2alphaPublicApiServer"
@@ -217,6 +219,17 @@ private fun run(
           akidInterceptor,
         ),
       ClientAccountsService(InternalClientAccountsCoroutineStub(channel), serviceDispatcher)
+        .withInterceptors(
+          apiChangeMetricsInterceptor,
+          apiKeyPrincipalInterceptor,
+          akidPrincipalInterceptor,
+          rateLimitingInterceptor,
+          akidInterceptor,
+        ),
+      UnlinkedClientAccountsService(
+          InternalUnlinkedClientAccountsCoroutineStub(channel),
+          serviceDispatcher,
+        )
         .withInterceptors(
           apiChangeMetricsInterceptor,
           apiKeyPrincipalInterceptor,
@@ -424,6 +437,9 @@ private class V2alphaFlags {
   lateinit var redirectUri: String
     private set
 
+  var rateLimitConfig: RateLimitConfig = DEFAULT_RATE_LIMIT_CONFIG
+    private set
+
   @CommandLine.Option(
     names = ["--rate-limit-config-file"],
     description =
@@ -434,14 +450,13 @@ private class V2alphaFlags {
       ],
     required = false,
   )
-  private lateinit var rateLimitConfigFile: File
-
-  val rateLimitConfig: RateLimitConfig by lazy {
-    if (::rateLimitConfigFile.isInitialized) {
-      parseTextProto(rateLimitConfigFile, RateLimitConfig.getDefaultInstance())
-    } else {
-      DEFAULT_RATE_LIMIT_CONFIG
+  private fun setRateLimitConfig(value: File) {
+    val config = parseTextProto(value, RateLimitConfig.getDefaultInstance())
+    if (!config.hasRateLimit()) {
+      throw CommandLine.ParameterException(spec.commandLine(), "Rate limit must be set")
     }
+
+    rateLimitConfig = config
   }
 
   lateinit var directNoiseMechanisms: List<NoiseMechanism>
@@ -533,6 +548,7 @@ private class V2alphaFlags {
             ),
           )
         }
+        NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
         NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
         NoiseMechanism.UNRECOGNIZED -> {
           throw CommandLine.ParameterException(

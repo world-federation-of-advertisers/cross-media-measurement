@@ -389,6 +389,71 @@ class DataWatcherTest() {
       server.stop()
     }
   }
+
+  @Test
+  fun `forwards object generation as X-DataWatcher-Generation header to webhook sink`() {
+    runBlocking {
+      val appParams =
+        Struct.newBuilder()
+          .putFields("some-key", Value.newBuilder().setStringValue("some-value").build())
+          .build()
+      val localPort = ServerSocket(0).use { it.localPort }
+      val config = watchedPath {
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+        this.httpEndpointSink = httpEndpointSink {
+          endpointUri = "http://localhost:$localPort"
+          this.appParams = appParams
+        }
+      }
+      val server = TestServer()
+      server.start(localPort)
+
+      val dataWatcher =
+        DataWatcher(
+          workItemsStub = workItemsStub,
+          dataWatcherConfigs = listOf(config),
+          idTokenProvider = mockIdTokenProvider,
+        )
+
+      val objectMetadata = mapOf(DataWatcher.GENERATION_METADATA_KEY to "42")
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", objectMetadata)
+
+      assertThat(server.getLastRequestHeader("X-DataWatcher-Generation")).isEqualTo("42")
+      server.stop()
+    }
+  }
+
+  @Test
+  fun `omits X-DataWatcher-Generation header when object generation absent`() {
+    runBlocking {
+      val appParams =
+        Struct.newBuilder()
+          .putFields("some-key", Value.newBuilder().setStringValue("some-value").build())
+          .build()
+      val localPort = ServerSocket(0).use { it.localPort }
+      val config = watchedPath {
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+        this.httpEndpointSink = httpEndpointSink {
+          endpointUri = "http://localhost:$localPort"
+          this.appParams = appParams
+        }
+      }
+      val server = TestServer()
+      server.start(localPort)
+
+      val dataWatcher =
+        DataWatcher(
+          workItemsStub = workItemsStub,
+          dataWatcherConfigs = listOf(config),
+          idTokenProvider = mockIdTokenProvider,
+        )
+
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
+
+      assertThat(server.getLastRequestHeader("X-DataWatcher-Generation")).isNull()
+      server.stop()
+    }
+  }
 }
 
 private class TestServer() {

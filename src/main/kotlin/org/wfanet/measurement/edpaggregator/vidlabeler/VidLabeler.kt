@@ -22,6 +22,8 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
 import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetRawEvent
+import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
@@ -51,8 +53,8 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
  * @param outputStorageParams GCS project + blob prefix for labeled output.
  * @param storageConfig storage configuration built from [outputStorageParams].
  */
-class VidLabeler(
-  private val rawImpressionSource: RawImpressionSource,
+class VidLabeler<E : ParquetRawEvent>(
+  private val rawImpressionSource: RawImpressionSource<E>,
   private val modelLineSpecs: List<ModelLineSpec>,
   private val overrideModelLines: List<String>,
   private val vidModelLoader: VidModelLoader,
@@ -63,6 +65,9 @@ class VidLabeler(
   private val storageConfig: StorageConfig,
   private val dataProvider: String,
   private val metrics: VidLabelerMetrics = VidLabelerMetrics(),
+  // Builds the per-file sink for this VM's event type: ::MemoizedVidLabelingSink (memoized)
+  // or ::PlainVidLabelingSink (hash-only). Chosen by the app; keeps this driver generic.
+  private val newSink: VidLabelingSinkFactory<E>,
 ) {
 
   // TODO(world-federation-of-advertisers/cross-media-measurement#4010): Add vid_labeling_job,
@@ -97,7 +102,7 @@ class VidLabeler(
     // output DEKs against the same KEK, so this caps concurrent KMS key setup across the
     // WorkItem's whole group fan-out (nModelLines x nFiles) and keeps the shared KEK under Cloud
     // KMS rate limits.
-    val encryptionKeySemaphore = Semaphore(VidLabelingSink.DEFAULT_ENCRYPTION_KEY_PARALLELISM)
+    val encryptionKeySemaphore = Semaphore(BaseVidLabelingSink.DEFAULT_ENCRYPTION_KEY_PARALLELISM)
 
     // Distinct event dates seen across this WorkItem's files, read from their footers as they
     // stream. streamBlobs reads files in parallel, so this must be a concurrent set.
@@ -107,23 +112,23 @@ class VidLabeler(
     // contract. RawImpressionSource currently shards by fingerprint; once VidLabelerApp is wired
     // up, pass VidLabelingJob.raw_impression_upload_files directly and remove fingerprint sharding.
     rawImpressionSource.streamBlobs { blobUri, footerMetadata ->
-      // The file's plaintext Parquet footer carries the event group reference id and event date;
-      // read them here and hand them to the file's sink. Entity keys are NOT in the footer — they
-      // are read per impression from dedicated columns by the converter (EntityKeyMapper).
-      val fileEntityKeys = FileEntityKeys.fromFooterMetadata(footerMetadata)
-      observedEventDates.add(fileEntityKeys.eventDate)
-      VidLabelingSink(
-        inputBlobUri = blobUri,
-        modelLineContexts = contexts,
-        impressionConverter = impressionConverter,
-        fileEntityKeys = fileEntityKeys,
-        encryptKmsClient = encryptKmsClient,
-        encryptKekUri = encryptKekUri,
-        outputStorageParams = outputStorageParams,
-        storageConfig = storageConfig,
-        dataProvider = dataProvider,
-        metrics = metrics,
-        encryptionKeySemaphore = encryptionKeySemaphore,
+      // The file's plaintext Parquet footer carries the event date; read it here and hand it to
+      // the file's sink. Entity keys are NOT in the footer — they are read per impression from
+      // dedicated columns by the converter (EntityKeyMapper).
+      val fileMetadata = RawImpressionFileMetadata.fromFooterMetadata(footerMetadata)
+      observedEventDates.add(fileMetadata.eventDate)
+      newSink(
+        blobUri,
+        contexts,
+        impressionConverter,
+        fileMetadata,
+        encryptKmsClient,
+        encryptKekUri,
+        outputStorageParams,
+        storageConfig,
+        dataProvider,
+        metrics,
+        encryptionKeySemaphore,
       )
     }
     // TODO(world-federation-of-advertisers/cross-media-measurement#4010): Call

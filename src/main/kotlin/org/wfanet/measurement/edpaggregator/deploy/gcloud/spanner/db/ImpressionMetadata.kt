@@ -37,7 +37,6 @@ import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataNotFoundException
-import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionMetadataNotFoundException
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -50,12 +49,10 @@ import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as State
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataKey
 import org.wfanet.measurement.internal.edpaggregator.UpdateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.entityKey
 import org.wfanet.measurement.internal.edpaggregator.impressionMetadata
-import org.wfanet.measurement.internal.edpaggregator.rawImpressionMetadataKey
 
 private const val IMPRESSION_METADATA_RESOURCE_ID_PREFIX = "imp"
 
@@ -72,9 +69,6 @@ data class ImpressionMetadataResult(
 )
 
 data class ModelLineBoundResult(val cmmsModelLine: String, val bound: Interval)
-
-/** Resolved internal Spanner IDs for a RawImpressionMetadata FK reference. */
-data class RawImpressionInternalKey(val batchId: Long, val fileId: Long)
 
 /** Returns whether the [ImpressionMetadata] with the specified [impressionMetadataId] exists. */
 suspend fun AsyncDatabaseClient.ReadContext.impressionMetadataExists(
@@ -267,55 +261,11 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingImpressionMetadataByBlob
     .associateBy { it.impressionMetadata.blobUri }
 }
 
-/**
- * Resolves resource IDs from a [RawImpressionMetadataKey] to internal Spanner IDs.
- *
- * @throws RawImpressionMetadataNotFoundException if the referenced RawImpressionMetadata does not
- *   exist
- */
-suspend fun AsyncDatabaseClient.ReadContext.resolveRawImpressionInternalKey(
-  dataProviderResourceId: String,
-  key: RawImpressionMetadataKey,
-): RawImpressionInternalKey {
-  val sql =
-    """
-    SELECT
-      RawImpressionMetadataBatch.BatchId,
-      RawImpressionMetadataBatchFile.FileId,
-    FROM
-      RawImpressionMetadataBatch
-      JOIN RawImpressionMetadataBatchFile USING (DataProviderResourceId, BatchId)
-    WHERE
-      RawImpressionMetadataBatch.DataProviderResourceId = @dataProviderResourceId
-      AND RawImpressionMetadataBatch.BatchResourceId = @batchResourceId
-      AND RawImpressionMetadataBatchFile.FileResourceId = @fileResourceId
-    """
-      .trimIndent()
-
-  val row: Struct =
-    executeQuery(
-        statement(sql) {
-          bind("dataProviderResourceId").to(dataProviderResourceId)
-          bind("batchResourceId").to(key.batchResourceId)
-          bind("fileResourceId").to(key.fileResourceId)
-        }
-      )
-      .singleOrNullIfEmpty()
-      ?: throw RawImpressionMetadataNotFoundException(
-        dataProviderResourceId,
-        key.batchResourceId,
-        key.fileResourceId,
-      )
-
-  return RawImpressionInternalKey(batchId = row.getLong("BatchId"), fileId = row.getLong("FileId"))
-}
-
 /** Buffers an insert mutation for a [ImpressionMetadata] row. */
 fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
   impressionMetadataId: Long,
   impressionMetadata: ImpressionMetadata,
   createRequestId: String,
-  rawImpressionInternalKey: RawImpressionInternalKey? = null,
 ) {
   bufferInsertMutation("ImpressionMetadata") {
     set("DataProviderResourceId").to(impressionMetadata.dataProviderResourceId)
@@ -331,10 +281,6 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
     set("IntervalStartTime").to(impressionMetadata.interval.startTime.toGcloudTimestamp())
     set("IntervalEndTime").to(impressionMetadata.interval.endTime.toGcloudTimestamp())
     set("State").to(impressionMetadata.state)
-    if (rawImpressionInternalKey != null) {
-      set("RawImpressionBatchId").to(rawImpressionInternalKey.batchId)
-      set("RawImpressionFileId").to(rawImpressionInternalKey.fileId)
-    }
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
@@ -414,28 +360,13 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchCreateImpressionMetadata
             "$IMPRESSION_METADATA_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
           }
 
-        val rawImpressionInternalKey =
-          if (request.impressionMetadata.hasRawImpressionMetadataKey()) {
-            resolveRawImpressionInternalKey(
-              dataProviderResourceId,
-              request.impressionMetadata.rawImpressionMetadataKey,
-            )
-          } else {
-            null
-          }
-
         val created =
           request.impressionMetadata.copy {
             this.impressionMetadataResourceId = impressionMetadataResourceId
             state = State.IMPRESSION_METADATA_STATE_ACTIVE
           }
 
-        insertImpressionMetadata(
-          impressionMetadataId,
-          created,
-          request.requestId,
-          rawImpressionInternalKey,
-        )
+        insertImpressionMetadata(impressionMetadataId, created, request.requestId)
         created
       }
 
@@ -470,8 +401,19 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
 ): Flow<ImpressionMetadataResult> {
   val entityKeyFilter: List<EntityKey> = filter.entityKeysList
 
+  // Force the list-filter index only for the (model line + event group) shape it is designed for
+  // -- the results-fulfiller's batched path -- so a large `IN UNNEST` set is served by index seeks
+  // rather than a base-table scan. Other shapes (blob URI, entity keys, etc.) are left to the
+  // optimizer so they keep using their own more selective indexes.
+  val tableIndexDirective =
+    if (filter.cmmsModelLine.isNotEmpty() && filter.eventGroupReferenceIdsList.isNotEmpty()) {
+      "@{FORCE_INDEX=${ImpressionMetadataEntity.LIST_FILTER_INDEX}}"
+    } else {
+      ""
+    }
+
   val sql = buildString {
-    appendLine(ImpressionMetadataEntity.BASE_SQL)
+    appendLine(ImpressionMetadataEntity.baseSql(tableIndexDirective))
 
     val conjuncts =
       mutableListOf("ImpressionMetadata.DataProviderResourceId = @dataProviderResourceId")
@@ -484,8 +426,8 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
       conjuncts.add("ImpressionMetadata.CmmsModelLine = @cmmsModelLine")
     }
 
-    if (filter.eventGroupReferenceId.isNotEmpty()) {
-      conjuncts.add("ImpressionMetadata.EventGroupReferenceId = @eventGroupReferenceId")
+    if (filter.eventGroupReferenceIdsList.isNotEmpty()) {
+      conjuncts.add("ImpressionMetadata.EventGroupReferenceId IN UNNEST(@eventGroupReferenceIds)")
     }
 
     if (filter.hasIntervalOverlaps()) {
@@ -545,8 +487,8 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
         bind("cmmsModelLine").to(filter.cmmsModelLine)
       }
 
-      if (filter.eventGroupReferenceId.isNotEmpty()) {
-        bind("eventGroupReferenceId").to(filter.eventGroupReferenceId)
+      if (filter.eventGroupReferenceIdsList.isNotEmpty()) {
+        bind("eventGroupReferenceIds").toStringArray(filter.eventGroupReferenceIdsList)
       }
 
       if (filter.hasIntervalOverlaps()) {
@@ -726,7 +668,19 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchUpdateImpressionMetadata
 }
 
 private object ImpressionMetadataEntity {
-  val BASE_SQL =
+  /** Spanner index that backs the list-filter/pagination read shape. */
+  const val LIST_FILTER_INDEX = "ImpressionMetadataByListFilterAndPagination"
+
+  /**
+   * Builds the base SELECT.
+   *
+   * @param tableIndexDirective optional Spanner index directive (e.g.
+   *   `@{FORCE_INDEX=ImpressionMetadataByListFilterAndPagination}`) placed immediately after the
+   *   `ImpressionMetadata` table reference. Empty by default so the optimizer chooses the index;
+   *   other read shapes (by resource id, by blob URI, by create request id) rely on that to keep
+   *   using their own indexes.
+   */
+  fun baseSql(tableIndexDirective: String = ""): String =
     """
     SELECT
       ImpressionMetadata.DataProviderResourceId,
@@ -743,8 +697,6 @@ private object ImpressionMetadataEntity {
       ImpressionMetadata.State,
       ImpressionMetadata.CreateTime,
       ImpressionMetadata.UpdateTime,
-      RawImpressionMetadataBatch.BatchResourceId AS RawImpressionBatchResourceId,
-      RawImpressionMetadataBatchFile.FileResourceId AS RawImpressionFileResourceId,
       ARRAY(
         SELECT AS STRUCT
           ImpressionMetadataEntityKeys.EntityType,
@@ -755,15 +707,12 @@ private object ImpressionMetadataEntity {
         ORDER BY ImpressionMetadataEntityKeys.EntityType, ImpressionMetadataEntityKeys.EntityId
       ) AS EntityKeys,
     FROM
-      ImpressionMetadata
-    LEFT JOIN (
-      RawImpressionMetadataBatchFile
-      JOIN RawImpressionMetadataBatch USING (DataProviderResourceId, BatchId)
-    ) ON ImpressionMetadata.DataProviderResourceId = RawImpressionMetadataBatchFile.DataProviderResourceId
-      AND ImpressionMetadata.RawImpressionBatchId = RawImpressionMetadataBatchFile.BatchId
-      AND ImpressionMetadata.RawImpressionFileId = RawImpressionMetadataBatchFile.FileId
+      ImpressionMetadata$tableIndexDirective
     """
       .trimIndent()
+
+  /** Base SELECT with no index directive; the optimizer chooses the index. */
+  val BASE_SQL = baseSql()
 
   fun buildImpressionMetadataResult(struct: Struct): ImpressionMetadataResult {
     return ImpressionMetadataResult(
@@ -783,12 +732,6 @@ private object ImpressionMetadataEntity {
         createTime = struct.getTimestamp("CreateTime").toProto()
         updateTime = struct.getTimestamp("UpdateTime").toProto()
         etag = ETags.computeETag(updateTime.toInstant())
-        if (!struct.isNull("RawImpressionBatchResourceId")) {
-          rawImpressionMetadataKey = rawImpressionMetadataKey {
-            batchResourceId = struct.getString("RawImpressionBatchResourceId")
-            fileResourceId = struct.getString("RawImpressionFileResourceId")
-          }
-        }
         entityKeys +=
           struct.getStructList("EntityKeys").map { ekStruct ->
             entityKey {

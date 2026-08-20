@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.util.Timestamps
+import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.GlobalOpenTelemetry
@@ -29,6 +30,7 @@ import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.time.Clock
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.emptyFlow
@@ -220,6 +222,7 @@ class VidLabelingDispatcherTest {
   private fun createDispatcher(
     overrideModelLines: List<String> = emptyList(),
     modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig> = DEFAULT_MODEL_LINE_CONFIGS,
+    readEventDate: suspend (String) -> LocalDate = { EVENT_DATE },
     metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
   ): VidLabelingDispatcher {
     return VidLabelingDispatcher(
@@ -233,6 +236,7 @@ class VidLabelingDispatcherTest {
       modelSuiteName = MODEL_SUITE_NAME,
       overrideModelLines = overrideModelLines,
       modelLineConfigs = modelLineConfigs,
+      readEventDate = readEventDate,
       clock = fixedClock,
       metrics = metrics,
     )
@@ -365,6 +369,9 @@ class VidLabelingDispatcherTest {
       // size_bytes is populated from each blob's size in the storage listing.
       assertThat(request.requestsList.map { it.rawImpressionUploadFile.sizeBytes })
         .containsExactly(111L, 222L)
+      // event_date is populated from each file's plaintext Parquet footer (readEventDate seam).
+      assertThat(request.requestsList.map { it.rawImpressionUploadFile.eventDate })
+        .containsExactly(EVENT_DATE_PROTO, EVENT_DATE_PROTO)
     }
 
   @Test
@@ -764,6 +771,12 @@ class VidLabelingDispatcherTest {
     private const val POOL_ASSIGNER_QUEUE_NAME = "queues/pool-assigner"
 
     private val FIXED_NOW: Instant = Instant.parse("2026-06-03T12:00:00Z")
+    private val EVENT_DATE: LocalDate = LocalDate.parse("2026-06-01")
+    private val EVENT_DATE_PROTO = date {
+      year = 2026
+      month = 6
+      day = 1
+    }
 
     private val DATA_PROVIDER_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.vid_labeling_dispatcher.data_provider")

@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db
 
+import com.google.cloud.Date
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Statement
@@ -25,6 +26,7 @@ import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadFileNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
@@ -54,6 +56,7 @@ private const val BASE_SQL =
     RawImpressionUploadFile.CreateRequestId,
     RawImpressionUploadFile.BlobUri,
     RawImpressionUploadFile.SizeBytes,
+    RawImpressionUploadFile.EventDate,
     RawImpressionUploadFile.CreateTime,
     RawImpressionUploadFile.UpdateTime,
     RawImpressionUploadFile.DeleteTime,
@@ -215,6 +218,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUploadFile(
   fileResourceId: String,
   blobUri: String,
   sizeBytes: Long,
+  eventDate: com.google.type.Date,
   createRequestId: String,
 ) {
   bufferInsertMutation("RawImpressionUploadFile") {
@@ -225,6 +229,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUploadFile(
     set("CreateRequestId").to(createRequestId)
     set("BlobUri").to(blobUri)
     set("SizeBytes").to(sizeBytes)
+    set("EventDate").to(eventDate.toCloudDate())
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
@@ -348,6 +353,8 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploadFiles(
   }
 }
 
+private fun com.google.type.Date.toCloudDate(): Date = Date.fromYearMonthDay(year, month, day)
+
 private fun buildRawImpressionUploadFileResult(struct: Struct): RawImpressionUploadFileResult {
   return RawImpressionUploadFileResult(
     rawImpressionUploadFile {
@@ -356,6 +363,7 @@ private fun buildRawImpressionUploadFileResult(struct: Struct): RawImpressionUpl
       fileResourceId = struct.getString("FileResourceId")
       blobUri = struct.getString("BlobUri")
       sizeBytes = struct.getLong("SizeBytes")
+      eventDate = struct.getDate("EventDate").toProtoDate()
       createTime = struct.getTimestamp("CreateTime").toProto()
       updateTime = struct.getTimestamp("UpdateTime").toProto()
       if (!struct.isNull("DeleteTime")) {

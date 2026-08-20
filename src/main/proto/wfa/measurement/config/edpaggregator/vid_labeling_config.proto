@@ -44,10 +44,6 @@ message VidLabelingConfig {
   StorageParams vid_labeled_impressions_storage_params = 3
       [(google.api.field_behavior) = REQUIRED];
 
-  // Connection used by TEE App to access the VID Repo.
-  TransportLayerSecurityParams vid_repo_connection = 4
-      [(google.api.field_behavior) = REQUIRED];
-
   // Message representing the configuration for a model line.
   message ModelLineConfig {
     // How each LabelerInput field is sourced from the raw-impression row (plain
@@ -119,7 +115,15 @@ message VidLabelingConfig {
       [(google.api.field_behavior) = REQUIRED];
 
   // Duration a non-terminal upload may remain before it is flagged as stuck
-  // for alerting.
+  // for alerting, and the minimum age at which the Monitor recovers a model
+  // line stuck mid-phase by republishing its WorkItem.
+  //
+  // Must be at least 24 hours (enforced at config load). The Monitor treats a
+  // model line whose updateTime has been static past this threshold as stuck;
+  // too short a value risks racing a legitimate but slow last-out (a large
+  // fan-out can take far longer than a few minutes), making the Monitor
+  // mistake in-flight work for stuck work. A one-day floor keeps recovery
+  // attempts safely spaced.
   google.protobuf.Duration staleness_threshold = 13
       [(google.api.field_behavior) = REQUIRED];
 
@@ -159,10 +163,19 @@ message VidLabelingConfig {
       [(google.api.field_behavior) = OPTIONAL];
 
   // Maximum total `RawImpressionUploadFile.size_bytes` packed into a single
-  // non-memoized Phase-2 `VidLabelingJob` (the bin-packing threshold). OPTIONAL
-  // here like the memoized-only storage params above; the dispatcher enforces
-  // it (`> 0`) at the first non-memoized dispatch.
-  int64 max_file_batch_size_bytes = 17 [(google.api.field_behavior) = OPTIONAL];
+  // Phase-2 `VidLabelingJob` (the bin-packing threshold). Required by both
+  // dispatch paths, with no default: too high a cap OOMs the Phase-2 VM and
+  // too low a cap under-utilizes it.
+  int64 max_file_batch_size_bytes = 17 [(google.api.field_behavior) = REQUIRED];
+
+  // Per-EDP folder segment for this EDP's VID-labeled impression output, placed
+  // between the storage bucket and the `model-line/<id>/<date>/` layout so each
+  // EDP writes to its own folder (e.g. `gs://<bucket>/<edp_impression_path>/
+  // model-line/...`). Keeps multiple EDPs that label the same model line in the
+  // same bucket from colliding in one folder. REQUIRED, and must match the
+  // `edp_impression_path` in this EDP's `DataAvailabilitySyncConfig` so the
+  // writer and the registrar agree on the location.
+  string edp_impression_path = 18 [(google.api.field_behavior) = REQUIRED];
 }
 
 // Wrapper containing VID Labeling configurations for all EDPs.

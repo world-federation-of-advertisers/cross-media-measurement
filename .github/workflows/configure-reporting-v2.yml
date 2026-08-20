@@ -39,6 +39,9 @@ on:
       oauth_issuer:
         description: "OAuth issuer URL for the MCP server (blank uses the environment's OPEN_ID_PROVIDER_ISSUER)"
         type: string
+      oauth_protected_resource:
+        description: "OAuth protected-resource identifier the MCP server advertises (blank uses the environment's OAUTH_PROTECTED_RESOURCE, else defaults to https://<mcp_host>)"
+        type: string
   workflow_dispatch:
     inputs:
       environment:
@@ -62,6 +65,9 @@ on:
         type: string
       oauth_issuer:
         description: "OAuth issuer URL for the MCP server (blank uses the environment's OPEN_ID_PROVIDER_ISSUER)"
+        type: string
+      oauth_protected_resource:
+        description: "OAuth protected-resource identifier the MCP server advertises (blank uses the environment's OAUTH_PROTECTED_RESOURCE, else defaults to https://<mcp_host>)"
         type: string
 
 permissions:
@@ -107,6 +113,7 @@ jobs:
         PDP_NAME: ${{ vars.PDP_NAME }}
         MCP_HOST: ${{ inputs.mcp_host || vars.MCP_HOST }}
         OPEN_ID_PROVIDER_ISSUER: ${{ inputs.oauth_issuer || vars.OPEN_ID_PROVIDER_ISSUER }}
+        OAUTH_PROTECTED_RESOURCE: ${{ inputs.oauth_protected_resource || vars.OAUTH_PROTECTED_RESOURCE }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -125,6 +132,7 @@ jobs:
         build --define "pdp_name=$PDP_NAME"
         build --define "mcp_host=$MCP_HOST"
         build --define "oauth_issuer=$OPEN_ID_PROVIDER_ISSUER"
+        build --define "oauth_protected_resource=$OAUTH_PROTECTED_RESOURCE"
         EOF
 
     - name: Export BAZEL_BIN

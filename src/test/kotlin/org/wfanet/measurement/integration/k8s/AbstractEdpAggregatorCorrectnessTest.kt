@@ -141,62 +141,12 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
     }
 
   @Test
-  fun `EDPA EventGroup without entity_key defaults to campaign with no entity_id or metadata`() =
-    runBlocking {
-      val response =
-        measurementSystem.publicEventGroupsStub
-          .withAuthenticationKey(measurementSystem.apiAuthenticationKey)
-          .listEventGroups(
-            listEventGroupsRequest {
-              parent = measurementSystem.measurementConsumerName
-              pageSize = 100
-              // No filter — server defaults entity_type_in to ["campaign"].
-            }
-          )
-
-      val legacy: EventGroup =
-        response.eventGroupsList.single {
-          it.eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID
-        }
-      // Schema column DEFAULT "campaign"; EntityId stays NULL; entity_metadata not set.
-      assertThat(legacy.entityKey.entityType).isEqualTo("campaign")
-      assertThat(legacy.entityKey.entityId).isEmpty()
-      assertThat(legacy.eventGroupMetadata.hasEntityMetadata()).isFalse()
-    }
-
-  @Test
-  fun `default ListEventGroups filter hides non-campaign EventGroups`() = runBlocking {
-    val response =
-      measurementSystem.publicEventGroupsStub
-        .withAuthenticationKey(measurementSystem.apiAuthenticationKey)
-        .listEventGroups(
-          listEventGroupsRequest {
-            parent = measurementSystem.measurementConsumerName
-            pageSize = 100
-            // No filter — server defaults entity_type_in to ["campaign"].
-          }
-        )
-
-    val refIds = response.eventGroupsList.map { it.eventGroupReferenceId }.toSet()
-    assertThat(refIds).contains(EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID)
-    assertThat(refIds).doesNotContain(CREATIVE_ID_EVENT_GROUP_REF_ID)
-  }
-
-  @Test
-  fun `direct measurement with reference-id-only event groups succeeds`() = runBlocking {
-    mcSimulator.testDirectReachAndFrequency(
-      "1240",
-      1,
-      eventGroupFilter = { it.eventGroupReferenceId == EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID },
-    )
-  }
-
-  @Test
   fun `direct measurement with creative-id entity-key-only event groups succeeds`() = runBlocking {
     mcSimulator.testDirectReachAndFrequency(
       "1241",
       1,
       eventGroupFilter = { it.eventGroupReferenceId == CREATIVE_ID_EVENT_GROUP_REF_ID },
+      reportId = ENTITY_KEY_REPORT_ID,
     )
   }
 
@@ -222,6 +172,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
         "1242",
         1,
         eventGroupFilter = { it.eventGroupReferenceId in MULTI_CREATIVE_REF_IDS },
+        reportId = ENTITY_KEY_REPORT_ID,
       )
     }
 
@@ -238,7 +189,11 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
     private const val MC_CS_CERT_DER_NAME = "mc_cs_cert.der"
     private const val MC_CS_PRIVATE_KEY_DER_NAME = "mc_cs_private.der"
 
-    const val EDP_NO_ENTITY_KEY_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-1"
+    // edp7's single-entity-key event group measured by the direct (single-publisher) measurements.
+    // Its CMMS event_group_reference_id is derived from its `creative-id` entity key (see
+    // impression_test_data_config.textproto + createEventGroups).
+    const val EDP7_DIRECT_ENTITY_ID = "edpa-eg-direct-creative"
+    val EDP7_DIRECT_EVENT_GROUP_REF_ID = "creative-id-$EDP7_DIRECT_ENTITY_ID"
     const val CREATIVE_ID_ENTITY_ID = "edpa-eg-creative-id-1"
     val CREATIVE_ID_EVENT_GROUP_REF_ID = "creative-id-$CREATIVE_ID_ENTITY_ID"
     const val MULTI_CREATIVE_A_ENTITY_ID = "edpa-eg-multi-creative-1"
@@ -246,7 +201,16 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
     val MULTI_CREATIVE_A_REF_ID = "creative-id-$MULTI_CREATIVE_A_ENTITY_ID"
     val MULTI_CREATIVE_B_REF_ID = "creative-id-$MULTI_CREATIVE_B_ENTITY_ID"
     val MULTI_CREATIVE_REF_IDS = setOf(MULTI_CREATIVE_A_REF_ID, MULTI_CREATIVE_B_REF_ID)
-    const val EDPA_META_EVENT_GROUP_REF_ID = "edpa-eg-reference-id-2"
+    // edpa_meta's single-entity-key event group (second publisher for the cross-publisher
+    // measurement); its CMMS event_group_reference_id is derived from its `creative-id` entity key.
+    const val EDPA_META_ENTITY_ID = "edpa-meta-creative"
+    val EDPA_META_EVENT_GROUP_REF_ID = "creative-id-$EDPA_META_ENTITY_ID"
+
+    // Entity-key measurements must not share a report with reference-id measurements: the
+    // requisition fetcher groups requisitions by report and the results fulfiller rejects a group
+    // that mixes reference-id and entity-key event groups. Route entity-key measurements to their
+    // own report so each report's group is single-kind.
+    const val ENTITY_KEY_REPORT_ID = "some-entity-key-report-id"
 
     val OUTPUT_DP_PARAMS = differentialPrivacyParams {
       epsilon = 0.1

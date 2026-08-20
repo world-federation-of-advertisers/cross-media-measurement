@@ -395,10 +395,14 @@ abstract class ImpressionMetadataServiceTest {
   }
 
   @Test
-  fun `createImpressionMetadata throws INVALID_ARGUMENT if eventGroupReferenceId not set`() =
+  fun `createImpressionMetadata throws INVALID_ARGUMENT if neither eventGroupReferenceId nor entity_keys set`() =
     runBlocking {
       val request = createImpressionMetadataRequest {
-        impressionMetadata = IMPRESSION_METADATA.copy { clearEventGroupReferenceId() }
+        impressionMetadata =
+          IMPRESSION_METADATA.copy {
+            clearEventGroupReferenceId()
+            entityKeys.clear()
+          }
       }
 
       val exception =
@@ -411,9 +415,30 @@ abstract class ImpressionMetadataServiceTest {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "impression_metadata.event_group_reference_id"
+              "impression_metadata.event_group_reference_id or entity_keys"
           }
         )
+    }
+
+  @Test
+  fun `createImpressionMetadata succeeds with entity_keys and no eventGroupReferenceId`() =
+    runBlocking {
+      val response =
+        service.createImpressionMetadata(
+          createImpressionMetadataRequest {
+            impressionMetadata =
+              IMPRESSION_METADATA.copy {
+                clearEventGroupReferenceId()
+                entityKeys += ENTITY_KEY_AD_1
+                entityKeys += ENTITY_KEY_CAMPAIGN_1
+              }
+          }
+        )
+
+      assertThat(response.eventGroupReferenceId).isEmpty()
+      assertThat(response.entityKeysList)
+        .containsExactly(ENTITY_KEY_AD_1, ENTITY_KEY_CAMPAIGN_1)
+        .inOrder()
     }
 
   @Test
@@ -1456,7 +1481,87 @@ abstract class ImpressionMetadataServiceTest {
   }
 
   @Test
-  fun `listImpressionMetadata filters by eventGroupReferenceId`() = runBlocking {
+  fun `listImpressionMetadata filters by eventGroupReferenceIds`() = runBlocking {
+    val created =
+      service
+        .batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            requests += createImpressionMetadataRequest {
+              impressionMetadata = IMPRESSION_METADATA_2
+            }
+            requests += createImpressionMetadataRequest {
+              impressionMetadata = IMPRESSION_METADATA_3
+            }
+            requests += createImpressionMetadataRequest {
+              impressionMetadata = IMPRESSION_METADATA_4
+            }
+          }
+        )
+        .impressionMetadataList
+
+    // The batched filter matches group-1 (METADATA_2) and group-2 (METADATA_3, METADATA_4).
+    val expected =
+      created
+        .filter { it.eventGroupReferenceId == "group-1" || it.eventGroupReferenceId == "group-2" }
+        .sortedBy { it.impressionMetadataResourceId }
+
+    val response =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          filter =
+            ListImpressionMetadataRequestKt.filter {
+              eventGroupReferenceIds += listOf("group-1", "group-2")
+            }
+        }
+      )
+
+    assertThat(response)
+      .isEqualTo(listImpressionMetadataResponse { impressionMetadata += expected })
+  }
+
+  @Test
+  fun `listImpressionMetadata by eventGroupReferenceIds returns only matching event groups`() =
+    runBlocking {
+      val created =
+        service
+          .batchCreateImpressionMetadata(
+            batchCreateImpressionMetadataRequest {
+              requests += createImpressionMetadataRequest {
+                impressionMetadata = IMPRESSION_METADATA_2
+              }
+              requests += createImpressionMetadataRequest {
+                impressionMetadata = IMPRESSION_METADATA_3
+              }
+              requests += createImpressionMetadataRequest {
+                impressionMetadata = IMPRESSION_METADATA_4
+              }
+            }
+          )
+          .impressionMetadataList
+
+      val expected =
+        created
+          .filter { it.eventGroupReferenceId == "group-2" }
+          .sortedBy { it.impressionMetadataResourceId }
+
+      val response =
+        service.listImpressionMetadata(
+          listImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            filter = ListImpressionMetadataRequestKt.filter { eventGroupReferenceIds += "group-2" }
+          }
+        )
+
+      assertThat(response)
+        .isEqualTo(listImpressionMetadataResponse { impressionMetadata += expected })
+    }
+
+  @Test
+  fun `listImpressionMetadata filters by cmmsModelLine and eventGroupReferenceIds`() = runBlocking {
+    // Sets both model line and repeated event-group ids: the batched fulfiller shape, which forces
+    // ImpressionMetadataByListFilterAndPagination. Confirms the hinted query is valid and filters
+    // correctly (METADATA_4 is excluded because its model line differs).
     val created =
       service
         .batchCreateImpressionMetadata(
@@ -1476,14 +1581,21 @@ abstract class ImpressionMetadataServiceTest {
 
     val expected =
       created
-        .filter { it.eventGroupReferenceId == "group-2" }
+        .filter {
+          it.cmmsModelLine == MODEL_LINE_2 &&
+            (it.eventGroupReferenceId == "group-1" || it.eventGroupReferenceId == "group-2")
+        }
         .sortedBy { it.impressionMetadataResourceId }
 
     val response =
       service.listImpressionMetadata(
         listImpressionMetadataRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          filter = ListImpressionMetadataRequestKt.filter { eventGroupReferenceId = "group-2" }
+          filter =
+            ListImpressionMetadataRequestKt.filter {
+              cmmsModelLine = MODEL_LINE_2
+              eventGroupReferenceIds += listOf("group-1", "group-2")
+            }
         }
       )
 

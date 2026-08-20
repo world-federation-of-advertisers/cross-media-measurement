@@ -18,19 +18,26 @@ package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
+import com.google.type.Date
+import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import java.time.Clock
+import java.time.LocalDate
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
@@ -77,6 +84,8 @@ import org.wfanet.measurement.storage.StorageClient
  * @param overrideModelLines if non-empty, use these model lines instead of querying the API.
  *   Overrides bypass active window checks to support backfilling past data.
  * @param modelLineConfigs field mapping configuration keyed by model line resource name.
+ * @param readEventDate reads a raw-impression file's UTC event date from its plaintext Parquet
+ *   footer (no decryption needed).
  * @param clock clock for determining active model line windows.
  * @param metrics OpenTelemetry metrics recorder.
  */
@@ -91,9 +100,13 @@ class VidLabelingDispatcher(
   private val modelSuiteName: String,
   private val overrideModelLines: List<String>,
   private val modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig>,
+  private val readEventDate: suspend (blobKey: String) -> LocalDate,
   private val clock: Clock = Clock.systemUTC(),
   private val metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
 ) {
+
+  /** Caps concurrent Parquet-footer reads so footer fan-out stays well under GCS per-bucket QPS. */
+  private val readSemaphore = Semaphore(FOOTER_READ_PARALLELISM)
 
   /**
    * Uploads VID labeling work for raw impression files in the directory containing the done blob.
@@ -349,6 +362,12 @@ class VidLabelingDispatcher(
       .flattenConcat()
       .firstOrNull { it.doneBlobUri == doneBlobPath }
 
+  private fun LocalDate.toProtoDate(): Date = date {
+    year = this@toProtoDate.year
+    month = this@toProtoDate.monthValue
+    day = this@toProtoDate.dayOfMonth
+  }
+
   /**
    * Creates a `RawImpressionUploadFile` for each raw impression blob in the upload.
    *
@@ -362,17 +381,34 @@ class VidLabelingDispatcher(
     doneBlobUri: BlobUri,
   ) {
     for (chunk in blobs.chunked(RAW_IMPRESSION_UPLOAD_FILE_BATCH_SIZE)) {
+      // Resolve each file's event date from its Parquet footer up front, in bounded parallel. Every
+      // read is an independent, read-only GCS tail-range fetch (~1 round trip), so resolving them
+      // serially would make the fast path O(files) sequential round trips and time the Cloud
+      // Function out on large uploads; [readSemaphore] caps in-flight reads under GCS QPS. The
+      // BatchCreate writes below stay serial on purpose: they all write interleaved children of the
+      // same RawImpressionUpload row, so parallelizing them would only force Spanner to
+      // lock-serialize (or abort-retry) the writes.
+      val eventDatesByBlobKey: Map<String, LocalDate> = coroutineScope {
+        chunk
+          .associate { blob ->
+            blob.blobKey to async { readSemaphore.withPermit { readEventDate(blob.blobKey) } }
+          }
+          .mapValues { (_, deferred) -> deferred.await() }
+      }
+
       val request = batchCreateRawImpressionUploadFilesRequest {
         parent = uploadName
         for (blob in chunk) {
           val fileBlobUri = BlobUris.buildUri(doneBlobUri, blob.blobKey)
           requests += createRawImpressionUploadFileRequest {
             parent = uploadName
-            // size_bytes (REQUIRED) is the GCS object size from the directory listing; the
-            // Phase-1 last-out bin-packer batches files by it.
+            // size_bytes (REQUIRED) is the GCS object size from the directory listing (the Phase-1
+            // last-out bin-packer batches files by it). event_date (REQUIRED) is read from the
+            // file's plaintext Parquet footer so consumers can reconcile registered files by date.
             rawImpressionUploadFile = rawImpressionUploadFile {
               blobUri = fileBlobUri
               sizeBytes = blob.size
+              this.eventDate = eventDatesByBlobKey.getValue(blob.blobKey).toProtoDate()
             }
             requestId = RequestIds.forRawImpressionUploadFile(uploadName, fileBlobUri)
           }
@@ -450,6 +486,9 @@ class VidLabelingDispatcher(
 
     private const val RAW_IMPRESSION_UPLOAD_FILE_BATCH_SIZE = 100
     private const val RAW_IMPRESSION_UPLOAD_MODEL_LINE_BATCH_SIZE = 50
+
+    /** Max concurrent Parquet-footer reads when resolving event dates (well under GCS QPS). */
+    private const val FOOTER_READ_PARALLELISM = 100
 
     private val DATA_PROVIDER_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.vid_labeling_dispatcher.data_provider")

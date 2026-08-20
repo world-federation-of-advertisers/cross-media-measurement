@@ -36,7 +36,8 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #StorageServiceAccount:              "storage"
 #InternalServerResourceRequirements: #ResourceRequirements & {
 	requests: {
-		cpu: "75m"
+		cpu:    "75m"
+		memory: "512Mi"
 	}
 }
 #HeraldResourceRequirements: ResourceRequirements=#ResourceRequirements & {
@@ -153,6 +154,9 @@ duchy: #SpannerDuchy & {
 		"mill-job-scheduler-deployment": {
 			_liquidLegionsV2MaxConcurrency: #Llv2MillMaxConcurrency
 			_shareShuffleMaxConcurrency:    #HmssMillMaxConcurrency
+			// Bumped from base default 224Mi: the mill-job-scheduler was OOMKilled
+			// (exit 137, native/non-heap) under cross-publisher (TrusTEE) load.
+			_container: resources: requests: memory: "512Mi"
 		}
 		"computation-control-server-deployment": {
 			_container: {

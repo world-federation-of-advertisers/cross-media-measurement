@@ -118,6 +118,38 @@ class ResultsFulfillerAppRunnerTest {
   }
 
   @Test
+  fun `AWS_CONFIDENTIAL_SPACE KmsType carries AWS fields`() {
+    val config = kmsConfig {
+      kmsType = EventDataProviderConfig.KmsConfig.KmsType.AWS_CONFIDENTIAL_SPACE
+      awsRoleArn = "arn:aws:iam::123456789012:role/my-role"
+      awsRoleSessionName = "my-session"
+      awsRegion = "us-east-1"
+      awsAudience = "https://example.com"
+    }
+
+    assertThat(config.kmsType)
+      .isEqualTo(EventDataProviderConfig.KmsConfig.KmsType.AWS_CONFIDENTIAL_SPACE)
+    assertThat(config.awsRoleArn).isEqualTo("arn:aws:iam::123456789012:role/my-role")
+    assertThat(config.awsRoleSessionName).isEqualTo("my-session")
+    assertThat(config.awsRegion).isEqualTo("us-east-1")
+    assertThat(config.awsAudience).isEqualTo("https://example.com")
+  }
+
+  @Test
+  fun `AWS_CONFIDENTIAL_SPACE type has empty GCP fields`() {
+    val config = kmsConfig {
+      kmsType = EventDataProviderConfig.KmsConfig.KmsType.AWS_CONFIDENTIAL_SPACE
+      awsRoleArn = "arn:aws:iam::123456789012:role/my-role"
+      awsRoleSessionName = "my-session"
+      awsRegion = "us-east-1"
+      awsAudience = "https://example.com"
+    }
+
+    assertThat(config.kmsAudience).isEmpty()
+    assertThat(config.serviceAccount).isEmpty()
+  }
+
+  @Test
   fun `GCP type has empty AWS fields`() {
     val config = kmsConfig {
       kmsType = EventDataProviderConfig.KmsConfig.KmsType.GCP

@@ -19,6 +19,7 @@ MESSAGE_LIBS = [
     ":certificate_proto",
     ":client_account_proto",
     ":crypto_proto",
+    ":data_provider_impression_query_proto",
     ":data_provider_proto",
     ":date_interval_proto",
     ":differential_privacy_proto",
@@ -54,6 +55,7 @@ MESSAGE_LIBS = [
     ":recurring_exchange_proto",
     ":requisition_proto",
     ":requisition_spec_proto",
+    ":unlinked_client_account_proto",
 ]
 
 SERVICE_LIBS = [
@@ -81,6 +83,7 @@ SERVICE_LIBS = [
     ":public_keys_service_proto",
     ":requisition_fulfillment_service_proto",
     ":requisitions_service_proto",
+    ":unlinked_client_accounts_service_proto",
 ]
 
 [

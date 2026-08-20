@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
@@ -47,4 +48,7 @@ message RawImpressionUploadFile {
 
   // Size of the raw impression file in bytes.
   int64 size_bytes = 8;
+
+  // UTC calendar date of the file's impressions (one day per file).
+  google.type.Date event_date = 9;
 }

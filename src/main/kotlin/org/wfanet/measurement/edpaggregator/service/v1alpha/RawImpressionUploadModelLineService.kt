@@ -516,6 +516,7 @@ class RawImpressionUploadModelLineService(
       InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
         Status.NOT_FOUND.withCause(e).asRuntimeException()
       InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+      InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
       InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT ->
         Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
       InternalErrors.Reason.ETAG_MISMATCH -> Status.ABORTED.withCause(e).asRuntimeException()
@@ -523,11 +524,6 @@ class RawImpressionUploadModelLineService(
       InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
       InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
       InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-      InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-      InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-      InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-      InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-      InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
       InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
       InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
       InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,

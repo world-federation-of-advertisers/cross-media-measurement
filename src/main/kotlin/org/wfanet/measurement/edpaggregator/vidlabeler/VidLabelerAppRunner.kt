@@ -28,7 +28,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResultsFulfillerConfigAsByteArray
 import org.wfanet.measurement.edpaggregator.BaseVidLabelingTeeAppRunner
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.gcsHadoopConfiguration
+import org.wfanet.measurement.edpaggregator.rawimpressions.gcsHadoopConfiguration
 import org.wfanet.measurement.edpaggregator.runBlockingWithTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
@@ -126,6 +126,10 @@ class VidLabelerAppRunner :
         buildImpressionConverter = { _, config ->
           ParquetImpressionConverter(eventDescriptor = resolveEventDescriptor(config))
         },
+        // Process-scoped: one cache shared across every WorkItem this container processes, so the
+        // memoized rank index is reused across WorkItems when the Phase-1 snapshot set is
+        // unchanged.
+        memoizedRankIndexCache = MemoizedRankIndexCache(),
       )
 
     runBlockingWithTelemetry { vidLabelerApp.run() }

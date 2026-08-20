@@ -25,6 +25,7 @@ import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.EncryptionKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest.Header
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.AwsKmsParams.TokenAudienceCase
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -45,6 +46,7 @@ import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
+import org.wfanet.measurement.internal.duchy.RequisitionDetails.RequisitionProtocol.TrusTee.AwsKmsParams.CredentialSource as InternalCredentialSource
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.honestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.trusTee
@@ -341,12 +343,28 @@ class RequisitionFulfillmentService(
               this.impersonatedServiceAccount = envelopeEncryption.impersonatedServiceAccount
               this.populationSpecFingerprint = populationSpecFingerprint
               if (envelopeEncryption.hasAwsKmsParams()) {
+                val apiAwsKmsParams = envelopeEncryption.awsKmsParams
+                // Which audience is set determines how the mill authenticates to AWS STS.
+                val (awsAudience, awsCredentialSource) =
+                  when (apiAwsKmsParams.tokenAudienceCase) {
+                    TokenAudienceCase.WORKLOAD_IDENTITY_ID_TOKEN_AUDIENCE ->
+                      apiAwsKmsParams.workloadIdentityIdTokenAudience to
+                        InternalCredentialSource.GCP_WORKLOAD_IDENTITY
+                    TokenAudienceCase.CONFIDENTIAL_SPACE_ATTESTATION_TOKEN_AUDIENCE ->
+                      apiAwsKmsParams.confidentialSpaceAttestationTokenAudience to
+                        InternalCredentialSource.CONFIDENTIAL_SPACE
+                    TokenAudienceCase.TOKENAUDIENCE_NOT_SET ->
+                      failGrpc {
+                        "trus_tee.envelope_encryption.aws_kms_params.token_audience not set"
+                      }
+                  }
                 this.awsKmsParams =
                   RequisitionDetailsKt.RequisitionProtocolKt.TrusTeeKt.awsKmsParams {
-                    roleArn = envelopeEncryption.awsKmsParams.roleArn
-                    roleSession = envelopeEncryption.awsKmsParams.roleSession
-                    region = envelopeEncryption.awsKmsParams.region
-                    audience = envelopeEncryption.awsKmsParams.audience
+                    roleArn = apiAwsKmsParams.roleArn
+                    roleSession = apiAwsKmsParams.roleSession
+                    region = apiAwsKmsParams.region
+                    audience = awsAudience
+                    credentialSource = awsCredentialSource
                   }
               }
             }

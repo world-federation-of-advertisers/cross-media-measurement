@@ -26,14 +26,21 @@ import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.Empty
+import com.google.protobuf.InvalidProtocolBufferException
+import com.google.protobuf.Message
 import com.google.protobuf.timestamp
 import com.google.type.interval
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
+import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Base64
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -44,6 +51,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.Mockito.reset
+import org.mockito.Mockito.times
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.verify
@@ -52,6 +60,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -363,6 +372,97 @@ class StorageEventSourceTest {
         )
       }
     assertThat(exception.message).isEqualTo("eventGroupDetailsList must not be empty")
+  }
+
+  @Test
+  fun `construction rejects non-positive readConcurrency`() {
+    val impressionService = createImpressionDataSourceProvider(tmp.root)
+    val (kmsClient, _, _) = createKmsSetup()
+
+    assertFailsWith<IllegalArgumentException> {
+      StorageEventSource(
+        impressionDataSourceProvider = impressionService,
+        eventGroupDetailsList =
+          listOf(
+            createEventGroupDetails(
+              "g",
+              LocalDate.of(2025, 1, 1),
+              LocalDate.of(2025, 1, 2),
+              ZoneId.of("UTC"),
+            )
+          ),
+        modelLine = modelLine,
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+        readConcurrency = 0,
+      )
+    }
+  }
+
+  @Test
+  fun `construction rejects non-positive readMaxAttempts`() {
+    val impressionService = createImpressionDataSourceProvider(tmp.root)
+    val (kmsClient, _, _) = createKmsSetup()
+
+    assertFailsWith<IllegalArgumentException> {
+      StorageEventSource(
+        impressionDataSourceProvider = impressionService,
+        eventGroupDetailsList =
+          listOf(
+            createEventGroupDetails(
+              "g",
+              LocalDate.of(2025, 1, 1),
+              LocalDate.of(2025, 1, 2),
+              ZoneId.of("UTC"),
+            )
+          ),
+        modelLine = modelLine,
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+        readMaxAttempts = 0,
+      )
+    }
+  }
+
+  @Test
+  fun `generateEventBatches fails fast on a corrupt blob without retrying`(): Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    val metadataTmpPath = tmp.newFolder("metadata-corrupt")
+    seedMetadataSources(metadataTmpPath, date, listOf("corrupt-group"))
+
+    val attempts = AtomicInteger(0)
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+        eventGroupDetailsList =
+          listOf(
+            createEventGroupDetails("corrupt-group", date, date.plusDays(1), ZoneId.of("UTC"))
+          ),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+        readMaxAttempts = 3,
+        readRetryBackoff = FAST_BACKOFF,
+        eventReaderFactory = { _ ->
+          object : EventReader<Message> {
+            override suspend fun readEvents(): Flow<List<LabeledEvent<Message>>> = flow {
+              // A malformed blob surfaces as InvalidProtocolBufferException (an IOException); it
+              // must fail fast, not be retried.
+              attempts.incrementAndGet()
+              throw InvalidProtocolBufferException("corrupt blob")
+            }
+          }
+        },
+      )
+
+    assertFailsWith<InvalidProtocolBufferException> { eventSource.generateEventBatches().toList() }
+    assertThat(attempts.get()).isEqualTo(1)
   }
 
   @Test
@@ -1146,7 +1246,7 @@ class StorageEventSourceTest {
       assertThat(request.filter.entityKeysList).isNotEmpty()
       assertThat(request.filter.entityKeysList.first().entityType).isEqualTo(entityKeyType)
       assertThat(request.filter.entityKeysList.first().entityId).isEqualTo(entityKeyId)
-      assertThat(request.filter.eventGroupReferenceId).isEmpty()
+      assertThat(request.filter.eventGroupReferenceIdsList).isEmpty()
     }
 
   @Test
@@ -1196,13 +1296,119 @@ class StorageEventSourceTest {
       assertThat(batches).isNotEmpty()
       assertThat(batches.flatMap { it.events }).hasSize(5)
 
-      // Verify the request used eventGroupReferenceId filter, not entity_keys
+      // Verify the request batched the reference id into event_group_reference_ids, not entity_keys
       val captor = argumentCaptor<ListImpressionMetadataRequest>()
       verify(impressionMetadataServiceMock).listImpressionMetadata(captor.capture())
       val request = captor.firstValue
-      assertThat(request.filter.eventGroupReferenceId).isEqualTo(eventGroupRef)
+      assertThat(request.filter.eventGroupReferenceIdsList).containsExactly(eventGroupRef)
       assertThat(request.filter.entityKeysList).isEmpty()
     }
+
+  @Test
+  fun `generateEventBatches batches event groups sharing an interval into one request`(): Unit =
+    runBlocking {
+      val date = LocalDate.of(2025, 1, 1)
+      val refIds = listOf("batch-a", "batch-b", "batch-c")
+      val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
+      val impressionsTmpPath = tmp.newFolder("impressions-batch")
+      val metadataTmpPath = tmp.newFolder("metadata-batch")
+      for (refId in refIds) {
+        createImpressionFilesForDate(
+          impressionsTmpPath,
+          metadataTmpPath,
+          date,
+          refId,
+          kmsClient,
+          kekUri,
+          serializedEncryptionKey,
+        )
+      }
+      val metadataList =
+        refIds.flatMap { createImpressionMetadataList(listOf(date), it, "meta-bucket", modelLine) }
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse { impressionMetadata += metadataList })
+
+      val eventGroupDetailsList =
+        refIds.map { createEventGroupDetails(it, date, date.plusDays(1), ZoneId.of("UTC")) }
+      val eventSource =
+        StorageEventSource(
+          impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+          eventGroupDetailsList = eventGroupDetailsList,
+          modelLine = modelLine,
+          kmsClient = kmsClient,
+          impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+          descriptor = TestEvent.getDescriptor(),
+          batchSize = 1000,
+        )
+
+      val batches = eventSource.generateEventBatches().toList()
+
+      // The three event groups share the interval, so exactly one paginated request covers them
+      // all.
+      val captor = argumentCaptor<ListImpressionMetadataRequest>()
+      verify(impressionMetadataServiceMock).listImpressionMetadata(captor.capture())
+      assertThat(captor.firstValue.filter.eventGroupReferenceIdsList)
+        .containsExactly("batch-a", "batch-b", "batch-c")
+      // 3 event groups x 1 date x 5 events per file.
+      assertThat(batches.flatMap { it.events }).hasSize(15)
+    }
+
+  @Test
+  fun `generateEventBatches issues one batched call per distinct interval`(): Unit = runBlocking {
+    // Two event groups on two different intervals -> one batched request per interval.
+    val dateA = LocalDate.of(2025, 1, 1)
+    val dateB = LocalDate.of(2025, 1, 2)
+    val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
+    val impressionsTmpPath = tmp.newFolder("impressions-multi-interval")
+    val metadataTmpPath = tmp.newFolder("metadata-multi-interval")
+    createImpressionFilesForDate(
+      impressionsTmpPath,
+      metadataTmpPath,
+      dateA,
+      "iv-a",
+      kmsClient,
+      kekUri,
+      serializedEncryptionKey,
+    )
+    createImpressionFilesForDate(
+      impressionsTmpPath,
+      metadataTmpPath,
+      dateB,
+      "iv-b",
+      kmsClient,
+      kekUri,
+      serializedEncryptionKey,
+    )
+    val metadataList =
+      createImpressionMetadataList(listOf(dateA), "iv-a", "meta-bucket", modelLine) +
+        createImpressionMetadataList(listOf(dateB), "iv-b", "meta-bucket", modelLine)
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += metadataList })
+
+    val eventGroupDetailsList =
+      listOf(
+        createEventGroupDetails("iv-a", dateA, dateA.plusDays(1), ZoneId.of("UTC")),
+        createEventGroupDetails("iv-b", dateB, dateB.plusDays(1), ZoneId.of("UTC")),
+      )
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+        eventGroupDetailsList = eventGroupDetailsList,
+        modelLine = modelLine,
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    eventSource.generateEventBatches().toList()
+
+    // Exactly two requests, one per distinct interval, each carrying only its interval's ref id.
+    val captor = argumentCaptor<ListImpressionMetadataRequest>()
+    verify(impressionMetadataServiceMock, times(2)).listImpressionMetadata(captor.capture())
+    val byRefIds = captor.allValues.map { it.filter.eventGroupReferenceIdsList.toList() }.toSet()
+    assertThat(byRefIds).containsExactly(listOf("iv-a"), listOf("iv-b"))
+  }
 
   @Test
   fun `generateEventBatches queries by eventGroupReferenceId when entity key has empty entityId`():
@@ -1265,11 +1471,11 @@ class StorageEventSourceTest {
     assertThat(batches).isNotEmpty()
     assertThat(batches.flatMap { it.events }).hasSize(5)
 
-    // Verify the request used eventGroupReferenceId filter, not entity_keys
+    // Verify the request batched the reference id into event_group_reference_ids, not entity_keys
     val captor = argumentCaptor<ListImpressionMetadataRequest>()
     verify(impressionMetadataServiceMock).listImpressionMetadata(captor.capture())
     val request = captor.firstValue
-    assertThat(request.filter.eventGroupReferenceId).isEqualTo(eventGroupRef)
+    assertThat(request.filter.eventGroupReferenceIdsList).containsExactly(eventGroupRef)
     assertThat(request.filter.entityKeysList).isEmpty()
   }
 
@@ -1323,6 +1529,145 @@ class StorageEventSourceTest {
       assertThat(exception.message).isEqualTo("Cannot mix entity-key and reference-id event groups")
     }
 
+  /**
+   * Seeds [refIds] as distinct impression data sources on [date]: mocks `listImpressionMetadata` to
+   * return one metadata entry per ref id and writes a `BlobDetails` file for each. Blob contents
+   * are not written; tests using this inject a fake [eventReaderFactory].
+   */
+  private suspend fun seedMetadataSources(
+    metadataTmpPath: File,
+    date: LocalDate,
+    refIds: List<String>,
+  ) {
+    val metadataList =
+      refIds.flatMap { createImpressionMetadataList(listOf(date), it, "meta-bucket", modelLine) }
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += metadataList })
+    for (refId in refIds) {
+      writeMetadataWithKekUri(metadataTmpPath, date, refId, kekUri, modelLine)
+    }
+  }
+
+  @Test
+  fun `generateEventBatches bounds concurrent reads to readConcurrency`(): Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    val metadataTmpPath = tmp.newFolder("metadata-concurrency")
+    val refIds = (0 until 6).map { "concurrency-group-$it" }
+    seedMetadataSources(metadataTmpPath, date, refIds)
+
+    val active = AtomicInteger(0)
+    val peak = AtomicInteger(0)
+
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+        eventGroupDetailsList =
+          listOf(createEventGroupDetails(refIds.first(), date, date.plusDays(1), ZoneId.of("UTC"))),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+        readConcurrency = 2,
+        eventReaderFactory = { _ ->
+          object : EventReader<Message> {
+            override suspend fun readEvents(): Flow<List<LabeledEvent<Message>>> = flow {
+              val current = active.incrementAndGet()
+              peak.updateAndGet { existing -> maxOf(existing, current) }
+              try {
+                delay(50)
+              } finally {
+                active.decrementAndGet()
+              }
+            }
+          }
+        },
+      )
+
+    eventSource.generateEventBatches().toList()
+
+    // Six readers, but the semaphore must never let more than readConcurrency run at once.
+    assertThat(peak.get()).isEqualTo(2)
+  }
+
+  @Test
+  fun `generateEventBatches retries a transient per-blob read failure`(): Unit = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    val metadataTmpPath = tmp.newFolder("metadata-retry")
+    seedMetadataSources(metadataTmpPath, date, listOf("retry-group"))
+
+    val attempts = AtomicInteger(0)
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+        eventGroupDetailsList =
+          listOf(createEventGroupDetails("retry-group", date, date.plusDays(1), ZoneId.of("UTC"))),
+        modelLine = modelLine,
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+        readMaxAttempts = 3,
+        readRetryBackoff = FAST_BACKOFF,
+        eventReaderFactory = { _ ->
+          object : EventReader<Message> {
+            override suspend fun readEvents(): Flow<List<LabeledEvent<Message>>> = flow {
+              // Fail transiently on the first two attempts, then succeed with an empty read.
+              if (attempts.incrementAndGet() < 3) {
+                throw IOException("transient read failure")
+              }
+            }
+          }
+        },
+      )
+
+    val batches = eventSource.generateEventBatches().toList()
+
+    assertThat(batches).isEmpty()
+    assertThat(attempts.get()).isEqualTo(3)
+  }
+
+  @Test
+  fun `generateEventBatches does not retry a non-transient per-blob read failure`(): Unit =
+    runBlocking {
+      val date = LocalDate.of(2025, 1, 1)
+      val metadataTmpPath = tmp.newFolder("metadata-non-transient")
+      seedMetadataSources(metadataTmpPath, date, listOf("non-transient-group"))
+
+      val attempts = AtomicInteger(0)
+      val eventSource =
+        StorageEventSource(
+          impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+          eventGroupDetailsList =
+            listOf(
+              createEventGroupDetails(
+                "non-transient-group",
+                date,
+                date.plusDays(1),
+                ZoneId.of("UTC"),
+              )
+            ),
+          modelLine = modelLine,
+          kmsClient = null,
+          impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+          descriptor = TestEvent.getDescriptor(),
+          batchSize = 1000,
+          readMaxAttempts = 3,
+          readRetryBackoff = FAST_BACKOFF,
+          eventReaderFactory = { _ ->
+            object : EventReader<Message> {
+              override suspend fun readEvents(): Flow<List<LabeledEvent<Message>>> = flow {
+                attempts.incrementAndGet()
+                throw IllegalStateException("non-transient read failure")
+              }
+            }
+          },
+        )
+
+      assertFailsWith<IllegalStateException> { eventSource.generateEventBatches().toList() }
+      assertThat(attempts.get()).isEqualTo(1)
+    }
+
   companion object {
     private val TEST_EVENT = testEvent {
       person = person {
@@ -1330,5 +1675,12 @@ class StorageEventSourceTest {
         gender = Person.Gender.MALE
       }
     }
+
+    private val FAST_BACKOFF =
+      ExponentialBackoff(
+        initialDelay = Duration.ofMillis(1),
+        multiplier = 1.0,
+        randomnessFactor = 0.0,
+      )
   }
 }

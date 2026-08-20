@@ -76,6 +76,22 @@ object RequestIds {
     fromKey("markVidLabelingJobSucceeded:$vidLabelingJobName")
 
   /**
+   * `request_id`s for marking the per-phase jobs FAILED from the dead-letter path.
+   *
+   * Keyed on the operation and resource name so a Pub/Sub redelivery of the same dead-letter
+   * message reuses the same id: the server replays it as an idempotent no-op instead of surfacing
+   * `FAILED_PRECONDITION`.
+   */
+  fun forMarkPoolAssignmentJobFailed(poolAssignmentJobName: String): String =
+    fromKey("markPoolAssignmentJobFailed:$poolAssignmentJobName")
+
+  fun forMarkRankerJobFailed(rankerJobName: String): String =
+    fromKey("markRankerJobFailed:$rankerJobName")
+
+  fun forMarkVidLabelingJobFailed(vidLabelingJobName: String): String =
+    fromKey("markVidLabelingJobFailed:$vidLabelingJobName")
+
+  /**
    * `request_id`s for the five `MarkRawImpressionUploadModelLine*` transitions.
    *
    * Keyed on the operation and [modelLineName] so a Pub/Sub redelivery of the same transition

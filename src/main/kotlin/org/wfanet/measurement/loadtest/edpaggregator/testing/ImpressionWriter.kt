@@ -88,18 +88,24 @@ class ImpressionsWriter(
    *
    * @param blobModelLine full ModelLine resource name. Must be a valid resource name because
    *   downstream services validate and persist the value as such.
+   * @param modelLineOutputBasePath when set, writes the impressions blob + metadata sidecar under
+   *   the canonical pipeline layout `<modelLineOutputBasePath>/model-line/<modelLineId>/<date>/`,
+   *   matching what the deployed VidLabeler produces so pre-labeled test data lands in the same
+   *   per-EDP, per-model-line folder the DataAvailabilitySync crawls. Takes precedence over
+   *   [flatOutputBasePath] and [impressionsBasePath].
    */
   suspend fun <T : Message> writeLabeledImpressionData(
     events: Sequence<EntityKeyedLabeledEventDateShard<T>>,
     blobModelLine: String,
     impressionsBasePath: String? = null,
     flatOutputBasePath: String? = null,
+    modelLineOutputBasePath: String? = null,
   ) {
-    val modelLineName =
+    val modelLineKey =
       requireNotNull(ModelLineKey.fromName(blobModelLine)) {
-          "blobModelLine must be a full ModelLine resource name: $blobModelLine"
-        }
-        .toName()
+        "blobModelLine must be a full ModelLine resource name: $blobModelLine"
+      }
+    val modelLineName = modelLineKey.toName()
     val serializedEncryptionKey =
       EncryptedStorage.generateSerializedEncryptionKey(kmsClient, kekUri, "AES128_GCM_HKDF_1MB")
     val encryptedDek =
@@ -142,7 +148,9 @@ class ImpressionsWriter(
 
       val outputKeySuffix = if (outputKey.isEmpty()) "" else "-$outputKey"
       val impressionsBlobKey =
-        if (flatOutputBasePath != null) {
+        if (modelLineOutputBasePath != null) {
+          "$modelLineOutputBasePath/model-line/${modelLineKey.modelLineId}/$ds/impressions$outputKeySuffix"
+        } else if (flatOutputBasePath != null) {
           "$flatOutputBasePath/$ds/impressions$outputKeySuffix"
         } else if (impressionsBasePath != null) {
           "$impressionsBasePath/ds/$ds/$eventGroupPath/impressions"
@@ -165,7 +173,9 @@ class ImpressionsWriter(
         labeledImpressions.map { it.toByteString() }.asFlow(),
       )
       val impressionsMetaDataBlobKey =
-        if (flatOutputBasePath != null) {
+        if (modelLineOutputBasePath != null) {
+          "$modelLineOutputBasePath/model-line/${modelLineKey.modelLineId}/$ds/metadata$outputKeySuffix.binpb"
+        } else if (flatOutputBasePath != null) {
           "$flatOutputBasePath/$ds/metadata$outputKeySuffix.binpb"
         } else if (impressionsBasePath != null) {
           "$impressionsBasePath/ds/$ds/$eventGroupPath/metadata.binpb"

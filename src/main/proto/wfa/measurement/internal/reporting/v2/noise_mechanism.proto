@@ -33,4 +33,6 @@ enum NoiseMechanism {
   CONTINUOUS_LAPLACE = 4;
   // Continuous Gaussian.
   CONTINUOUS_GAUSSIAN = 5;
+  // Truncated Laplace drawn deterministically from the data.
+  DETERMINISTIC_TRUNCATED_LAPLACE = 6;
 }

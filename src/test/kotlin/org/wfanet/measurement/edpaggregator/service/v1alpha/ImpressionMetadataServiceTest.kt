@@ -1128,23 +1128,27 @@ class ImpressionMetadataServiceTest {
   }
 
   @Test
-  fun `listImpressionMetadata with event group reference id filter returns ImpressionMetadata`() =
+  fun `listImpressionMetadata with event group reference ids filter returns ImpressionMetadata`() =
     runBlocking {
       val created = createImpressionMetadata(IMPRESSION_METADATA, IMPRESSION_METADATA_2)
 
+      // The batched filter forwards both reference ids to the internal service.
       val response =
         service.listImpressionMetadata(
           listImpressionMetadataRequest {
             parent = DATA_PROVIDER_KEY.toName()
             filter =
               ListImpressionMetadataRequestKt.filter {
-                eventGroupReferenceId = created[1].eventGroupReferenceId
+                eventGroupReferenceIds +=
+                  listOf(created[0].eventGroupReferenceId, created[1].eventGroupReferenceId)
               }
           }
         )
 
       assertThat(response)
-        .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created[1] })
+        .isEqualTo(
+          listImpressionMetadataResponse { impressionMetadata += created.sortedBy { it.name } }
+        )
     }
 
   @Test
@@ -1481,6 +1485,46 @@ class ImpressionMetadataServiceTest {
       .containsExactly(ENTITY_KEY_AD_1, ENTITY_KEY_CAMPAIGN_1)
       .inOrder()
   }
+
+  @Test
+  fun `createImpressionMetadata throws INVALID_ARGUMENT when neither eventGroupReferenceId nor entity_keys set`() =
+    runBlocking {
+      val request = createImpressionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        impressionMetadata = IMPRESSION_METADATA.copy { clearEventGroupReferenceId() }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "impression_metadata.event_group_reference_id or entity_keys"
+          }
+        )
+    }
+
+  @Test
+  fun `createImpressionMetadata succeeds with entity_keys and no eventGroupReferenceId`() =
+    runBlocking {
+      val response =
+        service.createImpressionMetadata(
+          createImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            impressionMetadata =
+              IMPRESSION_METADATA_WITH_ENTITY_KEYS.copy { clearEventGroupReferenceId() }
+          }
+        )
+
+      assertThat(response.eventGroupReferenceId).isEmpty()
+      assertThat(response.entityKeysList)
+        .containsExactly(ENTITY_KEY_AD_1, ENTITY_KEY_CAMPAIGN_1)
+        .inOrder()
+    }
 
   @Test
   fun `getImpressionMetadata returns entity_keys`() = runBlocking {

@@ -24,8 +24,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrp
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineImplBase
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchFileServiceGrpcKt.RawImpressionMetadataBatchFileServiceCoroutineImplBase
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionMetadataBatchServiceGrpcKt.RawImpressionMetadataBatchServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
@@ -35,8 +33,6 @@ import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGr
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrpcKt as InternalPoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlobServiceGrpcKt as InternalRankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankerJobServiceGrpcKt as InternalRankerJobServiceGrpcKt
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchFileServiceGrpcKt as InternalRawImpressionMetadataBatchFileServiceGrpcKt
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionMetadataBatchServiceGrpcKt as InternalRawImpressionMetadataBatchServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFileServiceGrpcKt as InternalRawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt as InternalRawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt as InternalRawImpressionUploadServiceGrpcKt
@@ -46,8 +42,6 @@ import org.wfanet.measurement.internal.edpaggregator.VidLabelingJobServiceGrpcKt
 data class Services(
   val requisitionMetadata: RequisitionMetadataServiceCoroutineImplBase,
   val impressionMetadata: ImpressionMetadataServiceCoroutineImplBase,
-  val rawImpressionMetadataBatch: RawImpressionMetadataBatchServiceCoroutineImplBase,
-  val rawImpressionMetadataBatchFile: RawImpressionMetadataBatchFileServiceCoroutineImplBase,
   val rawImpressionUpload: RawImpressionUploadServiceCoroutineImplBase,
   val rawImpressionUploadFile: RawImpressionUploadFileServiceCoroutineImplBase,
   val rawImpressionUploadModelLine: RawImpressionUploadModelLineServiceCoroutineImplBase,
@@ -60,8 +54,6 @@ data class Services(
     listOf(
       requisitionMetadata,
       impressionMetadata,
-      rawImpressionMetadataBatch,
-      rawImpressionMetadataBatchFile,
       rawImpressionUpload,
       rawImpressionUploadFile,
       rawImpressionUploadModelLine,
@@ -84,12 +76,6 @@ data class Services(
         InternalImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(
           internalApiChannel
         )
-      val internalBatchStub =
-        InternalRawImpressionMetadataBatchServiceGrpcKt
-          .RawImpressionMetadataBatchServiceCoroutineStub(internalApiChannel)
-      val internalFileStub =
-        InternalRawImpressionMetadataBatchFileServiceGrpcKt
-          .RawImpressionMetadataBatchFileServiceCoroutineStub(internalApiChannel)
       val internalUploadStub =
         InternalRawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(
           internalApiChannel
@@ -115,8 +101,6 @@ data class Services(
       return Services(
         RequisitionMetadataService(internalRequisitionMetadataStub, coroutineContext),
         ImpressionMetadataService(internalImpressionMetadataStub, coroutineContext),
-        RawImpressionMetadataBatchService(internalBatchStub, coroutineContext),
-        RawImpressionMetadataBatchFileService(internalFileStub, coroutineContext),
         RawImpressionUploadService(internalUploadStub, coroutineContext),
         RawImpressionUploadFileService(internalUploadFileStub, coroutineContext),
         RawImpressionUploadModelLineService(internalModelLineStub, coroutineContext),

@@ -127,17 +127,13 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.ETAG_MISMATCH,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
@@ -198,17 +194,13 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
@@ -309,16 +301,12 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.ETAG_MISMATCH,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
@@ -388,16 +376,12 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.ETAG_MISMATCH,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
@@ -499,16 +483,12 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.ETAG_MISMATCH,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
@@ -569,17 +549,13 @@ class ImpressionMetadataService(
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
         InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
         InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
         InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
         InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
         InternalErrors.Reason.INVALID_FIELD_VALUE,
         InternalErrors.Reason.ETAG_MISMATCH,
-        InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-        InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-        InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-        InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-        InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
         InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
@@ -668,17 +644,13 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.ETAG_MISMATCH,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
@@ -751,8 +723,8 @@ class ImpressionMetadataService(
         if (request.filter.modelLine.isNotEmpty()) {
           cmmsModelLine = request.filter.modelLine
         }
-        if (request.filter.eventGroupReferenceId.isNotEmpty()) {
-          eventGroupReferenceId = request.filter.eventGroupReferenceId
+        if (request.filter.eventGroupReferenceIdsList.isNotEmpty()) {
+          eventGroupReferenceIds += request.filter.eventGroupReferenceIdsList
         }
         if (request.filter.hasIntervalOverlaps()) {
           intervalOverlaps = request.filter.intervalOverlaps
@@ -800,17 +772,13 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.ETAG_MISMATCH,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
@@ -870,17 +838,13 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.ETAG_MISMATCH,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_NOT_FOUND,
-          InternalErrors.Reason.RAW_IMPRESSION_METADATA_BATCH_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
           InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
@@ -944,12 +908,6 @@ class ImpressionMetadataService(
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.blob_type_url")
     }
 
-    if (request.impressionMetadata.eventGroupReferenceId.isEmpty()) {
-      throw RequiredFieldNotSetException(
-        "${fieldPathPrefix}impression_metadata.event_group_reference_id"
-      )
-    }
-
     if (request.impressionMetadata.modelLine.isEmpty()) {
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.model_line")
     }
@@ -964,6 +922,15 @@ class ImpressionMetadataService(
 
     request.impressionMetadata.entityKeysList.forEachIndexed { index, entityKey ->
       validateEntityKey(entityKey, "${fieldPathPrefix}impression_metadata.entity_keys.$index")
+    }
+
+    if (
+      request.impressionMetadata.eventGroupReferenceId.isEmpty() &&
+        request.impressionMetadata.entityKeysList.isEmpty()
+    ) {
+      throw RequiredFieldNotSetException(
+        "${fieldPathPrefix}impression_metadata.event_group_reference_id or entity_keys"
+      )
     }
   }
 
@@ -1042,7 +1009,14 @@ class ImpressionMetadataService(
 
   companion object {
     private const val DEFAULT_PAGE_SIZE = 50
-    private const val MAX_PAGE_SIZE = 100
+    /**
+     * Maximum page size for `ListImpressionMetadata`.
+     *
+     * Large enough that a report's impression metadata is fetched in a handful of paginated calls;
+     * rows are small (a blob URI plus a few fields), so a page of this size stays well under the
+     * gRPC message-size limit.
+     */
+    private const val MAX_PAGE_SIZE = 1000
   }
 }
 

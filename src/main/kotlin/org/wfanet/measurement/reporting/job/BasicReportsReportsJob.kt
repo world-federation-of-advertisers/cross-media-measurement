@@ -20,6 +20,10 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.Timestamp
 import com.google.type.Date
 import com.google.type.date
+import io.grpc.StatusException
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.logging.Level
@@ -84,11 +88,14 @@ class BasicReportsReportsJob(
   private val internalMetricCalculationSpecsStub: InternalMetricCalculationSpecsCoroutineStub,
   private val reportResultsStub: ReportResultsCoroutineStub,
   private val eventMessageDescriptor: EventMessageDescriptor?,
+  private val clock: Clock,
+  private val maxCreatedBasicReportAge: Duration,
 ) {
 
   /**
    * For every MeasurementConsumer, all BasicReports with State REPORT_CREATED are retrieved. For
-   * each of those BasicReports, the Report is retrieved.
+   * each of those BasicReports, the Report is retrieved. BasicReports left in State CREATED for
+   * longer than [maxCreatedBasicReportAge] are transitioned to State FAILED.
    */
   suspend fun execute() {
     val eventTemplateFieldsByPath = eventMessageDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
@@ -214,6 +221,61 @@ class BasicReportsReportsJob(
               e,
             )
           }
+        }
+      }
+
+      failStuckBasicReports(cmmsMeasurementConsumerId)
+    }
+  }
+
+  /**
+   * Transitions every [BasicReport] that has been in State CREATED for longer than
+   * [maxCreatedBasicReportAge] to State FAILED.
+   *
+   * A `BasicReport` is committed in State CREATED before its `Report` is created, so an
+   * interruption between the two leaves it in State CREATED with no `Report` and no way to
+   * progress.
+   */
+  private suspend fun failStuckBasicReports(cmmsMeasurementConsumerId: String) {
+    val cutoff: Instant = clock.instant().minus(maxCreatedBasicReportAge)
+
+    val resourceLists =
+      internalBasicReportsStub.listResources { pageToken: ListBasicReportsPageToken? ->
+        val response =
+          internalBasicReportsStub.listBasicReports(
+            listBasicReportsRequest {
+              pageSize = BATCH_SIZE
+              if (pageToken != null) {
+                this.pageToken = pageToken
+              }
+              filter =
+                ListBasicReportsRequestKt.filter {
+                  this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+                  state = BasicReport.State.CREATED
+                }
+            }
+          )
+        val nextPageToken = if (response.hasNextPageToken()) response.nextPageToken else null
+        ResourceList(response.basicReportsList, nextPageToken)
+      }
+
+    resourceLists.collect { resourceList ->
+      for (basicReport in resourceList.resources) {
+        if (basicReport.createTime.toInstant().isAfter(cutoff)) {
+          continue
+        }
+
+        try {
+          failBasicReport(
+            cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+            externalBasicReportId = basicReport.externalBasicReportId,
+          )
+        } catch (e: StatusException) {
+          logger.log(
+            Level.WARNING,
+            "Failed to fail stuck BasicReport ${BasicReportKey(cmmsMeasurementConsumerId, basicReport.externalBasicReportId).toName()}",
+            e,
+          )
         }
       }
     }

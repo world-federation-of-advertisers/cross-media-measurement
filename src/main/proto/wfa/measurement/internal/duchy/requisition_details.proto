@@ -60,14 +60,33 @@ message RequisitionDetails {
       }
       // AWS-specific parameters for KMS.
       message AwsKmsParams {
-        // AWS IAM role ARN to assume via GCP identity federation.
+        // AWS IAM role ARN to assume.
         string role_arn = 1;
         // Identifier for the assumed AWS role session.
         string role_session = 2;
         // AWS region for STS and KMS endpoints.
         string region = 3;
-        // OIDC audience for the GCP ID token presented to AWS IAM.
+        // Audience presented to AWS STS when assuming `role_arn`: the GCP
+        // ID-token audience for `GCP_WORKLOAD_IDENTITY`, or the Confidential
+        // Space attestation-token audience for `CONFIDENTIAL_SPACE`.
         string audience = 4;
+
+        // How the workload authenticates to AWS STS to assume `role_arn`.
+        enum CredentialSource {
+          // Unspecified; treated as `GCP_WORKLOAD_IDENTITY` for backward
+          // compatibility.
+          CREDENTIAL_SOURCE_UNSPECIFIED = 0;
+          // Two-hop: GCP Workload Identity Federation plus service-account
+          // impersonation mints the OIDC token presented to AWS STS. Requires
+          // `workload_identity_provider` and `impersonated_service_account`.
+          GCP_WORKLOAD_IDENTITY = 1;
+          // Direct: a Confidential Space attestation token is presented to AWS
+          // STS. Requires no GCP project; `workload_identity_provider` and
+          // `impersonated_service_account` are unused.
+          CONFIDENTIAL_SPACE = 2;
+        }
+        // How the workload authenticates to AWS to assume `role_arn`.
+        CredentialSource credential_source = 5;
       }
       // The data format of the the requisition blob
       DataFormat data_format = 6;

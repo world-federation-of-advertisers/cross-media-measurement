@@ -1296,6 +1296,10 @@ abstract class AbstractEdpSimulator(
         LaplaceNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random.asJavaRandom())
       DirectNoiseMechanism.CONTINUOUS_GAUSSIAN ->
         GaussianNoiser(DpParams(privacyParams.epsilon, privacyParams.delta), random.asJavaRandom())
+      DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE ->
+        // Seeded from the frequency vector rather than a Random, so it is not an AbstractNoiser.
+        // toDirectNoiseMechanism never selects it, so this branch is unreachable.
+        error("$directNoiseMechanism is not supported by this simulator")
     }
 
   /**
@@ -1661,6 +1665,8 @@ private fun DirectNoiseMechanism.toProtocolConfigNoiseMechanism(): NoiseMechanis
     DirectNoiseMechanism.NONE -> NoiseMechanism.NONE
     DirectNoiseMechanism.CONTINUOUS_LAPLACE -> NoiseMechanism.CONTINUOUS_LAPLACE
     DirectNoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
+    DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE ->
+      NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
   }
 }
 
@@ -1674,6 +1680,7 @@ private fun NoiseMechanism.toDirectNoiseMechanism(): DirectNoiseMechanism? {
     NoiseMechanism.NONE -> DirectNoiseMechanism.NONE
     NoiseMechanism.CONTINUOUS_LAPLACE -> DirectNoiseMechanism.CONTINUOUS_LAPLACE
     NoiseMechanism.CONTINUOUS_GAUSSIAN -> DirectNoiseMechanism.CONTINUOUS_GAUSSIAN
+    NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
     NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
     NoiseMechanism.GEOMETRIC,
     NoiseMechanism.DISCRETE_GAUSSIAN,
