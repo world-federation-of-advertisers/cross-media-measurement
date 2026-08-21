@@ -5925,6 +5925,46 @@ class MetricsServiceTest {
   }
 
   @Test
+  fun `batchCreateMetrics requires DEV permission when only one of several model lines in the batch is DEV`() {
+    val devModelLine = "modelProviders/mp-1/modelSuites/ms-1/modelLines/dev"
+    val prodModelLine = "modelProviders/mp-1/modelSuites/ms-1/modelLines/prod"
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    wheneverBlocking {
+      modelLinesMock.getModelLine(eq(getModelLineRequest { name = prodModelLine }))
+    } doReturn modelLine { type = ModelLine.Type.PROD }
+    wheneverBlocking {
+      modelLinesMock.getModelLine(eq(getModelLineRequest { name = devModelLine }))
+    } doReturn modelLine { type = ModelLine.Type.DEV }
+    val request = batchCreateMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      requests += createMetricRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { modelLine = prodModelLine }
+        metricId = "metric-id1"
+      }
+      requests += createMetricRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        metric = REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { modelLine = devModelLine }
+        metricId = "metric-id2"
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.batchCreateMetrics(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains(MetricsService.Permission.CREATE_WITH_DEV_MODEL_LINE)
+  }
+
+  @Test
   fun `batchCreateMetrics calls GetModelLine once per distinct model line, not once per request`() =
     runBlocking {
       wheneverBlocking {

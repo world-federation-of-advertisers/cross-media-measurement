@@ -1563,45 +1563,44 @@ class MetricsService(
 
     // Resolve each distinct model line once instead of once per request: a batch commonly has
     // many requests that share the same model line, and each resolution is a network call.
-    val modelLineTypeByName: Map<String, ModelLine.Type> =
-      effectiveModelLineNames
-        .filter { it.isNotEmpty() }
-        .distinct()
-        .let { distinctNames ->
-          if (distinctNames.isEmpty()) {
-            emptyMap()
-          } else {
-            coroutineScope {
-              distinctNames
-                .map { effectiveModelLineName ->
-                  async {
-                    val modelLine =
-                      try {
-                        kingdomModelLinesStub
-                          .withAuthenticationKey(
-                            measurementConsumerCreds.callCredentials.apiAuthenticationKey
-                          )
-                          .getModelLine(getModelLineRequest { name = effectiveModelLineName })
-                      } catch (e: StatusException) {
-                        throw when (e.status.code) {
-                          Status.Code.NOT_FOUND ->
-                            ModelLineNotFoundException(effectiveModelLineName, e)
-                              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-                          else -> StatusRuntimeException(Status.INTERNAL)
-                        }
-                      }
-                    effectiveModelLineName to modelLine.type
+    val modelLinesStub =
+      kingdomModelLinesStub.withAuthenticationKey(
+        measurementConsumerCreds.callCredentials.apiAuthenticationKey
+      )
+    val hasDevModelLine: Boolean = coroutineScope {
+      val results: List<Result<ModelLine>> =
+        effectiveModelLineNames
+          .filter { it.isNotEmpty() }
+          .distinct()
+          .map { effectiveModelLineName ->
+            async {
+              runCatching {
+                  modelLinesStub.getModelLine(getModelLineRequest { name = effectiveModelLineName })
+                }
+                .recoverCatching { e ->
+                  if (e !is StatusException) throw e
+                  throw when (e.status.code) {
+                    Status.Code.NOT_FOUND ->
+                      ModelLineNotFoundException(effectiveModelLineName, e)
+                        .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+                    else ->
+                      Status.INTERNAL.withCause(e)
+                        .withDescription("Unable to retrieve ModelLine $effectiveModelLineName.")
+                        .asRuntimeException()
                   }
                 }
-                .awaitAll()
-                .toMap()
             }
           }
-        }
+          .map { it.await() }
+      // Throw the first failure in request order (not completion order) so an identical batch
+      // with multiple invalid model lines reports the same error on every attempt.
+      results.forEach { result -> result.exceptionOrNull()?.let { throw it } }
+      results.any { it.getOrThrow().type == ModelLine.Type.DEV }
+    }
 
     val requiredPermissionIds = buildSet {
       add(Permission.CREATE)
-      if (modelLineTypeByName.containsValue(ModelLine.Type.DEV)) {
+      if (hasDevModelLine) {
         add(Permission.CREATE_WITH_DEV_MODEL_LINE)
       }
     }
