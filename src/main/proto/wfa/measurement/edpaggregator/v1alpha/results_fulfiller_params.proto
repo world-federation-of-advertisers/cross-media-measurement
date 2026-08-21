@@ -167,4 +167,25 @@ message ResultsFulfillerParams {
 
   // Multi-party computation protocol configuration.
   MultiPartyConfig multi_party_config = 10;
+
+  // How the per-user impression cap is chosen for direct impression
+  // measurements.
+  enum ImpressionCapMode {
+    // Interpret `impression_max_frequency_per_user` (field 7):
+    //   -1  -> uncapped: raw total, k-anonymity only, no noise
+    //    0  -> use the MeasurementSpec's maximum_frequency_per_user
+    //   N>0 -> fixed cap at N
+    LEGACY_CAP_MODE = 0;
+    // Derive the cap from the frequency distribution of the measurement. The
+    // noise on the released count is spread over the cumulative histogram the
+    // cap is derived from. Both `impression_max_frequency_per_user` and the
+    // MeasurementSpec's `maximum_frequency_per_user` are ignored, so the result
+    // is capped at the derived value rather than at the one the measurement
+    // consumer asked for.
+    DYNAMIC = 1;
+  }
+
+  // How the per-user impression cap is chosen. Defaults to LEGACY_CAP_MODE,
+  // preserving the behavior of `impression_max_frequency_per_user`.
+  ImpressionCapMode impression_cap_mode = 11;
 }
