@@ -1073,6 +1073,19 @@ resource "google_bigquery_connection_iam_member" "dashboard_compliance_kingdom_c
   member        = "serviceAccount:${google_service_account.dashboard_compliance.email}"
 }
 
+# kingdom-conn uses Data Boost (useParallelism), so the caller that runs the federated
+# unlinked_accounts pipeline check — the compliance SA — also needs
+# spanner.databases.useDataBoost on the kingdom database, not just connectionUser above.
+# Without this the EXTERNAL_QUERY fails with "Error accessing Cloud Spanner. Permission
+# Denied". Mirrors kingdom_conn_reader, which grants the same role to the connection agent.
+resource "google_spanner_database_iam_member" "dashboard_compliance_kingdom_databoost" {
+  project  = var.kingdom_spanner_project
+  instance = var.kingdom_spanner_instance
+  database = "kingdom"
+  role     = "roles/spanner.databaseReaderWithDataBoost"
+  member   = "serviceAccount:${google_service_account.dashboard_compliance.email}"
+}
+
 # Compliance SA impersonates each EDP SA to run the per-EDP isolation checks.
 resource "google_service_account_iam_member" "dashboard_compliance_impersonate_edp" {
   for_each           = var.data_provider_resource_ids
