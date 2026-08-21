@@ -52,12 +52,16 @@ fun <T> Flow<T>.chunked(chunkSize: Int): Flow<List<T>> {
 /**
  * Submits multiple RPCs by dividing the input items to batches.
  *
+ * @param concurrency the number of batch requests that may be in flight at once. There is no
+ *   universally-safe default: appropriate values depend on how much concurrent load the downstream
+ *   service can tolerate, so callers must specify one explicitly.
  * @return [Flow] that emits [List]s containing the results of the multiple RPCs.
  */
 suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
   items: Flow<ITEM>,
   limit: Int,
   callRpc: suspend (List<ITEM>) -> RESP,
+  concurrency: Int,
   parseResponse: (RESP) -> List<RESULT>,
 ): Flow<List<RESULT>> {
   if (limit <= 0) {
@@ -66,10 +70,16 @@ suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
       IllegalArgumentException("The size limit of a batch must be greater than 0."),
     )
   }
+  if (concurrency <= 0) {
+    throw BatchRequestException(
+      "Invalid concurrency",
+      IllegalArgumentException("The concurrency of a batch must be greater than 0."),
+    )
+  }
 
-  // For network requests, the number of concurrent coroutines needs to be capped. To be on the safe
-  // side, a low number is chosen.
-  val batchSemaphore = Semaphore(3)
+  // For network requests, the number of concurrent coroutines needs to be capped; see the
+  // `concurrency` parameter doc for how callers choose a value.
+  val batchSemaphore = Semaphore(concurrency)
   return flow {
     coroutineScope {
       val deferred: List<Deferred<List<RESULT>>> = buildList {

@@ -2719,6 +2719,7 @@ class MetricsServiceTest {
         DEFAULT_VID_MODEL_LINE,
         MEASUREMENT_CONSUMER_MODEL_LINES,
         POPULATION_DATA_PROVIDER_NAME,
+        kingdomMeasurementBatchConcurrency = 8,
       )
   }
 
@@ -6076,6 +6077,7 @@ class MetricsServiceTest {
         DEFAULT_VID_MODEL_LINE,
         emptyMap(),
         POPULATION_DATA_PROVIDER_NAME,
+        kingdomMeasurementBatchConcurrency = 8,
       )
 
     wheneverBlocking {

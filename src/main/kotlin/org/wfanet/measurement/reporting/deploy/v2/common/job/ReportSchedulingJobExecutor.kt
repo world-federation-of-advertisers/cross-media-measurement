@@ -145,6 +145,11 @@ private fun run(
         keyReaderContext = Dispatchers.IO,
         cacheLoaderContext = Dispatchers.Default,
         populationDataProvider = reportingApiServerFlags.populationDataProvider,
+        // ReportSchedulingJob calls reportsStub.createReport, which dispatches Measurements to
+        // the Kingdom the same way the public CreateReport/CreateBasicReport RPCs do, so a
+        // heavy scheduled Report benefits from the same concurrency as the interactive path.
+        kingdomMeasurementBatchConcurrency =
+          reportingApiServerFlags.kingdomMeasurementBatchConcurrency,
       )
       .withTrustedPrincipalAuthentication()
 
