@@ -160,7 +160,7 @@ reporting: #Reporting & {
 			if _mcpHost != "" && _oauthIssuer != "" {
 				_oauthArgs: [
 					// Use oauth_protected_resource if set, otherwise default to https://<mcp_host>.
-					"--oauth-protected-resource=" + [if _oauthProtectedResource != "" {_oauthProtectedResource}, "https://" + _mcpHost][0],
+					"--oauth-protected-resource=" + [ if _oauthProtectedResource != "" {_oauthProtectedResource}, "https://" + _mcpHost][0],
 					"--oauth-authorization-server=" + _oauthIssuer,
 					"--oauth-scope=reporting.*",
 				]
