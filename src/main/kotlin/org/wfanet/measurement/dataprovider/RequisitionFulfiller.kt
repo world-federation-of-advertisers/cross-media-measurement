@@ -42,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
+import org.wfanet.measurement.common.crypto.PublicKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -49,6 +50,7 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.consent.client.common.NonceMismatchException
 import org.wfanet.measurement.consent.client.common.PublicKeyMismatchException
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
+import org.wfanet.measurement.consent.client.common.toPublicKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.encryptResult
 import org.wfanet.measurement.consent.client.dataprovider.signResult
@@ -65,6 +67,33 @@ data class DataProviderData(
   /** The CertificateKey to use for result signing. */
   val certificateKey: DataProviderCertificateKey,
 )
+
+/**
+ * Returns whether [publicKey] represents the same cryptographic key as [expectedPublicKey].
+ *
+ * Tink public-key serialization is not guaranteed stable across Tink versions, so a public key
+ * stored at DataProvider-registration time can serialize to different bytes than the same
+ * cryptographic key re-serialized live by the currently-running binary. Both [publicKey] and
+ * [expectedPublicKey] are re-serialized through the same live code path before comparing, so this
+ * is robust to that drift regardless of which side holds a stale serialization.
+ *
+ * Returns `false`, rather than throwing, if [publicKey] is not a parseable Tink keyset.
+ */
+internal fun encryptionPublicKeysMatch(
+  publicKey: EncryptionPublicKey,
+  expectedPublicKey: PublicKeyHandle,
+): Boolean {
+  if (publicKey.format != EncryptionPublicKey.Format.TINK_KEYSET) {
+    return false
+  }
+  val normalizedPublicKey: EncryptionPublicKey =
+    try {
+      publicKey.toPublicKeyHandle().toEncryptionPublicKey()
+    } catch (e: GeneralSecurityException) {
+      return false
+    }
+  return normalizedPublicKey == expectedPublicKey.toEncryptionPublicKey()
+}
 
 abstract class RequisitionFulfiller(
   protected val dataProviderData: DataProviderData,
@@ -115,7 +144,7 @@ abstract class RequisitionFulfiller(
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
 
     val publicKey = requisition.dataProviderPublicKey.unpack(EncryptionPublicKey::class.java)!!
-    check(publicKey == dataProviderData.privateEncryptionKey.publicKey.toEncryptionPublicKey()) {
+    check(encryptionPublicKeysMatch(publicKey, dataProviderData.privateEncryptionKey.publicKey)) {
       "Unable to decrypt for this public key"
     }
     val signedRequisitionSpec: SignedMessage =
