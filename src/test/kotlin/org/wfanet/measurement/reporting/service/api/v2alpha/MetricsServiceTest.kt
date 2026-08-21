@@ -120,6 +120,7 @@ import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.liquidLegionsDistribution
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
@@ -5925,6 +5926,133 @@ class MetricsServiceTest {
   }
 
   @Test
+  fun `batchCreateMetrics requires DEV permission when only one of several model lines in the batch is DEV`() {
+    val devModelLine = "modelProviders/mp-1/modelSuites/ms-1/modelLines/dev"
+    val prodModelLine = "modelProviders/mp-1/modelSuites/ms-1/modelLines/prod"
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    wheneverBlocking {
+      modelLinesMock.getModelLine(eq(getModelLineRequest { name = prodModelLine }))
+    } doReturn modelLine { type = ModelLine.Type.PROD }
+    wheneverBlocking {
+      modelLinesMock.getModelLine(eq(getModelLineRequest { name = devModelLine }))
+    } doReturn modelLine { type = ModelLine.Type.DEV }
+    // DEV is listed first: a regression that retains only the last resolved model line's type
+    // (instead of checking whether any resolved model line is DEV) would incorrectly report the
+    // trailing PROD type here and let this request through without DEV permission.
+    val request = batchCreateMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      requests += createMetricRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        metric = REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { modelLine = devModelLine }
+        metricId = "metric-id1"
+      }
+      requests += createMetricRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { modelLine = prodModelLine }
+        metricId = "metric-id2"
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.batchCreateMetrics(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains(MetricsService.Permission.CREATE_WITH_DEV_MODEL_LINE)
+  }
+
+  @Test
+  fun `batchCreateMetrics calls GetModelLine once per distinct model line, not once per request`() =
+    runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+
+      val sharedModelLine = "modelProviders/mp-1/modelSuites/ms-1/modelLines/prod-line"
+      val metricCount = 10
+      val request = batchCreateMetricsRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        for (i in 1..metricCount) {
+          requests += createMetricRequest {
+            parent = MEASUREMENT_CONSUMERS.values.first().name
+            metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { modelLine = sharedModelLine }
+            metricId = "metric-id-$i"
+          }
+        }
+      }
+
+      wheneverBlocking { internalMetricsMock.batchCreateMetrics(any()) } doReturn
+        internalBatchCreateMetricsResponse {
+          for (i in 1..metricCount) {
+            metrics +=
+              INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.copy {
+                externalMetricId = "metric-id-$i"
+                cmmsModelLine = sharedModelLine
+              }
+          }
+        }
+
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.batchCreateMetrics(request) }
+
+      assertThat(response.metricsList).hasSize(metricCount)
+      verifyBlocking(modelLinesMock, times(1)) { getModelLine(any()) }
+    }
+
+  @Test
+  fun `batchCreateMetrics calls GetModelLine once per distinct model line when requests span multiple model lines`() =
+    runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+
+      val modelLineA = "modelProviders/mp-1/modelSuites/ms-1/modelLines/line-a"
+      val modelLineB = "modelProviders/mp-1/modelSuites/ms-1/modelLines/line-b"
+      val requestModelLines =
+        listOf(modelLineA, modelLineA, modelLineA, modelLineB, modelLineB, modelLineB)
+      val request = batchCreateMetricsRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        for ((i, modelLine) in requestModelLines.withIndex()) {
+          requests += createMetricRequest {
+            parent = MEASUREMENT_CONSUMERS.values.first().name
+            metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { this.modelLine = modelLine }
+            metricId = "metric-id-${i + 1}"
+          }
+        }
+      }
+
+      wheneverBlocking { internalMetricsMock.batchCreateMetrics(any()) } doReturn
+        internalBatchCreateMetricsResponse {
+          for ((i, modelLine) in requestModelLines.withIndex()) {
+            metrics +=
+              INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.copy {
+                externalMetricId = "metric-id-${i + 1}"
+                cmmsModelLine = modelLine
+              }
+          }
+        }
+
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.batchCreateMetrics(request) }
+
+      assertThat(response.metricsList).hasSize(requestModelLines.size)
+      verifyBlocking(modelLinesMock, times(1)) {
+        getModelLine(eq(getModelLineRequest { name = modelLineA }))
+      }
+      verifyBlocking(modelLinesMock, times(1)) {
+        getModelLine(eq(getModelLineRequest { name = modelLineB }))
+      }
+      verifyBlocking(modelLinesMock, times(2)) { getModelLine(any()) }
+    }
+
+  @Test
   fun `batchCreateMetrics creates CMMS measurements with default model_line`() = runBlocking {
     service =
       MetricsService(
@@ -6371,6 +6499,48 @@ class MetricsServiceTest {
           domain = Errors.DOMAIN
           reason = Errors.Reason.MODEL_LINE_NOT_FOUND.name
           metadata[Errors.Metadata.MODEL_LINE.key] = modelLineName
+        }
+      )
+  }
+
+  @Test
+  fun `batchCreateMetrics reports the first model line in request order when multiple are not found`() {
+    val firstModelLineName = "modelProviders/mp-1/modelSuites/ms-1/modelLines/absent-1"
+    val secondModelLineName = "modelProviders/mp-1/modelSuites/ms-1/modelLines/absent-2"
+    wheneverBlocking { modelLinesMock.getModelLine(any()) }
+      .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    val request = batchCreateMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      requests += createMetricRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { modelLine = firstModelLineName }
+        metricId = "metric-id1"
+      }
+      requests += createMetricRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        metric =
+          REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { modelLine = secondModelLineName }
+        metricId = "metric-id2"
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.batchCreateMetrics(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.FAILED_PRECONDITION.code)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.MODEL_LINE_NOT_FOUND.name
+          metadata[Errors.Metadata.MODEL_LINE.key] = firstModelLineName
         }
       )
   }

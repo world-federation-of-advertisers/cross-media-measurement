@@ -44,6 +44,7 @@ import kotlin.math.min
 import kotlin.math.sqrt
 import kotlin.random.Random
 import kotlin.text.isNullOrBlank
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -1578,28 +1579,51 @@ class MetricsService(
         }
       }
 
-    val requiredPermissionIds = buildSet {
-      add(Permission.CREATE)
-      for (effectiveModelLineName in effectiveModelLineNames) {
-        if (effectiveModelLineName.isEmpty()) {
-          continue
-        }
-        val modelLine =
-          try {
-            kingdomModelLinesStub
-              .withAuthenticationKey(measurementConsumerCreds.callCredentials.apiAuthenticationKey)
-              .getModelLine(getModelLineRequest { name = effectiveModelLineName })
-          } catch (e: StatusException) {
-            throw when (e.status.code) {
-              Status.Code.NOT_FOUND ->
-                ModelLineNotFoundException(effectiveModelLineName, e)
-                  .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-              else -> StatusRuntimeException(Status.INTERNAL)
+    // Resolve each distinct model line once instead of once per request: a batch commonly has
+    // many requests that share the same model line, and each resolution is a network call.
+    val modelLinesStub =
+      kingdomModelLinesStub.withAuthenticationKey(
+        measurementConsumerCreds.callCredentials.apiAuthenticationKey
+      )
+    val hasDevModelLine: Boolean = coroutineScope {
+      val results: List<Result<ModelLine>> =
+        effectiveModelLineNames
+          .filter { it.isNotEmpty() }
+          .distinct()
+          .map { effectiveModelLineName ->
+            async {
+              try {
+                Result.success(
+                  modelLinesStub.getModelLine(getModelLineRequest { name = effectiveModelLineName })
+                )
+              } catch (e: CancellationException) {
+                throw e
+              } catch (e: StatusException) {
+                Result.failure(
+                  when (e.status.code) {
+                    Status.Code.NOT_FOUND ->
+                      ModelLineNotFoundException(effectiveModelLineName, e)
+                        .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+                    else ->
+                      Status.INTERNAL.withCause(e)
+                        .withDescription("Unable to retrieve ModelLine $effectiveModelLineName.")
+                        .asRuntimeException()
+                  }
+                )
+              }
             }
           }
-        if (modelLine.type == ModelLine.Type.DEV) {
-          add(Permission.CREATE_WITH_DEV_MODEL_LINE)
-        }
+          .map { it.await() }
+      // Throw the first failure in request order (not completion order) so an identical batch
+      // with multiple invalid model lines reports the same error on every attempt.
+      results.forEach { result -> result.exceptionOrNull()?.let { throw it } }
+      results.any { it.getOrThrow().type == ModelLine.Type.DEV }
+    }
+
+    val requiredPermissionIds = buildSet {
+      add(Permission.CREATE)
+      if (hasDevModelLine) {
+        add(Permission.CREATE_WITH_DEV_MODEL_LINE)
       }
     }
     authorization.check(measurementConsumerName, requiredPermissionIds)
