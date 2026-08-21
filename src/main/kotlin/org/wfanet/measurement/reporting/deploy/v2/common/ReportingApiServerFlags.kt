@@ -187,8 +187,10 @@ class ReportingApiServerFlags {
     names = ["--kingdom-measurement-batch-concurrency"],
     description =
       [
-        "Number of concurrent batch requests to the Kingdom's BatchCreateMeasurements RPC when " +
-          "dispatching Measurements for a Report or Metric."
+        "Number of concurrent batch requests to the Kingdom's BatchCreateMeasurements and " +
+          "BatchGetMeasurements RPCs when dispatching or syncing Measurements for a Report or " +
+          "Metric. Applies to both operations since there is no reason Kingdom's tolerance " +
+          "would differ between a create and a get on the same data."
       ],
     defaultValue = "8",
   )

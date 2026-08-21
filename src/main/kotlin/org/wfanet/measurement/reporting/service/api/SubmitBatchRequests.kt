@@ -56,8 +56,9 @@ fun <T> Flow<T>.chunked(chunkSize: Int): Flow<List<T>> {
  *   universally-safe default: appropriate values depend on how much concurrent load the downstream
  *   service can tolerate, so callers must specify one explicitly. Most callers in this codebase
  *   pass 3, matching this batching mechanism's original hardcoded behavior; Kingdom measurement
- *   creation passes a higher value (8 by default, via the --kingdom-measurement-batch-concurrency
- *   flag) because it has been observed to tolerate more concurrent load.
+ *   creation and retrieval both pass a higher value (8 by default, via the
+ *   --kingdom-measurement-batch-concurrency flag) because they have been observed to tolerate more
+ *   concurrent load.
  * @return [Flow] that emits [List]s containing the results of the multiple RPCs.
  */
 suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
@@ -71,6 +72,12 @@ suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
     throw BatchRequestException(
       "Invalid limit",
       IllegalArgumentException("The size limit of a batch must be greater than 0."),
+    )
+  }
+  if (concurrency <= 0) {
+    throw BatchRequestException(
+      "Invalid concurrency",
+      IllegalArgumentException("The concurrency of a batch must be greater than 0."),
     )
   }
 

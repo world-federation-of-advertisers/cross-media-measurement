@@ -137,6 +137,10 @@ private fun run(
   val metricSpecConfig =
     parseTextProto(v2AlphaFlags.metricSpecConfigFile, MetricSpecConfig.getDefaultInstance())
 
+  if (reportingApiServerFlags.kingdomMeasurementBatchConcurrency <= 0) {
+    throw IllegalArgumentException("--kingdom-measurement-batch-concurrency must be greater than 0")
+  }
+
   val metricsService =
     MetricsService(
         metricSpecConfig,
@@ -162,9 +166,13 @@ private fun run(
         keyReaderContext = Dispatchers.IO,
         cacheLoaderContext = Dispatchers.Default,
         populationDataProvider = reportingApiServerFlags.populationDataProvider,
-        // BasicReportsReportsJob only calls reportsStub.getReport (read-only) and never
-        // CreateReport/BatchCreateMetrics, so this MetricsService instance never dispatches new
-        // Measurements and this value has no effect in practice. Wired to the shared flag rather
+        // BasicReportsReportsJob never calls CreateReport/BatchCreateMetrics, so this
+        // MetricsService instance never dispatches new Measurements via this value. However,
+        // its reportsStub.getReport call can transitively reach batchGetMetrics ->
+        // syncAndConvertInternalMetricsToPublicMetrics -> syncInternalMeasurements, which is
+        // gated by this same concurrency value for BatchGetMeasurements whenever the report
+        // being read has RUNNING Metrics with PENDING Measurements -- the common case for a
+        // job whose purpose is reconciling in-flight reports. Wired to the shared flag rather
         // than a separate literal so there is exactly one place this default comes from.
         kingdomMeasurementBatchConcurrency =
           reportingApiServerFlags.kingdomMeasurementBatchConcurrency,

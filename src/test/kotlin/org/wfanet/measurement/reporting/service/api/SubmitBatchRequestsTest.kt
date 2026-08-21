@@ -22,6 +22,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.ceil
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emptyFlow
@@ -175,6 +176,32 @@ class SubmitBatchRequestsTest {
       submitBatchRequests((1..10).asFlow(), 1, callRpc, concurrency = 3) { it }.toList()
 
       assertThatValue(maxObservedConcurrency.get()).isEqualTo(3)
+    }
+
+  @Test
+  fun `submitBatchRequests throws IllegalArgumentException when concurrency is zero`() =
+    runBlocking {
+      val callRpc: suspend (List<Int>) -> List<Int> = { batch -> batch }
+
+      val exception =
+        assertFailsWith<BatchRequestException> {
+          submitBatchRequests((1..10).asFlow(), 1, callRpc, concurrency = 0) { it }.toList()
+        }
+
+      assertThatValue(exception.cause).isInstanceOf(IllegalArgumentException::class.java)
+    }
+
+  @Test
+  fun `submitBatchRequests throws IllegalArgumentException when concurrency is negative`() =
+    runBlocking {
+      val callRpc: suspend (List<Int>) -> List<Int> = { batch -> batch }
+
+      val exception =
+        assertFailsWith<BatchRequestException> {
+          submitBatchRequests((1..10).asFlow(), 1, callRpc, concurrency = -1) { it }.toList()
+        }
+
+      assertThatValue(exception.cause).isInstanceOf(IllegalArgumentException::class.java)
     }
 
   @Test
