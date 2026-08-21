@@ -120,10 +120,6 @@ private fun run(
   val metricSpecConfig =
     parseTextProto(v2AlphaFlags.metricSpecConfigFile, MetricSpecConfig.getDefaultInstance())
 
-  if (reportingApiServerFlags.kingdomMeasurementBatchConcurrency <= 0) {
-    throw IllegalArgumentException("--kingdom-measurement-batch-concurrency must be greater than 0")
-  }
-
   val metricsService =
     MetricsService(
         metricSpecConfig,

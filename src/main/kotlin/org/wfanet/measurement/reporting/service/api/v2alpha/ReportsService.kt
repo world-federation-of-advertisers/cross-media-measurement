@@ -202,9 +202,6 @@ class ReportsService(
       batchGetMetrics(request.parent, items)
     }
     val externalIdToMetricMap: Map<String, Metric> = buildMap {
-      // metricNames is bounded by how many Metrics the Report being read has, which never
-      // exceeds BATCH_GET_METRICS_LIMIT=1000 for any report size seen so far, so this never
-      // needs more than one batch in practice.
       submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc, concurrency = 3) { response
           ->
           response.metricsList
@@ -292,9 +289,6 @@ class ReportsService(
       batchGetMetrics(parent, items)
     }
     val externalIdToMetricMap: Map<String, Metric> = buildMap {
-      // metricNames is bounded by how many Metrics the Report being read has, which never
-      // exceeds BATCH_GET_METRICS_LIMIT=1000 for any report size seen so far, so this never
-      // needs more than one batch in practice.
       submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc, concurrency = 3) { response
           ->
           response.metricsList
@@ -442,15 +436,9 @@ class ReportsService(
       batchCreateMetrics(request.parent, items)
     }
     val externalIdToMetricMap: Map<String, Metric> = buildMap {
-      // BATCH_CREATE_METRICS_LIMIT=1000 matches MetricsService's own MAX_BATCH_SIZE, so a
-      // report needs over 1000 Metrics before this chunks into more than one call to
-      // MetricsService.batchCreateMetrics -- beyond any report size exercised so far (~936,
-      // where the reporting server's memory ceiling becomes the binding constraint first).
       // Each chunk already fans out to Kingdom with its own concurrency via
       // kingdomMeasurementBatchConcurrency, so raising concurrency at this outer layer too
-      // would multiply Kingdom's effective concurrent load rather than add to it; that
-      // combination hasn't been measured, so this stays unconfigured until reports genuinely
-      // need more than one outer chunk.
+      // would multiply Kingdom's effective concurrent load rather than add to it.
       submitBatchRequests(
           createMetricRequests,
           BATCH_CREATE_METRICS_LIMIT,

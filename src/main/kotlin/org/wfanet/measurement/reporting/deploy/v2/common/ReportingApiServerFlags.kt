@@ -194,6 +194,9 @@ class ReportingApiServerFlags {
       ],
     defaultValue = "8",
   )
-  var kingdomMeasurementBatchConcurrency by Delegates.notNull<Int>()
-    private set
+  var kingdomMeasurementBatchConcurrency: Int = 8
+    private set(value) {
+      require(value > 0) { "--kingdom-measurement-batch-concurrency must be greater than 0" }
+      field = value
+    }
 }

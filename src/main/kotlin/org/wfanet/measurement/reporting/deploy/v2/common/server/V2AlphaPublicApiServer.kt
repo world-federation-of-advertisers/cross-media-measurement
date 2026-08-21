@@ -244,12 +244,6 @@ private object V2AlphaPublicApiServer {
 
     val serviceDispatcher: CoroutineDispatcher = serviceFlags.executor.asCoroutineDispatcher()
 
-    if (reportingApiServerFlags.kingdomMeasurementBatchConcurrency <= 0) {
-      throw IllegalArgumentException(
-        "--kingdom-measurement-batch-concurrency must be greater than 0"
-      )
-    }
-
     val metricsService =
       MetricsService(
         metricSpecConfig,

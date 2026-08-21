@@ -16,7 +16,7 @@
 
 package org.wfanet.measurement.reporting.service.api
 
-import com.google.common.truth.Truth.assertThat as assertThatValue
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
 import io.grpc.StatusException
@@ -157,7 +157,7 @@ class SubmitBatchRequestsTest {
 
     submitBatchRequests((1..10).asFlow(), 1, callRpc, concurrency = concurrency) { it }.toList()
 
-    assertThatValue(maxObservedConcurrency.get()).isEqualTo(concurrency)
+    assertThat(maxObservedConcurrency.get()).isEqualTo(concurrency)
   }
 
   @Test
@@ -175,11 +175,11 @@ class SubmitBatchRequestsTest {
 
       submitBatchRequests((1..10).asFlow(), 1, callRpc, concurrency = 3) { it }.toList()
 
-      assertThatValue(maxObservedConcurrency.get()).isEqualTo(3)
+      assertThat(maxObservedConcurrency.get()).isEqualTo(3)
     }
 
   @Test
-  fun `submitBatchRequests throws IllegalArgumentException when concurrency is zero`() =
+  fun `submitBatchRequests throws BatchRequestException wrapping IllegalArgumentException when concurrency is zero`() =
     runBlocking {
       val callRpc: suspend (List<Int>) -> List<Int> = { batch -> batch }
 
@@ -188,11 +188,11 @@ class SubmitBatchRequestsTest {
           submitBatchRequests((1..10).asFlow(), 1, callRpc, concurrency = 0) { it }.toList()
         }
 
-      assertThatValue(exception.cause).isInstanceOf(IllegalArgumentException::class.java)
+      assertThat(exception.cause).isInstanceOf(IllegalArgumentException::class.java)
     }
 
   @Test
-  fun `submitBatchRequests throws IllegalArgumentException when concurrency is negative`() =
+  fun `submitBatchRequests throws BatchRequestException wrapping IllegalArgumentException when concurrency is negative`() =
     runBlocking {
       val callRpc: suspend (List<Int>) -> List<Int> = { batch -> batch }
 
@@ -201,7 +201,7 @@ class SubmitBatchRequestsTest {
           submitBatchRequests((1..10).asFlow(), 1, callRpc, concurrency = -1) { it }.toList()
         }
 
-      assertThatValue(exception.cause).isInstanceOf(IllegalArgumentException::class.java)
+      assertThat(exception.cause).isInstanceOf(IllegalArgumentException::class.java)
     }
 
   @Test

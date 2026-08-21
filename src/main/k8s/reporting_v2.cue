@@ -24,7 +24,8 @@ package k8s
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
 
-	_maxCreatedBasicReportAge: string | *"15m"
+	_maxCreatedBasicReportAge:           string | *"15m"
+	_kingdomMeasurementBatchConcurrency: string | *"8"
 
 	_postgresConfig:         #PostgresConfig
 	_reportingSpannerConfig: #SpannerConfig & {
@@ -215,6 +216,7 @@ package k8s
 						"--default-report-start-time-zone=America/New_York",
 						"--default-report-start-hour=6",
 						"--enable-reporting-set-reporting-unit-components=\(_reportingSetReportingUnitComponentsEnabled)",
+						"--kingdom-measurement-batch-concurrency=\(Reporting._kingdomMeasurementBatchConcurrency)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 
 			spec: template: spec: {
@@ -352,6 +354,7 @@ package k8s
 						"--port=8443",
 						"--health-port=8080",
 						"--pdp-name=\(_populationDataProviderName)",
+						"--kingdom-measurement-batch-concurrency=\(Reporting._kingdomMeasurementBatchConcurrency)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args
 			spec: {
 				jobTemplate: spec: template: spec: _mounts: {
@@ -395,6 +398,7 @@ package k8s
 							"--health-port=8080",
 							"--pdp-name=\(_populationDataProviderName)",
 							"--max-created-basic-report-age=\(Reporting._maxCreatedBasicReportAge)",
+							"--kingdom-measurement-batch-concurrency=\(Reporting._kingdomMeasurementBatchConcurrency)",
 						] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 					}
 				}

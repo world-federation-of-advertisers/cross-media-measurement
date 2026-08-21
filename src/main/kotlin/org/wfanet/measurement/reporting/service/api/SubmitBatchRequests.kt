@@ -54,11 +54,7 @@ fun <T> Flow<T>.chunked(chunkSize: Int): Flow<List<T>> {
  *
  * @param concurrency the number of batch requests that may be in flight at once. There is no
  *   universally-safe default: appropriate values depend on how much concurrent load the downstream
- *   service can tolerate, so callers must specify one explicitly. Most callers in this codebase
- *   pass 3, matching this batching mechanism's original hardcoded behavior; Kingdom measurement
- *   creation and retrieval both pass a higher value (8 by default, via the
- *   --kingdom-measurement-batch-concurrency flag) because they have been observed to tolerate more
- *   concurrent load.
+ *   service can tolerate, so callers must specify one explicitly.
  * @return [Flow] that emits [List]s containing the results of the multiple RPCs.
  */
 suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
