@@ -226,6 +226,19 @@ fun AsyncDatabaseClient.TransactionContext.setExternalReportId(
   }
 }
 
+/** Buffers an update mutation that sets BasicReportResultDetails for the BasicReports table. */
+fun AsyncDatabaseClient.TransactionContext.updateBasicReportResultDetails(
+  measurementConsumerId: Long,
+  basicReportId: Long,
+  resultDetails: BasicReportResultDetails,
+) {
+  bufferUpdateMutation("BasicReports") {
+    set("MeasurementConsumerId").to(measurementConsumerId)
+    set("BasicReportId").to(basicReportId)
+    set("BasicReportResultDetails").to(resultDetails)
+  }
+}
+
 /** Buffers an update mutation that sets State to FAILED for the BasicReports table. */
 fun AsyncDatabaseClient.TransactionContext.setBasicReportStateToFailed(
   measurementConsumerId: Long,

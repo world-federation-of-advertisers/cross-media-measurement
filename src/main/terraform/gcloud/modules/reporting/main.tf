@@ -69,6 +69,17 @@ resource "postgresql_grant" "db" {
   }
 }
 
+# Operators impersonate the Reporting internal service account to run operational
+# CLIs by hand. That service account owns the Postgres tables and holds the
+# Cloud SQL and Spanner access the CLIs need, so impersonating it avoids
+# provisioning a second set of database credentials.
+resource "google_service_account_iam_member" "reporting_internal_operator_token_creator" {
+  for_each           = toset(var.reporting_operators)
+  service_account_id = module.reporting_internal.iam_service_account.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = each.value
+}
+
 resource "google_spanner_database" "reporting" {
   instance         = var.spanner_instance.name
   name             = var.reporting_spanner_database_name
