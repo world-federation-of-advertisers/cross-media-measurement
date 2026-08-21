@@ -35,18 +35,9 @@ _accessPublicApiAddressName:                          "access-public"
 // Name of K8s service account for the Access internal API server.
 #InternalAccessServerServiceAccount: "internal-access-server"
 
-// Bumped from cpu 100m / memory 384Mi (heap default -Xmx64M): the internal reporting
-// server was suffering GC-pressure slowdowns and OOMKilled crashes while persisting the
-// Metric rows for reports with large numbers of metrics, since the inherited default heap
-// left almost no working memory once other JVM overhead (metaspace, thread stacks, netty
-// buffers) was accounted for within the old 384Mi container limit.
-//
-// CPU request was separately bumped from 100m (a tenth of a core): real in-process
-// measurement showed the write logic itself only needs milliseconds per batch, so the
-// multi-second slowdowns actually observed under load point at CPU throttling rather than
-// the write path. No CPU limit is set, matching this file's sibling configs and this
-// repo's convention of sizing the request correctly and letting bursts use spare node
-// capacity rather than capping them. See issue #4376 for the full investigation.
+// Increased from cpu 100m / memory 384Mi / heap default -Xmx64M, which caused
+// OOMKilled crashes and CPU-throttling slowdowns under heavy report-creation load.
+// No CPU limit is set, matching this file's other services. See issue #4376.
 #InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
