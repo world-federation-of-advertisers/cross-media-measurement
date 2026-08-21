@@ -38,6 +38,7 @@ kt_jvm_library(
         "DashboardComplianceCheckFunction.kt",
         "DashboardComplianceMetrics.kt",
     ],
+    visibility = ["//src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard:__pkg__"],
     deps = [
         ":dashboard_compliance_runner",
         "//src/main/kotlin/org/wfanet/measurement/common:env_vars",

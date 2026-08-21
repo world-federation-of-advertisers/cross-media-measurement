@@ -8,10 +8,10 @@ EDP Aggregator databases into BigQuery tables with per-EDP row-level isolation.
 
 The dashboard creates the following resources:
 
-*   **1 BigQuery dataset** (`dashboard`) containing 5 materialized tables
+*   **1 BigQuery dataset** (`dashboard`) containing 6 materialized tables
 *   **4 BigQuery connections** (3 Spanner with Data Boost, 1 Cloud SQL Postgres)
 *   **1 UDF** (`externalIdToApiId`) for internal-to-API ID conversion
-*   **5 hourly scheduled queries** using atomic MERGE to populate tables
+*   **6 hourly scheduled queries** using atomic MERGE to populate tables
 *   **Per-EDP service accounts** with table-level IAM and row access policies
 *   **Compliance check CLI** for ongoing security auditing
 
@@ -22,14 +22,15 @@ The dashboard creates the following resources:
 | `requisition_overview` | Shared (row-filtered) | Requisition status, fulfillment times, report state |
 | `mc_details` | Platform only | Event group details with cross-EDP coverage metrics |
 | `mc_details_edp` | Per-EDP | Event group details (own data only) |
-| `report_detail` | Platform only | Per-report event group associations with EDP count |
-| `report_detail_edp` | Per-EDP | Per-report event group associations (own data only) |
+| `report_detail` | Platform only | Per-report event group associations with EDP count and report state |
+| `report_detail_edp` | Per-EDP | Per-report event group associations and report state (own data only) |
+| `unlinked_accounts` | Shared (row-filtered) | Advertiser client accounts observed with no MeasurementConsumer linkage; often empty |
 
 ### Security Model
 
-*   **Table-level IAM**: EDP service accounts have `dataViewer` on 3 tables
-    only (`requisition_overview`, `mc_details_edp`, `report_detail_edp`).
-    Platform-only tables return 403.
+*   **Table-level IAM**: EDP service accounts have `dataViewer` on 4 tables
+    only (`requisition_overview`, `mc_details_edp`, `report_detail_edp`,
+    `unlinked_accounts`). Platform-only tables return 403.
 *   **Row access policies**: Each EDP sees only rows matching their
     `DataProviderResourceId` or `CmmsDataProvider`. Policies survive scheduled
     query runs (MERGE is atomic and does not recreate the table).
@@ -272,7 +273,9 @@ FROM `<DASHBOARD_PROJECT>.dashboard.__TABLES__`
 ORDER BY table_id;
 ```
 
-All 5 tables should have rows after the scheduled queries complete.
+All tables except `unlinked_accounts` should have rows after the scheduled
+queries complete. `unlinked_accounts` is often empty — it only has rows when
+advertiser accounts are observed with no MeasurementConsumer linkage.
 
 ## Step 4: Run the Compliance Check
 
@@ -306,7 +309,10 @@ The compliance check verifies:
 *   **UDF validation**: `externalIdToApiId` produces valid output
 *   **Drift detection**: Expected tables, UDFs, schemas, row access policies,
     and connections all exist with correct configuration
-*   **Data correctness**: Tables are non-empty and data is fresh (< 3 hours old)
+*   **Data correctness**: Tables are non-empty and data is fresh (< 3 hours
+    old). `unlinked_accounts` is exempt from the non-empty and freshness
+    checks; a dedicated pipeline check instead compares its Kingdom source
+    row count to the dashboard row count to catch a silently-broken MERGE.
 
 ## Step 5: Set Up CI Integration
 
@@ -414,9 +420,10 @@ wrong value matches no rows. Correct it and re-run the deploy.
 
 The compliance check `report_detail_edp is empty (expected data after
 scheduled queries)` and the corresponding isolation test both FAIL until the
-new EDP has at least one BasicReport in state `SUCCEEDED` that references one
-of its event groups. On fresh environments (and after adding any new EDPA
-EDP), you must seed a BasicReport manually — the CI `run-tests` job
+new EDP has at least one BasicReport in a terminal state (`SUCCEEDED`,
+`FAILED`, or `INVALID`) that references one of its event groups. On fresh
+environments (and after adding any new EDPA EDP with no terminal reports yet),
+you must seed a BasicReport manually — the CI `run-tests` job
 only creates reports against simulator event groups (`sim-eg-*` prefix), not
 against EDPA-owned event groups. See the *Seed a BasicReport for the new
 EDP* step in the onboarding guide.
@@ -427,9 +434,10 @@ If a new EDP's compliance and isolation checks fail because `report_detail_edp`
 hasn't refreshed yet, `rerun-failed-jobs` on `Update CMMS` won't help: the
 `trigger-scheduled-queries` job already succeeded (firing the queries succeeds
 regardless of their output), so it isn't re-run and the checks re-run against
-stale data. Confirm the BasicReport is `SUCCEEDED`, refresh the data (wait for
-the next hourly cycle or trigger the query manually — see *Trigger Scheduled
-Queries Manually*), then re-run the failed jobs.
+stale data. Confirm the BasicReport reached a terminal state (`SUCCEEDED`,
+`FAILED`, or `INVALID`), refresh the data (wait for the next hourly cycle or
+trigger the query manually — see *Trigger Scheduled Queries Manually*), then
+re-run the failed jobs.
 
 ### Cross-project connection failures
 

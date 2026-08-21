@@ -92,7 +92,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
-import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
@@ -1153,10 +1152,6 @@ class VidLabelingMonitorTest {
           gcsProjectId = "test-project"
           impressionsBlobPrefix = "gs://vid-labeled-bucket"
         }
-      vidRepoConnection = transportLayerSecurityParams {
-        clientCertResourcePath = "cert"
-        clientPrivateKeyResourcePath = "key"
-      }
     }
 
     private val MODEL_LINE_CONFIGS: Map<String, VidLabelerParams.ModelLineConfig> =

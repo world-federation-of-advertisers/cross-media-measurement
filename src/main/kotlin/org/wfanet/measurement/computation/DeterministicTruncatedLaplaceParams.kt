@@ -29,4 +29,25 @@ package org.wfanet.measurement.computation
 object DeterministicTruncatedLaplaceParams {
   const val EPSILON = 1.0
   const val DELTA = 1.0 / 1000.0
+
+  /** The truncation bound a draw of L1 [sensitivity] takes under these parameters. */
+  fun truncationBound(sensitivity: Double): Double = truncationBoundFor(EPSILON, DELTA, sensitivity)
+
+  /**
+   * The smallest bound at which a Laplace of scale `sensitivity / epsilon`, truncated to `[-bound,
+   * bound]`, is ([epsilon], [delta])-differentially private.
+   *
+   * Geng et al., "Privacy and Utility Tradeoff in Approximate Differential Privacy"
+   * (arXiv:1810.00877), Definition 3, proved for all ([epsilon], [delta]) and [sensitivity].
+   *
+   * Anything deriving a variance from this noise must use the same threshold, so both the sampler
+   * and the reporting server call this rather than restating the formula.
+   */
+  fun truncationBoundFor(epsilon: Double, delta: Double, sensitivity: Double): Double {
+    require(epsilon > 0.0) { "epsilon must be positive, got $epsilon" }
+    require(delta > 0.0 && delta < 1.0) { "delta must be in (0, 1), got $delta" }
+    require(sensitivity > 0.0) { "sensitivity must be positive, got $sensitivity" }
+    return (sensitivity / epsilon) *
+      StrictMath.log(1.0 + (StrictMath.exp(epsilon) - 1.0) / (2.0 * delta))
+  }
 }

@@ -21,6 +21,7 @@ import io.grpc.Server
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.inprocess.InProcessServerBuilder
 import java.security.SecureRandom
+import java.time.Clock
 import java.time.Duration
 import kotlin.random.asKotlinRandom
 import kotlinx.coroutines.Dispatchers
@@ -64,6 +65,20 @@ import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineSt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import picocli.CommandLine
 
+class BasicReportsReportsJobFlags {
+  @CommandLine.Option(
+    names = ["--max-created-basic-report-age"],
+    defaultValue = "15m",
+    description =
+      [
+        "How long a BasicReport may remain in state CREATED before it is marked FAILED.",
+        "Must exceed the time CreateBasicReport takes to create the underlying Report.",
+      ],
+  )
+  lateinit var maxCreatedBasicReportAge: Duration
+    private set
+}
+
 @CommandLine.Command(
   name = "BasicReportsReportsJobExecutor",
   description =
@@ -78,6 +93,7 @@ private fun run(
   @CommandLine.Mixin v2AlphaFlags: V2AlphaFlags,
   @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
   @CommandLine.Mixin eventMessageFlags: EventMessageFlags,
+  @CommandLine.Mixin basicReportsReportsJobFlags: BasicReportsReportsJobFlags,
 ) {
   val clientCerts =
     SigningCerts.fromPemFiles(
@@ -198,6 +214,8 @@ private fun run(
       InternalMetricCalculationSpecsCoroutineStub(channel),
       ReportResultsCoroutineStub(channel),
       eventMessageFlags.eventDescriptor,
+      Clock.systemUTC(),
+      basicReportsReportsJobFlags.maxCreatedBasicReportAge,
     )
 
   runBlocking { basicReportsReportsJob.execute() }

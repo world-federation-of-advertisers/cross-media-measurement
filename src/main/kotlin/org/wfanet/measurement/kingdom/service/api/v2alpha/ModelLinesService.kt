@@ -350,6 +350,8 @@ class ModelLinesService(
             ErrorCode.POPULATION_NOT_FOUND,
             ErrorCode.CLIENT_ACCOUNT_NOT_FOUND,
             ErrorCode.CLIENT_ACCOUNT_ALREADY_EXISTS,
+            ErrorCode.UNLINKED_CLIENT_ACCOUNT_NOT_FOUND,
+            ErrorCode.UNLINKED_CLIENT_ACCOUNT_ALREADY_EXISTS,
             ErrorCode.UNRECOGNIZED,
             null -> Status.INTERNAL.withCause(e).asRuntimeException()
           }

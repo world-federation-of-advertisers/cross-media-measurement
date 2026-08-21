@@ -1193,6 +1193,25 @@ class Report:
               comb for comb in whole_campaign_edp_combinations
               if len(comb) == 1 and comb.issubset(edp_combination)
           ]
+          # Only emit the "cross-publisher total equals the sum of per-EDP totals"
+          # constraint when a per-EDP total is available for every EDP in
+          # `edp_combination`. Two failure modes are folded into one guard:
+          #   - No per-EDP totals present (caller requested only cross-publisher
+          #     union metrics with no `component` subfield): the constraint
+          #     degenerates to "cross-publisher total = 0", which contradicts
+          #     the measured value and leaves the noise-correction solver with
+          #     no solution.
+          #   - Some per-EDP totals present but not all (e.g. multiple
+          #     result_group_specs where spec 1 requests components for {A,B}
+          #     and spec 2 requests only cross-publisher for {A,B,C}): the
+          #     constraint under-counts by the missing EDPs' contribution,
+          #     and the solver silently adjusts the present per-EDP totals
+          #     downward to satisfy it -- corrupting the reported numbers.
+          # Without this guard the caller sees BasicReport.state=FAILED with
+          # empty result_details; the underlying error is swallowed by
+          # _process_basic_report's bare `except Exception:` (see #4133).
+          if len(single_edp_subset) < len(edp_combination):
+            continue
           spec.add_equal_relation(
               set_id_one=self._get_measurement_index(
                   metric_report.get_whole_campaign_impression_measurement(
@@ -1214,6 +1233,13 @@ class Report:
               comb for comb in weekly_non_cumulative_edp_combinations
               if len(comb) == 1 and comb.issubset(edp_combination)
           ]
+          # Same guard as the whole_campaign branch above: only emit the
+          # "cross-publisher weekly total equals the sum of per-EDP weekly
+          # totals" constraint when a per-EDP total is present for every EDP.
+          # Absent guard -> either unsolvable (no per-EDP) or silently wrong
+          # (partial per-EDP).
+          if len(single_edp_subset) < len(edp_combination):
+            continue
           for period in range(0, self._num_periods):
               spec.add_equal_relation(
                   set_id_one=self._get_measurement_index(

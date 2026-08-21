@@ -16,9 +16,13 @@ package org.wfanet.measurement.integration.common.reporting.v2
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import kotlin.math.abs
+import kotlin.math.ceil
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParams
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
@@ -43,6 +47,7 @@ abstract class InProcessEdpAggregatorTrusTeeThresholdTest(
   accessServicesFactory: AccessServicesFactory,
   reportingDataServicesProviderRule: ProviderRule<Services>,
   duchyNames: List<String> = ALL_DUCHY_NAMES,
+  deterministicTruncatedLaplaceSupported: Boolean = false,
 ) :
   InProcessEdpAggregatorLifeOfAReportTest(
     kingdomDataServicesRule,
@@ -54,6 +59,7 @@ abstract class InProcessEdpAggregatorTrusTeeThresholdTest(
     hmssEnabled = false,
     trusTeeEnabled = true,
     multiEdpDisplayNames = setOf("edp1", "edp2"),
+    deterministicTruncatedLaplaceSupported = deterministicTruncatedLaplaceSupported,
   ) {
 
   // Noisy tests use approximate assertions instead of exact equality. Subclasses override
@@ -71,6 +77,12 @@ abstract class InProcessEdpAggregatorTrusTeeThresholdTest(
   open val expectedTrusTeeBasicReportState: BasicReport.State
     get() = BasicReport.State.SUCCEEDED
 
+  // The noise mechanism the Kingdom is expected to stamp on TrusTee measurements. Subclasses
+  // override this to assert that protocol config selection picked the configured mechanism, rather
+  // than reaching TrusTee by some other path.
+  open val expectedTrusTeeNoiseMechanism: ProtocolConfig.NoiseMechanism?
+    get() = null
+
   // Subclasses override this to use approximate assertions for noisy results or to check
   // different expected values for threshold configurations.
   open fun assertTrusTeeMetricResults(basicReport: BasicReport) {
@@ -82,6 +94,27 @@ abstract class InProcessEdpAggregatorTrusTeeThresholdTest(
       expectedEdpSpec1Reach = EXPECTED_EDP_SPEC1_REACH,
       expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
     )
+  }
+
+  /**
+   * Asserts [actual] is within one deterministic truncated-Laplace draw of [expected].
+   *
+   * The draw is truncated to a bound derived from the compiled privacy params and scaled by the
+   * quantity's L1 [sensitivity], so a single noised quantity cannot move further than that. The
+   * extra unit absorbs the truncation to `Long` when the result is scaled. Taking the bound from
+   * [DeterministicTruncatedLaplaceParams] rather than a recorded value keeps this in step with the
+   * params instead of with a particular seed.
+   */
+  protected fun assertWithinNoiseBound(
+    label: String,
+    actual: Long,
+    expected: Long,
+    sensitivity: Double,
+  ) {
+    val bound = ceil(DeterministicTruncatedLaplaceParams.truncationBound(sensitivity)).toLong()
+    assertWithMessage("$label: $actual is further than ${bound + 1} from $expected")
+      .that(abs(actual - expected))
+      .isAtMost(bound + 1)
   }
 
   @Test
@@ -127,6 +160,16 @@ abstract class InProcessEdpAggregatorTrusTeeThresholdTest(
     assertWithMessage("at least one measurement used TrusTee protocol")
       .that(trusTeeProtocolMeasurements)
       .isNotEmpty()
+
+    val expectedNoiseMechanism = expectedTrusTeeNoiseMechanism
+    if (expectedNoiseMechanism != null) {
+      for (measurement in trusTeeProtocolMeasurements) {
+        val trusTee = measurement.protocolConfig.protocolsList.first { it.hasTrusTee() }.trusTee
+        assertWithMessage("TrusTee noise mechanism on ${measurement.name}")
+          .that(trusTee.noiseMechanism)
+          .isEqualTo(expectedNoiseMechanism)
+      }
+    }
 
     if (expectedTrusTeeBasicReportState == BasicReport.State.SUCCEEDED) {
       assertStructuralResults(completedBasicReport)

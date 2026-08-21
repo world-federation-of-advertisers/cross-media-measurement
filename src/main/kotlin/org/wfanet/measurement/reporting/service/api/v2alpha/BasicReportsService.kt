@@ -542,6 +542,29 @@ class BasicReportsService(
         }
       }
 
+    // A repeated request with the same request ID returns the existing BasicReport, which may have
+    // already been advanced or failed.
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums cannot be null.
+    when (createdInternalBasicReport.state) {
+      InternalBasicReport.State.CREATED -> {}
+      InternalBasicReport.State.REPORT_CREATED,
+      InternalBasicReport.State.UNPROCESSED_RESULTS_READY,
+      InternalBasicReport.State.SUCCEEDED ->
+        return createdInternalBasicReport.toBasicReport(
+          populateDeprecatedReportingUnitEventGroupSummaries = false
+        )
+      InternalBasicReport.State.FAILED,
+      InternalBasicReport.State.INVALID ->
+        throw Status.ABORTED.withDescription(
+            "BasicReport is in a terminal state and cannot be advanced"
+          )
+          .asRuntimeException()
+      InternalBasicReport.State.STATE_UNSPECIFIED,
+      InternalBasicReport.State.UNRECOGNIZED ->
+        throw Status.INTERNAL.withDescription("BasicReport has an unrecognized state")
+          .asRuntimeException()
+    }
+
     val report: Report =
       try {
         buildReport(
@@ -565,15 +588,41 @@ class BasicReportsService(
       reportId = "a${UUID.randomUUID()}"
     }
 
-    reportsStub.withForwardedTrustedCredentials().createReport(createReportRequest)
+    try {
+      reportsStub.withForwardedTrustedCredentials().createReport(createReportRequest)
+    } catch (e: StatusException) {
+      throw Status.INTERNAL.withCause(e).asRuntimeException()
+    }
 
-    internalBasicReportsStub.setExternalReportId(
-      setExternalReportIdRequest {
-        cmmsMeasurementConsumerId = parentKey.measurementConsumerId
-        externalBasicReportId = request.basicReportId
-        externalReportId = createReportRequest.reportId
+    try {
+      internalBasicReportsStub.setExternalReportId(
+        setExternalReportIdRequest {
+          cmmsMeasurementConsumerId = parentKey.measurementConsumerId
+          externalBasicReportId = request.basicReportId
+          externalReportId = createReportRequest.reportId
+        }
+      )
+    } catch (e: StatusException) {
+      throw when (InternalErrors.getReason(e)) {
+        InternalErrors.Reason.BASIC_REPORT_STATE_INVALID ->
+          Status.ABORTED.withCause(e)
+            .withDescription("BasicReport is no longer in a state that can be advanced")
+            .asRuntimeException()
+        InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
+        InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
+        InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+        InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
+        InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+        InternalErrors.Reason.INVALID_FIELD_VALUE,
+        InternalErrors.Reason.METRIC_NOT_FOUND,
+        InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
+        InternalErrors.Reason.REPORT_RESULT_NOT_FOUND,
+        InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
+        InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
+        InternalErrors.Reason.INVALID_BASIC_REPORT,
+        null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
-    )
+    }
 
     return createdInternalBasicReport.toBasicReport(
       populateDeprecatedReportingUnitEventGroupSummaries = false

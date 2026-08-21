@@ -23,6 +23,7 @@ enum class DirectNoiseMechanism {
   NONE,
   CONTINUOUS_LAPLACE,
   CONTINUOUS_GAUSSIAN,
+  DETERMINISTIC_TRUNCATED_LAPLACE,
 }
 
 /** A base Noiser interface for direct measurements. */

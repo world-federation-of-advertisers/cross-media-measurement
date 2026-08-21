@@ -124,6 +124,8 @@ message Computation {
       CONTINUOUS_GAUSSIAN = 3;
       // No noise.
       NONE = 4;
+      // Deterministic truncated Laplace.
+      DETERMINISTIC_TRUNCATED_LAPLACE = 5;
     }
 
     // Configuration for the Liquid Legions v2 R/F protocol.
