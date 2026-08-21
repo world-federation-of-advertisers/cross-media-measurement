@@ -41,21 +41,18 @@ _accessPublicApiAddressName:                          "access-public"
 // left almost no working memory once other JVM overhead (metaspace, thread stacks, netty
 // buffers) was accounted for within the old 384Mi container limit.
 //
-// CPU was separately bumped from 100m (a tenth of a core) with no limit at all: real
-// in-process measurement showed the write logic itself only needs milliseconds per batch,
-// so the multi-second slowdowns actually observed under load point at CPU throttling, not
-// the write path. A JVM doing real serialization work for a large batch, on top of GC
-// activity from the larger heap above, needs real CPU headroom, not a tenth of a core with
-// no ceiling. No existing precedent in this file's sibling configs sets an explicit CPU
-// limit, so 500m request / 2 cores limit is a judgment call: enough guaranteed share to
-// stop throttling under normal load, with a bounded ceiling rather than unlimited burst.
+// CPU request was separately bumped from 100m (a tenth of a core): real in-process
+// measurement showed the write logic itself only needs milliseconds per batch, so the
+// multi-second slowdowns actually observed under load point at CPU throttling rather than
+// the write path. No CPU limit is set, matching this file's sibling configs and this
+// repo's convention of sizing the request correctly and letting bursts use spare node
+// capacity rather than capping them. See issue #4376 for the full investigation.
 #InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
 		memory: "1Gi"
 	}
 	limits: {
-		cpu:    "2"
 		memory: ResourceRequirements.requests.memory
 	}
 }
