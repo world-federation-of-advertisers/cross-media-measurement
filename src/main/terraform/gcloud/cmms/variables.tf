@@ -276,6 +276,17 @@ variable "edpa_model_line_map" {
   type = string
 }
 
+variable "additional_results_fulfiller_model_lines" {
+  description = "Model lines served by the Results Fulfiller beyond the one named by edpa_model_line_map, each with its own population spec, event descriptor and event template type."
+  type = list(object({
+    model_line               = string
+    population_spec_blob_uri = string
+    descriptor_blob_uri      = string
+    event_template_type_name = string
+  }))
+  default = []
+}
+
 variable "duchy_worker1_id" {
   description = "ID of duchy worker 1."
   type = string

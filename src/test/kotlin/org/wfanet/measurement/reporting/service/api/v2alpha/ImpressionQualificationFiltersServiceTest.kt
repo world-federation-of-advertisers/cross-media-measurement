@@ -40,7 +40,7 @@ import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
 import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.copy
 import org.wfanet.measurement.access.v1alpha.principal
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.errorInfo
@@ -380,8 +380,8 @@ class ImpressionQualificationFiltersServiceTest {
         mediaType = InternalMediaType.DISPLAY
         filters += internalEventFilter {
           terms += internalEventTemplateField {
-            path = "banner_ad.viewable"
-            value = InternalEventTemplateFieldKt.fieldValue { boolValue = false }
+            path = "display.viewable_fraction"
+            value = InternalEventTemplateFieldKt.fieldValue { floatValue = 0.0f }
           }
         }
       }
@@ -402,8 +402,16 @@ class ImpressionQualificationFiltersServiceTest {
         mediaType = MediaType.DISPLAY
         filters += eventFilter {
           terms += eventTemplateField {
-            path = "banner_ad.viewable"
-            value = EventTemplateFieldKt.fieldValue { boolValue = true }
+            path = "display.viewable_fraction"
+            value = EventTemplateFieldKt.fieldValue { floatValue = 0.5f }
+          }
+          terms += eventTemplateField {
+            path = "display.viewable_fraction"
+            value = EventTemplateFieldKt.fieldValue { floatValue = 0.75f }
+          }
+          terms += eventTemplateField {
+            path = "display.viewable_fraction"
+            value = EventTemplateFieldKt.fieldValue { floatValue = 1.0f }
           }
         }
       }

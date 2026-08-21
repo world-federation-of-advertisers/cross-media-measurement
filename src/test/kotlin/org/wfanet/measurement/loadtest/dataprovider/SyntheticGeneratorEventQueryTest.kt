@@ -29,8 +29,8 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toProtoTime
@@ -99,6 +99,6 @@ class SyntheticGeneratorEventQueryTest {
     private val ZONE_ID: ZoneId = ZoneOffset.UTC
 
     private val TYPE_REGISTRY: TypeRegistry =
-      TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
+      TypeRegistry.newBuilder().add(Common.getDescriptor()).build()
   }
 }

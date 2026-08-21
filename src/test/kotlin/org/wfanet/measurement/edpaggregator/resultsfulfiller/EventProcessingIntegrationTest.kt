@@ -46,10 +46,10 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.testEvent
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
@@ -132,16 +132,16 @@ class EventProcessingIntegrationTest {
       createTestEvents(
         startVid = 1L,
         count = 30,
-        ageGroup = Person.AgeGroup.YEARS_18_TO_34,
-        gender = Person.Gender.MALE,
+        ageGroup = Common.AgeGroup.YEARS_18_TO_34,
+        gender = Common.Gender.MALE,
       )
 
     val eventsGroup2 =
       createTestEvents(
         startVid = 31L,
         count = 40,
-        ageGroup = Person.AgeGroup.YEARS_35_TO_54,
-        gender = Person.Gender.FEMALE,
+        ageGroup = Common.AgeGroup.YEARS_35_TO_54,
+        gender = Common.Gender.FEMALE,
       )
 
     // Write events to storage and create event source
@@ -156,14 +156,14 @@ class EventProcessingIntegrationTest {
       createRequisition(
         name = "requisitions/req1",
         eventGroupsMap = mapOf(eventGroup1 to createTimeRange(testDate)),
-        filter = "person.gender == 1", // MALE
+        filter = "common.gender == 1", // MALE
       )
 
     val requisition2 =
       createRequisition(
         name = "requisitions/req2",
         eventGroupsMap = mapOf(eventGroup2 to createTimeRange(testDate)),
-        filter = "person.age_group == 2", // YEARS_35_TO_54
+        filter = "common.age_group == 2", // YEARS_35_TO_54
       )
 
     val requisitions = listOf(requisition1, requisition2)
@@ -228,8 +228,8 @@ class EventProcessingIntegrationTest {
           add(
             createLabeledImpression(
               vid = vid++,
-              ageGroup = Person.AgeGroup.YEARS_18_TO_34,
-              gender = Person.Gender.MALE,
+              ageGroup = Common.AgeGroup.YEARS_18_TO_34,
+              gender = Common.Gender.MALE,
               eventDate = testDate,
             )
           )
@@ -240,8 +240,8 @@ class EventProcessingIntegrationTest {
           add(
             createLabeledImpression(
               vid = vid++,
-              ageGroup = Person.AgeGroup.YEARS_18_TO_34,
-              gender = Person.Gender.FEMALE,
+              ageGroup = Common.AgeGroup.YEARS_18_TO_34,
+              gender = Common.Gender.FEMALE,
               eventDate = testDate,
             )
           )
@@ -252,8 +252,8 @@ class EventProcessingIntegrationTest {
           add(
             createLabeledImpression(
               vid = vid++,
-              ageGroup = Person.AgeGroup.YEARS_35_TO_54,
-              gender = Person.Gender.MALE,
+              ageGroup = Common.AgeGroup.YEARS_35_TO_54,
+              gender = Common.Gender.MALE,
               eventDate = testDate,
             )
           )
@@ -264,8 +264,8 @@ class EventProcessingIntegrationTest {
           add(
             createLabeledImpression(
               vid = vid++,
-              ageGroup = Person.AgeGroup.YEARS_55_PLUS,
-              gender = Person.Gender.FEMALE,
+              ageGroup = Common.AgeGroup.YEARS_55_PLUS,
+              gender = Common.Gender.FEMALE,
               eventDate = testDate,
             )
           )
@@ -282,25 +282,25 @@ class EventProcessingIntegrationTest {
         createRequisition(
           name = "requisitions/all-males",
           eventGroupsMap = mapOf(sharedEventGroup to createTimeRange(testDate)),
-          filter = "person.gender == 1",
+          filter = "common.gender == 1",
         ),
         // All females (25 total: 15+10)
         createRequisition(
           name = "requisitions/all-females",
           eventGroupsMap = mapOf(sharedEventGroup to createTimeRange(testDate)),
-          filter = "person.gender == 2",
+          filter = "common.gender == 2",
         ),
         // All 18-34 age group (35 total: 20+15)
         createRequisition(
           name = "requisitions/age-18-34",
           eventGroupsMap = mapOf(sharedEventGroup to createTimeRange(testDate)),
-          filter = "person.age_group == 1",
+          filter = "common.age_group == 1",
         ),
         // Senior females only (10 total)
         createRequisition(
           name = "requisitions/senior-females",
           eventGroupsMap = mapOf(sharedEventGroup to createTimeRange(testDate)),
-          filter = "person.gender == 2 && person.age_group == 3",
+          filter = "common.gender == 2 && common.age_group == 3",
         ),
       )
 
@@ -359,24 +359,24 @@ class EventProcessingIntegrationTest {
       createTestEvents(
         startVid = 1L,
         count = 40,
-        ageGroup = Person.AgeGroup.YEARS_18_TO_34,
-        gender = Person.Gender.MALE,
+        ageGroup = Common.AgeGroup.YEARS_18_TO_34,
+        gender = Common.Gender.MALE,
       )
 
     val desktopEvents =
       createTestEvents(
         startVid = 41L,
         count = 30,
-        ageGroup = Person.AgeGroup.YEARS_18_TO_34, // Same age group to test aggregation
-        gender = Person.Gender.MALE, // Same gender to test aggregation
+        ageGroup = Common.AgeGroup.YEARS_18_TO_34, // Same age group to test aggregation
+        gender = Common.Gender.MALE, // Same gender to test aggregation
       )
 
     val tabletEvents =
       createTestEvents(
         startVid = 71L,
         count = 20,
-        ageGroup = Person.AgeGroup.YEARS_35_TO_54, // Different age group
-        gender = Person.Gender.MALE,
+        ageGroup = Common.AgeGroup.YEARS_35_TO_54, // Different age group
+        gender = Common.Gender.MALE,
       )
 
     // Write events to storage
@@ -400,7 +400,7 @@ class EventProcessingIntegrationTest {
             eventGroup2 to createTimeRange(testDate),
             eventGroup3 to createTimeRange(testDate),
           ),
-        filter = "person.gender == 1", // All males across all platforms
+        filter = "common.gender == 1", // All males across all platforms
       )
 
     // Create another requisition targeting only younger males (should exclude tablet events)
@@ -413,7 +413,7 @@ class EventProcessingIntegrationTest {
             eventGroup2 to createTimeRange(testDate),
             eventGroup3 to createTimeRange(testDate),
           ),
-        filter = "person.gender == 1 && person.age_group == 1", // Young males only
+        filter = "common.gender == 1 && common.age_group == 1", // Young males only
       )
 
     val requisitions = listOf(multiGroupRequisition, youngMalesRequisition)
@@ -476,8 +476,8 @@ class EventProcessingIntegrationTest {
       createTestEvents(
         startVid = 1L,
         count = 25,
-        ageGroup = Person.AgeGroup.YEARS_18_TO_34,
-        gender = Person.Gender.MALE,
+        ageGroup = Common.AgeGroup.YEARS_18_TO_34,
+        gender = Common.Gender.MALE,
         eventDate = yesterday,
       )
 
@@ -485,8 +485,8 @@ class EventProcessingIntegrationTest {
       createTestEvents(
         startVid = 26L,
         count = 25,
-        ageGroup = Person.AgeGroup.YEARS_18_TO_34,
-        gender = Person.Gender.MALE,
+        ageGroup = Common.AgeGroup.YEARS_18_TO_34,
+        gender = Common.Gender.MALE,
         eventDate = twoDaysAgo,
       )
 
@@ -574,8 +574,8 @@ class EventProcessingIntegrationTest {
           add(
             createLabeledImpression(
               vid = vid++,
-              ageGroup = Person.AgeGroup.YEARS_18_TO_34,
-              gender = Person.Gender.MALE,
+              ageGroup = Common.AgeGroup.YEARS_18_TO_34,
+              gender = Common.Gender.MALE,
               eventDate = testDate,
             )
           )
@@ -586,8 +586,8 @@ class EventProcessingIntegrationTest {
           add(
             createLabeledImpression(
               vid = vid++,
-              ageGroup = Person.AgeGroup.YEARS_18_TO_34,
-              gender = Person.Gender.FEMALE,
+              ageGroup = Common.AgeGroup.YEARS_18_TO_34,
+              gender = Common.Gender.FEMALE,
               eventDate = testDate,
             )
           )
@@ -598,8 +598,8 @@ class EventProcessingIntegrationTest {
           add(
             createLabeledImpression(
               vid = vid++,
-              ageGroup = Person.AgeGroup.YEARS_35_TO_54,
-              gender = Person.Gender.MALE,
+              ageGroup = Common.AgeGroup.YEARS_35_TO_54,
+              gender = Common.Gender.MALE,
               eventDate = testDate,
             )
           )
@@ -610,8 +610,8 @@ class EventProcessingIntegrationTest {
           add(
             createLabeledImpression(
               vid = vid++,
-              ageGroup = Person.AgeGroup.YEARS_35_TO_54,
-              gender = Person.Gender.FEMALE,
+              ageGroup = Common.AgeGroup.YEARS_35_TO_54,
+              gender = Common.Gender.FEMALE,
               eventDate = testDate,
             )
           )
@@ -628,19 +628,19 @@ class EventProcessingIntegrationTest {
         createRequisition(
           name = "requisitions/all-males",
           eventGroupsMap = mapOf(eventGroup to createTimeRange(testDate)),
-          filter = "person.gender == 1",
+          filter = "common.gender == 1",
         ),
         // All 18-34 (35 total)
         createRequisition(
           name = "requisitions/age-18-34",
           eventGroupsMap = mapOf(eventGroup to createTimeRange(testDate)),
-          filter = "person.age_group == 1",
+          filter = "common.age_group == 1",
         ),
         // Male AND 18-34 (20 total - intersection)
         createRequisition(
           name = "requisitions/male-18-34",
           eventGroupsMap = mapOf(eventGroup to createTimeRange(testDate)),
-          filter = "person.gender == 1 && person.age_group == 1",
+          filter = "common.gender == 1 && common.age_group == 1",
         ),
         // All events (70 total)
         createRequisition(
@@ -706,28 +706,24 @@ class EventProcessingIntegrationTest {
         // Create combinations of all attributes for comprehensive testing
         val ageGroups =
           listOf(
-            Person.AgeGroup.YEARS_18_TO_34,
-            Person.AgeGroup.YEARS_35_TO_54,
-            Person.AgeGroup.YEARS_55_PLUS,
+            Common.AgeGroup.YEARS_18_TO_34,
+            Common.AgeGroup.YEARS_35_TO_54,
+            Common.AgeGroup.YEARS_55_PLUS,
           )
-        val genders = listOf(Person.Gender.MALE, Person.Gender.FEMALE)
-        val socialGrades =
-          listOf(
-            Person.SocialGradeGroup.A_B_C1,
-            Person.SocialGradeGroup.SOCIAL_GRADE_GROUP_UNSPECIFIED,
-          )
+        val genders = listOf(Common.Gender.MALE, Common.Gender.FEMALE)
+        val usStates = listOf(Common.UsState.CALIFORNIA, Common.UsState.NEW_YORK)
 
         // Generate 5 events for each combination (3 * 2 * 2 * 5 = 60 events)
         ageGroups.forEach { ageGroup ->
           genders.forEach { gender ->
-            socialGrades.forEach { socialGrade ->
+            usStates.forEach { usState ->
               repeat(5) {
                 add(
-                  createLabeledImpressionWithSocialGrade(
+                  createLabeledImpressionWithUsState(
                     vid = vid++,
                     ageGroup = ageGroup,
                     gender = gender,
-                    socialGrade = socialGrade,
+                    usState = usState,
                     eventDate = testDate,
                   )
                 )
@@ -746,14 +742,14 @@ class EventProcessingIntegrationTest {
         createRequisition(
           name = "requisitions/young-males",
           eventGroupsMap = mapOf(eventGroup to createTimeRange(testDate)),
-          filter = "person.age_group == 1 && person.gender == 1",
+          filter = "common.age_group == 1 && common.gender == 1",
         ),
 
         // OR condition: Either very young or very old
         createRequisition(
           name = "requisitions/young-or-senior",
           eventGroupsMap = mapOf(eventGroup to createTimeRange(testDate)),
-          filter = "person.age_group == 1 || person.age_group == 3",
+          filter = "common.age_group == 1 || common.age_group == 3",
         ),
 
         // Complex AND/OR combination: (Young males) OR (Senior females)
@@ -761,21 +757,21 @@ class EventProcessingIntegrationTest {
           name = "requisitions/young-males-or-senior-females",
           eventGroupsMap = mapOf(eventGroup to createTimeRange(testDate)),
           filter =
-            "(person.age_group == 1 && person.gender == 1) || (person.age_group == 3 && person.gender == 2)",
+            "(common.age_group == 1 && common.gender == 1) || (common.age_group == 3 && common.gender == 2)",
         ),
 
         // Multiple AND conditions: Premium demographic
         createRequisition(
           name = "requisitions/premium-demographic",
           eventGroupsMap = mapOf(eventGroup to createTimeRange(testDate)),
-          filter = "person.age_group == 2 && person.gender == 1 && person.social_grade_group == 1",
+          filter = "common.age_group == 2 && common.gender == 1 && common.us_state == 6",
         ),
 
         // NOT condition equivalent using inequalities: Non-young males
         createRequisition(
           name = "requisitions/non-young-males",
           eventGroupsMap = mapOf(eventGroup to createTimeRange(testDate)),
-          filter = "person.gender == 1 && person.age_group != 1",
+          filter = "common.gender == 1 && common.age_group != 1",
         ),
 
         // Complex nested condition: Young people with high social grade OR middle-aged males
@@ -783,7 +779,7 @@ class EventProcessingIntegrationTest {
           name = "requisitions/complex-nested",
           eventGroupsMap = mapOf(eventGroup to createTimeRange(testDate)),
           filter =
-            "(person.age_group == 1 && person.social_grade_group == 1) || (person.age_group == 2 && person.gender == 1)",
+            "(common.age_group == 1 && common.us_state == 6) || (common.age_group == 2 && common.gender == 1)",
         ),
       )
 
@@ -826,19 +822,19 @@ class EventProcessingIntegrationTest {
     val complexNestedReach = result["requisitions/complex-nested"]!!.getReach()
 
     // Verify logical relationships
-    // Young males: age_group=1 AND gender=1 → 5 events (1 age * 1 gender * 2 social_grades * 5
+    // Young males: age_group=1 AND gender=1 → 5 events (1 age * 1 gender * 2 us_states * 5
     // events)
     assertThat(youngMalesReach).isEqualTo(10L)
 
-    // Young OR senior: age_group=1 OR age_group=3 → 40 events (2 ages * 2 genders * 2 social_grades
+    // Young OR senior: age_group=1 OR age_group=3 → 40 events (2 ages * 2 genders * 2 us_states
     // * 5)
     assertThat(youngOrSeniorReach).isEqualTo(40L)
 
-    // Premium demographic: age_group=2 AND gender=1 AND social_grade_group=1 → 5 events
+    // Premium demographic: age_group=2 AND gender=1 AND us_state=CALIFORNIA → 5 events
     assertThat(premiumDemographicReach).isEqualTo(5L)
 
     // Non-young males: gender=1 AND age_group!=1 → 20 events (2 non-young ages * 1 gender * 2
-    // social_grades * 5)
+    // us_states * 5)
     assertThat(nonYoungMalesReach).isEqualTo(20L)
 
     // Young males OR senior females: (age=1,gender=1) OR (age=3,gender=2) → 20 events total
@@ -859,8 +855,8 @@ class EventProcessingIntegrationTest {
       createTestEvents(
         startVid = 1L,
         count = 20,
-        ageGroup = Person.AgeGroup.YEARS_18_TO_34,
-        gender = Person.Gender.MALE,
+        ageGroup = Common.AgeGroup.YEARS_18_TO_34,
+        gender = Common.Gender.MALE,
       )
 
     val eventSource = setupStorageWithEvents(mapOf(eventGroup to events), testDate)
@@ -872,14 +868,14 @@ class EventProcessingIntegrationTest {
         createRequisition(
           name = "requisitions/no-matches-gender",
           eventGroupsMap = mapOf(eventGroup to createTimeRange(testDate)),
-          filter = "person.gender == 2", // FEMALE - not in data
+          filter = "common.gender == 2", // FEMALE - not in data
         ),
 
         // Filter that matches no events (wrong age group)
         createRequisition(
           name = "requisitions/no-matches-age",
           eventGroupsMap = mapOf(eventGroup to createTimeRange(testDate)),
-          filter = "person.age_group == 3", // YEARS_55_PLUS - not in data
+          filter = "common.age_group == 3", // YEARS_55_PLUS - not in data
         ),
 
         // Time range that doesn't overlap (past date)
@@ -900,7 +896,7 @@ class EventProcessingIntegrationTest {
         createRequisition(
           name = "requisitions/match-all-males",
           eventGroupsMap = mapOf(eventGroup to createTimeRange(testDate)),
-          filter = "person.gender == 1 && person.age_group == 1",
+          filter = "common.gender == 1 && common.age_group == 1",
         ),
       )
 
@@ -972,8 +968,8 @@ class EventProcessingIntegrationTest {
       createTestEvents(
         startVid = 1L,
         count = 15,
-        ageGroup = Person.AgeGroup.YEARS_18_TO_34,
-        gender = Person.Gender.MALE,
+        ageGroup = Common.AgeGroup.YEARS_18_TO_34,
+        gender = Common.Gender.MALE,
         eventDate = day1,
       )
 
@@ -981,8 +977,8 @@ class EventProcessingIntegrationTest {
       createTestEvents(
         startVid = 16L,
         count = 20,
-        ageGroup = Person.AgeGroup.YEARS_18_TO_34,
-        gender = Person.Gender.MALE,
+        ageGroup = Common.AgeGroup.YEARS_18_TO_34,
+        gender = Common.Gender.MALE,
         eventDate = day2,
       )
 
@@ -990,8 +986,8 @@ class EventProcessingIntegrationTest {
       createTestEvents(
         startVid = 36L,
         count = 25,
-        ageGroup = Person.AgeGroup.YEARS_18_TO_34,
-        gender = Person.Gender.MALE,
+        ageGroup = Common.AgeGroup.YEARS_18_TO_34,
+        gender = Common.Gender.MALE,
         eventDate = day3,
       )
 
@@ -1212,8 +1208,8 @@ class EventProcessingIntegrationTest {
   private fun createTestEvents(
     startVid: Long,
     count: Int,
-    ageGroup: Person.AgeGroup,
-    gender: Person.Gender,
+    ageGroup: Common.AgeGroup,
+    gender: Common.Gender,
     eventDate: LocalDate = LocalDate.now().minusDays(1),
   ): List<LabeledImpression> {
     return (startVid until startVid + count).map { vid ->
@@ -1223,8 +1219,8 @@ class EventProcessingIntegrationTest {
 
   private fun createLabeledImpression(
     vid: Long,
-    ageGroup: Person.AgeGroup,
-    gender: Person.Gender,
+    ageGroup: Common.AgeGroup,
+    gender: Common.Gender,
     eventDate: LocalDate,
   ): LabeledImpression {
     return labeledImpression {
@@ -1232,21 +1228,21 @@ class EventProcessingIntegrationTest {
       this.vid = vid
       event =
         testEvent {
-            person = person {
+            common = common {
               this.ageGroup = ageGroup
               this.gender = gender
-              socialGradeGroup = Person.SocialGradeGroup.A_B_C1
+              usState = Common.UsState.CALIFORNIA
             }
           }
           .pack()
     }
   }
 
-  private fun createLabeledImpressionWithSocialGrade(
+  private fun createLabeledImpressionWithUsState(
     vid: Long,
-    ageGroup: Person.AgeGroup,
-    gender: Person.Gender,
-    socialGrade: Person.SocialGradeGroup,
+    ageGroup: Common.AgeGroup,
+    gender: Common.Gender,
+    usState: Common.UsState,
     eventDate: LocalDate,
   ): LabeledImpression {
     return labeledImpression {
@@ -1254,10 +1250,10 @@ class EventProcessingIntegrationTest {
       this.vid = vid
       event =
         testEvent {
-            person = person {
+            common = common {
               this.ageGroup = ageGroup
               this.gender = gender
-              socialGradeGroup = socialGrade
+              this.usState = usState
             }
           }
           .pack()
@@ -1506,7 +1502,7 @@ class EventProcessingIntegrationTest {
       createRequisition(
         name = "requisitions/r1",
         eventGroupsMap = mapOf("eventGroups/eg1" to timeRange, "eventGroups/eg2" to timeRange),
-        filter = "person.age_group == 1",
+        filter = "common.age_group == 1",
       )
 
     val entityKey1 = labeledImpressionEntityKey("ad", "X")
@@ -1534,7 +1530,7 @@ class EventProcessingIntegrationTest {
       createRequisition(
         name = "requisitions/r1",
         eventGroupsMap = mapOf("eventGroups/eg1" to timeRange, "eventGroups/eg2" to timeRange),
-        filter = "person.age_group == 1",
+        filter = "common.age_group == 1",
       )
 
     val index =
@@ -1561,7 +1557,7 @@ class EventProcessingIntegrationTest {
       createRequisition(
         name = "requisitions/r1",
         eventGroupsMap = mapOf("eventGroups/eg1" to timeRange, "eventGroups/eg2" to timeRange),
-        filter = "person.age_group == 1",
+        filter = "common.age_group == 1",
       )
 
     val exception =
@@ -1639,15 +1635,15 @@ class EventProcessingIntegrationTest {
         createTestEvents(
           startVid = 1L,
           count = 30,
-          ageGroup = Person.AgeGroup.YEARS_18_TO_34,
-          gender = Person.Gender.MALE,
+          ageGroup = Common.AgeGroup.YEARS_18_TO_34,
+          gender = Common.Gender.MALE,
         )
       val events2 =
         createTestEvents(
           startVid = 31L,
           count = 40,
-          ageGroup = Person.AgeGroup.YEARS_35_TO_54,
-          gender = Person.Gender.FEMALE,
+          ageGroup = Common.AgeGroup.YEARS_35_TO_54,
+          gender = Common.Gender.FEMALE,
         )
 
       // Use a custom EventSource that emits batches stamped with matching blob-level entity_keys
@@ -1665,13 +1661,13 @@ class EventProcessingIntegrationTest {
         createRequisition(
           name = "requisitions/req1",
           eventGroupsMap = mapOf(eventGroup1 to createTimeRange(testDate)),
-          filter = "person.gender == 1", // MALE
+          filter = "common.gender == 1", // MALE
         )
       val req2 =
         createRequisition(
           name = "requisitions/req2",
           eventGroupsMap = mapOf(eventGroup2 to createTimeRange(testDate)),
-          filter = "person.age_group == 2", // YEARS_35_TO_54
+          filter = "common.age_group == 2", // YEARS_35_TO_54
         )
       val requisitions = listOf(req1, req2)
 

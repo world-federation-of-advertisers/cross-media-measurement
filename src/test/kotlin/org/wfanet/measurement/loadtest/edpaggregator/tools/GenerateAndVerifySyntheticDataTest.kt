@@ -42,10 +42,10 @@ import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfigKt.entityKeySpec
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfigKt.syntheticEventGroup
 import org.measurement.integration.k8s.testing.impressionTestDataConfig
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.Common as MarketCommon
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.MarketEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.flatten
@@ -630,7 +630,7 @@ class GenerateAndVerifySyntheticDataTest {
   fun `resolveEventMessageInstance returns DynamicMessage from descriptor set for non-default type URL`() {
     // Build a FileDescriptorSet covering all transitive dependencies of TestEvent and write it to
     // disk. Then resolve a *non-default* type URL that points at one of the included messages
-    // (Person). This exercises the dynamic-message code path that supports arbitrary user-supplied
+    // (Common). This exercises the dynamic-message code path that supports arbitrary user-supplied
     // event message types.
     val descriptorSetFile = tempFolder.newFile("test_event_descriptor_set.binpb")
     val descriptorSetBuilder = DescriptorProtos.FileDescriptorSet.newBuilder()
@@ -641,13 +641,13 @@ class GenerateAndVerifySyntheticDataTest {
 
     val instance: Message =
       GenerateSyntheticData.resolveEventMessageInstance(
-        "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person",
+        "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.Common",
         listOf(descriptorSetFile),
       )
 
     assertThat(instance).isInstanceOf(DynamicMessage::class.java)
     assertThat(instance.descriptorForType.fullName)
-      .isEqualTo("wfa.measurement.api.v2alpha.event_templates.testing.Person")
+      .isEqualTo("wfa.measurement.api.v2alpha.event_templates.testing.v1.Common")
   }
 
   @Test
@@ -863,8 +863,8 @@ class GenerateAndVerifySyntheticDataTest {
     val impressions: List<LabeledImpression> = decryptAllImpressions()
     val testEvents: List<TestEvent> = impressions.map { TestEvent.parseFrom(it.event.value) }
 
-    val countsByGenderAndAge: Map<Pair<Person.Gender, Person.AgeGroup>, Int> =
-      testEvents.groupingBy { it.person.gender to it.person.ageGroup }.eachCount()
+    val countsByGenderAndAge: Map<Pair<Common.Gender, Common.AgeGroup>, Int> =
+      testEvents.groupingBy { it.common.gender to it.common.ageGroup }.eachCount()
 
     // Expected counts derived from small_population_spec.textproto +
     // small_data_spec.textproto + small_data_spec_b.textproto:
@@ -880,15 +880,15 @@ class GenerateAndVerifySyntheticDataTest {
     //     VID 60001..60100-> sub-pop 7  (FEMALE, 18-34) freq 3   -> 300
     assertThat(countsByGenderAndAge)
       .containsExactly(
-        Person.Gender.MALE to Person.AgeGroup.YEARS_18_TO_34,
+        Common.Gender.MALE to Common.AgeGroup.YEARS_18_TO_34,
         3000 * 2,
-        Person.Gender.MALE to Person.AgeGroup.YEARS_35_TO_54,
+        Common.Gender.MALE to Common.AgeGroup.YEARS_35_TO_54,
         3000 * 2,
-        Person.Gender.MALE to Person.AgeGroup.YEARS_55_PLUS,
+        Common.Gender.MALE to Common.AgeGroup.YEARS_55_PLUS,
         200,
-        Person.Gender.FEMALE to Person.AgeGroup.YEARS_18_TO_34,
+        Common.Gender.FEMALE to Common.AgeGroup.YEARS_18_TO_34,
         300,
-        Person.Gender.FEMALE to Person.AgeGroup.YEARS_55_PLUS,
+        Common.Gender.FEMALE to Common.AgeGroup.YEARS_55_PLUS,
         (1000 + 1001) * 2,
       )
     assertThat(testEvents).hasSize(SPEC_A.expectedImpressions * 2 + SPEC_B.expectedImpressions)
