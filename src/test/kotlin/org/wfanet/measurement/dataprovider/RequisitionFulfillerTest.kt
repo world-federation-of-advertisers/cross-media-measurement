@@ -58,6 +58,13 @@ class RequisitionFulfillerTest {
     assertThat(encryptionPublicKeysMatch(unparseableKey, STORED_PUBLIC_KEY_HANDLE)).isFalse()
   }
 
+  @Test
+  fun `encryptionPublicKeysMatch returns false for an unspecified format rather than throwing`() {
+    val unspecifiedFormatKey = encryptionPublicKey { data = STORED_PUBLIC_KEY.data }
+
+    assertThat(encryptionPublicKeysMatch(unspecifiedFormatKey, STORED_PUBLIC_KEY_HANDLE)).isFalse()
+  }
+
   companion object {
     private val SECRET_FILES_PATH =
       checkNotNull(

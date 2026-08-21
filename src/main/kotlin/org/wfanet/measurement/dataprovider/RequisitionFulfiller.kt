@@ -83,6 +83,9 @@ internal fun encryptionPublicKeysMatch(
   publicKey: EncryptionPublicKey,
   expectedPublicKey: PublicKeyHandle,
 ): Boolean {
+  if (publicKey.format != EncryptionPublicKey.Format.TINK_KEYSET) {
+    return false
+  }
   val normalizedPublicKey: EncryptionPublicKey =
     try {
       publicKey.toPublicKeyHandle().toEncryptionPublicKey()
