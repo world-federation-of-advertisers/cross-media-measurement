@@ -1062,6 +1062,17 @@ resource "google_project_iam_member" "dashboard_compliance_role" {
   member  = "serviceAccount:${google_service_account.dashboard_compliance.email}"
 }
 
+# The compliance check federates through kingdom-conn to compare the Spanner source row count
+# against the unlinked_accounts table. Scoped to this connection so the SA cannot federate through
+# the others; EDP dashboard SAs get no such binding.
+resource "google_bigquery_connection_iam_member" "dashboard_compliance_kingdom_conn" {
+  project       = data.google_client_config.default.project
+  location      = data.google_client_config.default.region
+  connection_id = google_bigquery_connection.kingdom.connection_id
+  role          = "roles/bigquery.connectionUser"
+  member        = "serviceAccount:${google_service_account.dashboard_compliance.email}"
+}
+
 # Compliance SA impersonates each EDP SA to run the per-EDP isolation checks.
 resource "google_service_account_iam_member" "dashboard_compliance_impersonate_edp" {
   for_each           = var.data_provider_resource_ids
