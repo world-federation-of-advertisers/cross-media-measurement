@@ -11,3 +11,20 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/com/google/common/truth",
     ],
 )
+
+kt_jvm_test(
+    name = "RequisitionFulfillerTest",
+    srcs = ["RequisitionFulfillerTest.kt"],
+    associates = [
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_fulfiller",
+    ],
+    data = [
+        "//src/main/k8s/testing/secretfiles:secret_files",
+    ],
+    test_class = "org.wfanet.measurement.dataprovider.RequisitionFulfillerTest",
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)

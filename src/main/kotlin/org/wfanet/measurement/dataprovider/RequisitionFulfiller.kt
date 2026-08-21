@@ -49,6 +49,7 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.consent.client.common.NonceMismatchException
 import org.wfanet.measurement.consent.client.common.PublicKeyMismatchException
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
+import org.wfanet.measurement.consent.client.common.toPublicKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.encryptResult
 import org.wfanet.measurement.consent.client.dataprovider.signResult
@@ -65,6 +66,22 @@ data class DataProviderData(
   /** The CertificateKey to use for result signing. */
   val certificateKey: DataProviderCertificateKey,
 )
+
+/**
+ * Returns whether [publicKey] and [expectedPublicKey] represent the same cryptographic key.
+ *
+ * Tink public-key serialization is not guaranteed stable across Tink versions, so a public key
+ * stored at DataProvider-registration time can serialize to different bytes than the same
+ * cryptographic key re-serialized live by the currently-running binary. Re-serializing [publicKey]
+ * through the same live code path as [expectedPublicKey] -- rather than comparing stored bytes
+ * directly -- makes this comparison robust to that drift.
+ */
+internal fun encryptionPublicKeysMatch(
+  publicKey: EncryptionPublicKey,
+  expectedPublicKey: EncryptionPublicKey,
+): Boolean {
+  return publicKey.toPublicKeyHandle().toEncryptionPublicKey() == expectedPublicKey
+}
 
 abstract class RequisitionFulfiller(
   protected val dataProviderData: DataProviderData,
@@ -115,7 +132,12 @@ abstract class RequisitionFulfiller(
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
 
     val publicKey = requisition.dataProviderPublicKey.unpack(EncryptionPublicKey::class.java)!!
-    check(publicKey == dataProviderData.privateEncryptionKey.publicKey.toEncryptionPublicKey()) {
+    check(
+      encryptionPublicKeysMatch(
+        publicKey,
+        dataProviderData.privateEncryptionKey.publicKey.toEncryptionPublicKey(),
+      )
+    ) {
       "Unable to decrypt for this public key"
     }
     val signedRequisitionSpec: SignedMessage =
