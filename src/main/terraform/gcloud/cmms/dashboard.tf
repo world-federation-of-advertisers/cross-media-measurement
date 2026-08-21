@@ -734,13 +734,15 @@ resource "google_bigquery_row_access_policy" "requisition_overview_platform" {
   grantees         = concat(["serviceAccount:${var.terraform_service_account}"], var.dashboard_operators)
 }
 
+# dashboard_compliance is a grantee so the unlinked_accounts pipeline health check can read all
+# rows for its dashboard-side count; paired with the table dataViewer grant below.
 resource "google_bigquery_row_access_policy" "unlinked_accounts_platform" {
   project          = data.google_client_config.default.project
   dataset_id       = google_bigquery_dataset.dashboard.dataset_id
   table_id         = google_bigquery_table.unlinked_accounts.table_id
   policy_id        = "platform_full_access"
   filter_predicate = "TRUE"
-  grantees         = concat(["serviceAccount:${var.terraform_service_account}"], var.dashboard_operators)
+  grantees         = concat(["serviceAccount:${var.terraform_service_account}", "serviceAccount:${google_service_account.dashboard_compliance.email}"], var.dashboard_operators)
 }
 
 resource "google_bigquery_row_access_policy" "mc_details_platform" {
@@ -947,6 +949,17 @@ resource "google_bigquery_table_iam_member" "unlinked_accounts_platform_viewer" 
   table_id   = google_bigquery_table.unlinked_accounts.table_id
   role       = "roles/bigquery.dataViewer"
   member     = each.value
+}
+
+# The compliance SA counts rows in unlinked_accounts for the pipeline health check. It needs
+# table read (dataViewer) plus the platform row-access grant above to see all rows. Scoped to
+# this table only.
+resource "google_bigquery_table_iam_member" "unlinked_accounts_compliance_viewer" {
+  project    = data.google_client_config.default.project
+  dataset_id = google_bigquery_dataset.dashboard.dataset_id
+  table_id   = google_bigquery_table.unlinked_accounts.table_id
+  role       = "roles/bigquery.dataViewer"
+  member     = "serviceAccount:${google_service_account.dashboard_compliance.email}"
 }
 
 resource "google_bigquery_table_iam_member" "mc_details_platform_viewer" {
