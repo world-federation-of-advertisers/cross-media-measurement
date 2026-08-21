@@ -674,10 +674,8 @@ class ReportSchedulesService(
       while (externalReportingSetIdSet.isNotEmpty()) {
         retrievedExternalReportingSetIdSet.addAll(externalReportingSetIdSet)
 
-        // This walks a composite ReportingSet's operand tree, bounded by the ReportingSet
-        // structure's own size (e.g. DataProvider/campaign composition), not by how many
-        // Metrics any Report generated from it will have, so it stays well under
-        // BATCH_GET_REPORTING_SETS_LIMIT=1000 regardless of report size.
+        // Bounded by the ReportingSet structure's own size, not by Metric count, so it
+        // doesn't share the Kingdom-dispatch concurrency flag.
         submitBatchRequests(
             externalReportingSetIdSet.asFlow(),
             BATCH_GET_REPORTING_SETS_LIMIT,

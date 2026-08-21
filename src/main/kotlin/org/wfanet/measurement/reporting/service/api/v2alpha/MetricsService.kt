@@ -422,12 +422,8 @@ class MetricsService(
           },
           BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT,
           callBatchSetCmmsMeasurementIdsRpc,
-          // This writes to the reporting server's own internal Measurements table, not Kingdom,
-          // so it should not share the Kingdom-dispatch concurrency flag even though it scales
-          // with the same measurement count. At BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT=1000, a
-          // report would need over 1000 Measurements before this ever needs more than one
-          // batch — well beyond the largest report size exercised so far (~936) — so
-          // concurrency has no effect in practice today.
+          // Writes to the internal Measurements table, not Kingdom, so it doesn't share the
+          // Kingdom-dispatch concurrency flag.
           concurrency = 3,
         ) { _: Unit ->
           emptyList<Unit>()
@@ -932,9 +928,8 @@ class MetricsService(
             succeededMeasurements,
             BATCH_SET_MEASUREMENT_RESULTS_LIMIT,
             callBatchSetInternalMeasurementResultsRpc,
-            // Writes to the internal Measurements table (not Kingdom) from the read/poll path
-            // (getMetric/batchGetMetrics/listMetrics), never from Metric creation. Limit is 1000,
-            // so this never multi-chunks at any report size seen so far.
+            // Writes to the internal Measurements table from the read/poll path, not Kingdom, so
+            // it doesn't share the Kingdom-dispatch concurrency flag.
             concurrency = 3,
           ) { _: Unit ->
             emptyList<Unit>()
@@ -957,8 +952,7 @@ class MetricsService(
             failedMeasurements.asFlow(),
             BATCH_SET_MEASUREMENT_FAILURES_LIMIT,
             callBatchSetInternalMeasurementFailuresRpc,
-            // Same reasoning as the adjacent BATCH_SET_MEASUREMENT_RESULTS_LIMIT call: internal
-            // DB, read/poll path only, limit of 1000 far exceeds any report size seen so far.
+            // Same reasoning as the adjacent BATCH_SET_MEASUREMENT_RESULTS_LIMIT call.
             concurrency = 3,
           ) { _: Unit ->
             emptyList<Unit>()
@@ -1645,10 +1639,8 @@ class MetricsService(
     }
 
     val reportingSetNameToInternalReportingSetMap: Map<String, InternalReportingSet> = buildMap {
-      // reportingSetNames is deduplicated (.distinct() above) and bounded by how many distinct
-      // ReportingSets a report's Metrics reference (e.g. union/TV/Meta for a cross-media report,
-      // typically a handful), not by Metric count, so this never approaches
-      // BATCH_GET_REPORTING_SETS_LIMIT=1000 regardless of report size.
+      // Bounded by how many distinct ReportingSets a report's Metrics reference, not by Metric
+      // count, so it doesn't share the Kingdom-dispatch concurrency flag.
       submitBatchRequests(
           reportingSetNames.asFlow(),
           BATCH_GET_REPORTING_SETS_LIMIT,
