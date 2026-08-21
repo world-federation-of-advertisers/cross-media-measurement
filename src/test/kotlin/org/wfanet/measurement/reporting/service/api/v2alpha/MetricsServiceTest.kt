@@ -5925,80 +5925,88 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `batchCreateMetrics calls GetModelLine once per distinct model line, not once per request`() {
-    wheneverBlocking {
-      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
-    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+  fun `batchCreateMetrics calls GetModelLine once per distinct model line, not once per request`() =
+    runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
 
-    val sharedModelLine = "modelProviders/mp-1/modelSuites/ms-1/modelLines/prod-line"
-    val metricCount = 10
-    val request = batchCreateMetricsRequest {
-      parent = MEASUREMENT_CONSUMERS.values.first().name
-      for (i in 1..metricCount) {
-        requests += createMetricRequest {
-          parent = MEASUREMENT_CONSUMERS.values.first().name
-          metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { modelLine = sharedModelLine }
-          metricId = "metric-id-$i"
+      val sharedModelLine = "modelProviders/mp-1/modelSuites/ms-1/modelLines/prod-line"
+      val metricCount = 10
+      val request = batchCreateMetricsRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        for (i in 1..metricCount) {
+          requests += createMetricRequest {
+            parent = MEASUREMENT_CONSUMERS.values.first().name
+            metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { modelLine = sharedModelLine }
+            metricId = "metric-id-$i"
+          }
         }
       }
-    }
 
-    withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-      runBlocking {
-        try {
-          service.batchCreateMetrics(request)
-        } catch (e: Exception) {
-          // Downstream internal-metrics mock response is fixed-size from an unrelated test
-          // and won't line up with metricCount requests; irrelevant here since GetModelLine
-          // calls (what this test measures) happen earlier, during permission resolution.
+      wheneverBlocking { internalMetricsMock.batchCreateMetrics(any()) } doReturn
+        internalBatchCreateMetricsResponse {
+          for (i in 1..metricCount) {
+            metrics +=
+              INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.copy {
+                externalMetricId = "metric-id-$i"
+                cmmsModelLine = sharedModelLine
+              }
+          }
         }
-      }
-    }
 
-    verifyBlocking(modelLinesMock, times(1)) { getModelLine(any()) }
-  }
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.batchCreateMetrics(request) }
+
+      assertThat(response.metricsList).hasSize(metricCount)
+      verifyBlocking(modelLinesMock, times(1)) { getModelLine(any()) }
+    }
 
   @Test
-  fun `batchCreateMetrics calls GetModelLine once per distinct model line when requests span multiple model lines`() {
-    wheneverBlocking {
-      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
-    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+  fun `batchCreateMetrics calls GetModelLine once per distinct model line when requests span multiple model lines`() =
+    runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
 
-    val modelLineA = "modelProviders/mp-1/modelSuites/ms-1/modelLines/line-a"
-    val modelLineB = "modelProviders/mp-1/modelSuites/ms-1/modelLines/line-b"
-    val requestModelLines =
-      listOf(modelLineA, modelLineA, modelLineA, modelLineB, modelLineB, modelLineB)
-    val request = batchCreateMetricsRequest {
-      parent = MEASUREMENT_CONSUMERS.values.first().name
-      for ((i, modelLine) in requestModelLines.withIndex()) {
-        requests += createMetricRequest {
-          parent = MEASUREMENT_CONSUMERS.values.first().name
-          metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { this.modelLine = modelLine }
-          metricId = "metric-id-${i + 1}"
+      val modelLineA = "modelProviders/mp-1/modelSuites/ms-1/modelLines/line-a"
+      val modelLineB = "modelProviders/mp-1/modelSuites/ms-1/modelLines/line-b"
+      val requestModelLines =
+        listOf(modelLineA, modelLineA, modelLineA, modelLineB, modelLineB, modelLineB)
+      val request = batchCreateMetricsRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        for ((i, modelLine) in requestModelLines.withIndex()) {
+          requests += createMetricRequest {
+            parent = MEASUREMENT_CONSUMERS.values.first().name
+            metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { this.modelLine = modelLine }
+            metricId = "metric-id-${i + 1}"
+          }
         }
       }
-    }
 
-    withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-      runBlocking {
-        try {
-          service.batchCreateMetrics(request)
-        } catch (e: Exception) {
-          // Downstream internal-metrics mock response is fixed-size from an unrelated test
-          // and won't line up with requestModelLines.size; irrelevant here since GetModelLine
-          // calls (what this test measures) happen earlier, during permission resolution.
+      wheneverBlocking { internalMetricsMock.batchCreateMetrics(any()) } doReturn
+        internalBatchCreateMetricsResponse {
+          for ((i, modelLine) in requestModelLines.withIndex()) {
+            metrics +=
+              INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.copy {
+                externalMetricId = "metric-id-${i + 1}"
+                cmmsModelLine = modelLine
+              }
+          }
         }
-      }
-    }
 
-    verifyBlocking(modelLinesMock, times(1)) {
-      getModelLine(eq(getModelLineRequest { name = modelLineA }))
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.batchCreateMetrics(request) }
+
+      assertThat(response.metricsList).hasSize(requestModelLines.size)
+      verifyBlocking(modelLinesMock, times(1)) {
+        getModelLine(eq(getModelLineRequest { name = modelLineA }))
+      }
+      verifyBlocking(modelLinesMock, times(1)) {
+        getModelLine(eq(getModelLineRequest { name = modelLineB }))
+      }
+      verifyBlocking(modelLinesMock, times(2)) { getModelLine(any()) }
     }
-    verifyBlocking(modelLinesMock, times(1)) {
-      getModelLine(eq(getModelLineRequest { name = modelLineB }))
-    }
-    verifyBlocking(modelLinesMock, times(2)) { getModelLine(any()) }
-  }
 
   @Test
   fun `batchCreateMetrics creates CMMS measurements with default model_line`() = runBlocking {
