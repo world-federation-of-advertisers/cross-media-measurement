@@ -66,3 +66,10 @@ variable "dashboard_json_files" {
     "reporting_dashboard_2.json",
   ]
 }
+
+variable "reporting_operators" {
+  description = "IAM members permitted to impersonate the Reporting internal service account in order to run operational CLIs against the Reporting databases."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
