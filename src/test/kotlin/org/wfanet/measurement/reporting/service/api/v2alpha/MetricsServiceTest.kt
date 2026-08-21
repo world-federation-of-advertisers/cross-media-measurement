@@ -5937,16 +5937,19 @@ class MetricsServiceTest {
     wheneverBlocking {
       modelLinesMock.getModelLine(eq(getModelLineRequest { name = devModelLine }))
     } doReturn modelLine { type = ModelLine.Type.DEV }
+    // DEV is listed first: a regression that retains only the last resolved model line's type
+    // (instead of checking whether any resolved model line is DEV) would incorrectly report the
+    // trailing PROD type here and let this request through without DEV permission.
     val request = batchCreateMetricsRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       requests += createMetricRequest {
         parent = MEASUREMENT_CONSUMERS.values.first().name
-        metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { modelLine = prodModelLine }
+        metric = REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { modelLine = devModelLine }
         metricId = "metric-id1"
       }
       requests += createMetricRequest {
         parent = MEASUREMENT_CONSUMERS.values.first().name
-        metric = REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { modelLine = devModelLine }
+        metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { modelLine = prodModelLine }
         metricId = "metric-id2"
       }
     }
@@ -6494,6 +6497,48 @@ class MetricsServiceTest {
           domain = Errors.DOMAIN
           reason = Errors.Reason.MODEL_LINE_NOT_FOUND.name
           metadata[Errors.Metadata.MODEL_LINE.key] = modelLineName
+        }
+      )
+  }
+
+  @Test
+  fun `batchCreateMetrics reports the first model line in request order when multiple are not found`() {
+    val firstModelLineName = "modelProviders/mp-1/modelSuites/ms-1/modelLines/absent-1"
+    val secondModelLineName = "modelProviders/mp-1/modelSuites/ms-1/modelLines/absent-2"
+    wheneverBlocking { modelLinesMock.getModelLine(any()) }
+      .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    val request = batchCreateMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      requests += createMetricRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { modelLine = firstModelLineName }
+        metricId = "metric-id1"
+      }
+      requests += createMetricRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        metric =
+          REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { modelLine = secondModelLineName }
+        metricId = "metric-id2"
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.batchCreateMetrics(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.FAILED_PRECONDITION.code)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.MODEL_LINE_NOT_FOUND.name
+          metadata[Errors.Metadata.MODEL_LINE.key] = firstModelLineName
         }
       )
   }

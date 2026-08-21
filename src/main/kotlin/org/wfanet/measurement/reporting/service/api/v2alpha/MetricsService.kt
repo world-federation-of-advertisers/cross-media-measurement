@@ -44,6 +44,7 @@ import kotlin.math.min
 import kotlin.math.sqrt
 import kotlin.random.Random
 import kotlin.text.isNullOrBlank
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -1574,12 +1575,15 @@ class MetricsService(
           .distinct()
           .map { effectiveModelLineName ->
             async {
-              runCatching {
+              try {
+                Result.success(
                   modelLinesStub.getModelLine(getModelLineRequest { name = effectiveModelLineName })
-                }
-                .recoverCatching { e ->
-                  if (e !is StatusException) throw e
-                  throw when (e.status.code) {
+                )
+              } catch (e: CancellationException) {
+                throw e
+              } catch (e: StatusException) {
+                Result.failure(
+                  when (e.status.code) {
                     Status.Code.NOT_FOUND ->
                       ModelLineNotFoundException(effectiveModelLineName, e)
                         .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
@@ -1588,7 +1592,8 @@ class MetricsService(
                         .withDescription("Unable to retrieve ModelLine $effectiveModelLineName.")
                         .asRuntimeException()
                   }
-                }
+                )
+              }
             }
           }
           .map { it.await() }
