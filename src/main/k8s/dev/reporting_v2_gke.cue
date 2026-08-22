@@ -35,10 +35,13 @@ _accessPublicApiAddressName:                          "access-public"
 // Name of K8s service account for the Access internal API server.
 #InternalAccessServerServiceAccount: "internal-access-server"
 
+// Increased from cpu 100m / memory 384Mi / heap default -Xmx64M, which caused
+// OOMKilled crashes and CPU-throttling slowdowns under heavy report-creation load.
+// No CPU limit is set, matching this file's other services. See issue #4376.
 #InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu:    "100m"
-		memory: "384Mi"
+		cpu:    "500m"
+		memory: "1Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -135,7 +138,10 @@ reporting: #Reporting & {
 
 	deployments: {
 		"postgres-internal-reporting-server": {
-			_container: resources: #InternalServerResourceRequirements
+			_container: {
+				_javaOptions: maxHeapSize: "512M"
+				resources: #InternalServerResourceRequirements
+			}
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalServerServiceAccount
 			}
