@@ -51,11 +51,11 @@ _accessPublicApiAddressName:                          "access-public"
 // Increased from cpu 25m / memory 320Mi / heap 64M, which is undersized for
 // report-creation requests that build hundreds of Metrics in memory (Cartesian
 // expansion of time intervals x groupings x metric specs). See issue #4376.
-#PublicServerMaxHeapSize:          "512M"
+#PublicServerMaxHeapSize:          "384M"
 #PublicServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu:    "1000m"
-		memory: "1Gi"
+		cpu:    "500m"
+		memory: "768Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
