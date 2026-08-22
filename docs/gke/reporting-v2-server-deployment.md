@@ -145,6 +145,15 @@ a starting point based on that testing, not a guarantee for every workload;
 size your own node pools with enough spare CPU capacity to support bursting
 above the request under load.
 
+The reporting-v2alpha-public-api-server container, which builds every Metric
+in a report in memory before dispatching it, needs similar headroom: we
+recommend a JVM max heap size of at least 384M within a container memory
+limit of at least 768Mi, and a CPU request of at least 500m with no CPU
+limit. The same load testing found the smaller defaults for this container
+(a 64M heap, 320Mi memory, and a 25m CPU request) left a multi-second
+CPU-and-GC-bound stall in report-creation requests that raising these
+values measurably shrank.
+
 ## Customize the K8s secrets
 
 We use K8s secrets to hold sensitive information, such as private keys.
