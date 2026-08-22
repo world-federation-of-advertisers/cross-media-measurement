@@ -25,6 +25,7 @@ import java.time.ZoneOffset
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
 import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
@@ -548,6 +549,42 @@ class MetricReader(private val readContext: ReadContext) {
     return reportingMetricMap
   }
 
+  /**
+   * Returns whether any [Metric] with one of [externalMetricIds] already exists for
+   * [measurementConsumerId].
+   *
+   * Unlike [batchGetMetrics], this does not join in ReportingSets/Measurements/etc, since callers
+   * that only need existence would otherwise pay for that join just to discard the result.
+   */
+  suspend fun metricsExist(
+    measurementConsumerId: InternalId,
+    externalMetricIds: Collection<String>,
+  ): Boolean {
+    if (externalMetricIds.isEmpty()) {
+      return false
+    }
+
+    val statement =
+      valuesListBoundStatement(
+        valuesStartIndex = 1,
+        paramCount = 1,
+        """
+          SELECT 1
+          FROM Metrics
+          JOIN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+            AS c(ExternalMetricId) USING (ExternalMetricId)
+          WHERE MeasurementConsumerId = $1
+          LIMIT 1
+        """
+          .trimIndent(),
+      ) {
+        bind("$1", measurementConsumerId)
+        externalMetricIds.forEach { addValuesBinding { bindValuesParam(0, it) } }
+      }
+
+    return readContext.executeQuery(statement).consume { true }.firstOrNull() ?: false
+  }
+
   fun batchGetMetrics(request: BatchGetMetricsRequest): Flow<Result> {
     // There is an index using ExternalMetricId, but only for Metrics. MetricMeasurements only
     // has an index using MetricId.
@@ -634,6 +671,11 @@ class MetricReader(private val readContext: ReadContext) {
   }
 
   fun readMetrics(request: StreamMetricsRequest): Flow<Result> {
+    // MeasurementConsumerId is resolved in a separate round trip and bound as a literal below,
+    // rather than filtering on CmmsMeasurementConsumerId directly: Postgres cannot use the
+    // (MeasurementConsumerId, ExternalMetricId) index for the ORDER BY + LIMIT when the id is
+    // resolved inline (join or CTE) instead of bound as a constant, and falls back to a full
+    // scan of Metrics that gets slower as the table grows.
     val sql =
       """
         $baseSqlSelect
@@ -669,7 +711,7 @@ class MetricReader(private val readContext: ReadContext) {
             CmmsModelLineName
           FROM MeasurementConsumers
             JOIN Metrics USING (MeasurementConsumerId)
-          WHERE CmmsMeasurementConsumerId = $1
+          WHERE MeasurementConsumers.MeasurementConsumerId = $1
             AND ExternalMetricId > $2
           ORDER BY ExternalMetricId ASC
           LIMIT $3
@@ -679,18 +721,23 @@ class MetricReader(private val readContext: ReadContext) {
       """
         .trimIndent()
 
-    val statement =
-      boundStatement(sql) {
-        bind("$1", request.filter.cmmsMeasurementConsumerId)
-        bind("$2", request.filter.externalMetricIdAfter)
-        if (request.limit > 0) {
-          bind("$3", request.limit)
-        } else {
-          bind("$3", 50)
-        }
-      }
-
     return flow {
+      val measurementConsumerId: InternalId =
+        MeasurementConsumerReader(readContext)
+          .getByCmmsId(request.filter.cmmsMeasurementConsumerId)
+          ?.measurementConsumerId ?: return@flow
+
+      val statement =
+        boundStatement(sql) {
+          bind("$1", measurementConsumerId)
+          bind("$2", request.filter.externalMetricIdAfter)
+          if (request.limit > 0) {
+            bind("$3", request.limit)
+          } else {
+            bind("$3", 50)
+          }
+        }
+
       val metricInfoMap = buildResultMap(statement)
 
       for (entry in metricInfoMap) {
