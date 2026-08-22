@@ -272,6 +272,8 @@ private object V2AlphaPublicApiServer {
         cacheLoaderContext = Dispatchers.Default,
         coroutineContext = serviceDispatcher,
         populationDataProvider = reportingApiServerFlags.populationDataProvider,
+        kingdomMeasurementBatchConcurrency =
+          reportingApiServerFlags.kingdomMeasurementBatchConcurrency,
       )
 
     startInProcessServerWithService(
