@@ -984,6 +984,35 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     }
 
   @Test
+  fun `createMetric succeeds when different measurement consumers reuse the same external metric id`() =
+    runBlocking {
+      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+      val differentCmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + 2
+      createMeasurementConsumer(differentCmmsMeasurementConsumerId, measurementConsumersService)
+
+      val createdMetric =
+        service.createMetric(
+          createCreateMetricRequest(
+            CMMS_MEASUREMENT_CONSUMER_ID,
+            reportingSetsService,
+            "sharedExternalMetricId",
+          )
+        )
+      val createdMetric2 =
+        service.createMetric(
+          createCreateMetricRequest(
+            differentCmmsMeasurementConsumerId,
+            reportingSetsService,
+            "sharedExternalMetricId",
+          )
+        )
+
+      assertThat(createdMetric.externalMetricId).isEqualTo(createdMetric2.externalMetricId)
+      assertThat(createdMetric.cmmsMeasurementConsumerId)
+        .isNotEqualTo(createdMetric2.cmmsMeasurementConsumerId)
+    }
+
+  @Test
   fun `createMetric throws NOT_FOUND when ReportingSet in basis not found`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)
