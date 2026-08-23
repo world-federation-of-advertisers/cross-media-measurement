@@ -22,25 +22,14 @@ impression_qualification_filters {
   impression_qualification_filter_id: 2
   filter_specs {
     media_type: DISPLAY
-    # Terms within a filter are disjunctive, so this selects a viewable fraction
-    # of at least 0.5 over the quartile values the synthetic data carries.
+    # TODO(world-federation-of-advertisers/cross-media-measurement#4380):
+    # Use `>= 0.5` once relative comparison operators are supported. Equality
+    # under-selects here: it drops impressions above the MRC threshold.
     filters: {
       terms: {
         path: "display.viewable_fraction"
         value {
           float_value: 0.5
-        }
-      }
-      terms: {
-        path: "display.viewable_fraction"
-        value {
-          float_value: 0.75
-        }
-      }
-      terms: {
-        path: "display.viewable_fraction"
-        value {
-          float_value: 1.0
         }
       }
     }

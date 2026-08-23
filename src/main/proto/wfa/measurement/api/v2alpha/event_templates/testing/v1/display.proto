@@ -38,17 +38,23 @@ message Display {
 
   // Fraction of the ad's pixels that were on screen for at least 1 continuous
   // second, in the range [0, 1]. 0.5 is the MRC display viewability standard.
-  //
-  // Not `GROUPABLE`: the reporting server supports grouping over enum-valued
-  // fields alone.
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4370):
-  // Restore `GROUPABLE` and `grouping_spec` once threshold grouping is
-  // supported.
   float viewable_fraction = 1 [(.wfa.measurement.api.v2alpha.template_field) = {
     display_name: "Viewable Fraction"
     description: "Fraction of the ad's pixels on screen for at least 1 "
                  "continuous second, in the range [0, 1]."
     reporting_features: IMPRESSION_QUALIFICATION
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4370): Add
+    // `GROUPABLE` once grouping over non-enum fields is supported.
     version_added: 1
+    grouping_spec: {
+      operator: GREATER_THAN_OR_EQUAL
+      double_value_list: {
+        values: 0.0
+        values: 0.25
+        values: 0.5
+        values: 0.75
+        values: 1.0
+      }
+    }
   }];
 }

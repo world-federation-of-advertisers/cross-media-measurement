@@ -2126,14 +2126,6 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
                     path = "display.viewable_fraction"
                     value = EventTemplateFieldKt.fieldValue { floatValue = 0.5f }
                   }
-                  terms += eventTemplateField {
-                    path = "display.viewable_fraction"
-                    value = EventTemplateFieldKt.fieldValue { floatValue = 0.75f }
-                  }
-                  terms += eventTemplateField {
-                    path = "display.viewable_fraction"
-                    value = EventTemplateFieldKt.fieldValue { floatValue = 1.0f }
-                  }
                 }
               }
             }

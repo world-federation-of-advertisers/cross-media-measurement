@@ -138,15 +138,12 @@ message Common {
   // dimensions. It is `population_attribute: false` because it is a property
   // of the event, not of the virtual person: the same person can be signed in
   // for one impression and not another.
-  //
-  // Only `FILTERABLE` because the reporting server currently supports grouping
-  // over enum-valued fields alone.
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4370):
-  // Consider `GROUPABLE` once boolean grouping is supported.
   bool signed_in = 4 [(.wfa.measurement.api.v2alpha.template_field) = {
     display_name: "Signed In"
     population_attribute: false
     reporting_features: FILTERABLE
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4370): Add
+    // `GROUPABLE` once grouping over non-enum fields is supported.
     version_added: 1
   }];
 
