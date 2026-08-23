@@ -3410,6 +3410,23 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
   }
 
   @Test
+  fun `streamMetrics returns empty flow when measurement consumer does not exist`() = runBlocking {
+    val retrievedMetrics =
+      service
+        .streamMetrics(
+          streamMetricsRequest {
+            filter =
+              StreamMetricsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              }
+          }
+        )
+        .toList()
+
+    assertThat(retrievedMetrics).hasSize(0)
+  }
+
+  @Test
   fun `streamMetrics throws INVALID_ARGUMENT when MC filter missing`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> { service.streamMetrics(streamMetricsRequest {}) }
