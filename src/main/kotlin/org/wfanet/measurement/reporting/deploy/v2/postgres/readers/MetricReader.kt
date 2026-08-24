@@ -25,6 +25,7 @@ import java.time.ZoneOffset
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
 import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
@@ -546,6 +547,41 @@ class MetricReader(private val readContext: ReadContext) {
     readContext.executeQuery(statement).consume(translate).collect {}
 
     return reportingMetricMap
+  }
+
+  /**
+   * Returns whether any [Metric] with one of [externalMetricIds] exists for
+   * [measurementConsumerId].
+   *
+   * Reads only from Metrics; use [batchGetMetrics] when the matched rows are needed.
+   */
+  suspend fun metricsExist(
+    measurementConsumerId: InternalId,
+    externalMetricIds: Collection<String>,
+  ): Boolean {
+    if (externalMetricIds.isEmpty()) {
+      return false
+    }
+
+    val statement =
+      valuesListBoundStatement(
+        valuesStartIndex = 1,
+        paramCount = 1,
+        """
+          SELECT 1
+          FROM Metrics
+          JOIN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+            AS c(ExternalMetricId) USING (ExternalMetricId)
+          WHERE MeasurementConsumerId = $1
+          LIMIT 1
+        """
+          .trimIndent(),
+      ) {
+        bind("$1", measurementConsumerId)
+        externalMetricIds.forEach { addValuesBinding { bindValuesParam(0, it) } }
+      }
+
+    return readContext.executeQuery(statement).consume { true }.firstOrNull() ?: false
   }
 
   fun batchGetMetrics(request: BatchGetMetricsRequest): Flow<Result> {
