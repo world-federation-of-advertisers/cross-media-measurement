@@ -138,7 +138,12 @@ reporting: #Reporting & {
 	deployments: {
 		"postgres-internal-reporting-server": {
 			_container: {
-				_javaOptions: maxHeapSize: "512M"
+				_javaOptions: {
+					maxHeapSize: "512M"
+					// Netty's pooled buffers are off-heap and not bounded by maxHeapSize;
+					// this keeps heap + direct + JVM overhead within the 1Gi container limit.
+					maxDirectMemorySize: "256M"
+				}
 				resources: #InternalServerResourceRequirements
 			}
 			spec: template: spec: #ServiceAccountPodSpec & {
@@ -147,7 +152,12 @@ reporting: #Reporting & {
 		}
 		"reporting-v2alpha-public-api-server": {
 			_container: {
-				_javaOptions: maxHeapSize: #PublicServerMaxHeapSize
+				_javaOptions: {
+					maxHeapSize: #PublicServerMaxHeapSize
+					// Netty's pooled buffers are off-heap and not bounded by maxHeapSize;
+					// this keeps heap + direct + JVM overhead within the 768Mi container limit.
+					maxDirectMemorySize: "192M"
+				}
 				resources: #PublicServerResourceRequirements
 			}
 		}
