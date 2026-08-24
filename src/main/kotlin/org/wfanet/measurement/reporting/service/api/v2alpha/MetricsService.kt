@@ -44,6 +44,7 @@ import kotlin.math.min
 import kotlin.math.sqrt
 import kotlin.random.Random
 import kotlin.text.isNullOrBlank
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -263,6 +264,7 @@ class MetricsService(
   keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
   cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
+  kingdomMeasurementBatchConcurrency: Int,
 ) : MetricsCoroutineImplBase(coroutineContext) {
   private data class DataProviderInfo(
     val dataProviderName: String,
@@ -286,6 +288,7 @@ class MetricsService(
       keyReaderContext,
       cacheLoaderContext,
       populationDataProvider,
+      kingdomMeasurementBatchConcurrency,
     )
 
   private class MeasurementSupplier(
@@ -303,6 +306,7 @@ class MetricsService(
     private val keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
     cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
     private val populationDataProvider: String,
+    private val kingdomMeasurementBatchConcurrency: Int,
   ) {
     data class RunningMetric(
       val internalMetric: InternalMetric,
@@ -395,6 +399,7 @@ class MetricsService(
             cmmsCreateMeasurementRequests,
             BATCH_KINGDOM_MEASUREMENTS_LIMIT,
             callBatchCreateMeasurementsRpc,
+            concurrency = kingdomMeasurementBatchConcurrency,
           ) { response: BatchCreateMeasurementsResponse ->
             response.measurementsList
           }
@@ -418,6 +423,9 @@ class MetricsService(
           },
           BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT,
           callBatchSetCmmsMeasurementIdsRpc,
+          // Writes to the internal Measurements table, not Kingdom, so it doesn't share the
+          // Kingdom-dispatch concurrency flag.
+          concurrency = 3,
         ) { _: Unit ->
           emptyList<Unit>()
         }
@@ -921,6 +929,9 @@ class MetricsService(
             succeededMeasurements,
             BATCH_SET_MEASUREMENT_RESULTS_LIMIT,
             callBatchSetInternalMeasurementResultsRpc,
+            // Writes to the internal Measurements table from the read/poll path, not Kingdom, so
+            // it doesn't share the Kingdom-dispatch concurrency flag.
+            concurrency = 3,
           ) { _: Unit ->
             emptyList<Unit>()
           }
@@ -942,6 +953,8 @@ class MetricsService(
             failedMeasurements.asFlow(),
             BATCH_SET_MEASUREMENT_FAILURES_LIMIT,
             callBatchSetInternalMeasurementFailuresRpc,
+            // Same reasoning as the adjacent BATCH_SET_MEASUREMENT_RESULTS_LIMIT call.
+            concurrency = 3,
           ) { _: Unit ->
             emptyList<Unit>()
           }
@@ -1038,10 +1051,15 @@ class MetricsService(
           batchGetCmmsMeasurements(measurementConsumerCreds, items)
         }
 
+      // This reads from the same Kingdom endpoint, at the same BATCH_KINGDOM_MEASUREMENTS_LIMIT
+      // chunk size, as the Measurement-creation dispatch in createCmmsMeasurements, so it can
+      // need just as many concurrent batches for a large report's Measurements and there is no
+      // reason Kingdom's tolerance would differ between a create and a get.
       return submitBatchRequests(
         measurementNames,
         BATCH_KINGDOM_MEASUREMENTS_LIMIT,
         callBatchGetMeasurementsRpc,
+        concurrency = kingdomMeasurementBatchConcurrency,
       ) { response: BatchGetMeasurementsResponse ->
         response.measurementsList
       }
@@ -1561,28 +1579,51 @@ class MetricsService(
         }
       }
 
-    val requiredPermissionIds = buildSet {
-      add(Permission.CREATE)
-      for (effectiveModelLineName in effectiveModelLineNames) {
-        if (effectiveModelLineName.isEmpty()) {
-          continue
-        }
-        val modelLine =
-          try {
-            kingdomModelLinesStub
-              .withAuthenticationKey(measurementConsumerCreds.callCredentials.apiAuthenticationKey)
-              .getModelLine(getModelLineRequest { name = effectiveModelLineName })
-          } catch (e: StatusException) {
-            throw when (e.status.code) {
-              Status.Code.NOT_FOUND ->
-                ModelLineNotFoundException(effectiveModelLineName, e)
-                  .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-              else -> StatusRuntimeException(Status.INTERNAL)
+    // Resolve each distinct model line once instead of once per request: a batch commonly has
+    // many requests that share the same model line, and each resolution is a network call.
+    val modelLinesStub =
+      kingdomModelLinesStub.withAuthenticationKey(
+        measurementConsumerCreds.callCredentials.apiAuthenticationKey
+      )
+    val hasDevModelLine: Boolean = coroutineScope {
+      val results: List<Result<ModelLine>> =
+        effectiveModelLineNames
+          .filter { it.isNotEmpty() }
+          .distinct()
+          .map { effectiveModelLineName ->
+            async {
+              try {
+                Result.success(
+                  modelLinesStub.getModelLine(getModelLineRequest { name = effectiveModelLineName })
+                )
+              } catch (e: CancellationException) {
+                throw e
+              } catch (e: StatusException) {
+                Result.failure(
+                  when (e.status.code) {
+                    Status.Code.NOT_FOUND ->
+                      ModelLineNotFoundException(effectiveModelLineName, e)
+                        .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+                    else ->
+                      Status.INTERNAL.withCause(e)
+                        .withDescription("Unable to retrieve ModelLine $effectiveModelLineName.")
+                        .asRuntimeException()
+                  }
+                )
+              }
             }
           }
-        if (modelLine.type == ModelLine.Type.DEV) {
-          add(Permission.CREATE_WITH_DEV_MODEL_LINE)
-        }
+          .map { it.await() }
+      // Throw the first failure in request order (not completion order) so an identical batch
+      // with multiple invalid model lines reports the same error on every attempt.
+      results.forEach { result -> result.exceptionOrNull()?.let { throw it } }
+      results.any { it.getOrThrow().type == ModelLine.Type.DEV }
+    }
+
+    val requiredPermissionIds = buildSet {
+      add(Permission.CREATE)
+      if (hasDevModelLine) {
+        add(Permission.CREATE_WITH_DEV_MODEL_LINE)
       }
     }
     authorization.check(measurementConsumerName, requiredPermissionIds)
@@ -1622,8 +1663,14 @@ class MetricsService(
     }
 
     val reportingSetNameToInternalReportingSetMap: Map<String, InternalReportingSet> = buildMap {
-      submitBatchRequests(reportingSetNames.asFlow(), BATCH_GET_REPORTING_SETS_LIMIT, callRpc) {
-          response ->
+      // Bounded by how many distinct ReportingSets a report's Metrics reference, not by Metric
+      // count, so it doesn't share the Kingdom-dispatch concurrency flag.
+      submitBatchRequests(
+          reportingSetNames.asFlow(),
+          BATCH_GET_REPORTING_SETS_LIMIT,
+          callRpc,
+          concurrency = 3,
+        ) { response ->
           response.reportingSetsList
         }
         .collect { reportingSetsList ->
@@ -1843,10 +1890,14 @@ class MetricsService(
       }
 
     return buildMap {
+      // externalPrimitiveReportingSetIds is deduplicated above and bounded by distinct primitive
+      // (single-DataProvider) ReportingSet count, not Metric count, so this is small regardless
+      // of report size for the same reason as the BATCH_GET_REPORTING_SETS_LIMIT call above.
       submitBatchRequests(
           externalPrimitiveReportingSetIds,
           BATCH_GET_REPORTING_SETS_LIMIT,
           callBatchGetInternalReportingSetsRpc,
+          concurrency = 3,
         ) { response: BatchGetReportingSetsResponse ->
           response.reportingSetsList
         }
