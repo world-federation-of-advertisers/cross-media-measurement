@@ -550,11 +550,10 @@ class MetricReader(private val readContext: ReadContext) {
   }
 
   /**
-   * Returns whether any [Metric] with one of [externalMetricIds] already exists for
+   * Returns whether any [Metric] with one of [externalMetricIds] exists for
    * [measurementConsumerId].
    *
-   * Unlike [batchGetMetrics], this does not join in ReportingSets/Measurements/etc, since callers
-   * that only need existence would otherwise pay for that join just to discard the result.
+   * Reads only from Metrics; use [batchGetMetrics] when the matched rows are needed.
    */
   suspend fun metricsExist(
     measurementConsumerId: InternalId,
