@@ -68,4 +68,22 @@ class VidLabelerAppRunnerTest {
       }
     assertThat(exception).hasMessageThat().contains("event_template_type must be set")
   }
+
+  @Test
+  fun `resolvePopulationAttributeWriter throws when population_spec_blob_uri is empty`() {
+    // Descriptor fields set so the population-spec guard is the one that fires. Without the spec
+    // the labeled output would carry the DataProvider's uploaded demographics instead of the
+    // model-assigned ones, so this must fail rather than skip the writer.
+    val config =
+      VidLabelerParamsKt.modelLineConfig {
+        eventTemplateDescriptorBlobUri = "gs://bucket/event-template-descriptor-set.binpb"
+        eventTemplateType = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+      }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        runBlocking { VidLabelerAppRunner().resolvePopulationAttributeWriter(config) }
+      }
+    assertThat(exception).hasMessageThat().contains("population_spec_blob_uri must be set")
+  }
 }

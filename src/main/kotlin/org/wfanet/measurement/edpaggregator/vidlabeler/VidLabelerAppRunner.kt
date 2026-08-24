@@ -20,12 +20,15 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import com.google.protobuf.ExtensionRegistry
+import com.google.protobuf.TypeRegistry
 import java.util.concurrent.ConcurrentHashMap
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResultsFulfillerConfigAsByteArray
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.edpaggregator.BaseVidLabelingTeeAppRunner
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.gcsHadoopConfiguration
@@ -69,6 +72,18 @@ class VidLabelerAppRunner :
   // and parsed once per process instead of once per WorkItem.
   private val eventDescriptorCache =
     ConcurrentHashMap<Pair<String, String>, Descriptors.Descriptor>()
+
+  // Caches the parsed PopulationSpec + resolved ranges per (blob URI, event type) so a multi-MB
+  // spec is read and indexed once per process rather than once per WorkItem.
+  private val populationAttributeWriterCache =
+    ConcurrentHashMap<WriterCacheKey, PopulationAttributeWriter>()
+
+  /** Cache key for [populationAttributeWriterCache]. */
+  private data class WriterCacheKey(
+    val populationSpecBlobUri: String,
+    val eventTemplateDescriptorBlobUri: String,
+    val eventTemplateType: String,
+  )
 
   override fun run() {
     saveCommonEdpaCerts()
@@ -124,7 +139,10 @@ class VidLabelerAppRunner :
           )
         },
         buildImpressionConverter = { _, config ->
-          ParquetImpressionConverter(eventDescriptor = resolveEventDescriptor(config))
+          ParquetImpressionConverter(
+            eventDescriptor = resolveEventDescriptor(config),
+            populationAttributeWriter = resolvePopulationAttributeWriter(config),
+          )
         },
         // Process-scoped: one cache shared across every WorkItem this container processes, so the
         // memoized rank index is reused across WorkItems when the Phase-1 snapshot set is
@@ -162,6 +180,43 @@ class VidLabelerAppRunner :
       descriptors.firstOrNull { it.fullName == typeName }
         ?: error("EventTemplate descriptor not found for type: $typeName")
     return eventDescriptorCache.computeIfAbsent(blobUri to typeName) { eventDescriptor }
+  }
+
+  /**
+   * Resolves the [config]'s [PopulationAttributeWriter] by loading the `PopulationSpec` textproto
+   * at [VidLabelerParams.ModelLineConfig.getPopulationSpecBlobUri] from EDPA config storage
+   * (mirrors `ResultsFulfillerAppRunner.buildModelLineMap`, which loads the same blob for the same
+   * model line). Cached per (blob URI, event type name).
+   */
+  @VisibleForTesting
+  suspend fun resolvePopulationAttributeWriter(
+    config: VidLabelerParams.ModelLineConfig
+  ): PopulationAttributeWriter {
+    val blobUri = config.populationSpecBlobUri
+    require(blobUri.isNotEmpty()) {
+      "population_spec_blob_uri must be set; without it the labeled output would carry the " +
+        "DataProvider's uploaded demographics instead of the ones the model assigned"
+    }
+    // Keyed on the descriptor blob too: two model lines can share a spec URI and event type name
+    // while resolving that type from different descriptor blobs, and the writer is bound to the
+    // descriptor it was built against.
+    val cacheKey =
+      WriterCacheKey(blobUri, config.eventTemplateDescriptorBlobUri, config.eventTemplateType)
+    populationAttributeWriterCache[cacheKey]?.let {
+      return it
+    }
+    val eventDescriptor = resolveEventDescriptor(config)
+    // The spec's SubPopulation.attributes are Any-packed event templates. TypeRegistry.Builder.add
+    // registers the type's whole file and recurses through its dependencies, so the event type's
+    // transitive closure covers every template the spec can reference.
+    val typeRegistry: TypeRegistry = TypeRegistry.newBuilder().add(eventDescriptor).build()
+    val specBytes = getResultsFulfillerConfigAsByteArray(googleProjectId, blobUri)
+    val populationSpec =
+      specBytes.inputStream().reader(Charsets.UTF_8).use { reader ->
+        parseTextProto(reader, PopulationSpec.getDefaultInstance(), typeRegistry)
+      }
+    val writer = PopulationAttributeWriter(eventDescriptor, populationSpec)
+    return populationAttributeWriterCache.computeIfAbsent(cacheKey) { writer }
   }
 
   companion object {

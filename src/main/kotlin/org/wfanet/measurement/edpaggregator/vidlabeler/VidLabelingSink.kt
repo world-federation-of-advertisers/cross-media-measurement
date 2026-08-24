@@ -205,7 +205,15 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
               labeledImpression {
                 eventTime = Timestamps.fromMicros(converted.labelerInput.timestampUsec)
                 vid = person.virtualPersonId
-                event = converted.event
+                // The model may assign this person a different demo than the DataProvider
+                // uploaded, and the VID above was drawn from that demo's pool. Write the
+                // PopulationSpec's attributes for the VID onto the event so ResultsFulfiller
+                // groups the impression into the bucket its VID came from.
+                event =
+                  converted.populationAttributeWriter.apply(
+                    converted.eventMessage,
+                    person.virtualPersonId,
+                  )
                 entityKeys += converted.entityKeys
               }
             )

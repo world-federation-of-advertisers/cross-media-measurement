@@ -61,6 +61,19 @@ class VidLabelingConfigValidationTest {
   }
 
   @Test
+  fun `throws when a model line omits population_spec_blob_uri`() {
+    val config =
+      configWith(validModelLineConfig().toBuilder().apply { clearPopulationSpecBlobUri() }.build())
+
+    // Without the spec the TEE cannot resolve an assigned VID's demo, so the labeled output would
+    // silently carry the DataProvider's uploaded demographics.
+    val exception =
+      assertFailsWith<IllegalArgumentException> { requireValidModelLineConfigs(config) }
+    assertThat(exception).hasMessageThat().contains("population_spec_blob_uri")
+    assertThat(exception).hasMessageThat().contains(MODEL_LINE)
+  }
+
+  @Test
   fun `throws when a model line has no entity-key mapping`() {
     val config =
       configWith(
@@ -154,6 +167,7 @@ class VidLabelingConfigValidationTest {
       eventTemplateDescriptorBlobUri = "gs://descriptors/event-template-set.binpb"
       eventTemplateType = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
       requiredEntityKeyFieldMapping["person"] = "person_col"
+      populationSpecBlobUri = "gs://configs/population-spec.textproto"
     }
 
   companion object {
