@@ -1809,6 +1809,44 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
     }
 
   @Test
+  fun `batchCreateMetrics succeeds when different measurement consumers reuse the same external metric id`() =
+    runBlocking {
+      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+      val differentCmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + 2
+      createMeasurementConsumer(differentCmmsMeasurementConsumerId, measurementConsumersService)
+
+      val response =
+        service.batchCreateMetrics(
+          batchCreateMetricsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            requests +=
+              createCreateMetricRequest(
+                CMMS_MEASUREMENT_CONSUMER_ID,
+                reportingSetsService,
+                "sharedExternalMetricId",
+              )
+          }
+        )
+      val response2 =
+        service.batchCreateMetrics(
+          batchCreateMetricsRequest {
+            cmmsMeasurementConsumerId = differentCmmsMeasurementConsumerId
+            requests +=
+              createCreateMetricRequest(
+                differentCmmsMeasurementConsumerId,
+                reportingSetsService,
+                "sharedExternalMetricId",
+              )
+          }
+        )
+
+      assertThat(response.metricsList.single().externalMetricId)
+        .isEqualTo(response2.metricsList.single().externalMetricId)
+      assertThat(response.metricsList.single().cmmsMeasurementConsumerId)
+        .isNotEqualTo(response2.metricsList.single().cmmsMeasurementConsumerId)
+    }
+
+  @Test
   fun `batchCreateMetrics throws INVALID_ARGUMENT when metrics have the same resource ID`() =
     runBlocking {
       createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
