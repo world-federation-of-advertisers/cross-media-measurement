@@ -57,15 +57,27 @@ fun interface ImpressionConverter {
  *   of the impression's event time: the sink filters the active window on it directly and derives
  *   the output `event_time` from it via `Timestamps.fromMicros`, so no separate timestamp field can
  *   drift out of sync with it.
- * @property event the Event payload to embed in the labeled output.
+ * @property buildEvent projects this row onto the model line's EventTemplate event, invoked by the
+ *   sink only once the assigned VID is known and immediately before
+ *   [PopulationAttributeWriter.apply] corrects its population attributes. Deferred rather than
+ *   built here so an event carrying the `DataProvider`'s uploaded demographics never exists, and so
+ *   rows dropped for being outside the active window or unlabeled are never projected at all.
  * @property entityKeys entity keys for this impression, read per-row from the model line's
  *   required/optional entity-key column mappings (see [EntityKeyMapper]); propagated to the labeled
  *   output and the per-blob `BlobDetails.entity_keys` union.
+ * @property populationAttributeWriter writes the population attributes of the VID the model assigns
+ *   onto [eventMessage]. It cannot be applied here — the model has not run yet, so the VID is
+ *   unknown — so the sink applies it per assigned person. Shared and stateless: the converter
+ *   memoizes one per model-line config.
+ *
+ * Not a `data class`: [populationAttributeWriter] has no value semantics, so a generated `equals`
+ * would make structural equality depend on which instance was injected.
  */
-data class ConvertedImpression(
+class ConvertedImpression(
   val labelerInput: LabelerInput,
-  val event: com.google.protobuf.Any,
+  val buildEvent: () -> com.google.protobuf.Message,
   val entityKeys: List<org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression.EntityKey>,
+  val populationAttributeWriter: PopulationAttributeWriter,
 ) {
   init {
     // Making entityKeys a required parameter only blocks accidental omission at the call site; an

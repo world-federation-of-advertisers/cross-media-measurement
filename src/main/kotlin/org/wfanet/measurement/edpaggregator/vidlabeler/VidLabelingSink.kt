@@ -198,6 +198,10 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
               ?: writers
                 .computeIfAbsent(OutputGroupKey(context.modelLine)) { GroupWriter(it) }
                 .also { writer = it }
+          // Projected here, after assign(): the event is built once per impression and each
+          // assigned person's population attributes are written onto a copy of it, so no event
+          // carrying the DataProvider's uploaded demographics is ever produced.
+          val projectedEvent = converted.buildEvent()
           // A LabelerOutput can assign multiple virtual people to a single impression; emit one
           // LabeledImpression per assigned VID rather than only the first.
           for (person in output.peopleList) {
@@ -205,7 +209,12 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
               labeledImpression {
                 eventTime = Timestamps.fromMicros(converted.labelerInput.timestampUsec)
                 vid = person.virtualPersonId
-                event = converted.event
+                // The model may assign this person a different demo than the DataProvider
+                // uploaded, and the VID above was drawn from that demo's pool. Write the
+                // PopulationSpec's attributes for the VID onto the event so ResultsFulfiller
+                // groups the impression into the bucket its VID came from.
+                event =
+                  converted.populationAttributeWriter.apply(projectedEvent, person.virtualPersonId)
                 entityKeys += converted.entityKeys
               }
             )
