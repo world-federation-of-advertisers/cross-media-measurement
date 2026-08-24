@@ -70,6 +70,11 @@ class VidLabelerAppRunner :
   private val eventDescriptorCache =
     ConcurrentHashMap<Pair<String, String>, Descriptors.Descriptor>()
 
+  // Owns the PopulationSpec load + cache; see PopulationAttributeWriterLoader.
+  private val populationAttributeWriterLoader = PopulationAttributeWriterLoader { blobUri ->
+    getResultsFulfillerConfigAsByteArray(googleProjectId, blobUri)
+  }
+
   override fun run() {
     saveCommonEdpaCerts()
     val kmsClients: Map<String, KmsClient> = buildKmsClientsMap()
@@ -124,7 +129,12 @@ class VidLabelerAppRunner :
           )
         },
         buildImpressionConverter = { _, config ->
-          ParquetImpressionConverter(eventDescriptor = resolveEventDescriptor(config))
+          val eventDescriptor = resolveEventDescriptor(config)
+          ParquetImpressionConverter(
+            eventDescriptor = eventDescriptor,
+            populationAttributeWriter =
+              populationAttributeWriterLoader.getWriter(config, eventDescriptor),
+          )
         },
         // Process-scoped: one cache shared across every WorkItem this container processes, so the
         // memoized rank index is reused across WorkItems when the Phase-1 snapshot set is

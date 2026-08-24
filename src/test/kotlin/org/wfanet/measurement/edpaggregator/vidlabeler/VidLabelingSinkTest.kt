@@ -41,6 +41,12 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -203,6 +209,60 @@ class VidLabelingSinkTest {
     }
 
   @Test
+  fun `emitted event carries the assigned VID's population attributes, not the projected ones`() =
+    runBlocking<Unit> {
+      tempFolder.root.resolve("labeled").mkdirs()
+      // The converter projects a MALE / 18-34 / A_B_C1 event from the raw row -- the shape an EDP
+      // uploads. The model assigns VID 42, which the PopulationSpec places in the
+      // FEMALE / 35-54 / C2_D_E subpopulation. The written event must describe the VID.
+      val sink =
+        sink(
+          contexts = listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L))),
+          converter =
+            ImpressionConverter { event, _ ->
+              ConvertedImpression(
+                labelerInput =
+                  LabelerInput.newBuilder()
+                    .setTimestampUsec(event.row.getValue(EVENT_TIME_COLUMN).int64Value)
+                    .build(),
+                buildEvent = {
+                  testEvent {
+                    person = person {
+                      gender = Person.Gender.MALE
+                      ageGroup = Person.AgeGroup.YEARS_18_TO_34
+                      socialGradeGroup = Person.SocialGradeGroup.A_B_C1
+                    }
+                  }
+                },
+                entityKeys =
+                  listOf(
+                    LabeledImpressionKt.entityKey {
+                      entityType = "person"
+                      entityId = "p-1"
+                    }
+                  ),
+                populationAttributeWriter = POPULATION_ATTRIBUTE_WRITER,
+              )
+            },
+        )
+
+      sink.processBatch(listOf(rawEvent(eventTimeMicros = 1_000L, idByte = 1)))
+      sink.commit()
+      sink.close()
+
+      val impressions = readImpressions(readSoleBlobDetails())
+      assertThat(impressions).hasSize(1)
+      assertThat(impressions.single().vid).isEqualTo(VID)
+
+      val event = impressions.single().event.unpack(TestEvent::class.java)
+      assertThat(event.person.gender).isEqualTo(Person.Gender.FEMALE)
+      assertThat(event.person.ageGroup).isEqualTo(Person.AgeGroup.YEARS_35_TO_54)
+      // Every population attribute is taken from the subpopulation, including ones an EDP might
+      // not map at all.
+      assertThat(event.person.socialGradeGroup).isEqualTo(Person.SocialGradeGroup.C2_D_E)
+    }
+
+  @Test
   fun `memoized path attaches rank assignments on a hit and leaves the input untouched on a miss`() =
     runBlocking<Unit> {
       tempFolder.root.resolve("labeled").mkdirs()
@@ -300,8 +360,9 @@ class VidLabelingSinkTest {
                   LabelerInput.newBuilder()
                     .setTimestampUsec(event.row.getValue(EVENT_TIME_COLUMN).int64Value)
                     .build(),
-                event = Any.getDefaultInstance(),
+                buildEvent = { TestEvent.getDefaultInstance() },
                 entityKeys = emptyList(),
+                populationAttributeWriter = POPULATION_ATTRIBUTE_WRITER,
               )
             },
         )
@@ -474,7 +535,8 @@ class VidLabelingSinkTest {
           LabelerInput.newBuilder()
             .setTimestampUsec(event.row.getValue(EVENT_TIME_COLUMN).int64Value)
             .build(),
-        event = Any.getDefaultInstance(),
+        buildEvent = { TestEvent.getDefaultInstance() },
+        populationAttributeWriter = POPULATION_ATTRIBUTE_WRITER,
         entityKeys =
           listOf(
             LabeledImpressionKt.entityKey {
@@ -544,6 +606,34 @@ class VidLabelingSinkTest {
     private const val VID = 42L
     private const val POOL_OFFSET = 10L
     private const val EVENT_TIME_COLUMN = "event_time_micros"
+
+    /**
+     * A writer whose PopulationSpec puts [VID] in a FEMALE / 35-54 / social-grade C2_D_E
+     * subpopulation, so a test can assert the emitted event carries the VID's demo rather than
+     * whatever the converter projected from the raw row.
+     */
+    private val POPULATION_ATTRIBUTE_WRITER =
+      PopulationAttributeWriter(
+        TestEvent.getDescriptor(),
+        populationSpec {
+          subpopulations +=
+            PopulationSpecKt.subPopulation {
+              attributes +=
+                Any.pack(
+                  person {
+                    gender = Person.Gender.FEMALE
+                    ageGroup = Person.AgeGroup.YEARS_35_TO_54
+                    socialGradeGroup = Person.SocialGradeGroup.C2_D_E
+                  }
+                )
+              vidRanges +=
+                PopulationSpecKt.vidRange {
+                  startVid = 1L
+                  endVidInclusive = 1_000L
+                }
+            }
+        },
+      )
     private const val HOUSEHOLD_ID_COLUMN = "household_id"
   }
 }
