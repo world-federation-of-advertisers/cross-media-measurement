@@ -139,8 +139,8 @@ container to burst using spare node capacity rather than capping it). Load
 testing with report-creation requests producing hundreds of metrics found
 that the previous smaller defaults (a 64M heap inherited from this
 environment's default, a 384Mi memory limit, and a 100m CPU request with
-no explicit heap override) caused both OOMKilled crashes and CPU-throttling-
-driven latency of several seconds per request. These recommended values are
+no explicit heap override) caused both OOMKilled crashes and CPU-throttling-driven
+latency of several seconds per request. These recommended values are
 a starting point based on that testing, not a guarantee for every workload;
 size your own node pools with enough spare CPU capacity to support bursting
 above the request under load.

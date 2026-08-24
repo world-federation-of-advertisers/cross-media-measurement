@@ -35,9 +35,7 @@ _accessPublicApiAddressName:                          "access-public"
 // Name of K8s service account for the Access internal API server.
 #InternalAccessServerServiceAccount: "internal-access-server"
 
-// Increased from cpu 100m / memory 384Mi / heap default -Xmx64M, which caused
-// OOMKilled crashes and CPU-throttling slowdowns under heavy report-creation load.
-// No CPU limit is set, matching this file's other services. See issue #4376.
+// No CPU limit is set, matching this file's other services.
 #InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
@@ -48,9 +46,6 @@ _accessPublicApiAddressName:                          "access-public"
 	}
 }
 
-// Increased from cpu 25m / memory 320Mi / heap 64M, which is undersized for
-// report-creation requests that build hundreds of Metrics in memory (Cartesian
-// expansion of time intervals x groupings x metric specs). See issue #4376.
 #PublicServerMaxHeapSize:          "384M"
 #PublicServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
