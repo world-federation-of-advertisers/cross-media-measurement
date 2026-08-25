@@ -48,14 +48,14 @@ class HashonlyModelPopulationSpecTest {
 
   @Test
   fun `each pool boundary resolves to the demo the model documents for it`() {
-    // Mirrors the pool table in reference_test_model.textproto, which is compiled to the
+    // Mirrors the pool table in cloudtest_hashonly_model.textproto, which is compiled to the
     // `edp7/hashonly_model` blob the cloud test labels with.
-    assertPool(10000, 10099, Person.Gender.MALE, Person.AgeGroup.YEARS_18_TO_34)
-    assertPool(10100, 10199, Person.Gender.MALE, Person.AgeGroup.YEARS_35_TO_54)
-    assertPool(10200, 10299, Person.Gender.MALE, Person.AgeGroup.YEARS_55_PLUS)
-    assertPool(10300, 10399, Person.Gender.FEMALE, Person.AgeGroup.YEARS_18_TO_34)
-    assertPool(10400, 10499, Person.Gender.FEMALE, Person.AgeGroup.YEARS_35_TO_54)
-    assertPool(10500, 10599, Person.Gender.FEMALE, Person.AgeGroup.YEARS_55_PLUS)
+    assertPool(10000, 24999, Person.Gender.MALE, Person.AgeGroup.YEARS_18_TO_34)
+    assertPool(25000, 39999, Person.Gender.MALE, Person.AgeGroup.YEARS_35_TO_54)
+    assertPool(40000, 54999, Person.Gender.MALE, Person.AgeGroup.YEARS_55_PLUS)
+    assertPool(55000, 69999, Person.Gender.FEMALE, Person.AgeGroup.YEARS_18_TO_34)
+    assertPool(70000, 84999, Person.Gender.FEMALE, Person.AgeGroup.YEARS_35_TO_54)
+    assertPool(85000, 99999, Person.Gender.FEMALE, Person.AgeGroup.YEARS_55_PLUS)
   }
 
   private fun assertPool(
