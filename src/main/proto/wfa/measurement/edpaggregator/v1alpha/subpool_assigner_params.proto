@@ -218,6 +218,5 @@ message SubpoolAssignerParams {
   // `ModelLineConfig`. REQUIRED rather than OPTIONAL like its pass-through
   // siblings: Phase-2 rejects a WorkItem without it, so an omission here is a
   // dispatch bug that would otherwise only surface as a crash-looping TEE.
-  string population_spec_blob_uri = 23
-      [(google.api.field_behavior) = REQUIRED];
+  string population_spec_blob_uri = 23 [(google.api.field_behavior) = REQUIRED];
 }
