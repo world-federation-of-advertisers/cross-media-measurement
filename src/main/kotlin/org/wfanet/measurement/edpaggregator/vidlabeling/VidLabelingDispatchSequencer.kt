@@ -562,6 +562,9 @@ class VidLabelingDispatchSequencer(
           // (and its type) from the config onto every non-memoized WorkItem's ModelLineConfig.
           eventTemplateDescriptorBlobUri = modelLineConfig.eventTemplateDescriptorBlobUri
           eventTemplateType = modelLineConfig.eventTemplateType
+          // Phase-2 resolves each assigned VID's population attributes from this spec, and rejects
+          // a WorkItem without it. Like the fields above, it is dropped unless copied explicitly.
+          populationSpecBlobUri = modelLineConfig.populationSpecBlobUri
           // The active window lets the TEE drop out-of-window impressions before labeling.
           activeStartTime = resolvedModelLine.activeStartTime
           if (resolvedModelLine.hasActiveEndTime()) {
@@ -733,6 +736,9 @@ class VidLabelingDispatchSequencer(
         // Phase-2 requires) onto the memoized VidLabeler ModelLineConfig.
         eventTemplateDescriptorBlobUri = modelLineConfig.eventTemplateDescriptorBlobUri
         eventTemplateType = modelLineConfig.eventTemplateType
+        // Pass-through for the same reason: Phase-2 resolves each assigned VID's population
+        // attributes from this spec and rejects a WorkItem without it.
+        populationSpecBlobUri = modelLineConfig.populationSpecBlobUri
         // Pass-through so the Phase-1 last-out can stamp the per-impression entity-key columns on
         // the memoized VidLabeler ModelLineConfig.
         requiredEntityKeyFieldMapping.putAll(modelLineConfig.requiredEntityKeyFieldMappingMap)

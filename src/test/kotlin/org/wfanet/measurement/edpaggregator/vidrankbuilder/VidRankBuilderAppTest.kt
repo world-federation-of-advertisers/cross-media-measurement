@@ -70,6 +70,7 @@ private const val RANKER_JOB = "dataProviders/dp/rawImpressionUploads/up1/ranker
 private const val PARENT_NAME =
   "dataProviders/dp/rawImpressionUploads/up1/rawImpressionUploadModelLines/rl1"
 private const val QUEUE = "queues/vid-labeler"
+private const val POPULATION_SPEC_BLOB_URI = "gs://configs/population-spec.textproto"
 
 /**
  * Unit tests for [VidRankBuilderApp.runWork] — the Phase-1 TEE adapter that unpacks
@@ -209,6 +210,7 @@ class VidRankBuilderAppTest {
         .setScalar(ScalarColumn.newBuilder().setColumn("raw_event_id"))
         .build()
     eventTemplateFieldMapping.put("banner_ad.viewable", "raw_viewable")
+    populationSpecBlobUri = POPULATION_SPEC_BLOB_URI
     maxFileBatchSizeBytes = 1_000_000_000
     activeStartTime = timestamp { seconds = 1000 }
     activeEndTime = timestamp { seconds = 2000 }
@@ -385,5 +387,20 @@ class VidRankBuilderAppTest {
       // Active-window forwarded Phase-0 -> Phase-1 -> Phase-2 ModelLineConfig.
       assertThat(modelLineConfig.activeStartTime).isEqualTo(timestamp { seconds = 1000 })
       assertThat(modelLineConfig.activeEndTime).isEqualTo(timestamp { seconds = 2000 })
+      // Phase-2 rejects a WorkItem whose ModelLineConfig omits this, so the memoized fan-out has
+      // to carry it the same way it carries the descriptor and the active window.
+      assertThat(modelLineConfig.populationSpecBlobUri).isEqualTo(POPULATION_SPEC_BLOB_URI)
+    }
+
+  @Test
+  fun `runWork fails when population_spec_blob_uri was dropped upstream`() =
+    runBlocking<Unit> {
+      // Guards the Phase-0 -> Phase-1 pass-through: without this the omission surfaces only as a
+      // Phase-2 TEE crash-looping on every fan-out WorkItem.
+      val params = validParams().copy { clearPopulationSpecBlobUri() }
+
+      val exception =
+        assertFailsWith<IllegalArgumentException> { createApp().runWork(buildMessage(params)) }
+      assertThat(exception).hasMessageThat().contains("population_spec_blob_uri")
     }
 }
