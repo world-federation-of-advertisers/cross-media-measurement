@@ -120,11 +120,13 @@ sections of this when reviewing others’ code.
 *   Use idiomatic KDoc tags (`@param`, `@return`, `@throws`) rather than prose
     restating the same information. See [Comments](#comments) for general
     guidance.
-*   A KDoc summary fragment must independently describe the symbol it is
-    attached to. Kotlin cannot inherit or "extend" a supertype's KDoc onto an
-    override, so when overriding a method that already has documentation
-    (e.g. a Java default method), restate the full summary rather than
-    assuming the reader has already read the supertype's doc.
+*   KDoc, like JavaDoc, is used to add documentation for a symbol. The
+    [summary fragment](https://developer.android.com/kotlin/style-guide#summary_fragment)
+    provides a summary of that symbol.
+*   Unlike JavaDoc, KDoc does not have a mechanism for inheriting documentation
+    for an overridden symbol. Adding KDoc for an overridden symbol replaces any
+    KDoc from a supertype, so any relevant documentation from the supertype
+    KDoc needs to be duplicated on the override.
 
 #### Namespacing & Imports
 
@@ -161,20 +163,6 @@ sections of this when reviewing others’ code.
         wrap it in another exception type.
 *   When logging exceptions, use logging methods that accept the exception
     object so the full stack trace is captured.
-
-#### Wrapping Third-Party Code
-
-*   When a class exists to work around a bug in one specific implementation
-    of an interface, type it against that concrete implementation rather than
-    the interface. Accepting the general interface type invites misuse
-    against other implementations whose failure modes the workaround was
-    never designed for, and implies a guarantee the class doesn't actually
-    provide.
-*   Don't guess at how an interface's various implementations might fail for
-    a given condition beyond what its contract documents (e.g. its declared
-    checked exceptions). If a specific bad input needs to be guarded against,
-    validate it before calling into the implementation rather than catching
-    broadly and assuming a cause.
 
 #### Coroutines & Concurrency
 
