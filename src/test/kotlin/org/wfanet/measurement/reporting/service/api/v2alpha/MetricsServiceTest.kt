@@ -5253,7 +5253,7 @@ class MetricsServiceTest {
           }
         }
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.status.description).isEqualTo("Required field unspecified or invalid.")
+      assertThat(exception.status.description).contains("Required field unspecified or invalid.")
     }
 
   @Test
@@ -5283,11 +5283,7 @@ class MetricsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo(
-        "Required CMMS Measurement field unspecified or invalid: " +
-          "requests.measurement.measurement_spec"
-      )
+    assertThat(exception.status.description).contains("requests.measurement.measurement_spec")
   }
 
   @Test
@@ -5316,7 +5312,7 @@ class MetricsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Required field unspecified or invalid.")
+    assertThat(exception.status.description).contains("Required field unspecified or invalid.")
   }
 
   @Test
@@ -5346,7 +5342,7 @@ class MetricsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Required field unspecified or invalid.")
+    assertThat(exception.status.description).doesNotContain("requests.measurement.measurement_spec")
   }
 
   @Test

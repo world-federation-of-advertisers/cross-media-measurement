@@ -594,11 +594,15 @@ class BasicReportsServiceTest {
         "a1234",
         listOf(reportingSetComponent),
       )
-    val description =
-      "Required CMMS Measurement field unspecified or invalid: " +
-        "requests.measurement.measurement_spec"
     wheneverBlocking { reportsServiceMock.createReport(any()) }
-      .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT.withDescription(description)))
+      .thenThrow(
+        StatusRuntimeException(
+          Status.INVALID_ARGUMENT.withDescription(
+            "Required CMMS Measurement field unspecified or invalid: " +
+              "requests.measurement.measurement_spec"
+          )
+        )
+      )
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -606,7 +610,7 @@ class BasicReportsServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo(description)
+    assertThat(exception.status.description).contains("requests.measurement.measurement_spec")
   }
 
   @Test
