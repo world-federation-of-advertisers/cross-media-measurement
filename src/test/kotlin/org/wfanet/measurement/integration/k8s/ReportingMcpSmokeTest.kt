@@ -17,8 +17,6 @@
 package org.wfanet.measurement.integration.k8s
 
 import com.google.common.truth.Truth.assertThat
-import com.google.crypto.tink.InsecureSecretKeyAccess
-import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.protobuf.Struct
 import com.google.protobuf.Value
 import com.google.protobuf.util.JsonFormat
@@ -34,25 +32,28 @@ import org.junit.AfterClass
 import org.junit.Assume.assumeTrue
 import org.junit.BeforeClass
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
 import org.measurement.integration.k8s.testing.CorrectnessTestConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 
 /**
  * Test that a deployed Reporting MCP server serves MCP against the real Reporting API.
  *
  * Assumptions:
- * * The MCP server is deployed and reachable at the configured host.
- * * The Reporting API trusts the OpenID provider in [OPEN_ID_PROVIDERS_CONFIG_JSON_FILE].
+ * * The MCP server is deployed and reachable at [CorrectnessTestConfig.getMcpHost], which the
+ *   deployment renders only when the environment also configures an OAuth issuer.
+ * * The Reporting API trusts the OpenID provider in `open_id_providers_config.json`.
+ * * The MeasurementConsumer has EventGroups.
  *
  * The whole test is skipped when the environment has no MCP host configured.
  */
+@RunWith(JUnit4::class)
 class ReportingMcpSmokeTest {
   @Test
-  fun healthzReturnsOk() {
+  fun `healthz returns OK`() {
     val response = sendGet("/healthz")
 
     assertThat(response.statusCode()).isEqualTo(200)
@@ -60,7 +61,7 @@ class ReportingMcpSmokeTest {
   }
 
   @Test
-  fun servesOAuthProtectedResourceMetadata() {
+  fun `server serves OAuth protected resource metadata`() {
     val response = sendGet(OAUTH_PROTECTED_RESOURCE_PATH)
 
     assertThat(response.statusCode()).isEqualTo(200)
@@ -70,7 +71,7 @@ class ReportingMcpSmokeTest {
   }
 
   @Test
-  fun challengesRequestWithoutBearerToken() {
+  fun `mcp returns unauthorized when bearer token is missing`() {
     val response = postMcp(INITIALIZE_REQUEST, bearerToken = null)
 
     assertThat(response.statusCode()).isEqualTo(401)
@@ -79,7 +80,7 @@ class ReportingMcpSmokeTest {
   }
 
   @Test
-  fun initializeReturnsServerInfo() {
+  fun `initialize returns server info`() {
     val response = postMcp(INITIALIZE_REQUEST, accessToken)
 
     assertThat(response.statusCode()).isEqualTo(200)
@@ -88,15 +89,17 @@ class ReportingMcpSmokeTest {
   }
 
   @Test
-  fun listEventGroupsToolReturnsProtoJson() {
+  fun `list_event_groups returns EventGroups as proto JSON`() {
     val response = postMcp(listEventGroupsRequest(TEST_CONFIG.measurementConsumer), accessToken)
 
     assertThat(response.statusCode()).isEqualTo(200)
     val result: Struct = jsonRpcResult(response)
-    val text: String = toolResultText(result)
-    // On a tool error the text is a message rather than a ListEventGroupsResponse.
     assertThat(result.getFieldsOrDefault("isError", Value.getDefaultInstance()).boolValue).isFalse()
-    JsonFormat.parser().merge(text, ListEventGroupsResponse.newBuilder())
+    val listEventGroupsResponse =
+      ListEventGroupsResponse.newBuilder()
+        .also { JsonFormat.parser().merge(toolResultText(result), it) }
+        .build()
+    assertThat(listEventGroupsResponse.eventGroupsList).isNotEmpty()
   }
 
   companion object {
@@ -134,11 +137,6 @@ class ReportingMcpSmokeTest {
 
     private val channels = mutableListOf<ManagedChannel>()
 
-    /**
-     * Token for a principal that is registered in the Access service and bound to a role on
-     * [CorrectnessTestConfig.getMeasurementConsumer], issued by the OpenID provider that the
-     * Reporting API trusts.
-     */
     private val accessToken: String by lazy {
       val accessChannel =
         buildMutualTlsChannel(
@@ -147,37 +145,14 @@ class ReportingMcpSmokeTest {
             TEST_CONFIG.accessPublicApiCertHost.ifEmpty { null },
           )
           .also { channels.add(it) }
-
-      val openIdProvidersConfig =
-        OpenIdProvidersConfig.newBuilder()
-          .also {
-            JsonFormat.parser()
-              .ignoringUnknownFields()
-              .merge(AbstractCorrectnessTest.OPEN_ID_PROVIDERS_CONFIG_JSON_FILE.readText(), it)
-          }
-          .build()
-
-      val principal =
-        AbstractCorrectnessTest.createAccessPrincipal(
+      val getAccessToken =
+        AbstractCorrectnessTest.reportingAccessTokenProvider(
           TEST_CONFIG.measurementConsumer,
           accessChannel,
-          openIdProvidersConfig.providerConfigByIssuerMap.keys.first(),
+          TEST_CONFIG.reportingTokenAudience,
+          setOf(EVENT_GROUPS_LIST_PERMISSION),
         )
-
-      OpenIdProvider(
-          principal.user.issuer,
-          TinkProtoKeysetFormat.parseKeyset(
-            AbstractCorrectnessTest.OPEN_ID_PROVIDERS_TINK_FILE.readBytes(),
-            InsecureSecretKeyAccess.get(),
-          ),
-        )
-        .generateCredentials(
-          audience = TEST_CONFIG.reportingTokenAudience,
-          subject = principal.user.subject,
-          scopes = setOf(EVENT_GROUPS_LIST_PERMISSION),
-          ttl = Duration.ofMinutes(10),
-        )
-        .token
+      getAccessToken()
     }
 
     @BeforeClass
