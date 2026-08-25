@@ -78,4 +78,9 @@ message CorrectnessTestConfig {
   // Resource name of the `ModelLine`.
   string model_line = 14
       [(google.api.resource_reference).type = "halo.wfanet.org/ModelLine"];
+
+  // Host name of the Reporting MCP server, e.g. `mcp.reporting.example.org`.
+  //
+  // If not specified, the environment does not expose an MCP server.
+  string mcp_host = 15;
 }
