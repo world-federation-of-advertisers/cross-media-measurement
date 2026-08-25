@@ -2,9 +2,14 @@
 # proto-message: PopulationSpec
 
 # PopulationSpec matching the VID pools of the compiled hash-only (non-memoized)
-# model the EDP Aggregator cloud test labels with, i.e. reference_test_model.textproto
-# compiled to `gs://<vid_models_storage_bucket_name>/edp7/hashonly_model`:
-# 2 genders x 3 age groups, 100 VIDs each, at pool offsets 10000..10500.
+# model the EDP Aggregator cloud test labels with: the Riegeli build of
+# src/main/resources/testing/labeler/cloudtest_hashonly_model.textproto, deployed
+# to edp7/hashonly_model in the environment's VID-models bucket.
+#
+# 2 genders x 3 age groups, six DISJOINT pools of 15,000 VIDs each spanning
+# 10000..99999. Disjointness is load-bearing, not cosmetic: a VID must resolve to
+# exactly one demographic bucket, and PopulationSpecValidator rejects overlapping
+# ranges. Keep these ranges in sync with the pools in that model textproto.
 #
 # The VID Labeling pipeline reads this as `population_spec_blob_uri` and writes each
 # subpopulation's attributes onto the impressions whose assigned VID falls in its
@@ -18,11 +23,11 @@
 # social-grade dimension, so it is fixed to A_B_C1 throughout; no cloud-test
 # measurement filters or groups on it.
 
-# MALE 16-34: VIDs 10000-10099
+# MALE 16-34: VIDs 10000-24999
 subpopulations {
   vid_ranges {
     start_vid: 10000
-    end_vid_inclusive: 10099
+    end_vid_inclusive: 24999
   }
   attributes {
     [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
@@ -33,11 +38,11 @@ subpopulations {
   }
 }
 
-# MALE 35-54: VIDs 10100-10199
+# MALE 35-54: VIDs 25000-39999
 subpopulations {
   vid_ranges {
-    start_vid: 10100
-    end_vid_inclusive: 10199
+    start_vid: 25000
+    end_vid_inclusive: 39999
   }
   attributes {
     [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
@@ -48,11 +53,11 @@ subpopulations {
   }
 }
 
-# MALE 55-99: VIDs 10200-10299
+# MALE 55-99: VIDs 40000-54999
 subpopulations {
   vid_ranges {
-    start_vid: 10200
-    end_vid_inclusive: 10299
+    start_vid: 40000
+    end_vid_inclusive: 54999
   }
   attributes {
     [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
@@ -63,11 +68,11 @@ subpopulations {
   }
 }
 
-# FEMALE 16-34: VIDs 10300-10399
+# FEMALE 16-34: VIDs 55000-69999
 subpopulations {
   vid_ranges {
-    start_vid: 10300
-    end_vid_inclusive: 10399
+    start_vid: 55000
+    end_vid_inclusive: 69999
   }
   attributes {
     [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
@@ -78,11 +83,11 @@ subpopulations {
   }
 }
 
-# FEMALE 35-54: VIDs 10400-10499
+# FEMALE 35-54: VIDs 70000-84999
 subpopulations {
   vid_ranges {
-    start_vid: 10400
-    end_vid_inclusive: 10499
+    start_vid: 70000
+    end_vid_inclusive: 84999
   }
   attributes {
     [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
@@ -93,11 +98,11 @@ subpopulations {
   }
 }
 
-# FEMALE 55-99: VIDs 10500-10599
+# FEMALE 55-99: VIDs 85000-99999
 subpopulations {
   vid_ranges {
-    start_vid: 10500
-    end_vid_inclusive: 10599
+    start_vid: 85000
+    end_vid_inclusive: 99999
   }
   attributes {
     [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {

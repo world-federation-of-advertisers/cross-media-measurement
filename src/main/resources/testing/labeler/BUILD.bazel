@@ -17,3 +17,20 @@ filegroup(
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:__pkg__",
     ],
 )
+
+# Source textprotos for the compiled models the EDP Aggregator cloud test labels with,
+# built to Riegeli via
+# @wfa_virtual_people_core_serving//src/main/cc/wfa/virtual_people/model_writer:model_writer_main
+# and uploaded to edp7/hashonly_model and edp7/memoized_model in the environment's VID-models
+# bucket. Same routing and correction matrix as the reference_test_model fixtures, but with six
+# disjoint 15,000-VID pools so a VID resolves to exactly one demographic bucket -- see
+# hashonly_model_population_spec.textproto, whose ranges must stay in sync with these pools.
+filegroup(
+    name = "cloudtest_models",
+    testonly = True,
+    srcs = [
+        "cloudtest_hashonly_model.textproto",
+        "cloudtest_memoized_model.textproto",
+    ],
+    visibility = ["//visibility:public"],
+)
