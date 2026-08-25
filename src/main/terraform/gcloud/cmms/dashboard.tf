@@ -734,13 +734,15 @@ resource "google_bigquery_row_access_policy" "requisition_overview_platform" {
   grantees         = concat(["serviceAccount:${var.terraform_service_account}"], var.dashboard_operators)
 }
 
+# dashboard_compliance is a grantee so the unlinked_accounts pipeline health check can read all
+# rows for its dashboard-side count; paired with the table dataViewer grant below.
 resource "google_bigquery_row_access_policy" "unlinked_accounts_platform" {
   project          = data.google_client_config.default.project
   dataset_id       = google_bigquery_dataset.dashboard.dataset_id
   table_id         = google_bigquery_table.unlinked_accounts.table_id
   policy_id        = "platform_full_access"
   filter_predicate = "TRUE"
-  grantees         = concat(["serviceAccount:${var.terraform_service_account}"], var.dashboard_operators)
+  grantees         = concat(["serviceAccount:${var.terraform_service_account}", "serviceAccount:${google_service_account.dashboard_compliance.email}"], var.dashboard_operators)
 }
 
 resource "google_bigquery_row_access_policy" "mc_details_platform" {
@@ -949,6 +951,17 @@ resource "google_bigquery_table_iam_member" "unlinked_accounts_platform_viewer" 
   member     = each.value
 }
 
+# The compliance SA counts rows in unlinked_accounts for the pipeline health check. It needs
+# table read (dataViewer) plus the platform row-access grant above to see all rows. Scoped to
+# this table only.
+resource "google_bigquery_table_iam_member" "unlinked_accounts_compliance_viewer" {
+  project    = data.google_client_config.default.project
+  dataset_id = google_bigquery_dataset.dashboard.dataset_id
+  table_id   = google_bigquery_table.unlinked_accounts.table_id
+  role       = "roles/bigquery.dataViewer"
+  member     = "serviceAccount:${google_service_account.dashboard_compliance.email}"
+}
+
 resource "google_bigquery_table_iam_member" "mc_details_platform_viewer" {
   for_each   = toset(var.dashboard_operators)
   project    = data.google_client_config.default.project
@@ -1060,6 +1073,30 @@ resource "google_project_iam_member" "dashboard_compliance_role" {
   project = data.google_client_config.default.project
   role    = google_project_iam_custom_role.dashboard_compliance.id
   member  = "serviceAccount:${google_service_account.dashboard_compliance.email}"
+}
+
+# The compliance check federates through kingdom-conn to compare the Spanner source row count
+# against the unlinked_accounts table. Scoped to this connection so the SA cannot federate through
+# the others; EDP dashboard SAs get no such binding.
+resource "google_bigquery_connection_iam_member" "dashboard_compliance_kingdom_conn" {
+  project       = data.google_client_config.default.project
+  location      = data.google_client_config.default.region
+  connection_id = google_bigquery_connection.kingdom.connection_id
+  role          = "roles/bigquery.connectionUser"
+  member        = "serviceAccount:${google_service_account.dashboard_compliance.email}"
+}
+
+# kingdom-conn uses Data Boost (useParallelism), so the caller that runs the federated
+# unlinked_accounts pipeline check — the compliance SA — also needs
+# spanner.databases.useDataBoost on the kingdom database, not just connectionUser above.
+# Without this the EXTERNAL_QUERY fails with "Error accessing Cloud Spanner. Permission
+# Denied". Mirrors kingdom_conn_reader, which grants the same role to the connection agent.
+resource "google_spanner_database_iam_member" "dashboard_compliance_kingdom_databoost" {
+  project  = var.kingdom_spanner_project
+  instance = var.kingdom_spanner_instance
+  database = "kingdom"
+  role     = "roles/spanner.databaseReaderWithDataBoost"
+  member   = "serviceAccount:${google_service_account.dashboard_compliance.email}"
 }
 
 # Compliance SA impersonates each EDP SA to run the per-EDP isolation checks.
