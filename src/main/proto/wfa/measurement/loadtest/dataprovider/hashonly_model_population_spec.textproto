@@ -1,0 +1,109 @@
+# proto-file: wfa/measurement/api/v2alpha/population_spec.proto
+# proto-message: PopulationSpec
+
+# PopulationSpec matching the VID pools of the compiled hash-only (non-memoized)
+# model the EDP Aggregator cloud test labels with, i.e. reference_test_model.textproto
+# compiled to `gs://<vid_models_storage_bucket_name>/edp7/hashonly_model`:
+# 2 genders x 3 age groups, 100 VIDs each, at pool offsets 10000..10500.
+#
+# The VID Labeling pipeline reads this as `population_spec_blob_uri` and writes each
+# subpopulation's attributes onto the impressions whose assigned VID falls in its
+# range, so the labeled output carries the demographics the model assigned rather
+# than the ones the DataProvider uploaded. WriteReusedLabeledImpressionsRule and the
+# cloud test's expected-result computation load the same file offline, so the
+# pre-staged days, the pipelined day and the oracle all agree.
+#
+# `Person.social_grade_group` is annotated `population_attribute`, so
+# PopulationSpecValidator requires it on every subpopulation. The model has no
+# social-grade dimension, so it is fixed to A_B_C1 throughout; no cloud-test
+# measurement filters or groups on it.
+
+# MALE 16-34: VIDs 10000-10099
+subpopulations {
+  vid_ranges {
+    start_vid: 10000
+    end_vid_inclusive: 10099
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: MALE
+      age_group: YEARS_18_TO_34
+      social_grade_group: A_B_C1
+    }
+  }
+}
+
+# MALE 35-54: VIDs 10100-10199
+subpopulations {
+  vid_ranges {
+    start_vid: 10100
+    end_vid_inclusive: 10199
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: MALE
+      age_group: YEARS_35_TO_54
+      social_grade_group: A_B_C1
+    }
+  }
+}
+
+# MALE 55-99: VIDs 10200-10299
+subpopulations {
+  vid_ranges {
+    start_vid: 10200
+    end_vid_inclusive: 10299
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: MALE
+      age_group: YEARS_55_PLUS
+      social_grade_group: A_B_C1
+    }
+  }
+}
+
+# FEMALE 16-34: VIDs 10300-10399
+subpopulations {
+  vid_ranges {
+    start_vid: 10300
+    end_vid_inclusive: 10399
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: FEMALE
+      age_group: YEARS_18_TO_34
+      social_grade_group: A_B_C1
+    }
+  }
+}
+
+# FEMALE 35-54: VIDs 10400-10499
+subpopulations {
+  vid_ranges {
+    start_vid: 10400
+    end_vid_inclusive: 10499
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: FEMALE
+      age_group: YEARS_35_TO_54
+      social_grade_group: A_B_C1
+    }
+  }
+}
+
+# FEMALE 55-99: VIDs 10500-10599
+subpopulations {
+  vid_ranges {
+    start_vid: 10500
+    end_vid_inclusive: 10599
+  }
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+      gender: FEMALE
+      age_group: YEARS_55_PLUS
+      social_grade_group: A_B_C1
+    }
+  }
+}
