@@ -115,6 +115,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -466,7 +467,14 @@ class MetricsService(
       } catch (e: StatusException) {
         throw when (e.status.code) {
             Status.Code.INVALID_ARGUMENT ->
-              Status.INVALID_ARGUMENT.withDescription("Required field unspecified or invalid.")
+              // The CMMS API reports the offending field in ErrorInfo metadata for
+              // REQUIRED_FIELD_NOT_SET and INVALID_FIELD_VALUE. Surface it so that the caller
+              // knows which field to fix.
+              Status.INVALID_ARGUMENT.withDescription(
+                e.errorInfo?.metadataMap?.get("fieldName")?.let {
+                  "Required field unspecified or invalid: $it"
+                } ?: e.status.description ?: "Required field unspecified or invalid."
+              )
             Status.Code.PERMISSION_DENIED ->
               Status.PERMISSION_DENIED.withDescription(
                 "Cannot create CMMS Measurements for another MeasurementConsumer."
