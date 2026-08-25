@@ -218,11 +218,13 @@ a `MeasurementConsumer`. `ImpressionQualificationFilter` is one, so the
 `list_impression_qualification_filters` and
 `get_impression_qualification_filter` tools (and the prompts that call them)
 return `PERMISSION_DENIED` for a principal that only holds a role on the
-`MeasurementConsumer`.
+`MeasurementConsumer`. Listing is root-scoped only; the `get` permission may
+alternatively be granted on an individual `ImpressionQualificationFilter`.
 
 Create a root-scoped role once per environment and bind the principal to it on
-the root policy. The root is addressed by passing an **empty**
-`--protected-resource`; omitting the flag fails.
+the root policy. Pass an **empty** `--protected-resource` to address the root:
+the flag is documented as optional, but omitting it fails with an
+`UninitializedPropertyAccessException`.
 
 ```shell
 Access $ACCESS_FLAGS roles create \
