@@ -46,7 +46,7 @@ bazel_dep(
 # DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#399)
 git_override(
     module_name = "common-jvm",
-    commit = "6901fa6ff40c7da5f1a3d0cd3f52648d7fe5998a",
+    commit = "d2640052d10b562b9ce2cc47081d62eddf9545a1",
     remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
 
