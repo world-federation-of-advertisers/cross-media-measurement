@@ -603,6 +603,7 @@ private val ALL_FILTERS =
 private const val CONTAINING_REPORT = "report X"
 
 // Metric ID and Name
+private const val CMMS_ERROR_DOMAIN = "halo.wfanet.org"
 private const val METRIC_ID = "metric-id"
 private val METRIC_NAME =
   MetricKey(MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId, METRIC_ID).toName()
@@ -5359,11 +5360,7 @@ class MetricsServiceTest {
         permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
       } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
       whenever(measurementsMock.batchCreateMeasurements(any()))
-        .thenThrow(
-          StatusRuntimeException(
-            Status.INVALID_ARGUMENT.withDescription("Child request parent is invalid.")
-          )
-        )
+        .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
 
       val request = createMetricRequest {
         parent = MEASUREMENT_CONSUMERS.values.first().name
@@ -5379,7 +5376,7 @@ class MetricsServiceTest {
         }
       assertThat(exception.grpcStatusCode()).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.status.description).isEqualTo("Child request parent is invalid.")
+      assertThat(exception.status.description).isEqualTo("Required field unspecified or invalid.")
       val requestIds =
         INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC.weightedMeasurementsList.map {
           it.measurement.cmmsCreateMeasurementRequestId
@@ -5418,7 +5415,7 @@ class MetricsServiceTest {
       .thenThrow(
         Status.INVALID_ARGUMENT.asRuntimeException(
           errorInfo {
-            domain = "halo.wfanet.org"
+            domain = CMMS_ERROR_DOMAIN
             reason = "REQUIRED_FIELD_NOT_SET"
             metadata["fieldName"] = "requests.measurement.measurement_spec"
           }
@@ -5437,7 +5434,69 @@ class MetricsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
-      .isEqualTo("Required field unspecified or invalid: requests.measurement.measurement_spec")
+      .isEqualTo(
+        "Required CMMS Measurement field unspecified or invalid: " +
+          "requests.measurement.measurement_spec"
+      )
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when CMMS ErrorInfo has no field name`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    whenever(measurementsMock.batchCreateMeasurements(any()))
+      .thenThrow(
+        Status.INVALID_ARGUMENT.asRuntimeException(
+          errorInfo {
+            domain = CMMS_ERROR_DOMAIN
+            reason = "MEASUREMENT_CONSUMER_NOT_FOUND"
+          }
+        )
+      )
+
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC
+      metricId = METRIC_ID
+    }
+
+    val exception =
+      assertFailsWith(StatusRuntimeException::class) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Required field unspecified or invalid.")
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when ErrorInfo is from another domain`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    whenever(measurementsMock.batchCreateMeasurements(any()))
+      .thenThrow(
+        Status.INVALID_ARGUMENT.asRuntimeException(
+          errorInfo {
+            domain = "other.example.com"
+            reason = "REQUIRED_FIELD_NOT_SET"
+            metadata["fieldName"] = "requests.measurement.measurement_spec"
+          }
+        )
+      )
+
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC
+      metricId = METRIC_ID
+    }
+
+    val exception =
+      assertFailsWith(StatusRuntimeException::class) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Required field unspecified or invalid.")
   }
 
   @Test

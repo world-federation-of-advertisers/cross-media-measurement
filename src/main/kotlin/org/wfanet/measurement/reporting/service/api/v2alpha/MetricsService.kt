@@ -244,6 +244,8 @@ private const val BATCH_GET_REPORTING_SETS_LIMIT = 1000
 private const val BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT = 1000
 private const val BATCH_SET_MEASUREMENT_RESULTS_LIMIT = 1000
 private const val BATCH_SET_MEASUREMENT_FAILURES_LIMIT = 1000
+private const val CMMS_ERROR_DOMAIN = "halo.wfanet.org"
+private const val CMMS_FIELD_NAME_KEY = "fieldName"
 
 private class MeasurementSyncException(val measurementNames: Set<String>, cause: Throwable) :
   RuntimeException(cause)
@@ -631,13 +633,15 @@ class MetricsService(
       } catch (e: StatusException) {
         throw when (e.status.code) {
             Status.Code.INVALID_ARGUMENT ->
-              // The CMMS API reports the offending field in ErrorInfo metadata for
-              // REQUIRED_FIELD_NOT_SET and INVALID_FIELD_VALUE. Surface it so that the caller
-              // knows which field to fix.
+              // The CMMS API reports the offending field of the Measurement request in ErrorInfo
+              // metadata for REQUIRED_FIELD_NOT_SET and INVALID_FIELD_VALUE.
               Status.INVALID_ARGUMENT.withDescription(
-                e.errorInfo?.metadataMap?.get("fieldName")?.let {
-                  "Required field unspecified or invalid: $it"
-                } ?: e.status.description ?: "Required field unspecified or invalid."
+                e.errorInfo
+                  ?.takeIf { it.domain == CMMS_ERROR_DOMAIN }
+                  ?.metadataMap
+                  ?.get(CMMS_FIELD_NAME_KEY)
+                  ?.let { "Required CMMS Measurement field unspecified or invalid: $it" }
+                  ?: "Required field unspecified or invalid."
               )
             Status.Code.PERMISSION_DENIED ->
               Status.PERMISSION_DENIED.withDescription(
