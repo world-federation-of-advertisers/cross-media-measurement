@@ -579,6 +579,65 @@ class BasicReportsServiceTest {
     }
 
   @Test
+  fun `createBasicReport propagates INVALID_ARGUMENT from Report creation`(): Unit = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+    val reportingSetComponent =
+      createPrimitiveReportingSet(measurementConsumerKey, "reportingset1", "dp1", "eg1")
+    val request =
+      reportingSetComponentBasicReportRequest(
+        measurementConsumerKey,
+        "a1234",
+        listOf(reportingSetComponent),
+      )
+    val description =
+      "Required CMMS Measurement field unspecified or invalid: " +
+        "requests.measurement.measurement_spec"
+    wheneverBlocking { reportsServiceMock.createReport(any()) }
+      .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT.withDescription(description)))
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo(description)
+  }
+
+  @Test
+  fun `createBasicReport throws INTERNAL when Report creation fails with UNAVAILABLE`(): Unit =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+      val reportingSetComponent =
+        createPrimitiveReportingSet(measurementConsumerKey, "reportingset1", "dp1", "eg1")
+      val request =
+        reportingSetComponentBasicReportRequest(
+          measurementConsumerKey,
+          "a1234",
+          listOf(reportingSetComponent),
+        )
+      wheneverBlocking { reportsServiceMock.createReport(any()) }
+        .thenThrow(StatusRuntimeException(Status.UNAVAILABLE))
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
+    }
+
+  @Test
   fun `createBasicReport throws INVALID_ARGUMENT for ReportingSet reporting units when disabled`():
     Unit = runBlocking {
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
