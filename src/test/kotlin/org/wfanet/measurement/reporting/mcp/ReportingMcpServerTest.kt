@@ -724,6 +724,9 @@ class ReportingMcpServerTest {
     assertThat(result.isError).isTrue()
     val text = (result.content[0] as TextContent).text
     assertThat(text).contains("Access denied")
+    // Root-scoped resources are not granted on the MeasurementConsumer, so the message must not
+    // point only there.
+    assertThat(text).contains("root of the Reporting API")
 
     client.close()
   }
