@@ -35,20 +35,22 @@ _accessPublicApiAddressName:                          "access-public"
 // Name of K8s service account for the Access internal API server.
 #InternalAccessServerServiceAccount: "internal-access-server"
 
+// No CPU limit is set, matching this file's other services.
 #InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu:    "100m"
-		memory: "384Mi"
+		cpu:    "500m"
+		memory: "1Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#PublicServerMaxHeapSize:          "64M"
+
+#PublicServerMaxHeapSize:          "384M"
 #PublicServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu:    "25m"
-		memory: "320Mi"
+		cpu:    "500m"
+		memory: "768Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -135,14 +137,27 @@ reporting: #Reporting & {
 
 	deployments: {
 		"postgres-internal-reporting-server": {
-			_container: resources: #InternalServerResourceRequirements
+			_container: {
+				_javaOptions: {
+					maxHeapSize: "512M"
+					// Netty's pooled buffers are off-heap and not bounded by maxHeapSize;
+					// this keeps heap + direct + JVM overhead within the 1Gi container limit.
+					maxDirectMemorySize: "256M"
+				}
+				resources: #InternalServerResourceRequirements
+			}
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalServerServiceAccount
 			}
 		}
 		"reporting-v2alpha-public-api-server": {
 			_container: {
-				_javaOptions: maxHeapSize: #PublicServerMaxHeapSize
+				_javaOptions: {
+					maxHeapSize: #PublicServerMaxHeapSize
+					// Netty's pooled buffers are off-heap and not bounded by maxHeapSize;
+					// this keeps heap + direct + JVM overhead within the 768Mi container limit.
+					maxDirectMemorySize: "192M"
+				}
 				resources: #PublicServerResourceRequirements
 			}
 		}

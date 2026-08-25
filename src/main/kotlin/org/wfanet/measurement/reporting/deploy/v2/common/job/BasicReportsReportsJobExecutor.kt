@@ -162,6 +162,10 @@ private fun run(
         keyReaderContext = Dispatchers.IO,
         cacheLoaderContext = Dispatchers.Default,
         populationDataProvider = reportingApiServerFlags.populationDataProvider,
+        // getReport can transitively reach batchGetMetrics -> syncInternalMeasurements,
+        // which is gated by this same concurrency value.
+        kingdomMeasurementBatchConcurrency =
+          reportingApiServerFlags.kingdomMeasurementBatchConcurrency,
       )
       .withTrustedPrincipalAuthentication()
 
