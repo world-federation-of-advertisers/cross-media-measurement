@@ -4,6 +4,7 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 load(
     "//build:variables.bzl",
     "KINGDOM_K8S_SETTINGS",
+    "REPORTING_K8S_SETTINGS",
     "TEST_EDPA_SETTINGS",
     "TEST_K8S_SETTINGS",
 )
@@ -114,6 +115,7 @@ expand_template(
         "{pdp_name}": TEST_K8S_SETTINGS.pdp_name,
         "{mp_name}": TEST_K8S_SETTINGS.mp_name,
         "{model_line_name}": "$(model_line_name)",
+        "{mcp_host}": REPORTING_K8S_SETTINGS.mcp_host,
     },
     tags = ["manual"],
     template = "correctness_test_config.tmpl.textproto",
@@ -139,6 +141,38 @@ java_test(
     ],
     test_class = "org.wfanet.measurement.integration.k8s.EmptyClusterCorrectnessTest",
     runtime_deps = [":empty_cluster_correctness_test"],
+)
+
+kt_jvm_library(
+    name = "reporting_mcp_smoke_test",
+    srcs = ["ReportingMcpSmokeTest.kt"],
+    deps = [
+        ":abstract_correctness_test",
+        "//src/main/proto/wfa/measurement/config/access:open_id_providers_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:correctness_test_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:event_groups_service_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+    ],
+)
+
+java_test(
+    name = "ReportingMcpSmokeTest",
+    timeout = "moderate",
+    data = [
+        ":correctness_test_config.textproto",
+    ],
+    tags = [
+        "external",
+        "manual",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.k8s.ReportingMcpSmokeTest",
+    runtime_deps = [":reporting_mcp_smoke_test"],
 )
 
 java_test(
