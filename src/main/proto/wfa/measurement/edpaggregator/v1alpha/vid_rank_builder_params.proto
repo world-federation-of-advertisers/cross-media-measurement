@@ -240,12 +240,12 @@ message VidRankBuilderParams {
   // Config-storage blob URI of the `PopulationSpec` describing the VID pools of
   // this model line's compiled model. Not consumed by the Phase-1 ranker;
   // forwarded verbatim by the SubpoolAssigner Phase-0 last-shard-out from
-  // `SubpoolAssignerParams.population_spec_blob_uri` so the last-`RankerJob`-out
-  // can stamp it on the Phase-2 VidLabeler `ModelLineConfig`.
+  // `SubpoolAssignerParams.population_spec_blob_uri` so the
+  // last-`RankerJob`-out can stamp it on the Phase-2 VidLabeler
+  // `ModelLineConfig`.
   //
   // REQUIRED rather than OPTIONAL like its pass-through siblings: Phase-2
   // rejects a WorkItem without it, so an omission here is a dispatch bug that
   // would otherwise only surface as a crash-looping TEE.
-  string population_spec_blob_uri = 25
-      [(google.api.field_behavior) = REQUIRED];
+  string population_spec_blob_uri = 25 [(google.api.field_behavior) = REQUIRED];
 }
