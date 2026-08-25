@@ -18,25 +18,29 @@ package org.wfanet.measurement.integration.k8s
 
 import com.google.protobuf.ByteString
 import java.time.Instant
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.vidlabeler.PopulationAttributeWriter
 import org.wfanet.measurement.edpaggregator.vidlabeler.VirtualPeopleVidAssigner
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import org.wfanet.measurement.loadtest.edpaggregator.testing.RawImpressionColumns
 import org.wfanet.measurement.storage.ParquetValue
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.parquetValue
 
 /**
- * Runs the deployed **non-memoized (hash-only)** VID labeler in-process to reproduce the VID the
- * pipeline assigns to a synthetic impression.
+ * Runs the deployed **non-memoized (hash-only)** VID labeler in-process to reproduce the VID and
+ * the population attributes the pipeline assigns to a synthetic impression.
  *
  * The cloud test pins its measurements to a non-memoized model line. That line's 03-21 impressions
  * are labeled by the pipeline, while the out-of-band days (edp7 03-15..20 and all of edpa_meta) are
- * pre-staged by the test. To make the same person carry the SAME VID across every day and both
- * publishers, the pre-staged impressions and the expected-result computation must use the same VID
- * the pipeline assigns on 03-21 — so both call this labeler instead of writing the raw synthetic
- * VID.
+ * pre-staged by the test. To make the same person carry the SAME VID **and the same demographics**
+ * across every day and both publishers, the pre-staged impressions and the expected-result
+ * computation must be derived exactly as the pipeline derives them on 03-21 — so both call
+ * [relabel] rather than keeping the raw synthetic VID and the declared demographics.
  *
  * This is only sound for the **non-memoized** path: that VID is a pure function of the person
  * identity (`user_id`) + demographics through the static model, so it is deterministically
@@ -48,8 +52,16 @@ import org.wfanet.measurement.storage.parquetValue
 class NonMemoizedVidLabeler(
   private val assigner: VirtualPeopleVidAssigner,
   labelerInputFieldMapping: List<LabelerInputFieldMapping>,
+  populationSpec: PopulationSpec,
 ) {
   private val mapper = LabelerInputMapper(labelerInputFieldMapping)
+
+  /**
+   * The same [PopulationAttributeWriter] the deployed pipeline builds from the model line's
+   * `population_spec_blob_uri`, so [relabel] reproduces the pipeline's output event exactly.
+   */
+  private val populationAttributeWriter =
+    PopulationAttributeWriter(TestEvent.getDescriptor(), populationSpec)
 
   /**
    * Assigns the model VID for one impression, projecting it onto the same raw-impression columns
@@ -73,6 +85,31 @@ class NonMemoizedVidLabeler(
     return assigner.assign(mapper.project(row)).getPeople(0).virtualPersonId
   }
 
+  /**
+   * Reproduces the pipeline's whole per-impression transform offline: assigns the model VID for
+   * [event], then writes that VID's population attributes onto the event.
+   *
+   * Both steps are needed, not just the VID. The model's demographic-correction matrix routes an
+   * impression to a pool that may not match the demographics the `DataProvider` declared, and the
+   * pipeline writes the assigned VID's demographics (see `PopulationAttributeWriter`). An offline
+   * caller that swapped only the VID would leave the declared demographics on the event, so the
+   * pre-staged days would disagree with the pipelined day for exactly the corrected impressions,
+   * and every demographic filter would then split the same person across two buckets.
+   */
+  fun relabel(event: LabeledEvent<TestEvent>): LabeledEvent<TestEvent> {
+    val vid =
+      assignVid(
+        event.vid,
+        event.message.person.gender.name,
+        event.message.person.ageGroup.name,
+        event.timestamp,
+      )
+    return event.copy(
+      vid = vid,
+      message = populationAttributeWriter.apply(event.message, vid).unpack(TestEvent::class.java),
+    )
+  }
+
   companion object {
     /**
      * Loads the compiled non-memoized model blob from [modelBlobUri] (a `gs://` URI read with the
@@ -83,6 +120,7 @@ class NonMemoizedVidLabeler(
       modelBlobUri: String,
       gcsProjectId: String,
       labelerInputFieldMapping: List<LabelerInputFieldMapping>,
+      populationSpec: PopulationSpec,
     ): NonMemoizedVidLabeler {
       require(modelBlobUri.isNotEmpty()) { "modelBlobUri must be non-empty" }
       require(gcsProjectId.isNotEmpty()) { "gcsProjectId must be non-empty" }
@@ -97,6 +135,7 @@ class NonMemoizedVidLabeler(
       return NonMemoizedVidLabeler(
         VirtualPeopleVidAssigner.fromCompiledNodeBlob(bytes),
         labelerInputFieldMapping,
+        populationSpec,
       )
     }
   }

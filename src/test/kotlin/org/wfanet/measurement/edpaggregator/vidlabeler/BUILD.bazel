@@ -255,3 +255,19 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
+
+kt_jvm_test(
+    name = "HashonlyModelPopulationSpecTest",
+    srcs = ["HashonlyModelPopulationSpecTest.kt"],
+    data = ["//src/main/proto/wfa/measurement/loadtest/dataprovider:specs"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidlabeler.HashonlyModelPopulationSpecTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeling",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)

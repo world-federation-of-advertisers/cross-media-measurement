@@ -236,6 +236,11 @@ locals {
     destination = "results-fulfiller-population-spec.textproto"
   }
 
+  vid_labeler_population_spec = {
+    local_path  = var.vid_labeler_population_spec_file_path
+    destination = "vid-labeler-population-spec.textproto"
+  }
+
   cloud_function_configs = {
     data_watcher = {
       function_name       = "data-watcher"
