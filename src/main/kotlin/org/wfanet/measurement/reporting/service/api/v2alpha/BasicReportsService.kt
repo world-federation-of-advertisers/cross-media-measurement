@@ -591,13 +591,14 @@ class BasicReportsService(
     try {
       reportsStub.withForwardedTrustedCredentials().createReport(createReportRequest)
     } catch (e: StatusException) {
+      // Statuses that describe the request rather than a server fault are preserved. The
+      // description is not: it names fields of the Report built here, not of the BasicReport in
+      // the request.
       throw when (e.status.code) {
-          // Statuses that describe the request rather than a server fault, e.g. an invalid field
-          // reported by the CMMS API.
-          Status.Code.INVALID_ARGUMENT,
-          Status.Code.FAILED_PRECONDITION,
-          Status.Code.NOT_FOUND,
-          Status.Code.PERMISSION_DENIED -> e.status
+          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+          Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          Status.Code.PERMISSION_DENIED -> Status.PERMISSION_DENIED
           else -> Status.INTERNAL
         }
         .withCause(e)

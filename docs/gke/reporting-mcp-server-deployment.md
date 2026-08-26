@@ -222,9 +222,9 @@ return `PERMISSION_DENIED` for a principal that only holds a role on the
 alternatively be granted on an individual `ImpressionQualificationFilter`.
 
 Create a root-scoped role once per environment and bind the principal to it on
-the root policy. Pass an **empty** `--protected-resource` to address the root:
-the flag is documented as optional, but omitting it fails with an
-`UninitializedPropertyAccessException`.
+the root policy. The root is the default protected resource, so
+`policies create` takes no `--protected-resource`; `policies lookup` requires
+the flag, so pass it empty.
 
 ```shell
 Access $ACCESS_FLAGS roles create \
@@ -235,7 +235,6 @@ Access $ACCESS_FLAGS roles create \
 
 Access $ACCESS_FLAGS policies create \
   --policy-id=root-policy \
-  --protected-resource= \
   --binding-role=roles/iqfReader \
   --binding-member=principals/<PRINCIPAL_ID>
 ```
