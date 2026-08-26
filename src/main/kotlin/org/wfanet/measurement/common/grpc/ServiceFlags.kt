@@ -41,16 +41,8 @@ class ServiceFlags {
   /**
    * Executor for gRPC services.
    *
-   * `corePoolSize` is set equal to `maximumPoolSize` (rather than a smaller fixed value) because
-   * [ThreadPoolExecutor] with an unbounded work queue only ever creates up to `corePoolSize`
-   * threads -- workers beyond that are queued instead of triggering new thread creation, since new
-   * threads are only spawned when the queue rejects a task, which an unbounded queue never does. A
-   * smaller `corePoolSize` here would silently make `--grpc-thread-pool-size` a no-op.
-   *
-   * Since all threads are now core threads, `allowCoreThreadTimeOut` is enabled so the 60-second
-   * keep-alive still does something: without it, [ThreadPoolExecutor] never times out core threads
-   * regardless of the keep-alive time, so every server using this executor would hold
-   * `threadPoolSize` live idle threads forever, even at zero QPS.
+   * Sized so that `--grpc-thread-pool-size` actually bounds concurrency, with idle threads
+   * reclaimed after 60 seconds.
    */
   val executor: Executor by lazy {
     ThreadPoolExecutor(
