@@ -46,6 +46,11 @@ class ServiceFlags {
    * threads -- workers beyond that are queued instead of triggering new thread creation, since new
    * threads are only spawned when the queue rejects a task, which an unbounded queue never does. A
    * smaller `corePoolSize` here would silently make `--grpc-thread-pool-size` a no-op.
+   *
+   * Since all threads are now core threads, `allowCoreThreadTimeOut` is enabled so the 60-second
+   * keep-alive still does something: without it, [ThreadPoolExecutor] never times out core threads
+   * regardless of the keep-alive time, so every server using this executor would hold
+   * `threadPoolSize` live idle threads forever, even at zero QPS.
    */
   val executor: Executor by lazy {
     ThreadPoolExecutor(
@@ -56,6 +61,7 @@ class ServiceFlags {
         LinkedBlockingQueue(),
         NamedThreadFactory(Executors.defaultThreadFactory(), THREAD_POOL_NAME),
       )
+      .apply { allowCoreThreadTimeOut(true) }
       .also { Instrumentation.instrumentThreadPool(THREAD_POOL_NAME, it) }
   }
 
