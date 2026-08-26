@@ -120,6 +120,13 @@ sections of this when reviewing others’ code.
 *   Use idiomatic KDoc tags (`@param`, `@return`, `@throws`) rather than prose
     restating the same information. See [Comments](#comments) for general
     guidance.
+*   KDoc, like JavaDoc, is used to add documentation for a symbol. The
+    [summary fragment](https://developer.android.com/kotlin/style-guide#summary_fragment)
+    provides a summary of that symbol.
+*   Unlike JavaDoc, KDoc does not have a mechanism for inheriting documentation
+    for an overridden symbol. Adding KDoc for an overridden symbol replaces any
+    KDoc from a supertype, so any relevant documentation from the supertype
+    KDoc needs to be duplicated on the override.
 
 #### Namespacing & Imports
 
