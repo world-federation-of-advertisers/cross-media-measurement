@@ -42,6 +42,9 @@ import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 /**
  * Test that a deployed Reporting MCP server serves MCP against the real Reporting API.
  *
+ * Scope: the server is reached over its public Ingress. The in-cluster ClusterIP Service is not
+ * exercised, as this test runs from outside the cluster and has no cluster credentials.
+ *
  * Assumptions:
  * * The MCP server is deployed and reachable at [CorrectnessTestConfig.getMcpHost], which the
  *   deployment renders only when the environment also configures an OAuth issuer.
