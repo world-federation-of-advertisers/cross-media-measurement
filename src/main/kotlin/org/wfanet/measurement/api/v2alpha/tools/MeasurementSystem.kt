@@ -19,6 +19,7 @@ package org.wfanet.measurement.api.v2alpha.tools
 import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.CleartextKeysetHandle
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.jwt.JwtSignatureConfig
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.InvalidProtocolBufferException
@@ -267,6 +268,14 @@ private class Accounts {
 
   private val accountsClient: AccountsCoroutineStub by lazy {
     AccountsCoroutineStub(parentCommand.kingdomChannel)
+  }
+
+  companion object {
+    init {
+      // Register the JWT key parsers before any keyset is read, so keys are parsed as JWT key
+      // types rather than LegacyProtoKey.
+      JwtSignatureConfig.register()
+    }
   }
 
   @Command
