@@ -861,6 +861,13 @@ class RequisitionFetcher(
     val DEFAULT_FLUSH_INTERVAL: Duration = Duration.ofMinutes(5)
     const val DEFAULT_CHANNEL_CAPACITY: Int = 4
     const val MIN_LIST_REQUISITIONS_PAGE_SIZE: Int = 1
-    private const val KINGDOM_LIST_REQUISITIONS_DEFAULT_PAGE_SIZE: Int = 10
+    // The ListRequisitions rate limit bucket for this RPC is shared across all pages a
+    // fetch cycle issues (see kingdom_rate_limit_config.textproto), so a small page size
+    // makes a data provider with a large backlog exceed it purely from page count, not
+    // request rate. Larger pages reduce page count but cost more per call: empirically,
+    // page sizes at and above 300 against dev regularly exceed the RPC deadline (each
+    // Requisition includes a full encrypted spec), while 200 consistently succeeds. 100
+    // keeps a margin below that empirically-observed cliff.
+    private const val KINGDOM_LIST_REQUISITIONS_DEFAULT_PAGE_SIZE: Int = 100
   }
 }
