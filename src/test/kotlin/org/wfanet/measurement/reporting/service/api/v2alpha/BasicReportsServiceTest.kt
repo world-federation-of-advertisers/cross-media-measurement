@@ -579,7 +579,49 @@ class BasicReportsServiceTest {
     }
 
   @Test
-  fun `createBasicReport propagates INVALID_ARGUMENT from Report creation`(): Unit = runBlocking {
+  fun `createBasicReport forwards INVALID_ARGUMENT from Report creation`(): Unit = runBlocking {
+    val exception =
+      createBasicReportWhenReportCreationFails(
+        Status.INVALID_ARGUMENT.withDescription("report.reporting_metric_entries is invalid")
+      )
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isNull()
+  }
+
+  @Test
+  fun `createBasicReport forwards FAILED_PRECONDITION from Report creation`(): Unit = runBlocking {
+    val exception = createBasicReportWhenReportCreationFails(Status.FAILED_PRECONDITION)
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `createBasicReport forwards NOT_FOUND from Report creation`(): Unit = runBlocking {
+    val exception = createBasicReportWhenReportCreationFails(Status.NOT_FOUND)
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `createBasicReport forwards PERMISSION_DENIED from Report creation`(): Unit = runBlocking {
+    val exception = createBasicReportWhenReportCreationFails(Status.PERMISSION_DENIED)
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `createBasicReport throws INTERNAL when Report creation fails with UNAVAILABLE`(): Unit =
+    runBlocking {
+      val exception = createBasicReportWhenReportCreationFails(Status.UNAVAILABLE)
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
+    }
+
+  /** Creates a BasicReport while the Reports service fails with [status]. */
+  private suspend fun createBasicReportWhenReportCreationFails(
+    status: Status
+  ): StatusRuntimeException {
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer {
@@ -595,51 +637,12 @@ class BasicReportsServiceTest {
         listOf(reportingSetComponent),
       )
     wheneverBlocking { reportsServiceMock.createReport(any()) }
-      .thenThrow(
-        StatusRuntimeException(
-          Status.INVALID_ARGUMENT.withDescription(
-            "Required CMMS Measurement field unspecified or invalid: " +
-              "requests.measurement.measurement_spec"
-          )
-        )
-      )
+      .thenThrow(StatusRuntimeException(status))
 
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).contains("requests.measurement.measurement_spec")
-  }
-
-  @Test
-  fun `createBasicReport throws INTERNAL when Report creation fails with UNAVAILABLE`(): Unit =
-    runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        }
-      )
-      val reportingSetComponent =
-        createPrimitiveReportingSet(measurementConsumerKey, "reportingset1", "dp1", "eg1")
-      val request =
-        reportingSetComponentBasicReportRequest(
-          measurementConsumerKey,
-          "a1234",
-          listOf(reportingSetComponent),
-        )
-      wheneverBlocking { reportsServiceMock.createReport(any()) }
-        .thenThrow(StatusRuntimeException(Status.UNAVAILABLE))
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
+    return assertFailsWith {
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
     }
+  }
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT for ReportingSet reporting units when disabled`():
