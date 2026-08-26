@@ -38,10 +38,18 @@ class ServiceFlags {
   )
   private var threadPoolSize: Int = DEFAULT_THREAD_POOL_SIZE
 
-  /** Executor for gRPC services. */
+  /**
+   * Executor for gRPC services.
+   *
+   * `corePoolSize` is set equal to `maximumPoolSize` (rather than a smaller fixed value) because
+   * [ThreadPoolExecutor] with an unbounded work queue only ever creates up to `corePoolSize`
+   * threads -- workers beyond that are queued instead of triggering new thread creation, since new
+   * threads are only spawned when the queue rejects a task, which an unbounded queue never does.
+   * A smaller `corePoolSize` here would silently make `--grpc-thread-pool-size` a no-op.
+   */
   val executor: Executor by lazy {
     ThreadPoolExecutor(
-        1,
+        threadPoolSize,
         threadPoolSize,
         60L,
         TimeUnit.SECONDS,
