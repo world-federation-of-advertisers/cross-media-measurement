@@ -18,7 +18,6 @@ package(
         "//src/main/kotlin/org/wfanet/measurement/testing:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/access:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/api:__subpackages__",
-        "//src/test/kotlin/org/wfanet/measurement/dataprovider:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/kingdom/batch:__subpackages__",

@@ -236,8 +236,6 @@ maven.artifact(
 )
 maven.install(
     artifacts = [
-        # tink-awskms and tink-gcpkms are pinned by common-jvm at the same versions; not
-        # re-pinned here to avoid a second place to keep in sync.
         "com.squareup.okhttp3:okhttp",
         "com.squareup.okhttp3:okhttp-tls",
         "com.google.privacy.differentialprivacy:differentialprivacy:4.0.0",
