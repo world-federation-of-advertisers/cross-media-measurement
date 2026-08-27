@@ -28,6 +28,7 @@ import java.nio.file.Paths
 import java.security.SecureRandom
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
@@ -56,12 +57,13 @@ import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.signedMessage
-import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.toOpenEndInstantRange
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
@@ -71,9 +73,14 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMeta
 import org.wfanet.measurement.edpaggregator.rawimpressions.UndigestedEvent
 import org.wfanet.measurement.edpaggregator.testing.TestEncryptedStorage
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
-import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ageBucket
+import org.wfanet.measurement.edpaggregator.v1alpha.ageRange
+import org.wfanet.measurement.edpaggregator.v1alpha.bucketLookup
+import org.wfanet.measurement.edpaggregator.v1alpha.enumLookup
+import org.wfanet.measurement.edpaggregator.v1alpha.labelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.v1alpha.scalarColumn
 import org.wfanet.measurement.edpaggregator.vidlabeler.BaseVidLabelingSink
 import org.wfanet.measurement.edpaggregator.vidlabeler.ModelLineContext
 import org.wfanet.measurement.edpaggregator.vidlabeler.ParquetImpressionConverter
@@ -84,30 +91,27 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.VidLabelerMetrics
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
-import org.wfanet.measurement.storage.ParquetValue
+import org.wfanet.measurement.storage.parquetValue
+import org.wfanet.virtualpeople.common.Gender
 import org.wfanet.virtualpeople.common.LabelerInput
 import org.wfanet.virtualpeople.common.LabelerOutput
 import org.wfanet.virtualpeople.common.labelerOutput
 import org.wfanet.virtualpeople.common.virtualPersonActivity
 
 /**
- * Chains the two halves of the pipeline that no other test connects: the **real** VID labeling
- * write path and the **real** `ResultsFulfiller` event-processing path.
+ * Asserts that a report attributes an impression to the demographics of the VID the model assigned,
+ * resolved through the model line's `PopulationSpec`, rather than to the demographics the
+ * `DataProvider` declared on the raw row.
  *
- * The specific defect this guards against (see issue #4384) is the labeled output carrying the
- * demographics the `DataProvider` uploaded instead of the ones the model assigned. Every existing
- * test misses it:
- * * the labeler's own tests ([org.wfanet.measurement.edpaggregator.vidlabeler.VidLabelingSinkTest]
- *   and friends) stop at the labeled blob and never involve `ResultsFulfiller`;
- * * [EventProcessingIntegrationTest] hand-builds its `LabeledImpression`s, setting `vid` and
- *   `event` consistently by hand, so its fixtures cannot express the disagreement at all;
- * * the in-process EDPA harness seeds already-labeled impressions generated *from* the same
- *   `PopulationSpec` the fulfiller reads, so uploaded and assigned demographics coincide by
- *   construction.
+ * The contract spans two stages that are exercised together only here: the VID labeling write path
+ * ([ParquetImpressionConverter] + [PlainVidLabelingSink]) and the `ResultsFulfiller` read path
+ * ([StorageEventReader] + [EventProcessingOrchestrator]). Both run for real; only the VID assigner
+ * is a stand-in, because the contract concerns what the pipeline does with an assigned VID, not how
+ * the model chooses it.
  *
- * The load-bearing part of this fixture is therefore that the assigned VID falls in a **different**
- * subpopulation than the row declared. With an identity correction the test passes whether or not
- * the production code is correct, which is exactly how the bug shipped.
+ * The fixture is only meaningful when the assigned VID falls in a **different** subpopulation than
+ * the raw row declares. Under an identity correction both readings coincide and the assertion holds
+ * whether or not the population attributes are written at all.
  */
 @RunWith(JUnit4::class)
 class VidLabelingDemoCorrectionIntegrationTest {
@@ -124,52 +128,49 @@ class VidLabelingDemoCorrectionIntegrationTest {
   }
 
   @Test
-  fun `report counts the impression under the demo the model assigned, not the one uploaded`() =
+  fun `report attributes the impression to the assigned VID's demographics`() =
     runBlocking<Unit> {
-      // The raw row declares MALE 18-34; the model assigns a VID from the FEMALE 35-54 pool.
-      val blobDetails = labelOneImpression(assignedVid = FEMALE_VID)
+      val assigner = RecordingVidAssigner(FEMALE_VID)
 
-      val eventSource = eventSourceFor(blobDetails)
-      val femaleRequisition = requisitionFilteredOn("person.gender == ${FEMALE_VALUE}")
-      val maleRequisition = requisitionFilteredOn("person.gender == ${MALE_VALUE}")
+      val blobDetails = labelOneImpression(assigner)
 
-      val results = run(eventSource, listOf(femaleRequisition, maleRequisition))
+      // The declared demographics reach the correction model, which is the only place they belong.
+      val declared = assigner.lastInput().profileInfo.proprietaryIdSpace1UserInfo.demo.demoBucket
+      assertThat(declared.gender).isEqualTo(Gender.GENDER_MALE)
+      assertThat(declared.age.minAge).isEqualTo(18)
+      assertThat(declared.age.maxAge).isEqualTo(34)
 
-      // The impression is reported under the model's demo...
-      assertThat(results.getValue(femaleRequisition.name).getByteArray().sum()).isEqualTo(1)
-      // ...and NOT under the demographics the DataProvider uploaded. Before the fix this was
-      // reversed: the labeled event carried the raw row's MALE and the female slice was empty.
-      assertThat(results.getValue(maleRequisition.name).getByteArray().sum()).isEqualTo(0)
+      val results =
+        run(
+          eventSourceFor(blobDetails),
+          listOf(requisitionFilteredOn(FEMALE_35_TO_54_FILTER), requisitionFilteredOn(MALE_FILTER)),
+        )
+
+      // Attributed to the assigned VID's subpopulation, on both attributes jointly.
+      assertThat(results.getValue(nameFor(FEMALE_35_TO_54_FILTER)).getByteArray().sum())
+        .isEqualTo(1)
+      // Not to the declared demographics.
+      assertThat(results.getValue(nameFor(MALE_FILTER)).getByteArray().sum()).isEqualTo(0)
     }
 
   @Test
-  fun `an uncorrected impression is reported under its own demo`() =
+  fun `an identity correction leaves the reported demographics unchanged`() =
     runBlocking<Unit> {
-      // Control for the assertion above: with an identity correction -- the model assigning a VID
-      // from the same subpopulation the row declared -- the reported demo is unchanged. Without
-      // this
-      // case the first test alone could pass for the wrong reason, e.g. if every impression were
-      // being forced into the FEMALE bucket regardless of the VID.
-      val blobDetails = labelOneImpression(assignedVid = MALE_VID)
+      // Pins the other direction, so the assertion above cannot hold for a reason unrelated to the
+      // assigned VID -- every impression being forced into one bucket, say.
+      val blobDetails = labelOneImpression(RecordingVidAssigner(MALE_VID))
 
-      val eventSource = eventSourceFor(blobDetails)
-      val maleRequisition = requisitionFilteredOn("person.gender == ${MALE_VALUE}")
+      val results =
+        run(eventSourceFor(blobDetails), listOf(requisitionFilteredOn(MALE_18_TO_34_FILTER)))
 
-      val results = run(eventSource, listOf(maleRequisition))
-
-      assertThat(results.getValue(maleRequisition.name).getByteArray().sum()).isEqualTo(1)
+      assertThat(results.getValue(nameFor(MALE_18_TO_34_FILTER)).getByteArray().sum()).isEqualTo(1)
     }
 
   /**
-   * Runs one raw row through the real [ParquetImpressionConverter] and [PlainVidLabelingSink],
-   * returning the `BlobDetails` sidecar the sink wrote.
-   *
-   * [assignedVid] is what the (fake) model returns. A fake [VidAssigner] is enough because the
-   * defect is not in the model: it is in what the pipeline does with the model's VID. Using a
-   * compiled VirtualPeople model here would only add a correction matrix that this test would then
-   * have to reverse-engineer to know the expected answer.
+   * Runs one raw row declaring MALE / 18-34 through the real converter and sink, returning the
+   * `BlobDetails` sidecar the sink wrote.
    */
-  private suspend fun labelOneImpression(assignedVid: Long): BlobDetails {
+  private suspend fun labelOneImpression(assigner: VidAssigner): BlobDetails {
     val writer = PopulationAttributeWriter(TestEvent.getDescriptor(), POPULATION_SPEC)
     val sink =
       PlainVidLabelingSink(
@@ -180,7 +181,7 @@ class VidLabelingDemoCorrectionIntegrationTest {
               modelLine = MODEL_LINE,
               activeWindow =
                 ActiveWindow(startMicros = EVENT_TIME_MICROS, endMicros = EVENT_TIME_MICROS + 1),
-              assigner = FixedVidAssigner(assignedVid),
+              assigner = assigner,
               config = MODEL_LINE_CONFIG,
               rankIndex = null,
             )
@@ -190,10 +191,10 @@ class VidLabelingDemoCorrectionIntegrationTest {
         encryptKmsClient = kmsClient,
         encryptKekUri = kekUri,
         outputStorageParams =
-          VidLabelerParams.StorageParams.newBuilder()
-            .setGcsProjectId("test-project")
-            .setImpressionsBlobPrefix("file:///labeled")
-            .build(),
+          VidLabelerParamsKt.storageParams {
+            gcsProjectId = "test-project"
+            impressionsBlobPrefix = "file:///labeled"
+          },
         storageConfig = StorageConfig(rootDirectory = tempFolder.root),
         dataProvider = DATA_PROVIDER,
         metrics =
@@ -207,18 +208,16 @@ class VidLabelingDemoCorrectionIntegrationTest {
       )
 
     tempFolder.root.resolve("labeled").mkdirs()
-    // The declared demographics ride in on the raw row. They reach the correction model through
-    // labeler_input_field_mapping; they can never reach the output event, because
-    // EventMessageMapper rejects an event_template_field_mapping onto a population attribute.
     sink.processBatch(
       listOf(
         UndigestedEvent(
           row =
             mapOf(
-              EVENT_ID_COLUMN to ParquetValue.newBuilder().setStringValue("event-1").build(),
-              EVENT_TIME_COLUMN to
-                ParquetValue.newBuilder().setInt64Value(EVENT_TIME_MICROS).build(),
-              PERSON_ID_COLUMN to ParquetValue.newBuilder().setStringValue("person-1").build(),
+              EVENT_ID_COLUMN to parquetValue { stringValue = "event-1" },
+              EVENT_TIME_COLUMN to parquetValue { int64Value = EVENT_TIME_MICROS },
+              PERSON_ID_COLUMN to parquetValue { stringValue = "person-1" },
+              GENDER_COLUMN to parquetValue { stringValue = DECLARED_GENDER },
+              AGE_GROUP_COLUMN to parquetValue { stringValue = DECLARED_AGE_GROUP },
             )
         )
       )
@@ -231,17 +230,17 @@ class VidLabelingDemoCorrectionIntegrationTest {
     return BlobDetails.parseFrom(metadataFile.readBytes())
   }
 
-  /** Reads the sink's real (encrypted) output back through the fulfiller's own reader. */
-  private fun eventSourceFor(blobDetails: BlobDetails): SingleGroupEventSource {
-    val reader =
+  /** Reads the sink's encrypted output back through the fulfiller's own reader. */
+  private fun eventSourceFor(blobDetails: BlobDetails): SingleGroupEventSource =
+    SingleGroupEventSource(
       StorageEventReader(
         blobDetails = blobDetails,
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = tempFolder.root),
         descriptor = TestEvent.getDescriptor(),
-      )
-    return SingleGroupEventSource(reader, EVENT_GROUP)
-  }
+      ),
+      EVENT_GROUP,
+    )
 
   private suspend fun run(eventSource: SingleGroupEventSource, requisitions: List<Requisition>) =
     orchestrator.run(
@@ -251,7 +250,7 @@ class VidLabelingDemoCorrectionIntegrationTest {
       requisitions = requisitions,
       eventGroupSelector =
         FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
-          requisitions.associate { EVENT_GROUP to EVENT_GROUP }
+          mapOf(EVENT_GROUP to EVENT_GROUP)
         ),
       config =
         PipelineConfiguration(
@@ -265,26 +264,31 @@ class VidLabelingDemoCorrectionIntegrationTest {
     )
 
   private fun requisitionFilteredOn(filter: String): Requisition {
-    val measurementSpec = measurementSpec {
-      reachAndFrequency =
-        MeasurementSpecKt.reachAndFrequency {
-          reachPrivacyParams = differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 1E-12
-          }
-          frequencyPrivacyParams = differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 1E-12
-          }
-          maximumFrequency = 10
+    val spec = requisitionSpec {
+      events =
+        RequisitionSpecKt.events {
+          eventGroups +=
+            RequisitionSpecKt.eventGroupEntry {
+              key = EVENT_GROUP
+              value =
+                RequisitionSpecKt.EventGroupEntryKt.value {
+                  collectionInterval =
+                    com.google.type.interval {
+                      startTime = COLLECTION_INTERVAL.start.toProtoTime()
+                      endTime = COLLECTION_INTERVAL.endExclusive.toProtoTime()
+                    }
+                  this.filter = RequisitionSpecKt.eventFilter { expression = filter }
+                }
+            }
         }
+      measurementPublicKey = MC_PUBLIC_KEY.pack()
+      nonce = SecureRandom.getInstance("SHA1PRNG").nextLong()
     }
-    val timeRange = OpenEndTimeRange.fromClosedDateRange(EVENT_DATE..EVENT_DATE)
     return requisition {
-      name = "requisitions/${filter.hashCode().toUInt()}"
+      name = nameFor(filter)
       measurement = "measurements/test-measurement"
       state = Requisition.State.UNFULFILLED
-      this.measurementSpec = signedMessage { message = measurementSpec.pack() }
+      measurementSpec = signedMessage { message = MEASUREMENT_SPEC.pack() }
       protocolConfig = protocolConfig {
         protocols +=
           ProtocolConfigKt.protocol {
@@ -298,35 +302,27 @@ class VidLabelingDemoCorrectionIntegrationTest {
               }
           }
       }
-      val spec = requisitionSpec {
-        events =
-          RequisitionSpecKt.events {
-            eventGroups +=
-              RequisitionSpecKt.eventGroupEntry {
-                key = EVENT_GROUP
-                value =
-                  RequisitionSpecKt.EventGroupEntryKt.value {
-                    collectionInterval =
-                      com.google.type.interval {
-                        startTime = timeRange.start.toProtoTime()
-                        endTime = timeRange.endExclusive.toProtoTime()
-                      }
-                    this.filter = RequisitionSpecKt.eventFilter { expression = filter }
-                  }
-              }
-          }
-        measurementPublicKey = MC_PUBLIC_KEY.pack()
-        nonce = SecureRandom.getInstance("SHA1PRNG").nextLong()
-      }
       encryptedRequisitionSpec =
         encryptRequisitionSpec(signRequisitionSpec(spec, MC_SIGNING_KEY), DATA_PROVIDER_PUBLIC_KEY)
     }
   }
 
   /**
-   * Wraps the fulfiller's own [StorageEventReader] as an [EventSource], tagging every batch with
-   * this test's event group. Mirrors the equivalent helper in [EventProcessingIntegrationTest].
+   * Returns [vid] for every input and records the last [LabelerInput] it saw, so a test can assert
+   * the declared demographics actually reached the model.
    */
+  private class RecordingVidAssigner(private val vid: Long) : VidAssigner {
+    private val last = AtomicReference<LabelerInput>()
+
+    fun lastInput(): LabelerInput = checkNotNull(last.get()) { "assigner was never called" }
+
+    override fun assign(input: LabelerInput): LabelerOutput {
+      last.set(input)
+      return labelerOutput { people += virtualPersonActivity { virtualPersonId = vid } }
+    }
+  }
+
+  /** Wraps a [StorageEventReader] as an [EventSource] tagged with this test's event group. */
   private class SingleGroupEventSource(
     private val reader: EventReader<Message>,
     private val eventGroupReferenceId: String,
@@ -348,13 +344,6 @@ class VidLabelingDemoCorrectionIntegrationTest {
     }
   }
 
-  /** Returns [vid] for every input, standing in for the model's demographic correction. */
-  private class FixedVidAssigner(private val vid: Long) : VidAssigner {
-    override fun assign(input: LabelerInput): LabelerOutput = labelerOutput {
-      people += virtualPersonActivity { virtualPersonId = vid }
-    }
-  }
-
   companion object {
     init {
       AeadConfig.register()
@@ -364,26 +353,42 @@ class VidLabelingDemoCorrectionIntegrationTest {
     private const val DATA_PROVIDER = "dataProviders/edp-1"
     private const val MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
     private const val EVENT_GROUP = "event-group-1"
+
     private const val EVENT_ID_COLUMN = "event_id"
     private const val EVENT_TIME_COLUMN = "event_time_micros"
     private const val PERSON_ID_COLUMN = "person_id"
+    private const val GENDER_COLUMN = "person_gender"
+    private const val AGE_GROUP_COLUMN = "person_age_group"
+
+    /** What the raw row claims about this person. The model disagrees. */
+    private const val DECLARED_GENDER = "MALE"
+    private const val DECLARED_AGE_GROUP = "YEARS_18_TO_34"
 
     private val EVENT_DATE: LocalDate = LocalDate.of(2026, 6, 30)
     private val EVENT_TIME_MICROS: Long =
       EVENT_DATE.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() * 1_000L
+    private val COLLECTION_INTERVAL = (EVENT_DATE..EVENT_DATE).toOpenEndInstantRange()
 
-    private val MALE_VALUE = Person.Gender.MALE_VALUE
-    private val FEMALE_VALUE = Person.Gender.FEMALE_VALUE
-
-    /** A VID inside the MALE 18-34 subpopulation. */
+    /** A VID in the MALE 18-34 subpopulation -- the one the raw row declares. */
     private const val MALE_VID = 42L
-    /** A VID inside the FEMALE 35-54 subpopulation -- a different demo than the row declares. */
+
+    /** A VID in the FEMALE 35-54 subpopulation -- a different one. */
     private const val FEMALE_VID = 150L
 
+    private val MALE_FILTER = "person.gender == ${Person.Gender.MALE_VALUE}"
+    private val MALE_18_TO_34_FILTER =
+      "person.gender == ${Person.Gender.MALE_VALUE} && " +
+        "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+    private val FEMALE_35_TO_54_FILTER =
+      "person.gender == ${Person.Gender.FEMALE_VALUE} && " +
+        "person.age_group == ${Person.AgeGroup.YEARS_35_TO_54_VALUE}"
+
+    private fun nameFor(filter: String): String = "requisitions/${filter.hashCode().toUInt()}"
+
     /**
-     * Two subpopulations with disjoint VID ranges and *different* demographics, so an assigned VID
-     * unambiguously identifies one of them. `Person` carries three population attributes, all of
-     * which must be set or `PopulationSpecValidator` rejects the spec.
+     * Two subpopulations with disjoint VID ranges and different demographics, so an assigned VID
+     * identifies exactly one of them. `Person` carries three population attributes and
+     * `PopulationSpecValidator` requires all of them on every subpopulation.
      */
     private val POPULATION_SPEC: PopulationSpec = populationSpec {
       subpopulations += subPopulation(Person.Gender.MALE, Person.AgeGroup.YEARS_18_TO_34, 1L, 100L)
@@ -414,32 +419,66 @@ class VidLabelingDemoCorrectionIntegrationTest {
       }
 
     /**
-     * Note what is absent: no `event_template_field_mapping` onto `person.*`. Population attributes
-     * come from [POPULATION_SPEC] via `PopulationAttributeWriter`; the declared demographics reach
-     * the model through `labeler_input_field_mapping` instead.
+     * Carries the declared demographics to the correction model via `labeler_input_field_mapping`
+     * and nowhere else. There is deliberately no `event_template_field_mapping` onto `person.*`:
+     * population attributes are sourced from [POPULATION_SPEC], and `EventMessageMapper` rejects a
+     * mapping that targets one.
      */
     private val MODEL_LINE_CONFIG: VidLabelerParams.ModelLineConfig =
-      VidLabelerParams.ModelLineConfig.newBuilder()
-        .addLabelerInputFieldMapping(
-          LabelerInputFieldMapping.newBuilder()
-            .setFieldPath("event_id.id")
-            .setScalar(ScalarColumn.newBuilder().setColumn(EVENT_ID_COLUMN))
-            .build()
-        )
-        .addLabelerInputFieldMapping(
-          LabelerInputFieldMapping.newBuilder()
-            .setFieldPath("timestamp_usec")
-            .setScalar(ScalarColumn.newBuilder().setColumn(EVENT_TIME_COLUMN))
-            .build()
-        )
-        .addLabelerInputFieldMapping(
-          LabelerInputFieldMapping.newBuilder()
-            .setFieldPath("profile_info.proprietary_id_space_1_user_info.user_id")
-            .setScalar(ScalarColumn.newBuilder().setColumn(PERSON_ID_COLUMN))
-            .build()
-        )
-        .putOptionalEntityKeyFieldMapping("person", PERSON_ID_COLUMN)
-        .build()
+      VidLabelerParamsKt.modelLineConfig {
+        labelerInputFieldMapping += labelerInputFieldMapping {
+          fieldPath = "event_id.id"
+          scalar = scalarColumn { column = EVENT_ID_COLUMN }
+        }
+        labelerInputFieldMapping += labelerInputFieldMapping {
+          fieldPath = "timestamp_usec"
+          scalar = scalarColumn { column = EVENT_TIME_COLUMN }
+        }
+        labelerInputFieldMapping += labelerInputFieldMapping {
+          fieldPath = "profile_info.proprietary_id_space_1_user_info.user_id"
+          scalar = scalarColumn { column = PERSON_ID_COLUMN }
+        }
+        labelerInputFieldMapping += labelerInputFieldMapping {
+          fieldPath = "profile_info.proprietary_id_space_1_user_info.demo.demo_bucket.gender"
+          enumLookup = enumLookup {
+            column = GENDER_COLUMN
+            lookupTable["MALE"] = "GENDER_MALE"
+            lookupTable["FEMALE"] = "GENDER_FEMALE"
+          }
+        }
+        labelerInputFieldMapping += labelerInputFieldMapping {
+          fieldPath = "profile_info.proprietary_id_space_1_user_info.demo.demo_bucket.age"
+          ageRange = ageRange {
+            bucketLookup = bucketLookup {
+              column = AGE_GROUP_COLUMN
+              bucketTable["YEARS_18_TO_34"] = ageBucket {
+                minAge = 18
+                maxAge = 34
+              }
+              bucketTable["YEARS_35_TO_54"] = ageBucket {
+                minAge = 35
+                maxAge = 54
+              }
+            }
+          }
+        }
+        optionalEntityKeyFieldMapping["person"] = PERSON_ID_COLUMN
+      }
+
+    private val MEASUREMENT_SPEC = measurementSpec {
+      reachAndFrequency =
+        MeasurementSpecKt.reachAndFrequency {
+          reachPrivacyParams = differentialPrivacyParams {
+            epsilon = 1.0
+            delta = 1E-12
+          }
+          frequencyPrivacyParams = differentialPrivacyParams {
+            epsilon = 1.0
+            delta = 1E-12
+          }
+          maximumFrequency = 10
+        }
+    }
 
     private val SECRET_FILES_PATH =
       checkNotNull(
@@ -459,7 +498,7 @@ class VidLabelingDemoCorrectionIntegrationTest {
       loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())
         .toEncryptionPublicKey()
     private val MC_SIGNING_KEY: SigningKeyHandle =
-      org.wfanet.measurement.common.crypto.testing.loadSigningKey(
+      loadSigningKey(
         SECRET_FILES_PATH.resolve("${MEASUREMENT_CONSUMER_ID}_cs_cert.der").toFile(),
         SECRET_FILES_PATH.resolve("${MEASUREMENT_CONSUMER_ID}_cs_private.der").toFile(),
       )
