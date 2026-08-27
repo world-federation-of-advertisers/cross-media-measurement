@@ -72,12 +72,17 @@ fun computeDirectDynamicallyClippedImpressions(
       queryDpParams = dpParams
       noiseSource = StochasticStandardNormalNoiseSource()
     }
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4401): Rename this mechanism
+    // to DETERMINISTIC_NOISE. It names a privacy regime, compiled-in params and seeded draws,
+    // rather than a distribution, and the draws here are Gaussian by design.
     DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE -> {
       queryDpParams =
         DpParams(
           DeterministicTruncatedLaplaceParams.EPSILON,
           DeterministicTruncatedLaplaceParams.DELTA,
         )
+      // TODO(world-federation-of-advertisers/cross-media-measurement#4387): Mix in the
+      // EDP-supplied seed component once it exists.
       noiseSource =
         DeterministicDynamicClippingNoiseSource(
           fingerprint =
