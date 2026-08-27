@@ -51,9 +51,10 @@ class ServiceFlags {
    *
    * Elastic up to `--grpc-thread-pool-size`: threads are created on demand (via the
    * [SynchronousQueue] direct handoff) rather than held permanently, and idle threads are reclaimed
-   * after 60 seconds. Note that once the pool is saturated, a rejected dispatch surfaces to the
-   * client as `CANCELLED` rather than a clean status -- graceful admission control (e.g. a
-   * concurrency-limiting interceptor ahead of this executor) is a candidate follow-up.
+   * after 60 seconds. Note that on its own, a rejected dispatch from a saturated pool just hangs
+   * the RPC until the caller's deadline expires -- nothing at this layer closes the underlying
+   * gRPC call. Servers should pass this executor into `CommonServer`, which installs an
+   * interceptor that surfaces saturation as `RESOURCE_EXHAUSTED` instead.
    */
   val executor: Executor by lazy {
     ThreadPoolExecutor(
