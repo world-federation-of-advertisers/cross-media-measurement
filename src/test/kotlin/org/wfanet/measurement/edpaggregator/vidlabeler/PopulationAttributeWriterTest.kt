@@ -211,4 +211,44 @@ class PopulationAttributeWriterTest {
       }
     assertThat(exception).hasMessageThat().contains("more than one field")
   }
+
+  @Test
+  fun `constructor rejects a subpopulation with two attributes of the same template type`() {
+    // The mirror of the check above, on the spec side. PopulationSpecValidator does not reject
+    // this: getUnsetPopulationFields inspects only the first attribute of each type via `find`, so
+    // the first (complete) entry satisfies validation and the duplicate reaches this class
+    // unchecked. Taking the last one silently would write values nothing ever validated.
+    val duplicated = populationSpec {
+      subpopulations +=
+        PopulationSpecKt.subPopulation {
+          attributes +=
+            ProtoAny.pack(
+              common {
+                gender = Common.Gender.MALE
+                ageGroup = Common.AgeGroup.YEARS_18_TO_34
+                usState = Common.UsState.CALIFORNIA
+              }
+            )
+          attributes +=
+            ProtoAny.pack(
+              common {
+                gender = Common.Gender.FEMALE
+                ageGroup = Common.AgeGroup.YEARS_35_TO_54
+                usState = Common.UsState.NEW_YORK
+              }
+            )
+          vidRanges +=
+            PopulationSpecKt.vidRange {
+              startVid = 1L
+              endVidInclusive = 100L
+            }
+        }
+    }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        PopulationAttributeWriter(eventDescriptor, duplicated)
+      }
+    assertThat(exception).hasMessageThat().contains("more than one attribute")
+  }
 }
