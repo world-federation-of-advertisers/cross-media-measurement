@@ -17,6 +17,7 @@
 package org.wfanet.measurement.common.grpc
 
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
@@ -106,5 +107,17 @@ class ServiceFlagsTest {
     (flags.executor as java.util.concurrent.ExecutorService).shutdown()
 
     assertFailsWith<java.util.concurrent.RejectedExecutionException> { flags.executor.execute {} }
+  }
+
+  @Test
+  fun `idle core threads are eligible for reclamation rather than held forever`() {
+    val flags = ServiceFlags()
+    CommandLine(flags).parseArgs("--grpc-thread-pool-size=4")
+
+    // With corePoolSize equal to maximumPoolSize, every thread is a core thread; without
+    // allowCoreThreadTimeOut, ThreadPoolExecutor never reclaims core threads regardless of the
+    // keep-alive time, so every server using this executor would hold 4 live idle threads
+    // forever, even at zero QPS.
+    assertTrue((flags.executor as ThreadPoolExecutor).allowsCoreThreadTimeOut())
   }
 }

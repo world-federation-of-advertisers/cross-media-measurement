@@ -61,17 +61,23 @@ class ServiceFlags {
    * load would force a choice between hanging the RPC or surfacing a status that implies it's safe
    * to retry the whole thing from scratch, when it may not be. The only rejection this executor can
    * produce is if it has already been shut down.
+   *
+   * Since all threads are now core threads, `allowCoreThreadTimeOut` is enabled so the keep-alive
+   * still does something: without it, [ThreadPoolExecutor] never times out core threads regardless
+   * of the keep-alive time, so every server using this executor would hold `threadPoolSize` live
+   * idle threads forever, even at zero QPS.
    */
   val executor: Executor by lazy {
     ThreadPoolExecutor(
         threadPoolSize,
         threadPoolSize,
-        0L,
+        KEEP_ALIVE_SECONDS,
         TimeUnit.SECONDS,
         LinkedBlockingQueue(),
         NamedThreadFactory(Executors.defaultThreadFactory(), THREAD_POOL_NAME),
         LoggingRejectedExecutionHandler,
       )
+      .apply { allowCoreThreadTimeOut(true) }
       .also { Instrumentation.instrumentThreadPool(THREAD_POOL_NAME, it) }
   }
 
@@ -96,6 +102,7 @@ class ServiceFlags {
 
   companion object {
     private const val THREAD_POOL_NAME = "grpc-services"
+    private const val KEEP_ALIVE_SECONDS = 60L
     private const val LOG_SAMPLE_RATE = 100L
     private val DEFAULT_THREAD_POOL_SIZE =
       Runtime.getRuntime().availableProcessors().coerceAtLeast(2)
