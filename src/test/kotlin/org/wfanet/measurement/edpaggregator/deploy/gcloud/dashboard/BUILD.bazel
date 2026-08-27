@@ -4,11 +4,24 @@ kt_jvm_test(
     name = "DashboardViewIsolationLocalTest",
     srcs = ["DashboardViewIsolationLocalTest.kt"],
     data = [
+        "//src/main/terraform/gcloud/cmms:dashboard.tf",
         "//src/main/terraform/gcloud/cmms/sql:mc_details.sql",
         "//src/main/terraform/gcloud/cmms/sql:report_detail.sql",
         "//src/main/terraform/gcloud/cmms/sql:requisition_overview.sql",
+        "//src/main/terraform/gcloud/cmms/sql:unlinked_accounts.sql",
     ],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard/tools:dashboard_compliance_check_function",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "DashboardIsolationChecksTest",
+    srcs = ["DashboardIsolationChecksTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard:dashboard_isolation_checks",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
     ],

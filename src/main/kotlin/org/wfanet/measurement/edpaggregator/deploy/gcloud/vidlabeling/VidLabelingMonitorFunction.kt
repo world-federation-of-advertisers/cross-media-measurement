@@ -176,6 +176,8 @@ class VidLabelingMonitorFunction : HttpFunction {
     requireValidStalenessThreshold(config)
     // Fail fast on per-model-line config the TEE would otherwise only reject at Phase-2.
     requireValidModelLineConfigs(config)
+    // Fail fast on the bin-packing cap the memoized path only rejects inside the TEE.
+    requireValidMaxFileBatchSizeBytes(config)
 
     val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
 

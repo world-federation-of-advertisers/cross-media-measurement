@@ -462,6 +462,11 @@ resource "google_bigquery_table" "report_detail" {
     "name": "EdpCount",
     "type": "INT64",
     "mode": "NULLABLE"
+  },
+  {
+    "name": "ReportState",
+    "type": "STRING",
+    "mode": "NULLABLE"
   }
 ]
 EOF
@@ -514,6 +519,48 @@ resource "google_bigquery_table" "report_detail_edp" {
     "name": "EntityIds",
     "type": "STRING",
     "mode": "REPEATED"
+  },
+  {
+    "name": "ReportState",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  }
+]
+EOF
+}
+
+resource "google_bigquery_table" "unlinked_accounts" {
+  dataset_id          = google_bigquery_dataset.dashboard.dataset_id
+  project             = data.google_client_config.default.project
+  table_id            = "unlinked_accounts"
+  deletion_protection = var.dashboard_deletion_protection
+
+  schema = <<EOF
+[
+  {
+    "name": "CmmsDataProvider",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ClientAccountReferenceId",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "BrandName",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ObservedEventGroup",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "CreateTime",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
   }
 ]
 EOF
@@ -646,6 +693,25 @@ resource "google_bigquery_data_transfer_config" "report_detail_edp" {
   }
 }
 
+resource "google_bigquery_data_transfer_config" "unlinked_accounts" {
+  depends_on           = [google_service_account_iam_member.terraform_sa_act_as_self]
+  display_name         = "Dashboard: unlinked_accounts"
+  data_source_id       = "scheduled_query"
+  schedule             = "every 1 hours"
+  project              = data.google_client_config.default.project
+  location             = data.google_client_config.default.region
+  service_account_name = var.terraform_service_account
+
+  params = {
+    query = templatefile("${path.module}/sql/unlinked_accounts.sql", {
+      project_id = data.google_client_config.default.project
+      region     = data.google_client_config.default.region
+      dataset    = google_bigquery_dataset.dashboard.dataset_id
+      table_name = "unlinked_accounts"
+    })
+  }
+}
+
 # --- Per-EDP Service Accounts ---
 
 resource "google_service_account" "edp_dashboard" {
@@ -666,6 +732,17 @@ resource "google_bigquery_row_access_policy" "requisition_overview_platform" {
   policy_id        = "platform_full_access"
   filter_predicate = "TRUE"
   grantees         = concat(["serviceAccount:${var.terraform_service_account}"], var.dashboard_operators)
+}
+
+# dashboard_compliance is a grantee so the unlinked_accounts pipeline health check can read all
+# rows for its dashboard-side count; paired with the table dataViewer grant below.
+resource "google_bigquery_row_access_policy" "unlinked_accounts_platform" {
+  project          = data.google_client_config.default.project
+  dataset_id       = google_bigquery_dataset.dashboard.dataset_id
+  table_id         = google_bigquery_table.unlinked_accounts.table_id
+  policy_id        = "platform_full_access"
+  filter_predicate = "TRUE"
+  grantees         = concat(["serviceAccount:${var.terraform_service_account}", "serviceAccount:${google_service_account.dashboard_compliance.email}"], var.dashboard_operators)
 }
 
 resource "google_bigquery_row_access_policy" "mc_details_platform" {
@@ -693,6 +770,16 @@ resource "google_bigquery_row_access_policy" "requisition_overview" {
   table_id         = google_bigquery_table.requisition_overview.table_id
   policy_id        = "${each.key}_filter"
   filter_predicate = "DataProviderResourceId = '${each.value}'"
+  grantees         = ["serviceAccount:${google_service_account.edp_dashboard[each.key].email}"]
+}
+
+resource "google_bigquery_row_access_policy" "unlinked_accounts" {
+  for_each         = var.data_provider_resource_ids
+  project          = data.google_client_config.default.project
+  dataset_id       = google_bigquery_dataset.dashboard.dataset_id
+  table_id         = google_bigquery_table.unlinked_accounts.table_id
+  policy_id        = "${each.key}_filter"
+  filter_predicate = "CmmsDataProvider = '${each.value}'"
   grantees         = ["serviceAccount:${google_service_account.edp_dashboard[each.key].email}"]
 }
 
@@ -844,8 +931,8 @@ resource "google_bigquery_dataset_iam_member" "terraform_data_editor" {
 
 # --- Table-level IAM ---
 
-# Operators get dataViewer on platform-only tables (mc_details, report_detail)
-# and the shared table (requisition_overview).
+# Operators get dataViewer on platform-only tables (mc_details, report_detail),
+# the shared table (requisition_overview), and unlinked_accounts.
 resource "google_bigquery_table_iam_member" "requisition_overview_platform_viewer" {
   for_each   = toset(var.dashboard_operators)
   project    = data.google_client_config.default.project
@@ -853,6 +940,26 @@ resource "google_bigquery_table_iam_member" "requisition_overview_platform_viewe
   table_id   = google_bigquery_table.requisition_overview.table_id
   role       = "roles/bigquery.dataViewer"
   member     = each.value
+}
+
+resource "google_bigquery_table_iam_member" "unlinked_accounts_platform_viewer" {
+  for_each   = toset(var.dashboard_operators)
+  project    = data.google_client_config.default.project
+  dataset_id = google_bigquery_dataset.dashboard.dataset_id
+  table_id   = google_bigquery_table.unlinked_accounts.table_id
+  role       = "roles/bigquery.dataViewer"
+  member     = each.value
+}
+
+# The compliance SA counts rows in unlinked_accounts for the pipeline health check. It needs
+# table read (dataViewer) plus the platform row-access grant above to see all rows. Scoped to
+# this table only.
+resource "google_bigquery_table_iam_member" "unlinked_accounts_compliance_viewer" {
+  project    = data.google_client_config.default.project
+  dataset_id = google_bigquery_dataset.dashboard.dataset_id
+  table_id   = google_bigquery_table.unlinked_accounts.table_id
+  role       = "roles/bigquery.dataViewer"
+  member     = "serviceAccount:${google_service_account.dashboard_compliance.email}"
 }
 
 resource "google_bigquery_table_iam_member" "mc_details_platform_viewer" {
@@ -874,7 +981,7 @@ resource "google_bigquery_table_iam_member" "report_detail_platform_viewer" {
 }
 
 # EDP SAs get dataViewer on shared tables only (requisition_overview, mc_details_edp,
-# report_detail_edp). EDP SAs have no access to platform-only tables (mc_details,
+# report_detail_edp, unlinked_accounts). EDP SAs have no access to platform-only tables (mc_details,
 # report_detail) — they get 403.
 
 resource "google_bigquery_table_iam_member" "requisition_overview_viewer" {
@@ -882,6 +989,15 @@ resource "google_bigquery_table_iam_member" "requisition_overview_viewer" {
   project    = data.google_client_config.default.project
   dataset_id = google_bigquery_dataset.dashboard.dataset_id
   table_id   = google_bigquery_table.requisition_overview.table_id
+  role       = "roles/bigquery.dataViewer"
+  member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
+}
+
+resource "google_bigquery_table_iam_member" "unlinked_accounts_viewer" {
+  for_each   = var.data_provider_resource_ids
+  project    = data.google_client_config.default.project
+  dataset_id = google_bigquery_dataset.dashboard.dataset_id
+  table_id   = google_bigquery_table.unlinked_accounts.table_id
   role       = "roles/bigquery.dataViewer"
   member     = "serviceAccount:${google_service_account.edp_dashboard[each.key].email}"
 }
@@ -957,6 +1073,30 @@ resource "google_project_iam_member" "dashboard_compliance_role" {
   project = data.google_client_config.default.project
   role    = google_project_iam_custom_role.dashboard_compliance.id
   member  = "serviceAccount:${google_service_account.dashboard_compliance.email}"
+}
+
+# The compliance check federates through kingdom-conn to compare the Spanner source row count
+# against the unlinked_accounts table. Scoped to this connection so the SA cannot federate through
+# the others; EDP dashboard SAs get no such binding.
+resource "google_bigquery_connection_iam_member" "dashboard_compliance_kingdom_conn" {
+  project       = data.google_client_config.default.project
+  location      = data.google_client_config.default.region
+  connection_id = google_bigquery_connection.kingdom.connection_id
+  role          = "roles/bigquery.connectionUser"
+  member        = "serviceAccount:${google_service_account.dashboard_compliance.email}"
+}
+
+# kingdom-conn uses Data Boost (useParallelism), so the caller that runs the federated
+# unlinked_accounts pipeline check — the compliance SA — also needs
+# spanner.databases.useDataBoost on the kingdom database, not just connectionUser above.
+# Without this the EXTERNAL_QUERY fails with "Error accessing Cloud Spanner. Permission
+# Denied". Mirrors kingdom_conn_reader, which grants the same role to the connection agent.
+resource "google_spanner_database_iam_member" "dashboard_compliance_kingdom_databoost" {
+  project  = var.kingdom_spanner_project
+  instance = var.kingdom_spanner_instance
+  database = "kingdom"
+  role     = "roles/spanner.databaseReaderWithDataBoost"
+  member   = "serviceAccount:${google_service_account.dashboard_compliance.email}"
 }
 
 # Compliance SA impersonates each EDP SA to run the per-EDP isolation checks.
@@ -1077,13 +1217,60 @@ module "dashboard_compliance_cloud_scheduler" {
   depends_on = [module.dashboard_compliance_cloud_function]
 }
 
+# The terraform SA pre-creates the metric descriptors below, which needs
+# monitoring.metricDescriptors.create. roles/monitoring.alertPolicyEditor does not
+# grant it; monitoring.metricWriter is the minimal role that does -- the same role
+# the function's runtime SA gets to export these metrics at runtime.
+resource "google_project_iam_member" "terraform_metric_writer" {
+  count   = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  project = data.google_client_config.default.project
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${var.terraform_service_account}"
+}
+
+# Pre-create the custom metric descriptors the alert policy below filters on. Cloud
+# Monitoring only auto-registers these the first time the Cloud Function emits them, so on a
+# brand-new environment the alert policy would fail with "Cannot find metric(s)..." until the
+# function had run once. Declaring them here lets a fresh deploy create the alert policy in a
+# single apply. Kinds/labels mirror what the OpenTelemetry exporter emits.
+resource "google_monitoring_metric_descriptor" "dashboard_compliance_failed_checks" {
+  count        = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  depends_on   = [google_project_iam_member.terraform_metric_writer]
+  type         = "workload.googleapis.com/edpa.dashboard_compliance.failed_checks"
+  metric_kind  = "GAUGE"
+  value_type   = "INT64"
+  display_name = "edpa.dashboard_compliance.failed_checks"
+  description  = "Number of failed dashboard compliance checks in the most recent run"
+  labels { key = "instrumentation_source" }
+  labels { key = "service_name" }
+  labels { key = "instrumentation_version" }
+  labels { key = "edpa_dashboard_compliance_section" }
+}
+
+resource "google_monitoring_metric_descriptor" "dashboard_compliance_errors" {
+  count        = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  depends_on   = [google_project_iam_member.terraform_metric_writer]
+  type         = "workload.googleapis.com/edpa.dashboard_compliance.errors"
+  metric_kind  = "CUMULATIVE"
+  value_type   = "INT64"
+  display_name = "edpa.dashboard_compliance.errors"
+  description  = "Number of DashboardComplianceCheckFunction execution errors"
+  labels { key = "instrumentation_source" }
+  labels { key = "service_name" }
+  labels { key = "instrumentation_version" }
+}
+
 # Metric-based alert policy. The function records failed-check counts per section to the
 # edpa.dashboard_compliance.failed_checks gauge and increments edpa.dashboard_compliance.errors
 # on a genuine crash; this policy fires on either. Channels are attached out-of-band (as with
 # the
 # gcs-bucket DLQ alert); with none configured the policy still records incidents but pages no one.
 resource "google_monitoring_alert_policy" "dashboard_compliance_failures" {
-  count        = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  count = local.deploy_dashboard_compliance_scheduler ? 1 : 0
+  depends_on = [
+    google_monitoring_metric_descriptor.dashboard_compliance_failed_checks,
+    google_monitoring_metric_descriptor.dashboard_compliance_errors,
+  ]
   display_name = "Dashboard Compliance Check Failures"
   combiner     = "OR"
 

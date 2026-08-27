@@ -368,6 +368,13 @@ variable "data_provider_resource_ids" {
   description = "Map of EDP name to DataProviderResourceId"
 }
 
+variable "reporting_operators" {
+  type        = list(string)
+  default     = []
+  nullable    = false
+  description = "Users/groups granted impersonation of the Reporting internal service account, in order to run operational CLIs against the Reporting databases"
+}
+
 variable "dashboard_operators" {
   type        = list(string)
   nullable    = false

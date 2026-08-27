@@ -22,15 +22,15 @@ import java.security.cert.X509Certificate
 import java.time.Instant
 import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
-import org.wfanet.measurement.common.crypto.tink.TinkPublicKeyHandle
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
-import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.parseTextProto
@@ -42,7 +42,6 @@ import org.wfanet.measurement.config.securecomputation.QueuesConfig
 import org.wfanet.measurement.config.securecomputation.WatchedPath
 import org.wfanet.measurement.config.securecomputation.WatchedPathKt
 import org.wfanet.measurement.config.securecomputation.watchedPath
-import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
@@ -115,6 +114,17 @@ val TRUSTEE_PROTOCOL_CONFIG_CONFIG_DETERMINISTIC_NOISE: TrusTeeProtocolConfigCon
 val TRUSTEE_PROTOCOL_CONFIG_CONFIG_DETERMINISTIC_NOISE_FALLBACK: TrusTeeProtocolConfigConfig =
   loadTextProto(
     "trustee_protocol_config_config_deterministic_noise_fallback.textproto",
+    TrusTeeProtocolConfigConfig.getDefaultInstance(),
+  )
+val TRUSTEE_PROTOCOL_CONFIG_CONFIG_DETERMINISTIC_NOISE_THRESHOLDS: TrusTeeProtocolConfigConfig =
+  loadTextProto(
+    "trustee_protocol_config_config_deterministic_noise_thresholds.textproto",
+    TrusTeeProtocolConfigConfig.getDefaultInstance(),
+  )
+val TRUSTEE_PROTOCOL_CONFIG_CONFIG_DETERMINISTIC_NOISE_THRESHOLDS_HIGH:
+  TrusTeeProtocolConfigConfig =
+  loadTextProto(
+    "trustee_protocol_config_config_deterministic_noise_thresholds_high.textproto",
     TrusTeeProtocolConfigConfig.getDefaultInstance(),
   )
 val TRUSTEE_PROTOCOL_CONFIG_CONFIG_NOISE_NO_THRESHOLDS: TrusTeeProtocolConfigConfig =
@@ -231,8 +241,9 @@ fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
 }
 
 @Blocking
-fun loadEncryptionPublicKey(fileName: String): TinkPublicKeyHandle {
-  return loadPublicKey(SECRET_FILES_PATH.resolve(fileName).toFile())
+fun loadEncryptionPublicKey(fileName: String): EncryptionPublicKey = encryptionPublicKey {
+  format = EncryptionPublicKey.Format.TINK_KEYSET
+  data = SECRET_FILES_PATH.resolve(fileName).toFile().readByteString()
 }
 
 /** Builds a [EntityContent] for the entity with a certain [displayName]. */
@@ -240,8 +251,7 @@ fun loadEncryptionPublicKey(fileName: String): TinkPublicKeyHandle {
 fun createEntityContent(displayName: String) =
   EntityContent(
     displayName = displayName,
-    encryptionPublicKey =
-      loadEncryptionPublicKey("${displayName}_enc_public.tink").toEncryptionPublicKey(),
+    encryptionPublicKey = loadEncryptionPublicKey("${displayName}_enc_public.tink"),
     signingKey = loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der"),
   )
 

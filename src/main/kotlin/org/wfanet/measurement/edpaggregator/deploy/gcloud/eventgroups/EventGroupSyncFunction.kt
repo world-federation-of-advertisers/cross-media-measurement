@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineStub
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -84,6 +85,7 @@ class EventGroupSyncFunction() : HttpFunction {
             )
           val eventGroupsClient = EventGroupsCoroutineStub(kingdomChannel)
           val clientAccountsClient = ClientAccountsCoroutineStub(kingdomChannel)
+          val unlinkedClientAccountsClient = UnlinkedClientAccountsCoroutineStub(kingdomChannel)
           val eventGroups: Flow<EventGroup> =
             Tracing.traceSuspending(
               spanName = "load_event_groups",
@@ -113,6 +115,7 @@ class EventGroupSyncFunction() : HttpFunction {
                   edpName = eventGroupSyncConfig.dataProvider,
                   eventGroupsStub = eventGroupsClient,
                   clientAccountsStub = clientAccountsClient,
+                  unlinkedClientAccountsStub = unlinkedClientAccountsClient,
                   eventGroups = eventGroups,
                   throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration),
                   listEventGroupPageSize,
@@ -315,13 +318,24 @@ class EventGroupSyncFunction() : HttpFunction {
       certHost: String?,
       shutdownTimeout: Duration,
     ): Channel {
+      val cmmsConnection = eventGroupSyncConfig.cmmsConnection
+      val certificateFile = File(cmmsConnection.certFilePath)
+      val privateKeyFile = File(cmmsConnection.privateKeyFilePath)
+      val trustedCertCollectionFile = File(cmmsConnection.certCollectionFilePath)
+      require(certificateFile.isFile) {
+        "cmms_connection.cert_file_path must point to an existing file: ${certificateFile.path}"
+      }
+      require(privateKeyFile.isFile) {
+        "cmms_connection.private_key_file_path must point to an existing file: ${privateKeyFile.path}"
+      }
+      require(trustedCertCollectionFile.isFile) {
+        "cmms_connection.cert_collection_file_path must point to an existing file: ${trustedCertCollectionFile.path}"
+      }
       val signingCerts =
         SigningCerts.fromPemFiles(
-          certificateFile = checkNotNull(File(eventGroupSyncConfig.cmmsConnection.certFilePath)),
-          privateKeyFile =
-            checkNotNull(File(eventGroupSyncConfig.cmmsConnection.privateKeyFilePath)),
-          trustedCertCollectionFile =
-            checkNotNull(File(eventGroupSyncConfig.cmmsConnection.certCollectionFilePath)),
+          certificateFile = certificateFile,
+          privateKeyFile = privateKeyFile,
+          trustedCertCollectionFile = trustedCertCollectionFile,
         )
 
       val publicChannel =

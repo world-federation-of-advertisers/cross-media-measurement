@@ -1,6 +1,6 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
-package(default_visibility = [
+_DEFAULT_VISIBILITY = [
     "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute/protocols/direct:__subpackages__",
@@ -11,7 +11,9 @@ package(default_visibility = [
     "//src/test/kotlin/org/wfanet/measurement/duchy/mill/trustee:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/differentialprivacy:__pkg__",
-])
+]
+
+package(default_visibility = _DEFAULT_VISIBILITY)
 
 kt_jvm_library(
     name = "computation_params",
@@ -26,6 +28,10 @@ kt_jvm_library(
 kt_jvm_library(
     name = "deterministic_truncated_laplace_params",
     srcs = ["DeterministicTruncatedLaplaceParams.kt"],
+    visibility = _DEFAULT_VISIBILITY + [
+        # The report harness asserts results against the same truncation bound the sampler applies.
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:__pkg__",
+    ],
 )
 
 kt_jvm_library(
