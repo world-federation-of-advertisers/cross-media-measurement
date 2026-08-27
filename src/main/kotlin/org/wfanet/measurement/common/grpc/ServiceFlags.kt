@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.common.grpc
 
+import io.opentelemetry.api.metrics.LongCounter
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
@@ -49,23 +50,8 @@ class ServiceFlags {
   /**
    * Executor for gRPC services.
    *
-   * `corePoolSize` is set equal to `maximumPoolSize` (rather than a smaller fixed value) because
-   * [ThreadPoolExecutor] with an unbounded work queue only ever creates up to `corePoolSize`
-   * threads -- workers beyond that are queued instead of triggering new thread creation, since new
-   * threads are only spawned when the queue rejects a task, which an unbounded queue never does. A
-   * smaller `corePoolSize` here would silently make `--grpc-thread-pool-size` a no-op.
-   *
-   * The unbounded queue is deliberate, not just a leftover default: a coroutine service dispatched
-   * through this executor may already have performed a non-idempotent side effect before suspending
-   * and needing to be redispatched to resume. A bounded queue that rejects that redispatch under
-   * load would force a choice between hanging the RPC or surfacing a status that implies it's safe
-   * to retry the whole thing from scratch, when it may not be. The only rejection this executor can
-   * produce is if it has already been shut down.
-   *
-   * Since all threads are now core threads, `allowCoreThreadTimeOut` is enabled so the keep-alive
-   * still does something: without it, [ThreadPoolExecutor] never times out core threads regardless
-   * of the keep-alive time, so every server using this executor would hold `threadPoolSize` live
-   * idle threads forever, even at zero QPS.
+   * The work queue is deliberately unbounded: the only rejection this executor can produce is from
+   * being shut down, never from saturation under load.
    */
   val executor: Executor by lazy {
     ThreadPoolExecutor(
@@ -75,21 +61,27 @@ class ServiceFlags {
         TimeUnit.SECONDS,
         LinkedBlockingQueue(),
         NamedThreadFactory(Executors.defaultThreadFactory(), THREAD_POOL_NAME),
-        LoggingRejectedExecutionHandler,
+        LoggingRejectedExecutionHandler(),
       )
       .apply { allowCoreThreadTimeOut(true) }
       .also { Instrumentation.instrumentThreadPool(THREAD_POOL_NAME, it) }
   }
 
   /**
-   * Logs a sampled rejection (1 in [LOG_SAMPLE_RATE]), then falls back to the default abort
-   * behavior.
+   * Logs a sampled rejection (1 in [LOG_SAMPLE_RATE]) and records it to [rejectionCounter], then
+   * falls back to the default abort behavior.
    */
-  private object LoggingRejectedExecutionHandler : RejectedExecutionHandler {
+  private class LoggingRejectedExecutionHandler : RejectedExecutionHandler {
     private val abortPolicy = ThreadPoolExecutor.AbortPolicy()
     private val rejectionCount = AtomicLong(0)
+    private val rejectionCounter: LongCounter =
+      Instrumentation.meter
+        .counterBuilder("${Instrumentation.ROOT_NAMESPACE}.thread_pool.rejected_count")
+        .setDescription("Number of tasks rejected by the thread pool")
+        .build()
 
     override fun rejectedExecution(runnable: Runnable, executor: ThreadPoolExecutor) {
+      rejectionCounter.add(1)
       val count = rejectionCount.incrementAndGet()
       if (count == 1L || count % LOG_SAMPLE_RATE == 0L) {
         logger.log(Level.WARNING) {

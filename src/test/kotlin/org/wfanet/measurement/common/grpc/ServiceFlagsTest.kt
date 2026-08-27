@@ -16,11 +16,12 @@
 
 package org.wfanet.measurement.common.grpc
 
+import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertFailsWith
-import kotlin.test.assertTrue
 import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,7 +48,7 @@ class ServiceFlagsTest {
       assertFailsWith<ParameterException> {
         CommandLine(flags).parseArgs("--grpc-thread-pool-size=0")
       }
-    assertTrue(thrown.cause is IllegalArgumentException)
+    assertThat(thrown.cause).isInstanceOf(IllegalArgumentException::class.java)
   }
 
   @Test
@@ -67,7 +68,7 @@ class ServiceFlagsTest {
     // All 4 tasks must start concurrently. With an unbounded work queue and corePoolSize fixed
     // below maximumPoolSize, ThreadPoolExecutor never creates threads beyond corePoolSize -- only
     // the core threads would start and this would time out.
-    assertTrue(startedLatch.await(5, TimeUnit.SECONDS))
+    assertThat(startedLatch.await(5, TimeUnit.SECONDS)).isTrue()
     releaseLatch.countDown()
   }
 
@@ -85,7 +86,7 @@ class ServiceFlagsTest {
       releaseLatch.await()
       completedCount.countDown()
     }
-    assertTrue(startedLatch.await(5, TimeUnit.SECONDS))
+    assertThat(startedLatch.await(5, TimeUnit.SECONDS)).isTrue()
 
     // With only one thread already busy, submitting 4 more tasks beyond the configured pool size
     // must not throw -- they should simply queue behind the first task rather than being
@@ -95,7 +96,9 @@ class ServiceFlagsTest {
     repeat(4) { flags.executor.execute { completedCount.countDown() } }
 
     releaseLatch.countDown()
-    assertTrue(completedCount.await(5, TimeUnit.SECONDS), "Not all queued tasks completed")
+    assertWithMessage("Not all queued tasks completed")
+      .that(completedCount.await(5, TimeUnit.SECONDS))
+      .isTrue()
   }
 
   @Test
@@ -118,6 +121,6 @@ class ServiceFlagsTest {
     // allowCoreThreadTimeOut, ThreadPoolExecutor never reclaims core threads regardless of the
     // keep-alive time, so every server using this executor would hold 4 live idle threads
     // forever, even at zero QPS.
-    assertTrue((flags.executor as ThreadPoolExecutor).allowsCoreThreadTimeOut())
+    assertThat((flags.executor as ThreadPoolExecutor).allowsCoreThreadTimeOut()).isTrue()
   }
 }
