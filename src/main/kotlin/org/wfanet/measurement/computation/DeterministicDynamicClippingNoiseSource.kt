@@ -29,13 +29,9 @@ import org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClipp
  * [DeterministicTruncatedLaplaceNoiseSampler.sampleRounded] rounds its own. That puts every noised
  * bar on the integer lattice regardless of the bar's low bits, so anything computed from the bars
  * afterwards is post-processing of an already-released quantity.
- *
- * @param domain separates these draws from any other drawn against the same fingerprint.
  */
-class DeterministicDynamicClippingNoiseSource(
-  private val fingerprint: ByteArray,
-  private val domain: Int,
-) : DynamicClippingNoiseSource {
+class DeterministicDynamicClippingNoiseSource(private val fingerprint: ByteArray) :
+  DynamicClippingNoiseSource {
   private val sampler = DeterministicGaussianNoiseSampler()
 
   override fun noise(
@@ -51,10 +47,19 @@ class DeterministicDynamicClippingNoiseSource(
     // The calibration Google's Gaussian mechanism uses for the same charge, from Bun and Steinke,
     // "Concentrated Differential Privacy" (arXiv:1605.02065), Proposition 6.
     val standardDeviation: Double = l2Sensitivity / StrictMath.sqrt(2.0 * rho)
-    val draw: Double = sampler.sample(fingerprint, label(domain), label(pass), label(barIndex))
+    val draw: Double = sampler.sample(fingerprint, label(DOMAIN), label(pass), label(barIndex))
     return bar + StrictMath.rint(standardDeviation * draw)
   }
 
   private fun label(value: Int): ByteArray =
     ByteBuffer.allocate(Int.SIZE_BYTES).putInt(value).array()
+
+  private companion object {
+    /**
+     * Separates these draws from any other taken against the same fingerprint. The sampler
+     * length-prefixes each part, so the result noiser's single-label draws are already distinct
+     * from these three-label ones; this keeps them distinct if that ever stops holding.
+     */
+    private const val DOMAIN = 1
+  }
 }

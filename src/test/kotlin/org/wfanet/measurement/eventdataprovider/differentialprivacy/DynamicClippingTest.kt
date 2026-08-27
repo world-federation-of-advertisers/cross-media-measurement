@@ -246,16 +246,10 @@ class DynamicClippingTest {
 
   /** The source the EDP Aggregator supplies, seeded from a distinct frequency vector per [seed]. */
   private fun seededNoiseSource(seed: Int = 0) =
-    DeterministicDynamicClippingNoiseSource(
-      fingerprint = "frequency-vector-$seed".toByteArray(),
-      domain = CLIP_SEARCH_DOMAIN,
-    )
+    DeterministicDynamicClippingNoiseSource("frequency-vector-$seed".toByteArray())
 
   private companion object {
     private val IMPRESSION_MEASUREMENT_TYPE = DynamicClipping.MeasurementType.IMPRESSION
-    /** Any value; these draws share no fingerprint with a result noiser. */
-    private const val CLIP_SEARCH_DOMAIN = 1
-
     /** Small enough that the bars carry visible noise. */
     private const val SMALL_RHO = 1E-2
     private const val EPSILON = 0.00558073744893074

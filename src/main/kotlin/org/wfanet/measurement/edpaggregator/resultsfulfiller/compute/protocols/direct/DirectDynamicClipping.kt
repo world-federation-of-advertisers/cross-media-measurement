@@ -32,11 +32,6 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpPara
 private const val DIRECT_CONTRIBUTION_COUNT = 1
 
 /**
- * Separates the clip search's draws from the result draws taken against the same frequency vector.
- */
-private const val CLIP_SEARCH_DOMAIN = 1
-
-/**
  * One user moves any single bar of the cumulative histogram by at most one, which is the
  * sensitivity the charge conversion is calibrated to. The clip search scales it up for the number
  * of bars it releases.
@@ -85,12 +80,10 @@ fun computeDirectDynamicallyClippedImpressions(
       // EDP-supplied seed component once it exists.
       noiseSource =
         DeterministicDynamicClippingNoiseSource(
-          fingerprint =
-            DeterministicTruncatedLaplaceResultNoiser.fingerprint(
-              frequencyData,
-              DIRECT_CONTRIBUTION_COUNT,
-            ),
-          domain = CLIP_SEARCH_DOMAIN,
+          DeterministicTruncatedLaplaceResultNoiser.fingerprint(
+            frequencyData,
+            DIRECT_CONTRIBUTION_COUNT,
+          )
         )
     }
     DirectNoiseMechanism.NONE,
