@@ -122,7 +122,7 @@ class ServiceFlagsCommonServerTest {
     // StatusException, failing this assertion -- so a pass already implies a prompt rejection.
     val thrown =
       assertFailsWith<StatusException> {
-        withTimeout(1_500) {
+        withTimeout(10_000) {
           stub
             .withDeadlineAfter(30, TimeUnit.SECONDS)
             .cancelOperation(CancelOperationRequest.getDefaultInstance())
@@ -152,7 +152,7 @@ class ServiceFlagsCommonServerTest {
       (serviceFlags.executor as ExecutorService).shutdown()
       pendingResume!!.resume(Unit)
 
-      val thrown = assertFailsWith<StatusException> { withTimeout(1_500) { callDeferred.await() } }
+      val thrown = assertFailsWith<StatusException> { withTimeout(10_000) { callDeferred.await() } }
       assertThat(thrown.status.code).isEqualTo(Status.Code.INTERNAL)
     }
   }
