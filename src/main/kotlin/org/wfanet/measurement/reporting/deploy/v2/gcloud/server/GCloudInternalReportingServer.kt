@@ -79,7 +79,8 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
             eventMessageDescriptor,
             disableMetricsReuse,
             serviceDispatcher,
-          )
+          ),
+          serviceFlags.executor,
         )
       }
     } else {
@@ -92,7 +93,8 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
           eventMessageDescriptor = null,
           disableMetricsReuse,
           serviceDispatcher,
-        )
+        ),
+        serviceFlags.executor,
       )
     }
   }

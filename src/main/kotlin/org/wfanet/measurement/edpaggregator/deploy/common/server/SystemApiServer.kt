@@ -122,7 +122,8 @@ class SystemApiServer : Runnable {
         it.withInterceptor(rateLimitingInterceptor)
       }
 
-    val server: CommonServer = CommonServer.fromFlags(serverFlags, SERVER_NAME, services)
+    val server: CommonServer =
+      CommonServer.fromFlags(serverFlags, SERVER_NAME, services, serviceFlags.executor)
     server.start().blockUntilShutdown()
   }
 
