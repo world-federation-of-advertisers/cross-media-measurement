@@ -10,6 +10,7 @@ package(default_visibility = [
     "//src/test/kotlin/org/wfanet/measurement/computation:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/duchy/mill/trustee:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/differentialprivacy:__pkg__",
 ])
 
 kt_jvm_library(
