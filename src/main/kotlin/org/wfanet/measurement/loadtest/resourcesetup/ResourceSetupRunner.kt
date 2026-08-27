@@ -19,7 +19,9 @@ import java.security.cert.X509Certificate
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -85,7 +87,11 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
     EntityContent(
       displayName = "mc_001",
       signingKey = loadSigningKey(flags.mcCsCertDerFile, flags.mcCsKeyDerFile),
-      encryptionPublicKey = loadPublicKey(flags.mcEncryptionPublicKeyset).toEncryptionPublicKey(),
+      encryptionPublicKey =
+        encryptionPublicKey {
+          format = EncryptionPublicKey.Format.TINK_KEYSET
+          data = flags.mcEncryptionPublicKeyset.readByteString()
+        },
     )
   val duchyCerts =
     flags.duchyCsCertDerFiles.map {

@@ -39,7 +39,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.151.0",
+    version = "0.152.0",
     repo_name = "wfa_common_jvm",
 )
 
@@ -243,8 +243,6 @@ maven.artifact(
 )
 maven.install(
     artifacts = [
-        "com.google.crypto.tink:tink-awskms:1.11.0",
-        "com.google.crypto.tink:tink-gcpkms:1.9.0",
         "com.squareup.okhttp3:okhttp",
         "com.squareup.okhttp3:okhttp-tls",
         "com.google.privacy.differentialprivacy:differentialprivacy:4.0.0",
