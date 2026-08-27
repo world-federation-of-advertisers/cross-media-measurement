@@ -19,6 +19,8 @@ package org.wfanet.measurement.common.grpc
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertFailsWith
@@ -107,9 +109,9 @@ class ServiceFlagsTest {
     CommandLine(flags).parseArgs("--grpc-thread-pool-size=1")
 
     flags.executor.execute {}
-    (flags.executor as java.util.concurrent.ExecutorService).shutdown()
+    (flags.executor as ExecutorService).shutdown()
 
-    assertFailsWith<java.util.concurrent.RejectedExecutionException> { flags.executor.execute {} }
+    assertFailsWith<RejectedExecutionException> { flags.executor.execute {} }
   }
 
   @Test
