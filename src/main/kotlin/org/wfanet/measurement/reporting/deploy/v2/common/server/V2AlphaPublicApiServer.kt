@@ -436,7 +436,9 @@ private object V2AlphaPublicApiServer {
           .withInterceptor(principalAuthInterceptor),
       )
 
-    CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
+    CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services, serviceFlags.executor)
+      .start()
+      .blockUntilShutdown()
   }
 
   class V2AlphaPublicServerFlags {
