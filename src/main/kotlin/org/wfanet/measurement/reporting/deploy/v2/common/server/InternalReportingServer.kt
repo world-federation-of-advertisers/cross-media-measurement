@@ -165,7 +165,7 @@ abstract class AbstractInternalReportingServer : Runnable {
     validated = true
   }
 
-  protected suspend fun run(services: Services, executor: Executor? = null) {
+  protected suspend fun run(services: Services, executor: Executor) {
     require(validated)
     val server =
       CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services.toList(), executor)

@@ -48,7 +48,7 @@ fun runKingdomApiServer(
   serverName: String,
   duchyInfoFlags: DuchyInfoFlags,
   commonServerFlags: CommonServer.Flags,
-  executor: Executor? = null,
+  executor: Executor,
   serviceFactory: (Channel) -> Iterable<BindableService>,
 ) {
   DuchyInfo.initializeFromFlags(duchyInfoFlags)

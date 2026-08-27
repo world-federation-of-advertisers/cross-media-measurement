@@ -116,7 +116,7 @@ abstract class DuchyDataServer : Runnable {
     ComputationLogEntriesCoroutineStub(channel).withDuchyId(duchyFlags.duchyName)
   }
 
-  protected suspend fun run(services: DuchyDataServices, executor: Executor? = null) {
+  protected suspend fun run(services: DuchyDataServices, executor: Executor) {
     val server =
       CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services.toList(), executor)
 
