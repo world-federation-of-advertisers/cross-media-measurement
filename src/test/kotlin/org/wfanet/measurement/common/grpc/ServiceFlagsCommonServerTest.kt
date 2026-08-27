@@ -99,19 +99,18 @@ class ServiceFlagsCommonServerTest {
         }
       assertThat(startedLatch.await(5, TimeUnit.SECONDS)).isTrue()
 
-      val start = System.nanoTime()
+      // A hang would blow through withTimeout and throw TimeoutCancellationException instead of
+      // StatusException, failing this assertion -- so a pass already implies a prompt rejection.
       val thrown =
         assertFailsWith<StatusException> {
-          withTimeout(5_000) {
+          withTimeout(1_500) {
             stub
-              .withDeadlineAfter(5, TimeUnit.SECONDS)
+              .withDeadlineAfter(30, TimeUnit.SECONDS)
               .cancelOperation(CancelOperationRequest.getDefaultInstance())
           }
         }
-      val elapsedMillis = (System.nanoTime() - start) / 1_000_000
 
       assertThat(thrown.status.code).isEqualTo(Status.Code.RESOURCE_EXHAUSTED)
-      assertThat(elapsedMillis).isLessThan(2_000)
 
       releaseLatch.countDown()
       holderJob.join()

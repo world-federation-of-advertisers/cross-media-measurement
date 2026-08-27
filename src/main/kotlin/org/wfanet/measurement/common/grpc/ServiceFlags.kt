@@ -49,12 +49,9 @@ class ServiceFlags {
   /**
    * Executor for gRPC services.
    *
-   * Elastic up to `--grpc-thread-pool-size`: threads are created on demand (via the
-   * [SynchronousQueue] direct handoff) rather than held permanently, and idle threads are reclaimed
-   * after 60 seconds. Note that on its own, a rejected dispatch from a saturated pool just hangs
-   * the RPC until the caller's deadline expires -- nothing at this layer closes the underlying
-   * gRPC call. Servers should pass this executor into `CommonServer`, which installs an
-   * interceptor that surfaces saturation as `RESOURCE_EXHAUSTED` instead.
+   * A rejected dispatch on its own is not a clean error to the client (it hangs until deadline or
+   * surfaces as `CANCELLED`, depending on timing) -- pass into `CommonServer` for
+   * `RESOURCE_EXHAUSTED` instead.
    */
   val executor: Executor by lazy {
     ThreadPoolExecutor(
@@ -70,11 +67,8 @@ class ServiceFlags {
   }
 
   /**
-   * Logs a rejection before falling back to the default abort behavior.
-   *
-   * Logs the first rejection immediately, then only every [LOG_SAMPLE_RATE]th one after that --
-   * under sustained overload, this handler runs once per rejected task, so logging every occurrence
-   * at WARNING would itself become a log storm.
+   * Logs a sampled rejection (1 in [LOG_SAMPLE_RATE]), then falls back to the default abort
+   * behavior.
    */
   private object LoggingRejectedExecutionHandler : RejectedExecutionHandler {
     private val abortPolicy = ThreadPoolExecutor.AbortPolicy()
