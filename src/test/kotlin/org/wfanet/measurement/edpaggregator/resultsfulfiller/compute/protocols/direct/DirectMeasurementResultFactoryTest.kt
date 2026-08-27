@@ -27,6 +27,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
 @RunWith(JUnit4::class)
@@ -63,6 +64,7 @@ class DirectMeasurementResultFactoryTest {
           resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = null,
           totalUncappedImpressions = 0L,
+          impressionCapMode = ImpressionCapMode.LEGACY_CAP_MODE,
         )
 
       // Verify
@@ -106,6 +108,7 @@ class DirectMeasurementResultFactoryTest {
         resultMinimumThresholds = null,
         impressionMaxFrequencyPerUser = null,
         totalUncappedImpressions = 0L,
+        impressionCapMode = ImpressionCapMode.LEGACY_CAP_MODE,
       )
 
     // Verify
@@ -145,6 +148,7 @@ class DirectMeasurementResultFactoryTest {
           resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = null,
           totalUncappedImpressions = 110L,
+          impressionCapMode = ImpressionCapMode.LEGACY_CAP_MODE,
         )
 
       // Verify

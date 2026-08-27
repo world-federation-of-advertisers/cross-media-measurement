@@ -36,6 +36,7 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMe
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.MeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.TrusTeeMeasurementFulfiller
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusteeFulfillRequisitionRequestBuilder
 
@@ -113,6 +114,7 @@ data class TrusTeeConfig(
  * @param noiserSelector strategy for selecting differential privacy mechanisms
  * @param resultMinimumThresholds optional small-cell suppression thresholds; null disables
  *   suppression
+ * @param impressionCapMode how the per-user impression cap is chosen.
  * @param overrideImpressionMaxFrequencyPerUser optional frequency cap override; null or -1 means no
  *   capping and uses totalUncappedImpressions instead
  * @param supportedMultiPartyNoiseMechanisms set of [NoiseMechanism] values this EDP supports for
@@ -130,6 +132,7 @@ class DefaultFulfillerSelector(
   private val noiserSelector: NoiserSelector,
   private val resultMinimumThresholds: ResultMinimumThresholds?,
   private val overrideImpressionMaxFrequencyPerUser: Int?,
+  private val impressionCapMode: ImpressionCapMode = ImpressionCapMode.LEGACY_CAP_MODE,
   private val supportedMultiPartyNoiseMechanisms: Set<NoiseMechanism>,
   private val trusTeeConfig: TrusTeeConfig? = null,
   private val kekUriToKeyNameMap: Map<String, String> = emptyMap(),
@@ -333,6 +336,7 @@ class DefaultFulfillerSelector(
         resultMinimumThresholds = resultMinimumThresholds,
         impressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
         totalUncappedImpressions = totalUncappedImpressions,
+        impressionCapMode = impressionCapMode,
       )
     return DirectMeasurementFulfiller(
       requisition.name,

@@ -17,20 +17,25 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
 import java.util.logging.Logger
+import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams as CmmsDpParams
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.customDirectMethodology
 import org.wfanet.measurement.api.v2alpha.deterministicCount
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
+import org.wfanet.measurement.computation.DynamicallyClippedImpressions
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.ImpressionComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.MeasurementResultBuilder
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
+import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 
 /**
  * Builder for direct impression measurement results.
@@ -45,6 +50,7 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  * @param resultMinimumThresholds Optional small-cell suppression parameters.
  * @param impressionMaxFrequencyPerUser Override for max frequency per user. -1 means no cap.
  * @param totalUncappedImpressions Total impression count without frequency capping.
+ * @param impressionCapMode How the per-user cap is chosen.
  */
 class DirectImpressionResultBuilder(
   private val directProtocolConfig: ProtocolConfig.Direct,
@@ -57,9 +63,14 @@ class DirectImpressionResultBuilder(
   private val resultMinimumThresholds: ResultMinimumThresholds?,
   private val impressionMaxFrequencyPerUser: Int?,
   private val totalUncappedImpressions: Long,
+  private val impressionCapMode: ImpressionCapMode = ImpressionCapMode.LEGACY_CAP_MODE,
 ) : MeasurementResultBuilder {
 
   override suspend fun buildMeasurementResult(): Measurement.Result {
+    if (impressionCapMode == ImpressionCapMode.DYNAMIC) {
+      return buildDynamicallyClippedResult()
+    }
+
     if (!directProtocolConfig.hasDeterministicCount()) {
       throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.DECLINED,
@@ -78,6 +89,49 @@ class DirectImpressionResultBuilder(
         this.noiseMechanism = protocolConfigNoiseMechanism
         this.deterministicCount = deterministicCount {
           customMaximumFrequencyPerUser = effectiveMaxFrequency
+        }
+      }
+    }
+  }
+
+  /**
+   * Builds a result whose per-user clip is derived from this measurement's frequency distribution.
+   *
+   * Summing the noised cumulative histogram below the clip is the clipped impression count, so the
+   * search and the count come out of one charge with no further draw.
+   *
+   * The result carries the variance as a custom direct methodology rather than the clip, since the
+   * two share a oneof and the reporting server cannot derive this variance: the noise is spread
+   * across the bars rather than applied as a single draw.
+   *
+   * Draws are Gaussian under both mechanisms. The stamp records whether they are seeded, not which
+   * distribution they came from.
+   */
+  private fun buildDynamicallyClippedResult(): Measurement.Result {
+    if (directNoiseMechanism !in DYNAMIC_CAP_NOISE_MECHANISMS) {
+      throw RequisitionRefusalException.Default(
+        Requisition.Refusal.Justification.SPEC_INVALID,
+        "Dynamic impression capping requires one of $DYNAMIC_CAP_NOISE_MECHANISMS, " +
+          "got $directNoiseMechanism.",
+      )
+    }
+
+    val clipped: DynamicallyClippedImpressions =
+      computeDirectDynamicallyClippedImpressions(
+        directNoiseMechanism = directNoiseMechanism,
+        frequencyData = frequencyData,
+        dpParams = DpParams(privacyParams.epsilon, privacyParams.delta),
+        vidSamplingIntervalWidth = samplingRate.toDouble(),
+        resultMinimumThresholds = resultMinimumThresholds,
+      )
+    logger.info("Dynamic impression clip chosen: ${clipped.clip}")
+
+    return MeasurementKt.result {
+      impression = impression {
+        value = clipped.value
+        noiseMechanism = directNoiseMechanism.toProtocolConfigNoiseMechanism()
+        customDirectMethodology = customDirectMethodology {
+          variance = CustomDirectMethodologyKt.variance { scalar = clipped.variance }
         }
       }
     }
@@ -151,5 +205,15 @@ class DirectImpressionResultBuilder(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    /**
+     * The mechanisms dynamic capping supports. Both noise the cumulative histogram with Gaussian
+     * draws; they differ in where the charge comes from and whether the draws are reproducible.
+     */
+    private val DYNAMIC_CAP_NOISE_MECHANISMS =
+      setOf(
+        DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
+        DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+      )
   }
 }
