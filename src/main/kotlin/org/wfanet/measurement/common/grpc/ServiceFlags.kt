@@ -18,9 +18,13 @@ package org.wfanet.measurement.common.grpc
 
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
-import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.RejectedExecutionHandler
+import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
+import java.util.logging.Level
+import java.util.logging.Logger
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.NamedThreadFactory
 import picocli.CommandLine
@@ -37,29 +41,60 @@ class ServiceFlags {
     required = false,
   )
   private var threadPoolSize: Int = DEFAULT_THREAD_POOL_SIZE
+    set(value) {
+      require(value > 0) { "--grpc-thread-pool-size must be positive, got $value" }
+      field = value
+    }
 
   /**
    * Executor for gRPC services.
    *
-   * Sized so that `--grpc-thread-pool-size` actually bounds concurrency, with idle threads
-   * reclaimed after 60 seconds.
+   * Elastic up to `--grpc-thread-pool-size`: threads are created on demand (via the
+   * [SynchronousQueue] direct handoff) rather than held permanently, and idle threads are reclaimed
+   * after 60 seconds. Note that once the pool is saturated, a rejected dispatch surfaces to the
+   * client as `CANCELLED` rather than a clean status -- graceful admission control (e.g. a
+   * concurrency-limiting interceptor ahead of this executor) is a candidate follow-up.
    */
   val executor: Executor by lazy {
     ThreadPoolExecutor(
-        threadPoolSize,
+        0,
         threadPoolSize,
         60L,
         TimeUnit.SECONDS,
-        LinkedBlockingQueue(),
+        SynchronousQueue(),
         NamedThreadFactory(Executors.defaultThreadFactory(), THREAD_POOL_NAME),
+        LoggingRejectedExecutionHandler,
       )
-      .apply { allowCoreThreadTimeOut(true) }
       .also { Instrumentation.instrumentThreadPool(THREAD_POOL_NAME, it) }
+  }
+
+  /**
+   * Logs a rejection before falling back to the default abort behavior.
+   *
+   * Logs the first rejection immediately, then only every [LOG_SAMPLE_RATE]th one after that --
+   * under sustained overload, this handler runs once per rejected task, so logging every occurrence
+   * at WARNING would itself become a log storm.
+   */
+  private object LoggingRejectedExecutionHandler : RejectedExecutionHandler {
+    private val abortPolicy = ThreadPoolExecutor.AbortPolicy()
+    private val rejectionCount = AtomicLong(0)
+
+    override fun rejectedExecution(runnable: Runnable, executor: ThreadPoolExecutor) {
+      val count = rejectionCount.incrementAndGet()
+      if (count == 1L || count % LOG_SAMPLE_RATE == 0L) {
+        logger.log(Level.WARNING) {
+          "$THREAD_POOL_NAME executor has rejected $count task(s) total; latest: $executor"
+        }
+      }
+      abortPolicy.rejectedExecution(runnable, executor)
+    }
   }
 
   companion object {
     private const val THREAD_POOL_NAME = "grpc-services"
+    private const val LOG_SAMPLE_RATE = 100L
     private val DEFAULT_THREAD_POOL_SIZE =
       Runtime.getRuntime().availableProcessors().coerceAtLeast(2)
+    private val logger: Logger = Logger.getLogger(ServiceFlags::class.java.name)
   }
 }
