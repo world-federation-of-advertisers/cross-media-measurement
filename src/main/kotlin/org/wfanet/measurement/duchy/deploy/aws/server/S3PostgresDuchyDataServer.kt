@@ -57,7 +57,8 @@ class S3PostgresDuchyDataServer : DuchyDataServer() {
         idGenerator,
         databaseClient,
         serviceFlags.executor.asCoroutineDispatcher(),
-      )
+      ),
+      serviceFlags.executor,
     )
   }
 }

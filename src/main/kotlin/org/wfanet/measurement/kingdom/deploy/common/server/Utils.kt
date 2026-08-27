@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 
 import io.grpc.BindableService
 import io.grpc.Channel
+import java.util.concurrent.Executor
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
@@ -47,6 +48,7 @@ fun runKingdomApiServer(
   serverName: String,
   duchyInfoFlags: DuchyInfoFlags,
   commonServerFlags: CommonServer.Flags,
+  executor: Executor? = null,
   serviceFactory: (Channel) -> Iterable<BindableService>,
 ) {
   DuchyInfo.initializeFromFlags(duchyInfoFlags)
@@ -67,5 +69,7 @@ fun runKingdomApiServer(
       .withDefaultDeadline(kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)
   val service = serviceFactory(channel).map { it.withDuchyIdentities() }
 
-  CommonServer.fromFlags(commonServerFlags, serverName, service).start().blockUntilShutdown()
+  CommonServer.fromFlags(commonServerFlags, serverName, service, executor)
+    .start()
+    .blockUntilShutdown()
 }

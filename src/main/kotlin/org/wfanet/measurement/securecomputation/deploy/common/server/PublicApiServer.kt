@@ -85,7 +85,8 @@ class PublicApiServer : Runnable {
     val services: List<BindableService> =
       Services.build(internalApiChannel, serviceFlags.executor.asCoroutineDispatcher()).toList()
 
-    val server: CommonServer = CommonServer.fromFlags(serverFlags, SERVER_NAME, services)
+    val server: CommonServer =
+      CommonServer.fromFlags(serverFlags, SERVER_NAME, services, serviceFlags.executor)
     server.start().blockUntilShutdown()
   }
 

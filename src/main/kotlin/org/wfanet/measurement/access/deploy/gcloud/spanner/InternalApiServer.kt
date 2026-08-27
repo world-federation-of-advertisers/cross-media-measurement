@@ -79,7 +79,8 @@ class InternalApiServer : Runnable {
               serviceFlags.executor.asCoroutineDispatcher(),
             )
             .toList()
-        val server = CommonServer.fromFlags(serverFlags, SERVER_NAME, services)
+        val server =
+          CommonServer.fromFlags(serverFlags, SERVER_NAME, services, serviceFlags.executor)
 
         server.start().blockUntilShutdown()
       }

@@ -280,6 +280,7 @@ private object V2AlphaPublicApiServer {
       "$IN_PROCESS_SERVER_NAME-metrics",
       commonServerFlags,
       metricsService.withInterceptor(TrustedPrincipalAuthInterceptor),
+      serviceFlags.executor,
     )
 
     val inProcessMetricsChannel =
@@ -304,6 +305,7 @@ private object V2AlphaPublicApiServer {
       "$IN_PROCESS_SERVER_NAME-reports",
       commonServerFlags,
       reportsService.withInterceptor(TrustedPrincipalAuthInterceptor),
+      serviceFlags.executor,
     )
 
     val inProcessReportsChannel =
@@ -436,7 +438,9 @@ private object V2AlphaPublicApiServer {
           .withInterceptor(principalAuthInterceptor),
       )
 
-    CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
+    CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services, serviceFlags.executor)
+      .start()
+      .blockUntilShutdown()
   }
 
   class V2AlphaPublicServerFlags {

@@ -54,7 +54,8 @@ class ForwardedStoragePostgresDuchyDataServer : DuchyDataServer() {
         idGenerator,
         client,
         serviceFlags.executor.asCoroutineDispatcher(),
-      )
+      ),
+      serviceFlags.executor,
     )
   }
 }

@@ -22,6 +22,7 @@ import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.TypeRegistry
 import io.grpc.BindableService
 import java.io.File
+import java.util.concurrent.Executor
 import kotlin.properties.Delegates
 import kotlin.reflect.full.declaredMemberProperties
 import kotlinx.coroutines.CoroutineDispatcher
@@ -164,9 +165,10 @@ abstract class AbstractInternalReportingServer : Runnable {
     validated = true
   }
 
-  protected suspend fun run(services: Services) {
+  protected suspend fun run(services: Services, executor: Executor? = null) {
     require(validated)
-    val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services.toList())
+    val server =
+      CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services.toList(), executor)
 
     runInterruptible { server.start().blockUntilShutdown() }
   }
@@ -238,7 +240,8 @@ class InternalReportingServer : AbstractInternalReportingServer() {
             eventMessageDescriptor,
             disableMetricsReuse,
             serviceDispatcher,
-          )
+          ),
+          serviceFlags.executor,
         )
       }
     } else {
@@ -251,7 +254,8 @@ class InternalReportingServer : AbstractInternalReportingServer() {
           null,
           disableMetricsReuse,
           serviceDispatcher,
-        )
+        ),
+        serviceFlags.executor,
       )
     }
   }
