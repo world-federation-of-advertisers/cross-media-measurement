@@ -87,7 +87,8 @@ abstract class KingdomDataServer : Runnable {
 
     val services =
       dataServices.buildDataServices(serviceFlags.executor.asCoroutineDispatcher()).toList()
-    val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services)
+    val server =
+      CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services, serviceFlags.executor)
 
     runInterruptible { server.start().blockUntilShutdown() }
   }

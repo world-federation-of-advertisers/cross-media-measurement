@@ -78,7 +78,8 @@ class InternalApiServer : Runnable {
           InternalApiServices.build(databaseClient, serviceFlags.executor.asCoroutineDispatcher())
             .toList()
             .map { it.withInterceptor(rateLimitingInterceptor) }
-        val server = CommonServer.fromFlags(serverFlags, SERVER_NAME, services)
+        val server =
+          CommonServer.fromFlags(serverFlags, SERVER_NAME, services, serviceFlags.executor)
 
         server.start().blockUntilShutdown()
       }

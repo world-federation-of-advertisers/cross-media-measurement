@@ -59,7 +59,8 @@ class GcsPostgresDuchyDataServer : DuchyDataServer() {
         idGenerator,
         client,
         serviceFlags.executor.asCoroutineDispatcher(),
-      )
+      ),
+      serviceFlags.executor,
     )
   }
 }

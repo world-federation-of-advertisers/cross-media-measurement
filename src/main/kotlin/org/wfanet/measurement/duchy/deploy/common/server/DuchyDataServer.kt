@@ -21,6 +21,7 @@ import io.grpc.serviceconfig.copy
 import io.grpc.serviceconfig.methodConfig
 import java.io.File
 import java.time.Duration
+import java.util.concurrent.Executor
 import kotlinx.coroutines.runInterruptible
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
@@ -115,8 +116,9 @@ abstract class DuchyDataServer : Runnable {
     ComputationLogEntriesCoroutineStub(channel).withDuchyId(duchyFlags.duchyName)
   }
 
-  protected suspend fun run(services: DuchyDataServices) {
-    val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services.toList())
+  protected suspend fun run(services: DuchyDataServices, executor: Executor) {
+    val server =
+      CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services.toList(), executor)
 
     runInterruptible { server.start().blockUntilShutdown() }
   }

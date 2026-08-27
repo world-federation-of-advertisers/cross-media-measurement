@@ -45,8 +45,13 @@ private fun run(
   @CommandLine.Mixin serviceFlags: ServiceFlags,
 ) {
   val serviceDispatcher: CoroutineDispatcher = serviceFlags.executor.asCoroutineDispatcher()
-  runKingdomApiServer(kingdomApiServerFlags, SERVER_NAME, duchyInfoFlags, commonServerFlags) {
-    channel ->
+  runKingdomApiServer(
+    kingdomApiServerFlags,
+    SERVER_NAME,
+    duchyInfoFlags,
+    commonServerFlags,
+    serviceFlags.executor,
+  ) { channel ->
     listOf(
       ComputationsService(InternalMeasurementsCoroutineStub(channel), serviceDispatcher),
       ComputationParticipantsService(

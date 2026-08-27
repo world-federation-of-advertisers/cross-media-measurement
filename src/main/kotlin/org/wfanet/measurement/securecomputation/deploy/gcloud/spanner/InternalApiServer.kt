@@ -306,6 +306,7 @@ class InternalApiServer : Runnable {
         serverName = serverName,
         commonServerFlags = serverFlags,
         service = spannerWorkItemsService.bindService(),
+        executor = serviceFlags.executor,
       )
     val channel =
       InProcessChannelBuilder.forName(serverName)
@@ -334,7 +335,7 @@ class InternalApiServer : Runnable {
   }
 
   private fun createMainServer(services: List<BindableService>): CommonServer {
-    return CommonServer.fromFlags(serverFlags, SERVER_NAME, services)
+    return CommonServer.fromFlags(serverFlags, SERVER_NAME, services, serviceFlags.executor)
   }
 
   companion object {

@@ -413,7 +413,9 @@ private fun run(
           akidInterceptor,
         ),
     )
-  CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
+  CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services, serviceFlags.executor)
+    .start()
+    .blockUntilShutdown()
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)
