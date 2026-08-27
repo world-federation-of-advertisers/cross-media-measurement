@@ -19,6 +19,7 @@ package org.wfanet.measurement.common.grpc
 import com.google.common.truth.Truth.assertThat
 import com.google.longrunning.CancelOperationRequest
 import com.google.longrunning.OperationsGrpcKt
+import com.google.longrunning.cancelOperationRequest
 import com.google.protobuf.Empty
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
@@ -28,9 +29,15 @@ import io.netty.handler.ssl.ClientAuth
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Test
@@ -46,13 +53,16 @@ import picocli.CommandLine
  * this side, not just tested in isolation on the common-jvm side.
  *
  * ServiceFlags.executor is backed by an unbounded queue, so a saturated pool just queues work
- * rather than rejecting it -- the only rejection it can produce is if it's already been shut down,
- * which is what this test exercises.
+ * rather than rejecting it -- the only rejection it can produce is if it's already been shut down.
+ * As of this writing, nothing in this codebase actually shuts ServiceFlags.executor down during
+ * normal server operation, so this protection is not yet load-bearing on any real path; these tests
+ * exist so the wiring is verified and ready if/when that changes.
  */
 @RunWith(JUnit4::class)
 class ServiceFlagsCommonServerTest {
   private val startedLatch = CountDownLatch(1)
   private val releaseLatch = CountDownLatch(1)
+  private var pendingResume: CancellableContinuation<Unit>? = null
 
   private val serviceFlags =
     ServiceFlags().apply { CommandLine(this).parseArgs("--grpc-thread-pool-size=1") }
@@ -61,8 +71,21 @@ class ServiceFlagsCommonServerTest {
     object :
       OperationsGrpcKt.OperationsCoroutineImplBase(serviceFlags.executor.asCoroutineDispatcher()) {
       override suspend fun cancelOperation(request: CancelOperationRequest): Empty {
-        startedLatch.countDown()
-        releaseLatch.await()
+        when (request.name) {
+          "in-flight" ->
+            // The continuation is captured, and the latch only counted down, once this
+            // suspension is genuinely committed -- unlike a CompletableDeferred the test
+            // completes, there's no window where resuming races ahead of the suspend actually
+            // taking effect and turns into a same-thread no-op instead of a real redispatch.
+            suspendCancellableCoroutine<Unit> { cont ->
+              pendingResume = cont
+              startedLatch.countDown()
+            }
+          else -> {
+            startedLatch.countDown()
+            releaseLatch.await()
+          }
+        }
         return Empty.getDefaultInstance()
       }
     }
@@ -90,25 +113,49 @@ class ServiceFlagsCommonServerTest {
   }
 
   @Test
-  fun `shutdown serviceFlags executor surfaces as UNAVAILABLE through CommonServer`() =
-    runBlocking {
-      releaseLatch.countDown()
-      (serviceFlags.executor as ExecutorService).shutdown()
+  fun `executor shut down before a call starts surfaces as UNAVAILABLE`() = runBlocking {
+    releaseLatch.countDown()
+    (serviceFlags.executor as ExecutorService).shutdown()
 
-      val stub = OperationsGrpcKt.OperationsCoroutineStub(channel)
-      // A hang would blow through withTimeout and throw TimeoutCancellationException instead of
-      // StatusException, failing this assertion -- so a pass already implies a prompt rejection.
-      val thrown =
-        assertFailsWith<StatusException> {
-          withTimeout(1_500) {
-            stub
-              .withDeadlineAfter(30, TimeUnit.SECONDS)
-              .cancelOperation(CancelOperationRequest.getDefaultInstance())
-          }
+    val stub = OperationsGrpcKt.OperationsCoroutineStub(channel)
+    // A hang would blow through withTimeout and throw TimeoutCancellationException instead of
+    // StatusException, failing this assertion -- so a pass already implies a prompt rejection.
+    val thrown =
+      assertFailsWith<StatusException> {
+        withTimeout(1_500) {
+          stub
+            .withDeadlineAfter(30, TimeUnit.SECONDS)
+            .cancelOperation(CancelOperationRequest.getDefaultInstance())
         }
+      }
 
-      assertThat(thrown.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(thrown.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+  }
+
+  @Test
+  fun `executor shut down while a call is already in flight surfaces as INTERNAL`() = runBlocking {
+    releaseLatch.countDown()
+    val stub = OperationsGrpcKt.OperationsCoroutineStub(channel)
+
+    supervisorScope {
+      val callDeferred =
+        async(Dispatchers.IO) {
+          stub
+            .withDeadlineAfter(30, TimeUnit.SECONDS)
+            .cancelOperation(cancelOperationRequest { name = "in-flight" })
+        }
+      assertThat(startedLatch.await(5, TimeUnit.SECONDS)).isTrue()
+
+      // The call has already started and is genuinely suspended -- shutting down the executor now
+      // and only then resuming means the rejection lands on a redispatch after the handler
+      // already ran some code, not on the call's initial dispatch.
+      (serviceFlags.executor as ExecutorService).shutdown()
+      pendingResume!!.resume(Unit)
+
+      val thrown = assertFailsWith<StatusException> { withTimeout(1_500) { callDeferred.await() } }
+      assertThat(thrown.status.code).isEqualTo(Status.Code.INTERNAL)
     }
+  }
 
   @Test
   fun `unsaturated serviceFlags executor still serves calls normally through CommonServer`() =
