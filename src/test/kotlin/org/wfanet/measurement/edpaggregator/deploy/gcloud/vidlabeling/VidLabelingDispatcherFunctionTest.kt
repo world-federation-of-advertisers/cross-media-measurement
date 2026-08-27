@@ -325,6 +325,7 @@ class VidLabelingDispatcherFunctionTest {
   private fun fileSystemVidLabelingConfig() = vidLabelingConfig {
     dataProvider = DATA_PROVIDER
     edpImpressionPath = "edp7"
+    maxFileBatchSizeBytes = 1_000_000_000
     rawImpressionsStorageParams = storageParams {
       gcs = gcsStorage {
         projectId = "test-project"
@@ -338,11 +339,6 @@ class VidLabelingDispatcherFunctionTest {
       }
     }
     edpImpressionPath = "edp/edp7"
-    vidRepoConnection = transportLayerSecurityParams {
-      certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-      privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-      certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
-    }
     rawImpressionMetadataStorageConnection = transportLayerSecurityParams {
       certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
       privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()

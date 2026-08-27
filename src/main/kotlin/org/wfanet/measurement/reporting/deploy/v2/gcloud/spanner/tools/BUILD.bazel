@@ -1,4 +1,5 @@
 load("@rules_java//java:defs.bzl", "java_binary")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 load("//src/main/docker:macros.bzl", "java_image")
 
 java_binary(
@@ -18,4 +19,42 @@ java_image(
     binary = ":UpdateSchema",
     main_class = "org.wfanet.measurement.gcloud.spanner.tools.UpdateSchema",
     visibility = ["//src:docker_image_deployment"],
+)
+
+kt_jvm_library(
+    name = "backfill_basic_report_reporting_sets",
+    srcs = [
+        "BackfillBasicReportReportingSets.kt",
+        "BasicReportReportingSetBackfiller.kt",
+    ],
+    visibility = ["//src/test/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:__pkg__"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:spanner_flags",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/db:basic_reports",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/readers",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/writers",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_report_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_reports_service_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_set_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/postgres:factories",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/postgres:flags",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)
+
+java_binary(
+    name = "BackfillBasicReportReportingSets",
+    main_class = "org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools.BackfillBasicReportReportingSetsKt",
+    tags = ["manual"],
+    runtime_deps = [
+        ":backfill_basic_report_reporting_sets",
+        "@wfa_common_jvm//imports/java/com/google/cloud/sql/postgres:r2dbc",
+    ],
 )

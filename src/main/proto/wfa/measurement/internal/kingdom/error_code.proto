@@ -134,4 +134,10 @@ enum ErrorCode {
   /** ClientAccount with the same DataProvider and reference ID already exists.
    */
   CLIENT_ACCOUNT_ALREADY_EXISTS = 54;
+  /** UnlinkedClientAccount resource queried could not be found. */
+  UNLINKED_CLIENT_ACCOUNT_NOT_FOUND = 55;
+  /** UnlinkedClientAccount with the same DataProvider and reference ID already
+   * exists.
+   */
+  UNLINKED_CLIENT_ACCOUNT_ALREADY_EXISTS = 56;
 }

@@ -7,7 +7,7 @@ BigQuery or Looker Studio.
 ## Overview
 
 Each EDP gets a dedicated Google Cloud service account that provides access to
-3 BigQuery tables. Row access policies ensure each EDP sees only their own data.
+4 BigQuery tables. Row access policies ensure each EDP sees only their own data.
 
 Deployment-specific values appear as placeholders throughout this guide:
 
@@ -34,6 +34,7 @@ server's `OpenIdProvidersConfig`.
 | `requisition_overview` | Requisition status, fulfillment times, report state, refusal reasons |
 | `mc_details_edp` | Event group details: entity keys, campaigns, brands, media types, data availability |
 | `report_detail_edp` | Per-report event group associations: which of their event groups are in each report |
+| `unlinked_accounts` | Advertiser client accounts observed in your event group data with no MeasurementConsumer linkage; often empty |
 
 ### What the EDP Cannot See
 
@@ -118,9 +119,9 @@ This creates:
 
 *   Service account `edp-<name>-dashboard@<DASHBOARD_PROJECT>.iam.gserviceaccount.com`
 *   `roles/bigquery.dataViewer` on `requisition_overview`, `mc_details_edp`,
-    `report_detail_edp`
+    `report_detail_edp`, `unlinked_accounts`
 *   `roles/bigquery.jobUser` on the project
-*   Row access policies on all 3 tables filtering to the EDP's resource ID
+*   Row access policies on all 4 tables filtering to the EDP's resource ID
 
 ### Step 4: Seed a BasicReport for the new EDP
 
@@ -198,7 +199,7 @@ Provide the EDP with their service account details:
 *   **Project ID**: The GCP project hosting the dashboard BigQuery dataset
 *   **Dataset**: `dashboard`
 *   **Accessible tables**: `requisition_overview`, `mc_details_edp`,
-    `report_detail_edp`
+    `report_detail_edp`, `unlinked_accounts`
 
 The EDP authenticates using their service account. See Option A below for the
 options in preference order — keyless (Workload Identity Federation or service
@@ -398,6 +399,20 @@ reuse a report or SA across EDPs.
 | `EntityTypes` | ARRAY\<STRING\> | Entity types for your event groups in this report |
 | `EntityIds` | ARRAY\<STRING\> | Entity IDs for your event groups in this report |
 
+#### `unlinked_accounts`
+
+Advertiser client accounts observed in your event group data that have no
+corresponding MeasurementConsumer linkage. Often empty: a row appears only
+while an account remains unlinked and is removed once it is linked.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `CmmsDataProvider` | STRING | Your EDP's API resource ID |
+| `ClientAccountReferenceId` | STRING | The unlinked account's reference ID |
+| `BrandName` | STRING | Brand from the observed event group's metadata (best-effort; may be empty) |
+| `ObservedEventGroup` | STRING | An event group where the account was observed (reference ID or entity key) |
+| `CreateTime` | TIMESTAMP | When the account was first recorded as unlinked |
+
 ## Operator Steps: Offboarding an EDP
 
 1.  Remove the EDP from the `edps` array in `DASHBOARD_CONFIG_CONTENT` (for a
@@ -418,7 +433,7 @@ access policy grants visibility, no service account to authenticate).
 ## Security Notes for EDPs
 
 *   Your service account has `bigquery.jobUser` at the project level, which
-    allows you to submit BigQuery queries. You can only read the 3 tables
+    allows you to submit BigQuery queries. You can only read the 4 tables
     granted to you via table-level IAM.
 *   Row access policies filter data at the BigQuery engine level. You see only
     rows where the EDP identifier column matches your resource ID.

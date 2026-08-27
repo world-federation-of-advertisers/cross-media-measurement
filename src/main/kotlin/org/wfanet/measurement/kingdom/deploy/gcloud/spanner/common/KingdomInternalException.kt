@@ -917,3 +917,35 @@ class ClientAccountAlreadyExistsException(
         "client_account_reference_id" to clientAccountReferenceId,
       )
 }
+
+class UnlinkedClientAccountNotFoundException(
+  val externalDataProviderId: ExternalId,
+  val clientAccountReferenceId: String,
+  provideDescription: () -> String = { "UnlinkedClientAccount not found" },
+) : KingdomInternalException(ErrorCode.UNLINKED_CLIENT_ACCOUNT_NOT_FOUND, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_data_provider_id" to externalDataProviderId.value.toString(),
+        "client_account_reference_id" to clientAccountReferenceId,
+      )
+}
+
+class UnlinkedClientAccountAlreadyExistsException(
+  val externalDataProviderId: ExternalId,
+  val clientAccountReferenceId: String,
+  cause: Throwable? = null,
+  provideDescription: () -> String = { "UnlinkedClientAccount already exists" },
+) :
+  KingdomInternalException(
+    ErrorCode.UNLINKED_CLIENT_ACCOUNT_ALREADY_EXISTS,
+    provideDescription(),
+    cause,
+  ) {
+  override val context
+    get() =
+      mapOf(
+        "external_data_provider_id" to externalDataProviderId.value.toString(),
+        "client_account_reference_id" to clientAccountReferenceId,
+      )
+}

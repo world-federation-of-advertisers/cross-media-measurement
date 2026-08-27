@@ -132,6 +132,28 @@ You can customize this generated object configuration with your own settings
 such as the number of replicas per deployment, the memory and CPU requirements
 of each container, and the JVM options of each container.
 
+For the internal reporting server container specifically, we recommend a JVM
+max heap size of at least 512M within a container memory limit of at least
+1Gi, and a CPU request of at least 500m with no CPU limit (allow the
+container to burst using spare node capacity rather than capping it). Load
+testing with report-creation requests producing hundreds of metrics found
+that the previous smaller defaults (a 64M heap inherited from this
+environment's default, a 384Mi memory limit, and a 100m CPU request with
+no explicit heap override) caused both OOMKilled crashes and CPU-throttling-driven
+latency of several seconds per request. These recommended values are
+a starting point based on that testing, not a guarantee for every workload;
+size your own node pools with enough spare CPU capacity to support bursting
+above the request under load.
+
+The reporting-v2alpha-public-api-server container, which builds every Metric
+in a report in memory before dispatching it, needs similar headroom: we
+recommend a JVM max heap size of at least 384M within a container memory
+limit of at least 768Mi, and a CPU request of at least 500m with no CPU
+limit. The same load testing found the smaller defaults for this container
+(a 64M heap, 320Mi memory, and a 25m CPU request) left a multi-second
+CPU-and-GC-bound stall in report-creation requests that raising these
+values measurably shrank.
+
 ## Customize the K8s secrets
 
 We use K8s secrets to hold sensitive information, such as private keys.

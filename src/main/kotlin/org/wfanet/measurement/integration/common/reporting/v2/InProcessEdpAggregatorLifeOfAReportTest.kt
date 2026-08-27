@@ -1393,10 +1393,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
     // All computation methods (HMSS, TrusTee, etc.) are expected to produce exactly the same
     // results when using the same input data and no noise.
-    internal const val EXPECTED_CROSS_PUBLISHER_REACH = 5330L
-    internal const val EXPECTED_CROSS_PUBLISHER_IMPRESSIONS = 8860L
-    internal val EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH = listOf(5330L, 2572L, 647L, 311L, 0L)
-    internal const val EXPECTED_EDP_SPEC1_REACH = 3937L
+    const val EXPECTED_CROSS_PUBLISHER_REACH = 5330L
+    const val EXPECTED_CROSS_PUBLISHER_IMPRESSIONS = 8860L
+    val EXPECTED_CROSS_PUBLISHER_K_PLUS_REACH = listOf(5330L, 2572L, 647L, 311L, 0L)
+    const val EXPECTED_EDP_SPEC1_REACH = 3937L
     internal const val EXPECTED_EDP_SPEC2_REACH = 3638L
 
     internal const val EXPECTED_SINGLE_EDP_SPEC2_REACH = 3638L

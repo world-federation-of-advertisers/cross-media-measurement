@@ -296,6 +296,7 @@ class InProcessReportingServer(
                 keyReaderContext = Dispatchers.IO,
                 cacheLoaderContext = Dispatchers.Default,
                 populationDataProvider = populationDataProviderName,
+                kingdomMeasurementBatchConcurrency = 3,
               )
               .withTrustedPrincipalAuthentication(),
             ReportingSetsService(internalReportingSetsClient, authorization)

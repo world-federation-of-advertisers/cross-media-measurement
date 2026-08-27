@@ -41,6 +41,7 @@ class SpannerClientAccountsServiceTest : ClientAccountsServiceTest<SpannerClient
       spannerServices.measurementConsumersService,
       spannerServices.dataProvidersService,
       spannerServices.accountsService,
+      spannerServices.unlinkedClientAccountsService,
     )
   }
 

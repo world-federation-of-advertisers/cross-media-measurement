@@ -202,7 +202,8 @@ class ReportsService(
       batchGetMetrics(request.parent, items)
     }
     val externalIdToMetricMap: Map<String, Metric> = buildMap {
-      submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
+      submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc, concurrency = 3) { response
+          ->
           response.metricsList
         }
         .collect { metrics: List<Metric> ->
@@ -288,7 +289,8 @@ class ReportsService(
       batchGetMetrics(parent, items)
     }
     val externalIdToMetricMap: Map<String, Metric> = buildMap {
-      submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc) { response ->
+      submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc, concurrency = 3) { response
+          ->
           response.metricsList
         }
         .collect { metrics: List<Metric> ->
@@ -434,7 +436,15 @@ class ReportsService(
       batchCreateMetrics(request.parent, items)
     }
     val externalIdToMetricMap: Map<String, Metric> = buildMap {
-      submitBatchRequests(createMetricRequests, BATCH_CREATE_METRICS_LIMIT, callRpc) { response ->
+      // Each chunk already fans out to Kingdom with its own concurrency via
+      // kingdomMeasurementBatchConcurrency, so raising concurrency at this outer layer too
+      // would multiply Kingdom's effective concurrent load rather than add to it.
+      submitBatchRequests(
+          createMetricRequests,
+          BATCH_CREATE_METRICS_LIMIT,
+          callRpc,
+          concurrency = 3,
+        ) { response ->
           response.metricsList
         }
         .collect { metrics: List<Metric> ->

@@ -48,7 +48,6 @@ import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.consent.client.common.NonceMismatchException
 import org.wfanet.measurement.consent.client.common.PublicKeyMismatchException
-import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.encryptResult
 import org.wfanet.measurement.consent.client.dataprovider.signResult
@@ -114,10 +113,6 @@ abstract class RequisitionFulfiller(
 
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
 
-    val publicKey = requisition.dataProviderPublicKey.unpack(EncryptionPublicKey::class.java)!!
-    check(publicKey == dataProviderData.privateEncryptionKey.publicKey.toEncryptionPublicKey()) {
-      "Unable to decrypt for this public key"
-    }
     val signedRequisitionSpec: SignedMessage =
       try {
         decryptRequisitionSpec(

@@ -21,6 +21,7 @@ java_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:accounts_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:api_keys_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:certificates_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:client_accounts_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:data_providers_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:event_group_activities_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:event_group_metadata_descriptors_service",
@@ -37,6 +38,7 @@ java_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:populations_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:public_keys_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:requisitions_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:unlinked_client_accounts_service",
     ],
 )
 
