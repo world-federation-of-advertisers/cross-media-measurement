@@ -22,13 +22,17 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 
 @RunWith(JUnit4::class)
 class DirectMeasurementResultFactoryTest {
@@ -158,8 +162,57 @@ class DirectMeasurementResultFactoryTest {
       assertThat(result.impression.value).isEqualTo(110)
     }
 
+  @Test
+  fun `DYNAMIC result ignores MeasurementSpec maximum frequency per user`() = runBlocking {
+    val rawFrequencyData = ByteArray(DYNAMIC_POPULATION_SIZE) { DYNAMIC_RAW_FREQUENCY.toByte() }
+
+    suspend fun buildResult(maximumFrequencyPerUser: Int) =
+      measurementSpec {
+          impression =
+            MeasurementSpecKt.impression {
+              privacyParams = IMPRESSION_PRIVACY_PARAMS
+              this.maximumFrequencyPerUser = maximumFrequencyPerUser
+            }
+          vidSamplingInterval =
+            MeasurementSpecKt.vidSamplingInterval {
+              start = 0.0f
+              width = SAMPLING_RATE
+            }
+        }
+        .let { measurementSpec ->
+          val frequencyData =
+            FrequencyVectorBuilder(
+                populationSpec = DYNAMIC_POPULATION_SPEC,
+                measurementSpec = measurementSpec,
+                frequencyDataBytes = rawFrequencyData,
+                overrideImpressionMaxFrequencyPerUser = null,
+                strict = false,
+              )
+              .frequencyDataArray
+
+          DirectMeasurementResultFactory.buildMeasurementResult(
+            directProtocolConfig = DYNAMIC_DIRECT_PROTOCOL,
+            directNoiseMechanism = DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+            measurementSpec = measurementSpec,
+            frequencyData = frequencyData,
+            maxPopulation = null,
+            resultMinimumThresholds = null,
+            impressionMaxFrequencyPerUser = null,
+            totalUncappedImpressions = DYNAMIC_POPULATION_SIZE.toLong() * DYNAMIC_RAW_FREQUENCY,
+            impressionCapMode = ImpressionCapMode.DYNAMIC,
+          )
+        }
+
+    val lowKingdomCapResult = buildResult(maximumFrequencyPerUser = 2)
+    val highKingdomCapResult = buildResult(maximumFrequencyPerUser = 20)
+
+    assertThat(lowKingdomCapResult).isEqualTo(highKingdomCapResult)
+  }
+
   companion object {
     private const val MAX_FREQUENCY = 10
+    private const val DYNAMIC_POPULATION_SIZE = 100
+    private const val DYNAMIC_RAW_FREQUENCY = 20
     private val REACH_PRIVACY_PARAMS = differentialPrivacyParams {
       epsilon = 1.0
       delta = 1E-12
@@ -174,6 +227,15 @@ class DirectMeasurementResultFactoryTest {
     }
     private const val SAMPLING_RATE = 1.0f
 
+    private val DYNAMIC_POPULATION_SPEC = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 1L
+          endVidInclusive = DYNAMIC_POPULATION_SIZE.toLong()
+        }
+      }
+    }
+
     private val NOISE_MECHANISM = NoiseMechanism.CONTINUOUS_GAUSSIAN
 
     private val DIRECT_PROTOCOL = direct {
@@ -183,6 +245,11 @@ class DirectMeasurementResultFactoryTest {
       deterministicDistribution =
         ProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
       deterministicCount = ProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
+    }
+
+    private val DYNAMIC_DIRECT_PROTOCOL = direct {
+      noiseMechanisms += NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
+      customDirectMethodology = ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
     }
   }
 }
