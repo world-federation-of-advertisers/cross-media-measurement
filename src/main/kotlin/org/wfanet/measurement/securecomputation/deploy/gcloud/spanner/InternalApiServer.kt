@@ -306,7 +306,7 @@ class InternalApiServer : Runnable {
         serverName = serverName,
         commonServerFlags = serverFlags,
         service = spannerWorkItemsService.bindService(),
-        executor = serviceFlags.executor,
+        serviceCoroutineExecutor = serviceFlags.executor,
       )
     val channel =
       InProcessChannelBuilder.forName(serverName)

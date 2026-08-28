@@ -81,7 +81,7 @@ abstract class ComputationControlServer : Runnable {
             serviceDispatcher,
           )
           .withDuchyIdentities(),
-        executor = flags.service.executor,
+        serviceCoroutineExecutor = flags.service.executor,
       )
       .start()
       .blockUntilShutdown()

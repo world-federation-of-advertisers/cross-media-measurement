@@ -102,7 +102,12 @@ abstract class RequisitionFulfillmentServer : Runnable {
         )
         .withInterceptors(apiChangeMetricsInterceptor, akidPrincipalInterceptor, akidInterceptor)
 
-    CommonServer.fromFlags(flags.server, javaClass.name, service, executor = flags.service.executor)
+    CommonServer.fromFlags(
+        flags.server,
+        javaClass.name,
+        service,
+        serviceCoroutineExecutor = flags.service.executor,
+      )
       .start()
       .blockUntilShutdown()
   }

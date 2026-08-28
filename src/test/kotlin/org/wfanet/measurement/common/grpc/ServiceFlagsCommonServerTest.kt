@@ -97,7 +97,7 @@ class ServiceFlagsCommonServerTest {
         clientAuth = ClientAuth.NONE,
         nameForLogging = "ServiceFlagsCommonServerTest",
         services = listOf(service.bindService()),
-        executor = serviceFlags.executor,
+        serviceCoroutineExecutor = serviceFlags.executor,
       )
       .start()
 

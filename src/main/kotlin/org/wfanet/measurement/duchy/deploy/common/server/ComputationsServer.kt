@@ -122,7 +122,7 @@ abstract class ComputationsServer : Runnable {
         computationService,
         ComputationStatsService(computationsDatabase, serviceDispatcher),
         continuationTokensService,
-        executor = flags.service.executor,
+        serviceCoroutineExecutor = flags.service.executor,
       )
       .start()
       .blockUntilShutdown()

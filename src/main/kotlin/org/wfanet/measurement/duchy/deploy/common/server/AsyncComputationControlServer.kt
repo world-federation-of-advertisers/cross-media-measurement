@@ -101,7 +101,7 @@ private fun run(@CommandLine.Mixin flags: AsyncComputationControlServiceFlags) {
         flags.maxAdvanceAttempts,
         coroutineContext = serviceDispatcher,
       ),
-      executor = flags.service.executor,
+      serviceCoroutineExecutor = flags.service.executor,
     )
     .start()
     .blockUntilShutdown()
