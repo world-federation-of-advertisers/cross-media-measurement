@@ -95,24 +95,30 @@ abstract class InProcessEdpAggregatorDirectDeterministicNoiseTest(
     val basicReportName = runBasicReport("deterministic-mechanism")
 
     val results = decryptedResults(getMeasurementsForBasicReport(basicReportName))
-    assertWithMessage("decrypted results").that(results).isNotEmpty()
 
-    for (result in results) {
-      if (result.hasReach()) {
-        assertWithMessage("reach noise mechanism")
-          .that(result.reach.noiseMechanism)
-          .isEqualTo(ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
-      }
-      if (result.hasFrequency()) {
-        assertWithMessage("frequency noise mechanism")
-          .that(result.frequency.noiseMechanism)
-          .isEqualTo(ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
-      }
-      if (result.hasImpression()) {
-        assertWithMessage("impression noise mechanism")
-          .that(result.impression.noiseMechanism)
-          .isEqualTo(ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
-      }
+    // Each result type is asserted non-empty first, so a type dropping out of the report fails here
+    // rather than passing vacuously through its mechanism check.
+    val reachMechanisms = results.filter { it.hasReach() }.map { it.reach.noiseMechanism }
+    val frequencyMechanisms =
+      results.filter { it.hasFrequency() }.map { it.frequency.noiseMechanism }
+    val impressionMechanisms =
+      results.filter { it.hasImpression() }.map { it.impression.noiseMechanism }
+
+    assertWithMessage("reach results").that(reachMechanisms).isNotEmpty()
+    assertWithMessage("frequency results").that(frequencyMechanisms).isNotEmpty()
+    assertWithMessage("impression results").that(impressionMechanisms).isNotEmpty()
+
+    for ((label, mechanisms) in
+      listOf(
+        "reach" to reachMechanisms,
+        "frequency" to frequencyMechanisms,
+        "impression" to impressionMechanisms,
+      )) {
+      assertWithMessage("$label noise mechanisms")
+        .that(mechanisms)
+        .containsExactlyElementsIn(
+          List(mechanisms.size) { ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE }
+        )
     }
   }
 
