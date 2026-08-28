@@ -13,3 +13,18 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
+
+kt_jvm_test(
+    name = "RateLimiterThrottlerTest",
+    srcs = ["RateLimiterThrottlerTest.kt"],
+    test_class = "org.wfanet.measurement.common.ratelimit.RateLimiterThrottlerTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/ratelimit:rate_limiter",
+        "//src/main/kotlin/org/wfanet/measurement/common/ratelimit:rate_limiter_throttler",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/test",
+    ],
+)
