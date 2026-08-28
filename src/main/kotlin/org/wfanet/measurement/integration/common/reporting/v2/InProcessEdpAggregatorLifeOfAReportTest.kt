@@ -88,6 +88,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParams
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.keyPair
@@ -1044,6 +1045,22 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         .toName()
     return listMeasurements().filter {
       it.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.report == reportName
+    }
+  }
+
+  /**
+   * Returns the [Measurement.Result]s [measurements] carry, decrypted with the
+   * MeasurementConsumer's key.
+   *
+   * A Direct result records the mechanism the EDP Aggregator actually applied. The protocol config
+   * carries only the mechanisms the Kingdom offered, so it cannot tell one selection from another.
+   */
+  protected fun decryptedResults(measurements: List<Measurement>): List<Measurement.Result> {
+    val encryptionKey = inProcessCmmsComponents.getMeasurementConsumerData().encryptionKey
+    return measurements.flatMap { measurement ->
+      measurement.resultsList.map { resultOutput ->
+        decryptResult(resultOutput.encryptedResult, encryptionKey).unpack()
+      }
     }
   }
 

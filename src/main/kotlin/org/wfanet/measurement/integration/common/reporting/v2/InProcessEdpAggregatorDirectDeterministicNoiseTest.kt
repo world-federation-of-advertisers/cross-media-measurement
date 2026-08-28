@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
@@ -81,6 +82,38 @@ abstract class InProcessEdpAggregatorDirectDeterministicNoiseTest(
         K_PLUS_SENSITIVITY,
       )
     }
+    assertWithinNoiseBound(
+      "impressions",
+      cumulative.impressions,
+      EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
+      IMPRESSION_SENSITIVITY,
+    )
+  }
+
+  @Test
+  fun `direct results record the deterministic mechanism`() = runBlocking {
+    val basicReportName = runBasicReport("deterministic-mechanism")
+
+    val results = decryptedResults(getMeasurementsForBasicReport(basicReportName))
+    assertWithMessage("decrypted results").that(results).isNotEmpty()
+
+    for (result in results) {
+      if (result.hasReach()) {
+        assertWithMessage("reach noise mechanism")
+          .that(result.reach.noiseMechanism)
+          .isEqualTo(ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
+      }
+      if (result.hasFrequency()) {
+        assertWithMessage("frequency noise mechanism")
+          .that(result.frequency.noiseMechanism)
+          .isEqualTo(ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
+      }
+      if (result.hasImpression()) {
+        assertWithMessage("impression noise mechanism")
+          .that(result.impression.noiseMechanism)
+          .isEqualTo(ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
+      }
+    }
   }
 
   @Test
@@ -100,6 +133,22 @@ abstract class InProcessEdpAggregatorDirectDeterministicNoiseTest(
    * Runs a single-EDP basic report over the reference-id-only event groups and returns its total.
    */
   private suspend fun runReport(label: String): ResultGroup.MetricSet.BasicMetricSet {
+    val completedBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = runBasicReport(label) })
+
+    return completedBasicReport.resultGroupsList
+      .single()
+      .resultsList
+      .single { it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL }
+      .metricSet
+      .reportingUnit
+      .cumulative
+  }
+
+  /** Runs a single-EDP basic report over the reference-id-only event groups, returning its name. */
+  private suspend fun runBasicReport(label: String): String {
     val eventGroups = getReferenceIdOnlyEventGroups()
     check(eventGroups.isNotEmpty()) { "No reference-ID-only event groups found" }
 
@@ -127,18 +176,18 @@ abstract class InProcessEdpAggregatorDirectDeterministicNoiseTest(
     assertStructuralResults(completedBasicReport)
     assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
 
-    return completedBasicReport.resultGroupsList
-      .single()
-      .resultsList
-      .single { it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL }
-      .metricSet
-      .reportingUnit
-      .cumulative
+    return completedBasicReport.name
   }
 
   companion object {
     /** One VID moves reach by 1. */
     private const val REACH_SENSITIVITY = 1.0
+
+    /**
+     * One VID moves the impression count by the maximum frequency per user, which
+     * `impressionCountParams` in the metric spec config sets to 60.
+     */
+    private const val IMPRESSION_SENSITIVITY = 60.0
 
     /**
      * A k+ value is a sum over frequency buckets, each carrying its own draw, normalized against a
