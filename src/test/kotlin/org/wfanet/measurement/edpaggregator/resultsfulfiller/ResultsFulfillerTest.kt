@@ -112,6 +112,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
@@ -240,6 +241,15 @@ class ResultsFulfillerTest {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
     onBlocking { getRequisition(any()) }
       .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+    onBlocking { listRequisitions(any()) }
+      .thenReturn(
+        listRequisitionsResponse {
+          requisitions += requisition {
+            name = REQUISITION_NAME
+            state = Requisition.State.UNFULFILLED
+          }
+        }
+      )
   }
 
   private val requisitionMetadataServiceMock: RequisitionMetadataServiceCoroutineImplBase =
@@ -476,8 +486,15 @@ class ResultsFulfillerTest {
           }
         }
       )
-    whenever(requisitionsServiceMock.getRequisition(any()))
-      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(
+        listRequisitionsResponse {
+          requisitions += requisition {
+            name = REQUISITION_NAME
+            state = Requisition.State.UNFULFILLED
+          }
+        }
+      )
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -616,8 +633,15 @@ class ResultsFulfillerTest {
           }
         }
       )
-    whenever(requisitionsServiceMock.getRequisition(any()))
-      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(
+        listRequisitionsResponse {
+          requisitions += requisition {
+            name = REQUISITION_NAME
+            state = Requisition.State.UNFULFILLED
+          }
+        }
+      )
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -729,8 +753,15 @@ class ResultsFulfillerTest {
           }
         }
       )
-    whenever(requisitionsServiceMock.getRequisition(any()))
-      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(
+        listRequisitionsResponse {
+          requisitions += requisition {
+            name = REQUISITION_NAME
+            state = Requisition.State.UNFULFILLED
+          }
+        }
+      )
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -861,8 +892,15 @@ class ResultsFulfillerTest {
             }
           }
         )
-      whenever(requisitionsServiceMock.getRequisition(any()))
-        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(
+          listRequisitionsResponse {
+            requisitions += requisition {
+              name = REQUISITION_NAME
+              state = Requisition.State.UNFULFILLED
+            }
+          }
+        )
 
       // Set up KMS
       val kmsClient = FakeKmsClient()
@@ -1004,8 +1042,15 @@ class ResultsFulfillerTest {
             }
           }
         )
-      whenever(requisitionsServiceMock.getRequisition(any()))
-        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(
+          listRequisitionsResponse {
+            requisitions += requisition {
+              name = REQUISITION_NAME
+              state = Requisition.State.UNFULFILLED
+            }
+          }
+        )
 
       // Set up KMS
       val kmsClient = FakeKmsClient()
@@ -1135,8 +1180,15 @@ class ResultsFulfillerTest {
             }
           }
         )
-      whenever(requisitionsServiceMock.getRequisition(any()))
-        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(
+          listRequisitionsResponse {
+            requisitions += requisition {
+              name = REQUISITION_NAME
+              state = Requisition.State.UNFULFILLED
+            }
+          }
+        )
 
       // Set up KMS
       val kmsClient = FakeKmsClient()
@@ -1263,8 +1315,15 @@ class ResultsFulfillerTest {
           }
         }
       )
-    whenever(requisitionsServiceMock.getRequisition(any()))
-      .thenReturn(requisition { state = Requisition.State.FULFILLED })
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(
+        listRequisitionsResponse {
+          requisitions += requisition {
+            name = REQUISITION_NAME
+            state = Requisition.State.FULFILLED
+          }
+        }
+      )
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -1475,8 +1534,15 @@ class ResultsFulfillerTest {
           }
         }
       )
-    whenever(requisitionsServiceMock.getRequisition(any()))
-      .thenReturn(requisition { state = Requisition.State.WITHDRAWN })
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(
+        listRequisitionsResponse {
+          requisitions += requisition {
+            name = REQUISITION_NAME
+            state = Requisition.State.WITHDRAWN
+          }
+        }
+      )
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -1584,8 +1650,15 @@ class ResultsFulfillerTest {
           }
         }
       )
-    whenever(requisitionsServiceMock.getRequisition(any()))
-      .thenReturn(requisition { state = Requisition.State.REFUSED })
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(
+        listRequisitionsResponse {
+          requisitions += requisition {
+            name = REQUISITION_NAME
+            state = Requisition.State.REFUSED
+          }
+        }
+      )
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -1691,8 +1764,15 @@ class ResultsFulfillerTest {
           }
         }
       )
-    whenever(requisitionsServiceMock.getRequisition(any()))
-      .thenReturn(requisition { state = Requisition.State.STATE_UNSPECIFIED })
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(
+        listRequisitionsResponse {
+          requisitions += requisition {
+            name = REQUISITION_NAME
+            state = Requisition.State.STATE_UNSPECIFIED
+          }
+        }
+      )
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -1798,8 +1878,15 @@ class ResultsFulfillerTest {
             }
           }
         )
-      whenever(requisitionsServiceMock.getRequisition(any()))
-        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(
+          listRequisitionsResponse {
+            requisitions += requisition {
+              name = REQUISITION_NAME
+              state = Requisition.State.UNFULFILLED
+            }
+          }
+        )
       whenever(requisitionsServiceMock.refuseRequisition(any()))
         .thenReturn(requisition { state = Requisition.State.REFUSED })
       whenever(requisitionMetadataServiceMock.refuseRequisitionMetadata(any()))
@@ -1913,8 +2000,15 @@ class ResultsFulfillerTest {
             }
           }
         )
-      whenever(requisitionsServiceMock.getRequisition(any()))
-        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(
+          listRequisitionsResponse {
+            requisitions += requisition {
+              name = REQUISITION_NAME
+              state = Requisition.State.UNFULFILLED
+            }
+          }
+        )
       whenever(requisitionsServiceMock.refuseRequisition(any()))
         .thenReturn(requisition { state = Requisition.State.REFUSED })
       whenever(requisitionMetadataServiceMock.refuseRequisitionMetadata(any()))
@@ -2024,8 +2118,15 @@ class ResultsFulfillerTest {
             }
           }
         )
-      whenever(requisitionsServiceMock.getRequisition(any()))
-        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(
+          listRequisitionsResponse {
+            requisitions += requisition {
+              name = REQUISITION_NAME
+              state = Requisition.State.UNFULFILLED
+            }
+          }
+        )
 
       val kmsClient = FakeKmsClient()
       val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
@@ -2126,8 +2227,15 @@ class ResultsFulfillerTest {
             }
           }
         )
-      whenever(requisitionsServiceMock.getRequisition(any()))
-        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(
+          listRequisitionsResponse {
+            requisitions += requisition {
+              name = REQUISITION_NAME
+              state = Requisition.State.UNFULFILLED
+            }
+          }
+        )
 
       val kmsClient = FakeKmsClient()
       val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
@@ -2477,8 +2585,15 @@ class ResultsFulfillerTest {
         }
       )
 
-    whenever(requisitionsServiceMock.getRequisition(any()))
-      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(
+        listRequisitionsResponse {
+          requisitions += requisition {
+            name = REQUISITION_NAME
+            state = Requisition.State.UNFULFILLED
+          }
+        }
+      )
 
     val kmsClient = FakeKmsClient()
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "telemetry"
@@ -2650,8 +2765,15 @@ class ResultsFulfillerTest {
           }
         }
       )
-    whenever(requisitionsServiceMock.getRequisition(any()))
-      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(
+        listRequisitionsResponse {
+          requisitions += requisition {
+            name = REQUISITION_NAME
+            state = Requisition.State.UNFULFILLED
+          }
+        }
+      )
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -2774,8 +2896,15 @@ class ResultsFulfillerTest {
           }
         }
       )
-    whenever(requisitionsServiceMock.getRequisition(any()))
-      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(
+        listRequisitionsResponse {
+          requisitions += requisition {
+            name = REQUISITION_NAME
+            state = Requisition.State.UNFULFILLED
+          }
+        }
+      )
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -2888,8 +3017,15 @@ class ResultsFulfillerTest {
             }
           }
         )
-      whenever(requisitionsServiceMock.getRequisition(any()))
-        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(
+          listRequisitionsResponse {
+            requisitions += requisition {
+              name = REQUISITION_NAME
+              state = Requisition.State.UNFULFILLED
+            }
+          }
+        )
 
       // Set up KMS
       val kmsClient = FakeKmsClient()
@@ -3005,8 +3141,15 @@ class ResultsFulfillerTest {
             }
           }
         )
-      whenever(requisitionsServiceMock.getRequisition(any()))
-        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(
+          listRequisitionsResponse {
+            requisitions += requisition {
+              name = REQUISITION_NAME
+              state = Requisition.State.UNFULFILLED
+            }
+          }
+        )
 
       val kmsClient = FakeKmsClient()
       val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
@@ -3110,8 +3253,15 @@ class ResultsFulfillerTest {
           }
         }
       )
-    whenever(requisitionsServiceMock.getRequisition(any()))
-      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(
+        listRequisitionsResponse {
+          requisitions += requisition {
+            name = REQUISITION_NAME
+            state = Requisition.State.UNFULFILLED
+          }
+        }
+      )
 
     val kmsClient = FakeKmsClient()
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
