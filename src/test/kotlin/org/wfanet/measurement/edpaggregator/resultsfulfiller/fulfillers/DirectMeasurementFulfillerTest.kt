@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers
 
+import com.google.common.truth.Truth.assertThat
 import io.grpc.Status
 import io.grpc.StatusException
 import java.nio.file.Path
@@ -48,12 +49,24 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
 @RunWith(JUnit4::class)
 class DirectMeasurementFulfillerTest {
+
+  /** [Throttler] that is always ready but records how many times it was invoked. */
+  private class RecordingThrottler : Throttler {
+    var invocationCount = 0
+      private set
+
+    override suspend fun <T> onReady(block: suspend () -> T): T {
+      invocationCount++
+      return block()
+    }
+  }
 
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
@@ -100,6 +113,7 @@ class DirectMeasurementFulfillerTest {
   fun `fulfillRequisition creates correct proto for direct reach requisition fulfillment`() =
     runBlocking {
       val result = result { MeasurementKt.ResultKt.reach { value = 100L } }
+      val requisitionsThrottler = RecordingThrottler()
       val directMeasurementFulfiller =
         DirectMeasurementFulfiller(
           requisitionName = REQUISITION_NAME,
@@ -112,10 +126,12 @@ class DirectMeasurementFulfillerTest {
           dataProviderSigningKeyHandle = EDP_SIGNING_KEY,
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           requisitionsStub = requisitionsStub,
-          requisitionsThrottler = FakeThrottler(),
+          requisitionsThrottler = requisitionsThrottler,
         )
 
       directMeasurementFulfiller.fulfillRequisition()
+
+      assertThat(requisitionsThrottler.invocationCount).isEqualTo(1)
 
       // Verify the stub was called with the correct parameters
       verifyProtoArgument(

@@ -61,6 +61,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
@@ -83,6 +84,17 @@ class TrusTeeMeasurementFulfillerTest {
       // Consume flow before returning.
       _fullfillRequisitionInvocations.add(FulfillRequisitionInvocation(requests.toList()))
       return FulfillRequisitionResponse.getDefaultInstance()
+    }
+  }
+
+  /** [Throttler] that is always ready but records how many times it was invoked. */
+  private class RecordingThrottler : Throttler {
+    var invocationCount = 0
+      private set
+
+    override suspend fun <T> onReady(block: suspend () -> T): T {
+      invocationCount++
+      return block()
     }
   }
 
@@ -121,6 +133,7 @@ class TrusTeeMeasurementFulfillerTest {
     val requisitionNonce = Random.Default.nextLong()
     val sampledFrequencyVector = frequencyVector { data += listOf(4, 5, 6) }
     val requisition = TRUSTEE_REQUISITION.copy { this.nonce = requisitionNonce }
+    val requisitionsThrottler = RecordingThrottler()
     val fulfiller =
       TrusTeeMeasurementFulfiller(
         requisition = requisition,
@@ -131,10 +144,11 @@ class TrusTeeMeasurementFulfillerTest {
             "duchies/worker1" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
           ),
         requisitionsStub = unfulfilledRequisitionsStub,
-        requisitionsThrottler = FakeThrottler(),
+        requisitionsThrottler = requisitionsThrottler,
         encryptionParams = null,
       )
     fulfiller.fulfillRequisition()
+    assertThat(requisitionsThrottler.invocationCount).isEqualTo(1)
     val fulfilledRequisitions =
       requisitionFulfillmentMock.fullfillRequisitionInvocations.single().requests
     assertThat(fulfilledRequisitions).hasSize(2)

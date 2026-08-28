@@ -137,6 +137,7 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
@@ -263,6 +264,17 @@ class ResultsFulfillerTest {
       // Consume flow before returning.
       _fullfillRequisitionInvocations.add(FulfillRequisitionInvocation(requests.toList()))
       return FulfillRequisitionResponse.getDefaultInstance()
+    }
+  }
+
+  /** [Throttler] that is always ready but records how many times it was invoked. */
+  private class RecordingThrottler : Throttler {
+    var invocationCount = 0
+      private set
+
+    override suspend fun <T> onReady(block: suspend () -> T): T {
+      invocationCount++
+      return block()
     }
   }
 
@@ -502,10 +514,15 @@ class ResultsFulfillerTest {
         impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
       )
 
+    // Shared across both constructions below, as production wiring does, so this test can assert
+    // that GetRequisition traffic from both shouldBeProcessed's pre-check and the fulfiller's own
+    // etag lookup is routed through the injected throttler -- not just that a Throttler compiles.
+    val requisitionsThrottler = RecordingThrottler()
+
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
-        requisitionsThrottler = FakeThrottler(),
+        requisitionsThrottler = requisitionsThrottler,
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -532,7 +549,7 @@ class ResultsFulfillerTest {
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
-        requisitionsThrottler = FakeThrottler(),
+        requisitionsThrottler = requisitionsThrottler,
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -544,6 +561,10 @@ class ResultsFulfillerTest {
       )
 
     resultsFulfiller.fulfillRequisitions()
+
+    // One GetRequisition from shouldBeProcessed's pre-check, one from
+    // DirectMeasurementFulfiller's own etag lookup -- both must go through the throttler.
+    assertThat(requisitionsThrottler.invocationCount).isEqualTo(2)
 
     val request: FulfillDirectRequisitionRequest =
       verifyAndCapture(

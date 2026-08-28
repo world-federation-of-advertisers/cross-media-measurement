@@ -23,7 +23,6 @@ import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
 import java.io.File
-import java.time.Clock
 import java.time.Duration
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.EnvelopeEncryptionKt.awsKmsParams
@@ -32,7 +31,8 @@ import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResultsFulfillerConfigAsByteArray
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.ratelimit.RateLimiterThrottler
+import org.wfanet.measurement.common.ratelimit.TokenBucket
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig
 import org.wfanet.measurement.edpaggregator.BaseTeeAppRunner
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -269,7 +269,9 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
         modelLineInfoMap = modelLinesMap,
         pipelineConfiguration = pipelineConfiguration,
         requisitionsThrottler =
-          MinimumIntervalThrottler(Clock.systemUTC(), getRequisitionMinInterval),
+          RateLimiterThrottler(
+            TokenBucket(size = 1, fillRate = 1000.0 / getRequisitionMinInterval.toMillis())
+          ),
         metrics = metrics,
       )
 

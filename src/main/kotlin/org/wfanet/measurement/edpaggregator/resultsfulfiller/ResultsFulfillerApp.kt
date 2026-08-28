@@ -22,8 +22,6 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Parser
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
-import java.time.Clock
-import java.time.Duration
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -32,8 +30,9 @@ import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.ratelimit.RateLimiterThrottler
+import org.wfanet.measurement.common.ratelimit.TokenBucket
 import org.wfanet.measurement.common.readByteString
-import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -322,11 +321,10 @@ class ResultsFulfillerApp(
       )
 
     /**
-     * Default minimum interval between outbound `GetRequisition` calls to Kingdom, for callers that
-     * don't specify one (e.g. via `--get-requisition-min-interval-millis` on
-     * [ResultsFulfillerAppRunner]).
+     * Default rate limiter for outbound `GetRequisition` calls to Kingdom, for callers that don't
+     * specify one (e.g. via `--get-requisition-min-interval` on [ResultsFulfillerAppRunner]).
      */
     private val DEFAULT_REQUISITIONS_THROTTLER: Throttler =
-      MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(100))
+      RateLimiterThrottler(TokenBucket(size = 1, fillRate = 10.0))
   }
 }
