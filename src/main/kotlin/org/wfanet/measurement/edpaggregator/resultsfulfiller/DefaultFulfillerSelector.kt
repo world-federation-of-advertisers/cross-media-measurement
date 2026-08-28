@@ -105,6 +105,30 @@ data class TrusTeeConfig(
 }
 
 /**
+ * The cap that leaves a vector's per-user frequencies as the source data has them.
+ *
+ * [FrequencyVectorBuilder] reads -1 as "no override" rather than "no cap", falling back to the
+ * `MeasurementSpec`, so it cannot express an uncapped vector. `StripedByteFrequencyVector` already
+ * saturates each VID at `Byte.MAX_VALUE`, so capping there changes nothing.
+ */
+internal const val UNCAPPED = 127
+
+/**
+ * Returns the per-user cap to build the frequency vector with, for [impressionCapMode].
+ *
+ * [ImpressionCapMode.DYNAMIC] derives its clip from the frequency distribution, so it needs the raw
+ * per-user frequencies. Capping the vector first hides every frequency above the cap, leaving the
+ * search to choose a clip for a distribution the data does not have. Every other mode keeps
+ * [overrideImpressionMaxFrequencyPerUser], where null defers to the `MeasurementSpec`.
+ */
+internal fun frequencyVectorCap(
+  impressionCapMode: ImpressionCapMode,
+  overrideImpressionMaxFrequencyPerUser: Int?,
+): Int? =
+  if (impressionCapMode == ImpressionCapMode.DYNAMIC) UNCAPPED
+  else overrideImpressionMaxFrequencyPerUser
+
+/**
  * Default implementation that routes requisitions to protocol-specific fulfillers.
  *
  * @param requisitionsStub gRPC stub for Direct protocol requisitions
@@ -179,7 +203,8 @@ class DefaultFulfillerSelector(
         frequencyDataBytes = frequencyDataBytes,
         strict = false,
         resultMinimumThresholds = resultMinimumThresholds,
-        overrideImpressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
+        overrideImpressionMaxFrequencyPerUser =
+          frequencyVectorCap(impressionCapMode, overrideImpressionMaxFrequencyPerUser),
       )
 
     return if (requisition.protocolConfig.protocolsList.any { it.hasDirect() }) {
