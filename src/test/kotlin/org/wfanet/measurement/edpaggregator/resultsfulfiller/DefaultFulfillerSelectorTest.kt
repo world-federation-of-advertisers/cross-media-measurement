@@ -41,8 +41,7 @@ class DefaultFulfillerSelectorTest {
 
   @Test
   fun `UNCAPPED and USE_MEASUREMENT_SPEC_CAP defer to the MeasurementSpec`() {
-    for (mode in
-      listOf(ImpressionCapMode.UNCAPPED, ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP)) {
+    for (mode in listOf(ImpressionCapMode.UNCAPPED, ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP)) {
       for (configured in listOf(null, -1, 1, 5, 127)) {
         assertThat(frequencyVectorCap(mode, configured)).isNull()
       }
