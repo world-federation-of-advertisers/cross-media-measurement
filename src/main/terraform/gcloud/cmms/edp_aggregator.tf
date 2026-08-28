@@ -137,36 +137,49 @@ locals {
       java_tool_options             = "-Xmx24G"
       docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
       mig_distribution_policy_zones = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"]
-      app_flags                     = [
-                                          "--edpa-tls-cert-secret-id", "edpa-tee-app-tls-pem",
-                                          "--edpa-tls-cert-file-path", "/tmp/edpa_certs/edpa_tee_app_tls.pem",
-                                          "--edpa-tls-key-secret-id", "edpa-tee-app-tls-key",
-                                          "--edpa-tls-key-file-path", "/tmp/edpa_certs/edpa_tee_app_tls.key",
-                                          "--secure-computation-cert-collection-secret-id", "securecomputation-root-ca",
-                                          "--secure-computation-cert-collection-file-path", "/tmp/edpa_certs/secure_computation_root.pem",
-                                          "--metadata-storage-cert-collection-secret-id", "edpaggregator-root-ca",
-                                          "--metadata-storage-cert-collection-file-path", "/tmp/edpa_certs/edp_aggregator_root.pem",
-                                          "--trusted-cert-collection-secret-id", "trusted-root-ca",
-                                          "--trusted-cert-collection-file-path", "/tmp/edpa_certs/trusted_root.pem",
-                                          "--kingdom-public-api-target", var.kingdom_public_api_target,
-                                          "--secure-computation-public-api-target", var.secure_computation_public_api_target,
-                                          "--metadata-storage-public-api-target", var.metadata_storage_public_api_target,
-                                          "--subscription-id", "results-fulfiller-subscription",
-                                          "--google-project-id", data.google_client_config.default.project,
-                                          "--model-line", var.edpa_model_line_map,
-                                          "--population-spec-file-blob-uri", var.results_fulfiller_population_spec_blob_uri,
-                                          "--event-template-descriptor-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri,
-                                          "--event-template-type-name", var.results_fulfiller_event_template_type_name,
-                                          "--duchy-id", var.duchy_worker1_id,
-                                          "--duchy-target", var.duchy_worker1_target,
-                                          "--duchy-cert-host", "localhost",
-                                          "--duchy-id", var.duchy_worker2_id,
-                                          "--duchy-target", var.duchy_worker2_target,
-                                          "--duchy-cert-host", "localhost",
-                                          "--duchy-id", var.duchy_aggregator_id,
-                                          "--duchy-target", var.duchy_aggregator_target,
-                                          "--duchy-cert-host", "localhost",
-                                        ]
+      app_flags                     = concat(
+                                          [
+                                            "--edpa-tls-cert-secret-id", "edpa-tee-app-tls-pem",
+                                            "--edpa-tls-cert-file-path", "/tmp/edpa_certs/edpa_tee_app_tls.pem",
+                                            "--edpa-tls-key-secret-id", "edpa-tee-app-tls-key",
+                                            "--edpa-tls-key-file-path", "/tmp/edpa_certs/edpa_tee_app_tls.key",
+                                            "--secure-computation-cert-collection-secret-id", "securecomputation-root-ca",
+                                            "--secure-computation-cert-collection-file-path", "/tmp/edpa_certs/secure_computation_root.pem",
+                                            "--metadata-storage-cert-collection-secret-id", "edpaggregator-root-ca",
+                                            "--metadata-storage-cert-collection-file-path", "/tmp/edpa_certs/edp_aggregator_root.pem",
+                                            "--trusted-cert-collection-secret-id", "trusted-root-ca",
+                                            "--trusted-cert-collection-file-path", "/tmp/edpa_certs/trusted_root.pem",
+                                            "--kingdom-public-api-target", var.kingdom_public_api_target,
+                                            "--secure-computation-public-api-target", var.secure_computation_public_api_target,
+                                            "--metadata-storage-public-api-target", var.metadata_storage_public_api_target,
+                                            "--subscription-id", "results-fulfiller-subscription",
+                                            "--google-project-id", data.google_client_config.default.project,
+                                          ],
+                                          # One --model-line group per configured model line, all
+                                          # sharing the same population-spec/event-descriptor blobs
+                                          # (those paths are not model-line-specific). Lets the
+                                          # results-fulfiller know about every model line whose
+                                          # measurements it may need to fulfill, instead of only one.
+                                          flatten([
+                                            for model_line in var.edpa_model_line_map : [
+                                              "--model-line", model_line,
+                                              "--population-spec-file-blob-uri", var.results_fulfiller_population_spec_blob_uri,
+                                              "--event-template-descriptor-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri,
+                                              "--event-template-type-name", var.results_fulfiller_event_template_type_name,
+                                            ]
+                                          ]),
+                                          [
+                                            "--duchy-id", var.duchy_worker1_id,
+                                            "--duchy-target", var.duchy_worker1_target,
+                                            "--duchy-cert-host", "localhost",
+                                            "--duchy-id", var.duchy_worker2_id,
+                                            "--duchy-target", var.duchy_worker2_target,
+                                            "--duchy-cert-host", "localhost",
+                                            "--duchy-id", var.duchy_aggregator_id,
+                                            "--duchy-target", var.duchy_aggregator_target,
+                                            "--duchy-cert-host", "localhost",
+                                          ]
+                                        )
     }
   }
 

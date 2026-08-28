@@ -272,8 +272,8 @@ variable "results_fulfiller_population_spec_blob_uri" {
 }
 
 variable "edpa_model_line_map" {
-  description = "Mapping of available model line for the Results Fulfiller"
-  type = string
+  description = "Model lines the Results Fulfiller should know how to fulfill measurements for."
+  type        = list(string)
 }
 
 variable "duchy_worker1_id" {
