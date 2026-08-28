@@ -31,6 +31,7 @@ import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -70,6 +71,12 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param getRequisitionsStorageConfig Lambda to obtain [StorageConfig] for requisitions.
  * @param modelLineInfoMap map of model line to [ModelLineInfo]
  * @param pipelineConfiguration Configuration for the event processing pipeline.
+ * @param requisitionsThrottler paces outbound `GetRequisition` calls to Kingdom. Shared across this
+ *   app's own pre-check and the fulfillers it dispatches to, so the throttle budget covers all
+ *   `GetRequisition` traffic this process makes.
+ * @param kingdomThrottler paces outbound `FulfillDirectRequisition`/`RefuseRequisition` calls to
+ *   Kingdom, which share a Kingdom rate-limit bucket with every other Requisitions method besides
+ *   `GetRequisition`.
  * @param metrics Metrics recorder for telemetry.
  * @constructor Initializes the application with all required dependencies for result fulfillment.
  */
@@ -89,6 +96,8 @@ class ResultsFulfillerApp(
   private val getRequisitionsStorageConfig: (StorageParams) -> StorageConfig,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val pipelineConfiguration: PipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+  private val requisitionsThrottler: Throttler,
+  private val kingdomThrottler: Throttler,
   private val metrics: ResultsFulfillerMetrics,
 ) :
   BaseTeeApplication(
@@ -213,6 +222,8 @@ class ResultsFulfillerApp(
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = requisitionsThrottler,
+        kingdomThrottler = kingdomThrottler,
         requisitionFulfillmentStubMap = requisitionFulfillmentStubsMap,
         dataProviderCertificateKey = dataProviderCertificateKey,
         dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
@@ -247,6 +258,8 @@ class ResultsFulfillerApp(
         dataProvider = fulfillerParams.dataProvider,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = requisitionsThrottler,
+        kingdomThrottler = kingdomThrottler,
         privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = modelLineInfoMapWithAliases,
