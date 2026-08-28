@@ -17,10 +17,12 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
 import com.google.common.truth.Truth.assertThat
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
@@ -158,8 +160,115 @@ class DirectMeasurementResultFactoryTest {
       assertThat(result.impression.value).isEqualTo(110)
     }
 
+  @Test
+  fun `CUSTOM_CAP counts against the configured cap`() = runBlocking {
+    val result =
+      buildImpressionResult(
+        impressionCapMode = ImpressionCapMode.CUSTOM_CAP,
+        impressionMaxFrequencyPerUser = 1,
+      )
+
+    // Every VID contributes at most 1, so the 10 VIDs at frequency 2 lose one impression each.
+    assertThat(result.impression.value).isEqualTo(100)
+    assertThat(result.impression.deterministicCount.customMaximumFrequencyPerUser).isEqualTo(1)
+  }
+
+  @Test
+  fun `CUSTOM_CAP requires a cap`() = runBlocking {
+    for (missing in listOf(null, 0, -1)) {
+      assertFailsWith<IllegalArgumentException> {
+        buildImpressionResult(
+          impressionCapMode = ImpressionCapMode.CUSTOM_CAP,
+          impressionMaxFrequencyPerUser = missing,
+        )
+      }
+    }
+  }
+
+  @Test
+  fun `UNCAPPED releases the raw total whatever the configured cap`() = runBlocking {
+    for (configured in listOf(null, 1, MAX_FREQUENCY)) {
+      val result =
+        buildImpressionResult(
+          impressionCapMode = ImpressionCapMode.UNCAPPED,
+          impressionMaxFrequencyPerUser = configured,
+        )
+
+      assertThat(result.impression.value).isEqualTo(TOTAL_UNCAPPED_IMPRESSIONS)
+    }
+  }
+
+  @Test
+  fun `USE_MEASUREMENT_SPEC_CAP ignores the configured cap`() = runBlocking {
+    val result =
+      buildImpressionResult(
+        impressionCapMode = ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP,
+        impressionMaxFrequencyPerUser = 1,
+      )
+
+    // The spec allows 10 per VID, so nothing is clipped even though the config asked for 1.
+    assertThat(result.impression.value).isEqualTo(TOTAL_UNCAPPED_IMPRESSIONS)
+    assertThat(result.impression.deterministicCount.customMaximumFrequencyPerUser)
+      .isEqualTo(MAX_FREQUENCY)
+  }
+
+  @Test
+  fun `UNSPECIFIED keeps reading the configured cap`() = runBlocking {
+    assertThat(
+        buildImpressionResult(
+            impressionCapMode = ImpressionCapMode.UNSPECIFIED,
+            impressionMaxFrequencyPerUser = -1,
+          )
+          .impression
+          .value
+      )
+      .isEqualTo(TOTAL_UNCAPPED_IMPRESSIONS)
+
+    assertThat(
+        buildImpressionResult(
+            impressionCapMode = ImpressionCapMode.UNSPECIFIED,
+            impressionMaxFrequencyPerUser = 1,
+          )
+          .impression
+          .value
+      )
+      .isEqualTo(100)
+  }
+
+  /** Builds an impression result over 90 VIDs at frequency 1 and 10 at frequency 2. */
+  private suspend fun buildImpressionResult(
+    impressionCapMode: ImpressionCapMode,
+    impressionMaxFrequencyPerUser: Int?,
+  ): Measurement.Result {
+    val measurementSpec = measurementSpec {
+      impression =
+        MeasurementSpecKt.impression {
+          privacyParams = IMPRESSION_PRIVACY_PARAMS
+          maximumFrequencyPerUser = MAX_FREQUENCY
+        }
+      vidSamplingInterval =
+        MeasurementSpecKt.vidSamplingInterval {
+          start = 0.0f
+          width = SAMPLING_RATE
+        }
+    }
+
+    return DirectMeasurementResultFactory.buildMeasurementResult(
+      directProtocolConfig = DIRECT_PROTOCOL,
+      directNoiseMechanism = DirectNoiseMechanism.NONE,
+      measurementSpec = measurementSpec,
+      frequencyData = IntArray(100) { if (it < 90) 1 else 2 },
+      maxPopulation = null,
+      resultMinimumThresholds = null,
+      impressionMaxFrequencyPerUser = impressionMaxFrequencyPerUser,
+      totalUncappedImpressions = TOTAL_UNCAPPED_IMPRESSIONS,
+      impressionCapMode = impressionCapMode,
+    )
+  }
+
   companion object {
     private const val MAX_FREQUENCY = 10
+    private const val TOTAL_UNCAPPED_IMPRESSIONS = 110L
     private val REACH_PRIVACY_PARAMS = differentialPrivacyParams {
       epsilon = 1.0
       delta = 1E-12
