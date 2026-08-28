@@ -129,8 +129,8 @@ message ResultsFulfillerParams {
   //    0  -> use the MeasurementSpec cap
   //   N>0 -> use N as a custom cap
   //
-  // It is ignored for every other explicit mode. Only applies to direct
-  // measurements.
+  // Every other explicit mode carries the choice itself, so this must be unset
+  // there. Only applies to direct measurements.
   int32 impression_max_frequency_per_user = 7;
 
   // Optional mapping from a requisition model line to the model line used for
@@ -192,13 +192,13 @@ message ResultsFulfillerParams {
     UNSPECIFIED = 0;
 
     // Return the raw, uncapped impression count. K-anonymity thresholds still
-    // apply, but no impression noise is added. The configured and
-    // MeasurementSpec caps are ignored.
+    // apply, but no impression noise is added. The MeasurementSpec cap is
+    // ignored and `impression_max_frequency_per_user` must be unset.
     UNCAPPED = 1;
 
     // Use `MeasurementSpec.impression.maximum_frequency_per_user`, as requested
-    // by the Measurement Consumer. `impression_max_frequency_per_user` is
-    // ignored.
+    // by the Measurement Consumer. `impression_max_frequency_per_user` must be
+    // unset.
     USE_MEASUREMENT_SPEC_CAP = 2;
 
     // Use `impression_max_frequency_per_user` as a fixed cap. The value must be
@@ -207,7 +207,8 @@ message ResultsFulfillerParams {
 
     // Derive the cap from the measurement's frequency distribution. Noise is
     // applied across the cumulative histogram used to select and compute the
-    // dynamically capped result. Both configured cap fields are ignored.
+    // dynamically capped result. The MeasurementSpec cap is ignored and
+    // `impression_max_frequency_per_user` must be unset.
     DYNAMIC = 4;
   }
 

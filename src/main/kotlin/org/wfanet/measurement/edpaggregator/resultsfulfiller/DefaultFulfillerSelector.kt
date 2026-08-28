@@ -114,6 +114,33 @@ data class TrusTeeConfig(
 internal const val UNCAPPED = 127
 
 /**
+ * Throws if [configuredCap] and [impressionCapMode] disagree.
+ *
+ * Only [ImpressionCapMode.CUSTOM_CAP] reads `impression_max_frequency_per_user`, and it requires a
+ * positive value. Every other explicit mode carries the choice itself, so a configured cap there is
+ * an operator setting a value that would be silently ignored. [ImpressionCapMode.UNSPECIFIED] is
+ * exempt: reading the field is what it is for.
+ */
+internal fun requireCapMatchesMode(impressionCapMode: ImpressionCapMode, configuredCap: Int) {
+  when (impressionCapMode) {
+    ImpressionCapMode.CUSTOM_CAP ->
+      require(configuredCap > 0) {
+        "impression_max_frequency_per_user must be greater than zero under CUSTOM_CAP, got " +
+          "$configuredCap"
+      }
+    ImpressionCapMode.UNCAPPED,
+    ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP,
+    ImpressionCapMode.DYNAMIC ->
+      require(configuredCap == 0) {
+        "impression_max_frequency_per_user is ignored under $impressionCapMode and must be unset, " +
+          "got $configuredCap"
+      }
+    ImpressionCapMode.UNSPECIFIED,
+    ImpressionCapMode.UNRECOGNIZED -> {}
+  }
+}
+
+/**
  * Returns the per-user cap to build the frequency vector with, for [impressionCapMode].
  *
  * [ImpressionCapMode.DYNAMIC] derives its clip from the frequency distribution, so it needs the raw

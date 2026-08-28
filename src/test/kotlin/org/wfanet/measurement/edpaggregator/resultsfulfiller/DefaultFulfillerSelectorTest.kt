@@ -15,6 +15,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -27,6 +28,40 @@ class DefaultFulfillerSelectorTest {
   fun `DYNAMIC keeps the vector uncapped whatever the configured cap`() {
     for (configured in listOf(null, -1, 1, 5, 127)) {
       assertThat(frequencyVectorCap(ImpressionCapMode.DYNAMIC, configured)).isEqualTo(UNCAPPED)
+    }
+  }
+
+  @Test
+  fun `modes that ignore the configured cap reject one`() {
+    for (mode in
+      listOf(
+        ImpressionCapMode.UNCAPPED,
+        ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP,
+        ImpressionCapMode.DYNAMIC,
+      )) {
+      requireCapMatchesMode(mode, 0)
+      for (configured in listOf(-1, 1, 127)) {
+        assertFailsWith<IllegalArgumentException>("$mode with cap $configured") {
+          requireCapMatchesMode(mode, configured)
+        }
+      }
+    }
+  }
+
+  @Test
+  fun `CUSTOM_CAP requires a positive cap`() {
+    requireCapMatchesMode(ImpressionCapMode.CUSTOM_CAP, 1)
+    for (configured in listOf(-1, 0)) {
+      assertFailsWith<IllegalArgumentException> {
+        requireCapMatchesMode(ImpressionCapMode.CUSTOM_CAP, configured)
+      }
+    }
+  }
+
+  @Test
+  fun `UNSPECIFIED accepts any configured cap`() {
+    for (configured in listOf(-1, 0, 1, 127)) {
+      requireCapMatchesMode(ImpressionCapMode.UNSPECIFIED, configured)
     }
   }
 

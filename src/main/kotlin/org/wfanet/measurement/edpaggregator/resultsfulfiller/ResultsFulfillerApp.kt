@@ -37,7 +37,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.NoiseParams.NoiseType
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
 import org.wfanet.measurement.queue.QueueSubscriber
@@ -193,12 +192,10 @@ class ResultsFulfillerApp(
       "impressionMaxFrequencyPerUser must be between -1 and ${Byte.MAX_VALUE}, got ${fulfillerParams.impressionMaxFrequencyPerUser}"
     }
 
-    if (fulfillerParams.impressionCapMode == ImpressionCapMode.CUSTOM_CAP) {
-      require(fulfillerParams.impressionMaxFrequencyPerUser > 0) {
-        "impressionMaxFrequencyPerUser must be greater than zero under CUSTOM_CAP, got " +
-          "${fulfillerParams.impressionMaxFrequencyPerUser}"
-      }
-    }
+    requireCapMatchesMode(
+      fulfillerParams.impressionCapMode,
+      fulfillerParams.impressionMaxFrequencyPerUser,
+    )
 
     // Get TrusTeeConfig for this data provider if available
     val trusTeeConfig: TrusTeeConfig? = trusTeeConfigs[fulfillerParams.dataProvider]
