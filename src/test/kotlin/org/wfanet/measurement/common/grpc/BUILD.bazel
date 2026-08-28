@@ -29,3 +29,17 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/org/junit",
     ],
 )
+
+kt_jvm_test(
+    name = "ServiceFlagsTest",
+    srcs = ["ServiceFlagsTest.kt"],
+    test_class = "org.wfanet.measurement.common.grpc.ServiceFlagsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
