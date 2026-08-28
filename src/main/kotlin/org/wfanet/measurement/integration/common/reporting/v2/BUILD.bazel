@@ -56,6 +56,7 @@ kt_jvm_library(
 kt_jvm_library(
     name = "in_process_edp_aggregator_life_of_a_report_test",
     srcs = [
+        "InProcessEdpAggregatorDirectDeterministicNoiseTest.kt",
         "InProcessEdpAggregatorDirectOnlyReportTest.kt",
         "InProcessEdpAggregatorLifeOfAReportTest.kt",
         "InProcessEdpAggregatorLifeOfAnEventGroupTest.kt",
