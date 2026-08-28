@@ -18,6 +18,7 @@ import kotlin.math.abs
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.computation.DeterministicDynamicClippingNoiseSource
 
 @RunWith(JUnit4::class)
 class DynamicClippingTest {
@@ -182,8 +183,75 @@ class DynamicClippingTest {
     assertThat(histogramList).isEqualTo(expectedHistogramList)
   }
 
+  @Test
+  fun `a deterministic noise source reproduces the threshold and the histogram`() {
+    val frequencyMap = mapOf(1L to 500L, 2L to 300L, 3L to 120L, 4L to 40L, 7L to 5L)
+
+    val first =
+      DynamicClipping(SMALL_RHO, IMPRESSION_MEASUREMENT_TYPE, noiseSource = seededNoiseSource())
+        .computeImpressionCappedHistogram(frequencyMap)
+    val second =
+      DynamicClipping(SMALL_RHO, IMPRESSION_MEASUREMENT_TYPE, noiseSource = seededNoiseSource())
+        .computeImpressionCappedHistogram(frequencyMap)
+
+    assertThat(second.threshold).isEqualTo(first.threshold)
+    assertThat(second.noisedCumulativeHistogramList).isEqualTo(first.noisedCumulativeHistogramList)
+    assertThat(second.barNoiseVariance).isEqualTo(first.barNoiseVariance)
+  }
+
+  @Test
+  fun `the same instance reproduces its result across calls`() {
+    // The pass counter resets per call, so a reused instance addresses the same draws again rather
+    // than continuing a stream.
+    val frequencyMap = mapOf(1L to 500L, 2L to 300L, 3L to 120L)
+    val dynamicClipping =
+      DynamicClipping(SMALL_RHO, IMPRESSION_MEASUREMENT_TYPE, noiseSource = seededNoiseSource())
+
+    val first = dynamicClipping.computeImpressionCappedHistogram(frequencyMap)
+    val second = dynamicClipping.computeImpressionCappedHistogram(frequencyMap)
+
+    assertThat(second.threshold).isEqualTo(first.threshold)
+    assertThat(second.noisedCumulativeHistogramList).isEqualTo(first.noisedCumulativeHistogramList)
+  }
+
+  @Test
+  fun `a different seed gives a different histogram`() {
+    val frequencyMap = mapOf(1L to 500L, 2L to 300L, 3L to 120L)
+
+    val first =
+      DynamicClipping(SMALL_RHO, IMPRESSION_MEASUREMENT_TYPE, noiseSource = seededNoiseSource(1))
+        .computeImpressionCappedHistogram(frequencyMap)
+    val second =
+      DynamicClipping(SMALL_RHO, IMPRESSION_MEASUREMENT_TYPE, noiseSource = seededNoiseSource(2))
+        .computeImpressionCappedHistogram(frequencyMap)
+
+    assertThat(second.noisedCumulativeHistogramList)
+      .isNotEqualTo(first.noisedCumulativeHistogramList)
+  }
+
+  @Test
+  fun `bar noise variance falls as rho rises`() {
+    val frequencyMap = mapOf(1L to 500L, 2L to 300L, 3L to 120L)
+
+    val noisy =
+      DynamicClipping(SMALL_RHO, IMPRESSION_MEASUREMENT_TYPE, noiseSource = seededNoiseSource())
+        .computeImpressionCappedHistogram(frequencyMap)
+    val precise =
+      DynamicClipping(BIG_RHO, IMPRESSION_MEASUREMENT_TYPE, noiseSource = seededNoiseSource())
+        .computeImpressionCappedHistogram(frequencyMap)
+
+    assertThat(noisy.barNoiseVariance).isGreaterThan(0.0)
+    assertThat(precise.barNoiseVariance).isLessThan(noisy.barNoiseVariance)
+  }
+
+  /** The source the EDP Aggregator supplies, seeded from a distinct frequency vector per [seed]. */
+  private fun seededNoiseSource(seed: Int = 0) =
+    DeterministicDynamicClippingNoiseSource("frequency-vector-$seed".toByteArray())
+
   private companion object {
     private val IMPRESSION_MEASUREMENT_TYPE = DynamicClipping.MeasurementType.IMPRESSION
+    /** Small enough that the bars carry visible noise. */
+    private const val SMALL_RHO = 1E-2
     private const val EPSILON = 0.00558073744893074
     // Set rho large enough to minimize noise.
     private const val BIG_RHO = 1E10
