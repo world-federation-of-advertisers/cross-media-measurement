@@ -37,6 +37,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.NoiseParams.NoiseType
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
 import org.wfanet.measurement.queue.QueueSubscriber
@@ -192,6 +193,13 @@ class ResultsFulfillerApp(
       "impressionMaxFrequencyPerUser must be between -1 and ${Byte.MAX_VALUE}, got ${fulfillerParams.impressionMaxFrequencyPerUser}"
     }
 
+    if (fulfillerParams.impressionCapMode == ImpressionCapMode.CUSTOM_CAP) {
+      require(fulfillerParams.impressionMaxFrequencyPerUser > 0) {
+        "impressionMaxFrequencyPerUser must be greater than zero under CUSTOM_CAP, got " +
+          "${fulfillerParams.impressionMaxFrequencyPerUser}"
+      }
+    }
+
     // Get TrusTeeConfig for this data provider if available
     val trusTeeConfig: TrusTeeConfig? = trusTeeConfigs[fulfillerParams.dataProvider]
 
@@ -218,7 +226,8 @@ class ResultsFulfillerApp(
         dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
         noiserSelector = noiseSelector,
         resultMinimumThresholds = resultMinimumThresholds,
-        // When -1, treat as no frequency cap. When 0 or unset, use measurement spec value.
+        // Read under UNSPECIFIED and CUSTOM_CAP. -1 means no cap, 0 or unset means the
+        // MeasurementSpec's value. The explicit modes carry the choice themselves.
         overrideImpressionMaxFrequencyPerUser =
           if (fulfillerParams.impressionMaxFrequencyPerUser == -1) {
             -1

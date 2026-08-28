@@ -63,8 +63,34 @@ class DirectImpressionResultBuilder(
   private val resultMinimumThresholds: ResultMinimumThresholds?,
   private val impressionMaxFrequencyPerUser: Int?,
   private val totalUncappedImpressions: Long,
-  private val impressionCapMode: ImpressionCapMode = ImpressionCapMode.LEGACY_CAP_MODE,
+  private val impressionCapMode: ImpressionCapMode = ImpressionCapMode.UNSPECIFIED,
 ) : MeasurementResultBuilder {
+
+  /**
+   * Whether the count is released without a per-user cap.
+   *
+   * [ImpressionCapMode.UNSPECIFIED] reads it off [impressionMaxFrequencyPerUser], which is how
+   * configurations written before the explicit modes expressed it.
+   */
+  private val releaseUncapped: Boolean =
+    when (impressionCapMode) {
+      ImpressionCapMode.UNCAPPED -> true
+      ImpressionCapMode.UNSPECIFIED,
+      ImpressionCapMode.UNRECOGNIZED -> impressionMaxFrequencyPerUser == UNCAPPED_SENTINEL
+      else -> false
+    }
+
+  /** The per-user cap applied when the count is capped. Unused when [releaseUncapped]. */
+  private val effectiveMaxFrequency: Int =
+    when (impressionCapMode) {
+      ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP -> maxFrequencyFromSpec
+      ImpressionCapMode.CUSTOM_CAP ->
+        requireNotNull(impressionMaxFrequencyPerUser?.takeIf { it > 0 }) {
+          "impression_max_frequency_per_user must be greater than zero under CUSTOM_CAP"
+        }
+      else ->
+        impressionMaxFrequencyPerUser?.takeIf { it != UNCAPPED_SENTINEL } ?: maxFrequencyFromSpec
+    }
 
   override suspend fun buildMeasurementResult(): Measurement.Result {
     if (impressionCapMode == ImpressionCapMode.DYNAMIC) {
@@ -78,8 +104,6 @@ class DirectImpressionResultBuilder(
       )
     }
 
-    val effectiveMaxFrequency =
-      impressionMaxFrequencyPerUser?.takeIf { it != -1 } ?: maxFrequencyFromSpec
     val impressionValue = computeImpressionCount(effectiveMaxFrequency)
 
     val protocolConfigNoiseMechanism = directNoiseMechanism.toProtocolConfigNoiseMechanism()
@@ -148,10 +172,7 @@ class DirectImpressionResultBuilder(
    * @return The computed impression count.
    */
   private fun computeImpressionCount(effectiveMaxFrequency: Int): Long {
-    // When impressionMaxFrequencyPerUser is -1, use uncapped impressions directly
-    val useUncappedImpressions = impressionMaxFrequencyPerUser == -1
-
-    return if (useUncappedImpressions) {
+    return if (releaseUncapped) {
       computeUncappedImpressionValue()
     } else {
       val histogram: LongArray =
@@ -205,6 +226,9 @@ class DirectImpressionResultBuilder(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    /** The `impression_max_frequency_per_user` value meaning "no cap" under UNSPECIFIED. */
+    private const val UNCAPPED_SENTINEL = -1
 
     /**
      * The mechanisms dynamic capping supports. Both noise the cumulative histogram with Gaussian

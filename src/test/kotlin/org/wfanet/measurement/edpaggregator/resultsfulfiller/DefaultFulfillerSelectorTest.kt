@@ -31,10 +31,21 @@ class DefaultFulfillerSelectorTest {
   }
 
   @Test
-  fun `other modes keep the configured cap`() {
-    for (configured in listOf(null, -1, 1, 5, 127)) {
-      assertThat(frequencyVectorCap(ImpressionCapMode.LEGACY_CAP_MODE, configured))
-        .isEqualTo(configured)
+  fun `UNSPECIFIED and CUSTOM_CAP keep the configured cap`() {
+    for (mode in listOf(ImpressionCapMode.UNSPECIFIED, ImpressionCapMode.CUSTOM_CAP)) {
+      for (configured in listOf(null, -1, 1, 5, 127)) {
+        assertThat(frequencyVectorCap(mode, configured)).isEqualTo(configured)
+      }
+    }
+  }
+
+  @Test
+  fun `UNCAPPED and USE_MEASUREMENT_SPEC_CAP defer to the MeasurementSpec`() {
+    for (mode in
+      listOf(ImpressionCapMode.UNCAPPED, ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP)) {
+      for (configured in listOf(null, -1, 1, 5, 127)) {
+        assertThat(frequencyVectorCap(mode, configured)).isNull()
+      }
     }
   }
 }

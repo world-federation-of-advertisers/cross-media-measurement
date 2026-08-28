@@ -118,15 +118,25 @@ internal const val UNCAPPED = 127
  *
  * [ImpressionCapMode.DYNAMIC] derives its clip from the frequency distribution, so it needs the raw
  * per-user frequencies. Capping the vector first hides every frequency above the cap, leaving the
- * search to choose a clip for a distribution the data does not have. Every other mode keeps
- * [overrideImpressionMaxFrequencyPerUser], where null defers to the `MeasurementSpec`.
+ * search to choose a clip for a distribution the data does not have.
+ *
+ * The remaining modes cap the vector as before. Null defers to the `MeasurementSpec`, which is what
+ * both [ImpressionCapMode.UNCAPPED] and [ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP] want: an
+ * uncapped count is summed from the raw vector the EDP Aggregator already holds, so the cap here
+ * only bounds reach and frequency.
  */
 internal fun frequencyVectorCap(
   impressionCapMode: ImpressionCapMode,
   overrideImpressionMaxFrequencyPerUser: Int?,
 ): Int? =
-  if (impressionCapMode == ImpressionCapMode.DYNAMIC) UNCAPPED
-  else overrideImpressionMaxFrequencyPerUser
+  when (impressionCapMode) {
+    ImpressionCapMode.DYNAMIC -> UNCAPPED
+    ImpressionCapMode.UNCAPPED,
+    ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP -> null
+    ImpressionCapMode.CUSTOM_CAP,
+    ImpressionCapMode.UNSPECIFIED,
+    ImpressionCapMode.UNRECOGNIZED -> overrideImpressionMaxFrequencyPerUser
+  }
 
 /**
  * Default implementation that routes requisitions to protocol-specific fulfillers.
@@ -156,7 +166,7 @@ class DefaultFulfillerSelector(
   private val noiserSelector: NoiserSelector,
   private val resultMinimumThresholds: ResultMinimumThresholds?,
   private val overrideImpressionMaxFrequencyPerUser: Int?,
-  private val impressionCapMode: ImpressionCapMode = ImpressionCapMode.LEGACY_CAP_MODE,
+  private val impressionCapMode: ImpressionCapMode = ImpressionCapMode.UNSPECIFIED,
   private val supportedMultiPartyNoiseMechanisms: Set<NoiseMechanism>,
   private val trusTeeConfig: TrusTeeConfig? = null,
   private val kekUriToKeyNameMap: Map<String, String> = emptyMap(),

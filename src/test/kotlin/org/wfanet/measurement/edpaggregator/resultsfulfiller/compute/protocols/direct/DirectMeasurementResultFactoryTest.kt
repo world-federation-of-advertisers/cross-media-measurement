@@ -64,7 +64,7 @@ class DirectMeasurementResultFactoryTest {
           resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = null,
           totalUncappedImpressions = 0L,
-          impressionCapMode = ImpressionCapMode.LEGACY_CAP_MODE,
+          impressionCapMode = ImpressionCapMode.UNSPECIFIED,
         )
 
       // Verify
@@ -108,7 +108,7 @@ class DirectMeasurementResultFactoryTest {
         resultMinimumThresholds = null,
         impressionMaxFrequencyPerUser = null,
         totalUncappedImpressions = 0L,
-        impressionCapMode = ImpressionCapMode.LEGACY_CAP_MODE,
+        impressionCapMode = ImpressionCapMode.UNSPECIFIED,
       )
 
     // Verify
@@ -148,7 +148,7 @@ class DirectMeasurementResultFactoryTest {
           resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = null,
           totalUncappedImpressions = 110L,
-          impressionCapMode = ImpressionCapMode.LEGACY_CAP_MODE,
+          impressionCapMode = ImpressionCapMode.UNSPECIFIED,
         )
 
       // Verify
