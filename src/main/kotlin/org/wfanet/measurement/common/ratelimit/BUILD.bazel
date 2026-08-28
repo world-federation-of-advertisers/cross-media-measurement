@@ -18,12 +18,3 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
-
-kt_jvm_library(
-    name = "rate_limiter_throttler",
-    srcs = ["RateLimiterThrottler.kt"],
-    deps = [
-        ":rate_limiter",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
-    ],
-)

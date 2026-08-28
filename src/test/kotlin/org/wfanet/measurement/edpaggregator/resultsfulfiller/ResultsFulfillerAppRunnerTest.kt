@@ -19,13 +19,18 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.common.truth.Truth.assertThat
 import java.io.File
 import java.nio.file.Files
+import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfigKt.kmsConfig
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
 
 @RunWith(JUnit4::class)
 class ResultsFulfillerAppRunnerTest {
@@ -202,6 +207,90 @@ class ResultsFulfillerAppRunnerTest {
     }
 
     assertThat(config.kmsType).isEqualTo(EventDataProviderConfig.KmsConfig.KmsType.GCP)
+  }
+
+  @Test
+  fun `buildModelLineMap caches population spec and VID index by population-spec URI`() {
+    runBlocking {
+      val runner = ResultsFulfillerAppRunner()
+      val eventTemplateTypeName = TestEvent.getDescriptor().fullName
+
+      // A and B share a population-spec URI but use different descriptors; C uses a different
+      // population-spec URI but shares a descriptor URI with A.
+      val modelLineA =
+        ResultsFulfillerAppRunner.ModelLineFlags().apply {
+          modelLine = "modelLineA"
+          populationSpecFileBlobUri = "population-spec-1"
+          eventTemplateDescriptorBlobUri = "descriptor-x"
+          this.eventTemplateTypeName = eventTemplateTypeName
+        }
+      val modelLineB =
+        ResultsFulfillerAppRunner.ModelLineFlags().apply {
+          modelLine = "modelLineB"
+          populationSpecFileBlobUri = "population-spec-1"
+          eventTemplateDescriptorBlobUri = "descriptor-y"
+          this.eventTemplateTypeName = eventTemplateTypeName
+        }
+      val modelLineC =
+        ResultsFulfillerAppRunner.ModelLineFlags().apply {
+          modelLine = "modelLineC"
+          populationSpecFileBlobUri = "population-spec-2"
+          eventTemplateDescriptorBlobUri = "descriptor-x"
+          this.eventTemplateTypeName = eventTemplateTypeName
+        }
+
+      var loadDescriptorSetCallCount = 0
+      var loadPopulationSpecCallCount = 0
+      var buildVidIndexMapCallCount = 0
+
+      val result =
+        runner.buildModelLineMap(
+          modelLines = listOf(modelLineA, modelLineB, modelLineC),
+          loadDescriptorSet = { _ ->
+            loadDescriptorSetCallCount++
+            listOf(TestEvent.getDescriptor())
+          },
+          loadPopulationSpec = { uri, _ ->
+            loadPopulationSpecCallCount++
+            populationSpec {
+              subpopulations +=
+                PopulationSpecKt.subPopulation {
+                  vidRanges +=
+                    PopulationSpecKt.vidRange {
+                      startVid = uri.hashCode().toLong()
+                      endVidInclusive = uri.hashCode().toLong()
+                    }
+                }
+            }
+          },
+          buildVidIndexMap = { _ ->
+            buildVidIndexMapCallCount++
+            object : VidIndexMap by VidIndexMap.EMPTY {}
+          },
+        )
+
+      assertThat(result.keys).containsExactly("modelLineA", "modelLineB", "modelLineC")
+      // Each descriptor URI ("descriptor-x", "descriptor-y") and population-spec URI
+      // ("population-spec-1", "population-spec-2") is loaded exactly once, despite 3 model lines.
+      assertThat(loadDescriptorSetCallCount).isEqualTo(2)
+      assertThat(loadPopulationSpecCallCount).isEqualTo(2)
+      assertThat(buildVidIndexMapCallCount).isEqualTo(2)
+
+      // A and B share a population-spec URI, so they share the same PopulationSpec and VidIndexMap
+      // even though they use different event descriptors.
+      assertThat(result.getValue("modelLineA").populationSpec)
+        .isSameInstanceAs(result.getValue("modelLineB").populationSpec)
+      assertThat(result.getValue("modelLineA").vidIndexMap)
+        .isSameInstanceAs(result.getValue("modelLineB").vidIndexMap)
+
+      // C uses a different population-spec URI, so it gets distinct instances.
+      assertThat(result.getValue("modelLineC").populationSpec)
+        .isNotSameInstanceAs(result.getValue("modelLineA").populationSpec)
+      assertThat(result.getValue("modelLineC").vidIndexMap)
+        .isNotSameInstanceAs(result.getValue("modelLineA").vidIndexMap)
+
+      assertThat(result.values.map { it.localAlias }).containsExactly(null, null, null)
+    }
   }
 
   @Test

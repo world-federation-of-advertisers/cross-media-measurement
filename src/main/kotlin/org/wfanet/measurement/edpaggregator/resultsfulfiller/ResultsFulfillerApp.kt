@@ -30,8 +30,6 @@ import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
-import org.wfanet.measurement.common.ratelimit.RateLimiterThrottler
-import org.wfanet.measurement.common.ratelimit.TokenBucket
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.computation.ResultMinimumThresholds
@@ -95,7 +93,7 @@ class ResultsFulfillerApp(
   private val getRequisitionsStorageConfig: (StorageParams) -> StorageConfig,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val pipelineConfiguration: PipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
-  private val requisitionsThrottler: Throttler = DEFAULT_REQUISITIONS_THROTTLER,
+  private val requisitionsThrottler: Throttler,
   private val metrics: ResultsFulfillerMetrics,
 ) :
   BaseTeeApplication(
@@ -319,12 +317,5 @@ class ResultsFulfillerApp(
         workers = cpuCount,
         readConcurrency = 16,
       )
-
-    /**
-     * Default rate limiter for outbound `GetRequisition` calls to Kingdom, for callers that don't
-     * specify one (e.g. via `--get-requisition-min-interval` on [ResultsFulfillerAppRunner]).
-     */
-    private val DEFAULT_REQUISITIONS_THROTTLER: Throttler =
-      RateLimiterThrottler(TokenBucket(size = 1, fillRate = 10.0))
   }
 }
