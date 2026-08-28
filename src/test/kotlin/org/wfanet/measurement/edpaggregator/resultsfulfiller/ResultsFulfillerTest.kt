@@ -437,6 +437,7 @@ class ResultsFulfillerTest {
       requisitionMetadataStub = requisitionMetadataStub,
       requisitionsStub = requisitionsStub,
       requisitionsThrottler = FakeThrottler(),
+      kingdomThrottler = FakeThrottler(),
       privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
       groupedRequisitions = groupedRequisitions { groupId = "retry-group" },
       modelLineInfoMap = emptyMap(),
@@ -523,6 +524,7 @@ class ResultsFulfillerTest {
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = requisitionsThrottler,
+        kingdomThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -550,6 +552,7 @@ class ResultsFulfillerTest {
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = requisitionsThrottler,
+        kingdomThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -670,6 +673,7 @@ class ResultsFulfillerTest {
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -689,6 +693,7 @@ class ResultsFulfillerTest {
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap =
           mapOf("some-model-line" to MODEL_LINE_INFO.copy(localAlias = mappedModelLine)),
@@ -784,6 +789,7 @@ class ResultsFulfillerTest {
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -811,6 +817,7 @@ class ResultsFulfillerTest {
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -918,6 +925,7 @@ class ResultsFulfillerTest {
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -945,6 +953,7 @@ class ResultsFulfillerTest {
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -1063,6 +1072,7 @@ class ResultsFulfillerTest {
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -1090,6 +1100,7 @@ class ResultsFulfillerTest {
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -1196,6 +1207,7 @@ class ResultsFulfillerTest {
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -1223,6 +1235,7 @@ class ResultsFulfillerTest {
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -1326,6 +1339,7 @@ class ResultsFulfillerTest {
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -1353,6 +1367,7 @@ class ResultsFulfillerTest {
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -1422,6 +1437,7 @@ class ResultsFulfillerTest {
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -1448,6 +1464,7 @@ class ResultsFulfillerTest {
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -1542,6 +1559,7 @@ class ResultsFulfillerTest {
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -1569,6 +1587,7 @@ class ResultsFulfillerTest {
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -1653,6 +1672,7 @@ class ResultsFulfillerTest {
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -1680,6 +1700,7 @@ class ResultsFulfillerTest {
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -1762,6 +1783,7 @@ class ResultsFulfillerTest {
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -1789,6 +1811,7 @@ class ResultsFulfillerTest {
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -1874,6 +1897,7 @@ class ResultsFulfillerTest {
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap =
             mapOf(
               DUCHY_ONE_NAME to requisitionFulfillmentStub,
@@ -1905,6 +1929,7 @@ class ResultsFulfillerTest {
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -1991,6 +2016,7 @@ class ResultsFulfillerTest {
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -2018,6 +2044,7 @@ class ResultsFulfillerTest {
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -2100,6 +2127,7 @@ class ResultsFulfillerTest {
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap =
             mapOf(
               DUCHY_ONE_NAME to requisitionFulfillmentStub,
@@ -2122,6 +2150,7 @@ class ResultsFulfillerTest {
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -2204,6 +2233,7 @@ class ResultsFulfillerTest {
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -2230,6 +2260,7 @@ class ResultsFulfillerTest {
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -2310,6 +2341,7 @@ class ResultsFulfillerTest {
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -2337,6 +2369,7 @@ class ResultsFulfillerTest {
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -2437,6 +2470,7 @@ class ResultsFulfillerTest {
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -2464,6 +2498,7 @@ class ResultsFulfillerTest {
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -2563,6 +2598,7 @@ class ResultsFulfillerTest {
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -2591,6 +2627,7 @@ class ResultsFulfillerTest {
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -2738,6 +2775,7 @@ class ResultsFulfillerTest {
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap =
           mapOf(
             DUCHY_ONE_NAME to requisitionFulfillmentStub,
@@ -2768,6 +2806,7 @@ class ResultsFulfillerTest {
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -2864,6 +2903,7 @@ class ResultsFulfillerTest {
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -2890,6 +2930,7 @@ class ResultsFulfillerTest {
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -2982,6 +3023,7 @@ class ResultsFulfillerTest {
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -3008,6 +3050,7 @@ class ResultsFulfillerTest {
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -3089,6 +3132,7 @@ class ResultsFulfillerTest {
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -3134,6 +3178,7 @@ class ResultsFulfillerTest {
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           groupedRequisitions = groupedReqs,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -3196,6 +3241,7 @@ class ResultsFulfillerTest {
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -3240,6 +3286,7 @@ class ResultsFulfillerTest {
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         groupedRequisitions = groupedReqs,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -3503,6 +3550,7 @@ class ResultsFulfillerTest {
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -3524,6 +3572,7 @@ class ResultsFulfillerTest {
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -3543,6 +3592,7 @@ class ResultsFulfillerTest {
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap =
             mapOf(
               DUCHY_ONE_NAME to requisitionFulfillmentStub,
@@ -3579,6 +3629,7 @@ class ResultsFulfillerTest {
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -3611,6 +3662,7 @@ class ResultsFulfillerTest {
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = emptyMap(),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -3641,6 +3693,7 @@ class ResultsFulfillerTest {
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap =
             mapOf(
               DUCHY_ONE_NAME to requisitionFulfillmentStub,
@@ -3678,6 +3731,7 @@ class ResultsFulfillerTest {
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap =
             mapOf(
               DUCHY_ONE_NAME to requisitionFulfillmentStub,
@@ -3712,6 +3766,7 @@ class ResultsFulfillerTest {
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap =
             mapOf(
               DUCHY_ONE_NAME to requisitionFulfillmentStub,
@@ -3745,6 +3800,7 @@ class ResultsFulfillerTest {
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,

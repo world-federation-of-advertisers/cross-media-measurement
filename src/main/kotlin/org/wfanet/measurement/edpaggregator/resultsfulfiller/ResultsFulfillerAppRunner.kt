@@ -199,6 +199,18 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
   )
   private lateinit var getRequisitionMinInterval: Duration
 
+  @CommandLine.Option(
+    names = ["--kingdom-requisitions-min-interval"],
+    description =
+      [
+        "Minimum interval between outbound FulfillDirectRequisition/RefuseRequisition calls to " +
+          "Kingdom. These share a Kingdom rate-limit bucket with every other Requisitions method " +
+          "besides GetRequisition, so this should stay within that bucket's sustained rate."
+      ],
+    defaultValue = "200ms",
+  )
+  private lateinit var kingdomRequisitionsMinInterval: Duration
+
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)
   }
@@ -206,6 +218,9 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
   override fun run() {
     require(getRequisitionMinInterval > Duration.ZERO) {
       "--get-requisition-min-interval must be positive, got $getRequisitionMinInterval"
+    }
+    require(kingdomRequisitionsMinInterval > Duration.ZERO) {
+      "--kingdom-requisitions-min-interval must be positive, got $kingdomRequisitionsMinInterval"
     }
 
     // Pull certificates needed to operate from Google Secrets.
@@ -274,6 +289,8 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
         pipelineConfiguration = pipelineConfiguration,
         requisitionsThrottler =
           MaximumRateThrottler(1_000_000_000.0 / getRequisitionMinInterval.toNanos()),
+        kingdomThrottler =
+          MaximumRateThrottler(1_000_000_000.0 / kingdomRequisitionsMinInterval.toNanos()),
         metrics = metrics,
       )
 

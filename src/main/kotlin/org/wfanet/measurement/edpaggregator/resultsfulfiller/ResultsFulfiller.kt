@@ -93,6 +93,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMe
  * @param requisitionsThrottler paces outbound `GetRequisition` calls to Kingdom. Shared with the
  *   fulfillers this class dispatches to via [fulfillerSelector], so the throttle budget covers all
  *   `GetRequisition` traffic this process makes, not just [shouldBeProcessed]'s.
+ * @param kingdomThrottler paces outbound `RefuseRequisition` calls to Kingdom, which share a
+ *   Kingdom rate-limit bucket with every other Requisitions method besides `GetRequisition`.
  * @param privateEncryptionKey Private key used to decrypt `RequisitionSpec`s.
  * @param groupedRequisitions The grouped requisitions to fulfill.
  * @param modelLineInfoMap Map of model line to [ModelLineInfo] providing descriptors and indexes.
@@ -113,6 +115,7 @@ class ResultsFulfiller(
   private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionsThrottler: Throttler,
+  private val kingdomThrottler: Throttler,
   private val privateEncryptionKey: PrivateKeyHandle,
   private val groupedRequisitions: GroupedRequisitions,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
@@ -563,16 +566,18 @@ class ResultsFulfiller(
     e: RequisitionRefusalException,
   ) {
     try {
-      requisitionsStub.refuseRequisition(
-        refuseRequisitionRequest {
-          name = requisition.name
-          refusal =
-            RequisitionKt.refusal {
-              justification = e.justification
-              message = e.message ?: "Requisition refused"
-            }
-        }
-      )
+      kingdomThrottler.onReady {
+        requisitionsStub.refuseRequisition(
+          refuseRequisitionRequest {
+            name = requisition.name
+            refusal =
+              RequisitionKt.refusal {
+                justification = e.justification
+                message = e.message ?: "Requisition refused"
+              }
+          }
+        )
+      }
     } catch (refusalError: Exception) {
       logger.log(
         Level.SEVERE,

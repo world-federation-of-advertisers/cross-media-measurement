@@ -224,6 +224,7 @@ class InProcessEdpAggregatorComponents(
       modelLineInfoMap = modelLineInfoMap,
       metrics = ResultsFulfillerMetrics.create(),
       requisitionsThrottler = FakeThrottler(),
+      kingdomThrottler = FakeThrottler(),
     )
   }
 

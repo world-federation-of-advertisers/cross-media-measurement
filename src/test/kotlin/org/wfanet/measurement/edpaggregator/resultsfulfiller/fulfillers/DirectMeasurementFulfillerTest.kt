@@ -114,6 +114,7 @@ class DirectMeasurementFulfillerTest {
     runBlocking {
       val result = result { MeasurementKt.ResultKt.reach { value = 100L } }
       val requisitionsThrottler = RecordingThrottler()
+      val kingdomThrottler = RecordingThrottler()
       val directMeasurementFulfiller =
         DirectMeasurementFulfiller(
           requisitionName = REQUISITION_NAME,
@@ -127,11 +128,13 @@ class DirectMeasurementFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = requisitionsThrottler,
+          kingdomThrottler = kingdomThrottler,
         )
 
       directMeasurementFulfiller.fulfillRequisition()
 
       assertThat(requisitionsThrottler.invocationCount).isEqualTo(1)
+      assertThat(kingdomThrottler.invocationCount).isEqualTo(1)
 
       // Verify the stub was called with the correct parameters
       verifyProtoArgument(
@@ -165,6 +168,7 @@ class DirectMeasurementFulfillerTest {
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         requisitionsStub = throwingUnfulfilledRequisitionsStub,
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
       )
     assertFails { runBlocking { directMeasurementFulfiller.fulfillRequisition() } }
   }
@@ -186,6 +190,7 @@ class DirectMeasurementFulfillerTest {
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           requisitionsStub = throwingTerminalRequisitionsStub,
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
         )
 
       directMeasurementFulfiller.fulfillRequisition()

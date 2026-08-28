@@ -394,6 +394,7 @@ class ResultsFulfillerAppTest {
         mapOf("some-model-line" to MODEL_LINE_INFO),
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -524,6 +525,7 @@ class ResultsFulfillerAppTest {
           mapOf("some-model-line" to MODEL_LINE_INFO),
           metrics = ResultsFulfillerMetrics.create(),
           requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
         )
       // Empty metadata is treated as transient (the fetcher writes metadata just after the blob,
       // and DataWatcher dispatches on the blob), so runWork throws to nack the work item for retry
@@ -663,6 +665,7 @@ class ResultsFulfillerAppTest {
         mapOf("some-model-line" to MODEL_LINE_INFO),
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -801,6 +804,7 @@ class ResultsFulfillerAppTest {
         mapOf("some-model-line" to MODEL_LINE_INFO),
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
       )
     assertFails { app.runWork(Any.pack(workItemParams)) }
 
@@ -926,6 +930,7 @@ class ResultsFulfillerAppTest {
         mapOf("some-model-line" to MODEL_LINE_INFO),
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -1079,6 +1084,7 @@ class ResultsFulfillerAppTest {
         mapOf("some-model-line" to MODEL_LINE_INFO),
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -1233,6 +1239,7 @@ class ResultsFulfillerAppTest {
         mapOf("some-model-line" to MODEL_LINE_INFO),
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
       )
 
     assertFails { app.runWork(Any.pack(workItemParams)) }
@@ -1388,6 +1395,7 @@ class ResultsFulfillerAppTest {
         mapOf("some-model-line" to MODEL_LINE_INFO),
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -1540,6 +1548,7 @@ class ResultsFulfillerAppTest {
         mapOf("some-model-line" to MODEL_LINE_INFO),
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
       )
 
     // Should fail because TrusTeeConfig is missing but kekUri is present (impressions exist)

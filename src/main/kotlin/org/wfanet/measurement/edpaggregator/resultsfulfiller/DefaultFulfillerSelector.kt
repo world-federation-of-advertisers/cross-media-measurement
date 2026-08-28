@@ -109,6 +109,8 @@ data class TrusTeeConfig(
  *
  * @param requisitionsStub gRPC stub for Direct protocol requisitions
  * @param requisitionsThrottler paces outbound `GetRequisition` calls to Kingdom
+ * @param kingdomThrottler paces outbound `FulfillDirectRequisition` calls to Kingdom, which share a
+ *   Kingdom rate-limit bucket with every other Requisitions method besides `GetRequisition`
  * @param requisitionFulfillmentStubMap duchy name → gRPC stub mapping for HM Shuffle and TrusTee
  * @param dataProviderCertificateKey EDP certificate identifier for result signing
  * @param dataProviderSigningKeyHandle cryptographic key for result authentication
@@ -126,6 +128,7 @@ data class TrusTeeConfig(
 class DefaultFulfillerSelector(
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
   private val requisitionsThrottler: Throttler,
+  private val kingdomThrottler: Throttler,
   private val requisitionFulfillmentStubMap:
     Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
@@ -353,6 +356,7 @@ class DefaultFulfillerSelector(
       dataProviderCertificateKey,
       requisitionsStub,
       requisitionsThrottler,
+      kingdomThrottler,
     )
   }
 }

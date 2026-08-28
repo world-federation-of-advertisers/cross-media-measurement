@@ -74,6 +74,9 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param requisitionsThrottler paces outbound `GetRequisition` calls to Kingdom. Shared across this
  *   app's own pre-check and the fulfillers it dispatches to, so the throttle budget covers all
  *   `GetRequisition` traffic this process makes.
+ * @param kingdomThrottler paces outbound `FulfillDirectRequisition`/`RefuseRequisition` calls to
+ *   Kingdom, which share a Kingdom rate-limit bucket with every other Requisitions method besides
+ *   `GetRequisition`.
  * @param metrics Metrics recorder for telemetry.
  * @constructor Initializes the application with all required dependencies for result fulfillment.
  */
@@ -94,6 +97,7 @@ class ResultsFulfillerApp(
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val pipelineConfiguration: PipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
   private val requisitionsThrottler: Throttler,
+  private val kingdomThrottler: Throttler,
   private val metrics: ResultsFulfillerMetrics,
 ) :
   BaseTeeApplication(
@@ -219,6 +223,7 @@ class ResultsFulfillerApp(
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = requisitionsThrottler,
+        kingdomThrottler = kingdomThrottler,
         requisitionFulfillmentStubMap = requisitionFulfillmentStubsMap,
         dataProviderCertificateKey = dataProviderCertificateKey,
         dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
@@ -254,6 +259,7 @@ class ResultsFulfillerApp(
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = requisitionsThrottler,
+        kingdomThrottler = kingdomThrottler,
         privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = modelLineInfoMapWithAliases,

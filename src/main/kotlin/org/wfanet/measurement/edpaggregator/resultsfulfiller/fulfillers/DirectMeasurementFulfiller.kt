@@ -47,6 +47,7 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  * @param directNoiseMechanism The direct noise mechanism to use.
  * @param requisitionsStub The stub for the Requisitions service.
  * @param requisitionsThrottler paces outbound `GetRequisition` calls to Kingdom.
+ * @param kingdomThrottler paces outbound `FulfillDirectRequisition` calls to Kingdom.
  * @param dataProviderSigningKeyHandle The signing key handle for the data provider.
  * @param dataProviderCertificateKey The certificate key for the data provider.
  */
@@ -62,6 +63,7 @@ class DirectMeasurementFulfiller(
   private val dataProviderCertificateKey: DataProviderCertificateKey,
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionsThrottler: Throttler,
+  private val kingdomThrottler: Throttler,
 ) : MeasurementFulfiller {
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 
@@ -82,15 +84,17 @@ class DirectMeasurementFulfiller(
           requisitionsStub.getRequisition(getRequisitionRequest { name = requisitionName })
         }
       if (requisition.state === Requisition.State.UNFULFILLED) {
-        requisitionsStub.fulfillDirectRequisition(
-          fulfillDirectRequisitionRequest {
-            name = requisitionName
-            encryptedResult = signedEncryptedResult
-            nonce = requisitionNonce
-            certificate = dataProviderCertificateKey.toName()
-            etag = requisition.etag
-          }
-        )
+        kingdomThrottler.onReady {
+          requisitionsStub.fulfillDirectRequisition(
+            fulfillDirectRequisitionRequest {
+              name = requisitionName
+              encryptedResult = signedEncryptedResult
+              nonce = requisitionNonce
+              certificate = dataProviderCertificateKey.toName()
+              etag = requisition.etag
+            }
+          )
+        }
       } else {
         logger.info("Cannot fulfill requisition $requisitionName with state ${requisition.state}")
       }
