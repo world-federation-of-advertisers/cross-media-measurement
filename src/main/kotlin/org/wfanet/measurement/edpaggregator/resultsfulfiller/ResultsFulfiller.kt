@@ -50,7 +50,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedMessage
-import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
+import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.ExponentialBackoff
@@ -58,6 +58,7 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
@@ -89,6 +90,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMe
  *
  * @param dataProvider [DataProvider] resource name.
  * @param requisitionMetadataStub used to sync [Requisition]s with the RequisitionMetadataStorage
+ * @param requisitionsThrottler paces outbound `GetRequisition` calls to Kingdom. Shared with the
+ *   fulfillers this class dispatches to via [fulfillerSelector], so the throttle budget covers all
+ *   `GetRequisition` traffic this process makes, not just [shouldBeProcessed]'s.
  * @param privateEncryptionKey Private key used to decrypt `RequisitionSpec`s.
  * @param groupedRequisitions The grouped requisitions to fulfill.
  * @param modelLineInfoMap Map of model line to [ModelLineInfo] providing descriptors and indexes.
@@ -108,6 +112,7 @@ class ResultsFulfiller(
   private val dataProvider: String,
   private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,
+  private val requisitionsThrottler: Throttler,
   private val privateEncryptionKey: PrivateKeyHandle,
   private val groupedRequisitions: GroupedRequisitions,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
@@ -197,14 +202,8 @@ class ResultsFulfiller(
     val requisitionMetadataByName: Map<String, RequisitionMetadata> =
       requisitionsMetadata.associateBy { it.cmmsRequisition }
 
-    // Fetched once per group via ListRequisitions rather than one GetRequisition call per
-    // requisition in the group -- see listRequisitionsForDataProvider for why.
-    val cmmsRequisitionsByName: Map<String, Requisition> = listRequisitionsForDataProvider()
-
     val filteredRequisitions =
-      requisitions.filter {
-        it.shouldBeProcessed(requisitionMetadataByName, cmmsRequisitionsByName)
-      }
+      requisitions.filter { it.shouldBeProcessed(requisitionMetadataByName) }
     if (filteredRequisitions.isEmpty()) {
       return
     }
@@ -294,15 +293,13 @@ class ResultsFulfiller(
   }
 
   private suspend fun Requisition.shouldBeProcessed(
-    metadataByName: Map<String, RequisitionMetadata>,
-    cmmsRequisitionsByName: Map<String, Requisition>,
+    metadataByName: Map<String, RequisitionMetadata>
   ): Boolean {
     val metadata = metadataByName[name]
     requireNotNull(metadata) { "Requisition metadata not found for requisition: $name" }
     val requisition =
-      requireNotNull(cmmsRequisitionsByName[metadata.cmmsRequisition]) {
-        "Requisition ${metadata.cmmsRequisition} not returned by ListRequisitions for " +
-          "dataProvider=$dataProvider"
+      requisitionsThrottler.onReady {
+        requisitionsStub.getRequisition(getRequisitionRequest { name = metadata.cmmsRequisition })
       }
     return when (requisition.state) {
       Requisition.State.FULFILLED -> {
@@ -333,62 +330,6 @@ class ResultsFulfiller(
         )
       }
     }
-  }
-
-  /**
-   * Fetches current cmms [Requisition] state for this data provider via `ListRequisitions`, rather
-   * than issuing one `GetRequisition` call per requisition being considered in this group.
-   *
-   * `GetRequisition` shares Kingdom's default per-principal rate-limit bucket with every other RPC
-   * type (`CreateMeasurement`, `GetMeasurement`, etc.), so a group with many requisitions can, on
-   * its own, exhaust that shared bucket and start seeing `UNAVAILABLE: Rate limit exceeded`.
-   * `ListRequisitions` has its own dedicated bucket (see the Kingdom rate limit config), so routing
-   * this lookup through it avoids contending with unrelated traffic.
-   *
-   * There is no API to filter `ListRequisitions` by specific requisition names, so this walks this
-   * data provider's entire `Requisition` history (oldest-`UpdateTime`-first) and returns everything
-   * returned. Cost therefore scales with this data provider's total lifetime requisition count, not
-   * just the size of the current group -- still a large net reduction versus one `GetRequisition`
-   * call per item, and it lands on a bucket that isn't shared with the rest of this process's
-   * traffic. Page size is capped well below the API's documented maximum: pages at or above 300
-   * have been observed to reliably exceed the RPC deadline, since each `Requisition` includes a
-   * full encrypted spec.
-   */
-  private suspend fun listRequisitionsForDataProvider(): Map<String, Requisition> {
-    suspend fun listPage(pageToken: String): ResourceList<Requisition, String> {
-      var attempt = 0
-      while (true) {
-        attempt++
-        val request = listRequisitionsRequest {
-          parent = dataProvider
-          pageSize = LIST_REQUISITIONS_PAGE_SIZE
-          this.pageToken = pageToken
-        }
-        try {
-          val response = requisitionsStub.listRequisitions(request)
-          return ResourceList(response.requisitionsList, response.nextPageToken)
-        } catch (e: StatusException) {
-          val retryable =
-            e.status.code == Status.Code.UNAVAILABLE ||
-              e.status.code == Status.Code.DEADLINE_EXCEEDED
-          if (!retryable || attempt >= listMaxAttempts) {
-            throw Exception(
-              "Error listing requisitions for dataProvider=$dataProvider: ${e.status}",
-              e,
-            )
-          }
-          logger.warning {
-            "Transient failure listing Requisitions for dataProvider=$dataProvider on attempt " +
-              "$attempt of $listMaxAttempts (${e.status.code}); retrying"
-          }
-          delay(listRetryBackoff.durationForAttempt(attempt).toMillis())
-        }
-      }
-    }
-
-    val requisitions: Flow<Requisition> =
-      requisitionsStub.listResources { pageToken: String -> listPage(pageToken) }.flattenConcat()
-    return requisitions.toList().associateBy { it.name }
   }
 
   /**
@@ -751,14 +692,6 @@ class ResultsFulfiller(
      * Default maximum total attempts (first attempt + retries) per ListRequisitionMetadata page.
      */
     private const val DEFAULT_LIST_MAX_ATTEMPTS = 4
-
-    /**
-     * Page size for `ListRequisitions` calls in [listRequisitionsForDataProvider].
-     *
-     * Kept well below the API's documented maximum (500): pages at or above 300 have been observed
-     * to reliably hit `DeadlineExceeded`, since each `Requisition` includes a full encrypted spec.
-     */
-    private const val LIST_REQUISITIONS_PAGE_SIZE = 100
 
     /**
      * Builds the event group → entity key map from grouped requisition entries.

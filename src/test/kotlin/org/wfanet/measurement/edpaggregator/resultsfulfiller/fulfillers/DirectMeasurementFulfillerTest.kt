@@ -48,6 +48,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
@@ -111,6 +112,7 @@ class DirectMeasurementFulfillerTest {
           dataProviderSigningKeyHandle = EDP_SIGNING_KEY,
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
         )
 
       directMeasurementFulfiller.fulfillRequisition()
@@ -146,6 +148,7 @@ class DirectMeasurementFulfillerTest {
         dataProviderSigningKeyHandle = EDP_SIGNING_KEY,
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         requisitionsStub = throwingUnfulfilledRequisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
       )
     assertFails { runBlocking { directMeasurementFulfiller.fulfillRequisition() } }
   }
@@ -166,6 +169,7 @@ class DirectMeasurementFulfillerTest {
           dataProviderSigningKeyHandle = EDP_SIGNING_KEY,
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           requisitionsStub = throwingTerminalRequisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
         )
 
       directMeasurementFulfiller.fulfillRequisition()

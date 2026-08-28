@@ -30,6 +30,7 @@ import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.consent.client.dataprovider.encryptResult
 import org.wfanet.measurement.consent.client.dataprovider.signResult
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
@@ -45,6 +46,7 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  * @param directProtocolConfig The direct protocol configuration.
  * @param directNoiseMechanism The direct noise mechanism to use.
  * @param requisitionsStub The stub for the Requisitions service.
+ * @param requisitionsThrottler paces outbound `GetRequisition` calls to Kingdom.
  * @param dataProviderSigningKeyHandle The signing key handle for the data provider.
  * @param dataProviderCertificateKey The certificate key for the data provider.
  */
@@ -59,6 +61,7 @@ class DirectMeasurementFulfiller(
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
   private val requisitionsStub: RequisitionsCoroutineStub,
+  private val requisitionsThrottler: Throttler,
 ) : MeasurementFulfiller {
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 
@@ -75,7 +78,9 @@ class DirectMeasurementFulfiller(
 
     try {
       val requisition =
-        requisitionsStub.getRequisition(getRequisitionRequest { name = requisitionName })
+        requisitionsThrottler.onReady {
+          requisitionsStub.getRequisition(getRequisitionRequest { name = requisitionName })
+        }
       if (requisition.state === Requisition.State.UNFULFILLED) {
         requisitionsStub.fulfillDirectRequisition(
           fulfillDirectRequisitionRequest {

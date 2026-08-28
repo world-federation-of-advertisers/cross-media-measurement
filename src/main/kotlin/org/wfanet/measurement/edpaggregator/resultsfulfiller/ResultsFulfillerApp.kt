@@ -22,6 +22,8 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Parser
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
+import java.time.Clock
+import java.time.Duration
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -31,6 +33,8 @@ import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -70,6 +74,9 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param getRequisitionsStorageConfig Lambda to obtain [StorageConfig] for requisitions.
  * @param modelLineInfoMap map of model line to [ModelLineInfo]
  * @param pipelineConfiguration Configuration for the event processing pipeline.
+ * @param requisitionsThrottler paces outbound `GetRequisition` calls to Kingdom. Shared across this
+ *   app's own pre-check and the fulfillers it dispatches to, so the throttle budget covers all
+ *   `GetRequisition` traffic this process makes.
  * @param metrics Metrics recorder for telemetry.
  * @constructor Initializes the application with all required dependencies for result fulfillment.
  */
@@ -89,6 +96,7 @@ class ResultsFulfillerApp(
   private val getRequisitionsStorageConfig: (StorageParams) -> StorageConfig,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val pipelineConfiguration: PipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+  private val requisitionsThrottler: Throttler = DEFAULT_REQUISITIONS_THROTTLER,
   private val metrics: ResultsFulfillerMetrics,
 ) :
   BaseTeeApplication(
@@ -213,6 +221,7 @@ class ResultsFulfillerApp(
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = requisitionsThrottler,
         requisitionFulfillmentStubMap = requisitionFulfillmentStubsMap,
         dataProviderCertificateKey = dataProviderCertificateKey,
         dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
@@ -247,6 +256,7 @@ class ResultsFulfillerApp(
         dataProvider = fulfillerParams.dataProvider,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = requisitionsThrottler,
         privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = modelLineInfoMapWithAliases,
@@ -310,5 +320,13 @@ class ResultsFulfillerApp(
         workers = cpuCount,
         readConcurrency = 16,
       )
+
+    /**
+     * Default minimum interval between outbound `GetRequisition` calls to Kingdom, for callers that
+     * don't specify one (e.g. via `--get-requisition-min-interval-millis` on
+     * [ResultsFulfillerAppRunner]).
+     */
+    private val DEFAULT_REQUISITIONS_THROTTLER: Throttler =
+      MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(100))
   }
 }

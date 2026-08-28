@@ -23,6 +23,8 @@ import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
 import java.io.File
+import java.time.Clock
+import java.time.Duration
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.EnvelopeEncryptionKt.awsKmsParams
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
@@ -30,6 +32,7 @@ import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResultsFulfillerConfigAsByteArray
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig
 import org.wfanet.measurement.edpaggregator.BaseTeeAppRunner
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -183,6 +186,19 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
   )
   private var pipelineReadConcurrency: Int = 16
 
+  @CommandLine.Option(
+    names = ["--get-requisition-min-interval"],
+    description =
+      [
+        "Minimum interval between outbound GetRequisition calls to Kingdom. Paces this app's " +
+          "GetRequisition traffic to stay within Kingdom's per-principal rate limit for that " +
+          "method, which is shared across every concurrent instance of this app authenticating " +
+          "as the same data provider."
+      ],
+    defaultValue = "100ms",
+  )
+  private lateinit var getRequisitionMinInterval: Duration
+
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)
   }
@@ -252,6 +268,8 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
         getRequisitionsStorageConfig = getImpressionsStorageConfig,
         modelLineInfoMap = modelLinesMap,
         pipelineConfiguration = pipelineConfiguration,
+        requisitionsThrottler =
+          MinimumIntervalThrottler(Clock.systemUTC(), getRequisitionMinInterval),
         metrics = metrics,
       )
 

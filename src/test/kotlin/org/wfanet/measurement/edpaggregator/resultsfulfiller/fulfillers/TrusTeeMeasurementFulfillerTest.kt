@@ -61,6 +61,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
@@ -130,6 +131,7 @@ class TrusTeeMeasurementFulfillerTest {
             "duchies/worker1" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
           ),
         requisitionsStub = unfulfilledRequisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         encryptionParams = null,
       )
     fulfiller.fulfillRequisition()
@@ -170,6 +172,7 @@ class TrusTeeMeasurementFulfillerTest {
           sampledFrequencyVector = sampledFrequencyVector,
           requisitionFulfillmentStubMap = mapOf("duchies/worker1" to stubWithError),
           requisitionsStub = unfulfilledRequisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           encryptionParams = null,
         )
       assertFails { fulfiller.fulfillRequisition() }
@@ -194,6 +197,7 @@ class TrusTeeMeasurementFulfillerTest {
           sampledFrequencyVector = sampledFrequencyVector,
           requisitionFulfillmentStubMap = mapOf("duchies/worker1" to stubWithError),
           requisitionsStub = terminalRequisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           encryptionParams = null,
         )
       fulfiller.fulfillRequisition()
@@ -225,7 +229,8 @@ class TrusTeeMeasurementFulfillerTest {
               "duchies/worker1" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
             ),
           requisitionsStub = unfulfilledRequisitionsStub,
-          ResultMinimumThresholds(minImpressions = 1, minUsers = 1),
+          requisitionsThrottler = FakeThrottler(),
+          resultMinimumThresholds = ResultMinimumThresholds(minImpressions = 1, minUsers = 1),
           protocolMinUsers = 0,
           protocolMinImpressions = 0,
           maxPopulation = null,
@@ -277,7 +282,8 @@ class TrusTeeMeasurementFulfillerTest {
               "duchies/worker1" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
             ),
           requisitionsStub = unfulfilledRequisitionsStub,
-          ResultMinimumThresholds(minImpressions = 1000, minUsers = 1000),
+          requisitionsThrottler = FakeThrottler(),
+          resultMinimumThresholds = ResultMinimumThresholds(minImpressions = 1000, minUsers = 1000),
           protocolMinUsers = 0,
           protocolMinImpressions = 0,
           maxPopulation = null,

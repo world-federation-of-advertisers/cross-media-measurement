@@ -112,7 +112,6 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
@@ -138,6 +137,7 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.ResultMinimumThresholds
@@ -241,15 +241,6 @@ class ResultsFulfillerTest {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
     onBlocking { getRequisition(any()) }
       .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
-    onBlocking { listRequisitions(any()) }
-      .thenReturn(
-        listRequisitionsResponse {
-          requisitions += requisition {
-            name = REQUISITION_NAME
-            state = Requisition.State.UNFULFILLED
-          }
-        }
-      )
   }
 
   private val requisitionMetadataServiceMock: RequisitionMetadataServiceCoroutineImplBase =
@@ -433,6 +424,7 @@ class ResultsFulfillerTest {
       dataProvider = EDP_NAME,
       requisitionMetadataStub = requisitionMetadataStub,
       requisitionsStub = requisitionsStub,
+      requisitionsThrottler = FakeThrottler(),
       privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
       groupedRequisitions = groupedRequisitions { groupId = "retry-group" },
       modelLineInfoMap = emptyMap(),
@@ -486,15 +478,8 @@ class ResultsFulfillerTest {
           }
         }
       )
-    whenever(requisitionsServiceMock.listRequisitions(any()))
-      .thenReturn(
-        listRequisitionsResponse {
-          requisitions += requisition {
-            name = REQUISITION_NAME
-            state = Requisition.State.UNFULFILLED
-          }
-        }
-      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -520,6 +505,7 @@ class ResultsFulfillerTest {
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -546,6 +532,7 @@ class ResultsFulfillerTest {
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -633,15 +620,8 @@ class ResultsFulfillerTest {
           }
         }
       )
-    whenever(requisitionsServiceMock.listRequisitions(any()))
-      .thenReturn(
-        listRequisitionsResponse {
-          requisitions += requisition {
-            name = REQUISITION_NAME
-            state = Requisition.State.UNFULFILLED
-          }
-        }
-      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -668,6 +648,7 @@ class ResultsFulfillerTest {
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -686,6 +667,7 @@ class ResultsFulfillerTest {
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap =
           mapOf("some-model-line" to MODEL_LINE_INFO.copy(localAlias = mappedModelLine)),
@@ -753,15 +735,8 @@ class ResultsFulfillerTest {
           }
         }
       )
-    whenever(requisitionsServiceMock.listRequisitions(any()))
-      .thenReturn(
-        listRequisitionsResponse {
-          requisitions += requisition {
-            name = REQUISITION_NAME
-            state = Requisition.State.UNFULFILLED
-          }
-        }
-      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -787,6 +762,7 @@ class ResultsFulfillerTest {
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -813,6 +789,7 @@ class ResultsFulfillerTest {
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -892,15 +869,8 @@ class ResultsFulfillerTest {
             }
           }
         )
-      whenever(requisitionsServiceMock.listRequisitions(any()))
-        .thenReturn(
-          listRequisitionsResponse {
-            requisitions += requisition {
-              name = REQUISITION_NAME
-              state = Requisition.State.UNFULFILLED
-            }
-          }
-        )
+      whenever(requisitionsServiceMock.getRequisition(any()))
+        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
 
       // Set up KMS
       val kmsClient = FakeKmsClient()
@@ -926,6 +896,7 @@ class ResultsFulfillerTest {
       val fulfillerSelector =
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -952,6 +923,7 @@ class ResultsFulfillerTest {
           privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -1042,15 +1014,8 @@ class ResultsFulfillerTest {
             }
           }
         )
-      whenever(requisitionsServiceMock.listRequisitions(any()))
-        .thenReturn(
-          listRequisitionsResponse {
-            requisitions += requisition {
-              name = REQUISITION_NAME
-              state = Requisition.State.UNFULFILLED
-            }
-          }
-        )
+      whenever(requisitionsServiceMock.getRequisition(any()))
+        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
 
       // Set up KMS
       val kmsClient = FakeKmsClient()
@@ -1076,6 +1041,7 @@ class ResultsFulfillerTest {
       val fulfillerSelector =
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -1102,6 +1068,7 @@ class ResultsFulfillerTest {
           privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -1180,15 +1147,8 @@ class ResultsFulfillerTest {
             }
           }
         )
-      whenever(requisitionsServiceMock.listRequisitions(any()))
-        .thenReturn(
-          listRequisitionsResponse {
-            requisitions += requisition {
-              name = REQUISITION_NAME
-              state = Requisition.State.UNFULFILLED
-            }
-          }
-        )
+      whenever(requisitionsServiceMock.getRequisition(any()))
+        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
 
       // Set up KMS
       val kmsClient = FakeKmsClient()
@@ -1214,6 +1174,7 @@ class ResultsFulfillerTest {
       val fulfillerSelector =
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -1240,6 +1201,7 @@ class ResultsFulfillerTest {
           privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -1315,15 +1277,8 @@ class ResultsFulfillerTest {
           }
         }
       )
-    whenever(requisitionsServiceMock.listRequisitions(any()))
-      .thenReturn(
-        listRequisitionsResponse {
-          requisitions += requisition {
-            name = REQUISITION_NAME
-            state = Requisition.State.FULFILLED
-          }
-        }
-      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.FULFILLED })
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -1349,6 +1304,7 @@ class ResultsFulfillerTest {
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -1375,6 +1331,7 @@ class ResultsFulfillerTest {
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -1443,6 +1400,7 @@ class ResultsFulfillerTest {
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -1468,6 +1426,7 @@ class ResultsFulfillerTest {
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -1534,15 +1493,8 @@ class ResultsFulfillerTest {
           }
         }
       )
-    whenever(requisitionsServiceMock.listRequisitions(any()))
-      .thenReturn(
-        listRequisitionsResponse {
-          requisitions += requisition {
-            name = REQUISITION_NAME
-            state = Requisition.State.WITHDRAWN
-          }
-        }
-      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.WITHDRAWN })
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -1568,6 +1520,7 @@ class ResultsFulfillerTest {
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -1594,6 +1547,7 @@ class ResultsFulfillerTest {
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -1650,15 +1604,8 @@ class ResultsFulfillerTest {
           }
         }
       )
-    whenever(requisitionsServiceMock.listRequisitions(any()))
-      .thenReturn(
-        listRequisitionsResponse {
-          requisitions += requisition {
-            name = REQUISITION_NAME
-            state = Requisition.State.REFUSED
-          }
-        }
-      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.REFUSED })
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -1684,6 +1631,7 @@ class ResultsFulfillerTest {
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -1710,6 +1658,7 @@ class ResultsFulfillerTest {
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -1764,15 +1713,8 @@ class ResultsFulfillerTest {
           }
         }
       )
-    whenever(requisitionsServiceMock.listRequisitions(any()))
-      .thenReturn(
-        listRequisitionsResponse {
-          requisitions += requisition {
-            name = REQUISITION_NAME
-            state = Requisition.State.STATE_UNSPECIFIED
-          }
-        }
-      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.STATE_UNSPECIFIED })
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -1798,6 +1740,7 @@ class ResultsFulfillerTest {
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -1824,6 +1767,7 @@ class ResultsFulfillerTest {
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -1878,15 +1822,8 @@ class ResultsFulfillerTest {
             }
           }
         )
-      whenever(requisitionsServiceMock.listRequisitions(any()))
-        .thenReturn(
-          listRequisitionsResponse {
-            requisitions += requisition {
-              name = REQUISITION_NAME
-              state = Requisition.State.UNFULFILLED
-            }
-          }
-        )
+      whenever(requisitionsServiceMock.getRequisition(any()))
+        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
       whenever(requisitionsServiceMock.refuseRequisition(any()))
         .thenReturn(requisition { state = Requisition.State.REFUSED })
       whenever(requisitionMetadataServiceMock.refuseRequisitionMetadata(any()))
@@ -1915,6 +1852,7 @@ class ResultsFulfillerTest {
       val fulfillerSelector =
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap =
             mapOf(
               DUCHY_ONE_NAME to requisitionFulfillmentStub,
@@ -1945,6 +1883,7 @@ class ResultsFulfillerTest {
           privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -2000,15 +1939,8 @@ class ResultsFulfillerTest {
             }
           }
         )
-      whenever(requisitionsServiceMock.listRequisitions(any()))
-        .thenReturn(
-          listRequisitionsResponse {
-            requisitions += requisition {
-              name = REQUISITION_NAME
-              state = Requisition.State.UNFULFILLED
-            }
-          }
-        )
+      whenever(requisitionsServiceMock.getRequisition(any()))
+        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
       whenever(requisitionsServiceMock.refuseRequisition(any()))
         .thenReturn(requisition { state = Requisition.State.REFUSED })
       whenever(requisitionMetadataServiceMock.refuseRequisitionMetadata(any()))
@@ -2037,6 +1969,7 @@ class ResultsFulfillerTest {
       val fulfillerSelector =
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -2063,6 +1996,7 @@ class ResultsFulfillerTest {
           privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -2118,15 +2052,8 @@ class ResultsFulfillerTest {
             }
           }
         )
-      whenever(requisitionsServiceMock.listRequisitions(any()))
-        .thenReturn(
-          listRequisitionsResponse {
-            requisitions += requisition {
-              name = REQUISITION_NAME
-              state = Requisition.State.UNFULFILLED
-            }
-          }
-        )
+      whenever(requisitionsServiceMock.getRequisition(any()))
+        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
 
       val kmsClient = FakeKmsClient()
       val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
@@ -2151,6 +2078,7 @@ class ResultsFulfillerTest {
       val fulfillerSelector =
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap =
             mapOf(
               DUCHY_ONE_NAME to requisitionFulfillmentStub,
@@ -2172,6 +2100,7 @@ class ResultsFulfillerTest {
           privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -2227,15 +2156,8 @@ class ResultsFulfillerTest {
             }
           }
         )
-      whenever(requisitionsServiceMock.listRequisitions(any()))
-        .thenReturn(
-          listRequisitionsResponse {
-            requisitions += requisition {
-              name = REQUISITION_NAME
-              state = Requisition.State.UNFULFILLED
-            }
-          }
-        )
+      whenever(requisitionsServiceMock.getRequisition(any()))
+        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
 
       val kmsClient = FakeKmsClient()
       val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
@@ -2260,6 +2182,7 @@ class ResultsFulfillerTest {
       val fulfillerSelector =
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -2285,6 +2208,7 @@ class ResultsFulfillerTest {
           privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -2364,6 +2288,7 @@ class ResultsFulfillerTest {
       val fulfillerSelector =
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -2390,6 +2315,7 @@ class ResultsFulfillerTest {
           privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -2489,6 +2415,7 @@ class ResultsFulfillerTest {
       val fulfillerSelector =
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -2515,6 +2442,7 @@ class ResultsFulfillerTest {
           privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -2585,15 +2513,8 @@ class ResultsFulfillerTest {
         }
       )
 
-    whenever(requisitionsServiceMock.listRequisitions(any()))
-      .thenReturn(
-        listRequisitionsResponse {
-          requisitions += requisition {
-            name = REQUISITION_NAME
-            state = Requisition.State.UNFULFILLED
-          }
-        }
-      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
 
     val kmsClient = FakeKmsClient()
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "telemetry"
@@ -2620,6 +2541,7 @@ class ResultsFulfillerTest {
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -2647,6 +2569,7 @@ class ResultsFulfillerTest {
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -2765,15 +2688,8 @@ class ResultsFulfillerTest {
           }
         }
       )
-    whenever(requisitionsServiceMock.listRequisitions(any()))
-      .thenReturn(
-        listRequisitionsResponse {
-          requisitions += requisition {
-            name = REQUISITION_NAME
-            state = Requisition.State.UNFULFILLED
-          }
-        }
-      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -2800,6 +2716,7 @@ class ResultsFulfillerTest {
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap =
           mapOf(
             DUCHY_ONE_NAME to requisitionFulfillmentStub,
@@ -2829,6 +2746,7 @@ class ResultsFulfillerTest {
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -2896,15 +2814,8 @@ class ResultsFulfillerTest {
           }
         }
       )
-    whenever(requisitionsServiceMock.listRequisitions(any()))
-      .thenReturn(
-        listRequisitionsResponse {
-          requisitions += requisition {
-            name = REQUISITION_NAME
-            state = Requisition.State.UNFULFILLED
-          }
-        }
-      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -2931,6 +2842,7 @@ class ResultsFulfillerTest {
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -2956,6 +2868,7 @@ class ResultsFulfillerTest {
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -3017,15 +2930,8 @@ class ResultsFulfillerTest {
             }
           }
         )
-      whenever(requisitionsServiceMock.listRequisitions(any()))
-        .thenReturn(
-          listRequisitionsResponse {
-            requisitions += requisition {
-              name = REQUISITION_NAME
-              state = Requisition.State.UNFULFILLED
-            }
-          }
-        )
+      whenever(requisitionsServiceMock.getRequisition(any()))
+        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
 
       // Set up KMS
       val kmsClient = FakeKmsClient()
@@ -3054,6 +2960,7 @@ class ResultsFulfillerTest {
       val fulfillerSelector =
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -3079,6 +2986,7 @@ class ResultsFulfillerTest {
           privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -3141,15 +3049,8 @@ class ResultsFulfillerTest {
             }
           }
         )
-      whenever(requisitionsServiceMock.listRequisitions(any()))
-        .thenReturn(
-          listRequisitionsResponse {
-            requisitions += requisition {
-              name = REQUISITION_NAME
-              state = Requisition.State.UNFULFILLED
-            }
-          }
-        )
+      whenever(requisitionsServiceMock.getRequisition(any()))
+        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
 
       val kmsClient = FakeKmsClient()
       val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
@@ -3166,6 +3067,7 @@ class ResultsFulfillerTest {
       val fulfillerSelector =
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -3210,6 +3112,7 @@ class ResultsFulfillerTest {
           privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           groupedRequisitions = groupedReqs,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -3253,15 +3156,8 @@ class ResultsFulfillerTest {
           }
         }
       )
-    whenever(requisitionsServiceMock.listRequisitions(any()))
-      .thenReturn(
-        listRequisitionsResponse {
-          requisitions += requisition {
-            name = REQUISITION_NAME
-            state = Requisition.State.UNFULFILLED
-          }
-        }
-      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
 
     val kmsClient = FakeKmsClient()
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
@@ -3278,6 +3174,7 @@ class ResultsFulfillerTest {
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -3321,6 +3218,7 @@ class ResultsFulfillerTest {
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         groupedRequisitions = groupedReqs,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -3583,6 +3481,7 @@ class ResultsFulfillerTest {
     assertFailsWith<IllegalArgumentException> {
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -3603,6 +3502,7 @@ class ResultsFulfillerTest {
     assertFailsWith<IllegalArgumentException> {
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
         requisitionFulfillmentStubMap = emptyMap(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -3621,6 +3521,7 @@ class ResultsFulfillerTest {
       val fulfillerSelector =
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap =
             mapOf(
               DUCHY_ONE_NAME to requisitionFulfillmentStub,
@@ -3656,6 +3557,7 @@ class ResultsFulfillerTest {
       val fulfillerSelector =
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -3687,6 +3589,7 @@ class ResultsFulfillerTest {
       val fulfillerSelector =
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = emptyMap(),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
@@ -3716,6 +3619,7 @@ class ResultsFulfillerTest {
       val fulfillerSelector =
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap =
             mapOf(
               DUCHY_ONE_NAME to requisitionFulfillmentStub,
@@ -3752,6 +3656,7 @@ class ResultsFulfillerTest {
       val fulfillerSelector =
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap =
             mapOf(
               DUCHY_ONE_NAME to requisitionFulfillmentStub,
@@ -3785,6 +3690,7 @@ class ResultsFulfillerTest {
       val fulfillerSelector =
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap =
             mapOf(
               DUCHY_ONE_NAME to requisitionFulfillmentStub,
@@ -3817,6 +3723,7 @@ class ResultsFulfillerTest {
       val fulfillerSelector =
         DefaultFulfillerSelector(
           requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
           requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
           dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
