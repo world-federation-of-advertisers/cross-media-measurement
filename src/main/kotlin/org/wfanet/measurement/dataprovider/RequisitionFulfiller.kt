@@ -16,6 +16,7 @@ package org.wfanet.measurement.dataprovider
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.unpack
+import io.grpc.Status
 import io.grpc.StatusException
 import java.security.GeneralSecurityException
 import java.security.SignatureException
@@ -23,6 +24,7 @@ import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.delay
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -41,6 +43,7 @@ import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
@@ -69,9 +72,43 @@ abstract class RequisitionFulfiller(
   protected val dataProviderData: DataProviderData,
   private val certificatesStub: CertificatesCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,
+  /** Paces outbound calls to the Kingdom's Certificates and Requisitions services. */
   protected val throttler: Throttler,
   protected val trustedCertificates: Map<ByteString, X509Certificate>,
+  private val retryMaxAttempts: Int = DEFAULT_RETRY_MAX_ATTEMPTS,
+  private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) {
+  init {
+    require(retryMaxAttempts >= 1) { "retryMaxAttempts must be at least 1" }
+  }
+
+  /**
+   * Paces [block] via [throttler] and retries it with backoff if it throws a [StatusException] with
+   * code [Status.Code.UNAVAILABLE], up to [retryMaxAttempts] attempts. [errorMessage] is used to
+   * wrap the exception from the final attempt if all attempts fail.
+   *
+   * UNAVAILABLE is the only retried code: it covers both the call never reaching the server (safe
+   * to retry) and the server rejecting it outright, e.g. for exceeding its rate limit (also safe to
+   * retry once paced by [throttler]).
+   */
+  private suspend fun <T> callKingdom(errorMessage: String, block: suspend () -> T): T {
+    var attempt = 0
+    while (true) {
+      attempt++
+      try {
+        return throttler.onReady(block)
+      } catch (e: StatusException) {
+        if (e.status.code != Status.Code.UNAVAILABLE || attempt >= retryMaxAttempts) {
+          throw Exception(errorMessage, e)
+        }
+        logger.warning {
+          "$errorMessage on attempt $attempt of $retryMaxAttempts (${e.message}); retrying"
+        }
+        delay(retryBackoff.durationForAttempt(attempt).toMillis())
+      }
+    }
+  }
+
   protected data class Specifications(
     val measurementSpec: MeasurementSpec,
     val requisitionSpec: RequisitionSpec,
@@ -151,10 +188,8 @@ abstract class RequisitionFulfiller(
   }
 
   protected suspend fun getCertificate(resourceName: String): Certificate {
-    return try {
+    return callKingdom("Error fetching certificate $resourceName") {
       certificatesStub.getCertificate(getCertificateRequest { name = resourceName })
-    } catch (e: StatusException) {
-      throw Exception("Error fetching certificate $resourceName", e)
     }
   }
 
@@ -164,8 +199,10 @@ abstract class RequisitionFulfiller(
     message: String,
     etag: String,
   ): Requisition {
-    try {
-      return requisitionsStub.refuseRequisition(
+    // TODO(world-federation-of-advertisers/cross-media-measurement#2374): Handle ABORT exception
+    // by calling GetRequisition.
+    return callKingdom("Error refusing requisition $requisitionName") {
+      requisitionsStub.refuseRequisition(
         refuseRequisitionRequest {
           name = requisitionName
           refusal = refusal {
@@ -175,10 +212,6 @@ abstract class RequisitionFulfiller(
           this.etag = etag
         }
       )
-    } catch (e: StatusException) {
-      // TODO(world-federation-of-advertisers/cross-media-measurement#2374): Handle ABORT exception
-      // by calling GetRequisition.
-      throw Exception("Error refusing requisition $requisitionName", e)
     }
   }
 
@@ -188,10 +221,8 @@ abstract class RequisitionFulfiller(
       filter = filter { states += Requisition.State.UNFULFILLED }
     }
 
-    try {
-      return requisitionsStub.listRequisitions(request).requisitionsList
-    } catch (e: StatusException) {
-      throw Exception("Error listing requisitions", e)
+    return callKingdom("Error listing requisitions") {
+      requisitionsStub.listRequisitions(request).requisitionsList
     }
   }
 
@@ -221,7 +252,9 @@ abstract class RequisitionFulfiller(
     val encryptedResult: EncryptedMessage =
       encryptResult(signedResult, measurementEncryptionPublicKey)
 
-    try {
+    // TODO(world-federation-of-advertisers/cross-media-measurement#2374): Handle ABORT exception by
+    // calling GetRequisition.
+    callKingdom("Error fulfilling direct requisition ${requisition.name}") {
       requisitionsStub.fulfillDirectRequisition(
         fulfillDirectRequisitionRequest {
           name = requisition.name
@@ -230,14 +263,12 @@ abstract class RequisitionFulfiller(
           this.certificate = dataProviderData.certificateKey.toName()
         }
       )
-    } catch (e: StatusException) {
-      // TODO(world-federation-of-advertisers/cross-media-measurement#2374): Handle ABORT exception
-      // by calling GetRequisition.
-      throw Exception("Error fulfilling direct requisition ${requisition.name}", e)
     }
   }
 
   companion object {
     val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private const val DEFAULT_RETRY_MAX_ATTEMPTS = 4
   }
 }

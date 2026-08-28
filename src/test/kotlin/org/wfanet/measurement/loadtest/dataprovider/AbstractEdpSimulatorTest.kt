@@ -480,9 +480,7 @@ abstract class AbstractEdpSimulatorTest {
     /** Dummy [Throttler] for satisfying signatures without being used. */
     val dummyThrottler =
       object : Throttler {
-        override suspend fun <T> onReady(block: suspend () -> T): T {
-          throw UnsupportedOperationException("Should not be called")
-        }
+        override suspend fun <T> onReady(block: suspend () -> T): T = block()
       }
 
     fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
