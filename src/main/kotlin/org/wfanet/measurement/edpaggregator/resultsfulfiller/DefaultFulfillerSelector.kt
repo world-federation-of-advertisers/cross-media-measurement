@@ -121,7 +121,7 @@ internal const val UNCAPPED = 127
  * an operator setting a value that would be silently ignored. [ImpressionCapMode.UNSPECIFIED] is
  * exempt: reading the field is what it is for.
  */
-internal fun requireCapMatchesMode(impressionCapMode: ImpressionCapMode, configuredCap: Int) {
+fun requireCapMatchesMode(impressionCapMode: ImpressionCapMode, configuredCap: Int) {
   when (impressionCapMode) {
     ImpressionCapMode.CUSTOM_CAP ->
       require(configuredCap > 0) {
