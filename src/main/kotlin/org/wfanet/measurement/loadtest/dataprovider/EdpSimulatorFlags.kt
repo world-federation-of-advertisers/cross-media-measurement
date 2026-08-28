@@ -93,6 +93,19 @@ class EdpSimulatorFlags {
   lateinit var throttlerMinimumInterval: Duration
     private set
 
+  @CommandLine.Option(
+    names = ["--kingdom-rpc-min-interval"],
+    description =
+      [
+        "Minimum interval between outbound calls to the Kingdom's Requisitions and Certificates " +
+          "services. Paces this simulator's traffic to stay within Kingdom's per-principal rate " +
+          "limit for those methods."
+      ],
+    defaultValue = "100ms",
+  )
+  lateinit var kingdomRpcMinInterval: Duration
+    private set
+
   @CommandLine.Mixin
   lateinit var kingdomPublicApiFlags: KingdomPublicApiFlags
     private set

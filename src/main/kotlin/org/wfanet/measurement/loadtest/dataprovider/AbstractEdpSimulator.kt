@@ -161,6 +161,7 @@ abstract class AbstractEdpSimulator(
   protected open val eventGroupsOptions: Collection<EventGroupOptions>,
   protected val eventQuery: EventQuery<Message>,
   throttler: Throttler,
+  kingdomRpcThrottler: Throttler,
   private val privacyBudgetManager: PrivacyBudgetManager,
   trustedCertificates: Map<ByteString, X509Certificate>,
   private val vidIndexMap: VidIndexMap,
@@ -172,7 +173,13 @@ abstract class AbstractEdpSimulator(
   private val trusTeeEncryptionParams: TrusTeeRequisitionRequestBuilder.EncryptionParams?,
   private val trusTeeSupported: Boolean,
 ) :
-  RequisitionFulfiller(edpData, certificatesStub, requisitionsStub, throttler, trustedCertificates),
+  RequisitionFulfiller(
+    edpData,
+    certificatesStub,
+    requisitionsStub,
+    kingdomRpcThrottler,
+    trustedCertificates,
+  ),
   Health by health {
 
   interface EventGroupOptions {

@@ -18,7 +18,6 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.kotlin.toByteString
-import java.lang.UnsupportedOperationException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
@@ -760,9 +759,7 @@ class PopulationRequisitionFulfillerTest {
     /** Dummy [Throttler] for satisfying signatures without being used. */
     private val dummyThrottler =
       object : Throttler {
-        override suspend fun <T> onReady(block: suspend () -> T): T {
-          throw UnsupportedOperationException("Should not be called")
-        }
+        override suspend fun <T> onReady(block: suspend () -> T): T = block()
       }
 
     private fun loadSigningKey(

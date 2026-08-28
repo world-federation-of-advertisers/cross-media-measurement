@@ -108,6 +108,7 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
     vidIndexMap: InMemoryVidIndexMap,
     logSketchDetails: Boolean,
     throttler: MinimumIntervalThrottler,
+    kingdomRpcThrottler: MinimumIntervalThrottler,
     health: SettableHealth,
     random: Random,
   ): AbstractEdpSimulator
@@ -176,6 +177,7 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
         vidIndexMap,
         flags.logSketchDetails,
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
+        MinimumIntervalThrottler(Clock.systemUTC(), flags.kingdomRpcMinInterval),
         health,
         random,
       )

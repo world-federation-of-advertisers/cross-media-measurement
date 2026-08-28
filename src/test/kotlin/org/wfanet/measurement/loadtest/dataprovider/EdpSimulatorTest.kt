@@ -3042,9 +3042,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     /** Dummy [Throttler] for satisfying signatures without being used. */
     private val dummyThrottler =
       object : Throttler {
-        override suspend fun <T> onReady(block: suspend () -> T): T {
-          throw UnsupportedOperationException("Should not be called")
-        }
+        override suspend fun <T> onReady(block: suspend () -> T): T = block()
       }
 
     /** [SketchEncrypter] that does not encrypt, just returning the plaintext. */
