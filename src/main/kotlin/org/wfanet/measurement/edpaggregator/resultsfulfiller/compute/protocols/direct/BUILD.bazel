@@ -28,7 +28,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
@@ -76,26 +75,9 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "direct_dynamic_clipping",
-    srcs = ["DirectDynamicClipping.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_dynamic_clipping_noise_source",
-        "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_gaussian_noise_sampler",
-        "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_truncated_laplace_params",
-        "//src/main/kotlin/org/wfanet/measurement/computation:impression_computations",
-        "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
-        "//src/main/kotlin/org/wfanet/measurement/computation:result_noiser",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/differentialprivacy:dynamic_clipping",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
-    ],
-)
-
-kt_jvm_library(
     name = "direct_impression_result_builder",
     srcs = ["DirectImpressionResultBuilder.kt"],
     deps = [
-        ":direct_dynamic_clipping",
         ":direct_result_noisers",
         "//imports/java/org/apache/commons/math3",
         "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
@@ -108,7 +90,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )

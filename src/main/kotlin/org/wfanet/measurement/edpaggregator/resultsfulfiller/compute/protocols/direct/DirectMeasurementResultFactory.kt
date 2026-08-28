@@ -22,7 +22,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.computation.ResultMinimumThresholds
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
 /** Factory for creating direct measurement results. */
@@ -41,7 +40,6 @@ object DirectMeasurementResultFactory {
    * @param impressionMaxFrequencyPerUser Optional override for max frequency per user. -1 means no
    *   frequency cap.
    * @param totalUncappedImpressions Total impression count without frequency capping.
-   * @param impressionCapMode How the per-user impression cap is chosen.
    * @return The measurement result.
    */
   suspend fun buildMeasurementResult(
@@ -53,7 +51,6 @@ object DirectMeasurementResultFactory {
     resultMinimumThresholds: ResultMinimumThresholds?,
     impressionMaxFrequencyPerUser: Int?,
     totalUncappedImpressions: Long,
-    impressionCapMode: ImpressionCapMode,
   ): Measurement.Result {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (measurementSpec.measurementTypeCase) {
@@ -85,7 +82,6 @@ object DirectMeasurementResultFactory {
             resultMinimumThresholds,
             impressionMaxFrequencyPerUser,
             totalUncappedImpressions,
-            impressionCapMode,
           )
         impressionResultBuilder.buildMeasurementResult()
       }

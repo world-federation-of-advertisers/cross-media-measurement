@@ -225,7 +225,6 @@ class ResultsFulfillerApp(
           } else {
             fulfillerParams.impressionMaxFrequencyPerUser.takeIf { it > 0 }
           },
-        impressionCapMode = fulfillerParams.impressionCapMode,
         supportedMultiPartyNoiseMechanisms = supportedMultiPartyNoiseMechanisms,
         trusTeeConfig = trusTeeConfig,
         kekUriToKeyNameMap = fulfillerParams.trusteeParams.kekUriToKeyNameMap,
