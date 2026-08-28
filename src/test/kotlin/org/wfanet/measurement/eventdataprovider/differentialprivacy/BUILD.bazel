@@ -6,7 +6,6 @@ kt_jvm_test(
     associates = ["//src/main/kotlin/org/wfanet/measurement/eventdataprovider/differentialprivacy:dynamic_clipping"],
     test_class = "org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClippingTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_dynamic_clipping_noise_source",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
     ],
