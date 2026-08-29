@@ -160,7 +160,14 @@ abstract class AbstractEdpSimulator(
   protected val syntheticDataTimeZone: ZoneId,
   protected open val eventGroupsOptions: Collection<EventGroupOptions>,
   protected val eventQuery: EventQuery<Message>,
-  throttler: Throttler,
+  /**
+   * Paces how often [executeRequisitionFulfillingWorkflow] runs, via [run].
+   *
+   * Must not be named `throttler`: that would collide with the inherited
+   * [RequisitionFulfiller.throttler] (which paces individual Kingdom RPCs), causing [run]'s loop to
+   * silently reuse that non-reentrant throttler and deadlock on its own mutex.
+   */
+  private val workflowThrottler: Throttler,
   kingdomRpcThrottler: Throttler,
   private val privacyBudgetManager: PrivacyBudgetManager,
   trustedCertificates: Map<ByteString, X509Certificate>,
@@ -225,7 +232,7 @@ abstract class AbstractEdpSimulator(
     updateDataProvider()
 
     withContext(blockingCoroutineContext) { health.setHealthy(true) }
-    throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
+    workflowThrottler.loopOnReady { executeRequisitionFulfillingWorkflow() }
   }
 
   private suspend fun updateDataProvider() {
