@@ -40,6 +40,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.populationdataprovider.PopulationRequisitionFulfiller
 
@@ -97,6 +98,13 @@ class InProcessPopulationRequisitionFulfiller(
             modelReleasesClient,
             populationsClient,
             TestEvent.getDescriptor(),
+            // Kingdom RPCs here go to an in-process test server, not a real rate-limited
+            // Kingdom, so there's no need to pace or serialize them the way the workflow-loop
+            // cadence throttler above does.
+            kingdomRpcThrottler =
+              object : Throttler {
+                override suspend fun <T> onReady(block: suspend () -> T): T = block()
+              },
           )
         populationRequisitionFulfiller.run()
       }

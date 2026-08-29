@@ -117,6 +117,18 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
   private lateinit var throttlerMinimumInterval: Duration
 
   @Option(
+    names = ["--kingdom-rpc-min-interval"],
+    description =
+      [
+        "Minimum interval between outbound Kingdom RPCs, e.g. GetCertificate, " +
+          "ListRequisitions. Paces this app's Kingdom traffic to stay within Kingdom's " +
+          "per-principal rate limit for those methods."
+      ],
+    defaultValue = "100ms",
+  )
+  private lateinit var kingdomRpcMinInterval: Duration
+
+  @Option(
     names = ["--event-message-descriptor-set"],
     description =
       [
@@ -169,6 +181,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
     val populationsStub = PopulationsGrpcKt.PopulationsCoroutineStub(publicApiChannel)
 
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
+    val kingdomRpcThrottler = MinimumIntervalThrottler(Clock.systemUTC(), kingdomRpcMinInterval)
 
     val typeRegistry: TypeRegistry = buildTypeRegistry()
     val eventMessageDescriptor: Descriptors.Descriptor =
@@ -187,6 +200,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
         modelReleasesStub,
         populationsStub,
         eventMessageDescriptor,
+        kingdomRpcThrottler,
       )
 
     runBlocking { populationRequisitionFulfiller.run() }

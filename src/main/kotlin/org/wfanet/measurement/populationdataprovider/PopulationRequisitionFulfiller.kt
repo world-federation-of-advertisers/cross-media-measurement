@@ -55,30 +55,37 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.Event
  * A requisition fulfiller for a Population Data Provider (PDP).
  *
  * The fulfiller supports a single CMMS instance (market) with a single set of templates.
+ *
+ * @param workflowThrottler paces how often [executeRequisitionFulfillingWorkflow] runs, via [run].
+ * @param kingdomRpcThrottler paces outbound Kingdom RPCs, e.g. `GetCertificate`,
+ *   `ListRequisitions`. Defaults to [workflowThrottler] for callers that don't specify one, but a
+ *   dedicated throttler should be used whenever [workflowThrottler]'s interval isn't also
+ *   appropriate for pacing individual RPCs.
  */
 class PopulationRequisitionFulfiller(
   pdpData: DataProviderData,
   certificatesStub: CertificatesGrpcKt.CertificatesCoroutineStub,
   requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
-  throttler: Throttler,
+  private val workflowThrottler: Throttler,
   trustedCertificates: Map<ByteString, X509Certificate>,
   private val modelRolloutsStub: ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub,
   private val modelReleasesStub: ModelReleasesGrpcKt.ModelReleasesCoroutineStub,
   private val populationsStub: PopulationsGrpcKt.PopulationsCoroutineStub,
   /** Protobuf descriptor of the event message for the CMMS instance. */
   private val eventMessageDescriptor: Descriptors.Descriptor,
+  kingdomRpcThrottler: Throttler = workflowThrottler,
 ) :
   RequisitionFulfiller(
     pdpData,
     certificatesStub,
     requisitionsStub,
-    throttler,
+    kingdomRpcThrottler,
     trustedCertificates,
   ) {
 
   /** A sequence of operations done in the simulator. */
   override suspend fun run() {
-    throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
+    workflowThrottler.loopOnReady { executeRequisitionFulfillingWorkflow() }
   }
 
   /** Executes the requisition fulfillment workflow. */
