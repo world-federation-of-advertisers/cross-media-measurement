@@ -203,10 +203,13 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
     description =
       [
         "Minimum interval between outbound FulfillDirectRequisition/RefuseRequisition calls to " +
-          "Kingdom. These share a Kingdom rate-limit bucket with every other Requisitions method " +
-          "besides GetRequisition, so this should stay within that bucket's sustained rate."
+          "Kingdom. These share Kingdom's default per-principal rate-limit bucket (5 " +
+          "requests/second average, 20 burst) with any other Requisitions method that doesn't " +
+          "have its own dedicated per-method rate limit, e.g. GetCertificate. GetRequisition and " +
+          "ListRequisitions each have their own dedicated bucket and are not affected by this " +
+          "flag. 2.5s leaves 20% headroom for a 10-instance fleet sharing the 5/second bucket."
       ],
-    defaultValue = "200ms",
+    defaultValue = "2.5s",
   )
   private lateinit var kingdomRequisitionsMinInterval: Duration
 
