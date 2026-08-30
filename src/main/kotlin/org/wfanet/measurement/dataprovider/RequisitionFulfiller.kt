@@ -30,6 +30,7 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -40,6 +41,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
+import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.unpack
@@ -73,7 +75,7 @@ abstract class RequisitionFulfiller(
   private val certificatesStub: CertificatesCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,
   /** Paces outbound calls to the Kingdom's Certificates and Requisitions services. */
-  protected val throttler: Throttler,
+  private val kingdomRpcThrottler: Throttler,
   protected val trustedCertificates: Map<ByteString, X509Certificate>,
   private val retryMaxAttempts: Int = DEFAULT_RETRY_MAX_ATTEMPTS,
   private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
@@ -83,22 +85,43 @@ abstract class RequisitionFulfiller(
   }
 
   /**
-   * Paces [block] via [throttler] and retries it with backoff if it throws a [StatusException] with
-   * code [Status.Code.UNAVAILABLE], up to [retryMaxAttempts] attempts. [errorMessage] is used to
-   * wrap the exception from the final attempt if all attempts fail.
+   * Paces [block] via [kingdomRpcThrottler] and retries it with backoff if it throws a
+   * [StatusException] with code [Status.Code.UNAVAILABLE], up to [retryMaxAttempts] attempts.
+   * [errorMessage] is used to wrap the exception from the final attempt if all attempts fail.
    *
-   * UNAVAILABLE is the only retried code: it covers both the call never reaching the server (safe
-   * to retry) and the server rejecting it outright, e.g. for exceeding its rate limit (also safe to
-   * retry once paced by [throttler]).
+   * UNAVAILABLE does not guarantee that [block] never reached or executed on the server -- only
+   * that the response was lost. For a non-idempotent mutation, blindly retrying it risks either a
+   * duplicate state transition or a spurious failure on retry (e.g. a stale etag) even though the
+   * first attempt actually succeeded. If [block] is such a mutation, pass [reconcileMutation] to
+   * check, before retrying, whether it already took effect; if so, its result is returned instead
+   * of retrying. Any [StatusException] thrown by [reconcileMutation] is treated as "could not
+   * confirm either way" and falls through to the normal retry.
    */
-  private suspend fun <T> callKingdom(errorMessage: String, block: suspend () -> T): T {
+  private suspend fun <T> callKingdom(
+    errorMessage: String,
+    reconcileMutation: (suspend () -> T?)? = null,
+    block: suspend () -> T,
+  ): T {
     var attempt = 0
     while (true) {
       attempt++
       try {
-        return throttler.onReady(block)
+        return kingdomRpcThrottler.onReady(block)
       } catch (e: StatusException) {
-        if (e.status.code != Status.Code.UNAVAILABLE || attempt >= retryMaxAttempts) {
+        if (e.status.code != Status.Code.UNAVAILABLE) {
+          throw Exception(errorMessage, e)
+        }
+        if (reconcileMutation != null) {
+          try {
+            val alreadyApplied: T? = kingdomRpcThrottler.onReady(reconcileMutation)
+            if (alreadyApplied != null) {
+              return alreadyApplied
+            }
+          } catch (reconcileError: StatusException) {
+            // Could not confirm either way -- fall through to the normal retry-with-backoff path.
+          }
+        }
+        if (attempt >= retryMaxAttempts) {
           throw Exception(errorMessage, e)
         }
         logger.warning {
@@ -199,9 +222,14 @@ abstract class RequisitionFulfiller(
     message: String,
     etag: String,
   ): Requisition {
-    // TODO(world-federation-of-advertisers/cross-media-measurement#2374): Handle ABORT exception
-    // by calling GetRequisition.
-    return callKingdom("Error refusing requisition $requisitionName") {
+    return callKingdom(
+      "Error refusing requisition $requisitionName",
+      reconcileMutation = {
+        val requisition: Requisition =
+          requisitionsStub.getRequisition(getRequisitionRequest { name = requisitionName })
+        requisition.takeIf { it.state == Requisition.State.REFUSED }
+      },
+    ) {
       requisitionsStub.refuseRequisition(
         refuseRequisitionRequest {
           name = requisitionName
@@ -252,9 +280,18 @@ abstract class RequisitionFulfiller(
     val encryptedResult: EncryptedMessage =
       encryptResult(signedResult, measurementEncryptionPublicKey)
 
-    // TODO(world-federation-of-advertisers/cross-media-measurement#2374): Handle ABORT exception by
-    // calling GetRequisition.
-    callKingdom("Error fulfilling direct requisition ${requisition.name}") {
+    callKingdom(
+      "Error fulfilling direct requisition ${requisition.name}",
+      reconcileMutation = {
+        val fulfilledRequisition: Requisition =
+          requisitionsStub.getRequisition(getRequisitionRequest { name = requisition.name })
+        if (fulfilledRequisition.state == Requisition.State.FULFILLED) {
+          FulfillDirectRequisitionResponse.getDefaultInstance()
+        } else {
+          null
+        }
+      },
+    ) {
       requisitionsStub.fulfillDirectRequisition(
         fulfillDirectRequisitionRequest {
           name = requisition.name
