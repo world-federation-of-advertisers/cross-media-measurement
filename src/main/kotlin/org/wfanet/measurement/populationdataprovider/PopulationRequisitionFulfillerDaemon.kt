@@ -124,7 +124,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
           "ListRequisitions. Paces this app's Kingdom traffic to stay within Kingdom's " +
           "per-principal rate limit for those methods."
       ],
-    defaultValue = "100ms",
+    defaultValue = "200ms",
   )
   private lateinit var kingdomRpcMinInterval: Duration
 

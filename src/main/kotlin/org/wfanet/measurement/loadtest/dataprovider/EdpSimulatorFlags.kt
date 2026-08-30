@@ -101,7 +101,7 @@ class EdpSimulatorFlags {
           "services. Paces this simulator's traffic to stay within Kingdom's per-principal rate " +
           "limit for those methods."
       ],
-    defaultValue = "100ms",
+    defaultValue = "200ms",
   )
   lateinit var kingdomRpcMinInterval: Duration
     private set
