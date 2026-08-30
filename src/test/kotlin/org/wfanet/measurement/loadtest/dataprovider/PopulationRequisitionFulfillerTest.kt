@@ -202,6 +202,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -251,6 +252,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -303,6 +305,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -356,6 +359,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -412,6 +416,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -464,6 +469,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyThrottler,
       )
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
 
@@ -511,6 +517,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }

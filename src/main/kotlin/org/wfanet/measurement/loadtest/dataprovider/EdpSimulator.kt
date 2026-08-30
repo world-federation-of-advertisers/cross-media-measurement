@@ -65,7 +65,7 @@ class EdpSimulator(
   health: SettableHealth = SettableHealth(),
   blockingCoroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
   trusTeeEncryptionParams: FulfillRequisitionRequestBuilder.EncryptionParams? = null,
-  kingdomRpcThrottler: Throttler = throttler,
+  kingdomRpcThrottler: Throttler,
 ) :
   AbstractEdpSimulator(
     edpData,

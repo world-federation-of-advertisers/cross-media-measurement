@@ -58,9 +58,10 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.Event
  *
  * @param workflowThrottler paces how often [executeRequisitionFulfillingWorkflow] runs, via [run].
  * @param kingdomRpcThrottler paces outbound Kingdom RPCs, e.g. `GetCertificate`,
- *   `ListRequisitions`. Defaults to [workflowThrottler] for callers that don't specify one, but a
- *   dedicated throttler should be used whenever [workflowThrottler]'s interval isn't also
- *   appropriate for pacing individual RPCs.
+ *   `ListRequisitions`. Must be a distinct instance from [workflowThrottler] whenever
+ *   [workflowThrottler]'s underlying throttler is not safe to call reentrantly (e.g. a
+ *   [org.wfanet.measurement.common.throttler.MinimumIntervalThrottler]), since [run] holds
+ *   [workflowThrottler] for the duration of each workflow execution.
  */
 class PopulationRequisitionFulfiller(
   pdpData: DataProviderData,
@@ -73,7 +74,7 @@ class PopulationRequisitionFulfiller(
   private val populationsStub: PopulationsGrpcKt.PopulationsCoroutineStub,
   /** Protobuf descriptor of the event message for the CMMS instance. */
   private val eventMessageDescriptor: Descriptors.Descriptor,
-  kingdomRpcThrottler: Throttler = workflowThrottler,
+  kingdomRpcThrottler: Throttler,
 ) :
   RequisitionFulfiller(
     pdpData,
