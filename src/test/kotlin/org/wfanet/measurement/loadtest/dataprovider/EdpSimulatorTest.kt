@@ -32,8 +32,10 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Test
 import org.mockito.kotlin.any
+import org.mockito.kotlin.atLeastOnce
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
@@ -329,6 +331,80 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
             }
         }
       )
+  }
+
+  @Test
+  fun `run deadlocks if workflow and Kingdom RPC throttlers are the same instance`() {
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }.thenReturn(listRequisitionsResponse {})
+    }
+    // A single non-reentrant throttler wrongly reused for both the workflow loop's cadence and
+    // nested Kingdom RPC pacing: run()'s loop holds this throttler for the duration of each
+    // workflow execution, so a nested Kingdom RPC call paced by the same throttler can never
+    // acquire it.
+    val sharedThrottler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1))
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        EDP_DISPLAY_NAME,
+        MC_NAME,
+        certificatesStub,
+        modelLinesStub,
+        dataProvidersStub,
+        eventGroupsStub,
+        requisitionsStub,
+        requisitionFulfillmentStubMap,
+        SYNTHETIC_DATA_TIME_ZONE,
+        listOf(EventGroupOptions("", SYNTHETIC_DATA_SPEC, MEDIA_TYPES, EVENT_GROUP_METADATA)),
+        syntheticGeneratorEventQuery,
+        sharedThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        VID_INDEX_MAP,
+        trusTeeSupported = true,
+        random = Random(RANDOM_SEED),
+        kingdomRpcThrottler = sharedThrottler,
+      )
+
+    runBlocking { withTimeoutOrNull(Duration.ofSeconds(1).toMillis()) { simulator.run() } }
+
+    // The deadlock happens before the first Kingdom RPC ever completes: run()'s loop acquires
+    // the shared throttler and never releases it in time for the nested ListRequisitions call
+    // (via getRequisitions()) to acquire it in turn.
+    verifyBlocking(requisitionsServiceMock, never()) { listRequisitions(any()) }
+  }
+
+  @Test
+  fun `run does not deadlock when workflow and Kingdom RPC throttlers are distinct instances`() {
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }.thenReturn(listRequisitionsResponse {})
+    }
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        EDP_DISPLAY_NAME,
+        MC_NAME,
+        certificatesStub,
+        modelLinesStub,
+        dataProvidersStub,
+        eventGroupsStub,
+        requisitionsStub,
+        requisitionFulfillmentStubMap,
+        SYNTHETIC_DATA_TIME_ZONE,
+        listOf(EventGroupOptions("", SYNTHETIC_DATA_SPEC, MEDIA_TYPES, EVENT_GROUP_METADATA)),
+        syntheticGeneratorEventQuery,
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1)),
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        VID_INDEX_MAP,
+        trusTeeSupported = true,
+        random = Random(RANDOM_SEED),
+        kingdomRpcThrottler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1)),
+      )
+
+    runBlocking { withTimeoutOrNull(Duration.ofSeconds(1).toMillis()) { simulator.run() } }
+
+    verifyBlocking(requisitionsServiceMock, atLeastOnce()) { listRequisitions(any()) }
   }
 
   @Test

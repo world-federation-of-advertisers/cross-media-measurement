@@ -18,11 +18,13 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.kotlin.toByteString
+import io.grpc.Status
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.Instant
 import kotlin.random.Random
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -31,7 +33,10 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.eq
+import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
@@ -70,6 +75,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getPopulationRequest
+import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.measurementSpec
@@ -527,6 +533,134 @@ class PopulationRequisitionFulfillerTest {
     assertThat(refuseRequisitionRequest.refusal.justification)
       .isEqualTo(Requisition.Refusal.Justification.SPEC_INVALID)
     assertThat(refuseRequisitionRequest.refusal.message).contains("filter")
+  }
+
+  @Test
+  fun `refuses requisition despite lost RefuseRequisition response confirmed via GetRequisition`() {
+    val requisitionSpec =
+      REQUISITION_SPEC.copy {
+        population =
+          RequisitionSpecKt.population {
+            filter = eventFilter { expression = "person.gender == ${Person.Gender.FEMALE_VALUE}" }
+          }
+      }
+    val encryptedRequisitionSpec =
+      encryptRequisitionSpec(
+        signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
+        DATA_PROVIDER_PUBLIC_KEY,
+      )
+    val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+      onBlocking { refuseRequisition(any()) }.thenThrow(Status.UNAVAILABLE.asRuntimeException())
+      onBlocking { getRequisition(getRequisitionRequest { name = requisition.name }) }
+        .thenReturn(requisition.copy { state = Requisition.State.REFUSED })
+    }
+    wheneverBlocking {
+      populationsServiceMock.getPopulation(getPopulationRequest { name = POPULATION_NAME_1 })
+    } doReturn POPULATION_1.copy { populationSpec = INVALID_POPULATION_SPEC_1 }
+
+    val requisitionFulfiller =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        modelRolloutsStub,
+        modelReleasesStub,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyThrottler,
+      )
+
+    // Should not throw: the lost RefuseRequisition response is reconciled via GetRequisition
+    // rather than being treated as a failure.
+    runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
+
+    verifyBlocking(requisitionsServiceMock, times(1)) { refuseRequisition(any()) }
+    verifyBlocking(requisitionsServiceMock, times(1)) { getRequisition(any()) }
+  }
+
+  @Test
+  fun `fulfills requisition despite lost FulfillDirectRequisition response confirmed via GetRequisition`() {
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += REQUISITION })
+      onBlocking { fulfillDirectRequisition(any()) }
+        .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+      onBlocking { getRequisition(getRequisitionRequest { name = REQUISITION.name }) }
+        .thenReturn(REQUISITION.copy { state = Requisition.State.FULFILLED })
+    }
+
+    val requisitionFulfiller =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        modelRolloutsStub,
+        modelReleasesStub,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyThrottler,
+      )
+
+    // Should not throw: the lost FulfillDirectRequisition response is reconciled via
+    // GetRequisition rather than being treated as a failure.
+    runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
+
+    verifyBlocking(requisitionsServiceMock, times(1)) { fulfillDirectRequisition(any()) }
+    verifyBlocking(requisitionsServiceMock, times(1)) { getRequisition(any()) }
+  }
+
+  @Test
+  fun `does not retry non-UNAVAILABLE error from RefuseRequisition`() {
+    val requisitionSpec =
+      REQUISITION_SPEC.copy {
+        population =
+          RequisitionSpecKt.population {
+            filter = eventFilter { expression = "person.gender == ${Person.Gender.FEMALE_VALUE}" }
+          }
+      }
+    val encryptedRequisitionSpec =
+      encryptRequisitionSpec(
+        signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
+        DATA_PROVIDER_PUBLIC_KEY,
+      )
+    val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+      onBlocking { refuseRequisition(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
+    }
+    wheneverBlocking {
+      populationsServiceMock.getPopulation(getPopulationRequest { name = POPULATION_NAME_1 })
+    } doReturn POPULATION_1.copy { populationSpec = INVALID_POPULATION_SPEC_1 }
+
+    val requisitionFulfiller =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        modelRolloutsStub,
+        modelReleasesStub,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyThrottler,
+      )
+
+    assertFailsWith<Exception> {
+      runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
+    }
+
+    // A non-UNAVAILABLE error is not retried and GetRequisition is never consulted.
+    verifyBlocking(requisitionsServiceMock, times(1)) { refuseRequisition(any()) }
+    verifyBlocking(requisitionsServiceMock, never()) { getRequisition(any()) }
   }
 
   companion object {
