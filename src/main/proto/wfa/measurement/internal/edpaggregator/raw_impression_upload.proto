@@ -45,4 +45,8 @@ message RawImpressionUpload {
 
   // The timestamp when this upload was last updated.
   google.protobuf.Timestamp update_time = 6;
+
+  // Cloud Storage generation of the done blob. Zero means unknown for legacy
+  // uploads.
+  int64 done_blob_generation = 7;
 }

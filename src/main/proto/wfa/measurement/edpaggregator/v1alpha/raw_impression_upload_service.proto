@@ -127,6 +127,9 @@ message ListRawImpressionUploadsRequest {
     //     for set-membership filter fields. --)
     google.type.Interval create_time_in = 2
         [(google.api.field_behavior) = OPTIONAL];
+
+    // Filter by the exact Cloud Storage URI of the done blob.
+    string done_blob_uri = 3 [(google.api.field_behavior) = OPTIONAL];
   }
 
   // Optional. A filter to apply to the results.
