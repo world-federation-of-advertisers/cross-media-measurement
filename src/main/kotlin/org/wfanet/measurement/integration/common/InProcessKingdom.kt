@@ -298,6 +298,7 @@ class InProcessKingdom(
         ProtocolConfig.NoiseMechanism.NONE,
         ProtocolConfig.NoiseMechanism.CONTINUOUS_LAPLACE,
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
+        ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
       )
   }
 }

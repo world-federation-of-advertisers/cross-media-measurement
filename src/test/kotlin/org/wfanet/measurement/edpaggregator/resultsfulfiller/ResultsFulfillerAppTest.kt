@@ -113,6 +113,7 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
@@ -392,6 +393,8 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
         metrics = ResultsFulfillerMetrics.create(),
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -521,6 +524,8 @@ class ResultsFulfillerAppTest {
           getStorageConfig(tmpPath),
           mapOf("some-model-line" to MODEL_LINE_INFO),
           metrics = ResultsFulfillerMetrics.create(),
+          requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
         )
       // Empty metadata is treated as transient (the fetcher writes metadata just after the blob,
       // and DataWatcher dispatches on the blob), so runWork throws to nack the work item for retry
@@ -659,6 +664,8 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
         metrics = ResultsFulfillerMetrics.create(),
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -796,6 +803,8 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
         metrics = ResultsFulfillerMetrics.create(),
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
       )
     assertFails { app.runWork(Any.pack(workItemParams)) }
 
@@ -920,6 +929,8 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
         metrics = ResultsFulfillerMetrics.create(),
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -1072,6 +1083,8 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
         metrics = ResultsFulfillerMetrics.create(),
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -1225,6 +1238,8 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
         metrics = ResultsFulfillerMetrics.create(),
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
       )
 
     assertFails { app.runWork(Any.pack(workItemParams)) }
@@ -1379,6 +1394,8 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
         metrics = ResultsFulfillerMetrics.create(),
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -1530,6 +1547,8 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
         metrics = ResultsFulfillerMetrics.create(),
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
       )
 
     // Should fail because TrusTeeConfig is missing but kekUri is present (impressions exist)
