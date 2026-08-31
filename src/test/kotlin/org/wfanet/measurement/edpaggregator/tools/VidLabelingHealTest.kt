@@ -72,4 +72,19 @@ class VidLabelingHealTest {
   fun `isAffirmative treats null (no stdin or EOF) as a decline`() {
     assertThat(isAffirmative(null)).isFalse()
   }
+
+  @Test
+  fun `labeled impressions prefix is validated before eviction`() {
+    val parsed =
+      EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
+        "gs://output-bucket/reference-vid-labeled-impressions/"
+      )
+
+    assertThat(parsed.scheme).isEqualTo("gs")
+    assertThat(parsed.bucket).isEqualTo("output-bucket")
+    assertThat(parsed.key).isEqualTo("reference-vid-labeled-impressions")
+    assertFailsWith<IllegalArgumentException> {
+      EvictUploadsCommand.parseLabeledImpressionsBlobPrefix("https://output-bucket/path")
+    }
+  }
 }
