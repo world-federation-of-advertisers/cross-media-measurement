@@ -50,12 +50,14 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_sets_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:reports_service_kt_jvm_grpc_proto",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
 )
 
 kt_jvm_library(
     name = "in_process_edp_aggregator_life_of_a_report_test",
     srcs = [
+        "InProcessEdpAggregatorDirectDeterministicNoiseTest.kt",
         "InProcessEdpAggregatorDirectOnlyReportTest.kt",
         "InProcessEdpAggregatorLifeOfAReportTest.kt",
         "InProcessEdpAggregatorLifeOfAnEventGroupTest.kt",

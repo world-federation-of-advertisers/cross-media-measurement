@@ -536,7 +536,8 @@ private class V2alphaFlags {
       when (noiseMechanism) {
         NoiseMechanism.NONE,
         NoiseMechanism.CONTINUOUS_LAPLACE,
-        NoiseMechanism.CONTINUOUS_GAUSSIAN -> {}
+        NoiseMechanism.CONTINUOUS_GAUSSIAN,
+        NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE -> {}
         NoiseMechanism.GEOMETRIC,
         // TODO(@riemanli): support DISCRETE_GAUSSIAN after having a clear definition of it.
         NoiseMechanism.DISCRETE_GAUSSIAN -> {
@@ -548,7 +549,6 @@ private class V2alphaFlags {
             ),
           )
         }
-        NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
         NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
         NoiseMechanism.UNRECOGNIZED -> {
           throw CommandLine.ParameterException(

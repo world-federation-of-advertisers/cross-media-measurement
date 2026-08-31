@@ -36,6 +36,8 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.logging.Logger
+import kotlin.math.abs
+import kotlin.math.ceil
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -87,6 +89,7 @@ import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParams
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.keyPair
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.principalKeyPairs
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
@@ -95,6 +98,7 @@ import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.metricSpecConfig
+import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup as EdpaEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
@@ -177,6 +181,13 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
    * TrusTEE with that mechanism only when every DataProvider reports it.
    */
   private val deterministicTruncatedLaplaceSupported: Boolean = false,
+  /**
+   * The noise every EDP applies to its own Direct results. NONE keeps results exact, which the
+   * assertions on this class depend on; a subclass selecting a noising mechanism asserts against
+   * the noise envelope instead.
+   */
+  private val directNoiseType: ResultsFulfillerParams.NoiseParams.NoiseType =
+    ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
 ) {
 
   protected val expectedProtocol: PublicProtocolConfig.Protocol.ProtocolCase =
@@ -398,10 +409,10 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           duchyMap,
           edpNoise =
             mapOf(
-              "edp1" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
-              "edp2" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
-              "edp3" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
-              "edp4" to ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
+              "edp1" to directNoiseType,
+              "edp2" to directNoiseType,
+              "edp3" to directNoiseType,
+              "edp4" to directNoiseType,
             ),
           edpMultiPartyNoiseTypes = multiPartyNoiseTypes,
         )
@@ -670,6 +681,27 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         }
       }
     }
+  }
+
+  /**
+   * Asserts [actual] is within one deterministic truncated-Laplace draw of [expected].
+   *
+   * The draw is truncated to a bound derived from the compiled privacy params and scaled by the
+   * quantity's L1 [sensitivity], so a single noised quantity cannot move further than that. The
+   * extra unit absorbs the truncation to `Long` when the result is scaled. Taking the bound from
+   * [DeterministicTruncatedLaplaceParams] rather than a recorded value keeps this in step with the
+   * params instead of with a particular seed.
+   */
+  protected fun assertWithinNoiseBound(
+    label: String,
+    actual: Long,
+    expected: Long,
+    sensitivity: Double,
+  ) {
+    val bound = ceil(DeterministicTruncatedLaplaceParams.truncationBound(sensitivity)).toLong()
+    assertWithMessage("$label: $actual is further than ${bound + 1} from $expected")
+      .that(abs(actual - expected))
+      .isAtMost(bound + 1)
   }
 
   /**
@@ -1010,6 +1042,22 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         .toName()
     return listMeasurements().filter {
       it.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.report == reportName
+    }
+  }
+
+  /**
+   * Returns the [Measurement.Result]s [measurements] carry, decrypted with the
+   * MeasurementConsumer's key.
+   *
+   * A Direct result records the mechanism the EDP Aggregator actually applied. The protocol config
+   * carries only the mechanisms the Kingdom offered, so it cannot tell one selection from another.
+   */
+  protected fun decryptedResults(measurements: List<Measurement>): List<Measurement.Result> {
+    val encryptionKey = inProcessCmmsComponents.getMeasurementConsumerData().encryptionKey
+    return measurements.flatMap { measurement ->
+      measurement.resultsList.map { resultOutput ->
+        decryptResult(resultOutput.encryptedResult, encryptionKey).unpack()
+      }
     }
   }
 
