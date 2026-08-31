@@ -81,13 +81,12 @@ abstract class RequisitionFulfiller(
    * transparently, and a non-idempotent mutation can't be safely replayed at this layer without
    * reconciling via GetRequisition first (world-federation-of-advertisers/cross-media-measurement#2374).
    */
-  private suspend fun <T> callKingdom(errorMessage: String, block: suspend () -> T): T {
+  private suspend fun <T> callKingdom(errorMessage: String, block: suspend () -> T): T =
     try {
-      return kingdomRpcThrottler.onReady(block)
+      kingdomRpcThrottler.onReady(block)
     } catch (e: StatusException) {
       throw Exception(errorMessage, e)
     }
-  }
 
   protected data class Specifications(
     val measurementSpec: MeasurementSpec,
