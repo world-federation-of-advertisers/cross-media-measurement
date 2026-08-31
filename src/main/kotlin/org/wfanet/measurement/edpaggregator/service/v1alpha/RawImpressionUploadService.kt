@@ -74,6 +74,10 @@ class RawImpressionUploadService(
       throw RequiredFieldNotSetException("raw_impression_upload.done_blob_uri")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.rawImpressionUpload.doneBlobGeneration < 0L) {
+      throw InvalidFieldValueException("raw_impression_upload.done_blob_generation")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
     if (request.requestId.isEmpty()) {
       throw RequiredFieldNotSetException("request_id")
@@ -93,6 +97,7 @@ class RawImpressionUploadService(
             dataProviderResourceId = dataProviderKey.dataProviderId
             rawImpressionUpload = internalRawImpressionUpload {
               doneBlobUri = request.rawImpressionUpload.doneBlobUri
+              doneBlobGeneration = request.rawImpressionUpload.doneBlobGeneration
             }
             requestId = request.requestId
           }
@@ -268,6 +273,7 @@ class RawImpressionUploadService(
                   if (request.filter.hasCreateTimeIn()) {
                     createTimeIn = request.filter.createTimeIn
                   }
+                  doneBlobUri = request.filter.doneBlobUri
                 }
             }
           }
@@ -333,6 +339,7 @@ fun InternalRawImpressionUpload.toPublic(): RawImpressionUpload {
         .toName()
     state = source.state.toPublic()
     doneBlobUri = source.doneBlobUri
+    doneBlobGeneration = source.doneBlobGeneration
     createTime = source.createTime
     updateTime = source.updateTime
   }
