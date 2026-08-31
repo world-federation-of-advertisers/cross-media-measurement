@@ -148,14 +148,24 @@ object ImpressionComputations {
         }
       }
 
-    // Both terms scale by the clip, never by the number of bars actually summed. The histogram is
-    // only as long as the highest frequency in the data, so a bar count would carry that raw value
-    // into a released quantity, while the clip comes out of the noised search. When the clip
-    // overshoots the histogram this overstates the variance, which is the safe direction.
+    // The variance is the variance given the clip. The released value estimates
+    // sum(min(frequency, C)) over users, so the clip defines the quantity being estimated. A fixed
+    // cap reports a variance given its own cap the same way; what differs is how the cap was
+    // arrived at, not what the figure describes.
     //
-    // The sampling term matches what the reporting server computes for a fixed cap. The noise term
-    // does not: the count sums one draw per bar rather than taking a single draw calibrated to the
-    // clip, so it grows linearly in the clip rather than with its square.
+    // Write C for the clip, w for the sampling interval width, and s2 for the per-bar noise
+    // variance.
+    //
+    // Noise: the released sum is the sum of C noised bars. Draws are independent across bars, so
+    // the sum has variance C * s2, and the value scales by 1 / w, giving C * s2 / w^2. Note this
+    // grows linearly in C, where a fixed cap taking one draw at sensitivity C grows with C^2.
+    //
+    // Sampling: a user is in the VID sample independently with probability w and contributes
+    // c_i = min(frequency_i, C). The sampled sum is the sum over users of a Bernoulli(w) indicator
+    // times c_i, scaled by 1 / w, so it has variance sum(c_i^2) * w * (1 - w) / w^2. Since
+    // c_i <= C, sum(c_i^2) <= C * sum(c_i), and sum(c_i) is the population total the value
+    // estimates. That bounds the term by C * value * w * (1 - w) / w^2, tight when every user sits
+    // at or above the clip.
     val samplingVariance: Double =
       clip.toDouble() *
         value.toDouble() *

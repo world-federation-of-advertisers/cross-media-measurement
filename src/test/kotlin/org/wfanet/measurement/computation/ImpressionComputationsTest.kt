@@ -312,6 +312,42 @@ class ImpressionComputationsTest {
   }
 
   @Test
+  fun `dynamically clipped variance follows the sampling term at partial width`() {
+    // The clip search never reads vidSamplingIntervalWidth, so both runs search the same bars and
+    // land on the same clip. At full width the sampling term is zero, which leaves the per-bar
+    // noise variance recoverable, and the partial-width run must then match the derivation.
+    val full = dynamicallyClipped(COARSE_RHO, vidSamplingIntervalWidth = 1.0)
+    val partial = dynamicallyClipped(COARSE_RHO, vidSamplingIntervalWidth = PARTIAL_WIDTH)
+
+    assertThat(partial.clip).isEqualTo(full.clip)
+
+    val clip = full.clip.toDouble()
+    // At width 1 the whole variance is the noise term, clip * barNoiseVariance.
+    val barNoiseVariance = full.variance / clip
+    val expected =
+      (clip * partial.value.toDouble() * PARTIAL_WIDTH * (1.0 - PARTIAL_WIDTH) +
+        clip * barNoiseVariance) / (PARTIAL_WIDTH * PARTIAL_WIDTH)
+
+    assertThat(partial.variance).isWithin(expected * RELATIVE_TOLERANCE).of(expected)
+  }
+
+  @Test
+  fun `dynamically clipped noise variance is inversely proportional to the charge`() {
+    // barNoiseVariance is maxFrequency / (2 * rho), so at full width, where the variance is the
+    // noise term alone, halving the charge doubles it. Both runs must reach the same clip for the
+    // comparison to hold, which NO_NOISE guarantees.
+    val lower = dynamicallyClipped(NOISE_RHO)
+    val doubled = dynamicallyClipped(NOISE_RHO * 2.0)
+
+    // Both charges leave the stopping criterion between the third and fourth window sums of this
+    // vector, so the search stops in the same place and only the noise scale differs.
+    assertThat(doubled.clip).isEqualTo(lower.clip)
+    assertThat(doubled.variance)
+      .isWithin(lower.variance * RELATIVE_TOLERANCE)
+      .of(lower.variance / 2.0)
+  }
+
+  @Test
   fun `dynamically clipped variance falls as the charge rises`() {
     val noisy = dynamicallyClipped(COARSE_RHO)
     val precise = dynamicallyClipped(PRECISE_RHO)
@@ -395,6 +431,17 @@ class ImpressionComputationsTest {
      * Distinct from [MAX_FREQUENCY], which is a measurement's per-user cap.
      */
     private const val VECTOR_MAX_FREQUENCY = 127
+
+    /**
+     * A charge whose stopping criterion, and twice it, both land between the same two window sums
+     * of DYNAMIC_FREQUENCY_VECTOR, so doubling it moves the noise scale without moving the clip.
+     */
+    private const val NOISE_RHO = 1e-4
+
+    /** A width below 1, so the sampling term is non-zero. */
+    private const val PARTIAL_WIDTH = 0.5
+
+    private const val RELATIVE_TOLERANCE = 1e-9
 
     /**
      * 175 users at frequencies {1: 100, 2: 50, 3: 20, 5: 5}, so the cumulative histogram is
