@@ -149,17 +149,9 @@ object ImpressionComputations {
       }
 
     // TODO(world-federation-of-advertisers/cross-media-measurement#4437): This under-reports the
-    // variance of the released value. The clip is selected from the first noised histogram, and the
-    // weights combining that histogram with the remaining-charge pass are computed from the
-    // selected clip. So the bar errors are neither independent of the clip nor of each other once
-    // the clip is known, and the derivation below, which assumes they are, is not a bound. A
-    // fixed-seed Monte Carlo over 100 users at frequency 1, 50 at 2, 20 at 3 and 5 at 5, at
-    // epsilon 1 and delta 1e-3 with sampling width 1, measured an empirical variance of 500.17
-    // against 469.81 reported. No bound on the gap is known, so the worst case is open, and the
-    // reporting server takes this scalar at face value.
-    //
-    // The derivation that follows describes what the code computes, not the variance of the
-    // estimator.
+    // variance of the released value, because the clip and the weights that combine the passes are
+    // both derived from the draws being summed. The derivation below describes what the code
+    // computes, not the variance of the estimator.
     //
     // The figure is the variance given the clip. The released value estimates
     // sum(min(frequency, C)) over users, so the clip defines the quantity being estimated.
