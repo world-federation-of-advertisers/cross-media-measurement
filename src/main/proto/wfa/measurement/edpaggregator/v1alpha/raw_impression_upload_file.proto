@@ -63,6 +63,13 @@ message RawImpressionUploadFile {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
+  // Cloud Storage generation of the raw impression object. A nonzero value
+  // distinguishes overwritten objects that reuse the same blob URI.
+  int64 blob_generation = 8 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
   // The timestamp when this file was created.
   google.protobuf.Timestamp create_time = 3
       [(google.api.field_behavior) = OUTPUT_ONLY];
