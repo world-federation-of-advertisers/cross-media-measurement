@@ -14,8 +14,7 @@ rate_limit {
       average_request_rate: 5
     }
   }
-  # Give GetRequisition its own, more generous rate limiting bucket. It's a trivial point
-  # lookup by resource name, unlike ListRequisitions which can stream many full Requisitions.
+  # Give GetRequisition its own, more generous rate limiting bucket.
   per_method_rate_limit {
     key: "wfa.measurement.api.v2alpha.Requisitions/GetRequisition"
     value {
