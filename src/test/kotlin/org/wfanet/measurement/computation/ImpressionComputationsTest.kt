@@ -287,7 +287,7 @@ class ImpressionComputationsTest {
       ImpressionComputations.computeDynamicallyClippedImpressionCount(
         frequencyVector = IntArray(100),
         queryRho = COARSE_RHO,
-        maxFrequency = MAX_FREQUENCY,
+        maxFrequency = VECTOR_MAX_FREQUENCY,
         noiseSource = { _, _, bar, l2Sensitivity, rho ->
           bar + l2Sensitivity / Math.sqrt(2.0 * rho)
         },
@@ -370,7 +370,7 @@ class ImpressionComputationsTest {
     ImpressionComputations.computeDynamicallyClippedImpressionCount(
       frequencyVector = frequencyVector,
       queryRho = queryRho,
-      maxFrequency = MAX_FREQUENCY,
+      maxFrequency = VECTOR_MAX_FREQUENCY,
       noiseSource = NO_NOISE,
       vidSamplingIntervalWidth = vidSamplingIntervalWidth,
       resultMinimumThresholds = thresholds,
@@ -389,6 +389,12 @@ class ImpressionComputationsTest {
     private val NO_NOISE = DynamicClippingNoiseSource { _, _, bar, _, _ -> bar }
 
     private const val DYNAMIC_MAX_FREQUENCY = 5
+
+    /**
+     * The highest per-user frequency the vector can hold, matching what the Direct path passes.
+     * Distinct from [MAX_FREQUENCY], which is a measurement's per-user cap.
+     */
+    private const val VECTOR_MAX_FREQUENCY = 127
 
     /**
      * 175 users at frequencies {1: 100, 2: 50, 3: 20, 5: 5}, so the cumulative histogram is
