@@ -21,6 +21,7 @@ import org.wfanet.measurement.computation.DynamicallyClippedImpressions
 import org.wfanet.measurement.computation.ImpressionComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClippingNoiseSource
+import org.wfanet.measurement.eventdataprovider.differentialprivacy.StochasticStandardNormalNoiseSource
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpParamsConverter
@@ -49,14 +50,16 @@ private const val BAR_SENSITIVITY = 1.0
  * Counts the impressions in [frequencyData] with a clip derived from its own distribution, for a
  * Direct measurement under [directNoiseMechanism].
  *
- * Only [DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE] is supported. The clip is chosen from
- * the noised histogram, so a mechanism drawing fresh randomness would pick a different clip for the
- * same frequency vector and return a different count on a re-run. This mechanism charges the params
- * compiled into this image, so a measurement consumer cannot widen them, and seeds the draws from
- * the frequency vector, so the clip and the count reproduce. The draws stay Gaussian, which leaves
- * the calibration, the stopping rule and the remaining-charge weighting as analyzed.
+ * The count itself is mechanism-agnostic. What the mechanism decides is where the charge comes from
+ * and whether the draws reproduce:
+ * - [DirectNoiseMechanism.CONTINUOUS_GAUSSIAN] charges the measurement's own privacy params and
+ *   draws fresh randomness, which is the composition the clip search was written against.
+ * - [DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE] charges the params compiled into this
+ *   image, so a measurement consumer cannot widen them, and seeds the draws from the frequency
+ *   vector so a re-run yields the same clip and the same count. The draws stay Gaussian, which
+ *   leaves the calibration, the stopping rule and the remaining-charge weighting as analyzed.
  *
- * @param dpParams the measurement's privacy params, unused here.
+ * @param dpParams the measurement's privacy params, unused by the deterministic mechanism.
  */
 fun computeDirectDynamicallyClippedImpressions(
   directNoiseMechanism: DirectNoiseMechanism,
@@ -68,6 +71,10 @@ fun computeDirectDynamicallyClippedImpressions(
   val queryDpParams: DpParams
   val noiseSource: DynamicClippingNoiseSource
   when (directNoiseMechanism) {
+    DirectNoiseMechanism.CONTINUOUS_GAUSSIAN -> {
+      queryDpParams = dpParams
+      noiseSource = StochasticStandardNormalNoiseSource()
+    }
     // TODO(world-federation-of-advertisers/cross-media-measurement#4401): Rename this mechanism
     // to DETERMINISTIC_NOISE. It names a privacy regime, compiled-in params and seeded draws,
     // rather than a distribution, and the draws here are Gaussian by design.
@@ -88,7 +95,6 @@ fun computeDirectDynamicallyClippedImpressions(
         )
     }
     DirectNoiseMechanism.NONE,
-    DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
     DirectNoiseMechanism.CONTINUOUS_LAPLACE ->
       throw IllegalArgumentException(
         "$directNoiseMechanism does not support dynamic impression capping"

@@ -231,12 +231,13 @@ class DirectImpressionResultBuilder(
     private const val UNCAPPED_SENTINEL = -1
 
     /**
-     * The mechanisms dynamic capping supports.
-     *
-     * The clip comes out of the noised histogram, so only a mechanism whose draws reproduce yields
-     * the same clip, and so the same count, for the same frequency vector.
+     * The mechanisms dynamic capping supports. Both noise the cumulative histogram with Gaussian
+     * draws; they differ in where the charge comes from and whether the draws are reproducible.
      */
     private val DYNAMIC_CAP_NOISE_MECHANISMS =
-      setOf(DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
+      setOf(
+        DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
+        DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+      )
   }
 }
