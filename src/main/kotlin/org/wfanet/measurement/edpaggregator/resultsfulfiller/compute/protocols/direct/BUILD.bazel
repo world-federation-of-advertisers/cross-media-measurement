@@ -80,7 +80,6 @@ kt_jvm_library(
     srcs = ["DirectDynamicClipping.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_dynamic_clipping_noise_source",
-        "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_gaussian_noise_sampler",
         "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_truncated_laplace_params",
         "//src/main/kotlin/org/wfanet/measurement/computation:impression_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
