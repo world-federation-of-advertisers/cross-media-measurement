@@ -1340,6 +1340,8 @@ class ResultsFulfillerTest {
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
         requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = DeterministicTruncatedLaplaceNoiseSelector(),
