@@ -78,11 +78,25 @@ class RequestIdsTest {
         RequestIds.forMarkRawImpressionUploadModelLineRanking(MODEL_LINE_NAME),
         RequestIds.forMarkRawImpressionUploadModelLineLabeling(MODEL_LINE_NAME),
         RequestIds.forMarkRawImpressionUploadModelLineCompleted(MODEL_LINE_NAME),
-        RequestIds.forMarkRawImpressionUploadModelLineFailed(MODEL_LINE_NAME),
+        RequestIds.forMarkRawImpressionUploadModelLineFailed(MODEL_LINE_NAME, ETAG),
+        RequestIds.forHealingRetryPoolAssigning(MODEL_LINE_NAME, ETAG),
+        RequestIds.forHealingRetryRanking(MODEL_LINE_NAME, ETAG),
+        RequestIds.forHealingRetryLabeling(MODEL_LINE_NAME, ETAG),
+        RequestIds.forRetriedWorkItem(VID_LABELING_JOB, ETAG).removePrefix("rt-"),
       )
     for (id in ids) {
       assertThat(UUID.fromString(id).version()).isEqualTo(4)
     }
+  }
+
+  @Test
+  fun `healing request ids distinguish resource versions`() {
+    assertThat(RequestIds.forMarkRawImpressionUploadModelLineFailed(MODEL_LINE_NAME, ETAG))
+      .isNotEqualTo(
+        RequestIds.forMarkRawImpressionUploadModelLineFailed(MODEL_LINE_NAME, "new-etag")
+      )
+    assertThat(RequestIds.forRetriedWorkItem(VID_LABELING_JOB, ETAG))
+      .isNotEqualTo(RequestIds.forRetriedWorkItem(VID_LABELING_JOB, "new-etag"))
   }
 
   companion object {
@@ -94,5 +108,6 @@ class RequestIdsTest {
     private const val SHARED = "shared-value"
     private const val MODEL_LINE_NAME = "$UPLOAD/rawImpressionUploadModelLines/riuml-1"
     private const val VID_LABELING_JOB = "$UPLOAD/vidLabelingJobs/vlj-1"
+    private const val ETAG = "etag-1"
   }
 }

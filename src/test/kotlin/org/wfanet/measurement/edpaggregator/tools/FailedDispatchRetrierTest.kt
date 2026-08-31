@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.timestamp
 import io.grpc.Status
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -25,6 +26,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
@@ -32,6 +34,9 @@ import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineLabelingRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLinePoolAssigningRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineRankingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -46,6 +51,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
@@ -112,7 +119,13 @@ class FailedDispatchRetrierTest {
         .thenReturn(
           listVidLabelingJobsResponse { vidLabelingJobs += vidLabelingJob { name = VID_JOB_NAME } }
         )
-      whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = "q" })
+      whenever(workItemsService.getWorkItem(any()))
+        .thenReturn(
+          workItem {
+            queue = "q"
+            state = WorkItem.State.QUEUED
+          }
+        )
       whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
       whenever(modelLineService.markRawImpressionUploadModelLineLabeling(any()))
         .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING })
@@ -126,6 +139,11 @@ class FailedDispatchRetrierTest {
     assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(1)
     assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(2)
     assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
+    val requestCaptor = argumentCaptor<MarkRawImpressionUploadModelLineLabelingRequest>()
+    verifyBlocking(modelLineService) {
+      markRawImpressionUploadModelLineLabeling(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.firstValue.requestId).isNotEmpty()
   }
 
   @Test
@@ -163,7 +181,13 @@ class FailedDispatchRetrierTest {
         .thenReturn(listVidLabelingJobsResponse {})
       whenever(rankerJobService.listRankerJobs(any()))
         .thenReturn(listRankerJobsResponse { rankerJobs += rankerJob { name = RANKER_JOB_NAME } })
-      whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = "q" })
+      whenever(workItemsService.getWorkItem(any()))
+        .thenReturn(
+          workItem {
+            queue = "q"
+            state = WorkItem.State.QUEUED
+          }
+        )
       whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
       whenever(modelLineService.markRawImpressionUploadModelLineRanking(any()))
         .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.RANKING })
@@ -173,6 +197,11 @@ class FailedDispatchRetrierTest {
 
     assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.RANKING)
     assertThat(result.workItemsRepublished).isEqualTo(1)
+    val requestCaptor = argumentCaptor<MarkRawImpressionUploadModelLineRankingRequest>()
+    verifyBlocking(modelLineService) {
+      markRawImpressionUploadModelLineRanking(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.firstValue.requestId).isNotEmpty()
   }
 
   @Test
@@ -200,6 +229,11 @@ class FailedDispatchRetrierTest {
 
     assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
     assertThat(result.workItemsRepublished).isEqualTo(1)
+    val requestCaptor = argumentCaptor<MarkRawImpressionUploadModelLinePoolAssigningRequest>()
+    verifyBlocking(modelLineService) {
+      markRawImpressionUploadModelLinePoolAssigning(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.firstValue.requestId).isNotEmpty()
   }
 
   @Test
@@ -242,25 +276,70 @@ class FailedDispatchRetrierTest {
   }
 
   @Test
-  fun `retryFailed does not advance the model line when all WorkItems already exist`() {
+  fun `retryFailed advances the model line when retry WorkItems already exist`() {
     val result = runBlocking {
       stubFailedModelLine()
       whenever(vidLabelingJobService.listVidLabelingJobs(any()))
         .thenReturn(
           listVidLabelingJobsResponse { vidLabelingJobs += vidLabelingJob { name = VID_JOB_NAME } }
         )
-      whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = "q" })
+      whenever(workItemsService.getWorkItem(any()))
+        .thenReturn(
+          workItem {
+            queue = "q"
+            state = WorkItem.State.QUEUED
+          }
+        )
       // Re-retry: the deterministic rt-<hash> WorkItem already exists from a prior retry.
       whenever(workItemsService.createWorkItem(any())).thenAnswer {
         throw Status.ALREADY_EXISTS.asRuntimeException()
       }
+      whenever(modelLineService.markRawImpressionUploadModelLineLabeling(any()))
+        .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING })
 
       retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
     }
 
     assertThat(result.workItemsRepublished).isEqualTo(0)
-    assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.FAILED)
-    verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineLabeling(any()) }
+    assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.LABELING)
+    verifyBlocking(modelLineService) { markRawImpressionUploadModelLineLabeling(any()) }
+  }
+
+  @Test
+  fun `retryFailed creates a successor when the previous retry WorkItem failed`() {
+    val result = runBlocking {
+      stubFailedModelLine()
+      whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+        .thenReturn(
+          listVidLabelingJobsResponse { vidLabelingJobs += vidLabelingJob { name = VID_JOB_NAME } }
+        )
+      whenever(workItemsService.getWorkItem(any()))
+        .thenReturn(
+          workItem { queue = "q" },
+          workItem {
+            queue = "q"
+            state = WorkItem.State.FAILED
+            updateTime = timestamp {
+              seconds = 123
+              nanos = 456
+            }
+          },
+        )
+      whenever(workItemsService.createWorkItem(any()))
+        .thenAnswer { throw Status.ALREADY_EXISTS.asRuntimeException() }
+        .thenReturn(workItem {})
+      whenever(modelLineService.markRawImpressionUploadModelLineLabeling(any()))
+        .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING })
+
+      retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+    }
+
+    assertThat(result.workItemsRepublished).isEqualTo(1)
+    assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.LABELING)
+    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService, times(2)) { createWorkItem(requestCaptor.capture()) }
+    assertThat(requestCaptor.allValues[1].workItemId)
+      .isNotEqualTo(requestCaptor.allValues[0].workItemId)
   }
 
   @Test
