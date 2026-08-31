@@ -116,6 +116,7 @@ object ImpressionComputations {
       DynamicClipping(
           queryRho = queryRho,
           measurementType = DynamicClipping.MeasurementType.IMPRESSION,
+          maxThreshold = MAX_REPRESENTABLE_FREQUENCY,
           noiseSource = noiseSource,
         )
         .computeImpressionCappedHistogram(frequencyHistogram(frequencyVector))
@@ -170,6 +171,15 @@ object ImpressionComputations {
    * single empty bar rather than skipping the search: releasing an exact zero here, beside a noised
    * value for a vector holding one impression, would leave the two distinguishable.
    */
+  /**
+   * The highest per-user frequency a frequency vector can hold.
+   *
+   * `StripedByteFrequencyVector` saturates each VID at [Byte.MAX_VALUE], so a clip above it would
+   * bound nothing, and noise calibrated for a wider search would be calibrated for bars that cannot
+   * carry a user.
+   */
+  private const val MAX_REPRESENTABLE_FREQUENCY = Byte.MAX_VALUE.toInt()
+
   private fun frequencyHistogram(frequencyVector: IntArray): Map<Long, Long> =
     frequencyVector
       .asSequence()

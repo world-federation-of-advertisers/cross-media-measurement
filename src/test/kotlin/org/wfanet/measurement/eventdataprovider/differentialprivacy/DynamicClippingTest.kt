@@ -57,8 +57,8 @@ class DynamicClippingTest {
     // Output threshold is 6 calculated by the algorithm, pre-set sliding window size, and input
     // histogramList. It can be verified by the original colab.
     val expectedThreshold = 6
-    // Expected noisedCumulativeHistogramList should have all elements.
-    val expectedCumulativeHistogramList = listOf(4.0, 3.0, 2.0)
+    // The data fills three bars; the rest are padded to maxThreshold and noised at zero.
+    val expectedCumulativeHistogramList = listOf(4.0, 3.0, 2.0) + List(maxThreshold - 3) { 0.0 }
 
     assertThat(dynamicClipResult.threshold).isEqualTo(expectedThreshold)
     assertAlmostEqualCumulativeHistogram(
@@ -166,10 +166,44 @@ class DynamicClippingTest {
 
     assertThat(dynamicClipResult.threshold).isEqualTo(expectedThreshold)
     assertAlmostEqualCumulativeHistogram(
-      dynamicClipResult.noisedCumulativeHistogramList,
+      dynamicClipResult.noisedCumulativeHistogramList.take(expectedCumulativeHistogramList.size),
       expectedCumulativeHistogramList,
     )
+    // The data fills four bars. The rest pad to the default maxThreshold, noised at zero.
+    assertThat(
+        dynamicClipResult.noisedCumulativeHistogramList
+          .drop(expectedCumulativeHistogramList.size)
+          .all { abs(it) < TOLERANCE }
+      )
+      .isTrue()
     assertThat(errPercent).isWithin(TOLERANCE).of(expectedErrPercent)
+  }
+
+  @Test
+  fun `the histogram is padded to maxThreshold whatever the data holds`() {
+    val maxThreshold = 20
+
+    // One bar of data, and one bar short of maxThreshold, both pad to the same length.
+    for (frequencyMap in listOf(mapOf(1L to 40L), mapOf(1L to 40L, 19L to 2L))) {
+      val result =
+        DynamicClipping(BIG_RHO, IMPRESSION_MEASUREMENT_TYPE, maxThreshold)
+          .computeImpressionCappedHistogram(frequencyMap)
+
+      assertThat(result.noisedCumulativeHistogramList).hasSize(maxThreshold)
+    }
+  }
+
+  @Test
+  fun `the threshold never exceeds maxThreshold`() {
+    val maxThreshold = 8
+    // Every user sits at the top of the representable range, so nothing thins out the histogram.
+    val frequencyMap = mapOf(50L to 130L)
+
+    val result =
+      DynamicClipping(BIG_RHO, IMPRESSION_MEASUREMENT_TYPE, maxThreshold)
+        .computeImpressionCappedHistogram(frequencyMap)
+
+    assertThat(result.threshold).isAtMost(maxThreshold)
   }
 
   @Test

@@ -235,6 +235,39 @@ class DirectMeasurementResultFactoryTest {
       .isEqualTo(100)
   }
 
+  @Test
+  fun `DYNAMIC ignores the MeasurementSpec cap`() = runBlocking {
+    // Same frequency data, two MeasurementSpecs differing only in maximum_frequency_per_user. The
+    // vector reaching the builder is identical, so the dynamic result must be too. That the vector
+    // itself is built uncapped under DYNAMIC is covered by DefaultFulfillerSelectorTest.
+    fun buildDynamic(specMaxFrequency: Int) =
+      DirectMeasurementResultFactory.buildMeasurementResult(
+        directProtocolConfig = DIRECT_PROTOCOL,
+        directNoiseMechanism = DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+        measurementSpec =
+          measurementSpec {
+            impression =
+              MeasurementSpecKt.impression {
+                privacyParams = IMPRESSION_PRIVACY_PARAMS
+                maximumFrequencyPerUser = specMaxFrequency
+              }
+            vidSamplingInterval =
+              MeasurementSpecKt.vidSamplingInterval {
+                start = 0.0f
+                width = SAMPLING_RATE
+              }
+          },
+        frequencyData = IntArray(100) { if (it < 90) 1 else 2 },
+        maxPopulation = null,
+        resultMinimumThresholds = null,
+        impressionMaxFrequencyPerUser = null,
+        totalUncappedImpressions = TOTAL_UNCAPPED_IMPRESSIONS,
+        impressionCapMode = ImpressionCapMode.DYNAMIC,
+      )
+
+    assertThat(buildDynamic(2)).isEqualTo(buildDynamic(MAX_FREQUENCY))
+  }
+
   /** Builds an impression result over 90 VIDs at frequency 1 and 10 at frequency 2. */
   private suspend fun buildImpressionResult(
     impressionCapMode: ImpressionCapMode,

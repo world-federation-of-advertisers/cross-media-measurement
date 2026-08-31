@@ -127,10 +127,16 @@ class DynamicClipping(
     durationTruncatedList: List<Double> = List(histogramList.size) { 0.0 },
   ): List<Double> {
     var remainingCount = histogramList.sum()
+    // Always [maxThreshold] bars, whatever the data holds. Past the highest frequency present no
+    // user has a higher one, so those bars are zero, and they are noised like every other bar. A
+    // list that stopped at the data's maximum would end the threshold search on an empty sliding
+    // window, which sums to an exact zero and always terminates. The chosen threshold would then
+    // be that maximum plus the window size, releasing a raw value the noise never touched.
+    val cumulativeHistogramList = MutableList(maxThreshold) { 0.0 }
     // histogramList.size - 1 since the first element in histogramList is 0.
-    val cumulativeHistogramList = MutableList(min(maxThreshold, histogramList.size - 1)) { 0.0 }
+    val barsFromData = min(maxThreshold, histogramList.size - 1)
 
-    for (i in 0 until cumulativeHistogramList.size) {
+    for (i in 0 until barsFromData) {
       remainingCount -= histogramList[i]
       cumulativeHistogramList[i] = remainingCount + durationTruncatedList[i]
     }
