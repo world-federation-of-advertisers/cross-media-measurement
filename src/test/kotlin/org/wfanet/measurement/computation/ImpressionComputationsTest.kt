@@ -287,6 +287,7 @@ class ImpressionComputationsTest {
       ImpressionComputations.computeDynamicallyClippedImpressionCount(
         frequencyVector = IntArray(100),
         queryRho = COARSE_RHO,
+        maxFrequency = MAX_FREQUENCY,
         noiseSource = { _, _, bar, l2Sensitivity, rho ->
           bar + l2Sensitivity / Math.sqrt(2.0 * rho)
         },
@@ -369,6 +370,7 @@ class ImpressionComputationsTest {
     ImpressionComputations.computeDynamicallyClippedImpressionCount(
       frequencyVector = frequencyVector,
       queryRho = queryRho,
+      maxFrequency = MAX_FREQUENCY,
       noiseSource = NO_NOISE,
       vidSamplingIntervalWidth = vidSamplingIntervalWidth,
       resultMinimumThresholds = thresholds,

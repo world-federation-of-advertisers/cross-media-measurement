@@ -32,6 +32,14 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpPara
 private const val DIRECT_CONTRIBUTION_COUNT = 1
 
 /**
+ * The highest per-user frequency the vector can hold.
+ *
+ * `StripedByteFrequencyVector` saturates each VID at [Byte.MAX_VALUE], so a clip above it would
+ * bound nothing, and a search charging for wider bars would charge for bars no user can reach.
+ */
+private const val MAX_REPRESENTABLE_FREQUENCY = Byte.MAX_VALUE.toInt()
+
+/**
  * One user moves any single bar of the cumulative histogram by at most one, which is the
  * sensitivity the charge conversion is calibrated to. The clip search scales it up for the number
  * of bars it releases.
@@ -96,6 +104,7 @@ fun computeDirectDynamicallyClippedImpressions(
   return ImpressionComputations.computeDynamicallyClippedImpressionCount(
     frequencyVector = frequencyData,
     queryRho = AcdpParamsConverter.getDirectAcdpCharge(queryDpParams, BAR_SENSITIVITY).rho,
+    maxFrequency = MAX_REPRESENTABLE_FREQUENCY,
     noiseSource = noiseSource,
     vidSamplingIntervalWidth = vidSamplingIntervalWidth,
     resultMinimumThresholds = resultMinimumThresholds,
