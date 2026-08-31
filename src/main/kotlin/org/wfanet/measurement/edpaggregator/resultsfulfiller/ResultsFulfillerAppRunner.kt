@@ -223,7 +223,23 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
         grpcTelemetry = grpcTelemetry,
       )
 
-    val modelLinesMap = runBlockingWithTelemetry { buildModelLineMap() }
+    val modelLinesMap = runBlockingWithTelemetry {
+      ModelLineInfoMapBuilder(
+          ::loadDescriptorSetFromBlob,
+          ::loadPopulationSpecFromBlob,
+          ::buildVidIndexMapWithMetrics,
+        )
+        .build(
+          modelLines.map {
+            ModelLineSource(
+              modelLine = it.modelLine,
+              populationSpecFileBlobUri = it.populationSpecFileBlobUri,
+              eventTemplateDescriptorBlobUri = it.eventTemplateDescriptorBlobUri,
+              eventTemplateTypeName = it.eventTemplateTypeName,
+            )
+          }
+        )
+    }
 
     val cpuCount = Runtime.getRuntime().availableProcessors()
     val pipelineConfiguration =
@@ -324,118 +340,6 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
   private fun buildDuchyMap(): Map<String, DuchyInfo> {
     return duchyInfos.associate { it: DuchyFlags ->
       it.duchyId to DuchyInfo(it.duchyTarget, it.duchyCertHost)
-    }
-  }
-
-  /**
-   * Loads the [Descriptors.Descriptor] for one model line's event template type, from its
-   * descriptor blob URI.
-   *
-   * Descriptor sets are cached by blob URI: model lines sharing a descriptor blob URI only have it
-   * downloaded and parsed once, regardless of how many distinct event template type names are
-   * looked up within it.
-   */
-  private class EventDescriptorLoader(
-    private val loadDescriptorSet: suspend (String) -> List<Descriptors.Descriptor>
-  ) {
-    private val descriptorSetsByUri = mutableMapOf<String, List<Descriptors.Descriptor>>()
-
-    suspend fun load(
-      descriptorBlobUri: String,
-      eventTemplateTypeName: String,
-    ): Descriptors.Descriptor {
-      val descriptors =
-        descriptorSetsByUri.getOrPut(descriptorBlobUri) { loadDescriptorSet(descriptorBlobUri) }
-      return descriptors.firstOrNull { it.fullName == eventTemplateTypeName }
-        ?: error("Descriptor not found for type: $eventTemplateTypeName")
-    }
-
-    /**
-     * Descriptors from the descriptor sets at [descriptorBlobUris], which must have already been
-     * loaded via [load].
-     */
-    fun descriptorsForUris(descriptorBlobUris: Set<String>): List<Descriptors.Descriptor> =
-      descriptorBlobUris.flatMap { descriptorSetsByUri.getValue(it) }
-  }
-
-  /**
-   * Builds the model line -> [ModelLineInfo] map for [modelLines].
-   *
-   * Model lines are grouped by population-spec blob URI: the VID index depends only on the
-   * population spec, not on which event descriptor a model line selects from it, so each group's
-   * [PopulationSpec] and [VidIndexMap] are downloaded, parsed, and indexed once and shared by every
-   * model line in the group.
-   *
-   * Population-spec textproto parsing can require descriptors for message types packed in
-   * google.protobuf.Any (e.g. event template attributes). Each group gets its own [TypeRegistry],
-   * scoped to only the descriptor sets referenced by that group's model lines, so a population spec
-   * is never resolved against message types pulled in by unrelated model lines -- which could
-   * otherwise paper over a genuine type mismatch or a name collision across groups. Descriptor sets
-   * are still cached process-wide by descriptor blob URI (see [EventDescriptorLoader]), so a URI
-   * shared across groups is only downloaded and parsed once.
-   *
-   * @param modelLines model lines to build the map for. Defaults to the flags parsed from the
-   *   command line.
-   * @param loadDescriptorSet downloads and parses the descriptor set for a descriptor blob URI.
-   *   Injectable for testing; defaults to loading from blob storage.
-   * @param loadPopulationSpec downloads and parses the [PopulationSpec] for a population-spec blob
-   *   URI, given a [TypeRegistry] for resolving Any-packed attributes. Injectable for testing;
-   *   defaults to loading from blob storage.
-   * @param buildVidIndexMap builds the [VidIndexMap] for a [PopulationSpec]. Injectable for
-   *   testing; defaults to [ParallelInMemoryVidIndexMap.build], timed via [metrics].
-   * @throws IllegalArgumentException if [modelLines] contains duplicate model line names.
-   */
-  internal suspend fun buildModelLineMap(
-    modelLines: List<ModelLineFlags> = this.modelLines,
-    loadDescriptorSet: suspend (String) -> List<Descriptors.Descriptor> =
-      ::loadDescriptorSetFromBlob,
-    loadPopulationSpec: suspend (String, TypeRegistry) -> PopulationSpec =
-      ::loadPopulationSpecFromBlob,
-    buildVidIndexMap: suspend (PopulationSpec) -> VidIndexMap = ::buildVidIndexMapWithMetrics,
-  ): Map<String, ModelLineInfo> {
-    val duplicateModelLines: Set<String> =
-      modelLines.groupingBy { it.modelLine }.eachCount().filterValues { it > 1 }.keys
-    require(duplicateModelLines.isEmpty()) {
-      "Duplicate model line(s) in configuration: $duplicateModelLines"
-    }
-
-    val eventDescriptorLoader = EventDescriptorLoader(loadDescriptorSet)
-    val eventDescriptorByModelLine: Map<String, Descriptors.Descriptor> =
-      modelLines.associate { flags ->
-        flags.modelLine to
-          eventDescriptorLoader.load(
-            flags.eventTemplateDescriptorBlobUri,
-            flags.eventTemplateTypeName,
-          )
-      }
-
-    data class PopulationSpecResources(
-      val populationSpec: PopulationSpec,
-      val vidIndexMap: VidIndexMap,
-    )
-    val populationSpecResourcesByUri = mutableMapOf<String, PopulationSpecResources>()
-    for (group in modelLines.groupBy { it.populationSpecFileBlobUri }.values) {
-      val populationSpecBlobUri = group.first().populationSpecFileBlobUri
-      val descriptorBlobUris: Set<String> =
-        group.mapTo(mutableSetOf()) { it.eventTemplateDescriptorBlobUri }
-      val groupTypeRegistry: TypeRegistry =
-        TypeRegistry.newBuilder()
-          .add(eventDescriptorLoader.descriptorsForUris(descriptorBlobUris))
-          .build()
-      val populationSpec = loadPopulationSpec(populationSpecBlobUri, groupTypeRegistry)
-      populationSpecResourcesByUri[populationSpecBlobUri] =
-        PopulationSpecResources(populationSpec, buildVidIndexMap(populationSpec))
-    }
-
-    return modelLines.associate { flags ->
-      val resources = populationSpecResourcesByUri.getValue(flags.populationSpecFileBlobUri)
-      flags.modelLine to
-        ModelLineInfo(
-          populationSpec = resources.populationSpec,
-          vidIndexMap = resources.vidIndexMap,
-          eventDescriptor = eventDescriptorByModelLine.getValue(flags.modelLine),
-          localAlias = null,
-        )
     }
   }
 
