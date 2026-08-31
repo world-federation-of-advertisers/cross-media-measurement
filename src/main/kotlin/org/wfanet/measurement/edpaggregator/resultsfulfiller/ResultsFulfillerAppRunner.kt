@@ -23,6 +23,7 @@ import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Parser
 import com.google.protobuf.TypeRegistry
 import java.io.File
+import java.time.Duration
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.EnvelopeEncryptionKt.awsKmsParams
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
@@ -30,6 +31,7 @@ import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResultsFulfillerConfigAsByteArray
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.common.throttler.MaximumRateThrottler
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfig
 import org.wfanet.measurement.edpaggregator.BaseTeeAppRunner
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -184,11 +186,45 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
   )
   private var pipelineReadConcurrency: Int = 16
 
+  @CommandLine.Option(
+    names = ["--get-requisition-min-interval"],
+    description =
+      [
+        "Minimum interval between outbound GetRequisition calls to Kingdom. Paces this app's " +
+          "GetRequisition traffic to stay within Kingdom's per-principal rate limit for that " +
+          "method, which is shared across every concurrent instance of this app authenticating " +
+          "as the same data provider."
+      ],
+    defaultValue = "100ms",
+  )
+  private lateinit var getRequisitionMinInterval: Duration
+
+  @CommandLine.Option(
+    names = ["--kingdom-requisitions-min-interval"],
+    description =
+      [
+        "Minimum interval between outbound FulfillDirectRequisition/RefuseRequisition calls to " +
+          "Kingdom. These share Kingdom's default per-principal rate-limit bucket (5 " +
+          "requests/second average, 20 burst) with other Kingdom RPC methods without a " +
+          "dedicated per-method limit (GetRequisition and ListRequisitions have their own). " +
+          "2.5s leaves 20% headroom for a 10-instance fleet sharing the 5/second bucket."
+      ],
+    defaultValue = "2.5s",
+  )
+  private lateinit var kingdomRequisitionsMinInterval: Duration
+
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     StorageConfig(projectId = storageParams.gcsProjectId)
   }
 
   override fun run() {
+    require(getRequisitionMinInterval > Duration.ZERO) {
+      "--get-requisition-min-interval must be positive, got $getRequisitionMinInterval"
+    }
+    require(kingdomRequisitionsMinInterval > Duration.ZERO) {
+      "--kingdom-requisitions-min-interval must be positive, got $kingdomRequisitionsMinInterval"
+    }
+
     // Pull certificates needed to operate from Google Secrets.
     saveCommonEdpaCerts()
     saveExtraEdpaCerts()
@@ -269,6 +305,10 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
         getRequisitionsStorageConfig = getImpressionsStorageConfig,
         modelLineInfoMap = modelLinesMap,
         pipelineConfiguration = pipelineConfiguration,
+        requisitionsThrottler =
+          MaximumRateThrottler(1_000_000_000.0 / getRequisitionMinInterval.toNanos()),
+        kingdomThrottler =
+          MaximumRateThrottler(1_000_000_000.0 / kingdomRequisitionsMinInterval.toNanos()),
         metrics = metrics,
       )
 

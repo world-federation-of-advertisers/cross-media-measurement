@@ -34,6 +34,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultMinimumThresholder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
@@ -47,6 +48,7 @@ class HMShuffleMeasurementFulfiller(
   private val dataProviderCertificateKey: DataProviderCertificateKey,
   private val requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
   private val requisitionsStub: RequisitionsCoroutineStub,
+  private val requisitionsThrottler: Throttler,
   private val generateSecretShares: (ByteArray) -> (ByteArray) =
     SecretShareGeneratorAdapter::generateSecretShares,
   private val retryMaxAttempts: Int = DEFAULT_RETRY_MAX_ATTEMPTS,
@@ -69,7 +71,9 @@ class HMShuffleMeasurementFulfiller(
         // this makes the whole block idempotent, which is what makes retrying DEADLINE_EXCEEDED
         // (below) safe here.
         val getRequisitionResponse =
-          requisitionsStub.getRequisition(getRequisitionRequest { name = requisition.name })
+          requisitionsThrottler.onReady {
+            requisitionsStub.getRequisition(getRequisitionRequest { name = requisition.name })
+          }
         if (getRequisitionResponse.state === Requisition.State.UNFULFILLED) {
           val requests: Flow<FulfillRequisitionRequest> =
             FulfillRequisitionRequestBuilder.build(
@@ -136,6 +140,7 @@ class HMShuffleMeasurementFulfiller(
       dataProviderCertificateKey: DataProviderCertificateKey,
       requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
       requisitionsStub: RequisitionsCoroutineStub,
+      requisitionsThrottler: Throttler,
       resultMinimumThresholds: ResultMinimumThresholds,
       maxPopulation: Int?,
       generateSecretShares: (ByteArray) -> (ByteArray) =
@@ -159,6 +164,7 @@ class HMShuffleMeasurementFulfiller(
         dataProviderCertificateKey,
         requisitionFulfillmentStubMap,
         requisitionsStub,
+        requisitionsThrottler,
         generateSecretShares,
       )
     }
