@@ -31,6 +31,7 @@ import java.time.Instant
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -579,6 +580,8 @@ class ResultsFulfiller(
           }
         )
       }
+    } catch (cancellation: CancellationException) {
+      throw cancellation
     } catch (refusalError: Exception) {
       logger.log(
         Level.SEVERE,
