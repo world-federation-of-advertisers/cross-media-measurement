@@ -95,20 +95,24 @@ abstract class RequisitionFulfiller(
 
   /**
    * Paces [block] via [kingdomRpcThrottler] and retries it with backoff if it throws a
-   * [StatusException] with code [Status.Code.UNAVAILABLE], up to [retryMaxAttempts] attempts.
-   * [errorMessage] is used to wrap the exception from the final attempt if all attempts fail.
+   * [StatusException] with code [Status.Code.UNAVAILABLE] or [Status.Code.ABORTED], up to
+   * [retryMaxAttempts] attempts. [errorMessage] is used to wrap the exception from the final
+   * attempt if all attempts fail.
    *
    * UNAVAILABLE does not guarantee that [block] never reached or executed on the server -- only
-   * that the response was lost. For a non-idempotent mutation, blindly retrying it risks either a
-   * duplicate state transition or a spurious failure on retry (e.g. a stale etag) even though the
-   * first attempt actually succeeded. If [block] is such a mutation, pass [reconcileMutation] to
-   * check, via [reconcileWithRetry], whether it already took effect before retrying it: if so, its
-   * result is returned instead of replaying [block]. [reconcileMutation] is itself retried on
-   * UNAVAILABLE, since replaying [block] while unable to confirm whether it already took effect
-   * would risk exactly the duplicate-mutation/spurious-failure problem this exists to prevent; any
-   * other exception from [reconcileMutation] -- including one it throws to signal that the
-   * requisition is in a state that isn't explained by [block] having or not having taken effect --
-   * propagates immediately.
+   * that the response was lost. ABORTED means [block] is a mutation whose etag precondition didn't
+   * match the current one, which happens both when something else genuinely changed the requisition
+   * and when [block]'s own prior attempt already succeeded but its response was lost (leaving the
+   * etag advanced from underneath a caller who never saw success). For a non-idempotent mutation,
+   * blindly retrying either case risks either a duplicate state transition or a spurious failure on
+   * retry. If [block] is such a mutation, pass [reconcileMutation] to check, via
+   * [reconcileWithRetry], whether it already took effect before retrying it: if so, its result is
+   * returned instead of replaying [block]. [reconcileMutation] is itself retried on UNAVAILABLE,
+   * since replaying [block] while unable to confirm whether it already took effect would risk
+   * exactly the duplicate-mutation/spurious-failure problem this exists to prevent; any other
+   * exception from [reconcileMutation] -- including one it throws to signal that the requisition is
+   * in a state that isn't explained by [block] having or not having taken effect -- propagates
+   * immediately.
    */
   private suspend fun <T> callKingdom(
     errorMessage: String,
@@ -121,7 +125,7 @@ abstract class RequisitionFulfiller(
       try {
         return kingdomRpcThrottler.onReady(block)
       } catch (e: StatusException) {
-        if (e.status.code != Status.Code.UNAVAILABLE) {
+        if (e.status.code != Status.Code.UNAVAILABLE && e.status.code != Status.Code.ABORTED) {
           throw Exception(errorMessage, e)
         }
         if (reconcileMutation != null) {
@@ -300,6 +304,13 @@ abstract class RequisitionFulfiller(
 
     return callKingdom("Error listing requisitions") {
       requisitionsStub.listRequisitions(request).requisitionsList
+    }
+  }
+
+  /** Fetches the current state of the Requisition with resource name [requisitionName]. */
+  protected suspend fun getRequisition(requisitionName: String): Requisition {
+    return callKingdom("Error fetching requisition $requisitionName") {
+      requisitionsStub.getRequisition(getRequisitionRequest { name = requisitionName })
     }
   }
 
