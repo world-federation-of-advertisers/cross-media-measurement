@@ -14,7 +14,9 @@
 package org.wfanet.measurement.eventdataprovider.differentialprivacy
 
 import com.google.common.truth.Truth.assertThat
+import java.util.Random
 import kotlin.math.abs
+import kotlin.math.sqrt
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -203,9 +205,10 @@ class DynamicClippingTest {
     val frequencyMap = mapOf(1L to 40L, 2L to 10L)
     val firstPaddedBar = 2
 
-    // SMALL_RHO leaves noise large enough to see. An unnoised pad would be exactly zero.
+    // An unnoised pad would be exactly zero. UNROUNDED_NOISE never lands there, so a zero here
+    // means the bar was never noised rather than that its draw rounded away.
     val result =
-      DynamicClipping(SMALL_RHO, IMPRESSION_MEASUREMENT_TYPE, maxThreshold, seededNoiseSource())
+      DynamicClipping(SMALL_RHO, IMPRESSION_MEASUREMENT_TYPE, maxThreshold, UNROUNDED_NOISE)
         .computeImpressionCappedHistogram(frequencyMap)
 
     val paddedBars = result.noisedCumulativeHistogramList.drop(firstPaddedBar)
@@ -303,6 +306,19 @@ class DynamicClippingTest {
     DeterministicDynamicClippingNoiseSource("frequency-vector-$seed".toByteArray())
 
   private companion object {
+    /**
+     * Reproducible draws, addressed by (pass, bar) like the real source but without its rounding.
+     *
+     * [DeterministicDynamicClippingNoiseSource] rounds to the integer lattice, so a small draw
+     * leaves a bar at exactly zero and an assertion about a bar being noised cannot tell that from
+     * a bar that was skipped.
+     */
+    private val UNROUNDED_NOISE =
+      DynamicClippingNoiseSource { pass, barIndex, bar, l2Sensitivity, rho ->
+        val random = Random(pass * 31L + barIndex)
+        bar + (l2Sensitivity / sqrt(2.0 * rho)) * random.nextGaussian()
+      }
+
     /** Returns each bar unchanged, so a threshold is a function of the data alone. */
     private val NO_NOISE = DynamicClippingNoiseSource { _, _, bar, _, _ -> bar }
 
