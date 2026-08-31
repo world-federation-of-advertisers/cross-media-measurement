@@ -1363,6 +1363,8 @@ class ResultsFulfillerTest {
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
         groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath),
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
