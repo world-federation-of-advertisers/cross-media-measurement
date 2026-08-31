@@ -31,6 +31,7 @@ import java.time.Instant
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -58,6 +59,7 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
@@ -89,6 +91,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMe
  *
  * @param dataProvider [DataProvider] resource name.
  * @param requisitionMetadataStub used to sync [Requisition]s with the RequisitionMetadataStorage
+ * @param requisitionsThrottler paces outbound `GetRequisition` calls to Kingdom. Shared with the
+ *   fulfillers this class dispatches to via [fulfillerSelector], so the throttle budget covers all
+ *   `GetRequisition` traffic this process makes, not just [shouldBeProcessed]'s.
+ * @param kingdomThrottler paces outbound `RefuseRequisition` calls to Kingdom, which share
+ *   Kingdom's default per-principal rate-limit bucket with other Kingdom RPC methods without a
+ *   dedicated per-method limit (`GetRequisition` and `ListRequisitions` each have their own).
  * @param privateEncryptionKey Private key used to decrypt `RequisitionSpec`s.
  * @param groupedRequisitions The grouped requisitions to fulfill.
  * @param modelLineInfoMap Map of model line to [ModelLineInfo] providing descriptors and indexes.
@@ -108,6 +116,8 @@ class ResultsFulfiller(
   private val dataProvider: String,
   private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,
+  private val requisitionsThrottler: Throttler,
+  private val kingdomThrottler: Throttler,
   private val privateEncryptionKey: PrivateKeyHandle,
   private val groupedRequisitions: GroupedRequisitions,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
@@ -293,7 +303,9 @@ class ResultsFulfiller(
     val metadata = metadataByName[name]
     requireNotNull(metadata) { "Requisition metadata not found for requisition: $name" }
     val requisition =
-      requisitionsStub.getRequisition(getRequisitionRequest { name = metadata.cmmsRequisition })
+      requisitionsThrottler.onReady {
+        requisitionsStub.getRequisition(getRequisitionRequest { name = metadata.cmmsRequisition })
+      }
     return when (requisition.state) {
       Requisition.State.FULFILLED -> {
         if (metadata.state !== RequisitionMetadata.State.FULFILLED) {
@@ -556,16 +568,20 @@ class ResultsFulfiller(
     e: RequisitionRefusalException,
   ) {
     try {
-      requisitionsStub.refuseRequisition(
-        refuseRequisitionRequest {
-          name = requisition.name
-          refusal =
-            RequisitionKt.refusal {
-              justification = e.justification
-              message = e.message ?: "Requisition refused"
-            }
-        }
-      )
+      kingdomThrottler.onReady {
+        requisitionsStub.refuseRequisition(
+          refuseRequisitionRequest {
+            name = requisition.name
+            refusal =
+              RequisitionKt.refusal {
+                justification = e.justification
+                message = e.message ?: "Requisition refused"
+              }
+          }
+        )
+      }
+    } catch (cancellation: CancellationException) {
+      throw cancellation
     } catch (refusalError: Exception) {
       logger.log(
         Level.SEVERE,

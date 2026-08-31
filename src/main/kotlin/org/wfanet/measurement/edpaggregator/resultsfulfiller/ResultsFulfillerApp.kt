@@ -31,6 +31,7 @@ import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -70,6 +71,13 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param getRequisitionsStorageConfig Lambda to obtain [StorageConfig] for requisitions.
  * @param modelLineInfoMap map of model line to [ModelLineInfo]
  * @param pipelineConfiguration Configuration for the event processing pipeline.
+ * @param requisitionsThrottler paces outbound `GetRequisition` calls to Kingdom. Shared across this
+ *   app's own pre-check and the fulfillers it dispatches to, so the throttle budget covers all
+ *   `GetRequisition` traffic this process makes.
+ * @param kingdomThrottler paces outbound `FulfillDirectRequisition`/`RefuseRequisition` calls to
+ *   Kingdom, which share Kingdom's default per-principal rate-limit bucket with other Kingdom RPC
+ *   methods without a dedicated per-method limit (`GetRequisition` and `ListRequisitions` each have
+ *   their own).
  * @param metrics Metrics recorder for telemetry.
  * @constructor Initializes the application with all required dependencies for result fulfillment.
  */
@@ -89,6 +97,8 @@ class ResultsFulfillerApp(
   private val getRequisitionsStorageConfig: (StorageParams) -> StorageConfig,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val pipelineConfiguration: PipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+  private val requisitionsThrottler: Throttler,
+  private val kingdomThrottler: Throttler,
   private val metrics: ResultsFulfillerMetrics,
 ) :
   BaseTeeApplication(
@@ -156,11 +166,6 @@ class ResultsFulfillerApp(
       when (fulfillerParams.noiseParams.noiseType) {
         NoiseType.NONE -> NoNoiserSelector()
         NoiseType.CONTINUOUS_GAUSSIAN -> ContinuousGaussianNoiseSelector()
-        // TODO(@raimundoltdf): The Kingdom cannot offer this for Direct yet.
-        // V2alphaPublicApiServer rejects it for --direct-noise-mechanism, so it never reaches
-        // ProtocolConfig.Direct.noise_mechanisms and this selector refuses every requisition.
-        // Accepting it there needs the reporting server to map the mechanism first; both land in
-        // a follow-up.
         NoiseType.DETERMINISTIC_TRUNCATED_LAPLACE -> DeterministicTruncatedLaplaceNoiseSelector()
         else -> throw Exception("Invalid noise type ${fulfillerParams.noiseParams.noiseType}")
       }
@@ -218,6 +223,8 @@ class ResultsFulfillerApp(
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = requisitionsThrottler,
+        kingdomThrottler = kingdomThrottler,
         requisitionFulfillmentStubMap = requisitionFulfillmentStubsMap,
         dataProviderCertificateKey = dataProviderCertificateKey,
         dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
@@ -254,6 +261,8 @@ class ResultsFulfillerApp(
         dataProvider = fulfillerParams.dataProvider,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        requisitionsThrottler = requisitionsThrottler,
+        kingdomThrottler = kingdomThrottler,
         privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = modelLineInfoMapWithAliases,
