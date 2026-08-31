@@ -170,9 +170,8 @@ class PopulationRequisitionFulfiller(
     }
   }
 
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4426): Pace this call via
-  //  kingdomRpcThrottler (or cache by populationName across loop iterations) once it's confirmed
-  //  whether it can exhaust a Kingdom rate-limit bucket the same way GetRequisition did (#4419).
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4426): Pace via
+  //  kingdomRpcThrottler, or cache by populationName across loop iterations.
   private suspend fun getPopulation(populationName: String): Population {
     val populationKey = requireNotNull(PopulationKey.fromName(populationName))
     if (populationKey.parentKey.toName() != dataProviderData.name) {
@@ -194,10 +193,8 @@ class PopulationRequisitionFulfiller(
    * Returns the [ModelRelease] associated with the latest
    * [org.wfanet.measurement.api.v2alpha.ModelRollout] for the specified [modelLineName].
    */
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4426): Pace listModelRollouts and
-  //  getModelRelease via kingdomRpcThrottler (or cache by modelLineName across loop iterations)
-  //  once it's confirmed whether they can exhaust a Kingdom rate-limit bucket the same way
-  //  GetRequisition did (#4419).
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4426): Pace listModelRollouts
+  //  and getModelRelease via kingdomRpcThrottler, or cache by modelLineName across iterations.
   private suspend fun getModelRelease(modelLineName: String): ModelRelease {
     // TODO(@jojijac0b): Handle case where measurement spans across one or more model outages.
     //  Should use HoldbackModelLine in this case to reflect what is done with measurement reports.

@@ -658,10 +658,8 @@ class PopulationRequisitionFulfillerTest {
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
-    // Should not throw: the first GetRequisition attempt is itself transient, so reconciliation
-    // is retried, not the mutation -- replaying RefuseRequisition without knowing whether it
-    // already succeeded risks a spurious failure or a duplicate refusal.
-    // Uses runTest so the retry backoff delay resolves via virtual time instead of a real delay.
+    // Reconciliation is retried, not the mutation: replaying it without confirmation risks a
+    // duplicate refusal. runTest resolves the backoff delay via virtual time.
     runTest { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
 
     verifyBlocking(requisitionsServiceMock, times(1)) { refuseRequisition(any()) }
@@ -710,9 +708,8 @@ class PopulationRequisitionFulfillerTest {
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
-    // Should not throw: GetRequisition confirms the requisition is still UNFULFILLED with the
-    // original etag, so RefuseRequisition is safely replayed.
-    // Uses runTest so the retry backoff delay resolves via virtual time instead of a real delay.
+    // GetRequisition confirms nothing changed, so RefuseRequisition is safely replayed. runTest
+    // resolves the backoff delay via virtual time.
     runTest { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
 
     verifyBlocking(requisitionsServiceMock, times(2)) { refuseRequisition(any()) }

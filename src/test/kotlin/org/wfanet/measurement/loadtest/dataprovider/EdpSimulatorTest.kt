@@ -393,9 +393,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }.thenReturn(listRequisitionsResponse {})
     }
-    // Runs the workflow once, then throws a sentinel on the loop's second iteration -- a
-    // deterministic stand-in for "the loop keeps running," with no real time or timeouts
-    // involved.
+    // Runs the workflow once, then throws a sentinel to end the loop deterministically.
     val workflowThrottler = RunOnceThenStopThrottler()
     val kingdomRpcThrottler = RecordingThrottler()
     val simulator =
