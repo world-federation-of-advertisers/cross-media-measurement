@@ -3180,8 +3180,9 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
       }
 
     /**
-     * A second, distinct dummy [Throttler] instance for `kingdomRpcThrottler`, since it must not be
-     * the same instance as the workflow throttler.
+     * A second, distinct dummy [Throttler] instance for `kingdomRpcThrottler`. It must not be the
+     * same instance as the workflow throttler: in production, a real (non-reentrant) throttler
+     * shared between the two would deadlock, since run() holds it for the whole workflow.
      */
     private val dummyKingdomRpcThrottler =
       object : Throttler {
