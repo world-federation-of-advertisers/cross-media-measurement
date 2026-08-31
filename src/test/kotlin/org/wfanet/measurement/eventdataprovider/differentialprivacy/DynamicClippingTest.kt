@@ -194,6 +194,23 @@ class DynamicClippingTest {
   }
 
   @Test
+  fun `the padded bars carry noise`() {
+    val maxThreshold = 20
+    // The data reaches frequency 2, so bars 2 and above hold no users and are padded.
+    val frequencyMap = mapOf(1L to 40L, 2L to 10L)
+    val firstPaddedBar = 2
+
+    // SMALL_RHO leaves noise large enough to see. An unnoised pad would be exactly zero.
+    val result =
+      DynamicClipping(SMALL_RHO, IMPRESSION_MEASUREMENT_TYPE, maxThreshold, seededNoiseSource())
+        .computeImpressionCappedHistogram(frequencyMap)
+
+    val paddedBars = result.noisedCumulativeHistogramList.drop(firstPaddedBar)
+    assertThat(paddedBars).hasSize(maxThreshold - firstPaddedBar)
+    assertThat(paddedBars.none { it == 0.0 }).isTrue()
+  }
+
+  @Test
   fun `the threshold never exceeds maxThreshold`() {
     val maxThreshold = 8
     // Every user sits at the top of the representable range, so nothing thins out the histogram.

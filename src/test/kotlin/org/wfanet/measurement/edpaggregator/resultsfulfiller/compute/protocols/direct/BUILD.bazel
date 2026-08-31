@@ -43,6 +43,18 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "DirectDynamicClippingTest",
+    srcs = ["DirectDynamicClippingTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectDynamicClippingTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute/protocols/direct:direct_dynamic_clipping",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
     name = "DirectMeasurementResultFactoryTest",
     srcs = ["DirectMeasurementResultFactoryTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactoryTest",
