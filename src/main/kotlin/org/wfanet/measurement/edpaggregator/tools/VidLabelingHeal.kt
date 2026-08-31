@@ -244,18 +244,10 @@ class RetryFailedCommand : EdpaApiCommand() {
             WorkItemsCoroutineStub(controlPlaneChannel),
           )
         val result = retrier.retryFailed(rawImpressionUpload, modelLine, fromPhase)
-        if (result.workItemsRepublished == 0) {
-          System.err.println(
-            "WARN: all target WorkItems for ${result.modelLineName} already exist from a prior " +
-              "retry; the model line remains ${result.newState} and no new work was created. " +
-              "Investigate the prior retry's WorkItems (workItems/rt-<...>) before re-running."
-          )
-        } else {
-          println(
-            "Re-triggered ${result.modelLineName} at ${result.newState}: republished " +
-              "${result.workItemsRepublished} WorkItem(s)."
-          )
-        }
+        println(
+          "Re-triggered ${result.modelLineName} at ${result.newState}: created " +
+            "${result.workItemsRepublished} retry WorkItem(s)."
+        )
       }
     } finally {
       edpaChannel.shutdown()
