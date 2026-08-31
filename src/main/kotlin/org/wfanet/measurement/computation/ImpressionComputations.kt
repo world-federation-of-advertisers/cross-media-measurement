@@ -148,7 +148,8 @@ object ImpressionComputations {
         }
       }
 
-    // TODO(@raimundoltdf): This under-reports the variance of the released value. The clip is selected from the first noised histogram, and the
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4437): This under-reports
+    // the variance of the released value. The clip is selected from the first noised histogram, and the
     // weights combining that histogram with the remaining-charge pass are then computed from the
     // selected clip. So the bar errors are neither independent of the clip nor of each other once
     // the clip is known, and the derivation below, which assumes they are, is not a bound. A
