@@ -79,7 +79,8 @@ abstract class RequisitionFulfiller(
    *
    * Does not retry: the underlying channel's default service config already retries UNAVAILABLE
    * transparently, and a non-idempotent mutation can't be safely replayed at this layer without
-   * reconciling via GetRequisition first (world-federation-of-advertisers/cross-media-measurement#2374).
+   * reconciling via GetRequisition first
+   * (world-federation-of-advertisers/cross-media-measurement#2374).
    */
   private suspend fun <T> callKingdom(errorMessage: String, block: suspend () -> T): T =
     try {
