@@ -148,13 +148,15 @@ object ImpressionComputations {
         }
       }
 
-    // TODO(world-federation-of-advertisers/cross-media-measurement#4437): This under-reports the
-    // variance of the released value, because the clip and the weights that combine the passes are
-    // both derived from the draws being summed. The derivation below describes what the code
-    // computes, not the variance of the estimator.
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4437): The target is
+    // Var(X | C). The calculation below substitutes P(X) for P(X | C), which assumes the clip is
+    // independent of the draws. It is not: the clip is a deterministic function of them, so
+    // P(C | X) is an indicator, and conditioning restricts the draws to the region where the
+    // search stops at that clip. The figure is therefore biased, and measurement shows the bias
+    // is downward.
     //
-    // The figure is the variance given the clip. The released value estimates
-    // sum(min(frequency, C)) over users, so the clip defines the quantity being estimated.
+    // The released value estimates sum(min(frequency, C)) over users, so the clip defines the
+    // quantity being estimated.
     //
     // Write C for the clip, w for the sampling interval width, and s2 for the per-bar noise
     // variance.
