@@ -57,10 +57,10 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.Event
  * The fulfiller supports a single CMMS instance (market) with a single set of templates.
  *
  * @param workflowThrottler paces how often [executeRequisitionFulfillingWorkflow] runs, via [run].
- * @param kingdomRpcThrottler paces outbound Kingdom RPCs, e.g. `GetCertificate`,
- *   `ListRequisitions`. Must be a distinct instance from [workflowThrottler]: [run] holds
- *   [workflowThrottler] for the duration of each workflow execution, so a nested Kingdom RPC paced
- *   by the same non-reentrant throttler instance would deadlock.
+ * @param kingdomRpcThrottler paces outbound Certificates and Requisitions RPCs, e.g.
+ *   `GetCertificate`, `ListRequisitions`. Must be a distinct instance from [workflowThrottler]:
+ *   [run] holds [workflowThrottler] for the duration of each workflow execution, so a nested
+ *   Kingdom RPC paced by the same non-reentrant throttler instance would deadlock.
  * @throws IllegalArgumentException if [workflowThrottler] and [kingdomRpcThrottler] are the same
  *   instance.
  */

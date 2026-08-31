@@ -120,9 +120,9 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
     names = ["--kingdom-rpc-min-interval"],
     description =
       [
-        "Minimum interval between outbound Kingdom RPCs, e.g. GetCertificate, " +
-          "ListRequisitions. Paces this app's Kingdom traffic to stay within Kingdom's " +
-          "per-principal rate limit for those methods."
+        "Minimum interval between outbound Certificates and Requisitions RPCs, e.g. " +
+          "GetCertificate, ListRequisitions. Paces this app's Kingdom traffic to stay within " +
+          "Kingdom's per-principal rate limit for those methods."
       ],
     defaultValue = "200ms",
   )
