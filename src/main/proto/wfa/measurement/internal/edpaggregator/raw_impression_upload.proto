@@ -49,4 +49,7 @@ message RawImpressionUpload {
   // Cloud Storage generation of the done blob. Zero means unknown for legacy
   // uploads.
   int64 done_blob_generation = 7;
+
+  // Resource ID of the preceding upload revision for the same done-blob path.
+  string replaces_raw_impression_upload_resource_id = 8;
 }

@@ -76,4 +76,12 @@ message RawImpressionUpload {
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
+
+  // The preceding upload revision for the same done-blob path, if any.
+  string replaces_raw_impression_upload = 7 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
 }

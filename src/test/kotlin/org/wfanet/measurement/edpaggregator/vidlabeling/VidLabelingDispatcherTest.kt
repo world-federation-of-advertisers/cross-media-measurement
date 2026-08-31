@@ -530,6 +530,43 @@ class VidLabelingDispatcherTest {
     }
 
   @Test
+  fun `out of order done event does not register stale snapshot`() =
+    runBlocking<Unit> {
+      val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      stubRawImpressionUploadCreation()
+      stubFullResolutionChain(MODEL_LINE_1)
+      whenever(rawImpressionUploadService.createRawImpressionUpload(any())).thenAnswer {
+        throw StatusException(Status.ALREADY_EXISTS.withDescription("newer generation exists"))
+      }
+      whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer { invocation
+        ->
+        val request = invocation.getArgument<ListRawImpressionUploadsRequest>(0)
+        if (request.filter.doneBlobUri == DONE_BLOB_PATH) {
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads +=
+              RawImpressionUpload.newBuilder()
+                .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/newer")
+                .setDoneBlobUri(DONE_BLOB_PATH)
+                .setDoneBlobGeneration(200L)
+                .build()
+          }
+        } else {
+          listRawImpressionUploadsResponse {}
+        }
+      }
+
+      createDispatcher().upload(DONE_BLOB_PATH, doneBlobGeneration = 150L)
+
+      verifyBlocking(rawImpressionUploadFileService, never()) {
+        batchCreateRawImpressionUploadFiles(any())
+      }
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        batchCreateRawImpressionUploadModelLines(any())
+      }
+    }
+
+  @Test
   fun `upload chunks RawImpressionUploadFiles at batch size 100`() =
     runBlocking<Unit> {
       val blobs = (1..250).map { createMockBlob("$FOLDER_PREFIX/file$it.parquet") }
@@ -594,8 +631,14 @@ class VidLabelingDispatcherTest {
       stubFullResolutionChain(MODEL_LINE_1)
       // Dispatch (best-effort) fails, but registration already succeeded, so upload() must not
       // throw.
-      whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer {
-        throw StatusException(Status.UNAVAILABLE.withDescription("metadata store unavailable"))
+      whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer { invocation
+        ->
+        val request = invocation.getArgument<ListRawImpressionUploadsRequest>(0)
+        if (request.filter.doneBlobUri.isNotEmpty()) {
+          listRawImpressionUploadsResponse {}
+        } else {
+          throw StatusException(Status.UNAVAILABLE.withDescription("metadata store unavailable"))
+        }
       }
 
       val dispatcher = createDispatcher()
