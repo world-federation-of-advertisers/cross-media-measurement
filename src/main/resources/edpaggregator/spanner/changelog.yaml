@@ -67,3 +67,6 @@ databaseChangeLog:
   - include:
       file: add-raw-impression-upload-registration-complete.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-raw-upload-model-line-eviction-index.sql
+      relativeToChangeLogFile: true

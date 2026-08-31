@@ -16,13 +16,21 @@
 
 package org.wfanet.measurement.edpaggregator.tools
 
+import com.google.type.interval
 import java.time.Instant
 import java.util.logging.Logger
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLineKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -37,16 +45,15 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 
 /**
- * Evicts uploads that carry bad data for a model line, using the last-good-snapshot rebuild
- * strategy (no eviction TEE): it marks the bad upload and every later upload for the model line
- * `FAILED` and soft-deletes their cumulative `SNAPSHOT` rank-index blobs. Phase-1's prior-snapshot
- * selection (newest non-deleted `SNAPSHOT`) then falls back to the last good snapshot, so when the
- * data provider re-triggers the affected uploads the pipeline rebuilds forward from clean state.
+ * Evicts uploads that carry bad data across both VID-labeling paths. Non-memoized model lines are
+ * isolated to the requested uploads. Memoized model lines are cascaded forward and have their
+ * cumulative `SNAPSHOT` rank-index blobs soft-deleted, so Phase-1 falls back to the last good
+ * snapshot when the data provider re-triggers corrected uploads.
  *
- * Because each subsequent cumulative snapshot was built on the corrupted one, eviction must cascade
- * forward from the earliest bad upload to the most recent (`Up_k … Up_n`). Eviction is confined to
- * the retention window; uploads older than the window are rejected (out-of-window recovery is out
- * of scope).
+ * For a memoized line, each subsequent cumulative snapshot was built on the corrupted one, so
+ * eviction cascades from the earliest bad upload to the most recent (`Up_k … Up_n`). A non-memoized
+ * line has no cumulative state and is evicted in isolation. Eviction is confined to the retention
+ * window; uploads older than the window are rejected.
  *
  * @param uploadsStub stub for `RawImpressionUploadService` (create-time ordering + retention
  *   check).
@@ -58,101 +65,166 @@ class EvictUploader(
   private val rawImpressionModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
   private val rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
 ) {
-  /** A single `(upload, model line)` in the eviction cascade. */
-  data class CascadeEntry(val uploadName: String, val modelLineName: String)
+  /** A single `(upload, model line)` in the eviction plan. */
+  data class CascadeEntry(
+    val uploadName: String,
+    val modelLineName: String,
+    val cmmsModelLine: String,
+    val memoized: Boolean,
+  )
 
   /** The forward cascade to evict, ordered by upload create time. */
   data class EvictionPlan(
     val cascade: List<CascadeEntry>,
     /** Uploads pulled into the cascade beyond the requested bad ones (they came after them). */
     val extraUploads: List<String>,
+    val memoizedModelLines: Set<String>,
+    val nonMemoizedModelLines: Set<String>,
+    val badUploads: List<String>,
+    val cutoffTime: Instant,
   )
 
   /** Outcome of an [evict] run. */
   data class EvictionResult(val failedModelLines: List<String>, val deletedSnapshots: Int)
 
   /**
-   * Builds the forward eviction cascade for [cmmsModelLine] starting at the earliest of
-   * [badUploads]. Validates that every requested bad upload exists and was created on or after
-   * [cutoffTime] (within the retention window). Does not mutate anything.
+   * Builds one eviction plan for every model line attached to [badUploads]. Memoized lines cascade
+   * from their earliest bad upload; non-memoized lines contain only explicitly bad uploads.
+   * Snapshot presence identifies the memoized path because completed memoized processing always
+   * writes a cumulative `SNAPSHOT`, while non-memoized processing never does.
    *
    * @param badUploads `RawImpressionUpload` resource names of the bad uploads (all under the same
    *   DataProvider).
    * @throws IllegalArgumentException if [badUploads] is empty, spans multiple DataProviders, names
    *   an unknown upload, or names an upload older than [cutoffTime].
    */
-  suspend fun plan(
-    cmmsModelLine: String,
-    badUploads: List<String>,
-    cutoffTime: Instant,
-  ): EvictionPlan {
+  suspend fun plan(badUploads: List<String>, cutoffTime: Instant): EvictionPlan {
     require(badUploads.isNotEmpty()) { "at least one bad upload is required" }
     val dataProvider = dataProviderOf(badUploads.first())
     require(badUploads.all { dataProviderOf(it) == dataProvider }) {
       "all bad uploads must be under the same DataProvider"
     }
 
-    val createTimeByUpload: Map<String, Instant> = listUploadCreateTimes(dataProvider)
+    val createTimeByUpload: Map<String, Instant> = listUploadCreateTimes(dataProvider, cutoffTime)
 
     val unknown = badUploads.filter { it !in createTimeByUpload }
-    require(unknown.isEmpty()) { "unknown upload(s) for $dataProvider: $unknown" }
-    val outOfWindow = badUploads.filter { createTimeByUpload.getValue(it).isBefore(cutoffTime) }
+    require(unknown.isEmpty()) {
+      "unknown upload(s), or upload(s) older than the retention window " +
+        "(create_time before $cutoffTime), for $dataProvider: $unknown"
+    }
+    val outOfWindow = badUploads.filter { createTimeByUpload.getValue(it) < cutoffTime }
     require(outOfWindow.isEmpty()) {
       "upload(s) older than the retention window (create_time before $cutoffTime): $outOfWindow"
     }
 
-    val earliestBadTime: Instant = badUploads.minOf { createTimeByUpload.getValue(it) }
+    val rowsByUpload = badUploads.associateWith { listModelLines(it) }
+    val requestedMissing = badUploads.filter { rowsByUpload.getValue(it).isEmpty() }
+    require(requestedMissing.isEmpty()) {
+      "requested upload(s) have no model-line rows (nothing to evict): $requestedMissing"
+    }
+
+    val requestedRows = rowsByUpload.values.flatten()
+    val rowsByCmmsModelLine =
+      requestedRows
+        .map { it.cmmsModelLine }
+        .toSet()
+        .associateWith { listModelLines("$dataProvider/rawImpressionUploads/-", it, cutoffTime) }
+    val inProgressRows =
+      rowsByCmmsModelLine.flatMap { (cmmsModelLine, rows) ->
+        val earliestBadTime =
+          requestedRows
+            .filter { it.cmmsModelLine == cmmsModelLine }
+            .minOf { createTimeByUpload.getValue(uploadNameOf(it.name)) }
+        rows.filter { row ->
+          val uploadTime = createTimeByUpload[uploadNameOf(row.name)] ?: return@filter false
+          uploadTime >= earliestBadTime && row.state in IN_PROGRESS_STATES
+        }
+      }
+    require(inProgressRows.isEmpty()) {
+      "affected upload/model-line rows are still in progress; drain or cancel their jobs before " +
+        "eviction: ${inProgressRows.map { it.name }}"
+    }
+    val snapshotRows = coroutineScope {
+      val semaphore = Semaphore(SNAPSHOT_LOOKUP_PARALLELISM)
+      rowsByCmmsModelLine.values
+        .flatten()
+        .map { row ->
+          async {
+            val uploadName = uploadNameOf(row.name)
+            if (semaphore.withPermit { hasSnapshot(uploadName, row.cmmsModelLine) }) {
+              uploadName to row.cmmsModelLine
+            } else {
+              null
+            }
+          }
+        }
+        .awaitAll()
+        .filterNotNull()
+        .toSet()
+    }
+    val memoizedRequestedRows = requestedRows.filter { isMemoized(it, snapshotRows) }
+    val nonMemoizedRequestedRows = requestedRows - memoizedRequestedRows.toSet()
+    val memoizedModelLines = memoizedRequestedRows.mapTo(mutableSetOf()) { it.cmmsModelLine }
+    val nonMemoizedModelLines = nonMemoizedRequestedRows.mapTo(mutableSetOf()) { it.cmmsModelLine }
 
     val entries = mutableListOf<Pair<Instant, CascadeEntry>>()
-    var pageToken = ""
-    do {
-      val response =
-        rawImpressionModelLinesStub.listRawImpressionUploadModelLines(
-          listRawImpressionUploadModelLinesRequest {
-            parent = "$dataProvider/rawImpressionUploads/-"
-            filter =
-              ListRawImpressionUploadModelLinesRequestKt.filter {
-                this.cmmsModelLine = cmmsModelLine
-              }
-            this.pageToken = pageToken
-          }
-        )
-      for (row in response.rawImpressionUploadModelLinesList) {
-        if (row.cmmsModelLine != cmmsModelLine) continue
+    for (cmmsModelLine in memoizedModelLines) {
+      val earliestBadTime =
+        memoizedRequestedRows
+          .filter { it.cmmsModelLine == cmmsModelLine }
+          .minOf { createTimeByUpload.getValue(uploadNameOf(it.name)) }
+      for (row in rowsByCmmsModelLine.getValue(cmmsModelLine)) {
         val uploadName = uploadNameOf(row.name)
         val uploadTime = createTimeByUpload[uploadName] ?: continue
-        if (uploadTime.isBefore(earliestBadTime)) continue
-        entries.add(uploadTime to CascadeEntry(uploadName = uploadName, modelLineName = row.name))
+        if (uploadTime < earliestBadTime) continue
+        if (!isMemoized(row, snapshotRows)) continue
+        entries +=
+          uploadTime to
+            CascadeEntry(uploadName, row.name, cmmsModelLine = cmmsModelLine, memoized = true)
       }
-      pageToken = response.nextPageToken
-    } while (pageToken.isNotEmpty())
-
-    val cascade = entries.sortedBy { it.first }.map { it.second }
-    val requestedNames = badUploads.toSet()
-    val cascadedNames = cascade.map { it.uploadName }.toSet()
-    // Fail loud if a requested bad upload has no model-line row for [cmmsModelLine]: it exists and
-    // is in-window (so the guards above pass) but never enters the cascade. Silently dropping part
-    // of the operator's input on a destructive cascade-forward op would let the confirm prompt lie
-    // by omission.
-    val requestedMissing = requestedNames - cascadedNames
-    require(requestedMissing.isEmpty()) {
-      "requested upload(s) have no $cmmsModelLine model-line row (nothing to evict): " +
-        "$requestedMissing"
     }
+    for (row in nonMemoizedRequestedRows) {
+      val uploadName = uploadNameOf(row.name)
+      entries +=
+        createTimeByUpload.getValue(uploadName) to
+          CascadeEntry(uploadName, row.name, row.cmmsModelLine, memoized = false)
+    }
+
+    val cascade =
+      entries
+        .sortedWith(
+          compareBy<Pair<Instant, CascadeEntry>> { it.first }.thenBy { it.second.cmmsModelLine }
+        )
+        .map { it.second }
+    val requestedNames = badUploads.toSet()
     val extraUploads = cascade.map { it.uploadName }.filter { it !in requestedNames }.distinct()
-    return EvictionPlan(cascade, extraUploads)
+    return EvictionPlan(
+      cascade,
+      extraUploads,
+      memoizedModelLines,
+      nonMemoizedModelLines,
+      badUploads,
+      cutoffTime,
+    )
   }
 
   /**
    * Executes [plan]: marks each cascade `(upload, model line)` `FAILED` (recording [reason]) and
-   * soft-deletes its cumulative `SNAPSHOT` rank-index blobs. Model lines already `FAILED` are left
-   * as-is; snapshot soft-deletes are still applied (idempotent).
+   * soft-deletes its cumulative `SNAPSHOT` rank-index blobs. The caller must first quiesce dispatch
+   * and workers: marking a row FAILED does not cancel a worker that has already loaded a corrupt
+   * predecessor. The plan is refreshed immediately before mutation and execution aborts if it has
+   * changed since operator confirmation.
    */
-  suspend fun evict(cmmsModelLine: String, plan: EvictionPlan, reason: String): EvictionResult {
+  suspend fun evict(plan: EvictionPlan, reason: String): EvictionResult {
+    val refreshed = plan(plan.badUploads, plan.cutoffTime)
+    require(refreshed.cascade == plan.cascade) {
+      "eviction plan changed after confirmation; review the new plan and retry"
+    }
     val failed = mutableListOf<String>()
     var deleted = 0
     for (entry in plan.cascade) {
-      // Re-fetch the model line so the Mark uses a current etag and state: the plan may be minutes
+      // Re-fetch the model line so the Mark uses a current etag and state: the plan may be
+      // minutes
       // old, and the Monitor or another operator could have advanced the row since. Reusing the
       // plan-time etag would throw ABORTED partway through the cascade; re-reading also lets us
       // skip
@@ -177,12 +249,17 @@ class EvictUploader(
         failed.add(entry.modelLineName)
         logger.info("Marked ${entry.modelLineName} FAILED.")
       }
-      deleted += softDeleteSnapshots(entry.uploadName, cmmsModelLine)
+      if (entry.memoized) {
+        deleted += softDeleteSnapshots(entry.uploadName, entry.cmmsModelLine)
+      }
     }
     return EvictionResult(failed, deleted)
   }
 
-  private suspend fun listUploadCreateTimes(dataProvider: String): Map<String, Instant> {
+  private suspend fun listUploadCreateTimes(
+    dataProvider: String,
+    cutoffTime: Instant,
+  ): Map<String, Instant> {
     val createTimes = mutableMapOf<String, Instant>()
     var pageToken = ""
     do {
@@ -190,6 +267,10 @@ class EvictUploader(
         uploadsStub.listRawImpressionUploads(
           listRawImpressionUploadsRequest {
             parent = dataProvider
+            filter =
+              ListRawImpressionUploadsRequestKt.filter {
+                createTimeIn = interval { startTime = cutoffTime.toProtoTime() }
+              }
             this.pageToken = pageToken
           }
         )
@@ -199,6 +280,43 @@ class EvictUploader(
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
     return createTimes
+  }
+
+  private fun isMemoized(
+    row: RawImpressionUploadModelLine,
+    snapshotRows: Set<Pair<String, String>>,
+  ): Boolean {
+    return uploadNameOf(row.name) to row.cmmsModelLine in snapshotRows
+  }
+
+  private suspend fun listModelLines(
+    parent: String,
+    cmmsModelLine: String = "",
+    cutoffTime: Instant? = null,
+  ): List<RawImpressionUploadModelLine> {
+    val rows = mutableListOf<RawImpressionUploadModelLine>()
+    var pageToken = ""
+    do {
+      val response =
+        rawImpressionModelLinesStub.listRawImpressionUploadModelLines(
+          listRawImpressionUploadModelLinesRequest {
+            this.parent = parent
+            if (cmmsModelLine.isNotEmpty() || cutoffTime != null) {
+              filter =
+                ListRawImpressionUploadModelLinesRequestKt.filter {
+                  if (cmmsModelLine.isNotEmpty()) this.cmmsModelLine = cmmsModelLine
+                  if (cutoffTime != null) {
+                    createTimeIn = interval { startTime = cutoffTime.toProtoTime() }
+                  }
+                }
+            }
+            this.pageToken = pageToken
+          }
+        )
+      rows += response.rawImpressionUploadModelLinesList
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+    return rows
   }
 
   private suspend fun softDeleteSnapshots(uploadName: String, cmmsModelLine: String): Int {
@@ -226,8 +344,32 @@ class EvictUploader(
     return count
   }
 
+  private suspend fun hasSnapshot(uploadName: String, cmmsModelLine: String): Boolean {
+    val response =
+      rankIndexBlobsStub.listRankIndexBlobs(
+        listRankIndexBlobsRequest {
+          parent = uploadName
+          pageSize = 1
+          showDeleted = true
+          filter =
+            ListRankIndexBlobsRequestKt.filter {
+              blobType = RankIndexBlob.BlobType.SNAPSHOT
+              this.cmmsModelLine = cmmsModelLine
+            }
+        }
+      )
+    return response.rankIndexBlobsCount > 0
+  }
+
   companion object {
     private val logger: Logger = Logger.getLogger(EvictUploader::class.java.name)
+    private const val SNAPSHOT_LOOKUP_PARALLELISM = 16
+    private val IN_PROGRESS_STATES =
+      setOf(
+        RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+        RawImpressionUploadModelLine.State.RANKING,
+        RawImpressionUploadModelLine.State.LABELING,
+      )
 
     /** The `dataProviders/{data_provider}` parent of an upload resource name. */
     private fun dataProviderOf(uploadName: String): String =

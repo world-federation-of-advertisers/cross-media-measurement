@@ -388,11 +388,10 @@ class BackfillModelLineCommand : EdpaApiCommand() {
 }
 
 /**
- * Evicts uploads that carry bad data for a model line. Marks the bad upload and every later upload
- * for the model line FAILED and soft-deletes their cumulative SNAPSHOT rank-index blobs, so Phase-1
- * falls back to the last good snapshot when the affected uploads are re-triggered. Confined to the
- * retention window. Prints the cascade and prompts the operator to confirm before mutating
- * anything.
+ * Evicts uploads that carry bad data for every attached model line. Non-memoized model lines are
+ * evicted only on the requested uploads. Memoized model lines cascade through every later upload
+ * and their cumulative snapshots are soft-deleted. Confined to the retention window. Prints the
+ * complete mixed-path plan and prompts the operator to confirm before mutating anything.
  *
  * The resulting `FAILED` model lines represent invalidated completed work. They must be replaced by
  * new uploads and must not be passed to `retry-failed`.
@@ -406,17 +405,21 @@ class BackfillModelLineCommand : EdpaApiCommand() {
  */
 @Command(
   name = "evict-uploads",
-  description =
-    ["Evicts a bad upload and all later uploads for a model line (rebuild-from-last-good)."],
+  description = ["Evicts bad uploads across memoized and non-memoized model lines."],
   mixinStandardHelpOptions = true,
 )
 class EvictUploadsCommand : EdpaApiCommand() {
   @Option(
-    names = ["--model-line"],
-    description = ["CMMS ModelLine resource name whose uploads are being evicted."],
+    names = ["--pipeline-quiesced"],
+    description =
+      [
+        "Required safety acknowledgement that dispatch, ranker, and VID-labeler workers have " +
+          "been stopped before planning, affected queued/in-progress work has been drained or " +
+          "cancelled, and components remain stopped until this command completes."
+      ],
     required = true,
   )
-  private lateinit var modelLine: String
+  private var pipelineQuiesced: Boolean = false
 
   @Option(
     names = ["--bad-uploads"],
@@ -445,9 +448,9 @@ class EvictUploadsCommand : EdpaApiCommand() {
   private lateinit var reason: String
 
   override fun run() {
-    require(ModelLineKey.fromName(modelLine) != null) {
-      "--model-line must be a valid CMMS ModelLine resource name " +
-        "(modelProviders/.../modelSuites/.../modelLines/...); got '$modelLine'"
+    require(pipelineQuiesced) {
+      "--pipeline-quiesced=true is required after stopping components and draining or cancelling " +
+        "affected queued/in-progress work"
     }
     require(badUploads.all { it.isNotBlank() }) {
       "--bad-uploads entries must be non-blank RawImpressionUpload resource names."
@@ -463,11 +466,15 @@ class EvictUploadsCommand : EdpaApiCommand() {
             RankIndexBlobServiceCoroutineStub(channel),
           )
         val cutoffTime: Instant = Instant.now().minus(Duration.ofDays(retentionDays.toLong()))
-        val plan = evictUploader.plan(modelLine, badUploads, cutoffTime)
+        val plan = evictUploader.plan(badUploads, cutoffTime)
 
         println(
-          "Eviction cascade for $modelLine (${plan.cascade.size} upload(s)): " +
-            plan.cascade.map { it.uploadName }
+          "Eviction plan (${plan.cascade.size} upload/model-line pair(s)): " +
+            plan.cascade.map { "${it.uploadName} -> ${it.cmmsModelLine}" }
+        )
+        println(
+          "Memoized model lines (cascade forward): ${plan.memoizedModelLines}; " +
+            "non-memoized model lines (bad uploads only): ${plan.nonMemoizedModelLines}"
         )
         if (plan.extraUploads.isNotEmpty()) {
           println(
@@ -478,7 +485,8 @@ class EvictUploadsCommand : EdpaApiCommand() {
         // Require explicit operator confirmation before any mutation.
         print(
           "This marks the ${plan.cascade.size} model line(s) above FAILED and soft-deletes their " +
-            "cumulative snapshots. Type 'yes' to proceed: "
+            "cumulative snapshots. Keep dispatch and workers stopped until the command returns. " +
+            "Type 'yes' to proceed: "
         )
         System.out.flush()
         if (!isAffirmative(readLine())) {
@@ -486,7 +494,7 @@ class EvictUploadsCommand : EdpaApiCommand() {
           return@runBlocking
         }
 
-        val result = evictUploader.evict(modelLine, plan, reason)
+        val result = evictUploader.evict(plan, reason)
         println(
           "Evicted: marked ${result.failedModelLines.size} model line(s) FAILED, soft-deleted " +
             "${result.deletedSnapshots} snapshot(s). Re-trigger the affected uploads (re-upload " +
