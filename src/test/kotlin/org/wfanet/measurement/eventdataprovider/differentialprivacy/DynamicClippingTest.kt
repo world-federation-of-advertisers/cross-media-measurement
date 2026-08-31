@@ -59,7 +59,7 @@ class DynamicClippingTest {
     // Output threshold is 6 calculated by the algorithm, pre-set sliding window size, and input
     // histogramList. It can be verified by the original colab.
     val expectedThreshold = 6
-    // The data fills three bars; the rest are padded to maxThreshold and noised at zero.
+    // The data fills three bars; the rest pad to maxThreshold, and this source leaves them at zero.
     val expectedCumulativeHistogramList = listOf(4.0, 3.0, 2.0) + List(maxThreshold - 3) { 0.0 }
 
     assertThat(dynamicClipResult.threshold).isEqualTo(expectedThreshold)
@@ -172,7 +172,7 @@ class DynamicClippingTest {
       dynamicClipResult.noisedCumulativeHistogramList.take(expectedCumulativeHistogramList.size),
       expectedCumulativeHistogramList,
     )
-    // The data fills four bars. The rest pad to the default maxThreshold, noised at zero.
+    // The data fills four bars. The rest pad to the default maxThreshold, left at zero here.
     assertThat(
         dynamicClipResult.noisedCumulativeHistogramList
           .drop(expectedCumulativeHistogramList.size)
