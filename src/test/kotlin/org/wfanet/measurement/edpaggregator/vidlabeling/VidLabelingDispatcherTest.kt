@@ -68,6 +68,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUplo
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
@@ -228,6 +229,7 @@ class VidLabelingDispatcherTest {
     overrideModelLines: List<String> = emptyList(),
     modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig> = DEFAULT_MODEL_LINE_CONFIGS,
     readEventDate: suspend (String) -> LocalDate = { EVENT_DATE },
+    readBlobGeneration: suspend (String) -> Long = { RAW_BLOB_GENERATION },
     metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
     rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
   ): VidLabelingDispatcher {
@@ -243,6 +245,7 @@ class VidLabelingDispatcherTest {
       overrideModelLines = overrideModelLines,
       modelLineConfigs = modelLineConfigs,
       readEventDate = readEventDate,
+      readBlobGeneration = readBlobGeneration,
       rpcThrottlers = rpcThrottlers,
       clock = fixedClock,
       metrics = metrics,
@@ -472,6 +475,10 @@ class VidLabelingDispatcherTest {
       batchCreateRawImpressionUploadFiles(requestCaptor.capture())
     }
     assertThat(requestCaptor.firstValue.requestsList).hasSize(1)
+    assertThat(
+        requestCaptor.firstValue.requestsList.single().rawImpressionUploadFile.blobGeneration
+      )
+      .isEqualTo(RAW_BLOB_GENERATION)
   }
 
   @Test
@@ -536,6 +543,8 @@ class VidLabelingDispatcherTest {
       }
       assertThat(requestCaptor.allValues[0].requestId)
         .isEqualTo(requestCaptor.allValues[1].requestId)
+      assertThat(requestCaptor.allValues.map { it.rawImpressionUpload.doneBlobGeneration })
+        .containsExactly(123L, 123L)
     }
 
   @Test
@@ -558,6 +567,8 @@ class VidLabelingDispatcherTest {
       }
       assertThat(requestCaptor.allValues[0].requestId)
         .isNotEqualTo(requestCaptor.allValues[1].requestId)
+      assertThat(requestCaptor.allValues.map { it.rawImpressionUpload.doneBlobGeneration })
+        .containsExactly(123L, 456L)
     }
 
   @Test
@@ -658,6 +669,7 @@ class VidLabelingDispatcherTest {
               RawImpressionUpload.newBuilder()
                 .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID")
                 .setDoneBlobUri(DONE_BLOB_PATH)
+                .setDoneBlobGeneration(DONE_BLOB_GENERATION)
                 .build()
           }
         )
@@ -666,6 +678,11 @@ class VidLabelingDispatcherTest {
       dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
 
       // Continued: files + model lines created against the recovered upload.
+      val listRequestCaptor = argumentCaptor<ListRawImpressionUploadsRequest>()
+      verifyBlocking(rawImpressionUploadService, atLeastOnce()) {
+        listRawImpressionUploads(listRequestCaptor.capture())
+      }
+      assertThat(listRequestCaptor.allValues.map { it.filter.doneBlobUri }).contains(DONE_BLOB_PATH)
       verifyBlocking(rawImpressionUploadFileService) { batchCreateRawImpressionUploadFiles(any()) }
       verifyBlocking(rawImpressionUploadModelLineService) {
         batchCreateRawImpressionUploadModelLines(any())
@@ -807,6 +824,7 @@ class VidLabelingDispatcherTest {
     private const val DONE_BLOB_PATH = "file://$FOLDER_PREFIX/done"
     private const val RAW_IMPRESSION_UPLOAD_ID = "upload-abc123"
     private const val DONE_BLOB_GENERATION = 12345L
+    private const val RAW_BLOB_GENERATION = 67890L
     private const val NUMBER_OF_SHARDS = 2
     private const val MAX_FILE_BATCH_SIZE_BYTES = 1000L
     private const val QUEUE_NAME = "queues/vid-labeler"
