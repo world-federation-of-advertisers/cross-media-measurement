@@ -583,6 +583,7 @@ class SpannerRawImpressionUploadModelLineService(
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED,
           ),
         markRequestIdColumn = "MarkFailedRequestId",
         currentMarkRequestId = { it.markFailedRequestId },

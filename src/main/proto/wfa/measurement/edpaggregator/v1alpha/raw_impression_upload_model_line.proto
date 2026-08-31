@@ -49,10 +49,12 @@ message RawImpressionUploadModelLine {
     RANKING = 3;
     // VID labeling (Phase 2) is in progress.
     LABELING = 4;
-    // All phases completed successfully. Terminal state.
+    // All phases completed successfully. Operator eviction may transition this
+    // state to `FAILED` when the completed output is invalid.
     COMPLETED = 5;
-    // Processing failed. Not terminal — operator can retry after
-    // fixing the root cause.
+    // Processing failed or completed output was invalidated. Only failed
+    // processing attempts may be retried; invalidated output requires a
+    // replacement upload.
     FAILED = 6;
   }
 
