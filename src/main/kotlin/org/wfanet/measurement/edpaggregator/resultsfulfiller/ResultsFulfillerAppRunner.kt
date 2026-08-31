@@ -41,6 +41,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrp
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.ParallelInMemoryVidIndexMap
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
@@ -258,7 +259,23 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
         grpcTelemetry = grpcTelemetry,
       )
 
-    val modelLinesMap = runBlockingWithTelemetry { buildModelLineMap() }
+    val modelLinesMap = runBlockingWithTelemetry {
+      ModelLineInfoMapBuilder(
+          ::loadDescriptorSetFromBlob,
+          ::loadPopulationSpecFromBlob,
+          ::buildVidIndexMapWithMetrics,
+        )
+        .build(
+          modelLines.map {
+            ModelLineSource(
+              modelLine = it.modelLine,
+              populationSpecFileBlobUri = it.populationSpecFileBlobUri,
+              eventTemplateDescriptorBlobUri = it.eventTemplateDescriptorBlobUri,
+              eventTemplateTypeName = it.eventTemplateTypeName,
+            )
+          }
+        )
+    }
 
     val cpuCount = Runtime.getRuntime().availableProcessors()
     val pipelineConfiguration =
@@ -366,39 +383,36 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
     }
   }
 
-  private suspend fun buildModelLineMap(): Map<String, ModelLineInfo> {
-    return modelLines.associate { it: ModelLineFlags ->
-      val configContent: ByteArray =
-        getResultsFulfillerConfigAsByteArray(googleProjectId, it.populationSpecFileBlobUri)
-      val eventDescriptorBytes =
-        getResultsFulfillerConfigAsByteArray(googleProjectId, it.eventTemplateDescriptorBlobUri)
-      val fileDescriptorSet =
-        DescriptorProtos.FileDescriptorSet.parseFrom(eventDescriptorBytes, EXTENSION_REGISTRY)
-      val descriptors: List<Descriptors.Descriptor> =
-        ProtoReflection.buildDescriptors(listOf(fileDescriptorSet), COMPILED_PROTOBUF_TYPES)
-      val typeName = it.eventTemplateTypeName
-      val eventDescriptor =
-        descriptors.firstOrNull { it.fullName == typeName }
-          ?: error("Descriptor not found for type: $typeName")
-      // Build a TypeRegistry containing all descriptors from the supplied
-      // FileDescriptorSet so that the PopulationSpec textproto can resolve any
-      // event template attribute messages packed in google.protobuf.Any (e.g. a
-      // Person event template attribute on each SubPopulation).
-      val populationSpecTypeRegistry: TypeRegistry =
-        TypeRegistry.newBuilder().add(descriptors).build()
-      val populationSpec =
-        configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
-          parseTextProto(reader, PopulationSpec.getDefaultInstance(), populationSpecTypeRegistry)
-        }
-      val vidIndexMap =
-        metrics.vidIndexBuildDuration.measured { ParallelInMemoryVidIndexMap.build(populationSpec) }
-      it.modelLine to
-        ModelLineInfo(
-          populationSpec = populationSpec,
-          vidIndexMap = vidIndexMap,
-          eventDescriptor = eventDescriptor,
-          localAlias = null,
-        )
+  /** Downloads and parses the descriptor set at [descriptorBlobUri] from blob storage. */
+  private suspend fun loadDescriptorSetFromBlob(
+    descriptorBlobUri: String
+  ): List<Descriptors.Descriptor> {
+    val eventDescriptorBytes =
+      getResultsFulfillerConfigAsByteArray(googleProjectId, descriptorBlobUri)
+    val fileDescriptorSet =
+      DescriptorProtos.FileDescriptorSet.parseFrom(eventDescriptorBytes, EXTENSION_REGISTRY)
+    return ProtoReflection.buildDescriptors(listOf(fileDescriptorSet), COMPILED_PROTOBUF_TYPES)
+  }
+
+  /**
+   * Downloads and parses the [PopulationSpec] at [populationSpecBlobUri] from blob storage, using
+   * [typeRegistry] to resolve any event template attribute messages packed in google.protobuf.Any
+   * (e.g. a Person event template attribute on each SubPopulation).
+   */
+  private suspend fun loadPopulationSpecFromBlob(
+    populationSpecBlobUri: String,
+    typeRegistry: TypeRegistry,
+  ): PopulationSpec {
+    val configContent = getResultsFulfillerConfigAsByteArray(googleProjectId, populationSpecBlobUri)
+    return configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
+      parseTextProto(reader, PopulationSpec.getDefaultInstance(), typeRegistry)
+    }
+  }
+
+  /** Builds the [VidIndexMap] for [populationSpec], timed via [metrics]. */
+  private suspend fun buildVidIndexMapWithMetrics(populationSpec: PopulationSpec): VidIndexMap {
+    return metrics.vidIndexBuildDuration.measured {
+      ParallelInMemoryVidIndexMap.build(populationSpec)
     }
   }
 

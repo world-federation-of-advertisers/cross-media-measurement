@@ -315,6 +315,17 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "model_line_info_map_builder",
+    srcs = ["ModelLineInfoMapBuilder.kt"],
+    deps = [
+        ":model_line_info",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:requisition",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)
+
+kt_jvm_library(
     name = "results_fulfiller_app",
     srcs = ["ResultsFulfillerApp.kt"],
     deps = [
@@ -387,6 +398,7 @@ kt_jvm_library(
     name = "results_fulfiller_app_runner",
     srcs = ["ResultsFulfillerAppRunner.kt"],
     deps = [
+        ":model_line_info_map_builder",
         ":requisition_stub_factory_impl",
         ":results_fulfiller_app",
         "//imports/java/com/google/cloud/logging",
@@ -400,6 +412,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/config/edpaggregator:event_data_provider_configs_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/kms:gcloud_to_aws_kms_client_factory",
