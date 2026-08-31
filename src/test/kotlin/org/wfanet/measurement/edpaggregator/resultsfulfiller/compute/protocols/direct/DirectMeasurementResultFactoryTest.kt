@@ -240,7 +240,7 @@ class DirectMeasurementResultFactoryTest {
     // Same frequency data, two MeasurementSpecs differing only in maximum_frequency_per_user. The
     // vector reaching the builder is identical, so the dynamic result must be too. That the vector
     // itself is built uncapped under DYNAMIC is covered by DefaultFulfillerSelectorTest.
-    fun buildDynamic(specMaxFrequency: Int) =
+    suspend fun buildDynamic(specMaxFrequency: Int) =
       DirectMeasurementResultFactory.buildMeasurementResult(
         directProtocolConfig = DIRECT_PROTOCOL,
         directNoiseMechanism = DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
