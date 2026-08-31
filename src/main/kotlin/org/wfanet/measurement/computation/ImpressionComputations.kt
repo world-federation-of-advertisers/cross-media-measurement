@@ -148,17 +148,28 @@ object ImpressionComputations {
         }
       }
 
-    // The variance is the variance given the clip. The released value estimates
-    // sum(min(frequency, C)) over users, so the clip defines the quantity being estimated. A fixed
-    // cap reports a variance given its own cap the same way; what differs is how the cap was
-    // arrived at, not what the figure describes.
+    // TODO(@raimundoltdf): This under-reports the variance of the released value. The clip is selected from the first noised histogram, and the
+    // weights combining that histogram with the remaining-charge pass are then computed from the
+    // selected clip. So the bar errors are neither independent of the clip nor of each other once
+    // the clip is known, and the derivation below, which assumes they are, is not a bound. A
+    // fixed-seed Monte Carlo over 100 users at frequency 1, 50 at 2, 20 at 3 and 5 at 5, at
+    // epsilon 1 and delta 1e-3 with sampling width 1, measured an empirical variance of 500.17
+    // against 469.81 reported. No bound on the gap is known, so the worst case is open, and the
+    // reporting server takes this scalar at face value.
+    //
+    // The derivation that follows describes what the code computes, not the variance of the
+    // estimator.
+    //
+    // The figure is the variance given the clip. The released value estimates
+    // sum(min(frequency, C)) over users, so the clip defines the quantity being estimated.
     //
     // Write C for the clip, w for the sampling interval width, and s2 for the per-bar noise
     // variance.
     //
-    // Noise: the released sum is the sum of C noised bars. Draws are independent across bars, so
-    // the sum has variance C * s2, and the value scales by 1 / w, giving C * s2 / w^2. Note this
-    // grows linearly in C, where a fixed cap taking one draw at sensitivity C grows with C^2.
+    // Noise: the released sum is the sum of C noised bars. Treating the draws as independent
+    // across bars, the sum has variance C * s2, and the value scales by 1 / w, giving C * s2 / w^2.
+    // After the remaining-charge pass s2 is itself proportional to C, so this reduces to the
+    // fixed-cap figure C^2 / (2 * rho).
     //
     // Sampling: a user is in the VID sample independently with probability w and contributes
     // c_i = min(frequency_i, C). The sampled sum is the sum over users of a Bernoulli(w) indicator
