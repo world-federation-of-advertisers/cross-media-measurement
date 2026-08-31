@@ -94,12 +94,12 @@ abstract class RequisitionFulfiller(
   }
 
   /**
-   * Paces [block] via [kingdomRpcThrottler], retrying on UNAVAILABLE or ABORTED up to
-   * [retryMaxAttempts] times. [errorMessage] wraps the exception from the final attempt.
+   * Paces [block] via [kingdomRpcThrottler], retrying on UNAVAILABLE up to [retryMaxAttempts]
+   * times. [errorMessage] wraps the exception from the final attempt.
    *
    * For a non-idempotent mutation, pass [reconcileMutation] to confirm via [reconcileWithRetry]
-   * whether it already took effect before replaying [block] -- these codes don't guarantee it never
-   * reached the server. Any exception from [reconcileMutation] besides a retried UNAVAILABLE
+   * whether it already took effect before replaying [block] -- UNAVAILABLE doesn't guarantee it
+   * never reached the server. Any exception from [reconcileMutation] besides a retried UNAVAILABLE
    * propagates immediately.
    */
   private suspend fun <T> callKingdom(
@@ -113,7 +113,7 @@ abstract class RequisitionFulfiller(
       try {
         return kingdomRpcThrottler.onReady(block)
       } catch (e: StatusException) {
-        if (e.status.code != Status.Code.UNAVAILABLE && e.status.code != Status.Code.ABORTED) {
+        if (e.status.code != Status.Code.UNAVAILABLE) {
           throw Exception(errorMessage, e)
         }
         if (reconcileMutation != null) {
@@ -251,6 +251,8 @@ abstract class RequisitionFulfiller(
     message: String,
     etag: String,
   ): Requisition {
+    // TODO(world-federation-of-advertisers/cross-media-measurement#2374): Handle ABORTED (stale
+    //  etag) by retrying with a refreshed etag once the Kingdom's public API propagates it.
     return callKingdom(
       "Error refusing requisition $requisitionName",
       reconcileMutation = {
@@ -327,6 +329,8 @@ abstract class RequisitionFulfiller(
     val encryptedResult: EncryptedMessage =
       encryptResult(signedResult, measurementEncryptionPublicKey)
 
+    // TODO(world-federation-of-advertisers/cross-media-measurement#2374): Handle ABORTED (stale
+    //  etag) by retrying with a refreshed etag once the Kingdom's public API propagates it.
     callKingdom(
       "Error fulfilling direct requisition ${requisition.name}",
       reconcileMutation = {
