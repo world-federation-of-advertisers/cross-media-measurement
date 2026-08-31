@@ -148,9 +148,9 @@ object ImpressionComputations {
         }
       }
 
-    // TODO(world-federation-of-advertisers/cross-media-measurement#4437): This under-reports
-    // the variance of the released value. The clip is selected from the first noised histogram, and the
-    // weights combining that histogram with the remaining-charge pass are then computed from the
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4437): This under-reports the
+    // variance of the released value. The clip is selected from the first noised histogram, and the
+    // weights combining that histogram with the remaining-charge pass are computed from the
     // selected clip. So the bar errors are neither independent of the clip nor of each other once
     // the clip is known, and the derivation below, which assumes they are, is not a bound. A
     // fixed-seed Monte Carlo over 100 users at frequency 1, 50 at 2, 20 at 3 and 5 at 5, at
