@@ -483,6 +483,15 @@ abstract class AbstractEdpSimulatorTest {
         override suspend fun <T> onReady(block: suspend () -> T): T = block()
       }
 
+    /**
+     * A second, distinct dummy [Throttler] instance for `kingdomRpcThrottler`, since it must not be
+     * the same instance as the workflow throttler.
+     */
+    val dummyKingdomRpcThrottler =
+      object : Throttler {
+        override suspend fun <T> onReady(block: suspend () -> T): T = block()
+      }
+
     fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
       return loadPrivateKey(SECRET_FILES_PATH.resolve(fileName).toFile())
     }

@@ -31,11 +31,10 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.random.Random
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Test
 import org.mockito.kotlin.any
-import org.mockito.kotlin.atLeastOnce
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
@@ -145,6 +144,33 @@ private const val UNFULFILLABLE_EVENT_GROUP_ID = "unfulfillable"
 // Resource ID for EventGroup that fails Requisitions with DECLINED if used.
 private const val DECLINED_EVENT_GROUP_ID = "declined"
 
+/** [Throttler] that records how many times [onReady] was called. */
+private class RecordingThrottler : Throttler {
+  var callCount = 0
+    private set
+
+  override suspend fun <T> onReady(block: suspend () -> T): T {
+    callCount++
+    return block()
+  }
+}
+
+private class TestSentinelException : Exception()
+
+/** [Throttler] that runs [Throttler.onReady]'s block once, then throws [TestSentinelException]. */
+private class RunOnceThenStopThrottler : Throttler {
+  var callCount = 0
+    private set
+
+  override suspend fun <T> onReady(block: suspend () -> T): T {
+    callCount++
+    if (callCount > 1) {
+      throw TestSentinelException()
+    }
+    return block()
+  }
+}
+
 class EdpSimulatorTest : AbstractEdpSimulatorTest() {
   private data class EventGroupOptions(
     override val referenceIdSuffix: String,
@@ -198,7 +224,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -260,7 +286,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -304,7 +330,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.run() }
@@ -334,16 +360,10 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
   }
 
   @Test
-  fun `run deadlocks if workflow and Kingdom RPC throttlers are the same instance`() {
-    requisitionsServiceMock.stub {
-      onBlocking { listRequisitions(any()) }.thenReturn(listRequisitionsResponse {})
-    }
-    // A single non-reentrant throttler wrongly reused for both the workflow loop's cadence and
-    // nested Kingdom RPC pacing: run()'s loop holds this throttler for the duration of each
-    // workflow execution, so a nested Kingdom RPC call paced by the same throttler can never
-    // acquire it.
-    val sharedThrottler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1))
-    val simulator =
+  fun `construction fails when workflow and Kingdom RPC throttlers are the same instance`() {
+    val sharedThrottler = dummyThrottler
+
+    assertFailsWith<IllegalArgumentException> {
       EdpSimulator(
         EDP_DATA,
         EDP_DISPLAY_NAME,
@@ -365,20 +385,19 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         random = Random(RANDOM_SEED),
         kingdomRpcThrottler = sharedThrottler,
       )
-
-    runBlocking { withTimeoutOrNull(Duration.ofSeconds(1).toMillis()) { simulator.run() } }
-
-    // The deadlock happens before the first Kingdom RPC ever completes: run()'s loop acquires
-    // the shared throttler and never releases it in time for the nested ListRequisitions call
-    // (via getRequisitions()) to acquire it in turn.
-    verifyBlocking(requisitionsServiceMock, never()) { listRequisitions(any()) }
+    }
   }
 
   @Test
-  fun `run does not deadlock when workflow and Kingdom RPC throttlers are distinct instances`() {
+  fun `run paces the workflow loop and Kingdom RPCs via distinct throttlers`() {
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }.thenReturn(listRequisitionsResponse {})
     }
+    // Runs the workflow once, then throws a sentinel on the loop's second iteration -- a
+    // deterministic stand-in for "the loop keeps running," with no real time or timeouts
+    // involved.
+    val workflowThrottler = RunOnceThenStopThrottler()
+    val kingdomRpcThrottler = RecordingThrottler()
     val simulator =
       EdpSimulator(
         EDP_DATA,
@@ -393,18 +412,21 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         SYNTHETIC_DATA_TIME_ZONE,
         listOf(EventGroupOptions("", SYNTHETIC_DATA_SPEC, MEDIA_TYPES, EVENT_GROUP_METADATA)),
         syntheticGeneratorEventQuery,
-        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1)),
+        workflowThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
-        kingdomRpcThrottler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1)),
+        kingdomRpcThrottler = kingdomRpcThrottler,
       )
 
-    runBlocking { withTimeoutOrNull(Duration.ofSeconds(1).toMillis()) { simulator.run() } }
+    assertFailsWith<TestSentinelException> { runBlocking { simulator.run() } }
 
-    verifyBlocking(requisitionsServiceMock, atLeastOnce()) { listRequisitions(any()) }
+    // The workflow loop's single real iteration ran via workflowThrottler; its nested
+    // getRequisitions() call was paced by the distinct kingdomRpcThrottler.
+    assertThat(workflowThrottler.callCount).isEqualTo(2)
+    assertThat(kingdomRpcThrottler.callCount).isEqualTo(1)
   }
 
   @Test
@@ -460,7 +482,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking {
@@ -503,7 +525,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -561,7 +583,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -633,7 +655,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
@@ -717,7 +739,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
@@ -776,7 +798,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = false,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -825,7 +847,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -883,7 +905,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         trusTeeEncryptionParams = trusTeeEncryptionParams,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
@@ -986,7 +1008,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
           TRUSTED_CERTIFICATES,
           VID_INDEX_MAP,
           trusTeeSupported = true,
-          kingdomRpcThrottler = dummyThrottler,
+          kingdomRpcThrottler = dummyKingdomRpcThrottler,
         )
       runBlocking {
         edpSimulator.ensureEventGroups()
@@ -1119,7 +1141,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
           TRUSTED_CERTIFICATES,
           VID_INDEX_MAP,
           trusTeeSupported = true,
-          kingdomRpcThrottler = dummyThrottler,
+          kingdomRpcThrottler = dummyKingdomRpcThrottler,
         )
       runBlocking {
         edpSimulator.ensureEventGroups()
@@ -1272,7 +1294,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
           TRUSTED_CERTIFICATES,
           VID_INDEX_MAP,
           trusTeeSupported = true,
-          kingdomRpcThrottler = dummyThrottler,
+          kingdomRpcThrottler = dummyKingdomRpcThrottler,
         )
       runBlocking {
         edpSimulator.ensureEventGroups()
@@ -1384,7 +1406,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         sketchEncrypter = fakeSketchEncrypter,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
@@ -1445,7 +1467,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
     val requisition =
       REQUISITION.copy {
@@ -1509,7 +1531,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
     eventGroupsServiceMock.stub {
       onBlocking { getEventGroup(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
@@ -1584,7 +1606,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1657,7 +1679,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1728,7 +1750,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1798,7 +1820,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1868,7 +1890,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1938,7 +1960,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2008,7 +2030,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         TRUSTED_CERTIFICATES,
         VID_INDEX_MAP,
         trusTeeSupported = true,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2076,7 +2098,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2137,7 +2159,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2245,7 +2267,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2320,7 +2342,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2395,7 +2417,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2457,7 +2479,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2526,7 +2548,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2595,7 +2617,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2665,7 +2687,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2732,7 +2754,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2800,7 +2822,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2871,7 +2893,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -2937,7 +2959,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -3000,7 +3022,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         VID_INDEX_MAP,
         trusTeeSupported = true,
         random = Random(RANDOM_SEED),
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -3155,6 +3177,15 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
 
     /** Dummy [Throttler] for satisfying signatures without being used. */
     private val dummyThrottler =
+      object : Throttler {
+        override suspend fun <T> onReady(block: suspend () -> T): T = block()
+      }
+
+    /**
+     * A second, distinct dummy [Throttler] instance for `kingdomRpcThrottler`, since it must not be
+     * the same instance as the workflow throttler.
+     */
+    private val dummyKingdomRpcThrottler =
       object : Throttler {
         override suspend fun <T> onReady(block: suspend () -> T): T = block()
       }

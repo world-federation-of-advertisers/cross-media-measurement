@@ -108,7 +108,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
         knownEventGroupMetadataTypes,
         vidIndexMap = VID_INDEX_MAP,
         trusTeeSupported = false,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -175,7 +175,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
         knownEventGroupMetadataTypes = emptyList(),
         vidIndexMap = VID_INDEX_MAP,
         trusTeeSupported = false,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -234,7 +234,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
         knownEventGroupMetadataTypes = emptyList(),
         vidIndexMap = VID_INDEX_MAP,
         trusTeeSupported = false,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -286,7 +286,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
         knownEventGroupMetadataTypes = emptyList(),
         vidIndexMap = VID_INDEX_MAP,
         trusTeeSupported = false,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -357,7 +357,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
         knownEventGroupMetadataTypes = emptyList(),
         vidIndexMap = VID_INDEX_MAP,
         trusTeeSupported = false,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     val exception =

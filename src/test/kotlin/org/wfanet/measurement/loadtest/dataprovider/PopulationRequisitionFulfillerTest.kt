@@ -208,7 +208,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -258,7 +258,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -311,7 +311,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -365,7 +365,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -422,7 +422,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -475,7 +475,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
 
@@ -523,7 +523,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -572,7 +572,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     // Should not throw: the lost RefuseRequisition response is reconciled via GetRequisition
@@ -605,7 +605,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     // Should not throw: the lost FulfillDirectRequisition response is reconciled via
@@ -613,6 +613,155 @@ class PopulationRequisitionFulfillerTest {
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
 
     verifyBlocking(requisitionsServiceMock, times(1)) { fulfillDirectRequisition(any()) }
+    verifyBlocking(requisitionsServiceMock, times(1)) { getRequisition(any()) }
+  }
+
+  @Test
+  fun `retries reconciliation, not the mutation, when reconciliation itself is transient`() {
+    val requisitionSpec =
+      REQUISITION_SPEC.copy {
+        population =
+          RequisitionSpecKt.population {
+            filter = eventFilter { expression = "person.gender == ${Person.Gender.FEMALE_VALUE}" }
+          }
+      }
+    val encryptedRequisitionSpec =
+      encryptRequisitionSpec(
+        signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
+        DATA_PROVIDER_PUBLIC_KEY,
+      )
+    val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+      onBlocking { refuseRequisition(any()) }.thenThrow(Status.UNAVAILABLE.asRuntimeException())
+      onBlocking { getRequisition(getRequisitionRequest { name = requisition.name }) }
+        .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+        .thenReturn(requisition.copy { state = Requisition.State.REFUSED })
+    }
+    wheneverBlocking {
+      populationsServiceMock.getPopulation(getPopulationRequest { name = POPULATION_NAME_1 })
+    } doReturn POPULATION_1.copy { populationSpec = INVALID_POPULATION_SPEC_1 }
+
+    val requisitionFulfiller =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        modelRolloutsStub,
+        modelReleasesStub,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
+      )
+
+    // Should not throw: the first GetRequisition attempt is itself transient, so reconciliation
+    // is retried, not the mutation -- replaying RefuseRequisition without knowing whether it
+    // already succeeded risks a spurious failure or a duplicate refusal.
+    runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
+
+    verifyBlocking(requisitionsServiceMock, times(1)) { refuseRequisition(any()) }
+    verifyBlocking(requisitionsServiceMock, times(2)) { getRequisition(any()) }
+  }
+
+  @Test
+  fun `retries the mutation when reconciliation confirms it was never applied`() {
+    val requisitionSpec =
+      REQUISITION_SPEC.copy {
+        population =
+          RequisitionSpecKt.population {
+            filter = eventFilter { expression = "person.gender == ${Person.Gender.FEMALE_VALUE}" }
+          }
+      }
+    val encryptedRequisitionSpec =
+      encryptRequisitionSpec(
+        signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
+        DATA_PROVIDER_PUBLIC_KEY,
+      )
+    val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+      onBlocking { refuseRequisition(any()) }
+        .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+        .thenReturn(requisition.copy { state = Requisition.State.REFUSED })
+      onBlocking { getRequisition(getRequisitionRequest { name = requisition.name }) }
+        .thenReturn(requisition)
+    }
+    wheneverBlocking {
+      populationsServiceMock.getPopulation(getPopulationRequest { name = POPULATION_NAME_1 })
+    } doReturn POPULATION_1.copy { populationSpec = INVALID_POPULATION_SPEC_1 }
+
+    val requisitionFulfiller =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        modelRolloutsStub,
+        modelReleasesStub,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
+      )
+
+    // Should not throw: GetRequisition confirms the requisition is still UNFULFILLED with the
+    // original etag, so RefuseRequisition is safely replayed.
+    runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
+
+    verifyBlocking(requisitionsServiceMock, times(2)) { refuseRequisition(any()) }
+    verifyBlocking(requisitionsServiceMock, times(1)) { getRequisition(any()) }
+  }
+
+  @Test
+  fun `does not replay the mutation when reconciliation finds an unexpected state`() {
+    val requisitionSpec =
+      REQUISITION_SPEC.copy {
+        population =
+          RequisitionSpecKt.population {
+            filter = eventFilter { expression = "person.gender == ${Person.Gender.FEMALE_VALUE}" }
+          }
+      }
+    val encryptedRequisitionSpec =
+      encryptRequisitionSpec(
+        signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
+        DATA_PROVIDER_PUBLIC_KEY,
+      )
+    val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+      onBlocking { refuseRequisition(any()) }.thenThrow(Status.UNAVAILABLE.asRuntimeException())
+      onBlocking { getRequisition(getRequisitionRequest { name = requisition.name }) }
+        .thenReturn(requisition.copy { etag = "some-other-etag" })
+    }
+    wheneverBlocking {
+      populationsServiceMock.getPopulation(getPopulationRequest { name = POPULATION_NAME_1 })
+    } doReturn POPULATION_1.copy { populationSpec = INVALID_POPULATION_SPEC_1 }
+
+    val requisitionFulfiller =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        modelRolloutsStub,
+        modelReleasesStub,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
+      )
+
+    assertFailsWith<IllegalStateException> {
+      runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
+    }
+
+    // The mutation is never replayed once its outcome can't be explained by "not yet applied."
+    verifyBlocking(requisitionsServiceMock, times(1)) { refuseRequisition(any()) }
     verifyBlocking(requisitionsServiceMock, times(1)) { getRequisition(any()) }
   }
 
@@ -651,7 +800,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
-        kingdomRpcThrottler = dummyThrottler,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     assertFailsWith<Exception> {
@@ -661,6 +810,26 @@ class PopulationRequisitionFulfillerTest {
     // A non-UNAVAILABLE error is not retried and GetRequisition is never consulted.
     verifyBlocking(requisitionsServiceMock, times(1)) { refuseRequisition(any()) }
     verifyBlocking(requisitionsServiceMock, never()) { getRequisition(any()) }
+  }
+
+  @Test
+  fun `construction fails when workflow and Kingdom RPC throttlers are the same instance`() {
+    val sharedThrottler = dummyThrottler
+
+    assertFailsWith<IllegalArgumentException> {
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        sharedThrottler,
+        TRUSTED_CERTIFICATES,
+        modelRolloutsStub,
+        modelReleasesStub,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = sharedThrottler,
+      )
+    }
   }
 
   companion object {
@@ -899,6 +1068,15 @@ class PopulationRequisitionFulfillerTest {
 
     /** Dummy [Throttler] for satisfying signatures without being used. */
     private val dummyThrottler =
+      object : Throttler {
+        override suspend fun <T> onReady(block: suspend () -> T): T = block()
+      }
+
+    /**
+     * A second, distinct dummy [Throttler] instance for `kingdomRpcThrottler`, since it must not be
+     * the same instance as the workflow throttler.
+     */
+    private val dummyKingdomRpcThrottler =
       object : Throttler {
         override suspend fun <T> onReady(block: suspend () -> T): T = block()
       }

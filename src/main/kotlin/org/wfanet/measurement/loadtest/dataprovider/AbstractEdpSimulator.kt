@@ -183,6 +183,14 @@ abstract class AbstractEdpSimulator(
   ),
   Health by health {
 
+  init {
+    require(workflowThrottler !== kingdomRpcThrottler) {
+      "workflowThrottler and kingdomRpcThrottler must be distinct instances: run() holds " +
+        "workflowThrottler for the duration of each workflow execution, so a nested Kingdom " +
+        "RPC paced by the same non-reentrant throttler instance would deadlock."
+    }
+  }
+
   interface EventGroupOptions {
     val referenceIdSuffix: String
     val syntheticDataSpec: SyntheticEventGroupSpec

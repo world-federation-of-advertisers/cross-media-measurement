@@ -84,6 +84,15 @@ abstract class RequisitionFulfiller(
     require(retryMaxAttempts >= 1) { "retryMaxAttempts must be at least 1" }
   }
 
+  /** Result of checking whether a mutation already took effect on the server. */
+  private sealed interface MutationReconciliation<out T> {
+    /** The mutation already took effect; [result] is what [callKingdom] should return. */
+    data class Applied<T>(val result: T) : MutationReconciliation<T>
+
+    /** The mutation has definitely not taken effect yet and is safe to retry. */
+    object NotApplied : MutationReconciliation<Nothing>
+  }
+
   /**
    * Paces [block] via [kingdomRpcThrottler] and retries it with backoff if it throws a
    * [StatusException] with code [Status.Code.UNAVAILABLE], up to [retryMaxAttempts] attempts.
@@ -93,13 +102,17 @@ abstract class RequisitionFulfiller(
    * that the response was lost. For a non-idempotent mutation, blindly retrying it risks either a
    * duplicate state transition or a spurious failure on retry (e.g. a stale etag) even though the
    * first attempt actually succeeded. If [block] is such a mutation, pass [reconcileMutation] to
-   * check, before retrying, whether it already took effect; if so, its result is returned instead
-   * of retrying. Any [StatusException] thrown by [reconcileMutation] is treated as "could not
-   * confirm either way" and falls through to the normal retry.
+   * check, via [reconcileWithRetry], whether it already took effect before retrying it: if so, its
+   * result is returned instead of replaying [block]. [reconcileMutation] is itself retried on
+   * UNAVAILABLE, since replaying [block] while unable to confirm whether it already took effect
+   * would risk exactly the duplicate-mutation/spurious-failure problem this exists to prevent; any
+   * other exception from [reconcileMutation] -- including one it throws to signal that the
+   * requisition is in a state that isn't explained by [block] having or not having taken effect --
+   * propagates immediately.
    */
   private suspend fun <T> callKingdom(
     errorMessage: String,
-    reconcileMutation: (suspend () -> T?)? = null,
+    reconcileMutation: (suspend () -> MutationReconciliation<T>)? = null,
     block: suspend () -> T,
   ): T {
     var attempt = 0
@@ -112,13 +125,10 @@ abstract class RequisitionFulfiller(
           throw Exception(errorMessage, e)
         }
         if (reconcileMutation != null) {
-          try {
-            val alreadyApplied: T? = kingdomRpcThrottler.onReady(reconcileMutation)
-            if (alreadyApplied != null) {
-              return alreadyApplied
-            }
-          } catch (reconcileError: StatusException) {
-            // Could not confirm either way -- fall through to the normal retry-with-backoff path.
+          val reconciliation: MutationReconciliation<T> =
+            reconcileWithRetry(errorMessage, reconcileMutation)
+          if (reconciliation is MutationReconciliation.Applied) {
+            return reconciliation.result
           }
         }
         if (attempt >= retryMaxAttempts) {
@@ -126,6 +136,34 @@ abstract class RequisitionFulfiller(
         }
         logger.warning {
           "$errorMessage on attempt $attempt of $retryMaxAttempts (${e.message}); retrying"
+        }
+        delay(retryBackoff.durationForAttempt(attempt).toMillis())
+      }
+    }
+  }
+
+  /**
+   * Calls [reconcileMutation], retrying with backoff if it throws a [StatusException] with code
+   * [Status.Code.UNAVAILABLE], up to [retryMaxAttempts] attempts. Any other exception propagates
+   * immediately: there is no safe default action to take on the original mutation without knowing
+   * whether it already took effect.
+   */
+  private suspend fun <T> reconcileWithRetry(
+    errorMessage: String,
+    reconcileMutation: suspend () -> MutationReconciliation<T>,
+  ): MutationReconciliation<T> {
+    var attempt = 0
+    while (true) {
+      attempt++
+      try {
+        return kingdomRpcThrottler.onReady(reconcileMutation)
+      } catch (e: StatusException) {
+        if (e.status.code != Status.Code.UNAVAILABLE || attempt >= retryMaxAttempts) {
+          throw Exception("$errorMessage (while confirming whether it already took effect)", e)
+        }
+        logger.warning {
+          "$errorMessage (while confirming whether it already took effect) on attempt $attempt " +
+            "of $retryMaxAttempts (${e.message}); retrying"
         }
         delay(retryBackoff.durationForAttempt(attempt).toMillis())
       }
@@ -227,7 +265,18 @@ abstract class RequisitionFulfiller(
       reconcileMutation = {
         val requisition: Requisition =
           requisitionsStub.getRequisition(getRequisitionRequest { name = requisitionName })
-        requisition.takeIf { it.state == Requisition.State.REFUSED }
+        when {
+          requisition.state == Requisition.State.REFUSED ->
+            MutationReconciliation.Applied(requisition)
+          requisition.state == Requisition.State.UNFULFILLED && requisition.etag == etag ->
+            MutationReconciliation.NotApplied
+          else ->
+            error(
+              "Unexpected state for requisition $requisitionName while confirming whether " +
+                "RefuseRequisition already took effect: state=${requisition.state}, " +
+                "etag=${requisition.etag}"
+            )
+        }
       },
     ) {
       requisitionsStub.refuseRequisition(
@@ -285,10 +334,17 @@ abstract class RequisitionFulfiller(
       reconcileMutation = {
         val fulfilledRequisition: Requisition =
           requisitionsStub.getRequisition(getRequisitionRequest { name = requisition.name })
-        if (fulfilledRequisition.state == Requisition.State.FULFILLED) {
-          FulfillDirectRequisitionResponse.getDefaultInstance()
-        } else {
-          null
+        when {
+          fulfilledRequisition.state == Requisition.State.FULFILLED ->
+            MutationReconciliation.Applied(FulfillDirectRequisitionResponse.getDefaultInstance())
+          fulfilledRequisition.state == Requisition.State.UNFULFILLED &&
+            fulfilledRequisition.etag == requisition.etag -> MutationReconciliation.NotApplied
+          else ->
+            error(
+              "Unexpected state for requisition ${requisition.name} while confirming whether " +
+                "FulfillDirectRequisition already took effect: " +
+                "state=${fulfilledRequisition.state}, etag=${fulfilledRequisition.etag}"
+            )
         }
       },
     ) {
@@ -298,6 +354,7 @@ abstract class RequisitionFulfiller(
           this.encryptedResult = encryptedResult
           this.nonce = nonce
           this.certificate = dataProviderData.certificateKey.toName()
+          this.etag = requisition.etag
         }
       )
     }
