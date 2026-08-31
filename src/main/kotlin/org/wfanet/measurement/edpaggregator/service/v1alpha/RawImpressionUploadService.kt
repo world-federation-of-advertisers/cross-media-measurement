@@ -112,7 +112,6 @@ class RawImpressionUploadService(
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
@@ -140,6 +139,12 @@ class RawImpressionUploadService(
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND ->
+            RawImpressionUploadNotFoundException(
+                request.rawImpressionUpload.replacesRawImpressionUpload,
+                e,
+              )
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS ->
             Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
         }
@@ -344,6 +349,14 @@ fun InternalRawImpressionUpload.toPublic(): RawImpressionUpload {
     state = source.state.toPublic()
     doneBlobUri = source.doneBlobUri
     doneBlobGeneration = source.doneBlobGeneration
+    if (source.replacesRawImpressionUploadResourceId.isNotEmpty()) {
+      replacesRawImpressionUpload =
+        RawImpressionUploadKey(
+            source.dataProviderResourceId,
+            source.replacesRawImpressionUploadResourceId,
+          )
+          .toName()
+    }
     createTime = source.createTime
     updateTime = source.updateTime
   }
