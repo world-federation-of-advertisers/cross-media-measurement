@@ -510,6 +510,9 @@ class VidLabelingDispatchSequencerTest {
         assertThat(params.eventTemplateDescriptorBlobUri)
           .isEqualTo(EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI)
         assertThat(params.eventTemplateType).isEqualTo(EVENT_TEMPLATE_TYPE)
+        // Same for the PopulationSpec: Phase-2 rejects a WorkItem without it, so dropping it here
+        // would strand the memoized fan-out on a crash-looping VidLabeler.
+        assertThat(params.populationSpecBlobUri).isEqualTo(POPULATION_SPEC_BLOB_URI)
       }
     }
 
@@ -905,6 +908,9 @@ class VidLabelingDispatchSequencerTest {
       assertThat(modelLineConfig.eventTemplateDescriptorBlobUri)
         .isEqualTo(EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI)
       assertThat(modelLineConfig.eventTemplateType).isEqualTo(EVENT_TEMPLATE_TYPE)
+      // And the PopulationSpec, which Phase-2 requires to set the assigned VID's population
+      // attributes. This rebuild silently drops anything not copied explicitly.
+      assertThat(modelLineConfig.populationSpecBlobUri).isEqualTo(POPULATION_SPEC_BLOB_URI)
     }
 
   @Test
@@ -1084,6 +1090,7 @@ class VidLabelingDispatchSequencerTest {
       "gs://descriptors/event-template-set.binpb"
     private const val EVENT_TEMPLATE_TYPE =
       "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+    private const val POPULATION_SPEC_BLOB_URI = "gs://configs/population-spec.textproto"
 
     private val FIXED_NOW: Instant = Instant.parse("2026-06-03T12:00:00Z")
     private val ACTIVE_START_TIME: Timestamp = Timestamps.fromSeconds(1_600_000_000L)
@@ -1155,6 +1162,7 @@ class VidLabelingDispatchSequencerTest {
             optionalEntityKeyFieldMapping["creative"] = "cr_col"
             eventTemplateDescriptorBlobUri = EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI
             eventTemplateType = EVENT_TEMPLATE_TYPE
+            populationSpecBlobUri = POPULATION_SPEC_BLOB_URI
           },
         MODEL_LINE_2 to
           VidLabelerParamsKt.modelLineConfig {

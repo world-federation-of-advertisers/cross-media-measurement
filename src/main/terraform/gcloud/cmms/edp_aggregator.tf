@@ -236,6 +236,11 @@ locals {
     destination = "results-fulfiller-population-spec.textproto"
   }
 
+  vid_labeler_population_spec = {
+    local_path  = var.vid_labeler_population_spec_file_path
+    destination = "vid-labeler-population-spec.textproto"
+  }
+
   cloud_function_configs = {
     data_watcher = {
       function_name       = "data-watcher"
@@ -475,6 +480,7 @@ module "edp_aggregator" {
   data_availability_sync_config                  = local.data_availability_sync_config
   results_fulfiller_event_descriptor            = local.results_fulfiller_event_descriptor
   results_fulfiller_population_spec             = local.results_fulfiller_population_spec
+  vid_labeler_population_spec                   = local.vid_labeler_population_spec
   event_group_sync_service_account_name         = "edpa-event-group-sync"
   event_group_sync_function_name                = "event-group-sync"
   data_availability_sync_function_name          = "data-availability-sync"

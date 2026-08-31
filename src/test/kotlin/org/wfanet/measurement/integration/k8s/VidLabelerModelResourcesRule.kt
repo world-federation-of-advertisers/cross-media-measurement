@@ -63,6 +63,8 @@ import org.wfanet.measurement.loadtest.edpaggregator.testing.RawImpressionColumn
  * no-op so unrelated runs are unaffected:
  * * `MODEL_SUITE` — the ModelSuite the lines live under.
  * * `NON_MEMOIZED_MODEL_BLOB_URI` — compiled Riegeli hash-only model blob the pipeline labels with.
+ * * `VID_LABELER_POPULATION_SPEC_BLOB_URI` — `PopulationSpec` describing that model's VID pools,
+ *   which the pipeline reads to set each impression's population attributes.
  * * `EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI` / `EVENT_TEMPLATE_TYPE` — event schema for the label
  *   output.
  */
@@ -229,9 +231,13 @@ class VidLabelerModelResourcesRule(
             )
             .build()
         )
-        // Output event template (TestEvent) so downstream measurement can slice by demographics.
-        putEventTemplateFieldMapping("person.gender", RawImpressionColumns.PERSON_GENDER)
-        putEventTemplateFieldMapping("person.age_group", RawImpressionColumns.PERSON_AGE_GROUP)
+        // `person.gender` and `person.age_group` are deliberately NOT mapped here: they are
+        // `population_attribute` fields, so the pipeline sources them from the model line's
+        // PopulationSpec (the demographics the model assigned) rather than from the raw columns
+        // (the demographics the DataProvider declared). EventMessageMapper rejects a mapping that
+        // names one. The declared values still reach the model via labeler_input_field_mapping
+        // above.
+        populationSpecBlobUri = POPULATION_SPEC_BLOB_URI
         // Entity keys read per row from the raw-impression columns SeedRawImpressionsRule emits
         // (see SeedRawImpressionsRule.entityKeyColumnsFor). Every file carries the person id
         // (person_id, also the model identity column); entity-key event groups additionally carry
@@ -288,6 +294,7 @@ class VidLabelerModelResourcesRule(
 
     private val MODEL_SUITE: String = env("MODEL_SUITE")
     private val NON_MEMOIZED_MODEL_BLOB_URI: String = env("NON_MEMOIZED_MODEL_BLOB_URI")
+    private val POPULATION_SPEC_BLOB_URI: String = env("VID_LABELER_POPULATION_SPEC_BLOB_URI")
     private val EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI: String =
       env("EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI")
     private val EVENT_TEMPLATE_TYPE: String = env("EVENT_TEMPLATE_TYPE")

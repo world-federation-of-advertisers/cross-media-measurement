@@ -72,12 +72,17 @@ class EdpAggregatorMeasurementConsumerSimulator(
   listEventGroupsEntityTypes: List<String>,
   onMeasurementsCreated: (() -> Unit)? = null,
   /**
-   * Optional override that assigns the VID for each generated event when computing the expected
-   * result. When null (default), the raw synthetic VID is used. The EDPA cloud test injects the
-   * non-memoized labeler here so the expected reach/frequency is computed from the same VIDs the
-   * pipeline assigns, matching the pre-staged and pipelined labeled data.
+   * Optional override that relabels each generated event before it is filtered and counted, when
+   * computing the expected result. When null (default), the generated event is used as-is.
+   *
+   * The EDPA cloud test injects the non-memoized labeler here so the expected reach/frequency is
+   * computed from the same VIDs **and the same population attributes** the pipeline assigns,
+   * matching the pre-staged and pipelined labeled data. It returns the whole event rather than just
+   * a VID because a model's demographic-correction matrix can move an impression to a different
+   * demo bucket, and [filterExpression] is evaluated against the event the `ResultsFulfiller`
+   * actually sees — the corrected one.
    */
-  private val vidLabeler: ((LabeledEvent<*>) -> Long)? = null,
+  private val eventRelabeler: ((LabeledEvent<*>) -> LabeledEvent<*>)? = null,
 ) :
   MeasurementConsumerSimulator(
     measurementConsumerData,
@@ -157,6 +162,11 @@ class EdpAggregatorMeasurementConsumerSimulator(
               shard.labeledEvents
             }
           }
+          // Relabel BEFORE filtering: [eventRelabeler] may move an impression into a different
+          // demo bucket, and the fulfiller applies the filter to the relabeled event, so filtering
+          // the generated event first would count a different set of people than the measurement
+          // does.
+          .map { impression -> eventRelabeler?.invoke(impression) ?: impression }
           .filter { impression -> EventFilters.matches(impression.message, program) }
           .filter { impression ->
             targetDataProviderId != null ||
@@ -164,7 +174,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
                 impression.timestamp < collectionInterval.endTime.toInstant())
           }
       }
-      .map { vidLabeler?.invoke(it) ?: it.vid }
+      .map { it.vid }
   }
 
   override fun getFilteredVids(measurementInfo: MeasurementInfo): Sequence<Long> {

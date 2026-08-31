@@ -47,6 +47,9 @@ fun requireValidModelLineConfigs(config: VidLabelingConfig) {
     require(modelLineConfig.eventTemplateType.isNotEmpty()) {
       "event_template_type missing for model line $modelLine on ${config.dataProvider}"
     }
+    require(modelLineConfig.populationSpecBlobUri.isNotEmpty()) {
+      "population_spec_blob_uri missing for model line $modelLine on ${config.dataProvider}"
+    }
     require(
       modelLineConfig.requiredEntityKeyFieldMappingMap.isNotEmpty() ||
         modelLineConfig.optionalEntityKeyFieldMappingMap.isNotEmpty()

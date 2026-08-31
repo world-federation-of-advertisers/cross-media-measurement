@@ -74,6 +74,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.integration.common.EventGroupConfig
 import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
@@ -464,15 +465,12 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         provisionModelResources.nonMemoizedModelLine ?: TEST_CONFIG.modelLine,
         listEventGroupsEntityTypes = listOf("campaign", "creative-id"),
         onMeasurementsCreated = ::triggerRequisitionFetcher,
-        // Compute the expected reach/frequency from the VIDs the deployed non-memoized model
-        // assigns (not the raw synthetic VIDs), matching the pre-staged and pipelined labeled data.
-        vidLabeler = { impression ->
-          val event = impression.message as TestEvent
-          nonMemoizedVidLabeler.assignVid(
-            impression.vid,
-            event.person.gender.name,
-            event.person.ageGroup.name,
-            impression.timestamp,
+        // Compute the expected reach/frequency from the VIDs and population attributes the deployed
+        // non-memoized model assigns (not the raw synthetic ones), matching the pre-staged and
+        // pipelined labeled data.
+        eventRelabeler = { impression ->
+          nonMemoizedVidLabeler.relabel(
+            LabeledEvent(impression.timestamp, impression.vid, impression.message as TestEvent)
           )
         },
       )
@@ -523,6 +521,15 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     private val POPULATION_SPEC_TYPE_REGISTRY: TypeRegistry =
       TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
 
+    /**
+     * `PopulationSpec` matching the pools of the compiled hash-only model at
+     * `NON_MEMOIZED_MODEL_BLOB_URI`. Must stay in sync with the `population_spec_blob_uri` the
+     * deployed `VidLabelingConfig` points the same model line at, or the pre-staged days and the
+     * expected results will disagree with the pipelined day.
+     */
+    private const val MODEL_POPULATION_SPEC_RESOURCE_NAME =
+      "hashonly_model_population_spec.textproto"
+
     private val IMPRESSION_TEST_DATA_CONFIG: ImpressionTestDataConfig by lazy {
       val configFile =
         getRuntimePath(CONFIG_PATH.resolve("impression_test_data_config.textproto"))!!.toFile()
@@ -534,6 +541,24 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         ImpressionTestDataConfigs.resolveSpecPath(
           IMPRESSION_TEST_DATA_CONFIG.populationSpecResourcePath
         ),
+        PopulationSpec.getDefaultInstance(),
+        POPULATION_SPEC_TYPE_REGISTRY,
+      )
+    }
+
+    /**
+     * The `PopulationSpec` describing the VID pools of the deployed non-memoized model, i.e. the
+     * blob the pipeline reads as `population_spec_blob_uri`.
+     *
+     * Distinct from [populationSpec], which describes the *synthetic* VIDs (1..99999) the generator
+     * draws declared demographics from. This one describes the VIDs the model *assigns*
+     * (10000..10599) and therefore the demographics the labeled output carries. The two cannot be
+     * the same file: [populationSpec] buckets VIDs 10000..19999 into a single subpopulation, which
+     * would collapse all six model pools into one demo.
+     */
+    private val modelPopulationSpec: PopulationSpec by lazy {
+      parseTextProto(
+        ImpressionTestDataConfigs.resolveSpecPath(MODEL_POPULATION_SPEC_RESOURCE_NAME),
         PopulationSpec.getDefaultInstance(),
         POPULATION_SPEC_TYPE_REGISTRY,
       )
@@ -583,6 +608,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           gcsProjectId =
             System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set"),
           labelerInputFieldMapping = provisionModelResources.labelerInputFieldMapping,
+          populationSpec = modelPopulationSpec,
         )
       }
     }

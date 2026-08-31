@@ -151,6 +151,7 @@ jobs:
           vid_models_bucket="$(tfvar vid_models_storage_bucket_name)"
           export MEMOIZED_MODEL_BLOB_URI="gs://${vid_models_bucket}/edp7/memoized_model"
           export NON_MEMOIZED_MODEL_BLOB_URI="gs://${vid_models_bucket}/edp7/hashonly_model"
+          export VID_LABELER_POPULATION_SPEC_BLOB_URI="$(tfvar vid_labeler_population_spec_blob_uri)"
           # Derive the ModelSuite from the ModelLine resource name.
           export MODEL_SUITE="${MODEL_LINE_NAME%/modelLines/*}"
           bazel test \
@@ -163,6 +164,7 @@ jobs:
           --test_env=EVENT_TEMPLATE_TYPE \
           --test_env=MEMOIZED_MODEL_BLOB_URI \
           --test_env=NON_MEMOIZED_MODEL_BLOB_URI \
+          --test_env=VID_LABELER_POPULATION_SPEC_BLOB_URI \
           --test_env=RAW_IMPRESSIONS_BUCKET \
           --test_env=SPANNER_INSTANCE \
           --test_env=EDPA_PUBLIC_API_TARGET \

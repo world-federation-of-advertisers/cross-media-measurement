@@ -241,6 +241,14 @@ variable "results_fulfiller_population_spec" {
   })
 }
 
+variable "vid_labeler_population_spec" {
+  description = "An object containing the local path of the VID Labeler population spec file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
 variable "edp_aggregator_buckets_location" {
   description = "Location of the Storage buckets used by the Edp Aggregator."
   type        = string

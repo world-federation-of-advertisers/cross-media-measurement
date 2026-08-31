@@ -170,27 +170,17 @@ class WriteReusedLabeledImpressionsRule(
       generateShards(eventGroup)
         .filter { it.localDate in datesToWrite }
         .map { shard ->
-          // Replace each event's synthetic VID with the VID the deployed non-memoized model
-          // assigns,
-          // so these out-of-band days carry the SAME VID the pipeline produces for 2021-03-21 (same
-          // person -> same VID across all days and both publishers). See [NonMemoizedVidLabeler].
+          // Replace each event's synthetic VID and declared demographics with the ones the deployed
+          // non-memoized model assigns, so these out-of-band days carry the SAME VID and the SAME
+          // population attributes the pipeline produces for 2021-03-21 (same person -> same VID and
+          // same demo bucket across all days and both publishers). Relabeling only the VID would
+          // leave the declared demographics here while the pipelined day carries the model's, and
+          // the model's correction matrix makes those differ for a few percent of impressions.
+          // See [NonMemoizedVidLabeler.relabel].
           shard.copy(
             entityKeysWithLabeledEvents =
               shard.entityKeysWithLabeledEvents.map { group ->
-                group.copy(
-                  labeledEvents =
-                    group.labeledEvents.map { event ->
-                      event.copy(
-                        vid =
-                          vidLabeler.assignVid(
-                            event.vid,
-                            event.message.person.gender.name,
-                            event.message.person.ageGroup.name,
-                            event.timestamp,
-                          )
-                      )
-                    }
-                )
+                group.copy(labeledEvents = group.labeledEvents.map { vidLabeler.relabel(it) })
               }
           )
         }
