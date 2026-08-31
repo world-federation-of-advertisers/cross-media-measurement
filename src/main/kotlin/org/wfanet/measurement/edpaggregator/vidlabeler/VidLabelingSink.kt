@@ -23,7 +23,6 @@ import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
 import com.google.type.interval
 import io.opentelemetry.api.common.Attributes
-import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
@@ -39,7 +38,6 @@ import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -414,16 +412,7 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
    * file overwrites its previous output instead of duplicating it.
    */
   private fun outputBlobKey(key: OutputGroupKey): String {
-    val modelLineId =
-      requireNotNull(ModelLineKey.fromName(key.modelLine)) {
-          "model line is not a valid ModelLine resource name: ${key.modelLine}"
-        }
-        .modelLineId
-    val digest =
-      MessageDigest.getInstance("SHA-256")
-        .digest("$inputBlobUri|${key.modelLine}".toByteArray(Charsets.UTF_8))
-    val sha = digest.joinToString("") { "%02x".format(it) }
-    return "model-line/$modelLineId/${fileMetadata.eventDate}/$sha"
+    return LabeledImpressionsBlobKeys.forInput(inputBlobUri, key.modelLine, fileMetadata.eventDate)
   }
 
   private val Timestamp.epochNanos: Long

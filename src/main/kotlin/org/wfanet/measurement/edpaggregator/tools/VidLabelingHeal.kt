@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.tools
 import io.grpc.ManagedChannel
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
@@ -26,9 +27,11 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
@@ -38,6 +41,9 @@ import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.storage.BlobUri
+import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
@@ -410,6 +416,21 @@ class BackfillModelLineCommand : EdpaApiCommand() {
 )
 class EvictUploadsCommand : EdpaApiCommand() {
   @Option(
+    names = ["--gcs-project"],
+    description = ["Google Cloud project used to access VID-labeled output buckets."],
+    required = false,
+  )
+  private var gcsProject: String = ""
+
+  @Option(
+    names = ["--labeled-impressions-blob-prefix"],
+    description =
+      ["Absolute blob URI prefix under which the VID labeler writes generated impressions."],
+    required = true,
+  )
+  private lateinit var labeledImpressionsBlobPrefix: String
+
+  @Option(
     names = ["--bad-uploads"],
     description =
       [
@@ -440,14 +461,44 @@ class EvictUploadsCommand : EdpaApiCommand() {
       "--bad-uploads entries must be non-blank RawImpressionUpload resource names."
     }
     require(retentionDays > 0) { "--retention-days must be positive; got $retentionDays" }
+    val outputPrefixBlobUri = parseLabeledImpressionsBlobPrefix(labeledImpressionsBlobPrefix)
+    val normalizedOutputPrefix =
+      "gs://${outputPrefixBlobUri.bucket}" +
+        outputPrefixBlobUri.key.takeIf { it.isNotEmpty() }?.let { "/$it" }.orEmpty()
     val channel: ManagedChannel = buildEdpaChannel()
     try {
       runBlocking {
+        val outputStorageClients = ConcurrentHashMap<Pair<String, String>, StorageClient>()
+        outputStorageClients[outputPrefixBlobUri.scheme to outputPrefixBlobUri.bucket] =
+          SelectedStorageClient(
+              blobUri = outputPrefixBlobUri,
+              projectId = gcsProject.ifEmpty { null },
+            )
+            .underlyingClient
+        val deleteBlob: suspend (String) -> Boolean = { blobPath ->
+          val blobUri = SelectedStorageClient.parseBlobUri(blobPath)
+          val storageClient =
+            outputStorageClients.computeIfAbsent(blobUri.scheme to blobUri.bucket) {
+              SelectedStorageClient(blobUri = blobUri, projectId = gcsProject.ifEmpty { null })
+                .underlyingClient
+            }
+          val blob = storageClient.getBlob(blobUri.key)
+          if (blob == null) {
+            false
+          } else {
+            blob.delete()
+            true
+          }
+        }
         val evictUploader =
           EvictUploader(
             RawImpressionUploadServiceCoroutineStub(channel),
             RawImpressionUploadModelLineServiceCoroutineStub(channel),
             RankIndexBlobServiceCoroutineStub(channel),
+            RawImpressionUploadFileServiceCoroutineStub(channel),
+            ImpressionMetadataServiceCoroutineStub(channel),
+            normalizedOutputPrefix,
+            deleteBlob,
           )
         val cutoffTime: Instant = Instant.now().minus(Duration.ofDays(retentionDays.toLong()))
         val plan = evictUploader.plan(badUploads, cutoffTime)
@@ -469,7 +520,8 @@ class EvictUploadsCommand : EdpaApiCommand() {
         // Require explicit operator confirmation before any mutation.
         print(
           "This marks the ${plan.cascade.size} model line(s) above FAILED and soft-deletes their " +
-            "cumulative snapshots. Type 'yes' to proceed: "
+            "cumulative snapshots and labeled-output metadata, then deletes generated output " +
+            "blobs. Raw inputs are retained. Type 'yes' to proceed: "
         )
         System.out.flush()
         if (!isAffirmative(readLine())) {
@@ -480,14 +532,35 @@ class EvictUploadsCommand : EdpaApiCommand() {
         val result = evictUploader.evict(plan, reason)
         println(
           "Evicted: marked ${result.failedModelLines.size} model line(s) FAILED, soft-deleted " +
-            "${result.deletedSnapshots} snapshot(s). Re-trigger the affected uploads (re-upload " +
-            "their done blobs) to rebuild from the last good snapshot. Do not use retry-failed " +
-            "for these model lines."
+            "${result.deletedSnapshots} snapshot(s) and ${result.deletedImpressionMetadata} " +
+            "ImpressionMetadata row(s), and removed ${result.deletedOutputBlobs} generated output " +
+            "blob(s). Raw impression objects were retained. Re-trigger the corrected uploads by " +
+            "writing new done blobs. Do not use retry-failed for these model lines."
         )
       }
     } finally {
       channel.shutdown()
       channel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+    }
+  }
+
+  companion object {
+    /** Parses and validates the configured VID-labeled output prefix before any mutation. */
+    fun parseLabeledImpressionsBlobPrefix(value: String): BlobUri {
+      val normalized = value.trim().trimEnd('/')
+      val blobUri =
+        try {
+          SelectedStorageClient.parseBlobUri(normalized)
+        } catch (e: IllegalArgumentException) {
+          throw IllegalArgumentException(
+            "--labeled-impressions-blob-prefix must be a valid gs:// URI",
+            e,
+          )
+        }
+      require(blobUri.scheme == "gs" && blobUri.bucket.isNotBlank()) {
+        "--labeled-impressions-blob-prefix must be a valid gs:// URI"
+      }
+      return blobUri
     }
   }
 }
