@@ -26,6 +26,7 @@ import java.time.Instant
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -660,7 +661,8 @@ class PopulationRequisitionFulfillerTest {
     // Should not throw: the first GetRequisition attempt is itself transient, so reconciliation
     // is retried, not the mutation -- replaying RefuseRequisition without knowing whether it
     // already succeeded risks a spurious failure or a duplicate refusal.
-    runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
+    // Uses runTest so the retry backoff delay resolves via virtual time instead of a real delay.
+    runTest { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
 
     verifyBlocking(requisitionsServiceMock, times(1)) { refuseRequisition(any()) }
     verifyBlocking(requisitionsServiceMock, times(2)) { getRequisition(any()) }
@@ -710,7 +712,8 @@ class PopulationRequisitionFulfillerTest {
 
     // Should not throw: GetRequisition confirms the requisition is still UNFULFILLED with the
     // original etag, so RefuseRequisition is safely replayed.
-    runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
+    // Uses runTest so the retry backoff delay resolves via virtual time instead of a real delay.
+    runTest { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
 
     verifyBlocking(requisitionsServiceMock, times(2)) { refuseRequisition(any()) }
     verifyBlocking(requisitionsServiceMock, times(1)) { getRequisition(any()) }
