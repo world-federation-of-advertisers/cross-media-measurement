@@ -204,10 +204,10 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
       [
         "Minimum interval between outbound FulfillDirectRequisition/RefuseRequisition calls to " +
           "Kingdom. These share Kingdom's default per-principal rate-limit bucket (5 " +
-          "requests/second average, 20 burst) with any other Requisitions method that doesn't " +
-          "have its own dedicated per-method rate limit, e.g. GetCertificate. GetRequisition and " +
-          "ListRequisitions each have their own dedicated bucket and are not affected by this " +
-          "flag. 2.5s leaves 20% headroom for a 10-instance fleet sharing the 5/second bucket."
+          "requests/second average, 20 burst) with other Kingdom RPC methods without a " +
+          "dedicated per-method limit. GetRequisition and ListRequisitions each have their own " +
+          "dedicated bucket and are not affected by this flag. 2.5s leaves 20% headroom for a " +
+          "10-instance fleet sharing the 5/second bucket."
       ],
     defaultValue = "2.5s",
   )

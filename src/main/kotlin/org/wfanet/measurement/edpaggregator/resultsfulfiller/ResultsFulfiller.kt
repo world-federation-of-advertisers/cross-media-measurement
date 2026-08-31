@@ -94,9 +94,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMe
  *   fulfillers this class dispatches to via [fulfillerSelector], so the throttle budget covers all
  *   `GetRequisition` traffic this process makes, not just [shouldBeProcessed]'s.
  * @param kingdomThrottler paces outbound `RefuseRequisition` calls to Kingdom, which share
- *   Kingdom's default per-principal rate-limit bucket with any other Requisitions method that
- *   doesn't have its own dedicated per-method rate limit (`GetRequisition` and `ListRequisitions`
- *   each have their own).
+ *   Kingdom's default per-principal rate-limit bucket with other Kingdom RPC methods without a
+ *   dedicated per-method limit (`GetRequisition` and `ListRequisitions` each have their own).
  * @param privateEncryptionKey Private key used to decrypt `RequisitionSpec`s.
  * @param groupedRequisitions The grouped requisitions to fulfill.
  * @param modelLineInfoMap Map of model line to [ModelLineInfo] providing descriptors and indexes.
