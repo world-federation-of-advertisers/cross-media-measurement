@@ -15,6 +15,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
 import com.google.common.truth.Truth.assertThat
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -30,23 +31,49 @@ class DirectDynamicClippingTest {
     // bounds anything.
     val frequencyData = IntArray(200) { BYTE_CEILING }
 
+    val clipped = clip(frequencyData)
+
+    assertThat(clipped.clip).isAtMost(BYTE_CEILING)
+  }
+
+  @Test
+  fun `the same vector yields the same clip and count`() {
+    val frequencyData = IntArray(200) { it % 40 }
+
+    val first = clip(frequencyData)
+    val second = clip(frequencyData)
+
+    assertThat(second).isEqualTo(first)
+  }
+
+  @Test
+  fun `a mechanism whose draws do not reproduce is refused`() {
     for (mechanism in
       listOf(
-        DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
         DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
+        DirectNoiseMechanism.CONTINUOUS_LAPLACE,
+        DirectNoiseMechanism.NONE,
       )) {
-      val clipped =
+      assertFailsWith<IllegalArgumentException>("$mechanism") {
         computeDirectDynamicallyClippedImpressions(
           directNoiseMechanism = mechanism,
-          frequencyData = frequencyData,
+          frequencyData = IntArray(200) { it % 40 },
           dpParams = DP_PARAMS,
           vidSamplingIntervalWidth = 1.0,
           resultMinimumThresholds = null,
         )
-
-      assertThat(clipped.clip).isAtMost(BYTE_CEILING)
+      }
     }
   }
+
+  private fun clip(frequencyData: IntArray) =
+    computeDirectDynamicallyClippedImpressions(
+      directNoiseMechanism = DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+      frequencyData = frequencyData,
+      dpParams = DP_PARAMS,
+      vidSamplingIntervalWidth = 1.0,
+      resultMinimumThresholds = null,
+    )
 
   private companion object {
     private const val BYTE_CEILING = 127

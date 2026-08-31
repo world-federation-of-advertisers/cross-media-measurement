@@ -50,8 +50,10 @@ class DynamicClippingTest {
       mapOf(1L to 1L, 2L to 1L, 3L to 2L) // cumulativeHistogramList is listOf(4.0, 3.0, 2.0)
     val maxThreshold = 500
 
-    // Set rho large enough to minimize noise.
-    val dynamicClipping = DynamicClipping(BIG_RHO, IMPRESSION_MEASUREMENT_TYPE, maxThreshold)
+    // No noise at all: the padded bars are searched like any other, so a stochastic source would
+    // leave the threshold random rather than merely close to the expected one.
+    val dynamicClipping =
+      DynamicClipping(BIG_RHO, IMPRESSION_MEASUREMENT_TYPE, maxThreshold, NO_NOISE)
     val dynamicClipResult = dynamicClipping.computeImpressionCappedHistogram(frequencyMap)
 
     // Output threshold is 6 calculated by the algorithm, pre-set sliding window size, and input
@@ -149,8 +151,9 @@ class DynamicClippingTest {
         4L to 1L,
       ) // cumulativeHistogramList is listOf(53.0, 33.0, 13.0, 1.0)
 
-    // Set rho large enough to minimize noise.
-    val dynamicClipping = DynamicClipping(BIG_RHO, IMPRESSION_MEASUREMENT_TYPE)
+    // No noise at all, so the padded bars cannot move the threshold.
+    val dynamicClipping =
+      DynamicClipping(BIG_RHO, IMPRESSION_MEASUREMENT_TYPE, noiseSource = NO_NOISE)
     val dynamicClipResult = dynamicClipping.computeImpressionCappedHistogram(frequencyMap)
 
     val histogramList = DynamicClipping.frequencyHistogramMapToList(frequencyMap)
@@ -300,6 +303,9 @@ class DynamicClippingTest {
     DeterministicDynamicClippingNoiseSource("frequency-vector-$seed".toByteArray())
 
   private companion object {
+    /** Returns each bar unchanged, so a threshold is a function of the data alone. */
+    private val NO_NOISE = DynamicClippingNoiseSource { _, _, bar, _, _ -> bar }
+
     private val IMPRESSION_MEASUREMENT_TYPE = DynamicClipping.MeasurementType.IMPRESSION
     /** Small enough that the bars carry visible noise. */
     private const val SMALL_RHO = 1E-2
