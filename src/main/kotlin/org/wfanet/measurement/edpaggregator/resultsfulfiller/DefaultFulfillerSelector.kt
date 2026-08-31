@@ -29,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
@@ -107,6 +108,10 @@ data class TrusTeeConfig(
  * Default implementation that routes requisitions to protocol-specific fulfillers.
  *
  * @param requisitionsStub gRPC stub for Direct protocol requisitions
+ * @param requisitionsThrottler paces outbound `GetRequisition` calls to Kingdom
+ * @param kingdomThrottler paces outbound `FulfillDirectRequisition` calls to Kingdom, which share
+ *   Kingdom's default per-principal rate-limit bucket with other Kingdom RPC methods without a
+ *   dedicated per-method limit (`GetRequisition` and `ListRequisitions` each have their own)
  * @param requisitionFulfillmentStubMap duchy name → gRPC stub mapping for HM Shuffle and TrusTee
  * @param dataProviderCertificateKey EDP certificate identifier for result signing
  * @param dataProviderSigningKeyHandle cryptographic key for result authentication
@@ -123,6 +128,8 @@ data class TrusTeeConfig(
  */
 class DefaultFulfillerSelector(
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
+  private val requisitionsThrottler: Throttler,
+  private val kingdomThrottler: Throttler,
   private val requisitionFulfillmentStubMap:
     Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
@@ -224,6 +231,7 @@ class DefaultFulfillerSelector(
           vec.build(),
           requisitionFulfillmentStubMap,
           requisitionsStub,
+          requisitionsThrottler,
           trusTeeEncryptionParams,
         )
       } else {
@@ -241,6 +249,7 @@ class DefaultFulfillerSelector(
           vec,
           requisitionFulfillmentStubMap,
           requisitionsStub,
+          requisitionsThrottler,
           resultMinimumThresholds,
           protocolMinUsers,
           protocolMinImpressions,
@@ -267,6 +276,7 @@ class DefaultFulfillerSelector(
           dataProviderCertificateKey,
           requisitionFulfillmentStubMap,
           requisitionsStub,
+          requisitionsThrottler,
         )
       } else {
         HMShuffleMeasurementFulfiller.buildThresholded(
@@ -279,6 +289,7 @@ class DefaultFulfillerSelector(
           dataProviderCertificateKey,
           requisitionFulfillmentStubMap,
           requisitionsStub,
+          requisitionsThrottler,
           resultMinimumThresholds,
           maxPopulation = null,
         )
@@ -345,6 +356,8 @@ class DefaultFulfillerSelector(
       dataProviderSigningKeyHandle,
       dataProviderCertificateKey,
       requisitionsStub,
+      requisitionsThrottler,
+      kingdomThrottler,
     )
   }
 }
