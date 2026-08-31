@@ -109,8 +109,9 @@ data class TrusTeeConfig(
  *
  * @param requisitionsStub gRPC stub for Direct protocol requisitions
  * @param requisitionsThrottler paces outbound `GetRequisition` calls to Kingdom
- * @param kingdomThrottler paces outbound `FulfillDirectRequisition` calls to Kingdom, which share a
- *   Kingdom rate-limit bucket with every other Requisitions method besides `GetRequisition`
+ * @param kingdomThrottler paces outbound `FulfillDirectRequisition` calls to Kingdom, which share
+ *   Kingdom's default per-principal rate-limit bucket with other Kingdom RPC methods without a
+ *   dedicated per-method limit (`GetRequisition` and `ListRequisitions` each have their own)
  * @param requisitionFulfillmentStubMap duchy name → gRPC stub mapping for HM Shuffle and TrusTee
  * @param dataProviderCertificateKey EDP certificate identifier for result signing
  * @param dataProviderSigningKeyHandle cryptographic key for result authentication

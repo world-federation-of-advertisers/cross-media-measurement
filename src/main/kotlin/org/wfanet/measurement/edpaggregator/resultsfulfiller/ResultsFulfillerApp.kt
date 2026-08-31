@@ -75,8 +75,9 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  *   app's own pre-check and the fulfillers it dispatches to, so the throttle budget covers all
  *   `GetRequisition` traffic this process makes.
  * @param kingdomThrottler paces outbound `FulfillDirectRequisition`/`RefuseRequisition` calls to
- *   Kingdom, which share a Kingdom rate-limit bucket with every other Requisitions method besides
- *   `GetRequisition`.
+ *   Kingdom, which share Kingdom's default per-principal rate-limit bucket with other Kingdom RPC
+ *   methods without a dedicated per-method limit (`GetRequisition` and `ListRequisitions` each have
+ *   their own).
  * @param metrics Metrics recorder for telemetry.
  * @constructor Initializes the application with all required dependencies for result fulfillment.
  */
