@@ -57,6 +57,7 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchUndeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchUpdateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
@@ -66,6 +67,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrp
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.batchUndeleteImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchUpdateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
@@ -141,6 +143,8 @@ class DataAvailabilitySyncTest {
               }
           }
         }
+      onBlocking { batchUndeleteImpressionMetadata(any<BatchUndeleteImpressionMetadataRequest>()) }
+        .thenAnswer { batchUndeleteImpressionMetadataResponse {} }
       onBlocking { computeModelLineBounds(any<ComputeModelLineBoundsRequest>()) }
         .thenAnswer { invocation ->
           val request = invocation.getArgument<ComputeModelLineBoundsRequest>(0)
@@ -2286,6 +2290,88 @@ class DataAvailabilitySyncTest {
       val secondRequestId = secondCaptor.firstValue.requestsList.single().requestId
       assertThat(secondRequestId).isNotEqualTo(firstRequestId)
     }
+
+  @Test
+  fun `sync restores deleted impression metadata at the same blob URI`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    var updatedBeforeRestore = false
+    wheneverBlocking {
+        impressionMetadataServiceMock.listImpressionMetadata(any<ListImpressionMetadataRequest>())
+      }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+        assertThat(request.showDeleted).isTrue()
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            name = "dataProviders/dataProvider123/impressionMetadata/im-deleted"
+            blobUri = "$bucket/${folderPrefix}metadata-0.binpb"
+            blobTypeUrl =
+              "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
+            eventGroupReferenceId = "some-event-group-reference-id"
+            modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
+            interval = interval {
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
+            }
+            state = org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata.State.DELETED
+          }
+        }
+      }
+    wheneverBlocking {
+        impressionMetadataServiceMock.batchUpdateImpressionMetadata(
+          any<BatchUpdateImpressionMetadataRequest>()
+        )
+      }
+      .thenAnswer { invocation ->
+        updatedBeforeRestore = true
+        val request = invocation.getArgument<BatchUpdateImpressionMetadataRequest>(0)
+        batchUpdateImpressionMetadataResponse {
+          impressionMetadata += request.requestsList.map { it.impressionMetadata }
+        }
+      }
+    wheneverBlocking {
+        impressionMetadataServiceMock.batchUndeleteImpressionMetadata(
+          any<BatchUndeleteImpressionMetadataRequest>()
+        )
+      }
+      .thenAnswer {
+        assertThat(updatedBeforeRestore).isTrue()
+        batchUndeleteImpressionMetadataResponse {}
+      }
+
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+      )
+
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    val undeleteCaptor = argumentCaptor<BatchUndeleteImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock) {
+      batchUndeleteImpressionMetadata(undeleteCaptor.capture())
+    }
+    assertThat(undeleteCaptor.firstValue.namesList.single())
+      .isEqualTo("dataProviders/dataProvider123/impressionMetadata/im-deleted")
+    val updateCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock) {
+      batchUpdateImpressionMetadata(updateCaptor.capture())
+    }
+    assertThat(
+        updateCaptor.firstValue.requestsList.single().impressionMetadata.interval.startTime.seconds
+      )
+      .isEqualTo(300)
+  }
 
   /**
    * Seeds a directory (prefix) with BlobDetails files, one per interval. Returns the blob keys

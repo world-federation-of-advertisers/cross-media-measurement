@@ -49,6 +49,7 @@ import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetada
 import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.batchUndeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.batchUpdateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsResponse
@@ -61,6 +62,7 @@ import org.wfanet.measurement.internal.edpaggregator.impressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.undeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.updateImpressionMetadataRequest
 
 @RunWith(JUnit4::class)
@@ -942,6 +944,94 @@ abstract class ImpressionMetadataServiceTest {
         )
       assertThat(got).isEqualTo(deleted)
     }
+
+  @Test
+  fun `undeleteImpressionMetadata restores a deleted resource`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+    )
+    service.deleteImpressionMetadata(
+      deleteImpressionMetadataRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
+      }
+    )
+
+    val restored =
+      service.undeleteImpressionMetadata(
+        undeleteImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
+        }
+      )
+
+    assertThat(restored.state).isEqualTo(State.IMPRESSION_METADATA_STATE_ACTIVE)
+  }
+
+  @Test
+  fun `undeleteImpressionMetadata throws ALREADY_EXISTS for active resource`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.undeleteImpressionMetadata(
+          undeleteImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+  }
+
+  @Test
+  fun `batchUndeleteImpressionMetadata restores deleted resources`() = runBlocking {
+    val created =
+      service
+        .batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+            requests += createImpressionMetadataRequest {
+              impressionMetadata = IMPRESSION_METADATA_2
+            }
+          }
+        )
+        .impressionMetadataList
+    service.batchDeleteImpressionMetadata(
+      batchDeleteImpressionMetadataRequest {
+        requests +=
+          created.map {
+            deleteImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              impressionMetadataResourceId = it.impressionMetadataResourceId
+            }
+          }
+      }
+    )
+
+    val restored =
+      service.batchUndeleteImpressionMetadata(
+        batchUndeleteImpressionMetadataRequest {
+          requests +=
+            created.map {
+              undeleteImpressionMetadataRequest {
+                dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                impressionMetadataResourceId = it.impressionMetadataResourceId
+              }
+            }
+        }
+      )
+
+    assertThat(restored.impressionMetadataList.map { it.state })
+      .containsExactly(
+        State.IMPRESSION_METADATA_STATE_ACTIVE,
+        State.IMPRESSION_METADATA_STATE_ACTIVE,
+      )
+  }
 
   @Test
   fun `deleteImpressionMetadata throws INVALID_ARGUMENT when dataProviderResourceId is missing`() =
