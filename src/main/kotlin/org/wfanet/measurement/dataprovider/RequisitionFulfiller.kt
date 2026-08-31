@@ -16,7 +16,6 @@ package org.wfanet.measurement.dataprovider
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.unpack
-import io.grpc.Status
 import io.grpc.StatusException
 import java.security.GeneralSecurityException
 import java.security.SignatureException
@@ -24,13 +23,11 @@ import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.util.logging.Level
 import java.util.logging.Logger
-import kotlinx.coroutines.delay
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
-import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -45,7 +42,6 @@ import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.unpack
-import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
@@ -77,87 +73,19 @@ abstract class RequisitionFulfiller(
   /** Paces outbound calls to the Kingdom's Certificates and Requisitions services. */
   private val kingdomRpcThrottler: Throttler,
   protected val trustedCertificates: Map<ByteString, X509Certificate>,
-  private val retryMaxAttempts: Int = DEFAULT_RETRY_MAX_ATTEMPTS,
-  private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) {
-  init {
-    require(retryMaxAttempts >= 1) { "retryMaxAttempts must be at least 1" }
-  }
-
-  /** Result of checking whether a mutation already took effect on the server. */
-  private sealed interface MutationReconciliation<out T> {
-    /** The mutation already took effect; [result] is what [callKingdom] should return. */
-    data class Applied<T>(val result: T) : MutationReconciliation<T>
-
-    /** The mutation has definitely not taken effect yet and is safe to retry. */
-    object NotApplied : MutationReconciliation<Nothing>
-  }
-
   /**
-   * Paces [block] via [kingdomRpcThrottler], retrying on UNAVAILABLE up to [retryMaxAttempts]
-   * times. [errorMessage] wraps the exception from the final attempt.
+   * Paces [block] via [kingdomRpcThrottler]. [errorMessage] wraps the exception on failure.
    *
-   * For a non-idempotent mutation, pass [reconcileMutation] to confirm via [reconcileWithRetry]
-   * whether it already took effect before replaying [block] -- UNAVAILABLE doesn't guarantee it
-   * never reached the server. Any exception from [reconcileMutation] besides a retried UNAVAILABLE
-   * propagates immediately.
+   * Does not retry: the underlying channel's default service config already retries UNAVAILABLE
+   * transparently, and a non-idempotent mutation can't be safely replayed at this layer without
+   * reconciling via GetRequisition first (world-federation-of-advertisers/cross-media-measurement#2374).
    */
-  private suspend fun <T> callKingdom(
-    errorMessage: String,
-    reconcileMutation: (suspend () -> MutationReconciliation<T>)? = null,
-    block: suspend () -> T,
-  ): T {
-    var attempt = 0
-    while (true) {
-      attempt++
-      try {
-        return kingdomRpcThrottler.onReady(block)
-      } catch (e: StatusException) {
-        if (e.status.code != Status.Code.UNAVAILABLE) {
-          throw Exception(errorMessage, e)
-        }
-        if (reconcileMutation != null) {
-          val reconciliation: MutationReconciliation<T> =
-            reconcileWithRetry(errorMessage, reconcileMutation)
-          if (reconciliation is MutationReconciliation.Applied) {
-            return reconciliation.result
-          }
-        }
-        if (attempt >= retryMaxAttempts) {
-          throw Exception(errorMessage, e)
-        }
-        logger.warning {
-          "$errorMessage on attempt $attempt of $retryMaxAttempts (${e.message}); retrying"
-        }
-        delay(retryBackoff.durationForAttempt(attempt).toMillis())
-      }
-    }
-  }
-
-  /**
-   * Calls [reconcileMutation], retrying on UNAVAILABLE up to [retryMaxAttempts] times. Any other
-   * exception propagates immediately: there's no safe default without knowing whether the mutation
-   * already took effect.
-   */
-  private suspend fun <T> reconcileWithRetry(
-    errorMessage: String,
-    reconcileMutation: suspend () -> MutationReconciliation<T>,
-  ): MutationReconciliation<T> {
-    var attempt = 0
-    while (true) {
-      attempt++
-      try {
-        return kingdomRpcThrottler.onReady(reconcileMutation)
-      } catch (e: StatusException) {
-        if (e.status.code != Status.Code.UNAVAILABLE || attempt >= retryMaxAttempts) {
-          throw Exception("$errorMessage (while confirming whether it already took effect)", e)
-        }
-        logger.warning {
-          "$errorMessage (while confirming whether it already took effect) on attempt $attempt " +
-            "of $retryMaxAttempts (${e.message}); retrying"
-        }
-        delay(retryBackoff.durationForAttempt(attempt).toMillis())
-      }
+  private suspend fun <T> callKingdom(errorMessage: String, block: suspend () -> T): T {
+    try {
+      return kingdomRpcThrottler.onReady(block)
+    } catch (e: StatusException) {
+      throw Exception(errorMessage, e)
     }
   }
 
@@ -253,25 +181,7 @@ abstract class RequisitionFulfiller(
   ): Requisition {
     // TODO(world-federation-of-advertisers/cross-media-measurement#2374): Handle ABORTED (stale
     //  etag) by retrying with a refreshed etag once the Kingdom's public API propagates it.
-    return callKingdom(
-      "Error refusing requisition $requisitionName",
-      reconcileMutation = {
-        val requisition: Requisition =
-          requisitionsStub.getRequisition(getRequisitionRequest { name = requisitionName })
-        when {
-          requisition.state == Requisition.State.REFUSED ->
-            MutationReconciliation.Applied(requisition)
-          requisition.state == Requisition.State.UNFULFILLED && requisition.etag == etag ->
-            MutationReconciliation.NotApplied
-          else ->
-            error(
-              "Unexpected state for requisition $requisitionName while confirming whether " +
-                "RefuseRequisition already took effect: state=${requisition.state}, " +
-                "etag=${requisition.etag}"
-            )
-        }
-      },
-    ) {
+    return callKingdom("Error refusing requisition $requisitionName") {
       requisitionsStub.refuseRequisition(
         refuseRequisitionRequest {
           name = requisitionName
@@ -331,25 +241,7 @@ abstract class RequisitionFulfiller(
 
     // TODO(world-federation-of-advertisers/cross-media-measurement#2374): Handle ABORTED (stale
     //  etag) by retrying with a refreshed etag once the Kingdom's public API propagates it.
-    callKingdom(
-      "Error fulfilling direct requisition ${requisition.name}",
-      reconcileMutation = {
-        val fulfilledRequisition: Requisition =
-          requisitionsStub.getRequisition(getRequisitionRequest { name = requisition.name })
-        when {
-          fulfilledRequisition.state == Requisition.State.FULFILLED ->
-            MutationReconciliation.Applied(FulfillDirectRequisitionResponse.getDefaultInstance())
-          fulfilledRequisition.state == Requisition.State.UNFULFILLED &&
-            fulfilledRequisition.etag == requisition.etag -> MutationReconciliation.NotApplied
-          else ->
-            error(
-              "Unexpected state for requisition ${requisition.name} while confirming whether " +
-                "FulfillDirectRequisition already took effect: " +
-                "state=${fulfilledRequisition.state}, etag=${fulfilledRequisition.etag}"
-            )
-        }
-      },
-    ) {
+    callKingdom("Error fulfilling direct requisition ${requisition.name}") {
       requisitionsStub.fulfillDirectRequisition(
         fulfillDirectRequisitionRequest {
           name = requisition.name
@@ -364,7 +256,5 @@ abstract class RequisitionFulfiller(
 
   companion object {
     val logger: Logger = Logger.getLogger(this::class.java.name)
-
-    private const val DEFAULT_RETRY_MAX_ATTEMPTS = 4
   }
 }
