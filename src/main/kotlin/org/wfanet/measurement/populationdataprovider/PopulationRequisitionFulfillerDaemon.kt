@@ -146,6 +146,10 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
   private lateinit var eventMessageTypeUrl: String
 
   override fun run() {
+    require(kingdomRpcMinInterval > Duration.ZERO) {
+      "--kingdom-rpc-min-interval must be positive, got $kingdomRpcMinInterval"
+    }
+
     val certificate: X509Certificate =
       pdpCsCertificateDerFile.inputStream().use { input -> readCertificate(input) }
     val signingKeyHandle =
