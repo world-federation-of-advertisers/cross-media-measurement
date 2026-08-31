@@ -35,18 +35,11 @@ data class ModelLineSource(
 /**
  * Builds the model line -> [ModelLineInfo] map for a set of [ModelLineSource]s.
  *
- * Model lines are grouped by population-spec blob URI: the VID index depends only on the population
- * spec, not on which event descriptor a model line selects from it, so each group's
- * [PopulationSpec] and [VidIndexMap] are downloaded, parsed, and indexed once and shared by every
- * model line in the group.
- *
- * Population-spec textproto parsing can require descriptors for message types packed in
- * google.protobuf.Any (e.g. event template attributes). Each group gets its own [TypeRegistry],
- * scoped to only the descriptor sets referenced by that group's model lines, so a population spec
- * is never resolved against message types pulled in by unrelated model lines -- which could
- * otherwise paper over a genuine type mismatch or a name collision across groups. Descriptor sets
- * are still cached process-wide by descriptor blob URI (see [EventDescriptorLoader]), so a URI
- * shared across groups is only downloaded and parsed once.
+ * Model lines sharing a population-spec blob URI share one [PopulationSpec]/[VidIndexMap],
+ * downloaded and built once. Each group gets its own [TypeRegistry], scoped to only that group's
+ * descriptor sets, so a population spec can't resolve Any-packed attributes against types from
+ * unrelated model lines. Descriptor sets are still cached process-wide by blob URI regardless of
+ * group (see [EventDescriptorLoader]).
  *
  * @param loadDescriptorSet downloads and parses the descriptor set for a descriptor blob URI.
  * @param loadPopulationSpec downloads and parses the [PopulationSpec] for a population-spec blob
