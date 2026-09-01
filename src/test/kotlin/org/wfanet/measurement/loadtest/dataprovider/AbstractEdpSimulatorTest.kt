@@ -480,9 +480,17 @@ abstract class AbstractEdpSimulatorTest {
     /** Dummy [Throttler] for satisfying signatures without being used. */
     val dummyThrottler =
       object : Throttler {
-        override suspend fun <T> onReady(block: suspend () -> T): T {
-          throw UnsupportedOperationException("Should not be called")
-        }
+        override suspend fun <T> onReady(block: suspend () -> T): T = block()
+      }
+
+    /**
+     * A second, distinct dummy [Throttler] instance for `kingdomRpcThrottler`. It must not be the
+     * same instance as the workflow throttler: in production, a real (non-reentrant) throttler
+     * shared between the two would deadlock, since run() holds it for the whole workflow.
+     */
+    val dummyKingdomRpcThrottler =
+      object : Throttler {
+        override suspend fun <T> onReady(block: suspend () -> T): T = block()
       }
 
     fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {

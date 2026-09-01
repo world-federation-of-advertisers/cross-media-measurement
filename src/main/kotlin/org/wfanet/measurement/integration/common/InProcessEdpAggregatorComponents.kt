@@ -70,6 +70,7 @@ import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.config.securecomputation.WatchedPath
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
@@ -222,6 +223,8 @@ class InProcessEdpAggregatorComponents(
       getRequisitionsStorageConfig = getStorageConfig,
       modelLineInfoMap = modelLineInfoMap,
       metrics = ResultsFulfillerMetrics.create(),
+      requisitionsThrottler = FakeThrottler(),
+      kingdomThrottler = FakeThrottler(),
     )
   }
 

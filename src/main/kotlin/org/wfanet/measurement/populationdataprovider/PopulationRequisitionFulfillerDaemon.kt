@@ -117,6 +117,18 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
   private lateinit var throttlerMinimumInterval: Duration
 
   @Option(
+    names = ["--kingdom-rpc-min-interval"],
+    description =
+      [
+        "Minimum interval between outbound Certificates and Requisitions RPCs, e.g. " +
+          "GetCertificate, ListRequisitions. Paces this app's Kingdom traffic to stay within " +
+          "Kingdom's per-principal rate limit for those methods."
+      ],
+    defaultValue = "200ms",
+  )
+  private lateinit var kingdomRpcMinInterval: Duration
+
+  @Option(
     names = ["--event-message-descriptor-set"],
     description =
       [
@@ -134,6 +146,10 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
   private lateinit var eventMessageTypeUrl: String
 
   override fun run() {
+    require(kingdomRpcMinInterval > Duration.ZERO) {
+      "--kingdom-rpc-min-interval must be positive, got $kingdomRpcMinInterval"
+    }
+
     val certificate: X509Certificate =
       pdpCsCertificateDerFile.inputStream().use { input -> readCertificate(input) }
     val signingKeyHandle =
@@ -169,6 +185,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
     val populationsStub = PopulationsGrpcKt.PopulationsCoroutineStub(publicApiChannel)
 
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
+    val kingdomRpcThrottler = MinimumIntervalThrottler(Clock.systemUTC(), kingdomRpcMinInterval)
 
     val typeRegistry: TypeRegistry = buildTypeRegistry()
     val eventMessageDescriptor: Descriptors.Descriptor =
@@ -187,6 +204,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
         modelReleasesStub,
         populationsStub,
         eventMessageDescriptor,
+        kingdomRpcThrottler,
       )
 
     runBlocking { populationRequisitionFulfiller.run() }

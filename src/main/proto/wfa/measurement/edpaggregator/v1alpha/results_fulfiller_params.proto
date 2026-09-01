@@ -119,8 +119,18 @@ message ResultsFulfillerParams {
   // The k-anonymity params to be applied.
   KAnonymityParams k_anonymity_params = 6;
 
-  // The maximum frequency used for impression count in impression measurements.
-  // Only apply for direct measurements.
+  // The configured cap magnitude.
+  //
+  // When `impression_cap_mode` is CUSTOM_CAP, this is required and must be
+  // greater than zero.
+  //
+  // When `impression_cap_mode` is UNSPECIFIED, it retains its existing meaning:
+  //   -1  -> uncapped
+  //    0  -> use the MeasurementSpec cap
+  //   N>0 -> use N as a custom cap
+  //
+  // Every other explicit mode carries the choice itself, so this must be unset
+  // there. Only applies to direct measurements.
   int32 impression_max_frequency_per_user = 7;
 
   // Optional mapping from a requisition model line to the model line used for
@@ -167,4 +177,43 @@ message ResultsFulfillerParams {
 
   // Multi-party computation protocol configuration.
   MultiPartyConfig multi_party_config = 10;
+
+  // How the per-user impression cap is chosen for direct impression
+  // measurements.
+  enum ImpressionCapMode {
+    // No explicit mode was selected. Preserve the existing interpretation of
+    // `impression_max_frequency_per_user`:
+    //   -1  -> uncapped
+    //    0  -> use the MeasurementSpec cap
+    //   N>0 -> use N as a custom cap
+    //
+    // This allows existing configurations to continue working without setting
+    // `impression_cap_mode`. New configurations should use an explicit mode.
+    UNSPECIFIED = 0;
+
+    // Return the raw, uncapped impression count. K-anonymity thresholds still
+    // apply, but no impression noise is added. The MeasurementSpec cap is
+    // ignored and `impression_max_frequency_per_user` must be unset.
+    UNCAPPED = 1;
+
+    // Use `MeasurementSpec.impression.maximum_frequency_per_user`, as requested
+    // by the Measurement Consumer. `impression_max_frequency_per_user` must be
+    // unset.
+    USE_MEASUREMENT_SPEC_CAP = 2;
+
+    // Use `impression_max_frequency_per_user` as a fixed cap. The value must be
+    // greater than zero.
+    CUSTOM_CAP = 3;
+
+    // Derive the cap from the measurement's frequency distribution. Noise is
+    // applied across the cumulative histogram used to select and compute the
+    // dynamically capped result. The MeasurementSpec cap is ignored and
+    // `impression_max_frequency_per_user` must be unset.
+    DYNAMIC = 4;
+  }
+
+  // How the per-user impression cap is chosen. If unset, this defaults to
+  // UNSPECIFIED and preserves the existing interpretation of
+  // `impression_max_frequency_per_user`.
+  ImpressionCapMode impression_cap_mode = 11;
 }

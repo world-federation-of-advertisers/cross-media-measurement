@@ -29,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
@@ -36,6 +37,7 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMe
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.MeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.TrusTeeMeasurementFulfiller
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusteeFulfillRequisitionRequestBuilder
 
@@ -104,15 +106,81 @@ data class TrusTeeConfig(
 }
 
 /**
+ * The cap that leaves a vector's per-user frequencies as the source data has them.
+ *
+ * [FrequencyVectorBuilder] reads -1 as "no override" rather than "no cap", falling back to the
+ * `MeasurementSpec`, so it cannot express an uncapped vector. `StripedByteFrequencyVector` already
+ * saturates each VID at `Byte.MAX_VALUE`, so capping there changes nothing.
+ */
+internal const val UNCAPPED = 127
+
+/**
+ * Throws if [configuredCap] and [impressionCapMode] disagree.
+ *
+ * Only [ImpressionCapMode.CUSTOM_CAP] reads `impression_max_frequency_per_user`, and it requires a
+ * positive value. Every other explicit mode carries the choice itself, so a configured cap there is
+ * an operator setting a value that would be silently ignored. [ImpressionCapMode.UNSPECIFIED] is
+ * exempt: reading the field is what it is for.
+ */
+fun requireCapMatchesMode(impressionCapMode: ImpressionCapMode, configuredCap: Int) {
+  when (impressionCapMode) {
+    ImpressionCapMode.CUSTOM_CAP ->
+      require(configuredCap > 0) {
+        "impression_max_frequency_per_user must be greater than zero under CUSTOM_CAP, got " +
+          "$configuredCap"
+      }
+    ImpressionCapMode.UNCAPPED,
+    ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP,
+    ImpressionCapMode.DYNAMIC ->
+      require(configuredCap == 0) {
+        "impression_max_frequency_per_user is ignored under $impressionCapMode and must be unset, " +
+          "got $configuredCap"
+      }
+    ImpressionCapMode.UNSPECIFIED,
+    ImpressionCapMode.UNRECOGNIZED -> {}
+  }
+}
+
+/**
+ * Returns the per-user cap to build the frequency vector with, for [impressionCapMode].
+ *
+ * [ImpressionCapMode.DYNAMIC] derives its clip from the frequency distribution, so it needs the raw
+ * per-user frequencies. Capping the vector first hides every frequency above the cap, leaving the
+ * search to choose a clip for a distribution the data does not have.
+ *
+ * The remaining modes cap the vector as before. Null defers to the `MeasurementSpec`, which is what
+ * both [ImpressionCapMode.UNCAPPED] and [ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP] want: an
+ * uncapped count is summed from the raw vector the EDP Aggregator already holds, so the cap here
+ * only bounds reach and frequency.
+ */
+internal fun frequencyVectorCap(
+  impressionCapMode: ImpressionCapMode,
+  overrideImpressionMaxFrequencyPerUser: Int?,
+): Int? =
+  when (impressionCapMode) {
+    ImpressionCapMode.DYNAMIC -> UNCAPPED
+    ImpressionCapMode.UNCAPPED,
+    ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP -> null
+    ImpressionCapMode.CUSTOM_CAP,
+    ImpressionCapMode.UNSPECIFIED,
+    ImpressionCapMode.UNRECOGNIZED -> overrideImpressionMaxFrequencyPerUser
+  }
+
+/**
  * Default implementation that routes requisitions to protocol-specific fulfillers.
  *
  * @param requisitionsStub gRPC stub for Direct protocol requisitions
+ * @param requisitionsThrottler paces outbound `GetRequisition` calls to Kingdom
+ * @param kingdomThrottler paces outbound `FulfillDirectRequisition` calls to Kingdom, which share
+ *   Kingdom's default per-principal rate-limit bucket with other Kingdom RPC methods without a
+ *   dedicated per-method limit (`GetRequisition` and `ListRequisitions` each have their own)
  * @param requisitionFulfillmentStubMap duchy name → gRPC stub mapping for HM Shuffle and TrusTee
  * @param dataProviderCertificateKey EDP certificate identifier for result signing
  * @param dataProviderSigningKeyHandle cryptographic key for result authentication
  * @param noiserSelector strategy for selecting differential privacy mechanisms
  * @param resultMinimumThresholds optional small-cell suppression thresholds; null disables
  *   suppression
+ * @param impressionCapMode how the per-user impression cap is chosen.
  * @param overrideImpressionMaxFrequencyPerUser optional frequency cap override; null or -1 means no
  *   capping and uses totalUncappedImpressions instead
  * @param supportedMultiPartyNoiseMechanisms set of [NoiseMechanism] values this EDP supports for
@@ -123,6 +191,8 @@ data class TrusTeeConfig(
  */
 class DefaultFulfillerSelector(
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
+  private val requisitionsThrottler: Throttler,
+  private val kingdomThrottler: Throttler,
   private val requisitionFulfillmentStubMap:
     Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
@@ -130,6 +200,7 @@ class DefaultFulfillerSelector(
   private val noiserSelector: NoiserSelector,
   private val resultMinimumThresholds: ResultMinimumThresholds?,
   private val overrideImpressionMaxFrequencyPerUser: Int?,
+  private val impressionCapMode: ImpressionCapMode = ImpressionCapMode.UNSPECIFIED,
   private val supportedMultiPartyNoiseMechanisms: Set<NoiseMechanism>,
   private val trusTeeConfig: TrusTeeConfig? = null,
   private val kekUriToKeyNameMap: Map<String, String> = emptyMap(),
@@ -176,7 +247,8 @@ class DefaultFulfillerSelector(
         frequencyDataBytes = frequencyDataBytes,
         strict = false,
         resultMinimumThresholds = resultMinimumThresholds,
-        overrideImpressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
+        overrideImpressionMaxFrequencyPerUser =
+          frequencyVectorCap(impressionCapMode, overrideImpressionMaxFrequencyPerUser),
       )
 
     return if (requisition.protocolConfig.protocolsList.any { it.hasDirect() }) {
@@ -224,6 +296,7 @@ class DefaultFulfillerSelector(
           vec.build(),
           requisitionFulfillmentStubMap,
           requisitionsStub,
+          requisitionsThrottler,
           trusTeeEncryptionParams,
         )
       } else {
@@ -241,6 +314,7 @@ class DefaultFulfillerSelector(
           vec,
           requisitionFulfillmentStubMap,
           requisitionsStub,
+          requisitionsThrottler,
           resultMinimumThresholds,
           protocolMinUsers,
           protocolMinImpressions,
@@ -267,6 +341,7 @@ class DefaultFulfillerSelector(
           dataProviderCertificateKey,
           requisitionFulfillmentStubMap,
           requisitionsStub,
+          requisitionsThrottler,
         )
       } else {
         HMShuffleMeasurementFulfiller.buildThresholded(
@@ -279,6 +354,7 @@ class DefaultFulfillerSelector(
           dataProviderCertificateKey,
           requisitionFulfillmentStubMap,
           requisitionsStub,
+          requisitionsThrottler,
           resultMinimumThresholds,
           maxPopulation = null,
         )
@@ -333,6 +409,7 @@ class DefaultFulfillerSelector(
         resultMinimumThresholds = resultMinimumThresholds,
         impressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
         totalUncappedImpressions = totalUncappedImpressions,
+        impressionCapMode = impressionCapMode,
       )
     return DirectMeasurementFulfiller(
       requisition.name,
@@ -345,6 +422,8 @@ class DefaultFulfillerSelector(
       dataProviderSigningKeyHandle,
       dataProviderCertificateKey,
       requisitionsStub,
+      requisitionsThrottler,
+      kingdomThrottler,
     )
   }
 }
