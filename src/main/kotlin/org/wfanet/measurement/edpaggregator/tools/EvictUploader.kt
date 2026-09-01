@@ -120,8 +120,9 @@ class EvictUploader(
 
     val queuedOrRunningRows = listQueuedOrRunningModelLines(dataProvider)
     require(queuedOrRunningRows.isEmpty()) {
-      "$dataProvider has queued or running upload/model-line rows; pause new dispatches and wait " +
-        "for processing to finish before eviction: ${queuedOrRunningRows.map { it.name }}"
+      "The VID-labeling pipeline is currently processing data for $dataProvider, so eviction " +
+        "cannot run. Retry after all VID-labeling processing for this data provider has " +
+        "finished. Active upload/model-line resources: ${queuedOrRunningRows.map { it.name }}"
     }
 
     val rowsByUpload = badUploads.associateWith { listModelLines(it) }
