@@ -124,7 +124,10 @@ class RawImpressionUploadServiceTest {
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
           parent = DATA_PROVIDER_KEY.toName()
-          rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = 1L
+          }
           requestId = UUID.randomUUID().toString()
         }
       )
