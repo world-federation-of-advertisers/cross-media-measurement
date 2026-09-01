@@ -49,7 +49,9 @@ Run the command with:
 
 Review the printed plan before entering `yes`. Non-memoized model lines include only the selected
 uploads. Memoized model lines include the selected uploads and every later upload that depends on
-their cumulative rank-index state.
+their cumulative rank-index state. The command refuses to evict a superseded upload revision while
+a completed replacement owns the current deterministic output; select the replacement revision if
+it is also invalid.
 
 ## What eviction changes
 
@@ -75,11 +77,35 @@ of every raw-impression object currently present in the directory. Unchanged obj
 be uploaded again, but the pipeline processes them again together with changed and added objects.
 Objects removed from the directory are excluded from the replacement upload.
 
-For a memoized cascade, re-trigger every evicted date in chronological order, beginning with the
-earliest corrected date. Keep dispatch ordered so each cumulative rank-index snapshot is rebuilt
-from its corrected predecessor. The normal labeling and data-availability flows regenerate output,
-restore matching soft-deleted metadata, and publish availability to Kingdom. Do not run
-`retry-failed` for rows evicted because their original jobs describe the invalid attempt.
+For explicitly selected bad uploads, the EDP writes corrected data and a new `done` generation in
+chronological order. That normal path recreates every applicable memoized and non-memoized model
+line.
+
+Later uploads pulled into the eviction only by a memoized cascade do not need their raw data
+re-uploaded. After every earlier corrected upload has completed, run the ordered `recover-upload`
+commands printed by `evict-uploads`. Each command takes one source upload plus a comma-separated
+list of memoized model lines, validates that the source is still the latest revision and that those
+rows are `FAILED`, then atomically writes a new generation of the existing empty `done` object. The
+new object carries the selected model lines as metadata; DataWatcher forwards them in
+`X-Override-Model-Lines`, so VidLabelingDispatcher creates a replacement upload for only those
+model lines. For example:
+
+```
+vid-labeling-heal recover-upload \
+  --raw-impression-upload=dataProviders/DP/rawImpressionUploads/D4_UPLOAD \
+  --model-lines=modelProviders/MP/modelSuites/MS/modelLines/ML1 \
+  --edpa-public-api-target=EDPA_TARGET \
+  --tls-cert-file=TLS_CERT \
+  --tls-key-file=TLS_KEY \
+  --cert-collection-file=ROOT_CERTS \
+  --gcs-project=GCS_PROJECT
+```
+
+Run recovery commands in their printed order and wait for each preceding replacement to complete,
+so every cumulative rank-index snapshot is rebuilt from its corrected predecessor. The normal
+labeling and data-availability flows regenerate output, restore matching soft-deleted metadata, and
+publish availability to Kingdom. Do not run `retry-failed` for rows evicted because their original
+jobs describe the invalid attempt.
 
 Before replacement processing begins, the eviction operation is safe to repeat after a partial
 failure. It skips rows already marked `FAILED`, already-deleted metadata, and output blobs that are
