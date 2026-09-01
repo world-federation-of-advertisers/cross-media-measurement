@@ -34,6 +34,7 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileBinPacker
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
@@ -111,6 +112,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  * @param rawImpressionUploadFileStub stub for listing an upload's files to bin-pack (non-memoized).
  * @param vidLabelingJobStub stub for creating Phase-2 `VidLabelingJob`s (non-memoized).
  * @param maxFileBatchSizeBytes bin-packing threshold for non-memoized `VidLabelingJob`s.
+ * @param rpcThrottlers process-scoped rate limiters shared with the caller.
  * @param maxJobsPerBatchCreate chunk size for `BatchCreateVidLabelingJobs`.
  */
 class VidLabelingDispatchSequencer(
@@ -135,6 +137,7 @@ class VidLabelingDispatchSequencer(
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub,
   private val vidLabelingJobStub: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub,
   private val maxFileBatchSizeBytes: Long,
+  private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val maxJobsPerBatchCreate: Int = DEFAULT_MAX_JOBS_PER_BATCH_CREATE,
 ) {
 
@@ -306,14 +309,16 @@ class VidLabelingDispatchSequencer(
     rawImpressionUploadFileStub
       .listResources { pageToken: String ->
         val response =
-          rawImpressionUploadFileStub.listRawImpressionUploadFiles(
-            listRawImpressionUploadFilesRequest {
-              parent = uploadName
-              if (pageToken.isNotEmpty()) {
-                this.pageToken = pageToken
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadFileStub.listRawImpressionUploadFiles(
+              listRawImpressionUploadFilesRequest {
+                parent = uploadName
+                if (pageToken.isNotEmpty()) {
+                  this.pageToken = pageToken
+                }
               }
-            }
-          )
+            )
+          }
         ResourceList(response.rawImpressionUploadFilesList, response.nextPageToken)
       }
       .flattenConcat()
@@ -335,21 +340,23 @@ class VidLabelingDispatchSequencer(
     val created = mutableListOf<VidLabelingJob>()
     for (group in batches.withIndex().chunked(maxJobsPerBatchCreate)) {
       val response =
-        vidLabelingJobStub.batchCreateVidLabelingJobs(
-          batchCreateVidLabelingJobsRequest {
-            parent = uploadName
-            for ((batchIndex, batch) in group) {
-              requests += createVidLabelingJobRequest {
-                parent = uploadName
-                vidLabelingJob = vidLabelingJob {
-                  cmmsModelLines += modelLineNames
-                  rawImpressionUploadFiles += batch
+        rpcThrottlers.metadataWrite.onReady {
+          vidLabelingJobStub.batchCreateVidLabelingJobs(
+            batchCreateVidLabelingJobsRequest {
+              parent = uploadName
+              for ((batchIndex, batch) in group) {
+                requests += createVidLabelingJobRequest {
+                  parent = uploadName
+                  vidLabelingJob = vidLabelingJob {
+                    cmmsModelLines += modelLineNames
+                    rawImpressionUploadFiles += batch
+                  }
+                  requestId = RequestIds.forVidLabelingJob(uploadName, modelLineNames, batchIndex)
                 }
-                requestId = RequestIds.forVidLabelingJob(uploadName, modelLineNames, batchIndex)
               }
             }
-          }
-        )
+          )
+        }
       check(response.vidLabelingJobsList.size == group.size) {
         "BatchCreateVidLabelingJobs returned ${response.vidLabelingJobsList.size} jobs for " +
           "${group.size} requests"
@@ -432,15 +439,17 @@ class VidLabelingDispatchSequencer(
     rawImpressionUploadStub
       .listResources { pageToken: String ->
         val response =
-          rawImpressionUploadStub.listRawImpressionUploads(
-            listRawImpressionUploadsRequest {
-              parent = dataProviderName
-              filter = ListRawImpressionUploadsRequestKt.filter { stateIn += state }
-              if (pageToken.isNotEmpty()) {
-                this.pageToken = pageToken
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadStub.listRawImpressionUploads(
+              listRawImpressionUploadsRequest {
+                parent = dataProviderName
+                filter = ListRawImpressionUploadsRequestKt.filter { stateIn += state }
+                if (pageToken.isNotEmpty()) {
+                  this.pageToken = pageToken
+                }
               }
-            }
-          )
+            )
+          }
         ResourceList(response.rawImpressionUploadsList, response.nextPageToken)
       }
       .flattenConcat()
@@ -452,14 +461,16 @@ class VidLabelingDispatchSequencer(
     rawImpressionUploadModelLineStub
       .listResources { pageToken: String ->
         val response =
-          rawImpressionUploadModelLineStub.listRawImpressionUploadModelLines(
-            listRawImpressionUploadModelLinesRequest {
-              parent = uploadName
-              if (pageToken.isNotEmpty()) {
-                this.pageToken = pageToken
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadModelLineStub.listRawImpressionUploadModelLines(
+              listRawImpressionUploadModelLinesRequest {
+                parent = uploadName
+                if (pageToken.isNotEmpty()) {
+                  this.pageToken = pageToken
+                }
               }
-            }
-          )
+            )
+          }
         ResourceList(response.rawImpressionUploadModelLinesList, response.nextPageToken)
       }
       .flattenConcat()
@@ -472,14 +483,16 @@ class VidLabelingDispatchSequencer(
       modelRolloutsStub
         .listResources { pageToken: String ->
           val response =
-            modelRolloutsStub.listModelRollouts(
-              listModelRolloutsRequest {
-                parent = modelLineName
-                if (pageToken.isNotEmpty()) {
-                  this.pageToken = pageToken
+            rpcThrottlers.kingdom.onReady {
+              modelRolloutsStub.listModelRollouts(
+                listModelRolloutsRequest {
+                  parent = modelLineName
+                  if (pageToken.isNotEmpty()) {
+                    this.pageToken = pageToken
+                  }
                 }
-              }
-            )
+              )
+            }
           ResourceList(response.modelRolloutsList, response.nextPageToken)
         }
         .flattenConcat()
@@ -499,14 +512,16 @@ class VidLabelingDispatchSequencer(
       modelShardsStub
         .listResources { pageToken: String ->
           val response =
-            modelShardsStub.listModelShards(
-              listModelShardsRequest {
-                parent = dataProviderName
-                if (pageToken.isNotEmpty()) {
-                  this.pageToken = pageToken
+            rpcThrottlers.kingdom.onReady {
+              modelShardsStub.listModelShards(
+                listModelShardsRequest {
+                  parent = dataProviderName
+                  if (pageToken.isNotEmpty()) {
+                    this.pageToken = pageToken
+                  }
                 }
-              }
-            )
+              )
+            }
           ResourceList(response.modelShardsList, response.nextPageToken)
         }
         .flattenConcat()
@@ -598,7 +613,7 @@ class VidLabelingDispatchSequencer(
       }
     }
     try {
-      workItemsStub.createWorkItem(request)
+      rpcThrottlers.controlPlane.onReady { workItemsStub.createWorkItem(request) }
     } catch (e: StatusException) {
       if (e.status.code == Status.Code.ALREADY_EXISTS) {
         // A concurrent dispatch already created this WorkItem; the deterministic ID makes this a
@@ -613,13 +628,15 @@ class VidLabelingDispatchSequencer(
 
   private suspend fun markLabeling(modelLineName: String, etag: String) {
     try {
-      rawImpressionUploadModelLineStub.markRawImpressionUploadModelLineLabeling(
-        markRawImpressionUploadModelLineLabelingRequest {
-          name = modelLineName
-          this.etag = etag
-          requestId = RequestIds.forMarkRawImpressionUploadModelLineLabeling(modelLineName)
-        }
-      )
+      rpcThrottlers.metadataWrite.onReady {
+        rawImpressionUploadModelLineStub.markRawImpressionUploadModelLineLabeling(
+          markRawImpressionUploadModelLineLabelingRequest {
+            name = modelLineName
+            this.etag = etag
+            requestId = RequestIds.forMarkRawImpressionUploadModelLineLabeling(modelLineName)
+          }
+        )
+      }
     } catch (e: StatusException) {
       if (isConcurrentClaimLoss(e)) {
         logger.info(
@@ -634,13 +651,15 @@ class VidLabelingDispatchSequencer(
 
   private suspend fun markPoolAssigning(modelLineName: String, etag: String) {
     try {
-      rawImpressionUploadModelLineStub.markRawImpressionUploadModelLinePoolAssigning(
-        markRawImpressionUploadModelLinePoolAssigningRequest {
-          name = modelLineName
-          this.etag = etag
-          requestId = RequestIds.forMarkRawImpressionUploadModelLinePoolAssigning(modelLineName)
-        }
-      )
+      rpcThrottlers.metadataWrite.onReady {
+        rawImpressionUploadModelLineStub.markRawImpressionUploadModelLinePoolAssigning(
+          markRawImpressionUploadModelLinePoolAssigningRequest {
+            name = modelLineName
+            this.etag = etag
+            requestId = RequestIds.forMarkRawImpressionUploadModelLinePoolAssigning(modelLineName)
+          }
+        )
+      }
     } catch (e: StatusException) {
       if (isConcurrentClaimLoss(e)) {
         logger.info(
@@ -655,7 +674,9 @@ class VidLabelingDispatchSequencer(
 
   /** Fetches the `ModelLine` to read its active window (`active_start_time`/`active_end_time`). */
   private suspend fun getModelLine(modelLineName: String): ModelLine =
-    modelLinesStub.getModelLine(getModelLineRequest { name = modelLineName })
+    rpcThrottlers.kingdom.onReady {
+      modelLinesStub.getModelLine(getModelLineRequest { name = modelLineName })
+    }
 
   /**
    * Pre-creates one `PoolAssignmentJob` per shard for ([uploadName], [modelLineName]) via
@@ -688,7 +709,10 @@ class VidLabelingDispatchSequencer(
           }
         }
       }
-      val response = poolAssignmentJobStub.batchCreatePoolAssignmentJobs(request)
+      val response =
+        rpcThrottlers.metadataWrite.onReady {
+          poolAssignmentJobStub.batchCreatePoolAssignmentJobs(request)
+        }
       for (job in response.poolAssignmentJobsList) {
         jobsByShard[job.shardIndex] = job.name
       }
@@ -749,7 +773,7 @@ class VidLabelingDispatchSequencer(
       }
     }
     try {
-      workItemsStub.createWorkItem(request)
+      rpcThrottlers.controlPlane.onReady { workItemsStub.createWorkItem(request) }
     } catch (e: StatusException) {
       if (e.status.code == Status.Code.ALREADY_EXISTS) {
         // A concurrent dispatch already created this WorkItem; the deterministic ID makes this a

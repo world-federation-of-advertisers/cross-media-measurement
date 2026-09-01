@@ -15,14 +15,15 @@
 variable "scheduler_config" {
   description = "Configuration for Google Cloud Scheduler"
   type = object({
-    schedule                    = string
-    time_zone                   = string
-    name                        = string
-    function_url                = string
-    scheduler_sa_display_name   = string
-    scheduler_sa_description    = string
-    scheduler_job_description   = string
-    scheduler_job_name          = optional(string)
+    schedule                  = string
+    time_zone                 = string
+    name                      = string
+    function_url              = string
+    scheduler_sa_display_name = string
+    scheduler_sa_description  = string
+    scheduler_job_description = string
+    scheduler_job_name        = optional(string)
+    attempt_deadline          = optional(string, "180s")
   })
   nullable = false
 }

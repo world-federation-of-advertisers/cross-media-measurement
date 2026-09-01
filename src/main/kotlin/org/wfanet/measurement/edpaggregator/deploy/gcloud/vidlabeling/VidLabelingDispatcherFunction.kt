@@ -38,6 +38,7 @@ import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.gcsHadoopConfiguration
 import org.wfanet.measurement.edpaggregator.rawimpressions.readEventDateFromFooter
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
@@ -88,6 +89,8 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  * - `POOL_ASSIGNER_QUEUE_NAME`: Required. Resource name of the Phase-0 SubpoolAssigner Secure
  *   Computation queue (memoized model lines).
  * - `CHANNEL_SHUTDOWN_DURATION_SECONDS`: Optional. gRPC channel shutdown timeout (default: 3s).
+ * - `VID_LABELING_*_RPC_MIN_INTERVAL`: Optional. Minimum intervals for the four outbound RPC
+ *   throttlers.
  * - `VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH`: Optional. Enables [FileSystemStorageClient] instead
  *   of GCS. Used only in testing.
  *
@@ -240,6 +243,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
           rawImpressionUploadFileStub = rawImpressionUploadFilesStub,
           vidLabelingJobStub = vidLabelingJobStub,
           maxFileBatchSizeBytes = config.maxFileBatchSizeBytes,
+          rpcThrottlers = rpcThrottlers,
         )
 
       val dispatcher =
@@ -255,6 +259,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
           modelSuiteName = config.modelSuite,
           overrideModelLines = overrideModelLines,
           modelLineConfigs = modelLineConfigs,
+          rpcThrottlers = rpcThrottlers,
         )
 
       Tracing.withW3CTraceContext(request) {
@@ -299,6 +304,10 @@ class VidLabelingDispatcherFunction : HttpFunction {
     private val fileSystemPath: String? = System.getenv("VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH")
 
     private val configBlobKey: String = EnvVars.checkNotNullOrEmpty("CONFIG_BLOB_KEY")
+
+    private val rpcThrottlers: VidLabelingRpcThrottlers by lazy {
+      VidLabelingRpcThrottlers.fromEnvironment()
+    }
 
     private val vidLabelingConfigs: VidLabelingConfigs by lazy {
       runBlocking {
