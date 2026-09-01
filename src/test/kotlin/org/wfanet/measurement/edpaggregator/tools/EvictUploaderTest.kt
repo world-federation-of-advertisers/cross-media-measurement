@@ -334,7 +334,7 @@ class EvictUploaderTest {
   }
 
   @Test
-  fun `plan rejects affected in-progress work`() = runBlocking {
+  fun `plan rejects queued or running work anywhere under data provider`(): Unit = runBlocking {
     whenever(uploadService.listRawImpressionUploads(any()))
       .thenReturn(
         listRawImpressionUploadsResponse {
@@ -348,8 +348,13 @@ class EvictUploaderTest {
       .thenReturn(
         listRawImpressionUploadModelLinesResponse {
           rawImpressionUploadModelLines += rawImpressionUploadModelLine {
-            name = modelLineName("up1")
+            name = modelLineName("queued-upload")
             cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.CREATED
+          }
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = modelLineName("running-upload")
+            cmmsModelLine = "modelProviders/mp/modelSuites/ms/modelLines/other"
             state = RawImpressionUploadModelLine.State.RANKING
           }
         }
@@ -360,7 +365,21 @@ class EvictUploaderTest {
         evictUploader.plan(listOf(uploadName("up1")), cutoffTime = T0)
       }
 
-    assertThat(error).hasMessageThat().contains("drain or cancel")
+    assertThat(error).hasMessageThat().contains("queued or running")
+    assertThat(error).hasMessageThat().contains(modelLineName("queued-upload"))
+    assertThat(error).hasMessageThat().contains(modelLineName("running-upload"))
+    val request = argumentCaptor<ListRawImpressionUploadModelLinesRequest>()
+    verifyBlocking(modelLineService) { listRawImpressionUploadModelLines(request.capture()) }
+    assertThat(request.firstValue.parent).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/-")
+    assertThat(request.firstValue.filter.stateInList)
+      .containsExactlyElementsIn(
+        listOf(
+          RawImpressionUploadModelLine.State.CREATED,
+          RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+          RawImpressionUploadModelLine.State.RANKING,
+          RawImpressionUploadModelLine.State.LABELING,
+        )
+      )
   }
 
   @Test

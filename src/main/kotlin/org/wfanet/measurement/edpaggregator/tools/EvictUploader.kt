@@ -96,7 +96,8 @@ class EvictUploader(
    * @param badUploads `RawImpressionUpload` resource names of the bad uploads (all under the same
    *   DataProvider).
    * @throws IllegalArgumentException if [badUploads] is empty, spans multiple DataProviders, names
-   *   an unknown upload, or names an upload older than [cutoffTime].
+   *   an unknown upload, names an upload older than [cutoffTime], or the DataProvider still has
+   *   queued or running model-line work.
    */
   suspend fun plan(badUploads: List<String>, cutoffTime: Instant): EvictionPlan {
     require(badUploads.isNotEmpty()) { "at least one bad upload is required" }
@@ -117,6 +118,12 @@ class EvictUploader(
       "upload(s) older than the retention window (create_time before $cutoffTime): $outOfWindow"
     }
 
+    val queuedOrRunningRows = listQueuedOrRunningModelLines(dataProvider)
+    require(queuedOrRunningRows.isEmpty()) {
+      "$dataProvider has queued or running upload/model-line rows; pause new dispatches and wait " +
+        "for processing to finish before eviction: ${queuedOrRunningRows.map { it.name }}"
+    }
+
     val rowsByUpload = badUploads.associateWith { listModelLines(it) }
     val requestedMissing = badUploads.filter { rowsByUpload.getValue(it).isEmpty() }
     require(requestedMissing.isEmpty()) {
@@ -129,21 +136,6 @@ class EvictUploader(
         .map { it.cmmsModelLine }
         .toSet()
         .associateWith { listModelLines("$dataProvider/rawImpressionUploads/-", it, cutoffTime) }
-    val inProgressRows =
-      rowsByCmmsModelLine.flatMap { (cmmsModelLine, rows) ->
-        val earliestBadTime =
-          requestedRows
-            .filter { it.cmmsModelLine == cmmsModelLine }
-            .minOf { createTimeByUpload.getValue(uploadNameOf(it.name)) }
-        rows.filter { row ->
-          val uploadTime = createTimeByUpload[uploadNameOf(row.name)] ?: return@filter false
-          uploadTime >= earliestBadTime && row.state in IN_PROGRESS_STATES
-        }
-      }
-    require(inProgressRows.isEmpty()) {
-      "affected upload/model-line rows are still in progress; drain or cancel their jobs before " +
-        "eviction: ${inProgressRows.map { it.name }}"
-    }
     val snapshotRows = coroutineScope {
       val semaphore = Semaphore(SNAPSHOT_LOOKUP_PARALLELISM)
       rowsByCmmsModelLine.values
@@ -319,6 +311,30 @@ class EvictUploader(
     return rows
   }
 
+  private suspend fun listQueuedOrRunningModelLines(
+    dataProvider: String
+  ): List<RawImpressionUploadModelLine> {
+    val rows = mutableListOf<RawImpressionUploadModelLine>()
+    var pageToken = ""
+    do {
+      val response =
+        rawImpressionModelLinesStub.listRawImpressionUploadModelLines(
+          listRawImpressionUploadModelLinesRequest {
+            parent = "$dataProvider/rawImpressionUploads/-"
+            filter =
+              ListRawImpressionUploadModelLinesRequestKt.filter {
+                stateIn += QUEUED_OR_RUNNING_STATES
+              }
+            this.pageToken = pageToken
+          }
+        )
+      rows +=
+        response.rawImpressionUploadModelLinesList.filter { it.state in QUEUED_OR_RUNNING_STATES }
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+    return rows
+  }
+
   private suspend fun softDeleteSnapshots(uploadName: String, cmmsModelLine: String): Int {
     var count = 0
     var pageToken = ""
@@ -364,8 +380,9 @@ class EvictUploader(
   companion object {
     private val logger: Logger = Logger.getLogger(EvictUploader::class.java.name)
     private const val SNAPSHOT_LOOKUP_PARALLELISM = 16
-    private val IN_PROGRESS_STATES =
+    private val QUEUED_OR_RUNNING_STATES =
       setOf(
+        RawImpressionUploadModelLine.State.CREATED,
         RawImpressionUploadModelLine.State.POOL_ASSIGNING,
         RawImpressionUploadModelLine.State.RANKING,
         RawImpressionUploadModelLine.State.LABELING,
