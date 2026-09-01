@@ -170,6 +170,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataReques
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
@@ -1276,6 +1277,126 @@ class ResultsFulfillerTest {
       }
       verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
     }
+
+  @Test
+  fun `dynamic capping searches the raw distribution, not the MeasurementSpec cap`() = runBlocking {
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    // 130 VIDs at frequency 150 each, against a MeasurementSpec capping at 2. Capping the vector
+    // before the clip search would leave every VID at 2, so no clip could return more than
+    // 130 * 2 impressions however the search chose.
+    val impressions =
+      List(150) {
+          List(130) {
+            LABELED_IMPRESSION.copy {
+              vid = it.toLong() + 1
+              eventTime = TIME_RANGE.start.toProtoTime()
+            }
+          }
+        }
+        .flatten()
+
+    val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata += createImpressionMetadataList(dates, EVENT_GROUP_NAME)
+        }
+      )
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some-prefix"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
+        }
+      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    createData(
+      kmsClient,
+      kekUri,
+      impressionsTmpPath,
+      metadataTmpPath,
+      requisitionsTmpPath,
+      impressions,
+      listOf(DYNAMIC_DIRECT_IMPRESSION_REQUISITION),
+    )
+
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = DeterministicTruncatedLaplaceNoiseSelector(),
+        resultMinimumThresholds = null,
+        overrideImpressionMaxFrequencyPerUser = null,
+        impressionCapMode = ImpressionCapMode.DYNAMIC,
+        supportedMultiPartyNoiseMechanisms = emptySet(),
+        trusTeeConfig =
+          TrusTeeConfig(
+            kmsClient = kmsClient,
+            workloadIdentityProvider = "test-wip",
+            impersonatedServiceAccount = "test-sa@example.com",
+            awsKmsParams = null,
+          ),
+        kekUriToKeyNameMap = emptyMap(),
+      )
+
+    val resultsFulfiller =
+      ResultsFulfiller(
+        dataProvider = EDP_NAME,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
+        groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath),
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionDataSourceProvider =
+          ImpressionDataSourceProvider(
+            impressionMetadataStub = impressionMetadataStub,
+            dataProvider = "dataProviders/123",
+            impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+          ),
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
+      )
+
+    resultsFulfiller.fulfillRequisitions()
+
+    val request: FulfillDirectRequisitionRequest =
+      verifyAndCapture(
+        requisitionsServiceMock,
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
+      )
+    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+
+    // A vector capped at the MeasurementSpec's 2 holds every VID at 2, so its cumulative histogram
+    // has two bars and no clip the search picked could sum past 130 * 2, give or take the bar
+    // noise. Uncapped, every VID saturates at Byte.MAX_VALUE and the sum is 130 * the chosen clip.
+    assertThat(result).impressionValue().isGreaterThan(130L * 10)
+    assertTrue(result.impression.hasCustomDirectMethodology())
+  }
 
   @Test
   fun `runWork skips already fulfilled requisitions`() = runBlocking {
@@ -4041,6 +4162,34 @@ class ResultsFulfillerTest {
                     ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
                     ProtocolConfig.NoiseMechanism.NONE,
                   )
+                deterministicCount = ProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
+              }
+          }
+      }
+      dataProviderCertificate = DATA_PROVIDER_CERTIFICATE_NAME
+      dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
+    }
+
+    /**
+     * A capped-spec impression Requisition that offers the deterministic mechanism, so dynamic
+     * capping can run against it.
+     */
+    private val DYNAMIC_DIRECT_IMPRESSION_REQUISITION: Requisition = requisition {
+      name = REQUISITION_NAME
+      measurement = "$MEASUREMENT_CONSUMER_NAME/measurements/BBBBBBBBBHs"
+      state = Requisition.State.UNFULFILLED
+      measurementConsumerCertificate = "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
+      measurementSpec = signMeasurementSpec(CAPPED_IMPRESSION_MEASUREMENT_SPEC, MC_SIGNING_KEY)
+      encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
+      protocolConfig = protocolConfig {
+        protocols +=
+          ProtocolConfigKt.protocol {
+            direct =
+              ProtocolConfigKt.direct {
+                noiseMechanisms +=
+                  listOf(ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
+                customDirectMethodology =
+                  ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
                 deterministicCount = ProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
               }
           }

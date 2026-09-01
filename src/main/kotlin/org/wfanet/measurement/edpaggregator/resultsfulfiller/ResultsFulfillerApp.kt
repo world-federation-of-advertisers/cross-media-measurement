@@ -197,6 +197,11 @@ class ResultsFulfillerApp(
       "impressionMaxFrequencyPerUser must be between -1 and ${Byte.MAX_VALUE}, got ${fulfillerParams.impressionMaxFrequencyPerUser}"
     }
 
+    requireCapMatchesMode(
+      fulfillerParams.impressionCapMode,
+      fulfillerParams.impressionMaxFrequencyPerUser,
+    )
+
     // Get TrusTeeConfig for this data provider if available
     val trusTeeConfig: TrusTeeConfig? = trusTeeConfigs[fulfillerParams.dataProvider]
 
@@ -225,13 +230,15 @@ class ResultsFulfillerApp(
         dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
         noiserSelector = noiseSelector,
         resultMinimumThresholds = resultMinimumThresholds,
-        // When -1, treat as no frequency cap. When 0 or unset, use measurement spec value.
+        // Read under UNSPECIFIED and CUSTOM_CAP. -1 means no cap, 0 or unset means the
+        // MeasurementSpec's value. The explicit modes carry the choice themselves.
         overrideImpressionMaxFrequencyPerUser =
           if (fulfillerParams.impressionMaxFrequencyPerUser == -1) {
             -1
           } else {
             fulfillerParams.impressionMaxFrequencyPerUser.takeIf { it > 0 }
           },
+        impressionCapMode = fulfillerParams.impressionCapMode,
         supportedMultiPartyNoiseMechanisms = supportedMultiPartyNoiseMechanisms,
         trusTeeConfig = trusTeeConfig,
         kekUriToKeyNameMap = fulfillerParams.trusteeParams.kekUriToKeyNameMap,

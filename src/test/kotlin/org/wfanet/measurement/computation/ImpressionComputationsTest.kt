@@ -18,7 +18,9 @@ import com.google.common.truth.Truth.assertThat
 import kotlin.math.ln
 import kotlin.math.min
 import kotlin.math.sqrt
+import kotlin.test.assertFailsWith
 import org.junit.Test
+import org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClippingNoiseSource
 
 class ImpressionComputationsTest {
 
@@ -251,6 +253,165 @@ class ImpressionComputationsTest {
     assertThat(result).isEqualTo(0)
   }
 
+  @Test
+  fun `dynamically clipped count includes every impression when the clip exceeds the tail`() {
+    // A large charge makes the search run to the end of the tail, landing past frequency 5, so
+    // nobody is clipped and the count is the uncapped total.
+    val result = dynamicallyClipped(PRECISE_RHO)
+
+    assertThat(result.clip).isGreaterThan(DYNAMIC_MAX_FREQUENCY)
+    assertThat(result.value).isEqualTo(285L)
+  }
+
+  @Test
+  fun `dynamically clipped count clips each user at the derived clip`() {
+    val result = dynamicallyClipped(COARSE_RHO)
+
+    // sum(min(frequency, 4)) = 100*1 + 50*2 + 20*3 + 5*4.
+    assertThat(result.clip).isEqualTo(4)
+    assertThat(result.value).isEqualTo(280L)
+  }
+
+  @Test
+  fun `dynamically clipped count is scaled by vidSamplingIntervalWidth`() {
+    val result = dynamicallyClipped(COARSE_RHO, vidSamplingIntervalWidth = 0.5)
+
+    assertThat(result.value).isEqualTo(560L)
+  }
+
+  @Test
+  fun `an all-zero frequency vector is still noised`() {
+    // The empty case has no distribution to search, but releasing an exact zero beside a noised
+    // value for a vector holding one impression would leave the two distinguishable.
+    val result =
+      ImpressionComputations.computeDynamicallyClippedImpressionCount(
+        frequencyVector = IntArray(100),
+        queryRho = COARSE_RHO,
+        maxFrequency = VECTOR_MAX_FREQUENCY,
+        noiseSource = { _, _, bar, l2Sensitivity, rho ->
+          bar + l2Sensitivity / Math.sqrt(2.0 * rho)
+        },
+        vidSamplingIntervalWidth = 1.0,
+        resultMinimumThresholds = null,
+      )
+
+    assertThat(result.value).isGreaterThan(0L)
+  }
+
+  @Test
+  fun `dynamically clipped variance does not depend on the highest frequency in the data`() {
+    // Both vectors agree on every bar the clip covers, so they yield the same clip and the same
+    // count, and differ only in how long the histogram is. A variance that read the histogram
+    // length would publish that raw value.
+    val short = dynamicallyClipped(COARSE_RHO)
+    val long = dynamicallyClipped(COARSE_RHO, frequencyVector = LONG_TAILED_FREQUENCY_VECTOR)
+
+    assertThat(long.clip).isEqualTo(short.clip)
+    assertThat(long.value).isEqualTo(short.value)
+    assertThat(long.variance).isEqualTo(short.variance)
+  }
+
+  @Test
+  fun `dynamically clipped variance follows the sampling term at partial width`() {
+    // The clip search never reads vidSamplingIntervalWidth, so both runs search the same bars and
+    // land on the same clip. At full width the sampling term is zero, which leaves the per-bar
+    // noise variance recoverable, and the partial-width run must then match the derivation.
+    val full = dynamicallyClipped(COARSE_RHO, vidSamplingIntervalWidth = 1.0)
+    val partial = dynamicallyClipped(COARSE_RHO, vidSamplingIntervalWidth = PARTIAL_WIDTH)
+
+    assertThat(partial.clip).isEqualTo(full.clip)
+
+    val clip = full.clip.toDouble()
+    // At width 1 the whole variance is the noise term, clip * barNoiseVariance.
+    val barNoiseVariance = full.variance / clip
+    val expected =
+      (clip * partial.value.toDouble() * PARTIAL_WIDTH * (1.0 - PARTIAL_WIDTH) +
+        clip * barNoiseVariance) / (PARTIAL_WIDTH * PARTIAL_WIDTH)
+
+    assertThat(partial.variance).isWithin(expected * RELATIVE_TOLERANCE).of(expected)
+  }
+
+  @Test
+  fun `dynamically clipped noise variance is inversely proportional to the charge`() {
+    // barNoiseVariance is maxFrequency / (2 * rho), so at full width, where the variance is the
+    // noise term alone, halving the charge doubles it. Both runs must reach the same clip for the
+    // comparison to hold, which NO_NOISE guarantees.
+    val lower = dynamicallyClipped(NOISE_RHO)
+    val doubled = dynamicallyClipped(NOISE_RHO * 2.0)
+
+    // Both charges leave the stopping criterion between the third and fourth window sums of this
+    // vector, so the search stops in the same place and only the noise scale differs.
+    assertThat(doubled.clip).isEqualTo(lower.clip)
+    assertThat(doubled.variance)
+      .isWithin(lower.variance * RELATIVE_TOLERANCE)
+      .of(lower.variance / 2.0)
+  }
+
+  @Test
+  fun `dynamically clipped variance falls as the charge rises`() {
+    val noisy = dynamicallyClipped(COARSE_RHO)
+    val precise = dynamicallyClipped(PRECISE_RHO)
+
+    assertThat(noisy.variance).isGreaterThan(0.0)
+    assertThat(precise.variance).isLessThan(noisy.variance)
+  }
+
+  @Test
+  fun `dynamically clipped count below the minimum impressions is suppressed`() {
+    val result =
+      dynamicallyClipped(
+        COARSE_RHO,
+        thresholds = ResultMinimumThresholds(minUsers = 1, minImpressions = 500),
+      )
+
+    assertThat(result.value).isEqualTo(0L)
+  }
+
+  @Test
+  fun `dynamically clipped count with too few users is suppressed`() {
+    // Bar 0 is the noised user count, 175 here, so it fails a threshold above that.
+    val result =
+      dynamicallyClipped(
+        COARSE_RHO,
+        thresholds = ResultMinimumThresholds(minUsers = 200, minImpressions = 1),
+      )
+
+    assertThat(result.value).isEqualTo(0L)
+  }
+
+  @Test
+  fun `dynamically clipped count meeting both thresholds passes through`() {
+    val result =
+      dynamicallyClipped(
+        COARSE_RHO,
+        thresholds = ResultMinimumThresholds(minUsers = 100, minImpressions = 100),
+      )
+
+    assertThat(result.value).isEqualTo(280L)
+  }
+
+  @Test
+  fun `a non-positive vidSamplingIntervalWidth is rejected for dynamic clipping`() {
+    assertFailsWith<IllegalArgumentException> {
+      dynamicallyClipped(COARSE_RHO, vidSamplingIntervalWidth = 0.0)
+    }
+  }
+
+  private fun dynamicallyClipped(
+    queryRho: Double,
+    frequencyVector: IntArray = DYNAMIC_FREQUENCY_VECTOR,
+    vidSamplingIntervalWidth: Double = 1.0,
+    thresholds: ResultMinimumThresholds? = null,
+  ) =
+    ImpressionComputations.computeDynamicallyClippedImpressionCount(
+      frequencyVector = frequencyVector,
+      queryRho = queryRho,
+      maxFrequency = VECTOR_MAX_FREQUENCY,
+      noiseSource = NO_NOISE,
+      vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+      resultMinimumThresholds = thresholds,
+    )
+
   private fun deterministicNoiser(seedVector: IntArray = SEED_VECTOR) =
     DeterministicTruncatedLaplaceResultNoiser(
       combinedFrequencyVector = seedVector,
@@ -259,6 +420,47 @@ class ImpressionComputationsTest {
     )
 
   companion object {
+
+    /** Draws nothing, so the bars are exact and the assertions can be too. */
+    private val NO_NOISE = DynamicClippingNoiseSource { _, _, bar, _, _ -> bar }
+
+    private const val DYNAMIC_MAX_FREQUENCY = 5
+
+    /**
+     * The highest per-user frequency the vector can hold, matching what the Direct path passes.
+     * Distinct from [MAX_FREQUENCY], which is a measurement's per-user cap.
+     */
+    private const val VECTOR_MAX_FREQUENCY = 127
+
+    /**
+     * A charge whose stopping criterion, and twice it, both land between the same two window sums
+     * of DYNAMIC_FREQUENCY_VECTOR, so doubling it moves the noise scale without moving the clip.
+     */
+    private const val NOISE_RHO = 1e-4
+
+    /** A width below 1, so the sampling term is non-zero. */
+    private const val PARTIAL_WIDTH = 0.5
+
+    private const val RELATIVE_TOLERANCE = 1e-9
+
+    /**
+     * 175 users at frequencies {1: 100, 2: 50, 3: 20, 5: 5}, so the cumulative histogram is
+     * [175, 75, 25, 5, 5] and the uncapped total is 285.
+     */
+    private val DYNAMIC_FREQUENCY_VECTOR: IntArray =
+      (List(100) { 1 } + List(50) { 2 } + List(20) { 3 } + List(5) { DYNAMIC_MAX_FREQUENCY })
+        .toIntArray()
+
+    /** The same distribution with its tail stretched to frequency 9, doubling the histogram. */
+    private val LONG_TAILED_FREQUENCY_VECTOR: IntArray =
+      (List(100) { 1 } + List(50) { 2 } + List(20) { 3 } + List(5) { 9 }).toIntArray()
+
+    /** Large enough that the search runs the tail out to its end. */
+    private const val PRECISE_RHO = 1e10
+
+    /** Sized so the stopping rule cuts at frequency 4, inside the histogram. */
+    private const val COARSE_RHO = 2e-4
+
     private val DP_PARAMS = DifferentialPrivacyParams(epsilon = 2.0, delta = 1e-5)
     /** ceil of the compiled bound at sensitivity MAX_FREQUENCY: 4 * 6.7571 = 27.03. */
     private const val TRUNCATION_BOUND = 28L
