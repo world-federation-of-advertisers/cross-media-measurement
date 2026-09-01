@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
 import com.google.type.date
 import io.grpc.Status
@@ -73,8 +74,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFiles
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
@@ -84,9 +88,14 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -108,6 +117,9 @@ class VidLabelingDispatcherTest {
   private val rawImpressionUploadModelLineService:
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase =
     mockService()
+  private val rankIndexBlobService:
+    RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase =
+    mockService()
   private val workItemsService: WorkItemsGrpcKt.WorkItemsCoroutineImplBase = mockService()
   private val poolAssignmentJobService:
     PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase =
@@ -125,6 +137,7 @@ class VidLabelingDispatcherTest {
     addService(rawImpressionUploadService)
     addService(rawImpressionUploadFileService)
     addService(rawImpressionUploadModelLineService)
+    addService(rankIndexBlobService)
     addService(workItemsService)
     addService(poolAssignmentJobService)
     addService(vidLabelingJobService)
@@ -162,6 +175,10 @@ class VidLabelingDispatcherTest {
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
       grpcTestServerRule.channel
     )
+  }
+
+  private val rankIndexBlobStub by lazy {
+    RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val workItemsStub by lazy {
@@ -230,6 +247,7 @@ class VidLabelingDispatcherTest {
 
   private fun createDispatcher(
     overrideModelLines: List<String> = emptyList(),
+    recoverySourceUpload: String? = null,
     modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig> = DEFAULT_MODEL_LINE_CONFIGS,
     readEventDate: suspend (String) -> LocalDate = { EVENT_DATE },
     readBlobMetadata: suspend (String) -> RawImpressionBlobMetadata = {
@@ -245,11 +263,13 @@ class VidLabelingDispatcherTest {
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+      rankIndexBlobStub = rankIndexBlobStub,
       modelLinesStub = modelLinesStub,
       dispatchSequencer = createSequencer(modelLineConfigs),
       dataProviderName = DATA_PROVIDER_NAME,
       modelSuiteName = MODEL_SUITE_NAME,
       overrideModelLines = overrideModelLines,
+      recoverySourceUpload = recoverySourceUpload,
       modelLineConfigs = modelLineConfigs,
       readEventDate = readEventDate,
       readBlobMetadata = { blobKey ->
@@ -484,6 +504,105 @@ class VidLabelingDispatcherTest {
     assertThat(request.requestsList).hasSize(1)
     assertThat(request.requestsList[0].rawImpressionUploadModelLine.cmmsModelLine)
       .isEqualTo(MODEL_LINE_1)
+  }
+
+  @Test
+  fun `upload accepts recovery override for latest failed memoized source`() = runBlocking {
+    val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+    val source = rawImpressionUpload {
+      name = sourceUploadName
+      state = RawImpressionUpload.State.FAILED
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION - 1
+    }
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    whenever(rawImpressionUploadService.getRawImpressionUpload(any())).thenReturn(source)
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse { rawImpressionUploads += source },
+        listRawImpressionUploadsResponse {},
+      )
+    whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
+      .thenReturn(
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = "$sourceUploadName/rawImpressionUploadModelLines/rml1"
+            cmmsModelLine = MODEL_LINE_1
+            state = RawImpressionUploadModelLine.State.FAILED
+          }
+        }
+      )
+    whenever(rankIndexBlobService.listRankIndexBlobs(any()))
+      .thenReturn(
+        listRankIndexBlobsResponse {
+          rankIndexBlobs += rankIndexBlob {
+            name = "$sourceUploadName/rankIndexBlobs/snapshot"
+            blobType = RankIndexBlob.BlobType.SNAPSHOT
+            cmmsModelLine = MODEL_LINE_1
+            deleteTime = Timestamp.getDefaultInstance()
+          }
+        }
+      )
+    whenever(rawImpressionUploadService.createRawImpressionUpload(any()))
+      .thenReturn(
+        rawImpressionUpload {
+          name = "$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID"
+          doneBlobUri = DONE_BLOB_PATH
+          doneBlobGeneration = DONE_BLOB_GENERATION
+        }
+      )
+    whenever(rawImpressionUploadFileService.batchCreateRawImpressionUploadFiles(any()))
+      .thenReturn(batchCreateRawImpressionUploadFilesResponse {})
+    whenever(rawImpressionUploadModelLineService.batchCreateRawImpressionUploadModelLines(any()))
+      .thenReturn(batchCreateRawImpressionUploadModelLinesResponse {})
+    stubOverrideResolutionChain()
+
+    val dispatcher =
+      createDispatcher(
+        overrideModelLines = listOf(MODEL_LINE_1),
+        recoverySourceUpload = sourceUploadName,
+      )
+    dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    verifyBlocking(rawImpressionUploadService) { createRawImpressionUpload(any()) }
+  }
+
+  @Test
+  fun `upload rejects recovery override when source row is not failed`() = runBlocking {
+    val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+    val source = rawImpressionUpload {
+      name = sourceUploadName
+      state = RawImpressionUpload.State.COMPLETED
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION - 1
+    }
+    whenever(rawImpressionUploadService.getRawImpressionUpload(any())).thenReturn(source)
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += source })
+    whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
+      .thenReturn(
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = "$sourceUploadName/rawImpressionUploadModelLines/rml1"
+            cmmsModelLine = MODEL_LINE_1
+            state = RawImpressionUploadModelLine.State.COMPLETED
+          }
+        }
+      )
+    val dispatcher =
+      createDispatcher(
+        overrideModelLines = listOf(MODEL_LINE_1),
+        recoverySourceUpload = sourceUploadName,
+      )
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+      }
+
+    assertThat(error).hasMessageThat().contains("complete set of FAILED memoized model lines")
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
   }
 
   @Test
