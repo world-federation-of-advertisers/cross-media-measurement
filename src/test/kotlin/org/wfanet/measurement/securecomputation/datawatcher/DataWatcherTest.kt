@@ -424,6 +424,36 @@ class DataWatcherTest() {
   }
 
   @Test
+  fun `forwards override model lines metadata to webhook sink`() {
+    runBlocking {
+      val localPort = ServerSocket(0).use { it.localPort }
+      val config = watchedPath {
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+        this.httpEndpointSink = httpEndpointSink { endpointUri = "http://localhost:$localPort" }
+      }
+      val server = TestServer()
+      server.start(localPort)
+      val dataWatcher =
+        DataWatcher(
+          workItemsStub = workItemsStub,
+          dataWatcherConfigs = listOf(config),
+          idTokenProvider = mockIdTokenProvider,
+        )
+      val modelLines =
+        "modelProviders/mp1/modelSuites/ms1/modelLines/ml1," +
+          "modelProviders/mp1/modelSuites/ms1/modelLines/ml2"
+
+      dataWatcher.receivePath(
+        "test-schema://test-bucket/path-to-watch/some-data",
+        mapOf(WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to modelLines),
+      )
+
+      assertThat(server.getLastRequestHeader("X-Override-Model-Lines")).isEqualTo(modelLines)
+      server.stop()
+    }
+  }
+
+  @Test
   fun `omits X-DataWatcher-Generation header when object generation absent`() {
     runBlocking {
       val appParams =
