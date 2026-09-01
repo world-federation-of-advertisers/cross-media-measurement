@@ -920,9 +920,10 @@ module "vid_labeling_monitor_cloud_function" {
 module "vid_labeling_monitor_cloud_scheduler" {
   source                    = "../cloud-scheduler"
   terraform_service_account = var.terraform_service_account
+  # Wait beyond the function's 600-second timeout so Scheduler can receive its terminal response.
   scheduler_config = merge(
     var.vid_labeling_monitor_scheduler_config,
-    { attempt_deadline = "600s" },
+    { attempt_deadline = "660s" },
   )
   depends_on = [module.vid_labeling_monitor_cloud_function]
 }
@@ -930,9 +931,10 @@ module "vid_labeling_monitor_cloud_scheduler" {
 module "vid_labeling_dispatch_cloud_scheduler" {
   source                    = "../cloud-scheduler"
   terraform_service_account = var.terraform_service_account
+  # This job invokes the same function in dispatch mode and needs the same response headroom.
   scheduler_config = merge(
     var.vid_labeling_dispatch_scheduler_config,
-    { attempt_deadline = "600s" },
+    { attempt_deadline = "660s" },
   )
   depends_on = [module.vid_labeling_monitor_cloud_function]
 }
