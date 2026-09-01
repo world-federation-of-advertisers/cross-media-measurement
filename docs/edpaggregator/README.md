@@ -23,6 +23,7 @@ by trusted workloads running in Confidential Space TEEs.
 | Guide | What it covers |
 | --- | --- |
 | [EDP Onboarding Guide](edp-onboarding.md) | Integrate a data provider: KMS/key setup, Workload Identity, schemas, encryption, upload paths, the daily workflow, and optional TrusTEE. |
+| [Reference VID Impression Upload Guide](reference-vid-impression-upload-guide.md) | Submit raw reference VID impressions and coordinate corrections for bad uploads. |
 | [AWS KMS Setup Guide](aws-kms-setup.md) | Use AWS KMS instead of GCP KMS for a data provider's key. |
 
 ### Reporting dashboard
