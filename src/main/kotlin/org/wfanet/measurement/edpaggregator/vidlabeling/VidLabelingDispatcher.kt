@@ -171,8 +171,13 @@ class VidLabelingDispatcher(
         return
       }
 
-      if (recoverySourceUpload != null) {
-        validateRecovery(doneBlobPath, doneBlobGeneration, recoverySourceUpload)
+      if (
+        recoverySourceUpload != null &&
+          !validateRecovery(doneBlobPath, doneBlobGeneration, recoverySourceUpload)
+      ) {
+        logger.info("Ignoring stale recovery generation $doneBlobGeneration for $doneBlobPath")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
       }
 
       val blobs: List<StorageClient.Blob> =
@@ -696,12 +701,16 @@ class VidLabelingDispatcher(
       .parentKey
       .toName()
 
-  /** Validates an object-metadata recovery request before honoring its model-line override. */
+  /**
+   * Validates an object-metadata recovery request before honoring its model-line override.
+   *
+   * @return false when this is a stale Eventarc delivery older than an already-registered recovery.
+   */
   private suspend fun validateRecovery(
     doneBlobPath: String,
     doneBlobGeneration: Long,
     sourceUploadName: String,
-  ) {
+  ): Boolean {
     require(overrideModelLines.isNotEmpty()) {
       "A recovery source upload requires at least one override model line"
     }
@@ -724,6 +733,7 @@ class VidLabelingDispatcher(
         source.doneBlobGeneration
     }
     val latest = findLatestUploadByDoneBlob(doneBlobPath)
+    if (latest != null && latest.doneBlobGeneration > doneBlobGeneration) return false
     val registeredRecovery = findUploadByDoneBlob(doneBlobPath, doneBlobGeneration)
     val isInitialDelivery = latest?.name == sourceUploadName
     val isRetryOfLatestRecovery =
@@ -744,6 +754,7 @@ class VidLabelingDispatcher(
       "Recovery override must contain the complete set of FAILED memoized model lines whose " +
         "snapshots were deleted; requested=$overrideModelLines, recoverable=$recoverableModelLines"
     }
+    return true
   }
 
   private suspend fun listModelLines(uploadName: String): List<RawImpressionUploadModelLine> {
