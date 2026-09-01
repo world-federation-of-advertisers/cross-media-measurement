@@ -16,6 +16,18 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "VidLabelingRpcThrottlersEnvironmentTest",
+    srcs = ["VidLabelingRpcThrottlersEnvironmentTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingRpcThrottlersEnvironmentTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:vid_labeling_rpc_throttler_environment",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
     name = "VidLabelingDispatcherFunctionTest",
     srcs = ["VidLabelingDispatcherFunctionTest.kt"],
     data = [

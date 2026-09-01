@@ -19,9 +19,11 @@ package org.wfanet.measurement.edpaggregator
 import com.google.common.truth.Truth.assertThat
 import java.time.Duration
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 
 @RunWith(JUnit4::class)
 class VidLabelingRpcThrottlersTest {
@@ -51,5 +53,38 @@ class VidLabelingRpcThrottlersTest {
     assertFailsWith<IllegalArgumentException> {
       VidLabelingRpcThrottlers.fromMinimumIntervals(controlPlane = Duration.ZERO)
     }
+  }
+
+  @Test
+  fun `alwaysReady executes all RPC classes`() = runTest {
+    val throttlers = VidLabelingRpcThrottlersTestHelper.alwaysReady()
+    val calls = mutableListOf<String>()
+
+    throttlers.kingdom.onReady { calls += "kingdom" }
+    throttlers.metadataRead.onReady { calls += "metadataRead" }
+    throttlers.metadataWrite.onReady { calls += "metadataWrite" }
+    throttlers.controlPlane.onReady { calls += "controlPlane" }
+
+    assertThat(calls)
+      .containsExactly("kingdom", "metadataRead", "metadataWrite", "controlPlane")
+      .inOrder()
+  }
+
+  @Test
+  fun `recording tracks RPC classes independently`() = runTest {
+    val recording = VidLabelingRpcThrottlersTestHelper.recording()
+
+    recording.throttlers.kingdom.onReady {}
+    recording.throttlers.kingdom.onReady {}
+    recording.throttlers.metadataRead.onReady {}
+    recording.throttlers.metadataWrite.onReady {}
+    recording.throttlers.metadataWrite.onReady {}
+    recording.throttlers.metadataWrite.onReady {}
+    recording.throttlers.controlPlane.onReady {}
+
+    assertThat(recording.kingdom.invocationCount).isEqualTo(2)
+    assertThat(recording.metadataRead.invocationCount).isEqualTo(1)
+    assertThat(recording.metadataWrite.invocationCount).isEqualTo(3)
+    assertThat(recording.controlPlane.invocationCount).isEqualTo(1)
   }
 }
