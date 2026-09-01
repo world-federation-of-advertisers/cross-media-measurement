@@ -123,8 +123,7 @@ class SpannerRawImpressionUploadService(
               request.rawImpressionUpload.doneBlobUri,
             )
           if (
-            request.rawImpressionUpload.doneBlobGeneration != 0L &&
-              previous != null &&
+            previous != null &&
               previous.rawImpressionUpload.doneBlobGeneration >=
                 request.rawImpressionUpload.doneBlobGeneration
           ) {
@@ -138,9 +137,7 @@ class SpannerRawImpressionUploadService(
               )
               .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
           }
-          val replacesResourceId =
-            if (request.rawImpressionUpload.doneBlobGeneration == 0L) ""
-            else previous?.rawImpressionUpload?.rawImpressionUploadResourceId.orEmpty()
+          val replacesResourceId = previous?.rawImpressionUpload?.rawImpressionUploadResourceId
 
           val rawImpressionUploadId: Long =
             idGenerator.generateNewId { id ->
@@ -165,7 +162,9 @@ class SpannerRawImpressionUploadService(
             rawImpressionUploadResourceId = resolvedResourceId
             doneBlobUri = request.rawImpressionUpload.doneBlobUri
             doneBlobGeneration = request.rawImpressionUpload.doneBlobGeneration
-            replacesRawImpressionUploadResourceId = replacesResourceId
+            if (replacesResourceId != null) {
+              replacesRawImpressionUploadResourceId = replacesResourceId
+            }
             state = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED
           }
         }

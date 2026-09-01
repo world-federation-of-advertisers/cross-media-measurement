@@ -96,7 +96,10 @@ abstract class RawImpressionUploadServiceTest {
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = 1L
+          }
           requestId = UUID.randomUUID().toString()
         }
       )
