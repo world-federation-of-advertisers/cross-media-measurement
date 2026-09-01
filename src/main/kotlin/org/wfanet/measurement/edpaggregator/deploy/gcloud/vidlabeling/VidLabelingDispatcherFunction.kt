@@ -306,7 +306,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
     private val configBlobKey: String = EnvVars.checkNotNullOrEmpty("CONFIG_BLOB_KEY")
 
     private val rpcThrottlers: VidLabelingRpcThrottlers by lazy {
-      VidLabelingRpcThrottlers.fromEnvironment()
+      VidLabelingRpcThrottlersEnvironment.load()
     }
 
     private val vidLabelingConfigs: VidLabelingConfigs by lazy {
