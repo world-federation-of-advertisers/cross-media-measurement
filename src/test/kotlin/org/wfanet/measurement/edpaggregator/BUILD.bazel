@@ -60,3 +60,15 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/proto/wfa/measurement/storage:parquet_row_kt_jvm_proto",
     ],
 )
+
+kt_jvm_test(
+    name = "VidLabelingRpcThrottlersTest",
+    srcs = ["VidLabelingRpcThrottlersTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlersTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_throttlers",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
