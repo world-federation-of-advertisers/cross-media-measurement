@@ -260,10 +260,10 @@ class EvictUploader(
    * lines already failed for another reason are reclassified as evicted before their output is
    * deleted, so `retry-failed` cannot recreate invalidated output. Raw inputs are retained so a
    * replacement upload can calculate its delta against the evicted upload. The caller must first
-   * quiesce dispatch, `VidLabelingMonitor`, workers, and `DataAvailabilitySync`: marking a row
-   * FAILED does not cancel a worker that has already loaded a corrupt predecessor, and an in-flight
-   * sync could otherwise restore metadata while its output is being removed. The plan is refreshed
-   * immediately before mutation and execution aborts if it has changed since operator confirmation.
+   * pause new dispatch and `DataAvailabilitySync`, then wait for existing processing and sync calls
+   * to drain. [plan] verifies that the DataProvider has no queued or running model-line work. The
+   * plan is refreshed immediately before mutation and execution aborts if it has changed since
+   * operator confirmation.
    *
    * Metadata is deleted before its GCS object. This makes `DataAvailabilityCleanup` harmless when
    * the object-deletion event arrives: its active-only lookup finds no row, and a cleanup event
