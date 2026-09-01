@@ -87,13 +87,21 @@ class RecoverUploader(
       "recover-upload only accepts FAILED model-line rows: ${notFailed.map { it.name to it.state }}"
     }
 
-    val nonMemoized = cmmsModelLines.filterNot { hasSnapshot(sourceUploadName, it) }
-    require(nonMemoized.isEmpty()) {
-      "recover-upload only accepts memoized model lines with snapshot history: $nonMemoized"
+    val recoverableModelLines =
+      rowsByCmmsModelLine.values
+        .filter { it.state == RawImpressionUploadModelLine.State.FAILED }
+        .filter { hasDeletedSnapshotHistory(sourceUploadName, it.cmmsModelLine) }
+        .mapTo(mutableSetOf()) { it.cmmsModelLine }
+    require(cmmsModelLines.toSet() == recoverableModelLines) {
+      "recover-upload requires the complete set of FAILED memoized model lines whose snapshots " +
+        "were deleted; requested=$cmmsModelLines, recoverable=$recoverableModelLines"
     }
 
     val metadata =
-      mapOf(WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to cmmsModelLines.joinToString(separator = ","))
+      mapOf(
+        WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to cmmsModelLines.joinToString(separator = ","),
+        WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to source.name,
+      )
     val generation = rewriteDoneBlob(source.doneBlobUri, source.doneBlobGeneration, metadata)
     require(generation > source.doneBlobGeneration) {
       "rewriting ${source.doneBlobUri} did not create a newer generation: $generation"
@@ -139,20 +147,30 @@ class RecoverUploader(
     return rows
   }
 
-  private suspend fun hasSnapshot(uploadName: String, cmmsModelLine: String): Boolean {
-    val response =
-      rankIndexBlobsStub.listRankIndexBlobs(
-        listRankIndexBlobsRequest {
-          parent = uploadName
-          pageSize = 1
-          showDeleted = true
-          filter =
-            ListRankIndexBlobsRequestKt.filter {
-              blobType = RankIndexBlob.BlobType.SNAPSHOT
-              this.cmmsModelLine = cmmsModelLine
-            }
-        }
-      )
-    return response.rankIndexBlobsCount > 0
+  private suspend fun hasDeletedSnapshotHistory(
+    uploadName: String,
+    cmmsModelLine: String,
+  ): Boolean {
+    var pageToken = ""
+    var found = false
+    do {
+      val response =
+        rankIndexBlobsStub.listRankIndexBlobs(
+          listRankIndexBlobsRequest {
+            parent = uploadName
+            showDeleted = true
+            filter =
+              ListRankIndexBlobsRequestKt.filter {
+                blobType = RankIndexBlob.BlobType.SNAPSHOT
+                this.cmmsModelLine = cmmsModelLine
+              }
+            this.pageToken = pageToken
+          }
+        )
+      if (response.rankIndexBlobsList.any { !it.hasDeleteTime() }) return false
+      found = found || response.rankIndexBlobsCount > 0
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+    return found
   }
 }
