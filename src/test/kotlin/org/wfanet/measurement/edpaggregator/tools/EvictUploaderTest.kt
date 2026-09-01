@@ -377,6 +377,35 @@ class EvictUploaderTest {
     }
 
   @Test
+  fun `plan rejects old memoized revision whose replacement owns current output`(): Unit =
+    runBlocking {
+      whenever(uploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("up1")
+              createTime = T1.toProtoTime()
+            }
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("up2")
+              createTime = T2.toProtoTime()
+              replacesRawImpressionUpload = uploadName("up1")
+            }
+          }
+        )
+      stubModelLineRows("up1", "up2")
+      stubSnapshotRows("up1", "up2")
+
+      val error =
+        assertFailsWith<IllegalArgumentException> {
+          evictUploader.plan(listOf(uploadName("up1")), cutoffTime = T0)
+        }
+
+      assertThat(error).hasMessageThat().contains("completed replacement rows")
+      assertThat(error).hasMessageThat().contains(modelLineName("up2"))
+    }
+
+  @Test
   fun `memoized cascade excludes later non-memoized row for same model line`(): Unit = runBlocking {
     whenever(uploadService.listRawImpressionUploads(any()))
       .thenReturn(

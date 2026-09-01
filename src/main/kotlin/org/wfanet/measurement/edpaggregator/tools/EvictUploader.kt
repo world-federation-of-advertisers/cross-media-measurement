@@ -195,8 +195,8 @@ class EvictUploader(
     val memoizedRequestedRows = requestedRows.filter { isMemoized(it, snapshotRows) }
     val nonMemoizedRequestedRows = requestedRows - memoizedRequestedRows.toSet()
     val requestedNames = badUploads.toSet()
-    val completedNonMemoizedReplacements =
-      nonMemoizedRequestedRows.flatMap { badRow ->
+    val completedReplacements =
+      requestedRows.flatMap { badRow ->
         val badUploadName = uploadNameOf(badRow.name)
         rowsByCmmsModelLine.getValue(badRow.cmmsModelLine).filter { candidate ->
           val candidateUploadName = uploadNameOf(candidate.name)
@@ -205,10 +205,10 @@ class EvictUploader(
             replacesUpload(candidateUploadName, badUploadName, uploadsByName)
         }
       }
-    require(completedNonMemoizedReplacements.isEmpty()) {
-      "non-memoized bad upload(s) have completed replacement rows that own the current " +
+    require(completedReplacements.isEmpty()) {
+      "bad upload(s) have completed replacement rows that own the current " +
         "deterministic output; evict the replacement explicitly if it is also invalid: " +
-        completedNonMemoizedReplacements.map { it.name }
+        completedReplacements.map { it.name }
     }
     val memoizedModelLines = memoizedRequestedRows.mapTo(mutableSetOf()) { it.cmmsModelLine }
     val nonMemoizedModelLines = nonMemoizedRequestedRows.mapTo(mutableSetOf()) { it.cmmsModelLine }
