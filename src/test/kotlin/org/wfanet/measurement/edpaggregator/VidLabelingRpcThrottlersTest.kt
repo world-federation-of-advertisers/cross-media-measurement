@@ -30,11 +30,11 @@ class VidLabelingRpcThrottlersTest {
     assertThat(VidLabelingRpcThrottlers.DEFAULT_KINGDOM_MIN_INTERVAL)
       .isEqualTo(Duration.ofMillis(500))
     assertThat(VidLabelingRpcThrottlers.DEFAULT_METADATA_READ_MIN_INTERVAL)
-      .isEqualTo(Duration.ofMillis(500))
+      .isEqualTo(Duration.ofMillis(100))
     assertThat(VidLabelingRpcThrottlers.DEFAULT_METADATA_WRITE_MIN_INTERVAL)
-      .isEqualTo(Duration.ofMillis(1000))
+      .isEqualTo(Duration.ofMillis(200))
     assertThat(VidLabelingRpcThrottlers.DEFAULT_CONTROL_PLANE_MIN_INTERVAL)
-      .isEqualTo(Duration.ofMillis(500))
+      .isEqualTo(Duration.ofMillis(250))
   }
 
   @Test
