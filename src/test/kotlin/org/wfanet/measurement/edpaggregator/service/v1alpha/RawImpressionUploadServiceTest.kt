@@ -122,7 +122,10 @@ class RawImpressionUploadServiceTest {
   fun `createRawImpressionUpload with requestId is idempotent`(): Unit = runBlocking {
     val request = createRawImpressionUploadRequest {
       parent = DATA_PROVIDER_KEY.toName()
-      rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+      rawImpressionUpload = rawImpressionUpload {
+        doneBlobUri = DONE_BLOB_URI
+        doneBlobGeneration = DONE_BLOB_GENERATION
+      }
       requestId = REQUEST_ID
     }
     val existing = service.createRawImpressionUpload(request)
@@ -141,7 +144,10 @@ class RawImpressionUploadServiceTest {
   @Test
   fun `createRawImpressionUpload throws INVALID_ARGUMENT for empty parent`(): Unit = runBlocking {
     val request = createRawImpressionUploadRequest {
-      rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+      rawImpressionUpload = rawImpressionUpload {
+        doneBlobUri = DONE_BLOB_URI
+        doneBlobGeneration = DONE_BLOB_GENERATION
+      }
       requestId = REQUEST_ID
     }
 
@@ -163,7 +169,10 @@ class RawImpressionUploadServiceTest {
     runBlocking {
       val request = createRawImpressionUploadRequest {
         parent = "invalid-parent"
-        rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+        rawImpressionUpload = rawImpressionUpload {
+          doneBlobUri = DONE_BLOB_URI
+          doneBlobGeneration = DONE_BLOB_GENERATION
+        }
         requestId = REQUEST_ID
       }
 
@@ -222,11 +231,38 @@ class RawImpressionUploadServiceTest {
   }
 
   @Test
+  fun `createRawImpressionUpload rejects missing done blob generation`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.createRawImpressionUpload(
+          createRawImpressionUploadRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+            requestId = REQUEST_ID
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "raw_impression_upload.done_blob_generation"
+        }
+      )
+  }
+
+  @Test
   fun `createRawImpressionUpload throws INVALID_ARGUMENT for malformed requestId`(): Unit =
     runBlocking {
       val request = createRawImpressionUploadRequest {
         parent = DATA_PROVIDER_KEY.toName()
-        rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+        rawImpressionUpload = rawImpressionUpload {
+          doneBlobUri = DONE_BLOB_URI
+          doneBlobGeneration = DONE_BLOB_GENERATION
+        }
         requestId = "invalid-request-id"
       }
 
@@ -248,7 +284,10 @@ class RawImpressionUploadServiceTest {
     runBlocking {
       val request = createRawImpressionUploadRequest {
         parent = DATA_PROVIDER_KEY.toName()
-        rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+        rawImpressionUpload = rawImpressionUpload {
+          doneBlobUri = DONE_BLOB_URI
+          doneBlobGeneration = DONE_BLOB_GENERATION
+        }
       }
 
       val exception =
@@ -270,7 +309,10 @@ class RawImpressionUploadServiceTest {
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
           parent = DATA_PROVIDER_KEY.toName()
-          rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = DONE_BLOB_GENERATION
+          }
           requestId = REQUEST_ID
         }
       )
@@ -322,7 +364,10 @@ class RawImpressionUploadServiceTest {
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
           parent = DATA_PROVIDER_KEY.toName()
-          rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = DONE_BLOB_GENERATION
+          }
           requestId = UUID.randomUUID().toString()
         }
       )
@@ -337,12 +382,16 @@ class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `listRawImpressionUploads filters by done blob URI`() = runBlocking {
+  fun `listRawImpressionUploads filters by done blob URI`(): Unit = runBlocking {
+    var generation = DONE_BLOB_GENERATION
     suspend fun create(doneBlobUri: String) =
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
           parent = DATA_PROVIDER_KEY.toName()
-          rawImpressionUpload = rawImpressionUpload { this.doneBlobUri = doneBlobUri }
+          rawImpressionUpload = rawImpressionUpload {
+            this.doneBlobUri = doneBlobUri
+            doneBlobGeneration = generation++
+          }
           requestId = UUID.randomUUID().toString()
         }
       )
@@ -367,7 +416,10 @@ class RawImpressionUploadServiceTest {
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
           parent = DATA_PROVIDER_KEY.toName()
-          rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = DONE_BLOB_GENERATION
+          }
           requestId = UUID.randomUUID().toString()
         }
       )
@@ -375,7 +427,10 @@ class RawImpressionUploadServiceTest {
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
           parent = DATA_PROVIDER_KEY.toName()
-          rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = DONE_BLOB_GENERATION + 1L
+          }
           requestId = UUID.randomUUID().toString()
         }
       )
@@ -513,7 +568,10 @@ class RawImpressionUploadServiceTest {
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
           parent = DATA_PROVIDER_KEY.toName()
-          rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = DONE_BLOB_GENERATION
+          }
           requestId = UUID.randomUUID().toString()
         }
       )
@@ -548,7 +606,10 @@ class RawImpressionUploadServiceTest {
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
           parent = DATA_PROVIDER_KEY.toName()
-          rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = DONE_BLOB_GENERATION
+          }
           requestId = UUID.randomUUID().toString()
         }
       )
@@ -588,7 +649,10 @@ class RawImpressionUploadServiceTest {
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
           parent = DATA_PROVIDER_KEY.toName()
-          rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = DONE_BLOB_GENERATION
+          }
           requestId = UUID.randomUUID().toString()
         }
       )
@@ -638,7 +702,10 @@ class RawImpressionUploadServiceTest {
         service.createRawImpressionUpload(
           createRawImpressionUploadRequest {
             parent = DATA_PROVIDER_KEY.toName()
-            rawImpressionUpload = rawImpressionUpload { doneBlobUri = DONE_BLOB_URI }
+            rawImpressionUpload = rawImpressionUpload {
+              doneBlobUri = DONE_BLOB_URI
+              doneBlobGeneration = DONE_BLOB_GENERATION
+            }
             requestId = UUID.randomUUID().toString()
           }
         )
