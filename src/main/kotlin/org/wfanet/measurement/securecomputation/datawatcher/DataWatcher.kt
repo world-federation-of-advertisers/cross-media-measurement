@@ -161,6 +161,13 @@ class DataWatcher(
       )
     }
 
+    if (WatchedBlobs.OVERRIDE_MODEL_LINES_KEY in objectMetadata) {
+      requestBuilder.header(
+        OVERRIDE_MODEL_LINES_HEADER,
+        objectMetadata.getValue(WatchedBlobs.OVERRIDE_MODEL_LINES_KEY),
+      )
+    }
+
     val request =
       requestBuilder
         .POST(HttpRequest.BodyPublishers.ofString(httpEndpointConfig.appParams.toJson()))
@@ -265,6 +272,7 @@ class DataWatcher(
     private val logger: Logger = Logger.getLogger(DataWatcher::class.java.name)
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
     private const val DATA_WATCHER_GENERATION_HEADER: String = "X-DataWatcher-Generation"
+    private const val OVERRIDE_MODEL_LINES_HEADER: String = "X-Override-Model-Lines"
 
     /**
      * Reserved objectMetadata key DataWatcherFunction uses to carry the GCS object generation. If
