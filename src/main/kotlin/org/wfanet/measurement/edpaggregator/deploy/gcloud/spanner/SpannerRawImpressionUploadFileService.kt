@@ -94,6 +94,10 @@ class SpannerRawImpressionUploadFileService(
       throw RequiredFieldNotSetException("raw_impression_upload_file.blob_uri")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (file.blobGeneration == 0L) {
+      throw RequiredFieldNotSetException("raw_impression_upload_file.blob_generation")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     if (file.blobGeneration < 0L) {
       throw InvalidFieldValueException("raw_impression_upload_file.blob_generation")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -219,6 +223,12 @@ class SpannerRawImpressionUploadFileService(
       }
       if (file.blobUri.isEmpty()) {
         throw RequiredFieldNotSetException("requests.$index.raw_impression_upload_file.blob_uri")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (file.blobGeneration == 0L) {
+        throw RequiredFieldNotSetException(
+            "requests.$index.raw_impression_upload_file.blob_generation"
+          )
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
       if (file.blobGeneration < 0L) {
