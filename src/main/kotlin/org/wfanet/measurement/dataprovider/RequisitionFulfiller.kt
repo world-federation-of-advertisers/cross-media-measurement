@@ -38,6 +38,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
+import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.unpack
@@ -69,9 +70,25 @@ abstract class RequisitionFulfiller(
   protected val dataProviderData: DataProviderData,
   private val certificatesStub: CertificatesCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,
-  protected val throttler: Throttler,
+  /** Paces outbound calls to the Kingdom's Certificates and Requisitions services. */
+  private val kingdomRpcThrottler: Throttler,
   protected val trustedCertificates: Map<ByteString, X509Certificate>,
 ) {
+  /**
+   * Paces [block] via [kingdomRpcThrottler]. [errorMessage] wraps the exception on failure.
+   *
+   * Does not retry: the underlying channel's default service config already retries UNAVAILABLE
+   * transparently, and a non-idempotent mutation can't be safely replayed at this layer without
+   * reconciling via GetRequisition first
+   * (world-federation-of-advertisers/cross-media-measurement#2374).
+   */
+  private suspend fun <T> callKingdom(errorMessage: String, block: suspend () -> T): T =
+    try {
+      kingdomRpcThrottler.onReady(block)
+    } catch (e: StatusException) {
+      throw Exception(errorMessage, e)
+    }
+
   protected data class Specifications(
     val measurementSpec: MeasurementSpec,
     val requisitionSpec: RequisitionSpec,
@@ -151,10 +168,8 @@ abstract class RequisitionFulfiller(
   }
 
   protected suspend fun getCertificate(resourceName: String): Certificate {
-    return try {
+    return callKingdom("Error fetching certificate $resourceName") {
       certificatesStub.getCertificate(getCertificateRequest { name = resourceName })
-    } catch (e: StatusException) {
-      throw Exception("Error fetching certificate $resourceName", e)
     }
   }
 
@@ -164,8 +179,10 @@ abstract class RequisitionFulfiller(
     message: String,
     etag: String,
   ): Requisition {
-    try {
-      return requisitionsStub.refuseRequisition(
+    // TODO(world-federation-of-advertisers/cross-media-measurement#2374): Handle ABORTED (stale
+    //  etag) by retrying with a refreshed etag once the Kingdom's public API propagates it.
+    return callKingdom("Error refusing requisition $requisitionName") {
+      requisitionsStub.refuseRequisition(
         refuseRequisitionRequest {
           name = requisitionName
           refusal = refusal {
@@ -175,10 +192,6 @@ abstract class RequisitionFulfiller(
           this.etag = etag
         }
       )
-    } catch (e: StatusException) {
-      // TODO(world-federation-of-advertisers/cross-media-measurement#2374): Handle ABORT exception
-      // by calling GetRequisition.
-      throw Exception("Error refusing requisition $requisitionName", e)
     }
   }
 
@@ -188,10 +201,15 @@ abstract class RequisitionFulfiller(
       filter = filter { states += Requisition.State.UNFULFILLED }
     }
 
-    try {
-      return requisitionsStub.listRequisitions(request).requisitionsList
-    } catch (e: StatusException) {
-      throw Exception("Error listing requisitions", e)
+    return callKingdom("Error listing requisitions") {
+      requisitionsStub.listRequisitions(request).requisitionsList
+    }
+  }
+
+  /** Fetches the current state of the Requisition with resource name [requisitionName]. */
+  protected suspend fun getRequisition(requisitionName: String): Requisition {
+    return callKingdom("Error fetching requisition $requisitionName") {
+      requisitionsStub.getRequisition(getRequisitionRequest { name = requisitionName })
     }
   }
 
@@ -221,19 +239,18 @@ abstract class RequisitionFulfiller(
     val encryptedResult: EncryptedMessage =
       encryptResult(signedResult, measurementEncryptionPublicKey)
 
-    try {
+    // TODO(world-federation-of-advertisers/cross-media-measurement#2374): Handle ABORTED (stale
+    //  etag) by retrying with a refreshed etag once the Kingdom's public API propagates it.
+    callKingdom("Error fulfilling direct requisition ${requisition.name}") {
       requisitionsStub.fulfillDirectRequisition(
         fulfillDirectRequisitionRequest {
           name = requisition.name
           this.encryptedResult = encryptedResult
           this.nonce = nonce
           this.certificate = dataProviderData.certificateKey.toName()
+          this.etag = requisition.etag
         }
       )
-    } catch (e: StatusException) {
-      // TODO(world-federation-of-advertisers/cross-media-measurement#2374): Handle ABORT exception
-      // by calling GetRequisition.
-      throw Exception("Error fulfilling direct requisition ${requisition.name}", e)
     }
   }
 

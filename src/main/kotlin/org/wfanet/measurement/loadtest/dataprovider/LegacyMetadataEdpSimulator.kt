@@ -96,6 +96,7 @@ class LegacyMetadataEdpSimulator(
   health: SettableHealth = SettableHealth(),
   random: Random = Random,
   blockingCoroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
+  kingdomRpcThrottler: Throttler,
 ) :
   AbstractEdpSimulator(
     edpData,
@@ -111,6 +112,7 @@ class LegacyMetadataEdpSimulator(
     eventGroupsOptions,
     eventQuery,
     throttler,
+    kingdomRpcThrottler,
     privacyBudgetManager,
     trustedCertificates,
     vidIndexMap,

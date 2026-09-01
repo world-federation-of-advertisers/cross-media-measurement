@@ -18,12 +18,12 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.kotlin.toByteString
-import java.lang.UnsupportedOperationException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.Instant
 import kotlin.random.Random
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -203,6 +203,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -252,6 +253,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -304,6 +306,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -357,6 +360,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -413,6 +417,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -465,6 +470,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
 
@@ -512,6 +518,7 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -521,6 +528,26 @@ class PopulationRequisitionFulfillerTest {
     assertThat(refuseRequisitionRequest.refusal.justification)
       .isEqualTo(Requisition.Refusal.Justification.SPEC_INVALID)
     assertThat(refuseRequisitionRequest.refusal.message).contains("filter")
+  }
+
+  @Test
+  fun `construction fails when workflow and Kingdom RPC throttlers are the same instance`() {
+    val sharedThrottler = dummyThrottler
+
+    assertFailsWith<IllegalArgumentException> {
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        sharedThrottler,
+        TRUSTED_CERTIFICATES,
+        modelRolloutsStub,
+        modelReleasesStub,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = sharedThrottler,
+      )
+    }
   }
 
   companion object {
@@ -760,9 +787,17 @@ class PopulationRequisitionFulfillerTest {
     /** Dummy [Throttler] for satisfying signatures without being used. */
     private val dummyThrottler =
       object : Throttler {
-        override suspend fun <T> onReady(block: suspend () -> T): T {
-          throw UnsupportedOperationException("Should not be called")
-        }
+        override suspend fun <T> onReady(block: suspend () -> T): T = block()
+      }
+
+    /**
+     * A second, distinct dummy [Throttler] instance for `kingdomRpcThrottler`. It must not be the
+     * same instance as the workflow throttler: in production, a real (non-reentrant) throttler
+     * shared between the two would deadlock, since run() holds it for the whole workflow.
+     */
+    private val dummyKingdomRpcThrottler =
+      object : Throttler {
+        override suspend fun <T> onReady(block: suspend () -> T): T = block()
       }
 
     private fun loadSigningKey(

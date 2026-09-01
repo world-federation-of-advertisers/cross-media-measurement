@@ -23,6 +23,7 @@ import io.grpc.ManagedChannel
 import java.io.File
 import java.security.cert.X509Certificate
 import java.time.Clock
+import java.time.Duration
 import java.time.ZoneId
 import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
@@ -108,6 +109,7 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
     vidIndexMap: InMemoryVidIndexMap,
     logSketchDetails: Boolean,
     throttler: MinimumIntervalThrottler,
+    kingdomRpcThrottler: MinimumIntervalThrottler,
     health: SettableHealth,
     random: Random,
   ): AbstractEdpSimulator
@@ -123,6 +125,10 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
   }
 
   override fun run() {
+    require(flags.kingdomRpcMinInterval > Duration.ZERO) {
+      "--kingdom-rpc-min-interval must be positive, got ${flags.kingdomRpcMinInterval}"
+    }
+
     val clientCerts =
       SigningCerts.fromPemFiles(
         certificateFile = flags.tlsFlags.certFile,
@@ -176,6 +182,7 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
         vidIndexMap,
         flags.logSketchDetails,
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
+        MinimumIntervalThrottler(Clock.systemUTC(), flags.kingdomRpcMinInterval),
         health,
         random,
       )

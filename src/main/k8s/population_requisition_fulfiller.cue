@@ -21,6 +21,7 @@ let MountRoot = "/etc/\(#AppName)/pdp"
 	dataProviderResourceName:     string
 	dataProviderCertResourceName: string
 	throttlerMinimumInterval:     string | *"2s"
+	kingdomRpcMinInterval:        string | *"200ms"
 	eventMessageTypeUrl:          string
 }
 
@@ -52,6 +53,7 @@ let MountRoot = "/etc/\(#AppName)/pdp"
 				"--data-provider-consent-signaling-private-key-der-file=\(MountRoot)/consent-signaling/pdp_cs_private.der",
 				"--data-provider-consent-signaling-certificate-der-file=\(MountRoot)/consent-signaling/pdp_cs_cert.der",
 				"--throttler-minimum-interval=\(_config.throttlerMinimumInterval)",
+				"--kingdom-rpc-min-interval=\(_config.kingdomRpcMinInterval)",
 				"--tls-cert-file=\(MountRoot)/tls/tls.crt",
 				"--tls-key-file=\(MountRoot)/tls/tls.key",
 				"--cert-collection-file=\(MountRoot)/config/trusted_certs.pem",

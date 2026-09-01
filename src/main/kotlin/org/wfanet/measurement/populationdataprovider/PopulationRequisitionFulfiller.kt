@@ -55,30 +55,47 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.Event
  * A requisition fulfiller for a Population Data Provider (PDP).
  *
  * The fulfiller supports a single CMMS instance (market) with a single set of templates.
+ *
+ * @param workflowThrottler paces how often [executeRequisitionFulfillingWorkflow] runs, via [run].
+ * @param kingdomRpcThrottler paces outbound Certificates and Requisitions RPCs, e.g.
+ *   `GetCertificate`, `ListRequisitions`. Must be a distinct instance from [workflowThrottler]:
+ *   [run] holds [workflowThrottler] for the duration of each workflow execution, so a nested
+ *   Kingdom RPC paced by the same non-reentrant throttler instance would deadlock.
+ * @throws IllegalArgumentException if [workflowThrottler] and [kingdomRpcThrottler] are the same
+ *   instance.
  */
 class PopulationRequisitionFulfiller(
   pdpData: DataProviderData,
   certificatesStub: CertificatesGrpcKt.CertificatesCoroutineStub,
   requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
-  throttler: Throttler,
+  private val workflowThrottler: Throttler,
   trustedCertificates: Map<ByteString, X509Certificate>,
   private val modelRolloutsStub: ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub,
   private val modelReleasesStub: ModelReleasesGrpcKt.ModelReleasesCoroutineStub,
   private val populationsStub: PopulationsGrpcKt.PopulationsCoroutineStub,
   /** Protobuf descriptor of the event message for the CMMS instance. */
   private val eventMessageDescriptor: Descriptors.Descriptor,
+  kingdomRpcThrottler: Throttler,
 ) :
   RequisitionFulfiller(
     pdpData,
     certificatesStub,
     requisitionsStub,
-    throttler,
+    kingdomRpcThrottler,
     trustedCertificates,
   ) {
 
+  init {
+    require(workflowThrottler !== kingdomRpcThrottler) {
+      "workflowThrottler and kingdomRpcThrottler must be distinct instances: run() holds " +
+        "workflowThrottler for the duration of each workflow execution, so a nested Kingdom " +
+        "RPC paced by the same non-reentrant throttler instance would deadlock."
+    }
+  }
+
   /** A sequence of operations done in the simulator. */
   override suspend fun run() {
-    throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
+    workflowThrottler.loopOnReady { executeRequisitionFulfillingWorkflow() }
   }
 
   /** Executes the requisition fulfillment workflow. */
@@ -153,6 +170,8 @@ class PopulationRequisitionFulfiller(
     }
   }
 
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4426): Pace via
+  //  kingdomRpcThrottler, or cache by populationName across loop iterations.
   private suspend fun getPopulation(populationName: String): Population {
     val populationKey = requireNotNull(PopulationKey.fromName(populationName))
     if (populationKey.parentKey.toName() != dataProviderData.name) {
@@ -174,6 +193,8 @@ class PopulationRequisitionFulfiller(
    * Returns the [ModelRelease] associated with the latest
    * [org.wfanet.measurement.api.v2alpha.ModelRollout] for the specified [modelLineName].
    */
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4426): Pace listModelRollouts
+  //  and getModelRelease via kingdomRpcThrottler, or cache by modelLineName across iterations.
   private suspend fun getModelRelease(modelLineName: String): ModelRelease {
     // TODO(@jojijac0b): Handle case where measurement spans across one or more model outages.
     //  Should use HoldbackModelLine in this case to reflect what is done with measurement reports.
