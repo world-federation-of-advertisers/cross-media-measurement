@@ -1,0 +1,57 @@
+# Reference VID impression upload guide
+
+This guide describes how an Event Data Provider (EDP) submits reference VID impressions to the
+VID-labeling pipeline and how to correct an upload that contains bad data. The market operator
+provides the Cloud Storage bucket and raw-impression path assigned to the EDP.
+
+## Submit a new date
+
+For each date:
+
+1. Write every raw-impression file into the assigned date directory.
+2. Verify that the directory contains the complete dataset intended for that date.
+3. Write an empty object named `done` into the directory last.
+4. Do not add, replace, or remove objects after writing `done`.
+
+The `done` object tells the VID-labeling pipeline that the directory is complete. The pipeline
+records a snapshot of every raw-impression object currently present and processes that complete
+snapshot for the applicable model lines.
+
+## Correct bad data
+
+**Never overwrite or re-upload the `done` object for an already processed directory until the
+market operator confirms that the bad upload has been evicted.** A new `done` generation starts a
+replacement upload. Starting it before eviction can leave stale labeled output and can corrupt the
+ordering required by memoized model lines.
+
+When bad data is discovered:
+
+1. Contact the market operator and provide:
+   * the DataProvider resource name;
+   * every affected date and `done` object URI;
+   * the raw-impression object URIs that will be replaced, added, or removed;
+   * a short description of the data problem.
+2. Do not modify the raw-impression directory or its `done` object while the operator investigates
+   or runs eviction.
+3. Wait for the operator to confirm that eviction completed successfully.
+4. Make each affected date directory contain the complete corrected dataset:
+   * leave unchanged objects in place;
+   * overwrite corrupted objects with corrected data;
+   * add missing objects; and
+   * remove objects that must no longer contribute impressions.
+5. After the directory is final, overwrite its empty `done` object to create a new generation.
+6. When correcting multiple dates, process them from oldest to newest and wait for each replacement
+   to complete before writing the next `done` generation.
+
+The replacement upload processes every object remaining in the directory, including unchanged
+objects. Later dates evicted only because they depend on a corrected memoized rank-index state do
+not need to be re-uploaded by the EDP; the market operator recovers those dates separately.
+
+## Processing failures without bad data
+
+Do not rewrite `done` merely because processing is delayed or failed. If the directory contents are
+correct, report the affected date and upload to the market operator. The operator determines
+whether the existing upload should be retried or evicted.
+
+For the operator procedure, see
+[Healing VID-labeling uploads](../operations/healing-vid-labeling-uploads.md).
