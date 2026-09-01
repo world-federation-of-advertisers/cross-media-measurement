@@ -107,6 +107,9 @@ class EvictUploader(
     val memoized: Boolean,
   )
 
+  /** A memoized-only cascade entry that must be recovered after corrected uploads complete. */
+  data class RecoveryTarget(val uploadName: String, val cmmsModelLines: List<String>)
+
   /** The forward cascade to evict, ordered by upload create time. */
   data class EvictionPlan(
     val cascade: List<CascadeEntry>,
@@ -118,7 +121,17 @@ class EvictUploader(
     val cutoffTime: Instant,
     /** UUID4 that owns the durable data-provider eviction fence and resumes this exact plan. */
     val evictionOperationId: String,
-  )
+  ) {
+    /** Later uploads evicted only because their memoized rank state depended on a bad upload. */
+    val recoveryTargets: List<RecoveryTarget>
+      get() =
+        cascade
+          .filter { it.memoized && it.uploadName !in badUploads }
+          .groupBy { it.uploadName }
+          .map { (uploadName, entries) ->
+            RecoveryTarget(uploadName, entries.map { it.cmmsModelLine }.distinct())
+          }
+  }
 
   /** Outcome of an [evict] run. */
   data class EvictionResult(
