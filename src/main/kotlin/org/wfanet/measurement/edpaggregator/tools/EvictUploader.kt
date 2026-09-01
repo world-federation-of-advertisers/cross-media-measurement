@@ -269,8 +269,8 @@ class EvictUploader(
    * plan, this acquires a durable DataProvider-wide fence that verifies the pipeline is idle and
    * prevents new upload registration, model-line backfill, or processing restarts until eviction
    * completes. A partial failure leaves the fence in place so the same operation ID can safely
-   * resume. The caller must also pause `DataAvailabilitySync`, because an in-flight sync could
-   * otherwise restore metadata while its output is being removed.
+   * resume. The caller must pause `DataAvailabilitySync` and wait for existing sync calls to drain,
+   * because an in-flight sync could otherwise restore metadata while its output is being removed.
    *
    * Metadata is deleted before its GCS object. This makes `DataAvailabilityCleanup` harmless when
    * the object-deletion event arrives: its active-only lookup finds no row, and a cleanup event
