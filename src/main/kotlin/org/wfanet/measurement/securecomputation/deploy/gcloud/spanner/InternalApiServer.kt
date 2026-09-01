@@ -169,21 +169,21 @@ class InternalApiServer : Runnable {
 
   @CommandLine.Option(
     names = ["--metadata-read-rpc-min-interval"],
-    defaultValue = "500ms",
+    defaultValue = "100ms",
     description = ["Minimum interval between outbound EDPA metadata read RPCs from this process."],
   )
   private lateinit var metadataReadRpcMinInterval: Duration
 
   @CommandLine.Option(
     names = ["--metadata-write-rpc-min-interval"],
-    defaultValue = "1000ms",
+    defaultValue = "200ms",
     description = ["Minimum interval between outbound EDPA metadata write RPCs from this process."],
   )
   private lateinit var metadataWriteRpcMinInterval: Duration
 
   @CommandLine.Option(
     names = ["--control-plane-rpc-min-interval"],
-    defaultValue = "500ms",
+    defaultValue = "250ms",
     description = ["Minimum interval between outbound WorkItems RPCs from this process."],
   )
   private lateinit var controlPlaneRpcMinInterval: Duration
