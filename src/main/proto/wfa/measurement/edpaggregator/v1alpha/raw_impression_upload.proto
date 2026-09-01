@@ -73,7 +73,7 @@ message RawImpressionUpload {
   // Cloud Storage generation of the done blob. A nonzero value identifies the
   // exact upload event when the same done path is written more than once.
   int64 done_blob_generation = 6 [
-    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
 }

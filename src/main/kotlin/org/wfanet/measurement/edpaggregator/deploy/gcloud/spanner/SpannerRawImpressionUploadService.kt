@@ -69,6 +69,10 @@ class SpannerRawImpressionUploadService(
       throw RequiredFieldNotSetException("raw_impression_upload.done_blob_uri")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.rawImpressionUpload.doneBlobGeneration == 0L) {
+      throw RequiredFieldNotSetException("raw_impression_upload.done_blob_generation")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     if (request.rawImpressionUpload.doneBlobGeneration < 0L) {
       throw InvalidFieldValueException("raw_impression_upload.done_blob_generation")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
