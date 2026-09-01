@@ -188,6 +188,7 @@ abstract class RawImpressionUploadFileServiceTest {
               rawImpressionUploadFile = rawImpressionUploadFile {
                 rawImpressionUploadResourceId = uploadId
                 blobUri = BLOB_URI
+                blobGeneration = BLOB_GENERATION
               }
             }
           )
@@ -215,6 +216,7 @@ abstract class RawImpressionUploadFileServiceTest {
               rawImpressionUploadFile = rawImpressionUploadFile {
                 dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
                 blobUri = BLOB_URI
+                blobGeneration = BLOB_GENERATION
               }
             }
           )
@@ -260,6 +262,36 @@ abstract class RawImpressionUploadFileServiceTest {
   }
 
   @Test
+  fun `createRawImpressionUploadFile throws INVALID_ARGUMENT if blob_generation not set`(): Unit =
+    runBlocking {
+      val uploadId: String = createUpload()
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          fileService.createRawImpressionUploadFile(
+            createRawImpressionUploadFileRequest {
+              rawImpressionUploadFile = rawImpressionUploadFile {
+                dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                rawImpressionUploadResourceId = uploadId
+                blobUri = BLOB_URI
+                eventDate = EVENT_DATE
+              }
+              requestId = UUID.randomUUID().toString()
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "raw_impression_upload_file.blob_generation"
+          }
+        )
+    }
+
+  @Test
   fun `createRawImpressionUploadFile throws INVALID_ARGUMENT if event_date not set`() =
     runBlocking {
       val uploadId: String = createUpload()
@@ -272,6 +304,7 @@ abstract class RawImpressionUploadFileServiceTest {
                 dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
                 rawImpressionUploadResourceId = uploadId
                 blobUri = BLOB_URI
+                blobGeneration = BLOB_GENERATION
               }
               requestId = UUID.randomUUID().toString()
             }
@@ -343,6 +376,7 @@ abstract class RawImpressionUploadFileServiceTest {
               requests += createRawImpressionUploadFileRequest {
                 rawImpressionUploadFile = rawImpressionUploadFile {
                   blobUri = BLOB_URI
+                  blobGeneration = BLOB_GENERATION
                   eventDate = EVENT_DATE
                 }
               }
@@ -373,7 +407,10 @@ abstract class RawImpressionUploadFileServiceTest {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = uploadId
               requests += createRawImpressionUploadFileRequest {
-                rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI }
+                rawImpressionUploadFile = rawImpressionUploadFile {
+                  blobUri = BLOB_URI
+                  blobGeneration = BLOB_GENERATION
+                }
                 requestId = UUID.randomUUID().toString()
               }
             }
@@ -404,6 +441,7 @@ abstract class RawImpressionUploadFileServiceTest {
           requests += createRawImpressionUploadFileRequest {
             rawImpressionUploadFile = rawImpressionUploadFile {
               blobUri = "gs://bucket/file1"
+              blobGeneration = BLOB_GENERATION
               eventDate = EVENT_DATE
             }
             requestId = UUID.randomUUID().toString()
@@ -411,6 +449,7 @@ abstract class RawImpressionUploadFileServiceTest {
           requests += createRawImpressionUploadFileRequest {
             rawImpressionUploadFile = rawImpressionUploadFile {
               blobUri = "gs://bucket/file2"
+              blobGeneration = BLOB_GENERATION
               eventDate = EVENT_DATE
             }
             requestId = UUID.randomUUID().toString()
@@ -447,6 +486,7 @@ abstract class RawImpressionUploadFileServiceTest {
               requests += createRawImpressionUploadFileRequest {
                 rawImpressionUploadFile = rawImpressionUploadFile {
                   blobUri = "gs://bucket/file1"
+                  blobGeneration = BLOB_GENERATION
                   eventDate = EVENT_DATE
                 }
                 this.requestId = requestId
@@ -454,6 +494,7 @@ abstract class RawImpressionUploadFileServiceTest {
               requests += createRawImpressionUploadFileRequest {
                 rawImpressionUploadFile = rawImpressionUploadFile {
                   blobUri = "gs://bucket/file2"
+                  blobGeneration = BLOB_GENERATION
                   eventDate = EVENT_DATE
                 }
                 this.requestId = requestId
@@ -555,6 +596,7 @@ abstract class RawImpressionUploadFileServiceTest {
             requests += createRawImpressionUploadFileRequest {
               rawImpressionUploadFile = rawImpressionUploadFile {
                 blobUri = "gs://bucket/new"
+                blobGeneration = BLOB_GENERATION
                 eventDate = EVENT_DATE
               }
               this.requestId = UUID.randomUUID().toString()
@@ -584,6 +626,7 @@ abstract class RawImpressionUploadFileServiceTest {
                 rawImpressionUploadFile = rawImpressionUploadFile {
                   dataProviderResourceId = "different-provider"
                   blobUri = BLOB_URI
+                  blobGeneration = BLOB_GENERATION
                 }
               }
             }
@@ -614,6 +657,7 @@ abstract class RawImpressionUploadFileServiceTest {
             requests += createRawImpressionUploadFileRequest {
               rawImpressionUploadFile = rawImpressionUploadFile {
                 blobUri = BLOB_URI
+                blobGeneration = BLOB_GENERATION
                 eventDate = EVENT_DATE
               }
               requestId = UUID.randomUUID().toString()

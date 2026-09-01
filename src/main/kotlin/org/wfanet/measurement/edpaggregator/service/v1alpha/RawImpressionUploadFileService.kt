@@ -93,6 +93,10 @@ class RawImpressionUploadFileService(
       throw RequiredFieldNotSetException("raw_impression_upload_file.blob_uri")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.rawImpressionUploadFile.blobGeneration == 0L) {
+      throw RequiredFieldNotSetException("raw_impression_upload_file.blob_generation")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     if (request.rawImpressionUploadFile.blobGeneration < 0L) {
       throw InvalidFieldValueException("raw_impression_upload_file.blob_generation")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -218,6 +222,12 @@ class RawImpressionUploadFileService(
         val blobUri = childRequest.rawImpressionUploadFile.blobUri
         if (blobUri.isEmpty()) {
           throw RequiredFieldNotSetException("requests.$index.raw_impression_upload_file.blob_uri")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+        if (childRequest.rawImpressionUploadFile.blobGeneration == 0L) {
+          throw RequiredFieldNotSetException(
+              "requests.$index.raw_impression_upload_file.blob_generation"
+            )
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
         if (childRequest.rawImpressionUploadFile.blobGeneration < 0L) {

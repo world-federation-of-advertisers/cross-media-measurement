@@ -221,7 +221,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUploadFile(
   sizeBytes: Long,
   eventDate: com.google.type.Date,
   createRequestId: String,
-  blobGeneration: Long = 0L,
+  blobGeneration: Long,
 ) {
   bufferInsertMutation("RawImpressionUploadFile") {
     set("DataProviderResourceId").to(dataProviderResourceId)
@@ -230,9 +230,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUploadFile(
     set("FileResourceId").to(fileResourceId)
     set("CreateRequestId").to(createRequestId)
     set("BlobUri").to(blobUri)
-    if (blobGeneration != 0L) {
-      set("BlobGeneration").to(blobGeneration)
-    }
+    set("BlobGeneration").to(blobGeneration)
     set("SizeBytes").to(sizeBytes)
     set("EventDate").to(eventDate.toCloudDate())
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
