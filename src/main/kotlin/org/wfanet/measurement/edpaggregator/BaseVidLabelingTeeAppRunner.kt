@@ -50,21 +50,21 @@ abstract class BaseVidLabelingTeeAppRunner(
   @CommandLine.Option(
     names = ["--metadata-read-rpc-min-interval"],
     description = ["Minimum interval between outbound metadata read RPCs."],
-    defaultValue = "500ms",
+    defaultValue = "100ms",
   )
   private lateinit var metadataReadRpcMinInterval: Duration
 
   @CommandLine.Option(
     names = ["--metadata-write-rpc-min-interval"],
     description = ["Minimum interval between outbound metadata write RPCs."],
-    defaultValue = "1000ms",
+    defaultValue = "200ms",
   )
   private lateinit var metadataWriteRpcMinInterval: Duration
 
   @CommandLine.Option(
     names = ["--control-plane-rpc-min-interval"],
     description = ["Minimum interval between outbound Secure Computation control-plane RPCs."],
-    defaultValue = "500ms",
+    defaultValue = "250ms",
   )
   private lateinit var controlPlaneRpcMinInterval: Duration
 
