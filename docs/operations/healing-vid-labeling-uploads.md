@@ -83,12 +83,16 @@ line.
 
 Later uploads pulled into the eviction only by a memoized cascade do not need their raw data
 re-uploaded. After every earlier corrected upload has completed, run the ordered `recover-upload`
-commands printed by `evict-uploads`. Each command takes one source upload plus a comma-separated
-list of memoized model lines, validates that the source is still the latest revision and that those
-rows are `FAILED`, then atomically writes a new generation of the existing empty `done` object. The
-new object carries the selected model lines as metadata; DataWatcher forwards them in
-`X-Override-Model-Lines`, so VidLabelingDispatcher creates a replacement upload for only those
-model lines. For example:
+commands printed by `evict-uploads`. Superseded historical revisions are omitted from this list.
+Each command takes one source upload plus the complete comma-separated set of memoized model lines
+evicted from that revision, validates that the source is still latest and that every selected row is
+`FAILED` with a deleted snapshot, then atomically writes a new generation of the existing empty
+`done` object. The new object carries the selected model lines and source upload as paired recovery
+metadata; DataWatcher forwards them in `X-Override-Model-Lines` and
+`X-Recovery-Source-Upload`. Before
+honoring the override, VidLabelingDispatcher independently verifies that the source is the latest
+revision for that done path and that every selected row is `FAILED` with memoized snapshot history.
+It then creates a replacement upload for only those model lines. For example:
 
 ```
 vid-labeling-heal recover-upload \
@@ -105,7 +109,8 @@ Run recovery commands in their printed order and wait for each preceding replace
 so every cumulative rank-index snapshot is rebuilt from its corrected predecessor. The normal
 labeling and data-availability flows regenerate output, restore matching soft-deleted metadata, and
 publish availability to Kingdom. Do not run `retry-failed` for rows evicted because their original
-jobs describe the invalid attempt.
+jobs describe the invalid attempt. Recovery dispatch failures are returned by DataWatcher so the
+Eventarc subscription retries them and ultimately preserves exhausted deliveries in its DLQ.
 
 Before replacement processing begins, the eviction operation is safe to repeat after a partial
 failure. It skips rows already marked `FAILED`, already-deleted metadata, and output blobs that are
