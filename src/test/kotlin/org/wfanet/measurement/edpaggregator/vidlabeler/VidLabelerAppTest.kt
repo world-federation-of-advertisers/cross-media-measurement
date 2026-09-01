@@ -53,7 +53,9 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededRequest
@@ -203,6 +205,7 @@ class VidLabelerAppTest {
         mockVidAssigner
       },
     metrics: VidLabelerAppMetrics = VidLabelerAppMetrics(),
+    rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
   ): VidLabelerApp {
     return VidLabelerApp(
       subscriptionId = "test-subscription",
@@ -225,6 +228,7 @@ class VidLabelerAppTest {
       buildImpressionConverter = { _, _ ->
         ImpressionConverter { _, _ -> error("impressionConverter should not be invoked") }
       },
+      rpcThrottlers = rpcThrottlers,
       metrics = metrics,
     )
   }
@@ -359,8 +363,9 @@ class VidLabelerAppTest {
           }
         }
     }
+    val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
 
-    val app = createApp()
+    val app = createApp(rpcThrottlers = recordingThrottlers.throttlers)
     app.runWork(buildMessage(nonMemoizedParams()))
 
     val captor = argumentCaptor<MarkVidLabelingJobSucceededRequest>()
@@ -372,6 +377,10 @@ class VidLabelerAppTest {
     verifyBlocking(rawImpressionUploadModelLinesService, never()) {
       markRawImpressionUploadModelLineCompleted(any())
     }
+    assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(1)
+    assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(1)
+    assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(0)
   }
 
   @Test
@@ -403,8 +412,9 @@ class VidLabelerAppTest {
 
     // FileSystemStorageClient requires the bucket directory to pre-exist (GCS buckets always do).
     tempFolder.root.resolve("output-bucket").mkdirs()
+    val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
 
-    val app = createApp()
+    val app = createApp(rpcThrottlers = recordingThrottlers.throttlers)
     app.runWork(buildMessage(memoizedParams()))
 
     verifyBlocking(rawImpressionUploadModelLinesService) {
@@ -415,6 +425,10 @@ class VidLabelerAppTest {
     // (the mocked file service returns none), so no footer is read and no marker is written — the
     // done-marker write is not exercised here. See the TODO in resolveSharedEventDate: it can be
     // covered once ParquetStorageClient can write footer key-value metadata.
+    assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
+    assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(2)
+    assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(0)
   }
 
   @Test

@@ -23,6 +23,7 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
@@ -69,6 +70,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param rawImpressionUploadFilesStub stub to list the upload's files for Phase-2 sharding.
  * @param vidLabelerQueue Secure Computation queue the last-job-out publishes Phase-2 VidLabeler
  *   WorkItems to.
+ * @param rpcThrottlers process-scoped rate limiters shared by the TEE lifecycle and Phase-1 RPCs.
  * @param buildSubpoolMapStorageClient Builds the subpool-map [ConditionalOperationStorageClient]
  *   from its [StorageParams] (bucket parsed from the `gs://` blob_prefix).
  * @param buildVidRankMapStorageClient Builds the vid-rank-map [ConditionalOperationStorageClient]
@@ -94,6 +96,7 @@ class VidRankBuilderApp(
   private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
   private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
   private val vidLabelerQueue: String,
+  private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val buildSubpoolMapStorageClient: (StorageParams) -> ConditionalOperationStorageClient,
   private val buildVidRankMapStorageClient: (StorageParams) -> ConditionalOperationStorageClient,
   private val today: () -> LocalDate = { LocalDate.now(ZoneOffset.UTC) },
@@ -107,6 +110,7 @@ class VidRankBuilderApp(
     parser = parser,
     workItemsStub = workItemsClient,
     workItemAttemptsStub = workItemAttemptsClient,
+    controlPlaneThrottler = rpcThrottlers.controlPlane,
   ) {
 
   override suspend fun runWork(message: Any) {
@@ -156,6 +160,7 @@ class VidRankBuilderApp(
         modelLine = params.modelLine,
         retentionDays = retentionDays,
         today = runDate,
+        rpcThrottlers = rpcThrottlers,
       )
 
     val subpoolRanker =
@@ -174,6 +179,7 @@ class VidRankBuilderApp(
         maxEventDate = params.maxEventDate,
         retentionDays = retentionDays,
         today = runDate,
+        rpcThrottlers = rpcThrottlers,
         workerDispatcher = workerDispatcher,
         stripes = rankStripes,
         maxInFlightRecords = maxInFlightRecords,
@@ -196,6 +202,7 @@ class VidRankBuilderApp(
         // Forwarded verbatim from Phase-0 via VidRankBuilderParams (REQUIRED); VidRankBuilder's
         // `require(maxFileBatchSizeBytes > 0)` rejects an unset/zero value at the boundary.
         maxFileBatchSizeBytes = params.maxFileBatchSizeBytes,
+        rpcThrottlers = rpcThrottlers,
       )
       .run()
   }
