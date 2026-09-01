@@ -41,6 +41,7 @@ import org.wfa.measurement.queue.testing.TestWork
 import org.wfa.measurement.queue.testing.testWork
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
@@ -63,6 +64,7 @@ class BaseTeeApplicationImpl(
   parser: Parser<WorkItem>,
   workItemsClient: WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsCoroutineStub,
+  controlPlaneThrottler: Throttler? = null,
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
@@ -70,6 +72,7 @@ class BaseTeeApplicationImpl(
     parser = parser,
     workItemsStub = workItemsClient,
     workItemAttemptsStub = workItemAttemptsClient,
+    controlPlaneThrottler = controlPlaneThrottler,
   ) {
   val messageProcessed = CompletableDeferred<TestWork>()
 
@@ -128,6 +131,7 @@ class BaseTeeApplicationTest {
     val publisher = Publisher<WorkItem>(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel)
+    val controlPlaneThrottler = RecordingThrottler()
 
     val testWorkItemAttempt = workItemAttempt {
       name = "workItems/workItem/workItemAttempts/workItemAttempt"
@@ -151,6 +155,7 @@ class BaseTeeApplicationTest {
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
+        controlPlaneThrottler,
       )
     val job = launch { app.run() }
 
@@ -161,6 +166,7 @@ class BaseTeeApplicationTest {
 
     val processedMessage = app.messageProcessed.await()
     assertThat(processedMessage).isEqualTo(testWork)
+    assertThat(controlPlaneThrottler.onReadyCalls).isEqualTo(2)
 
     job.cancelAndJoin()
   }
@@ -270,6 +276,15 @@ class BaseTeeApplicationTest {
 
     override fun close() {
       ch.close()
+    }
+  }
+
+  private class RecordingThrottler : Throttler {
+    var onReadyCalls = 0
+
+    override suspend fun <T> onReady(block: suspend () -> T): T {
+      onReadyCalls++
+      return block()
     }
   }
 

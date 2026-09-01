@@ -34,6 +34,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadFileRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesResponse
@@ -50,6 +51,9 @@ import org.wfanet.measurement.storage.parquetValue
 @RunWith(JUnit4::class)
 class RawImpressionSourceTest {
   @Rule @JvmField val tempDir = TemporaryFolder()
+
+  private val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
+  private val metadataReadThrottler = recordingThrottlers.throttlers.metadataRead
 
   /** Fake metadata service whose listed files are set per-test via [blobUris]. */
   private class FakeRawImpressionUploadFileService :
@@ -133,6 +137,7 @@ class RawImpressionSourceTest {
     RawImpressionSource(
       parquetStorageClient = client,
       rawImpressionUploadFilesStub = filesStub,
+      metadataReadThrottler = metadataReadThrottler,
       rawImpressionUpload = UPLOAD,
       eventIdColumn = "event_id",
       shardIndex = shardIndex,
@@ -195,6 +200,7 @@ class RawImpressionSourceTest {
     assertThat(counterValue(EMITTED)).isEqualTo(3)
     // One per-file processing-time sample per input file.
     assertThat(histogramCount(FILE_DURATION)).isEqualTo(2)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(1)
   }
 
   @Test
@@ -211,6 +217,7 @@ class RawImpressionSourceTest {
       RawImpressionSource(
         parquetStorageClient = client,
         rawImpressionUploadFilesStub = filesStub,
+        metadataReadThrottler = metadataReadThrottler,
         rawImpressionUpload = UPLOAD,
         eventIdColumn = "event_id",
         eventIdDigestExtractor = EventIdDigestExtractor(),
@@ -225,6 +232,7 @@ class RawImpressionSourceTest {
     assertThat(sink.toList()).containsExactly("e1", "e2", "e3")
     assertThat(counterValue(EMITTED)).isEqualTo(3)
     assertThat(counterValue(DROPPED)).isEqualTo(0)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(2)
   }
 
   @Test
@@ -343,6 +351,7 @@ class RawImpressionSourceTest {
         RawImpressionSource(
           parquetStorageClient = client,
           rawImpressionUploadFilesStub = filesStub,
+          metadataReadThrottler = metadataReadThrottler,
           rawImpressionUpload = UPLOAD,
           eventIdColumn = "event_id",
           eventIdDigestExtractor = EventIdDigestExtractor(),
@@ -412,6 +421,7 @@ class RawImpressionSourceTest {
       RawImpressionSource(
         newClient(),
         filesStub,
+        metadataReadThrottler,
         UPLOAD,
         "event_id",
         0,
@@ -425,6 +435,7 @@ class RawImpressionSourceTest {
       RawImpressionSource(
         newClient(),
         filesStub,
+        metadataReadThrottler,
         UPLOAD,
         "event_id",
         5,
@@ -438,6 +449,7 @@ class RawImpressionSourceTest {
       RawImpressionSource(
         newClient(),
         filesStub,
+        metadataReadThrottler,
         UPLOAD,
         "event_id",
         0,
@@ -452,6 +464,7 @@ class RawImpressionSourceTest {
       RawImpressionSource(
         newClient(),
         filesStub,
+        metadataReadThrottler,
         "  ",
         "event_id",
         0,
@@ -465,6 +478,7 @@ class RawImpressionSourceTest {
       RawImpressionSource(
         newClient(),
         filesStub,
+        metadataReadThrottler,
         UPLOAD,
         "  ",
         0,
