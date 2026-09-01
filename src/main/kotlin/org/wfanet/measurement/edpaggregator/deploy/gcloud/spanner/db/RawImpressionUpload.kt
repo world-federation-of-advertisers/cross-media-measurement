@@ -136,7 +136,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUpload(
   doneBlobUri: String,
   createRequestId: String,
   state: RawImpressionUploadState,
-  doneBlobGeneration: Long = 0L,
+  doneBlobGeneration: Long,
 ) {
   bufferInsertMutation("RawImpressionUpload") {
     set("DataProviderResourceId").to(dataProviderResourceId)
@@ -146,9 +146,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUpload(
       set("CreateRequestId").to(createRequestId)
     }
     set("DoneBlobUri").to(doneBlobUri)
-    if (doneBlobGeneration != 0L) {
-      set("DoneBlobGeneration").to(doneBlobGeneration)
-    }
+    set("DoneBlobGeneration").to(doneBlobGeneration)
     set("State").to(state)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
