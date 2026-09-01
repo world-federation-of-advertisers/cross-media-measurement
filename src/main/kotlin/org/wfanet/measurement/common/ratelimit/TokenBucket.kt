@@ -23,6 +23,7 @@ import kotlin.time.ComparableTimeMark
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableJob
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
@@ -76,15 +77,35 @@ class TokenBucket(
 
     val acquirer = Acquirer(permitCount, Job(coroutineContext[Job]))
     synchronized(this) { acquirers.add(acquirer) }
-    while (acquirer.job.isActive) {
-      refill()
-
-      val tokensNeeded = permitCount - tokenCount.get()
-      if (tokensNeeded > 0) {
-        delay(refillTime * tokensNeeded)
+    acquirer.job.invokeOnCompletion { cause ->
+      if (cause is CancellationException) {
+        synchronized(this) {
+          if (acquirers.remove(acquirer)) {
+            releaseAcquirers()
+          }
+        }
       }
     }
-    acquirer.job.join()
+    try {
+      while (acquirer.job.isActive) {
+        refill()
+        if (!acquirer.job.isActive) {
+          break
+        }
+
+        val tokensNeeded = permitCount - tokenCount.get()
+        if (tokensNeeded > 0) {
+          delay(refillTime * tokensNeeded)
+        }
+      }
+      acquirer.job.join()
+    } finally {
+      synchronized(this) {
+        if (acquirers.remove(acquirer)) {
+          releaseAcquirers()
+        }
+      }
+    }
   }
 
   /**
@@ -125,9 +146,18 @@ class TokenBucket(
     while (acquirers.isNotEmpty()) {
       val acquirer: Acquirer = acquirers.first() // Peek.
 
-      if (tryConsumeTokens(acquirer.permitCount)) {
+      if (!acquirer.job.isActive) {
+        acquirers.removeFirst()
+        continue
+      }
+
+      if (tokenCount.get() >= acquirer.permitCount) {
         acquirers.removeFirst() // Dequeue.
-        acquirer.job.complete()
+        // Completing can lose a race with cancellation. Only consume the tokens if this acquirer
+        // was actually granted the permit so that a canceled waiter cannot reduce capacity.
+        if (acquirer.job.complete()) {
+          check(tryConsumeTokens(acquirer.permitCount))
+        }
       } else {
         break
       }
