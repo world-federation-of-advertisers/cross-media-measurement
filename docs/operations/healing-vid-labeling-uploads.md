@@ -46,9 +46,10 @@ soft-deleted metadata.
 ## Re-upload corrected data
 
 After eviction succeeds, the EDP corrects the retained raw-impression directory and writes a new
-generation of its `done` object. This creates a replacement upload whose snapshot is compared with
-the previous upload. Unchanged raw objects may be reused; changed and added objects are processed,
-and removed objects stay excluded.
+generation of its `done` object. This creates a replacement upload containing a complete snapshot
+of every raw-impression object currently present in the directory. Unchanged objects do not need to
+be uploaded again, but the pipeline processes them again together with changed and added objects.
+Objects removed from the directory are excluded from the replacement upload.
 
 For a memoized cascade, re-trigger every evicted date in chronological order, beginning with the
 earliest corrected date. Keep dispatch ordered so each cumulative rank-index snapshot is rebuilt
