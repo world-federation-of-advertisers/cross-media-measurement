@@ -26,6 +26,7 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.channels.ReceiveChannel
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
@@ -46,6 +47,8 @@ import org.wfanet.measurement.securecomputation.service.WorkItemKey
  * @param subscriptionId The name of the subscription to which this application subscribes.
  * @param queueSubscriber A client that manages connections and interactions with the queue.
  * @param parser [Parser] used to parse serialized queue messages into [T] instances.
+ * @param controlPlaneThrottler optional process-scoped limiter for `WorkItems` and
+ *   `WorkItemAttempts` RPCs.
  */
 abstract class BaseTeeApplication(
   private val subscriptionId: String,
@@ -53,6 +56,7 @@ abstract class BaseTeeApplication(
   private val parser: Parser<WorkItem>,
   private val workItemsStub: WorkItemsCoroutineStub,
   private val workItemAttemptsStub: WorkItemAttemptsCoroutineStub,
+  private val controlPlaneThrottler: Throttler? = null,
 ) : AutoCloseable {
 
   /** Starts the TEE application by listening for messages on the specified queue. */
@@ -186,12 +190,14 @@ abstract class BaseTeeApplication(
     workItemAttemptId: String,
   ): WorkItemAttempt {
     try {
-      return workItemAttemptsStub.createWorkItemAttempt(
-        createWorkItemAttemptRequest {
-          this.parent = parent
-          this.workItemAttemptId = workItemAttemptId
-        }
-      )
+      return callControlPlane {
+        workItemAttemptsStub.createWorkItemAttempt(
+          createWorkItemAttemptRequest {
+            this.parent = parent
+            this.workItemAttemptId = workItemAttemptId
+          }
+        )
+      }
     } catch (e: StatusException) {
       throw ControlPlaneApiException("Failed to create WorkItemAttempt for parent: $parent", e)
     }
@@ -199,9 +205,11 @@ abstract class BaseTeeApplication(
 
   private suspend fun completeWorkItemAttempt(workItemAttempt: WorkItemAttempt) {
     try {
-      workItemAttemptsStub.completeWorkItemAttempt(
-        completeWorkItemAttemptRequest { this.name = workItemAttempt.name }
-      )
+      callControlPlane {
+        workItemAttemptsStub.completeWorkItemAttempt(
+          completeWorkItemAttemptRequest { this.name = workItemAttempt.name }
+        )
+      }
     } catch (e: StatusException) {
       throw ControlPlaneApiException(
         "Failed to set WorkItemAttempt ${workItemAttempt.name} as succeeded",
@@ -212,12 +220,14 @@ abstract class BaseTeeApplication(
 
   private suspend fun failWorkItemAttempt(workItemAttempt: WorkItemAttempt, e: Exception) {
     try {
-      workItemAttemptsStub.failWorkItemAttempt(
-        failWorkItemAttemptRequest {
-          this.name = workItemAttempt.name
-          this.errorMessage = e.message.toString()
-        }
-      )
+      callControlPlane {
+        workItemAttemptsStub.failWorkItemAttempt(
+          failWorkItemAttemptRequest {
+            this.name = workItemAttempt.name
+            this.errorMessage = e.message.toString()
+          }
+        )
+      }
     } catch (e: StatusException) {
       throw ControlPlaneApiException(
         "Failed to set WorkItemAttempt ${workItemAttempt.name} as failed",
@@ -228,13 +238,19 @@ abstract class BaseTeeApplication(
 
   private suspend fun failWorkItem(workItemName: String) {
     try {
-      workItemsStub.failWorkItem(failWorkItemRequest { this.name = workItemName })
+      callControlPlane {
+        workItemsStub.failWorkItem(failWorkItemRequest { this.name = workItemName })
+      }
     } catch (e: StatusException) {
       throw ControlPlaneApiException("Failed to set WorkItem $workItemName as failed", e)
     }
   }
 
   abstract suspend fun runWork(message: Any)
+
+  private suspend fun <T> callControlPlane(block: suspend () -> T): T {
+    return controlPlaneThrottler?.onReady(block) ?: block()
+  }
 
   override fun close() {
     logger.info("Closing BaseTeeApplication and QueueSubscriber for subscription: $subscriptionId")
