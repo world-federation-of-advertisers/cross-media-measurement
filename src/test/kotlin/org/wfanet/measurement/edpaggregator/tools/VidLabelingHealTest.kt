@@ -102,8 +102,10 @@ class VidLabelingHealTest {
 
     assertThat(generation).isEqualTo(12L)
     val blobInfo = argumentCaptor<BlobInfo>()
-    verify(storage).create(blobInfo.capture(), any<ByteArray>(), any<Storage.BlobTargetOption>())
+    val targetOption = argumentCaptor<Storage.BlobTargetOption>()
+    verify(storage).create(blobInfo.capture(), any<ByteArray>(), targetOption.capture())
     assertThat(blobInfo.firstValue.metadata).containsAtLeastEntriesIn(metadata)
+    assertThat(targetOption.firstValue).isEqualTo(Storage.BlobTargetOption.generationMatch(11L))
   }
 
   @Test

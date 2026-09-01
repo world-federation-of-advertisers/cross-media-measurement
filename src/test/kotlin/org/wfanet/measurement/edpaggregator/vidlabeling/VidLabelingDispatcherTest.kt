@@ -577,6 +577,36 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
+  fun `upload ignores stale recovery event after newer generation is registered`() = runBlocking {
+    val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+    val source = rawImpressionUpload {
+      name = sourceUploadName
+      state = RawImpressionUpload.State.FAILED
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION - 1
+    }
+    val newerRecovery = rawImpressionUpload {
+      name = "$DATA_PROVIDER_NAME/rawImpressionUploads/newer-recovery"
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION + 1
+      replacesRawImpressionUpload = sourceUploadName
+    }
+    whenever(rawImpressionUploadService.getRawImpressionUpload(any())).thenReturn(source)
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += newerRecovery })
+
+    val dispatcher =
+      createDispatcher(
+        overrideModelLines = listOf(MODEL_LINE_1),
+        recoverySourceUpload = sourceUploadName,
+      )
+    dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    verifyBlocking(storageClient, never()) { listBlobs(any()) }
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+  }
+
+  @Test
   fun `upload rejects recovery override when source row is not failed`() = runBlocking {
     val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
     val source = rawImpressionUpload {
