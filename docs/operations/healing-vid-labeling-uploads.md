@@ -7,10 +7,12 @@ operator supplies the bad upload resource names, not individual model lines.
 ## Before eviction
 
 Pause DataWatcher delivery to both `VidLabelingDispatcher` and `DataAvailabilitySync`. Stop
-`VidLabelingMonitor`, the ranker, and the VID-labeler workers. Drain or cancel affected queued and
-running labeling work, and wait for in-flight data-availability sync invocations to finish. Leave
-these components quiesced until the command finishes. The required `--pipeline-quiesced` flag is an
-acknowledgement of this operational step; it does not stop the components itself.
+`VidLabelingMonitor` so it cannot dispatch new work, then wait for existing labeling and in-flight
+data-availability sync invocations to finish. The workers may remain running while their queues
+drain. The command checks every upload/model-line under the DataProvider and refuses to run while
+any row is `CREATED`, `POOL_ASSIGNING`, `RANKING`, or `LABELING`. The required
+`--pipeline-quiesced` flag acknowledges that new dispatch is paused; it does not pause components
+itself.
 
 Run the command with:
 
