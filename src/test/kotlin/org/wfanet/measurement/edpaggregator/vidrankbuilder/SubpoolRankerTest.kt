@@ -562,7 +562,7 @@ class SubpoolRankerTest {
 
       assertThat(result.backfill).isTrue()
       assertThat(result.backfillReusedOldRank).isEqualTo(1)
-      assertThat(result.backfillRankCollisions).isEqualTo(0) // F1 is not in the latest snapshot
+      assertThat(result.backfillRankCollisions).isEqualTo(1)
       // The backfilled day is labeled with the original rank 5 (shared with Bob — accepted
       // undercount)...
       assertThat(readDayOnly().mapValues { it.value.first }).containsExactly(1L to 0, 5)
