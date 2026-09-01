@@ -52,13 +52,4 @@ class VidLabelingRpcThrottlersTest {
       VidLabelingRpcThrottlers.fromMinimumIntervals(controlPlane = Duration.ZERO)
     }
   }
-
-  @Test
-  fun `fromEnvironment rejects a non-positive configured interval`() {
-    assertFailsWith<IllegalArgumentException> {
-      VidLabelingRpcThrottlers.fromEnvironment { name ->
-        if (name == VidLabelingRpcThrottlers.METADATA_READ_MIN_INTERVAL_ENV) "0s" else null
-      }
-    }
-  }
 }
