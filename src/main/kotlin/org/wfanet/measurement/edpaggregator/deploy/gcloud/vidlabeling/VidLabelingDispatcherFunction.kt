@@ -363,7 +363,18 @@ class VidLabelingDispatcherFunction : HttpFunction {
 
     private fun createBlobGenerationReader(doneBlobPath: String): suspend (String) -> Long {
       if (!fileSystemPath.isNullOrEmpty()) {
-        return { 0L }
+        val storageRoot = File(EnvVars.checkIsPath("VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH"))
+        return { blobKey ->
+          withContext(Dispatchers.IO) {
+            val blobFile = storageRoot.resolve(blobKey)
+            check(blobFile.isFile) {
+              "Raw impression file disappeared before registration: $blobKey"
+            }
+            blobFile.lastModified().also { generation ->
+              check(generation > 0L) { "Raw impression file has no modification time: $blobKey" }
+            }
+          }
+        }
       }
       val doneBlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
       val storage: Storage =

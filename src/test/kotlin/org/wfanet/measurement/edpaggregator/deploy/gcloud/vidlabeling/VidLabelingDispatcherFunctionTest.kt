@@ -39,6 +39,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
@@ -64,6 +65,7 @@ import org.wfanet.measurement.config.edpaggregator.storageParams
 import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
 import org.wfanet.measurement.config.edpaggregator.vidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.vidLabelingConfigs
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
@@ -252,9 +254,14 @@ class VidLabelingDispatcherFunctionTest {
     assertThat(response.statusCode()).isEqualTo(200)
 
     verifyBlocking(rawImpressionUploadServiceMock, times(1)) { createRawImpressionUpload(any()) }
+    val requestCaptor = argumentCaptor<BatchCreateRawImpressionUploadFilesRequest>()
     verifyBlocking(rawImpressionUploadFileServiceMock, times(1)) {
-      batchCreateRawImpressionUploadFiles(any())
+      batchCreateRawImpressionUploadFiles(requestCaptor.capture())
     }
+    assertThat(
+        requestCaptor.firstValue.requestsList.all { it.rawImpressionUploadFile.blobGeneration > 0L }
+      )
+      .isTrue()
     verifyBlocking(rawImpressionUploadModelLineServiceMock, times(1)) {
       batchCreateRawImpressionUploadModelLines(any())
     }
