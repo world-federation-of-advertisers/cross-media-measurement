@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Timestamp
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -79,7 +80,10 @@ class RecoverUploaderTest {
         Triple(
           DONE_BLOB_URI,
           GENERATION,
-          mapOf(WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to MODEL_LINE),
+          mapOf(
+            WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to MODEL_LINE,
+            WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to UPLOAD,
+          ),
         )
       )
   }
@@ -109,11 +113,10 @@ class RecoverUploaderTest {
   }
 
   @Test
-  fun `recover rejects a non-memoized model line`() = runBlocking {
+  fun `recover rejects a model line whose snapshot is still active`() = runBlocking {
     stubSourceUpload()
     stubModelLine(RawImpressionUploadModelLine.State.FAILED)
-    whenever(rankIndexBlobsService.listRankIndexBlobs(any()))
-      .thenReturn(listRankIndexBlobsResponse {})
+    stubSnapshot(deleted = false)
     val recoverUploader = recoverUploader { _, _, _ -> NEW_GENERATION }
 
     val error =
@@ -121,7 +124,47 @@ class RecoverUploaderTest {
         recoverUploader.recover(UPLOAD, listOf(MODEL_LINE))
       }
 
-    assertThat(error).hasMessageThat().contains("only accepts memoized model lines")
+    assertThat(error).hasMessageThat().contains("complete set of FAILED memoized model lines")
+  }
+
+  @Test
+  fun `recover rejects a partial set of evicted memoized model lines`() = runBlocking {
+    stubSourceUpload()
+    whenever(modelLinesService.listRawImpressionUploadModelLines(any()))
+      .thenReturn(
+        listRawImpressionUploadModelLinesResponse {
+          for ((id, modelLine) in listOf("rml1" to MODEL_LINE, "rml2" to MODEL_LINE_2)) {
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = "$UPLOAD/rawImpressionUploadModelLines/$id"
+              cmmsModelLine = modelLine
+              state = RawImpressionUploadModelLine.State.FAILED
+            }
+          }
+        }
+      )
+    whenever(rankIndexBlobsService.listRankIndexBlobs(any())).thenAnswer { invocation ->
+      val requestedModelLine =
+        invocation
+          .getArgument<org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest>(0)
+          .filter
+          .cmmsModelLine
+      listRankIndexBlobsResponse {
+        rankIndexBlobs += rankIndexBlob {
+          name = "$UPLOAD/rankIndexBlobs/${requestedModelLine.substringAfterLast('/')}"
+          blobType = RankIndexBlob.BlobType.SNAPSHOT
+          cmmsModelLine = requestedModelLine
+          deleteTime = Timestamp.getDefaultInstance()
+        }
+      }
+    }
+    val recoverUploader = recoverUploader { _, _, _ -> NEW_GENERATION }
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        recoverUploader.recover(UPLOAD, listOf(MODEL_LINE))
+      }
+
+    assertThat(error).hasMessageThat().contains("recoverable=[$MODEL_LINE, $MODEL_LINE_2]")
   }
 
   @Test
@@ -184,7 +227,7 @@ class RecoverUploaderTest {
       )
   }
 
-  private suspend fun stubSnapshot() {
+  private suspend fun stubSnapshot(deleted: Boolean = true) {
     whenever(rankIndexBlobsService.listRankIndexBlobs(any()))
       .thenReturn(
         listRankIndexBlobsResponse {
@@ -192,6 +235,9 @@ class RecoverUploaderTest {
             name = "$UPLOAD/rankIndexBlobs/snapshot"
             blobType = RankIndexBlob.BlobType.SNAPSHOT
             cmmsModelLine = MODEL_LINE
+            if (deleted) {
+              deleteTime = Timestamp.getDefaultInstance()
+            }
           }
         }
       )
@@ -202,6 +248,7 @@ class RecoverUploaderTest {
     private const val UPLOAD = "$DATA_PROVIDER/rawImpressionUploads/up1"
     private const val REPLACEMENT_UPLOAD = "$DATA_PROVIDER/rawImpressionUploads/up2"
     private const val MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
+    private const val MODEL_LINE_2 = "modelProviders/mp1/modelSuites/ms1/modelLines/ml2"
     private const val DONE_BLOB_URI = "gs://raw-bucket/edp/date/done"
     private const val GENERATION = 100L
     private const val NEW_GENERATION = 101L

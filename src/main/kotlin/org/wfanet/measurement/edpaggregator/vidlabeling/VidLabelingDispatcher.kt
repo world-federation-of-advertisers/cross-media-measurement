@@ -48,11 +48,16 @@ import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.edpaggregator.BlobUris
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadFileKey
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt.filter as rankIndexFilter
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequestKt.filter as rawUploadFileFilter
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt.filter as rawUploadFilter
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
@@ -61,7 +66,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUplo
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadFileRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
@@ -84,6 +92,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @param rawImpressionUploadStub gRPC stub for the `RawImpressionUploadService`.
  * @param rawImpressionUploadFilesStub gRPC stub for the `RawImpressionUploadFileService`.
  * @param rawImpressionUploadModelLineStub gRPC stub for the `RawImpressionUploadModelLineService`.
+ * @param rankIndexBlobStub gRPC stub used to verify memoized snapshot history during recovery.
  * @param modelLinesStub gRPC stub for the VID Repository ModelLines API.
  * @param dispatchSequencer shared sequencer that resolves model shards and starts pipeline work;
  *   shared with `VidLabelingMonitor` so dispatch logic lives in one place.
@@ -91,6 +100,8 @@ import org.wfanet.measurement.storage.StorageClient
  * @param modelSuiteName resource name of the model suite for ListModelLines.
  * @param overrideModelLines if non-empty, use these model lines instead of querying the API.
  *   Overrides bypass active window checks to support backfilling past data.
+ * @param recoverySourceUpload evicted source upload that authorizes a metadata-originated override,
+ *   or null for normal dispatch and trusted direct backfill requests.
  * @param modelLineConfigs field mapping configuration keyed by model line resource name.
  * @param readEventDate reads a raw-impression file's UTC event date from its plaintext Parquet
  *   footer (no decryption needed).
@@ -103,11 +114,13 @@ class VidLabelingDispatcher(
   private val rawImpressionUploadStub: RawImpressionUploadServiceCoroutineStub,
   private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
   private val rawImpressionUploadModelLineStub: RawImpressionUploadModelLineServiceCoroutineStub,
+  private val rankIndexBlobStub: RankIndexBlobServiceCoroutineStub,
   private val modelLinesStub: ModelLinesCoroutineStub,
   private val dispatchSequencer: VidLabelingDispatchSequencer,
   private val dataProviderName: String,
   private val modelSuiteName: String,
   private val overrideModelLines: List<String>,
+  private val recoverySourceUpload: String?,
   private val modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig>,
   private val readEventDate: suspend (blobKey: String) -> LocalDate,
   private val readBlobGeneration: suspend (blobKey: String) -> Long,
@@ -147,6 +160,10 @@ class VidLabelingDispatcher(
         logger.info("Ignoring stale done-object generation $doneBlobGeneration for $doneBlobPath")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
+      }
+
+      if (recoverySourceUpload != null) {
+        validateRecovery(doneBlobPath, doneBlobGeneration, recoverySourceUpload)
       }
 
       val blobs: List<StorageClient.Blob> =
@@ -599,6 +616,93 @@ class VidLabelingDispatcher(
       }
       .parentKey
       .toName()
+
+  /** Validates an object-metadata recovery request before honoring its model-line override. */
+  private suspend fun validateRecovery(
+    doneBlobPath: String,
+    doneBlobGeneration: Long,
+    sourceUploadName: String,
+  ) {
+    require(overrideModelLines.isNotEmpty()) {
+      "A recovery source upload requires at least one override model line"
+    }
+    val sourceKey =
+      requireNotNull(RawImpressionUploadKey.fromName(sourceUploadName)) {
+        "Malformed recovery source upload name: $sourceUploadName"
+      }
+    require(sourceKey.parentKey.toName() == dataProviderName) {
+      "$sourceUploadName does not belong to $dataProviderName"
+    }
+    val source =
+      rawImpressionUploadStub.getRawImpressionUpload(
+        getRawImpressionUploadRequest { name = sourceUploadName }
+      )
+    require(source.doneBlobUri == doneBlobPath) {
+      "$sourceUploadName belongs to ${source.doneBlobUri}, not $doneBlobPath"
+    }
+    require(doneBlobGeneration > source.doneBlobGeneration) {
+      "Recovery generation $doneBlobGeneration must be newer than source generation " +
+        source.doneBlobGeneration
+    }
+    val latest = findLatestUploadByDoneBlob(doneBlobPath)
+    require(latest?.name == sourceUploadName) {
+      "$sourceUploadName has been superseded by ${latest?.name}; recover the latest revision"
+    }
+
+    val rowsByCmmsModelLine = listModelLines(sourceUploadName).associateBy { it.cmmsModelLine }
+    val recoverableModelLines =
+      rowsByCmmsModelLine.values
+        .filter { it.state == RawImpressionUploadModelLine.State.FAILED }
+        .filter { hasDeletedSnapshotHistory(sourceUploadName, it.cmmsModelLine) }
+        .mapTo(mutableSetOf()) { it.cmmsModelLine }
+    require(overrideModelLines.toSet() == recoverableModelLines) {
+      "Recovery override must contain the complete set of FAILED memoized model lines whose " +
+        "snapshots were deleted; requested=$overrideModelLines, recoverable=$recoverableModelLines"
+    }
+  }
+
+  private suspend fun listModelLines(uploadName: String): List<RawImpressionUploadModelLine> {
+    val rows = mutableListOf<RawImpressionUploadModelLine>()
+    var pageToken = ""
+    do {
+      val response =
+        rawImpressionUploadModelLineStub.listRawImpressionUploadModelLines(
+          listRawImpressionUploadModelLinesRequest {
+            parent = uploadName
+            this.pageToken = pageToken
+          }
+        )
+      rows += response.rawImpressionUploadModelLinesList
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+    return rows
+  }
+
+  private suspend fun hasDeletedSnapshotHistory(
+    uploadName: String,
+    cmmsModelLine: String,
+  ): Boolean {
+    var pageToken = ""
+    var found = false
+    do {
+      val response =
+        rankIndexBlobStub.listRankIndexBlobs(
+          listRankIndexBlobsRequest {
+            parent = uploadName
+            showDeleted = true
+            filter = rankIndexFilter {
+              blobType = RankIndexBlob.BlobType.SNAPSHOT
+              this.cmmsModelLine = cmmsModelLine
+            }
+            this.pageToken = pageToken
+          }
+        )
+      if (response.rankIndexBlobsList.any { !it.hasDeleteTime() }) return false
+      found = found || response.rankIndexBlobsCount > 0
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+    return found
+  }
 
   private fun LocalDate.toProtoDate(): Date = date {
     year = this@toProtoDate.year

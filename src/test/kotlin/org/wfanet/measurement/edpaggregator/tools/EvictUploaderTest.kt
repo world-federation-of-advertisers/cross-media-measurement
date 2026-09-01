@@ -167,14 +167,20 @@ class EvictUploaderTest {
             rawImpressionUploads += rawImpressionUpload {
               name = uploadName("up1")
               createTime = T1.toProtoTime()
+              doneBlobUri = "gs://raw/up1/done"
+              doneBlobGeneration = 1L
             }
             rawImpressionUploads += rawImpressionUpload {
               name = uploadName("up2")
               createTime = T2.toProtoTime()
+              doneBlobUri = "gs://raw/up2/done"
+              doneBlobGeneration = 1L
             }
             rawImpressionUploads += rawImpressionUpload {
               name = uploadName("up3")
               createTime = T3.toProtoTime()
+              doneBlobUri = "gs://raw/up3/done"
+              doneBlobGeneration = 1L
             }
           }
         )
@@ -211,6 +217,42 @@ class EvictUploaderTest {
       assertThat(request.requestId).isNotEmpty()
     }
   }
+
+  @Test
+  fun `recovery targets include only latest revision for each later done path`(): Unit =
+    runBlocking {
+      whenever(uploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("up1")
+              createTime = T1.toProtoTime()
+              doneBlobUri = "gs://raw/d1/done"
+              doneBlobGeneration = 1L
+            }
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("up2-old")
+              createTime = T2.toProtoTime()
+              doneBlobUri = "gs://raw/d2/done"
+              doneBlobGeneration = 1L
+            }
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("up2-new")
+              createTime = T3.toProtoTime()
+              doneBlobUri = "gs://raw/d2/done"
+              doneBlobGeneration = 2L
+              replacesRawImpressionUpload = uploadName("up2-old")
+            }
+          }
+        )
+      stubModelLineRows("up1", "up2-old", "up2-new")
+      stubSnapshotRows("up1", "up2-old", "up2-new")
+
+      val plan = evictUploader.plan(listOf(uploadName("up1")), cutoffTime = T0)
+
+      assertThat(plan.recoveryTargets)
+        .containsExactly(EvictUploader.RecoveryTarget(uploadName("up2-new"), listOf(MODEL_LINE)))
+    }
 
   @Test
   fun `plan throws when a bad upload is outside the retention window`() {
