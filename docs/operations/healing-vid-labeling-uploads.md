@@ -79,7 +79,10 @@ Objects removed from the directory are excluded from the replacement upload.
 
 For explicitly selected bad uploads, the EDP writes corrected data and a new `done` generation in
 chronological order. That normal path recreates every applicable memoized and non-memoized model
-line.
+line. Give the EDP the
+[Reference VID impression upload guide](../edpaggregator/reference-vid-impression-upload-guide.md)
+and confirm that eviction completed before the EDP changes the directory or writes the new `done`
+generation.
 
 Later uploads pulled into the eviction only by a memoized cascade do not need their raw data
 re-uploaded. After every earlier corrected upload has completed, run the ordered `recover-upload`
