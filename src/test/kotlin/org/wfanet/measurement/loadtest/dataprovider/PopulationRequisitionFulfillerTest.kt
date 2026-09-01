@@ -18,10 +18,12 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.kotlin.toByteString
+import com.google.type.Date
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.Instant
+import java.time.LocalDate
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -41,6 +43,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.GetModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
@@ -69,6 +72,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
+import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getPopulationRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsResponse
@@ -100,6 +104,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
@@ -377,6 +382,169 @@ class PopulationRequisitionFulfillerTest {
   }
 
   @Test
+  fun `uses ModelRollout with latest rollout date`() {
+    // The later rollout date has the earlier createTime, so date must take precedence.
+    modelRolloutsServiceMock.stub {
+      onBlocking { listModelRollouts(any()) }
+        .thenReturn(
+          listModelRolloutsResponse {
+            modelRollouts += modelRollout {
+              name = MODEL_ROLLOUT_NAME_2
+              instantRolloutDate = ROLLOUT_DATE_LATER
+              createTime = CREATE_TIME_1
+              modelRelease = MODEL_RELEASE_NAME_2
+            }
+            modelRollouts += modelRollout {
+              name = MODEL_ROLLOUT_NAME
+              instantRolloutDate = ROLLOUT_DATE_EARLIER
+              createTime = CREATE_TIME_2
+              modelRelease = MODEL_RELEASE_NAME_1
+            }
+          }
+        )
+    }
+
+    val requisitionFulfiller =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        modelRolloutsStub,
+        modelReleasesStub,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
+      )
+
+    runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
+
+    val request: GetModelReleaseRequest =
+      verifyAndCapture(modelReleasesServiceMock, ModelReleasesCoroutineImplBase::getModelRelease)
+    assertThat(request.name).isEqualTo(MODEL_RELEASE_NAME_2)
+  }
+
+  @Test
+  fun `uses most recently created ModelRollout when rollout dates are equal`() {
+    // ModelRollouts created from a ModelLine's activeStartTime all share a rollout date.
+    modelRolloutsServiceMock.stub {
+      onBlocking { listModelRollouts(any()) }
+        .thenReturn(
+          listModelRolloutsResponse {
+            modelRollouts += modelRollout {
+              name = MODEL_ROLLOUT_NAME
+              instantRolloutDate = ROLLOUT_DATE_EARLIER
+              createTime = CREATE_TIME_1
+              modelRelease = MODEL_RELEASE_NAME_1
+            }
+            modelRollouts += modelRollout {
+              name = MODEL_ROLLOUT_NAME_2
+              instantRolloutDate = ROLLOUT_DATE_EARLIER
+              createTime = CREATE_TIME_2
+              modelRelease = MODEL_RELEASE_NAME_2
+            }
+          }
+        )
+    }
+
+    val requisitionFulfiller =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        modelRolloutsStub,
+        modelReleasesStub,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
+      )
+
+    runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
+
+    val request: GetModelReleaseRequest =
+      verifyAndCapture(modelReleasesServiceMock, ModelReleasesCoroutineImplBase::getModelRelease)
+    assertThat(request.name).isEqualTo(MODEL_RELEASE_NAME_2)
+  }
+
+  @Test
+  fun `uses end of gradual rollout period as rollout date`() {
+    modelRolloutsServiceMock.stub {
+      onBlocking { listModelRollouts(any()) }
+        .thenReturn(
+          listModelRolloutsResponse {
+            modelRollouts += modelRollout {
+              name = MODEL_ROLLOUT_NAME
+              instantRolloutDate = ROLLOUT_DATE_EARLIER
+              createTime = CREATE_TIME_2
+              modelRelease = MODEL_RELEASE_NAME_1
+            }
+            modelRollouts += modelRollout {
+              name = MODEL_ROLLOUT_NAME_2
+              gradualRolloutPeriod = dateInterval {
+                startDate = ROLLOUT_DATE_EARLIER
+                endDate = ROLLOUT_DATE_LATER
+              }
+              createTime = CREATE_TIME_1
+              modelRelease = MODEL_RELEASE_NAME_2
+            }
+          }
+        )
+    }
+
+    val requisitionFulfiller =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        modelRolloutsStub,
+        modelReleasesStub,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
+      )
+
+    runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
+
+    val request: GetModelReleaseRequest =
+      verifyAndCapture(modelReleasesServiceMock, ModelReleasesCoroutineImplBase::getModelRelease)
+    assertThat(request.name).isEqualTo(MODEL_RELEASE_NAME_2)
+  }
+
+  @Test
+  fun `refuses requisition when ModelLine has no ModelRollout`() {
+    modelRolloutsServiceMock.stub {
+      onBlocking { listModelRollouts(any()) }.thenReturn(listModelRolloutsResponse {})
+    }
+
+    val requisitionFulfiller =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        modelRolloutsStub,
+        modelReleasesStub,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
+      )
+
+    runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
+
+    val refuseRequisitionRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequisitionRequest.refusal.justification)
+      .isEqualTo(Requisition.Refusal.Justification.UNFULFILLABLE)
+    assertThat(refuseRequisitionRequest.refusal.message).contains("ModelRollout")
+  }
+
+  @Test
   fun `fulfills requisition for females using field not part of population spec`() {
     modelReleasesServiceMock.stub {
       onBlocking { getModelRelease(any()) }.thenReturn(MODEL_RELEASE_2)
@@ -588,6 +756,10 @@ class PopulationRequisitionFulfillerTest {
 
     private const val MODEL_LINE_NAME = "${MODEL_SUITE_NAME}/modelLines/AAAAAAAAAHs"
     private const val MODEL_ROLLOUT_NAME = "${MODEL_LINE_NAME}/modelRollouts/AAAAAAAAAHs"
+    private const val MODEL_ROLLOUT_NAME_2 = "${MODEL_LINE_NAME}/modelRollouts/AAAAAAAAAJs"
+
+    private val ROLLOUT_DATE_EARLIER: Date = LocalDate.of(2024, 1, 1).toProtoDate()
+    private val ROLLOUT_DATE_LATER: Date = LocalDate.of(2025, 1, 1).toProtoDate()
 
     private val MODEL_RELEASE_1 = modelRelease {
       name = MODEL_RELEASE_NAME_1

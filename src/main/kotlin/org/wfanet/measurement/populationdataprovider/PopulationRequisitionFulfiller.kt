@@ -19,6 +19,7 @@ import com.google.protobuf.Descriptors
 import io.grpc.Status
 import io.grpc.StatusException
 import java.security.cert.X509Certificate
+import java.time.LocalDate
 import java.util.logging.Level
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
@@ -28,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelRollout
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationKey
@@ -42,6 +44,7 @@ import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.getPopulationRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.dataprovider.InvalidRequisitionException
@@ -190,8 +193,8 @@ class PopulationRequisitionFulfiller(
   }
 
   /**
-   * Returns the [ModelRelease] associated with the latest
-   * [org.wfanet.measurement.api.v2alpha.ModelRollout] for the specified [modelLineName].
+   * Returns the [ModelRelease] associated with the latest [ModelRollout] for the specified
+   * [modelLineName].
    */
   // TODO(world-federation-of-advertisers/cross-media-measurement#4426): Pace listModelRollouts
   //  and getModelRelease via kingdomRpcThrottler, or cache by modelLineName across iterations.
@@ -211,18 +214,12 @@ class PopulationRequisitionFulfiller(
         }
       }
 
-    // Sort list of ModelRollouts by descending updateTime.
-    val sortedModelRolloutsList =
-      listModelRolloutsResponse.modelRolloutsList.sortedWith { a, b ->
-        val aDate =
-          if (a.hasGradualRolloutPeriod()) a.gradualRolloutPeriod.endDate else a.instantRolloutDate
-        val bDate =
-          if (b.hasGradualRolloutPeriod()) b.gradualRolloutPeriod.endDate else b.instantRolloutDate
-        if (aDate.toLocalDate().isBefore(bDate.toLocalDate())) -1 else 1
-      }
-
-    // Retrieves latest ModelRollout from list.
-    val latestModelRollout = sortedModelRolloutsList.first()
+    // ModelRollouts for a ModelLine commonly share a rollout date, so createTime breaks ties in
+    // favor of the most recently created one.
+    val latestModelRollout: ModelRollout =
+      listModelRolloutsResponse.modelRolloutsList.maxWithOrNull(
+        compareBy<ModelRollout>({ it.rolloutDate }, { it.createTime.toInstant() })
+      ) ?: throw UnfulfillableRequisitionException("ModelLine $modelLineName has no ModelRollout")
     val modelReleaseName = latestModelRollout.modelRelease
 
     // Returns ModelRelease associated with latest ModelRollout.
@@ -268,3 +265,9 @@ class PopulationRequisitionFulfiller(
     fulfillDirectMeasurement(requisition, measurementSpec, requisitionSpec.nonce, measurementResult)
   }
 }
+
+/** Date on which this [ModelRollout] has taken full effect. */
+private val ModelRollout.rolloutDate: LocalDate
+  get() =
+    if (hasGradualRolloutPeriod()) gradualRolloutPeriod.endDate.toLocalDate()
+    else instantRolloutDate.toLocalDate()
