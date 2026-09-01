@@ -26,10 +26,12 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.never
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -61,6 +63,7 @@ class FailedDispatchRetrierTest {
     VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase =
     mockService()
   private val workItemsService: WorkItemsGrpcKt.WorkItemsCoroutineImplBase = mockService()
+  private val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -81,6 +84,7 @@ class FailedDispatchRetrierTest {
       RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(channel),
       VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(channel),
       WorkItemsGrpcKt.WorkItemsCoroutineStub(channel),
+      recordingThrottlers.throttlers,
     )
   }
 
@@ -118,6 +122,37 @@ class FailedDispatchRetrierTest {
 
     assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.LABELING)
     assertThat(result.workItemsRepublished).isEqualTo(1)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(2)
+    assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(1)
+    assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(2)
+    assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
+  }
+
+  @Test
+  fun `retryFailed throttles every model-line page`() {
+    val result = runBlocking {
+      whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(
+          listRawImpressionUploadModelLinesResponse { nextPageToken = "page-2" },
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines += failedModelLine()
+          },
+        )
+      whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+        .thenReturn(
+          listVidLabelingJobsResponse { vidLabelingJobs += vidLabelingJob { name = VID_JOB_NAME } }
+        )
+      whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = "q" })
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      whenever(modelLineService.markRawImpressionUploadModelLineLabeling(any()))
+        .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING })
+
+      retrier.retryFailed(UPLOAD_NAME, MODEL_LINE, RawImpressionUploadModelLine.State.LABELING)
+    }
+
+    assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.LABELING)
+    verifyBlocking(modelLineService, times(2)) { listRawImpressionUploadModelLines(any()) }
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
   }
 
   @Test

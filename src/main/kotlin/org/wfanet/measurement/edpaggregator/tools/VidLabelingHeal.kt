@@ -26,6 +26,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
@@ -190,6 +191,27 @@ class MarkFailedCommand : EdpaApiCommand() {
 )
 class RetryFailedCommand : EdpaApiCommand() {
   @Option(
+    names = ["--metadata-read-rpc-min-interval"],
+    description = ["Minimum interval between outbound metadata read RPCs."],
+    defaultValue = "500ms",
+  )
+  private lateinit var metadataReadRpcMinInterval: Duration
+
+  @Option(
+    names = ["--metadata-write-rpc-min-interval"],
+    description = ["Minimum interval between outbound metadata write RPCs."],
+    defaultValue = "1000ms",
+  )
+  private lateinit var metadataWriteRpcMinInterval: Duration
+
+  @Option(
+    names = ["--control-plane-rpc-min-interval"],
+    description = ["Minimum interval between outbound Secure Computation control-plane RPCs."],
+    defaultValue = "500ms",
+  )
+  private lateinit var controlPlaneRpcMinInterval: Duration
+
+  @Option(
     names = ["--control-plane-api-target"],
     description = ["gRPC target (host:port) of the Secure Computation control-plane API."],
     required = true,
@@ -242,6 +264,11 @@ class RetryFailedCommand : EdpaApiCommand() {
             RankerJobServiceCoroutineStub(edpaChannel),
             VidLabelingJobServiceCoroutineStub(edpaChannel),
             WorkItemsCoroutineStub(controlPlaneChannel),
+            VidLabelingRpcThrottlers.fromMinimumIntervals(
+              metadataRead = metadataReadRpcMinInterval,
+              metadataWrite = metadataWriteRpcMinInterval,
+              controlPlane = controlPlaneRpcMinInterval,
+            ),
           )
         val result = retrier.retryFailed(rawImpressionUpload, modelLine, fromPhase)
         if (result.workItemsRepublished == 0) {
