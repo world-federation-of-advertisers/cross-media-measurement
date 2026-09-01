@@ -22,6 +22,36 @@ rate_limit {
       average_request_rate: 100
     }
   }
+  # Give VID Repository reads independent buckets so they do not compete with other clients using
+  # the EDP principal's shared default bucket.
+  per_method_rate_limit {
+    key: "wfa.measurement.api.v2alpha.ModelLines/GetModelLine"
+    value {
+      maximum_request_count: 20
+      average_request_rate: 5
+    }
+  }
+  per_method_rate_limit {
+    key: "wfa.measurement.api.v2alpha.ModelLines/ListModelLines"
+    value {
+      maximum_request_count: 20
+      average_request_rate: 5
+    }
+  }
+  per_method_rate_limit {
+    key: "wfa.measurement.api.v2alpha.ModelRollouts/ListModelRollouts"
+    value {
+      maximum_request_count: 20
+      average_request_rate: 5
+    }
+  }
+  per_method_rate_limit {
+    key: "wfa.measurement.api.v2alpha.ModelShards/ListModelShards"
+    value {
+      maximum_request_count: 20
+      average_request_rate: 5
+    }
+  }
 }
 principal_rate_limit_override {
   key: "C2:80:7E:5D:5C:10:08:6D:C7:57:71:09:7F:73:FD:7D:41:CD:E0:23"  # Reporting server.
