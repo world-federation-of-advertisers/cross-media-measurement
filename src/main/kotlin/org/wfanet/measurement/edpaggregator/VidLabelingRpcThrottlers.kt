@@ -19,7 +19,6 @@ package org.wfanet.measurement.edpaggregator
 import java.time.Duration
 import org.wfanet.measurement.common.throttler.MaximumRateThrottler
 import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.measurement.common.toDuration
 
 /**
  * Process-scoped throttlers for outbound VID Labeling RPCs.
@@ -44,12 +43,6 @@ data class VidLabelingRpcThrottlers(
   val controlPlane: Throttler,
 ) {
   companion object {
-    const val KINGDOM_MIN_INTERVAL_ENV: String = "VID_LABELING_KINGDOM_RPC_MIN_INTERVAL"
-    const val METADATA_READ_MIN_INTERVAL_ENV: String = "VID_LABELING_METADATA_READ_RPC_MIN_INTERVAL"
-    const val METADATA_WRITE_MIN_INTERVAL_ENV: String =
-      "VID_LABELING_METADATA_WRITE_RPC_MIN_INTERVAL"
-    const val CONTROL_PLANE_MIN_INTERVAL_ENV: String = "VID_LABELING_CONTROL_PLANE_RPC_MIN_INTERVAL"
-
     val DEFAULT_KINGDOM_MIN_INTERVAL: Duration = Duration.ofMillis(500)
     val DEFAULT_METADATA_READ_MIN_INTERVAL: Duration = Duration.ofMillis(100)
     val DEFAULT_METADATA_WRITE_MIN_INTERVAL: Duration = Duration.ofMillis(200)
@@ -78,19 +71,6 @@ data class VidLabelingRpcThrottlers(
         controlPlane = MaximumRateThrottler(rateFor(controlPlane)),
       )
     }
-
-    fun fromEnvironment(getenv: (String) -> String? = System::getenv): VidLabelingRpcThrottlers =
-      fromMinimumIntervals(
-        kingdom = getenv(KINGDOM_MIN_INTERVAL_ENV)?.toDuration() ?: DEFAULT_KINGDOM_MIN_INTERVAL,
-        metadataRead =
-          getenv(METADATA_READ_MIN_INTERVAL_ENV)?.toDuration()
-            ?: DEFAULT_METADATA_READ_MIN_INTERVAL,
-        metadataWrite =
-          getenv(METADATA_WRITE_MIN_INTERVAL_ENV)?.toDuration()
-            ?: DEFAULT_METADATA_WRITE_MIN_INTERVAL,
-        controlPlane =
-          getenv(CONTROL_PLANE_MIN_INTERVAL_ENV)?.toDuration() ?: DEFAULT_CONTROL_PLANE_MIN_INTERVAL,
-      )
 
     private fun rateFor(minimumInterval: Duration): Double =
       1_000_000_000.0 / minimumInterval.toNanos()
