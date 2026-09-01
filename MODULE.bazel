@@ -43,6 +43,14 @@ bazel_dep(
     repo_name = "wfa_common_jvm",
 )
 
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#412): Replace with a
+# `version` bump once the release is published to the WFA Bazel registry.
+git_override(
+    module_name = "common-jvm",
+    commit = "75e6f35fc5f0c71b6d3f593a2c545cc0ac44d4b0",
+    remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
+)
+
 bazel_dep(
     name = "common-cpp",
     version = "0.14.0",
