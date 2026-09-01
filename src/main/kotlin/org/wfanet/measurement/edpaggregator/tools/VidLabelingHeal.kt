@@ -16,6 +16,10 @@
 
 package org.wfanet.measurement.edpaggregator.tools
 
+import com.google.cloud.storage.BlobId
+import com.google.cloud.storage.BlobInfo
+import com.google.cloud.storage.Storage
+import com.google.cloud.storage.StorageOptions
 import io.grpc.ManagedChannel
 import java.time.Duration
 import java.time.Instant
@@ -67,6 +71,7 @@ import picocli.CommandLine.Option
       RetryFailedCommand::class,
       BackfillModelLineCommand::class,
       EvictUploadsCommand::class,
+      RecoverUploadCommand::class,
       RedeliverDlqCommand::class,
       // TODO(world-federation-of-advertisers/cross-media-measurement#4223): add
       // HealRankIndexCommand
@@ -394,6 +399,101 @@ class BackfillModelLineCommand : EdpaApiCommand() {
 }
 
 /**
+ * Recovers memoized model-line outputs that were evicted only because they followed a bad upload.
+ *
+ * The command rewrites the source upload's empty done object as a fresh GCS generation and stamps
+ * the selected model lines into custom metadata. DataWatcher forwards that selection to
+ * VidLabelingDispatcher, which registers a replacement upload containing only those model lines.
+ */
+@Command(
+  name = "recover-upload",
+  description = ["Reprocesses selected memoized model lines for an evicted upload."],
+  mixinStandardHelpOptions = true,
+)
+class RecoverUploadCommand : EdpaApiCommand() {
+  @Option(
+    names = ["--raw-impression-upload"],
+    description =
+      ["Evicted RawImpressionUpload resource name whose retained raw inputs should be recovered."],
+    required = true,
+  )
+  private lateinit var rawImpressionUpload: String
+
+  @Option(
+    names = ["--model-lines"],
+    description = ["Comma-separated memoized CMMS ModelLine resource names to recover."],
+    required = true,
+    split = ",",
+  )
+  private lateinit var modelLines: List<String>
+
+  @Option(
+    names = ["--gcs-project"],
+    description = ["Google Cloud project used to rewrite the source upload's done object."],
+    required = false,
+  )
+  private var gcsProject: String = ""
+
+  override fun run() {
+    val channel = buildEdpaChannel()
+    val storage =
+      if (gcsProject.isEmpty()) {
+        StorageOptions.getDefaultInstance().service
+      } else {
+        StorageOptions.newBuilder().setProjectId(gcsProject).build().service
+      }
+    try {
+      runBlocking {
+        val recoverUploader =
+          RecoverUploader(
+            RawImpressionUploadServiceCoroutineStub(channel),
+            RawImpressionUploadModelLineServiceCoroutineStub(channel),
+            RankIndexBlobServiceCoroutineStub(channel),
+          ) { doneBlobUri, expectedGeneration, metadata ->
+            rewriteDoneBlob(storage, doneBlobUri, expectedGeneration, metadata)
+          }
+        val result = recoverUploader.recover(rawImpressionUpload, modelLines)
+        println(
+          "Created done-object generation ${result.doneBlobGeneration} at ${result.doneBlobUri}; " +
+            "DataWatcher will register a replacement upload for ${result.modelLines}."
+        )
+      }
+    } finally {
+      channel.shutdown()
+      channel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+    }
+  }
+
+  companion object {
+    /** Atomically replaces the current live done object and returns the new generation. */
+    fun rewriteDoneBlob(
+      storage: Storage,
+      doneBlobUri: String,
+      expectedGeneration: Long,
+      metadata: Map<String, String>,
+    ): Long {
+      val blobUri = SelectedStorageClient.parseBlobUri(doneBlobUri)
+      require(blobUri.scheme == "gs") { "done blob must use gs://, got $doneBlobUri" }
+      val blobId = BlobId.of(blobUri.bucket, blobUri.key)
+      val current = requireNotNull(storage.get(blobId)) { "done blob does not exist: $doneBlobUri" }
+      require(current.generation == expectedGeneration) {
+        "$doneBlobUri is at generation ${current.generation}, not expected generation " +
+          "$expectedGeneration; wait for the pending upload or recover its latest revision"
+      }
+      val blobInfo =
+        BlobInfo.newBuilder(blobId).setMetadata(current.metadata.orEmpty() + metadata).build()
+      return storage
+        .create(
+          blobInfo,
+          ByteArray(0),
+          Storage.BlobTargetOption.generationMatch(expectedGeneration),
+        )
+        .generation
+    }
+  }
+}
+
+/**
  * Evicts uploads that carry bad data for every attached model line. Non-memoized model lines are
  * evicted only on the requested uploads. Memoized model lines cascade through every later upload
  * and their cumulative snapshots are soft-deleted. Confined to the retention window. Prints the
@@ -537,11 +637,36 @@ class EvictUploadsCommand : EdpaApiCommand() {
             "blob(s). Raw impression objects were retained. Re-trigger the corrected uploads by " +
             "writing new done blobs. Do not use retry-failed for these model lines."
         )
+        if (plan.recoveryTargets.isNotEmpty()) {
+          println(
+            "After corrected bad uploads have completed, run these memoized recovery commands " +
+              "in order:"
+          )
+          for (target in plan.recoveryTargets) {
+            println(recoveryCommand(target))
+          }
+        }
       }
     } finally {
       channel.shutdown()
       channel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
     }
+  }
+
+  private fun recoveryCommand(target: EvictUploader.RecoveryTarget): String {
+    val arguments = buildList {
+      add("vid-labeling-heal")
+      add("recover-upload")
+      add("--raw-impression-upload=${target.uploadName}")
+      add("--model-lines=${target.cmmsModelLines.joinToString(",")}")
+      add("--edpa-public-api-target=$edpaPublicApiTarget")
+      edpaPublicApiCertHost?.let { add("--edpa-public-api-cert-host=$it") }
+      add("--tls-cert-file=${tlsFlags.certFile.path}")
+      add("--tls-key-file=${tlsFlags.privateKeyFile.path}")
+      tlsFlags.certCollectionFile?.let { add("--cert-collection-file=${it.path}") }
+      if (gcsProject.isNotEmpty()) add("--gcs-project=$gcsProject")
+    }
+    return arguments.joinToString(separator = " ") { shellQuote(it) }
   }
 
   companion object {
@@ -564,6 +689,9 @@ class EvictUploadsCommand : EdpaApiCommand() {
     }
   }
 }
+
+/** Quotes one command-line argument for a POSIX-compatible shell. */
+private fun shellQuote(value: String): String = "'${value.replace("'", "'\"'\"'")}'"
 
 /**
  * Returns true iff [answer] is an affirmative confirmation — "y" or "yes" (case-insensitive,

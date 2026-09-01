@@ -196,6 +196,8 @@ class EvictUploaderTest {
       .containsExactly(uploadName("up2"), uploadName("up3"))
       .inOrder()
     assertThat(plan.extraUploads).containsExactly(uploadName("up3"))
+    assertThat(plan.recoveryTargets)
+      .containsExactly(EvictUploader.RecoveryTarget(uploadName("up3"), listOf(MODEL_LINE)))
     assertThat(plan.memoizedModelLines).containsExactly(MODEL_LINE)
     assertThat(plan.nonMemoizedModelLines).isEmpty()
     // Both cascade model lines are failed and each has its SNAPSHOT soft-deleted.
