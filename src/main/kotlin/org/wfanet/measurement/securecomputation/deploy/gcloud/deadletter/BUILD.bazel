@@ -11,6 +11,7 @@ kt_jvm_library(
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_throttlers",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:request_ids",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:errors",

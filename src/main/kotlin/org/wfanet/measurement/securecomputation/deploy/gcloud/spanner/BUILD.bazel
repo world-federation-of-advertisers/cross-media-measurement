@@ -44,6 +44,7 @@ kt_jvm_library(
     deps = [
         ":services",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_throttlers",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/deadletter:dead_letter_queue_listener",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/publisher:google_work_item_publisher",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:queue_mapping",
