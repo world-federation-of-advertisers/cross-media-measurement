@@ -31,9 +31,11 @@ import org.wfanet.measurement.common.toDuration
  *
  * Defaults are intentionally conservative and configurable. The Kingdom interval yields a 2-QPS
  * rate, which stays below the dedicated 5-QPS Kingdom method buckets when both Cloud Functions are
- * active. Metadata reads and writes divide a 100-QPS deployment planning envelope across 28
- * possible processes, while Secure Computation control-plane traffic uses 2 QPS per process. These
- * are client-side pacing defaults, not statements of downstream service capacity.
+ * active. Metadata reads use 10 QPS to keep per-file point lookups from dominating worker startup,
+ * while metadata writes use 5 QPS because high-volume creation is already batched. Secure
+ * Computation control-plane traffic uses 4 QPS so the maximum 24-worker fleet remains below 100 QPS
+ * for methods shared by every worker. These are client-side pacing defaults, not statements of
+ * downstream service capacity.
  */
 data class VidLabelingRpcThrottlers(
   val kingdom: Throttler,
@@ -49,9 +51,9 @@ data class VidLabelingRpcThrottlers(
     const val CONTROL_PLANE_MIN_INTERVAL_ENV: String = "VID_LABELING_CONTROL_PLANE_RPC_MIN_INTERVAL"
 
     val DEFAULT_KINGDOM_MIN_INTERVAL: Duration = Duration.ofMillis(500)
-    val DEFAULT_METADATA_READ_MIN_INTERVAL: Duration = Duration.ofMillis(500)
-    val DEFAULT_METADATA_WRITE_MIN_INTERVAL: Duration = Duration.ofMillis(1000)
-    val DEFAULT_CONTROL_PLANE_MIN_INTERVAL: Duration = Duration.ofMillis(500)
+    val DEFAULT_METADATA_READ_MIN_INTERVAL: Duration = Duration.ofMillis(100)
+    val DEFAULT_METADATA_WRITE_MIN_INTERVAL: Duration = Duration.ofMillis(200)
+    val DEFAULT_CONTROL_PLANE_MIN_INTERVAL: Duration = Duration.ofMillis(250)
 
     fun fromMinimumIntervals(
       kingdom: Duration = DEFAULT_KINGDOM_MIN_INTERVAL,
