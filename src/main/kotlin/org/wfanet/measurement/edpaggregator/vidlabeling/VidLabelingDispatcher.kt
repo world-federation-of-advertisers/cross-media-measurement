@@ -103,7 +103,7 @@ class VidLabelingDispatcher(
   private val overrideModelLines: List<String>,
   private val modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig>,
   private val readEventDate: suspend (blobKey: String) -> LocalDate,
-  private val readBlobGeneration: suspend (blobKey: String) -> Long = { 0L },
+  private val readBlobGeneration: suspend (blobKey: String) -> Long,
   private val clock: Clock = Clock.systemUTC(),
   private val metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
 ) {
