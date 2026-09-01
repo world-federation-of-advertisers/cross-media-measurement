@@ -110,7 +110,10 @@ so every cumulative rank-index snapshot is rebuilt from its corrected predecesso
 labeling and data-availability flows regenerate output, restore matching soft-deleted metadata, and
 publish availability to Kingdom. Do not run `retry-failed` for rows evicted because their original
 jobs describe the invalid attempt. Recovery dispatch failures are returned by DataWatcher so the
-Eventarc subscription retries them and ultimately preserves exhausted deliveries in its DLQ.
+Eventarc subscription retries them and ultimately preserves exhausted deliveries in its DLQ. A
+same-generation retry resumes an already partially registered replacement. If dispatch never
+registered the replacement, rerunning the same `recover-upload` command recognizes its matching
+recovery metadata and writes another done-object generation.
 
 Before replacement processing begins, the eviction operation is safe to repeat after a partial
 failure. It skips rows already marked `FAILED`, already-deleted metadata, and output blobs that are

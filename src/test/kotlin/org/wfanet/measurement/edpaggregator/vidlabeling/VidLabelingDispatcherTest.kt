@@ -509,6 +509,74 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
+  fun `upload resumes an already registered recovery generation`() = runBlocking {
+    val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+    val source = rawImpressionUpload {
+      name = sourceUploadName
+      state = RawImpressionUpload.State.FAILED
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION - 1
+    }
+    val registeredRecovery = rawImpressionUpload {
+      name = "$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID"
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION
+      replacesRawImpressionUpload = sourceUploadName
+    }
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    whenever(rawImpressionUploadService.getRawImpressionUpload(any())).thenReturn(source)
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse { rawImpressionUploads += registeredRecovery },
+        listRawImpressionUploadsResponse { rawImpressionUploads += registeredRecovery },
+        listRawImpressionUploadsResponse { rawImpressionUploads += registeredRecovery },
+        listRawImpressionUploadsResponse {},
+      )
+    whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
+      .thenReturn(
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = "$sourceUploadName/rawImpressionUploadModelLines/rml1"
+            cmmsModelLine = MODEL_LINE_1
+            state = RawImpressionUploadModelLine.State.FAILED
+          }
+        }
+      )
+    whenever(rankIndexBlobService.listRankIndexBlobs(any()))
+      .thenReturn(
+        listRankIndexBlobsResponse {
+          rankIndexBlobs += rankIndexBlob {
+            name = "$sourceUploadName/rankIndexBlobs/snapshot"
+            blobType = RankIndexBlob.BlobType.SNAPSHOT
+            cmmsModelLine = MODEL_LINE_1
+            deleteTime = Timestamp.getDefaultInstance()
+          }
+        }
+      )
+    whenever(rawImpressionUploadService.createRawImpressionUpload(any())).thenAnswer {
+      throw StatusException(Status.ALREADY_EXISTS)
+    }
+    whenever(rawImpressionUploadFileService.batchCreateRawImpressionUploadFiles(any()))
+      .thenReturn(batchCreateRawImpressionUploadFilesResponse {})
+    whenever(rawImpressionUploadModelLineService.batchCreateRawImpressionUploadModelLines(any()))
+      .thenReturn(batchCreateRawImpressionUploadModelLinesResponse {})
+    stubOverrideResolutionChain()
+
+    val dispatcher =
+      createDispatcher(
+        overrideModelLines = listOf(MODEL_LINE_1),
+        recoverySourceUpload = sourceUploadName,
+      )
+    dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    verifyBlocking(rawImpressionUploadFileService) { batchCreateRawImpressionUploadFiles(any()) }
+    verifyBlocking(rawImpressionUploadModelLineService) {
+      batchCreateRawImpressionUploadModelLines(any())
+    }
+  }
+
+  @Test
   fun `upload rejects recovery override when source row is not failed`() = runBlocking {
     val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
     val source = rawImpressionUpload {

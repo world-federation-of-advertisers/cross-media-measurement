@@ -645,7 +645,13 @@ class VidLabelingDispatcher(
         source.doneBlobGeneration
     }
     val latest = findLatestUploadByDoneBlob(doneBlobPath)
-    require(latest?.name == sourceUploadName) {
+    val registeredRecovery = findUploadByDoneBlob(doneBlobPath, doneBlobGeneration)
+    val isInitialDelivery = latest?.name == sourceUploadName
+    val isRetryOfLatestRecovery =
+      registeredRecovery != null &&
+        latest?.name == registeredRecovery.name &&
+        registeredRecovery.replacesRawImpressionUpload == sourceUploadName
+    require(isInitialDelivery || isRetryOfLatestRecovery) {
       "$sourceUploadName has been superseded by ${latest?.name}; recover the latest revision"
     }
 

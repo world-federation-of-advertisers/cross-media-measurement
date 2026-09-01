@@ -476,17 +476,20 @@ class RecoverUploadCommand : EdpaApiCommand() {
       require(blobUri.scheme == "gs") { "done blob must use gs://, got $doneBlobUri" }
       val blobId = BlobId.of(blobUri.bucket, blobUri.key)
       val current = requireNotNull(storage.get(blobId)) { "done blob does not exist: $doneBlobUri" }
-      require(current.generation == expectedGeneration) {
-        "$doneBlobUri is at generation ${current.generation}, not expected generation " +
-          "$expectedGeneration; wait for the pending upload or recover its latest revision"
+      val currentMetadata = current.metadata.orEmpty()
+      val isRetryableRecoveryGeneration =
+        current.generation > expectedGeneration &&
+          metadata.all { (key, value) -> currentMetadata[key] == value }
+      require(current.generation == expectedGeneration || isRetryableRecoveryGeneration) {
+        "$doneBlobUri is at generation ${current.generation}, not source generation " +
+          "$expectedGeneration, and does not carry the same recovery metadata"
       }
-      val blobInfo =
-        BlobInfo.newBuilder(blobId).setMetadata(current.metadata.orEmpty() + metadata).build()
+      val blobInfo = BlobInfo.newBuilder(blobId).setMetadata(currentMetadata + metadata).build()
       return storage
         .create(
           blobInfo,
           ByteArray(0),
-          Storage.BlobTargetOption.generationMatch(expectedGeneration),
+          Storage.BlobTargetOption.generationMatch(current.generation),
         )
         .generation
     }
