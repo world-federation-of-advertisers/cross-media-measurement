@@ -20,6 +20,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.util.UUID
 import java.util.logging.Logger
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
@@ -63,6 +64,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  * @param rankerJobsStub stub for `RankerJobService` (Phase 1).
  * @param vidLabelingJobsStub stub for `VidLabelingJobService` (Phase 2).
  * @param workItemsStub stub for the Secure Computation control-plane `WorkItems` service.
+ * @param rpcThrottlers shared throttlers for metadata and control-plane RPCs.
  */
 class FailedDispatchRetrier(
   private val rawImpressionModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
@@ -70,6 +72,7 @@ class FailedDispatchRetrier(
   private val rankerJobsStub: RankerJobServiceCoroutineStub,
   private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
   private val workItemsStub: WorkItemsCoroutineStub,
+  private val rpcThrottlers: VidLabelingRpcThrottlers,
 ) {
   /** Outcome of a [retryFailed] run. */
   data class RetryResult(
@@ -97,7 +100,11 @@ class FailedDispatchRetrier(
     fromPhase: RawImpressionUploadModelLine.State? = null,
   ): RetryResult {
     val modelLine =
-      rawImpressionModelLinesStub.findModelLine(rawImpressionUpload, cmmsModelLine)
+      rawImpressionModelLinesStub.findModelLine(
+        rawImpressionUpload,
+        cmmsModelLine,
+        rpcThrottlers.metadataRead,
+      )
         ?: throw IllegalArgumentException(
           "No RawImpressionUploadModelLine for $cmmsModelLine under $rawImpressionUpload"
         )
@@ -107,12 +114,19 @@ class FailedDispatchRetrier(
 
     // Re-trigger [fromPhase] if the operator specified one; otherwise the furthest phase reached
     // (the deepest one that created job rows).
-    val targetState = fromPhase ?: detectFurthestPhase(rawImpressionUpload, cmmsModelLine)
-    val oldWorkItemIds = workItemIdsForPhase(rawImpressionUpload, cmmsModelLine, targetState)
+    val phaseWorkItems =
+      if (fromPhase == null) {
+        detectFurthestPhaseWorkItems(rawImpressionUpload, cmmsModelLine)
+      } else {
+        PhaseWorkItems(
+          fromPhase,
+          workItemIdsForPhase(rawImpressionUpload, cmmsModelLine, fromPhase),
+        )
+      }
 
     // Re-publish before transitioning, so the work exists before the line is claimed.
     var republished = 0
-    for (oldId in oldWorkItemIds) {
+    for (oldId in phaseWorkItems.workItemIds) {
       if (republishWorkItem(oldId)) republished++
     }
 
@@ -123,7 +137,7 @@ class FailedDispatchRetrier(
       return RetryResult(modelLine.name, 0, modelLine.state)
     }
 
-    val updated = transition(modelLine, targetState)
+    val updated = transition(modelLine, phaseWorkItems.phase)
     return RetryResult(updated.name, republished, updated.state)
   }
 
@@ -132,20 +146,32 @@ class FailedDispatchRetrier(
    * job rows exist: `VidLabelingJob`s ⇒ `LABELING`, else `RankerJob`s ⇒ `RANKING`, else
    * `PoolAssignmentJob`s ⇒ `POOL_ASSIGNING`.
    */
-  private suspend fun detectFurthestPhase(
+  private suspend fun detectFurthestPhaseWorkItems(
     uploadName: String,
     cmmsModelLine: String,
-  ): RawImpressionUploadModelLine.State {
-    if (listVidLabelingJobNames(uploadName, cmmsModelLine).isNotEmpty()) {
-      return RawImpressionUploadModelLine.State.LABELING
+  ): PhaseWorkItems {
+    val vidLabelingJobNames = listVidLabelingJobNames(uploadName, cmmsModelLine)
+    if (vidLabelingJobNames.isNotEmpty()) {
+      return PhaseWorkItems(
+        RawImpressionUploadModelLine.State.LABELING,
+        vidLabelingJobNames.map { WorkItemIds.forVidLabeler(it) },
+      )
     }
-    if (listRankerJobNames(uploadName, cmmsModelLine).isNotEmpty()) {
-      return RawImpressionUploadModelLine.State.RANKING
+    val rankerJobNames = listRankerJobNames(uploadName, cmmsModelLine)
+    if (rankerJobNames.isNotEmpty()) {
+      return PhaseWorkItems(
+        RawImpressionUploadModelLine.State.RANKING,
+        rankerJobNames.map { WorkItemIds.forVidRankBuilder(it) },
+      )
     }
-    require(listPoolAssignmentJobShards(uploadName, cmmsModelLine).isNotEmpty()) {
+    val poolAssignmentJobShards = listPoolAssignmentJobShards(uploadName, cmmsModelLine)
+    require(poolAssignmentJobShards.isNotEmpty()) {
       "No jobs found for $cmmsModelLine under $uploadName; nothing to retry"
     }
-    return RawImpressionUploadModelLine.State.POOL_ASSIGNING
+    return PhaseWorkItems(
+      RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+      poolAssignmentJobShards.map { WorkItemIds.forSubpoolAssigner(uploadName, cmmsModelLine, it) },
+    )
   }
 
   /** The origin WorkItem ids to republish to re-trigger [phase] for (upload, model line). */
@@ -191,13 +217,15 @@ class FailedDispatchRetrier(
     var pageToken = ""
     do {
       val response =
-        vidLabelingJobsStub.listVidLabelingJobs(
-          listVidLabelingJobsRequest {
-            parent = uploadName
-            filter = ListVidLabelingJobsRequestKt.filter { this.cmmsModelLine = cmmsModelLine }
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          vidLabelingJobsStub.listVidLabelingJobs(
+            listVidLabelingJobsRequest {
+              parent = uploadName
+              filter = ListVidLabelingJobsRequestKt.filter { this.cmmsModelLine = cmmsModelLine }
+              this.pageToken = pageToken
+            }
+          )
+        }
       response.vidLabelingJobsList.forEach { names.add(it.name) }
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
@@ -209,13 +237,15 @@ class FailedDispatchRetrier(
     var pageToken = ""
     do {
       val response =
-        rankerJobsStub.listRankerJobs(
-          listRankerJobsRequest {
-            parent = uploadName
-            filter = ListRankerJobsRequestKt.filter { this.cmmsModelLine = cmmsModelLine }
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          rankerJobsStub.listRankerJobs(
+            listRankerJobsRequest {
+              parent = uploadName
+              filter = ListRankerJobsRequestKt.filter { this.cmmsModelLine = cmmsModelLine }
+              this.pageToken = pageToken
+            }
+          )
+        }
       response.rankerJobsList.forEach { names.add(it.name) }
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
@@ -230,13 +260,15 @@ class FailedDispatchRetrier(
     var pageToken = ""
     do {
       val response =
-        poolAssignmentJobsStub.listPoolAssignmentJobs(
-          listPoolAssignmentJobsRequest {
-            parent = uploadName
-            filter = ListPoolAssignmentJobsRequestKt.filter { this.cmmsModelLine = cmmsModelLine }
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          poolAssignmentJobsStub.listPoolAssignmentJobs(
+            listPoolAssignmentJobsRequest {
+              parent = uploadName
+              filter = ListPoolAssignmentJobsRequestKt.filter { this.cmmsModelLine = cmmsModelLine }
+              this.pageToken = pageToken
+            }
+          )
+        }
       response.poolAssignmentJobsList.forEach { shards.add(it.shardIndex) }
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
@@ -250,7 +282,9 @@ class FailedDispatchRetrier(
   private suspend fun republishWorkItem(oldWorkItemId: String): Boolean {
     val existing =
       try {
-        workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$oldWorkItemId" })
+        rpcThrottlers.controlPlane.onReady {
+          workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$oldWorkItemId" })
+        }
       } catch (e: StatusException) {
         if (e.status.code == Status.Code.NOT_FOUND) {
           throw IllegalStateException(
@@ -266,12 +300,14 @@ class FailedDispatchRetrier(
       workItemParams = existing.workItemParams
     }
     return try {
-      workItemsStub.createWorkItem(
-        createWorkItemRequest {
-          workItemId = newId
-          workItem = republished
-        }
-      )
+      rpcThrottlers.controlPlane.onReady {
+        workItemsStub.createWorkItem(
+          createWorkItemRequest {
+            workItemId = newId
+            workItem = republished
+          }
+        )
+      }
       logger.info("Re-published $oldWorkItemId as $newId (queue=${existing.queue}).")
       true
     } catch (e: StatusException) {
@@ -295,30 +331,41 @@ class FailedDispatchRetrier(
     // hits the AIP-155 replay short-circuit instead of failing INVALID_ARGUMENT.
     when (targetState) {
       RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
-        rawImpressionModelLinesStub.markRawImpressionUploadModelLinePoolAssigning(
-          markRawImpressionUploadModelLinePoolAssigningRequest {
-            name = modelLine.name
-            etag = modelLine.etag
-          }
-        )
+        rpcThrottlers.metadataWrite.onReady {
+          rawImpressionModelLinesStub.markRawImpressionUploadModelLinePoolAssigning(
+            markRawImpressionUploadModelLinePoolAssigningRequest {
+              name = modelLine.name
+              etag = modelLine.etag
+            }
+          )
+        }
       RawImpressionUploadModelLine.State.RANKING ->
-        rawImpressionModelLinesStub.markRawImpressionUploadModelLineRanking(
-          markRawImpressionUploadModelLineRankingRequest {
-            name = modelLine.name
-            etag = modelLine.etag
-          }
-        )
+        rpcThrottlers.metadataWrite.onReady {
+          rawImpressionModelLinesStub.markRawImpressionUploadModelLineRanking(
+            markRawImpressionUploadModelLineRankingRequest {
+              name = modelLine.name
+              etag = modelLine.etag
+            }
+          )
+        }
       RawImpressionUploadModelLine.State.LABELING ->
-        rawImpressionModelLinesStub.markRawImpressionUploadModelLineLabeling(
-          markRawImpressionUploadModelLineLabelingRequest {
-            name = modelLine.name
-            etag = modelLine.etag
-          }
-        )
+        rpcThrottlers.metadataWrite.onReady {
+          rawImpressionModelLinesStub.markRawImpressionUploadModelLineLabeling(
+            markRawImpressionUploadModelLineLabelingRequest {
+              name = modelLine.name
+              etag = modelLine.etag
+            }
+          )
+        }
       else -> error("unreachable: targetState is a phase state")
     }
 
   companion object {
     private val logger: Logger = Logger.getLogger(FailedDispatchRetrier::class.java.name)
   }
+
+  private data class PhaseWorkItems(
+    val phase: RawImpressionUploadModelLine.State,
+    val workItemIds: List<String>,
+  )
 }
