@@ -365,7 +365,8 @@ class EvictUploaderTest {
         evictUploader.plan(listOf(uploadName("up1")), cutoffTime = T0)
       }
 
-    assertThat(error).hasMessageThat().contains("queued or running")
+    assertThat(error).hasMessageThat().contains("VID-labeling pipeline is currently processing")
+    assertThat(error).hasMessageThat().contains("Retry after all VID-labeling processing")
     assertThat(error).hasMessageThat().contains(modelLineName("queued-upload"))
     assertThat(error).hasMessageThat().contains(modelLineName("running-upload"))
     val request = argumentCaptor<ListRawImpressionUploadModelLinesRequest>()
