@@ -96,7 +96,26 @@ bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGen
     --define=edp6_name=dataProviders/QNqyjKAQ5i4 \
     --define=pdp_name=dataProviders/KnvDaDC7QKA \
     --define=mp_name=modelProviders/Wt5MH8egH4w \
-    --define=model_line_name=modelProviders/Wt5MH8egH4w/modelSuites/Wt5MH8egH4w/modelLines/Wt5MH8egH4w
+    --define=model_line_name=modelProviders/Wt5MH8egH4w/modelSuites/Wt5MH8egH4w/modelLines/Wt5MH8egH4w \
+    --define=mcp_host=mcp.reporting.dev.halo-cmm.org
+```
+
+`mcp_host` is the public hostname of the Reporting MCP server. It is only read
+by the MCP smoke test below, but the define is required by the shared test
+configuration; pass `--define=mcp_host=` for an environment that has no MCP
+server.
+
+## Run the Reporting MCP smoke test
+
+The MCP smoke test checks that the deployed Reporting MCP server serves MCP
+against the Reporting API. It takes the same defines and skips itself when
+`mcp_host` is empty.
+
+```shell
+bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:ReportingMcpSmokeTest \
+    --test_output=streamed \
+    --define=mcp_host=mcp.reporting.dev.halo-cmm.org \
+    ... # the remaining defines from the command above
 ```
 
 The time the test takes depends on the size of the data set. With the default

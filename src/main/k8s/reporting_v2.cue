@@ -451,10 +451,8 @@ package k8s
 			// Egress: calls the Reporting public API.
 			_destinationMatchLabels: ["reporting-v2alpha-public-api-server-app"]
 			// Ingress: intentionally open to any in-cluster pod on 8080. There is no
-			// dedicated in-cluster client in this phase (the server is reached via
-			// kubectl port-forward for testing and by the planned cloud integration
-			// test), so no `_sourceMatchLabels` restriction is applied yet. External
-			// exposure is tracked in
+			// dedicated in-cluster client, so no `_sourceMatchLabels` restriction is
+			// applied. External exposure is tracked in
 			// TODO(world-federation-of-advertisers/cross-media-measurement#3938).
 			_ingresses: {
 				http: {

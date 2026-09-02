@@ -18,6 +18,9 @@ package org.wfanet.measurement.integration.k8s
 
 import com.google.common.hash.Hashing
 import com.google.common.truth.TruthJUnit.assume
+import com.google.crypto.tink.InsecureSecretKeyAccess
+import com.google.crypto.tink.TinkProtoKeysetFormat
+import com.google.protobuf.util.JsonFormat
 import com.google.rpc.ErrorInfo
 import io.grpc.Channel
 import io.grpc.Status
@@ -26,6 +29,7 @@ import io.grpc.StatusRuntimeException
 import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.Duration
 import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.annotations.Blocking
@@ -67,7 +71,9 @@ import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
 import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.integration.common.EventQuery
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
@@ -421,6 +427,56 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
       }
 
       return principal
+    }
+
+    /**
+     * Returns a source of access tokens for a [Principal] bound to a role on [measurementConsumer],
+     * issued by the OpenID provider that the Reporting API trusts.
+     *
+     * The [Principal] is created once. Each call to the returned function mints a fresh token, as
+     * tokens expire after [ttl].
+     */
+    fun reportingAccessTokenProvider(
+      measurementConsumer: String,
+      accessChannel: Channel,
+      audience: String,
+      scopes: Set<String>,
+      ttl: Duration = Duration.ofMinutes(60),
+    ): () -> String {
+      val openIdProvidersConfig =
+        OpenIdProvidersConfig.newBuilder()
+          .also {
+            JsonFormat.parser()
+              .ignoringUnknownFields()
+              .merge(OPEN_ID_PROVIDERS_CONFIG_JSON_FILE.readText(), it)
+          }
+          .build()
+
+      val principal =
+        createAccessPrincipal(
+          measurementConsumer,
+          accessChannel,
+          openIdProvidersConfig.providerConfigByIssuerMap.keys.first(),
+        )
+      val openIdProvider =
+        OpenIdProvider(
+          principal.user.issuer,
+          TinkProtoKeysetFormat.parseKeyset(
+            OPEN_ID_PROVIDERS_TINK_FILE.readBytes(),
+            InsecureSecretKeyAccess.get(),
+          ),
+        )
+
+      return {
+        openIdProvider
+          .generateCredentials(
+            audience = audience,
+            subject = principal.user.subject,
+            scopes = scopes,
+            ttl = ttl,
+          )
+          .token
+      }
     }
   }
 }
