@@ -63,6 +63,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadMod
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
@@ -179,7 +180,11 @@ class VidLabelingDispatcher(
           selectUnregisteredBlobVersions(currentBlobVersions, exactRevision?.name)
         }
 
-      if (candidateBlobs.isEmpty()) {
+      val registrationBaseline = exactRevision ?: previousRevision
+      if (
+        candidateBlobs.isEmpty() &&
+          (registrationBaseline == null || isRegistrationComplete(registrationBaseline))
+      ) {
         logger.info("No new raw impression object versions found in $folderPrefix")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
@@ -233,6 +238,13 @@ class VidLabelingDispatcher(
           selectUnregisteredBlobVersions(currentBlobVersions, refreshedCurrent.name)
         }
 
+      if (blobsToRegister.isEmpty() && !hasRegisteredFiles(refreshedCurrent.name)) {
+        markRegistrationComplete(rawImpressionUpload.name)
+        logger.info("No new raw impression object versions found in $folderPrefix")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
+
       metrics.filesProcessedCounter.add(
         blobsToRegister.size.toLong(),
         Attributes.of(DATA_PROVIDER_ATTR, dataProviderName),
@@ -243,12 +255,14 @@ class VidLabelingDispatcher(
       val resolvedModelLineNames = resolveModelLines()
 
       if (resolvedModelLineNames.isEmpty()) {
+        markRegistrationComplete(rawImpressionUpload.name)
         logger.info("No active model lines resolved for $modelSuiteName")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
       }
 
       createRawImpressionUploadModelLines(rawImpressionUpload.name, resolvedModelLineNames)
+      markRegistrationComplete(rawImpressionUpload.name)
 
       logger.info(
         "Registered upload ${rawImpressionUpload.name} with ${blobsToRegister.size} files and " +
@@ -436,6 +450,29 @@ class VidLabelingDispatcher(
         }
     }
   }
+
+  private suspend fun markRegistrationComplete(uploadName: String) {
+    rawImpressionUploadStub.markRawImpressionUploadRegistrationComplete(
+      markRawImpressionUploadRegistrationCompleteRequest {
+        name = uploadName
+        requestId = RequestIds.forRawImpressionUploadRegistrationComplete(uploadName)
+      }
+    )
+  }
+
+  private suspend fun hasRegisteredFiles(uploadName: String): Boolean {
+    val response =
+      rawImpressionUploadFilesStub.listRawImpressionUploadFiles(
+        listRawImpressionUploadFilesRequest {
+          parent = uploadName
+          pageSize = 1
+        }
+      )
+    return response.rawImpressionUploadFilesCount > 0
+  }
+
+  private fun isRegistrationComplete(upload: RawImpressionUpload): Boolean =
+    upload.registrationComplete || upload.state != RawImpressionUpload.State.CREATED
 
   /**
    * Finds the existing `RawImpressionUpload` for the exact done-object version. Used to recover

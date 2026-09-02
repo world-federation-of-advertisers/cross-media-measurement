@@ -38,6 +38,17 @@ service RawImpressionUploadService {
   // Lists RawImpressionUpload entries for a data provider.
   rpc ListRawImpressionUploads(ListRawImpressionUploadsRequest)
       returns (ListRawImpressionUploadsResponse);
+
+  // Marks registration of an upload's files and model lines complete.
+  rpc MarkRawImpressionUploadRegistrationComplete(
+      MarkRawImpressionUploadRegistrationCompleteRequest)
+      returns (RawImpressionUpload);
+}
+
+message MarkRawImpressionUploadRegistrationCompleteRequest {
+  string data_provider_resource_id = 1;
+  string raw_impression_upload_resource_id = 2;
+  string request_id = 3;
 }
 
 // Request message for CreateRawImpressionUpload.

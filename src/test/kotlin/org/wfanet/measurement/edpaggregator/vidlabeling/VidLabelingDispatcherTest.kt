@@ -670,6 +670,115 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
+  fun `new generation supersedes an incomplete predecessor even when its file was registered`() =
+    runBlocking<Unit> {
+      val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      val blobUri =
+        BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+      val previous =
+        RawImpressionUpload.newBuilder()
+          .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/previous")
+          .setDoneBlobUri(DONE_BLOB_PATH)
+          .setDoneBlobGeneration(100L)
+          .setState(RawImpressionUpload.State.CREATED)
+          .build()
+      val current =
+        RawImpressionUpload.newBuilder()
+          .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/current")
+          .setDoneBlobUri(DONE_BLOB_PATH)
+          .setDoneBlobGeneration(200L)
+          .setReplacesRawImpressionUpload(previous.name)
+          .setState(RawImpressionUpload.State.CREATED)
+          .build()
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      stubRawImpressionUploadCreation()
+      stubFullResolutionChain(MODEL_LINE_1)
+      whenever(rawImpressionUploadService.createRawImpressionUpload(any())).thenReturn(current)
+      whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse { rawImpressionUploads += previous },
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads +=
+              previous.toBuilder().setState(RawImpressionUpload.State.FAILED).build()
+            rawImpressionUploads += current
+          },
+        )
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenReturn(
+          listRawImpressionUploadFilesResponse {
+            rawImpressionUploadFiles += rawImpressionUploadFile {
+              name = "${previous.name}/files/file1"
+              this.blobUri = blobUri
+              blobGeneration = RAW_BLOB_GENERATION
+            }
+          }
+        )
+
+      createDispatcher(readDoneBlobGeneration = { 200L })
+        .upload(DONE_BLOB_PATH, doneBlobGeneration = 200L)
+
+      verifyBlocking(rawImpressionUploadService) { createRawImpressionUpload(any()) }
+      verifyBlocking(rawImpressionUploadFileService) { batchCreateRawImpressionUploadFiles(any()) }
+    }
+
+  @Test
+  fun `refreshed empty delta completes upload without creating model lines`() =
+    runBlocking<Unit> {
+      val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      val blobUri =
+        BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+      val previous =
+        RawImpressionUpload.newBuilder()
+          .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/previous")
+          .setDoneBlobUri(DONE_BLOB_PATH)
+          .setDoneBlobGeneration(100L)
+          .setState(RawImpressionUpload.State.COMPLETED)
+          .setRegistrationComplete(true)
+          .build()
+      val current =
+        RawImpressionUpload.newBuilder()
+          .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/current")
+          .setDoneBlobUri(DONE_BLOB_PATH)
+          .setDoneBlobGeneration(200L)
+          .setReplacesRawImpressionUpload(previous.name)
+          .setState(RawImpressionUpload.State.CREATED)
+          .build()
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      stubRawImpressionUploadCreation()
+      whenever(rawImpressionUploadService.createRawImpressionUpload(any())).thenReturn(current)
+      whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse { rawImpressionUploads += previous },
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads += previous
+            rawImpressionUploads += current
+          },
+        )
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenReturn(
+          listRawImpressionUploadFilesResponse {},
+          listRawImpressionUploadFilesResponse {
+            rawImpressionUploadFiles += rawImpressionUploadFile {
+              name = "${previous.name}/files/file1"
+              this.blobUri = blobUri
+              blobGeneration = RAW_BLOB_GENERATION
+            }
+          },
+          listRawImpressionUploadFilesResponse {},
+        )
+
+      createDispatcher(readDoneBlobGeneration = { 200L })
+        .upload(DONE_BLOB_PATH, doneBlobGeneration = 200L)
+
+      verifyBlocking(rawImpressionUploadService) {
+        markRawImpressionUploadRegistrationComplete(any())
+      }
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        batchCreateRawImpressionUploadModelLines(any())
+      }
+    }
+
+  @Test
   fun `redelivery excludes the current upload from registered object versions`() =
     runBlocking<Unit> {
       val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")

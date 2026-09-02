@@ -21,3 +21,6 @@ ALTER TABLE RawImpressionUpload ADD COLUMN ReplacesRawImpressionUploadResourceId
 
 CREATE NULL_FILTERED INDEX RawImpressionUploadByReplacement
   ON RawImpressionUpload(DataProviderResourceId, ReplacesRawImpressionUploadResourceId);
+
+-- Existing uploads predate explicit registration tracking and are complete by definition.
+ALTER TABLE RawImpressionUpload ADD COLUMN RegistrationComplete BOOL NOT NULL DEFAULT (TRUE);

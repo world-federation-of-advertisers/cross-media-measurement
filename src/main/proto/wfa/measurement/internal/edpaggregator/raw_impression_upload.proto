@@ -52,4 +52,7 @@ message RawImpressionUpload {
 
   // Resource ID of the preceding upload revision for the same done-blob path.
   string replaces_raw_impression_upload_resource_id = 8;
+
+  // Whether registration of this upload's files and model lines finished.
+  bool registration_complete = 9;
 }
