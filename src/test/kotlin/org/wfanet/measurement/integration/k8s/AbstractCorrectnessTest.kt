@@ -60,8 +60,8 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -128,8 +128,8 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
       "$runId-population",
       measurementSystem.getPopulationData(),
       measurementSystem.modelLineName,
-      "person.gender == ${Person.Gender.FEMALE_VALUE} && " +
-        "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
+      "common.gender == ${Common.Gender.FEMALE_VALUE} && " +
+        "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}",
       TestEvent.getDescriptor(),
     )
   }

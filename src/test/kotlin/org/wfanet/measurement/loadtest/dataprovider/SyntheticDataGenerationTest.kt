@@ -39,15 +39,15 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.fieldValu
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.vidRange
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.DuplicatePersonEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.banner
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.Common as MarketCommon
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.Edp1
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.market.v1.MarketEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.display
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.testEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.video
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
@@ -72,20 +72,20 @@ class SyntheticDataGenerationTest {
         .toEventsList()
 
     val expectedMaleEvent = testEvent {
-      person = person {
-        gender = Person.Gender.MALE
-        ageGroup = Person.AgeGroup.YEARS_18_TO_34
+      common = common {
+        gender = Common.Gender.MALE
+        ageGroup = Common.AgeGroup.YEARS_18_TO_34
       }
-      bannerAd = banner { viewable = true }
-      videoAd = video { viewedFraction = 0.5 }
+      display = display { viewableFraction = 1.0f }
+      video = video { completedFraction = 0.5f }
     }
     val expectedFemaleEvent = testEvent {
-      person = person {
-        gender = Person.Gender.FEMALE
-        ageGroup = Person.AgeGroup.YEARS_18_TO_34
+      common = common {
+        gender = Common.Gender.FEMALE
+        ageGroup = Common.AgeGroup.YEARS_18_TO_34
       }
-      bannerAd = banner { viewable = true }
-      videoAd = video { viewedFraction = 0.8 }
+      display = display { viewableFraction = 1.0f }
+      video = video { completedFraction = 0.8f }
     }
 
     val timestamp = LocalDate.of(2023, 6, 27).atStartOfDay().toInstant(ZoneOffset.UTC)
@@ -168,9 +168,9 @@ class SyntheticDataGenerationTest {
             }
           attributes +=
             ProtoAny.pack(
-              person {
-                gender = Person.Gender.FEMALE
-                ageGroup = Person.AgeGroup.YEARS_35_TO_54
+              common {
+                gender = Common.Gender.FEMALE
+                ageGroup = Common.AgeGroup.YEARS_35_TO_54
               }
             )
         }
@@ -200,10 +200,12 @@ class SyntheticDataGenerationTest {
                     start = 1L
                     endExclusive = 11L
                   }
-                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
-                    doubleValue = 0.42
+                  nonPopulationFieldValues["video.completed_fraction"] = fieldValue {
+                    floatValue = 0.42f
                   }
-                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
+                  nonPopulationFieldValues["display.viewable_fraction"] = fieldValue {
+                    floatValue = 1.0f
+                  }
                 }
             }
         }
@@ -220,12 +222,12 @@ class SyntheticDataGenerationTest {
 
     assertThat(testEvents).hasSize(10)
     val expected = testEvent {
-      person = person {
-        gender = Person.Gender.FEMALE
-        ageGroup = Person.AgeGroup.YEARS_35_TO_54
+      common = common {
+        gender = Common.Gender.FEMALE
+        ageGroup = Common.AgeGroup.YEARS_35_TO_54
       }
-      videoAd = video { viewedFraction = 0.42 }
-      bannerAd = banner { viewable = true }
+      video = video { completedFraction = 0.42f }
+      display = display { viewableFraction = 1.0f }
     }
     assertThat(testEvents.toSet()).containsExactly(expected)
   }
@@ -240,7 +242,7 @@ class SyntheticDataGenerationTest {
               startVid = 1L
               endVidInclusive = 10L
             }
-          attributes += ProtoAny.pack(person { gender = Person.Gender.MALE })
+          attributes += ProtoAny.pack(common { gender = Common.Gender.MALE })
         }
     }
     val eventGroupSpec = syntheticEventGroupSpec {
@@ -341,11 +343,11 @@ class SyntheticDataGenerationTest {
 
   @Test
   fun `generateEvents with PopulationSpec throws when nonPopulation field path resolves to a message`() {
-    // "banner_ad" resolves to a BannerAd *message* on TestEvent, not a scalar leaf. The engine
+    // "display" resolves to a Display *message* on TestEvent, not a scalar leaf. The engine
     // wraps the resulting IllegalArgumentException from setField as IllegalStateException.
-    val populationSpec = singleSubPopWithPerson()
+    val populationSpec = singleSubPopWithCommon()
     val eventGroupSpec =
-      eventGroupSpecWithNonPopulationField("banner_ad", fieldValue { boolValue = true })
+      eventGroupSpecWithNonPopulationField("display", fieldValue { floatValue = 1.0f })
 
     assertFailsWith<IllegalStateException> {
       SyntheticDataGeneration.generateEvents(
@@ -359,12 +361,13 @@ class SyntheticDataGenerationTest {
 
   @Test
   fun `generateEvents with PopulationSpec throws when nonPopulation field type does not match value type`() {
-    // "banner_ad.viewable" is a bool field on TestEvent, but the FieldValue carries a string.
-    val populationSpec = singleSubPopWithPerson()
+    // "display.viewable_fraction" is a float field on TestEvent, but the FieldValue carries a
+    // string.
+    val populationSpec = singleSubPopWithCommon()
     val eventGroupSpec =
       eventGroupSpecWithNonPopulationField(
-        "banner_ad.viewable",
-        fieldValue { stringValue = "true" },
+        "display.viewable_fraction",
+        fieldValue { stringValue = "1.0" },
       )
 
     assertFailsWith<IllegalStateException> {
@@ -379,12 +382,12 @@ class SyntheticDataGenerationTest {
 
   @Test
   fun `generateEvents with PopulationSpec throws when nonPopulation field path does not exist`() {
-    // No such field as "banner_ad.does_not_exist" on TestEvent.
-    val populationSpec = singleSubPopWithPerson()
+    // No such field as "display.does_not_exist" on TestEvent.
+    val populationSpec = singleSubPopWithCommon()
     val eventGroupSpec =
       eventGroupSpecWithNonPopulationField(
-        "banner_ad.does_not_exist",
-        fieldValue { boolValue = true },
+        "display.does_not_exist",
+        fieldValue { floatValue = 1.0f },
       )
 
     assertFailsWith<IllegalStateException> {
@@ -458,13 +461,13 @@ class SyntheticDataGenerationTest {
     // expected per-tuple counts are exact and deterministic.
     val populationSpec = populationSpec {
       subpopulations +=
-        subPopWithPerson(1L, 100L, Person.Gender.MALE, Person.AgeGroup.YEARS_18_TO_34)
+        subPopWithCommon(1L, 100L, Common.Gender.MALE, Common.AgeGroup.YEARS_18_TO_34)
       subpopulations +=
-        subPopWithPerson(101L, 200L, Person.Gender.MALE, Person.AgeGroup.YEARS_35_TO_54)
+        subPopWithCommon(101L, 200L, Common.Gender.MALE, Common.AgeGroup.YEARS_35_TO_54)
       subpopulations +=
-        subPopWithPerson(201L, 300L, Person.Gender.FEMALE, Person.AgeGroup.YEARS_18_TO_34)
+        subPopWithCommon(201L, 300L, Common.Gender.FEMALE, Common.AgeGroup.YEARS_18_TO_34)
       subpopulations +=
-        subPopWithPerson(301L, 400L, Person.Gender.FEMALE, Person.AgeGroup.YEARS_55_PLUS)
+        subPopWithCommon(301L, 400L, Common.Gender.FEMALE, Common.AgeGroup.YEARS_55_PLUS)
     }
     val eventGroupSpec = syntheticEventGroupSpec {
       dateSpecs +=
@@ -501,40 +504,40 @@ class SyntheticDataGenerationTest {
         )
         .toEventsList()
 
-    val countsByGenderAndAge: Map<Pair<Person.Gender, Person.AgeGroup>, Int> =
-      events.groupingBy { it.message.person.gender to it.message.person.ageGroup }.eachCount()
+    val countsByGenderAndAge: Map<Pair<Common.Gender, Common.AgeGroup>, Int> =
+      events.groupingBy { it.message.common.gender to it.message.common.ageGroup }.eachCount()
 
     assertThat(countsByGenderAndAge)
       .containsExactly(
-        Person.Gender.MALE to Person.AgeGroup.YEARS_18_TO_34,
+        Common.Gender.MALE to Common.AgeGroup.YEARS_18_TO_34,
         100,
-        Person.Gender.MALE to Person.AgeGroup.YEARS_35_TO_54,
+        Common.Gender.MALE to Common.AgeGroup.YEARS_35_TO_54,
         200,
-        Person.Gender.FEMALE to Person.AgeGroup.YEARS_18_TO_34,
+        Common.Gender.FEMALE to Common.AgeGroup.YEARS_18_TO_34,
         300,
-        Person.Gender.FEMALE to Person.AgeGroup.YEARS_55_PLUS,
+        Common.Gender.FEMALE to Common.AgeGroup.YEARS_55_PLUS,
         100,
       )
     assertThat(events).hasSize(700)
 
     // Independently confirm per-VID attributes match the subpopulation that contains the VID.
     for (event in events) {
-      val expected: Pair<Person.Gender, Person.AgeGroup> =
+      val expected: Pair<Common.Gender, Common.AgeGroup> =
         when (event.vid) {
-          in 1L..100L -> Person.Gender.MALE to Person.AgeGroup.YEARS_18_TO_34
-          in 101L..200L -> Person.Gender.MALE to Person.AgeGroup.YEARS_35_TO_54
-          in 201L..300L -> Person.Gender.FEMALE to Person.AgeGroup.YEARS_18_TO_34
-          in 301L..400L -> Person.Gender.FEMALE to Person.AgeGroup.YEARS_55_PLUS
+          in 1L..100L -> Common.Gender.MALE to Common.AgeGroup.YEARS_18_TO_34
+          in 101L..200L -> Common.Gender.MALE to Common.AgeGroup.YEARS_35_TO_54
+          in 201L..300L -> Common.Gender.FEMALE to Common.AgeGroup.YEARS_18_TO_34
+          in 301L..400L -> Common.Gender.FEMALE to Common.AgeGroup.YEARS_55_PLUS
           else -> error("Unexpected VID ${event.vid}")
         }
-      assertThat(event.message.person.gender to event.message.person.ageGroup).isEqualTo(expected)
+      assertThat(event.message.common.gender to event.message.common.ageGroup).isEqualTo(expected)
     }
   }
 
   @Test
   fun `generateEvents with PopulationSpec handles SubPopulations with multiple disjoint vid_ranges`() {
     // Single SubPopulation with two disjoint VID ranges (1..49 and 1000..1049). Both ranges share
-    // the same Person attribute, so events generated from VIDs in either range must carry the
+    // the same Common attribute, so events generated from VIDs in either range must carry the
     // same gender/age tuple.
     val populationSpec = populationSpec {
       subpopulations +=
@@ -551,9 +554,9 @@ class SyntheticDataGenerationTest {
             }
           attributes +=
             ProtoAny.pack(
-              person {
-                gender = Person.Gender.MALE
-                ageGroup = Person.AgeGroup.YEARS_55_PLUS
+              common {
+                gender = Common.Gender.MALE
+                ageGroup = Common.AgeGroup.YEARS_55_PLUS
               }
             )
         }
@@ -593,15 +596,15 @@ class SyntheticDataGenerationTest {
     // 49 VIDs * 1 + 50 VIDs * 2 = 149.
     assertThat(events).hasSize(149)
     for (event in events) {
-      assertThat(event.message.person.gender).isEqualTo(Person.Gender.MALE)
-      assertThat(event.message.person.ageGroup).isEqualTo(Person.AgeGroup.YEARS_55_PLUS)
+      assertThat(event.message.common.gender).isEqualTo(Common.Gender.MALE)
+      assertThat(event.message.common.ageGroup).isEqualTo(Common.AgeGroup.YEARS_55_PLUS)
       assertThat(event.vid).isIn((1L..49L) + (1000L..1049L))
     }
   }
 
   @Test
   fun `generateEvents with PopulationSpec produces messages with a Duration nonPopulation field`() {
-    // Exercises the FieldValue.durationValue branch of the engine: video_ad.length is a
+    // Exercises the FieldValue.durationValue branch of the engine: video.completed_duration is a
     // google.protobuf.Duration field on TestEvent. Each generated event should carry the same
     // duration value as configured in the vidRangeSpec.
     val populationSpec = populationSpec {
@@ -612,7 +615,7 @@ class SyntheticDataGenerationTest {
               startVid = 1L
               endVidInclusive = 10L
             }
-          attributes += ProtoAny.pack(person { gender = Person.Gender.FEMALE })
+          attributes += ProtoAny.pack(common { gender = Common.Gender.FEMALE })
         }
     }
     val videoLength = Duration.ofMinutes(5).toProtoDuration()
@@ -641,7 +644,7 @@ class SyntheticDataGenerationTest {
                     start = 1L
                     endExclusive = 11L
                   }
-                  nonPopulationFieldValues["video_ad.length"] = fieldValue {
+                  nonPopulationFieldValues["video.completed_duration"] = fieldValue {
                     durationValue = videoLength
                   }
                 }
@@ -659,8 +662,8 @@ class SyntheticDataGenerationTest {
 
     assertThat(events).hasSize(10)
     for (event in events) {
-      assertThat(event.message.person.gender).isEqualTo(Person.Gender.FEMALE)
-      assertThat(event.message.videoAd.length).isEqualTo(videoLength)
+      assertThat(event.message.common.gender).isEqualTo(Common.Gender.FEMALE)
+      assertThat(event.message.video.completedDuration).isEqualTo(videoLength)
     }
   }
 
@@ -674,7 +677,7 @@ class SyntheticDataGenerationTest {
               startVid = 1L
               endVidInclusive = 100L
             }
-          attributes += ProtoAny.pack(person { gender = Person.Gender.MALE })
+          attributes += ProtoAny.pack(common { gender = Common.Gender.MALE })
         }
     }
     val eventGroupSpec = syntheticEventGroupSpec {
@@ -732,7 +735,7 @@ class SyntheticDataGenerationTest {
               startVid = 1L
               endVidInclusive = 1000L
             }
-          attributes += ProtoAny.pack(person { gender = Person.Gender.FEMALE })
+          attributes += ProtoAny.pack(common { gender = Common.Gender.FEMALE })
         }
     }
     val eventGroupSpec = syntheticEventGroupSpec {
@@ -781,7 +784,7 @@ class SyntheticDataGenerationTest {
     assertThat(sampled.size).isLessThan(300)
     // All sampled events must come from the FEMALE subpopulation.
     for (event in sampled) {
-      assertThat(event.message.person.gender).isEqualTo(Person.Gender.FEMALE)
+      assertThat(event.message.common.gender).isEqualTo(Common.Gender.FEMALE)
     }
     // Sampling must be a strict subset of the unsampled output.
     val unsampledCount = (1L..1000L).count() // frequency 1 over 1000 VIDs
@@ -1089,9 +1092,11 @@ class SyntheticDataGenerationTest {
                     start = 0L
                     endExclusive = 25L
                   }
-                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
-                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
-                    doubleValue = 0.5
+                  nonPopulationFieldValues["display.viewable_fraction"] = fieldValue {
+                    floatValue = 1.0f
+                  }
+                  nonPopulationFieldValues["video.completed_fraction"] = fieldValue {
+                    floatValue = 0.5f
                   }
                 }
               vidRangeSpecs +=
@@ -1100,9 +1105,11 @@ class SyntheticDataGenerationTest {
                     start = 25L
                     endExclusive = 50L
                   }
-                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = false }
-                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
-                    doubleValue = 0.7
+                  nonPopulationFieldValues["display.viewable_fraction"] = fieldValue {
+                    floatValue = 0.0f
+                  }
+                  nonPopulationFieldValues["video.completed_fraction"] = fieldValue {
+                    floatValue = 0.7f
                   }
                 }
             }
@@ -1115,9 +1122,11 @@ class SyntheticDataGenerationTest {
                     start = 50L
                     endExclusive = 75L
                   }
-                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
-                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
-                    doubleValue = 0.8
+                  nonPopulationFieldValues["display.viewable_fraction"] = fieldValue {
+                    floatValue = 1.0f
+                  }
+                  nonPopulationFieldValues["video.completed_fraction"] = fieldValue {
+                    floatValue = 0.8f
                   }
                 }
             }
@@ -1146,9 +1155,11 @@ class SyntheticDataGenerationTest {
                     start = 75L
                     endExclusive = 100L
                   }
-                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
-                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
-                    doubleValue = 0.9
+                  nonPopulationFieldValues["display.viewable_fraction"] = fieldValue {
+                    floatValue = 1.0f
+                  }
+                  nonPopulationFieldValues["video.completed_fraction"] = fieldValue {
+                    floatValue = 0.9f
                   }
                 }
             }
@@ -1182,26 +1193,26 @@ class SyntheticDataGenerationTest {
 
     // Population attributes are correctly assigned across date specs.
     for (event in day1Events.filter { it.vid in 0L..49L }) {
-      assertThat(event.message.person.gender).isEqualTo(Person.Gender.MALE)
+      assertThat(event.message.common.gender).isEqualTo(Common.Gender.MALE)
     }
     for (event in day1Events.filter { it.vid in 50L..74L }) {
-      assertThat(event.message.person.gender).isEqualTo(Person.Gender.FEMALE)
+      assertThat(event.message.common.gender).isEqualTo(Common.Gender.FEMALE)
     }
     for (event in day2Events) {
-      assertThat(event.message.person.gender).isEqualTo(Person.Gender.FEMALE)
+      assertThat(event.message.common.gender).isEqualTo(Common.Gender.FEMALE)
     }
   }
 
   @Test
   fun `generateEvents with PopulationSpec rejects event message with duplicate template type URLs`() {
     // PopulationSpec attributes are keyed by type URL, so an event message with two top-level
-    // fields of the same template message type (e.g. two Person fields) is ambiguous: there is
-    // no way for the spec to assign different attribute values to each field. Verify that
-    // generateEvents fails fast rather than silently merging the same attribute into one
-    // arbitrary field.
+    // fields of the same template message type (e.g. the two Person fields of
+    // DuplicatePersonEvent) is ambiguous: there is no way for the spec to assign different
+    // attribute values to each field. Verify that generateEvents fails fast rather than silently
+    // merging the same attribute into one arbitrary field.
     val populationSpec = populationSpec {
       subpopulations +=
-        subPopWithPerson(1L, 10L, Person.Gender.MALE, Person.AgeGroup.YEARS_18_TO_34)
+        subPopWithCommon(1L, 10L, Common.Gender.MALE, Common.AgeGroup.YEARS_18_TO_34)
     }
     val eventGroupSpec = syntheticEventGroupSpec {
       dateSpecs +=
@@ -1241,9 +1252,9 @@ class SyntheticDataGenerationTest {
     // small_data_spec.textproto fixtures used by EDP simulator integration tests. Confirms the
     // fixture pair yields exactly one labeled-event shard per day across the 2021-03-15..2021-03-21
     // window and that the total impression count matches the spec.
-    // PopulationSpec embeds Person attributes inside google.protobuf.Any, so we must register the
-    // Person descriptor with the TypeRegistry used by parseTextProto.
-    val typeRegistry = TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
+    // PopulationSpec embeds Common attributes inside google.protobuf.Any, so we must register the
+    // Common descriptor with the TypeRegistry used by parseTextProto.
+    val typeRegistry = TypeRegistry.newBuilder().add(Common.getDescriptor()).build()
     val populationSpec: PopulationSpec =
       parseTextProto(
         TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
@@ -1283,11 +1294,11 @@ class SyntheticDataGenerationTest {
     assertThat(shards.flatMap { it.labeledEvents.toList() }.size).isEqualTo(8001)
   }
 
-  private fun subPopWithPerson(
+  private fun subPopWithCommon(
     startVid: Long,
     endVidInclusive: Long,
-    gender: Person.Gender,
-    ageGroup: Person.AgeGroup,
+    gender: Common.Gender,
+    ageGroup: Common.AgeGroup,
   ): PopulationSpec.SubPopulation =
     PopulationSpecKt.subPopulation {
       vidRanges +=
@@ -1297,7 +1308,7 @@ class SyntheticDataGenerationTest {
         }
       attributes +=
         ProtoAny.pack(
-          person {
+          common {
             this.gender = gender
             this.ageGroup = ageGroup
           }
@@ -1305,8 +1316,8 @@ class SyntheticDataGenerationTest {
     }
 
   /** A trivial single-subpopulation [PopulationSpec] covering VIDs 1..10. */
-  private fun singleSubPopWithPerson(): PopulationSpec = populationSpec {
-    subpopulations += subPopWithPerson(1L, 10L, Person.Gender.MALE, Person.AgeGroup.YEARS_18_TO_34)
+  private fun singleSubPopWithCommon(): PopulationSpec = populationSpec {
+    subpopulations += subPopWithCommon(1L, 10L, Common.Gender.MALE, Common.AgeGroup.YEARS_18_TO_34)
   }
 
   /**
@@ -1382,7 +1393,7 @@ class SyntheticDataGenerationTest {
     private val TEST_DATA_RUNTIME_PATH = getRuntimePath(TEST_DATA_PATH)!!
 
     /**
-     * A two-subpopulation [PopulationSpec] covering VIDs 0..99 with Person attributes set per
+     * A two-subpopulation [PopulationSpec] covering VIDs 0..99 with Common attributes set per
      * subpopulation. Mirrors the legacy two-subpopulation spec used in
      * [SyntheticDataGenerationTest].
      */
@@ -1396,9 +1407,9 @@ class SyntheticDataGenerationTest {
             }
           attributes +=
             ProtoAny.pack(
-              person {
-                gender = Person.Gender.MALE
-                ageGroup = Person.AgeGroup.YEARS_18_TO_34
+              common {
+                gender = Common.Gender.MALE
+                ageGroup = Common.AgeGroup.YEARS_18_TO_34
               }
             )
         }
@@ -1411,9 +1422,9 @@ class SyntheticDataGenerationTest {
             }
           attributes +=
             ProtoAny.pack(
-              person {
-                gender = Person.Gender.FEMALE
-                ageGroup = Person.AgeGroup.YEARS_18_TO_34
+              common {
+                gender = Common.Gender.FEMALE
+                ageGroup = Common.AgeGroup.YEARS_18_TO_34
               }
             )
         }
@@ -1446,9 +1457,11 @@ class SyntheticDataGenerationTest {
                     start = 0L
                     endExclusive = 25L
                   }
-                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
-                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
-                    doubleValue = 0.5
+                  nonPopulationFieldValues["display.viewable_fraction"] = fieldValue {
+                    floatValue = 1.0f
+                  }
+                  nonPopulationFieldValues["video.completed_fraction"] = fieldValue {
+                    floatValue = 0.5f
                   }
                 }
               vidRangeSpecs +=
@@ -1457,9 +1470,11 @@ class SyntheticDataGenerationTest {
                     start = 50L
                     endExclusive = 75L
                   }
-                  nonPopulationFieldValues["banner_ad.viewable"] = fieldValue { boolValue = true }
-                  nonPopulationFieldValues["video_ad.viewed_fraction"] = fieldValue {
-                    doubleValue = 0.8
+                  nonPopulationFieldValues["display.viewable_fraction"] = fieldValue {
+                    floatValue = 1.0f
+                  }
+                  nonPopulationFieldValues["video.completed_fraction"] = fieldValue {
+                    floatValue = 0.8f
                   }
                 }
             }

@@ -38,7 +38,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.Hashing
@@ -228,8 +228,8 @@ class EdpAggregatorMeasurementConsumerSimulator(
 
   companion object {
     private const val DEFAULT_FILTER_EXPRESSION =
-      "person.gender == ${Person.Gender.MALE_VALUE} && " +
-        "(video_ad.viewed_fraction > 0.25 || video_ad.viewed_fraction == 0.25)"
+      "common.gender == ${Common.Gender.MALE_VALUE} && " +
+        "(video.completed_fraction > 0.25 || video.completed_fraction == 0.25)"
     /** Default time range for events. */
     private val DEFAULT_EVENT_RANGE =
       OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))

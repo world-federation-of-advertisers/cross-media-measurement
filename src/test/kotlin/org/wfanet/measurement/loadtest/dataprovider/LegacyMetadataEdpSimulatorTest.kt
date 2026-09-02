@@ -40,10 +40,10 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Banner
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Video
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Display
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Video
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -131,9 +131,9 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
     // Verify EventGroup has correct template types.
     assertThat(createRequest.eventGroup.eventTemplatesList.map { it.type })
       .containsAtLeast(
-        Person.getDescriptor().fullName,
+        Common.getDescriptor().fullName,
         Video.getDescriptor().fullName,
-        Banner.getDescriptor().fullName,
+        Display.getDescriptor().fullName,
       )
   }
 
@@ -193,9 +193,9 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
     // Verify EventGroup has correct template types.
     assertThat(updateRequest.eventGroup.eventTemplatesList.map { it.type })
       .containsAtLeast(
-        Person.getDescriptor().fullName,
+        Common.getDescriptor().fullName,
         Video.getDescriptor().fullName,
-        Banner.getDescriptor().fullName,
+        Display.getDescriptor().fullName,
       )
   }
 

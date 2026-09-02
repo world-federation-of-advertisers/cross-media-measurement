@@ -69,7 +69,7 @@ kubectl apply -k src/main/k8s/dev/kingdom
 See the [simulator deployment guide](simulator-deployment.md). The test assumes
 that there are valid events in the range `[2021-03-15, 2021-03-17]`. The test
 assumes that the event message type is
-`wfa.measurement.api.v2alpha.event_templates.testing.TestEvent`.
+`wfa.measurement.api.v2alpha.event_templates.testing.v1.TestEvent`.
 
 ## Run the correctness test
 
