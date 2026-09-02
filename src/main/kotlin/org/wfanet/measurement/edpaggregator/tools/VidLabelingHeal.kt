@@ -410,18 +410,6 @@ class BackfillModelLineCommand : EdpaApiCommand() {
 )
 class EvictUploadsCommand : EdpaApiCommand() {
   @Option(
-    names = ["--pipeline-quiesced"],
-    description =
-      [
-        "Required safety acknowledgement that dispatch, ranker, and VID-labeler workers have " +
-          "been stopped before planning, affected queued/in-progress work has been drained or " +
-          "cancelled, and components remain stopped until this command completes."
-      ],
-    required = true,
-  )
-  private var pipelineQuiesced: Boolean = false
-
-  @Option(
     names = ["--bad-uploads"],
     description =
       [
@@ -448,10 +436,6 @@ class EvictUploadsCommand : EdpaApiCommand() {
   private lateinit var reason: String
 
   override fun run() {
-    require(pipelineQuiesced) {
-      "--pipeline-quiesced=true is required after stopping components and draining or cancelling " +
-        "affected queued/in-progress work"
-    }
     require(badUploads.all { it.isNotBlank() }) {
       "--bad-uploads entries must be non-blank RawImpressionUpload resource names."
     }
@@ -485,8 +469,7 @@ class EvictUploadsCommand : EdpaApiCommand() {
         // Require explicit operator confirmation before any mutation.
         print(
           "This marks the ${plan.cascade.size} model line(s) above FAILED and soft-deletes their " +
-            "cumulative snapshots. Keep dispatch and workers stopped until the command returns. " +
-            "Type 'yes' to proceed: "
+            "cumulative snapshots. Type 'yes' to proceed: "
         )
         System.out.flush()
         if (!isAffirmative(readLine())) {
