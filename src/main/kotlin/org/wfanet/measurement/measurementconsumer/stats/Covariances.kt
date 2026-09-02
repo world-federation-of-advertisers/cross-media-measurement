@@ -98,6 +98,11 @@ object Covariances {
         "but got $unionSamplingWidth."
     }
 
+    if (otherWeightedMeasurementVarianceParams.methodology is CustomDirectScalarMethodology) {
+      // Custom direct methodology must guarantee independence.
+      return 0.0
+    }
+
     val liquidLegionsSketchParams =
       when (val methodology = weightedMeasurementVarianceParams.methodology) {
         is CustomDirectScalarMethodology -> {
@@ -132,7 +137,7 @@ object Covariances {
       }
 
     when (val otherMethodology = otherWeightedMeasurementVarianceParams.methodology) {
-      is CustomDirectScalarMethodology,
+      is CustomDirectScalarMethodology -> error("Custom direct methodology handled above")
       is DeterministicMethodology,
       is HonestMajorityShareShuffleMethodology -> {
         return computeDeterministicCovariance(

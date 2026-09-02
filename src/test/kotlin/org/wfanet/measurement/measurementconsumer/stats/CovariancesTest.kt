@@ -166,7 +166,7 @@ class CovariancesTest {
   }
 
   @Test
-  fun `computeMeasurementCovariance returns zero for reach when one is from custom direct methodology`() {
+  fun `computeMeasurementCovariance returns zero for reach when either is custom direct`() {
     val weightedReachMeasurementVarianceParams =
       WeightedReachMeasurementVarianceParams(
         binaryRepresentation = 1,
@@ -224,11 +224,18 @@ class CovariancesTest {
         otherWeightedReachMeasurementVarianceParams,
         unionWeightedReachMeasurementVarianceParams,
       )
+    val reversedCovariance =
+      Covariances.computeMeasurementCovariance(
+        otherWeightedReachMeasurementVarianceParams,
+        weightedReachMeasurementVarianceParams,
+        unionWeightedReachMeasurementVarianceParams,
+      )
 
     val expected = 0.0
 
     val tolerance = computeErrorTolerance(covariance, expected)
     assertThat(covariance).isWithin(tolerance).of(expected)
+    assertThat(reversedCovariance).isWithin(tolerance).of(expected)
   }
 
   @Test
