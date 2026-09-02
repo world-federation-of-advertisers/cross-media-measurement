@@ -639,6 +639,8 @@ class VidLabelingDispatcherTest {
         listRawImpressionUploadsResponse { rawImpressionUploads += registeredRecovery },
         listRawImpressionUploadsResponse { rawImpressionUploads += registeredRecovery },
         listRawImpressionUploadsResponse { rawImpressionUploads += registeredRecovery },
+        listRawImpressionUploadsResponse { rawImpressionUploads += registeredRecovery },
+        listRawImpressionUploadsResponse { rawImpressionUploads += registeredRecovery },
         listRawImpressionUploadsResponse {},
       )
     whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
