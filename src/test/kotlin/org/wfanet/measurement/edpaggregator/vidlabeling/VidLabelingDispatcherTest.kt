@@ -377,6 +377,19 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
+  fun `upload lists only the done marker directory`() = runBlocking {
+    whenever(storageClient.listBlobs(any())).thenReturn(emptyFlow())
+
+    createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    verify(storageClient)
+      .listBlobs(
+        SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH).key.substringBeforeLast("/") + "/"
+      )
+    Unit
+  }
+
+  @Test
   fun `upload creates a RawImpressionUploadFile for each blob`() =
     runBlocking<Unit> {
       val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet", size = 111L)
@@ -679,7 +692,8 @@ class VidLabelingDispatcherTest {
               sizeBytes = 100L,
               createTime = RAW_BLOB_CREATE_TIME,
             )
-          }
+          },
+          readDoneBlobMetadata = { RawImpressionBlobMetadata(200L, 0L, DONE_BLOB_CREATE_TIME) },
         )
         .upload(DONE_BLOB_PATH, doneBlobGeneration = 200L)
 
@@ -733,7 +747,10 @@ class VidLabelingDispatcherTest {
         }
       )
 
-    createDispatcher().upload(DONE_BLOB_PATH, doneBlobGeneration = 200L)
+    createDispatcher(
+        readDoneBlobMetadata = { RawImpressionBlobMetadata(200L, 0L, DONE_BLOB_CREATE_TIME) }
+      )
+      .upload(DONE_BLOB_PATH, doneBlobGeneration = 200L)
 
     verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
     verifyBlocking(rawImpressionUploadModelLineService, never()) {
@@ -783,6 +800,43 @@ class VidLabelingDispatcherTest {
     }
 
   @Test
+  fun `legacy generationless registration is treated as the baseline`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    val blobUri =
+      BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads +=
+            RawImpressionUpload.newBuilder()
+              .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/legacy")
+              .setDoneBlobUri(DONE_BLOB_PATH)
+              .setDoneBlobGeneration(100L)
+              .setState(RawImpressionUpload.State.COMPLETED)
+              .build()
+        }
+      )
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles += rawImpressionUploadFile {
+            name = "$DATA_PROVIDER_NAME/rawImpressionUploads/legacy/files/file1"
+            this.blobUri = blobUri
+            blobGeneration = 0L
+          }
+        }
+      )
+
+    createDispatcher(
+        readDoneBlobMetadata = { RawImpressionBlobMetadata(200L, 0L, DONE_BLOB_CREATE_TIME) }
+      )
+      .upload(DONE_BLOB_PATH, doneBlobGeneration = 200L)
+
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+  }
+
+  @Test
   fun `replacement after failed upload registers the complete current directory`() =
     runBlocking<Unit> {
       val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
@@ -809,7 +863,10 @@ class VidLabelingDispatcherTest {
         }
       }
 
-      createDispatcher().upload(DONE_BLOB_PATH, doneBlobGeneration = 200L)
+      createDispatcher(
+          readDoneBlobMetadata = { RawImpressionBlobMetadata(200L, 0L, DONE_BLOB_CREATE_TIME) }
+        )
+        .upload(DONE_BLOB_PATH, doneBlobGeneration = 200L)
 
       val createRequest = argumentCaptor<BatchCreateRawImpressionUploadFilesRequest>()
       verifyBlocking(rawImpressionUploadFileService) {
