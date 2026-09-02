@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 
+import java.time.Duration
 import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 
@@ -29,16 +30,28 @@ object VidLabelingRpcThrottlersEnvironment {
   fun load(getenv: (String) -> String? = System::getenv): VidLabelingRpcThrottlers =
     VidLabelingRpcThrottlers.fromMinimumIntervals(
       kingdom =
-        getenv(KINGDOM_MIN_INTERVAL_ENV)?.toDuration()
+        getenv(KINGDOM_MIN_INTERVAL_ENV)?.let { parseDuration(KINGDOM_MIN_INTERVAL_ENV, it) }
           ?: VidLabelingRpcThrottlers.DEFAULT_KINGDOM_MIN_INTERVAL,
       metadataRead =
-        getenv(METADATA_READ_MIN_INTERVAL_ENV)?.toDuration()
-          ?: VidLabelingRpcThrottlers.DEFAULT_METADATA_READ_MIN_INTERVAL,
+        getenv(METADATA_READ_MIN_INTERVAL_ENV)?.let {
+          parseDuration(METADATA_READ_MIN_INTERVAL_ENV, it)
+        } ?: VidLabelingRpcThrottlers.DEFAULT_METADATA_READ_MIN_INTERVAL,
       metadataWrite =
-        getenv(METADATA_WRITE_MIN_INTERVAL_ENV)?.toDuration()
-          ?: VidLabelingRpcThrottlers.DEFAULT_METADATA_WRITE_MIN_INTERVAL,
+        getenv(METADATA_WRITE_MIN_INTERVAL_ENV)?.let {
+          parseDuration(METADATA_WRITE_MIN_INTERVAL_ENV, it)
+        } ?: VidLabelingRpcThrottlers.DEFAULT_METADATA_WRITE_MIN_INTERVAL,
       controlPlane =
-        getenv(CONTROL_PLANE_MIN_INTERVAL_ENV)?.toDuration()
-          ?: VidLabelingRpcThrottlers.DEFAULT_CONTROL_PLANE_MIN_INTERVAL,
+        getenv(CONTROL_PLANE_MIN_INTERVAL_ENV)?.let {
+          parseDuration(CONTROL_PLANE_MIN_INTERVAL_ENV, it)
+        } ?: VidLabelingRpcThrottlers.DEFAULT_CONTROL_PLANE_MIN_INTERVAL,
     )
+
+  private fun parseDuration(environmentVariable: String, value: String): Duration {
+    require(HUMAN_READABLE_DURATION_PATTERN.matches(value)) {
+      "$environmentVariable must be a complete human-readable duration"
+    }
+    return value.toDuration()
+  }
+
+  private val HUMAN_READABLE_DURATION_PATTERN = Regex("(?:\\d+(?:ns|ms|s|m|h|d))+")
 }
