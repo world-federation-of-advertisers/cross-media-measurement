@@ -17,12 +17,15 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 import org.junit.ClassRule
 import org.junit.Rule
 import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadState
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.edpaggregator.service.internal.testing.RawImpressionUploadServiceTest
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 
 class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
   @get:Rule
@@ -36,7 +39,27 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
     return SpannerRawImpressionUploadService(databaseClient, idGenerator = idGenerator)
   }
 
+  override suspend fun setUploadState(
+    rawImpressionUploadResourceId: String,
+    state: RawImpressionUploadState,
+  ) {
+    spannerDatabase.databaseClient.readWriteTransaction().run { txn ->
+      val upload =
+        txn.getRawImpressionUploadByResourceId(
+          DATA_PROVIDER_RESOURCE_ID,
+          rawImpressionUploadResourceId,
+        )
+      txn.updateRawImpressionUploadState(
+        DATA_PROVIDER_RESOURCE_ID,
+        upload.rawImpressionUploadId,
+        state,
+      )
+    }
+  }
+
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
+
+    private const val DATA_PROVIDER_RESOURCE_ID = "data-provider-1"
   }
 }
