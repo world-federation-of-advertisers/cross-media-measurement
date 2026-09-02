@@ -137,6 +137,27 @@ class SpannerRawImpressionUploadService(
               )
               .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
           }
+          if (
+            previous != null &&
+              previous.rawImpressionUpload.state !in
+                setOf(
+                  RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED,
+                  RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
+                )
+          ) {
+            // Registration is complete before the upload can become terminal. Rejecting the next
+            // generation in this transaction prevents two dispatcher invocations from computing
+            // their directory delta against the same predecessor.
+            throw RawImpressionUploadAlreadyExistsException(
+                request.dataProviderResourceId,
+                requestId,
+                previous.rawImpressionUpload.doneBlobUri,
+                request.rawImpressionUpload.doneBlobUri,
+                previous.rawImpressionUpload.doneBlobGeneration,
+                request.rawImpressionUpload.doneBlobGeneration,
+              )
+              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          }
           val replacesResourceId = previous?.rawImpressionUpload?.rawImpressionUploadResourceId
 
           val rawImpressionUploadId: Long =

@@ -138,10 +138,18 @@ class VidLabelingDispatcher(
 
     try {
       val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
-      val folderPrefix: String = doneBlobUri.key.substringBeforeLast("/")
+      val folderPrefix: String =
+        doneBlobUri.key.substringBeforeLast("/", missingDelimiterValue = "")
+      val listingPrefix = if (folderPrefix.isEmpty()) "" else "$folderPrefix/"
+
+      if (!isCurrentDoneBlobGeneration(doneBlobUri, doneBlobGeneration)) {
+        logger.info("Ignoring stale done-object generation $doneBlobGeneration for $doneBlobPath")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
 
       val blobs: List<StorageClient.Blob> =
-        storageClient.listBlobs(folderPrefix).filter { !isDoneMarker(it.blobKey) }.toList()
+        storageClient.listBlobs(listingPrefix).filter { !isDoneMarker(it.blobKey) }.toList()
 
       if (blobs.isEmpty()) {
         logger.info("No raw impression files found in $folderPrefix")
@@ -181,6 +189,15 @@ class VidLabelingDispatcher(
         blobsToRegister.size.toLong(),
         Attributes.of(DATA_PROVIDER_ATTR, dataProviderName),
       )
+
+      // A newer done object can be written while this invocation is listing and diffing the
+      // directory. Do not register a stale view. The metadata service additionally serializes
+      // distinct generations transactionally, closing the race between this check and create.
+      if (!isCurrentDoneBlobGeneration(doneBlobUri, doneBlobGeneration)) {
+        logger.info("Ignoring stale done-object generation $doneBlobGeneration for $doneBlobPath")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
 
       val rawImpressionUpload = createRawImpressionUpload(doneBlobPath, doneBlobGeneration)
       if (rawImpressionUpload == null) {
@@ -464,6 +481,12 @@ class VidLabelingDispatcher(
     }
   }
 
+  private suspend fun isCurrentDoneBlobGeneration(
+    doneBlobUri: BlobUri,
+    expectedGeneration: Long,
+  ): Boolean =
+    readSemaphore.withPermit { readBlobGeneration(doneBlobUri.key) } == expectedGeneration
+
   /** Returns object versions that have not been registered by an earlier upload. */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private suspend fun selectUnregisteredBlobVersions(
@@ -471,6 +494,7 @@ class VidLabelingDispatcher(
     currentUploadName: String?,
   ): List<RawBlobVersion> {
     val registeredVersions = mutableSetOf<Pair<String, Long>>()
+    val legacyRegisteredUris = mutableSetOf<String>()
     for (chunk in current.chunked(RAW_IMPRESSION_UPLOAD_FILE_LOOKUP_BATCH_SIZE)) {
       rawImpressionUploadFilesStub
         .listResources { pageToken: String ->
@@ -487,9 +511,17 @@ class VidLabelingDispatcher(
         }
         .flattenConcat()
         .filter { file -> parentUploadName(file) != currentUploadName }
-        .collect { file -> registeredVersions += file.blobUri to file.blobGeneration }
+        .collect { file ->
+          if (file.blobGeneration == 0L) {
+            legacyRegisteredUris += file.blobUri
+          } else {
+            registeredVersions += file.blobUri to file.blobGeneration
+          }
+        }
     }
-    return current.filter { (it.blobUri to it.generation) !in registeredVersions }
+    return current.filter {
+      it.blobUri !in legacyRegisteredUris && (it.blobUri to it.generation) !in registeredVersions
+    }
   }
 
   private fun parentUploadName(file: RawImpressionUploadFile): String =
@@ -510,7 +542,6 @@ class VidLabelingDispatcher(
    *
    * @param uploadName resource name of the parent `RawImpressionUpload`.
    * @param blobs raw-impression file blobs (key + size) in the upload.
-   * @param doneBlobUri parsed URI of the "done" blob, used to reconstruct full blob URIs.
    */
   private suspend fun createRawImpressionUploadFiles(
     uploadName: String,

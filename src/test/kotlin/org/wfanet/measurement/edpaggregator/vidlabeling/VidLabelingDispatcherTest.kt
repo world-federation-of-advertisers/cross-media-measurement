@@ -46,6 +46,7 @@ import org.mockito.kotlin.atLeastOnce
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.ModelLine
@@ -229,6 +230,7 @@ class VidLabelingDispatcherTest {
     modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig> = DEFAULT_MODEL_LINE_CONFIGS,
     readEventDate: suspend (String) -> LocalDate = { EVENT_DATE },
     readBlobGeneration: suspend (String) -> Long = { RAW_BLOB_GENERATION },
+    readDoneBlobGeneration: suspend () -> Long = { DONE_BLOB_GENERATION },
     metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
   ): VidLabelingDispatcher {
     return VidLabelingDispatcher(
@@ -243,7 +245,13 @@ class VidLabelingDispatcherTest {
       overrideModelLines = overrideModelLines,
       modelLineConfigs = modelLineConfigs,
       readEventDate = readEventDate,
-      readBlobGeneration = readBlobGeneration,
+      readBlobGeneration = { blobKey ->
+        if (blobKey.substringAfterLast("/").equals("done", ignoreCase = true)) {
+          readDoneBlobGeneration()
+        } else {
+          readBlobGeneration(blobKey)
+        }
+      },
       clock = fixedClock,
       metrics = metrics,
     )
@@ -346,6 +354,19 @@ class VidLabelingDispatcherTest {
 
     verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
     verifyBlocking(modelLinesService, never()) { listModelLines(any()) }
+  }
+
+  @Test
+  fun `upload lists only the done marker directory`() = runBlocking {
+    whenever(storageClient.listBlobs(any())).thenReturn(emptyFlow())
+
+    createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    verify(storageClient)
+      .listBlobs(
+        SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH).key.substringBeforeLast("/") + "/"
+      )
+    Unit
   }
 
   @Test
@@ -495,7 +516,7 @@ class VidLabelingDispatcherTest {
       stubRawImpressionUploadCreation()
       stubFullResolutionChain(MODEL_LINE_1)
 
-      val dispatcher = createDispatcher()
+      val dispatcher = createDispatcher(readDoneBlobGeneration = { 123L })
       dispatcher.upload(DONE_BLOB_PATH, doneBlobGeneration = 123L)
 
       whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
@@ -519,10 +540,12 @@ class VidLabelingDispatcherTest {
       stubRawImpressionUploadCreation()
       stubFullResolutionChain(MODEL_LINE_1)
 
-      val dispatcher = createDispatcher()
+      var liveDoneBlobGeneration = 123L
+      val dispatcher = createDispatcher(readDoneBlobGeneration = { liveDoneBlobGeneration })
       dispatcher.upload(DONE_BLOB_PATH, doneBlobGeneration = 123L)
 
       whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      liveDoneBlobGeneration = 456L
       dispatcher.upload(DONE_BLOB_PATH, doneBlobGeneration = 456L)
 
       val requestCaptor = argumentCaptor<CreateRawImpressionUploadRequest>()
@@ -582,7 +605,10 @@ class VidLabelingDispatcherTest {
         )
 
       val generations = mapOf(blob1.blobKey to 10L, blob2.blobKey to 20L, blob3.blobKey to 30L)
-      createDispatcher(readBlobGeneration = { generations.getValue(it) })
+      createDispatcher(
+          readBlobGeneration = { generations.getValue(it) },
+          readDoneBlobGeneration = { 200L },
+        )
         .upload(DONE_BLOB_PATH, doneBlobGeneration = 200L)
 
       val createRequest = argumentCaptor<BatchCreateRawImpressionUploadFilesRequest>()
@@ -634,7 +660,8 @@ class VidLabelingDispatcherTest {
         }
       )
 
-    createDispatcher().upload(DONE_BLOB_PATH, doneBlobGeneration = 200L)
+    createDispatcher(readDoneBlobGeneration = { 200L })
+      .upload(DONE_BLOB_PATH, doneBlobGeneration = 200L)
 
     verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
     verifyBlocking(rawImpressionUploadModelLineService, never()) {
@@ -683,6 +710,41 @@ class VidLabelingDispatcherTest {
     }
 
   @Test
+  fun `legacy generationless registration is treated as the baseline`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    val blobUri =
+      BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads +=
+            RawImpressionUpload.newBuilder()
+              .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/legacy")
+              .setDoneBlobUri(DONE_BLOB_PATH)
+              .setDoneBlobGeneration(100L)
+              .setState(RawImpressionUpload.State.COMPLETED)
+              .build()
+        }
+      )
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles += rawImpressionUploadFile {
+            name = "$DATA_PROVIDER_NAME/rawImpressionUploads/legacy/files/file1"
+            this.blobUri = blobUri
+            blobGeneration = 0L
+          }
+        }
+      )
+
+    createDispatcher(readDoneBlobGeneration = { 200L })
+      .upload(DONE_BLOB_PATH, doneBlobGeneration = 200L)
+
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+  }
+
+  @Test
   fun `replacement after failed upload registers the complete current directory`() =
     runBlocking<Unit> {
       val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
@@ -708,7 +770,8 @@ class VidLabelingDispatcherTest {
         }
       }
 
-      createDispatcher().upload(DONE_BLOB_PATH, doneBlobGeneration = 200L)
+      createDispatcher(readDoneBlobGeneration = { 200L })
+        .upload(DONE_BLOB_PATH, doneBlobGeneration = 200L)
 
       val createRequest = argumentCaptor<BatchCreateRawImpressionUploadFilesRequest>()
       verifyBlocking(rawImpressionUploadFileService) {
@@ -751,7 +814,8 @@ class VidLabelingDispatcherTest {
         }
       }
 
-      createDispatcher().upload(DONE_BLOB_PATH, doneBlobGeneration = 150L)
+      createDispatcher(readDoneBlobGeneration = { 150L })
+        .upload(DONE_BLOB_PATH, doneBlobGeneration = 150L)
 
       verifyBlocking(rawImpressionUploadFileService, never()) {
         batchCreateRawImpressionUploadFiles(any())
