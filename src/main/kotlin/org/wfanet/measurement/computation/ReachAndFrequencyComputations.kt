@@ -133,18 +133,22 @@ object ReachAndFrequencyComputations {
       "vidSamplingIntervalWidth must be set if resultMinimumThresholds are set"
     }
     val thresholdedHistogram = noisedHistogram.copyOf()
-    // Fold down from highest frequency to lowest. When a bucket fails the threshold,
-    // its user count is added to the next lower bucket, which is then re-evaluated.
+    val thresholdedImpressionCounts =
+      LongArray(maxFrequency) { index -> (index + 1L) * noisedHistogram[index] }
+    // Fold down from highest frequency to lowest, retaining the impression contribution so the
+    // combined bucket is tested against the data it represents.
     for (index in thresholdedHistogram.indices.reversed()) {
-      val frequency = index + 1L
       val count = thresholdedHistogram[index]
+      val impressionCount = thresholdedImpressionCounts[index]
       if (
         count / vidSamplingIntervalWidth < resultMinimumThresholds.minUsers ||
-          frequency * count / vidSamplingIntervalWidth < resultMinimumThresholds.minImpressions
+          impressionCount / vidSamplingIntervalWidth < resultMinimumThresholds.minImpressions
       ) {
         thresholdedHistogram[index] = 0
+        thresholdedImpressionCounts[index] = 0
         if (index > 0) {
           thresholdedHistogram[index - 1] += count
+          thresholdedImpressionCounts[index - 1] += impressionCount
         }
       }
     }
