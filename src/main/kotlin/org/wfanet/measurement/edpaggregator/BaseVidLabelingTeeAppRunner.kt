@@ -44,6 +44,7 @@ abstract class BaseVidLabelingTeeAppRunner(
     names = ["--kingdom-rpc-min-interval"],
     description = ["Minimum interval between outbound VID Repository RPCs."],
     defaultValue = "500ms",
+    converter = [VidLabelingRpcDurationConverter::class],
   )
   private lateinit var kingdomRpcMinInterval: Duration
 
@@ -51,6 +52,7 @@ abstract class BaseVidLabelingTeeAppRunner(
     names = ["--metadata-read-rpc-min-interval"],
     description = ["Minimum interval between outbound metadata read RPCs."],
     defaultValue = "100ms",
+    converter = [VidLabelingRpcDurationConverter::class],
   )
   private lateinit var metadataReadRpcMinInterval: Duration
 
@@ -58,6 +60,7 @@ abstract class BaseVidLabelingTeeAppRunner(
     names = ["--metadata-write-rpc-min-interval"],
     description = ["Minimum interval between outbound metadata write RPCs."],
     defaultValue = "200ms",
+    converter = [VidLabelingRpcDurationConverter::class],
   )
   private lateinit var metadataWriteRpcMinInterval: Duration
 
@@ -65,6 +68,7 @@ abstract class BaseVidLabelingTeeAppRunner(
     names = ["--control-plane-rpc-min-interval"],
     description = ["Minimum interval between outbound Secure Computation control-plane RPCs."],
     defaultValue = "250ms",
+    converter = [VidLabelingRpcDurationConverter::class],
   )
   private lateinit var controlPlaneRpcMinInterval: Duration
 
