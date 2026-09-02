@@ -154,6 +154,8 @@ abstract class RawImpressionUploadServiceTest {
       )
 
     assertThat(completed.registrationComplete).isTrue()
+    assertThat(completed.state)
+      .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED)
 
     service.createRawImpressionUpload(
       createRawImpressionUploadRequest {
@@ -175,7 +177,7 @@ abstract class RawImpressionUploadServiceTest {
       )
     assertThat(fetched.registrationComplete).isTrue()
     assertThat(fetched.state)
-      .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED)
+      .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED)
   }
 
   @Test

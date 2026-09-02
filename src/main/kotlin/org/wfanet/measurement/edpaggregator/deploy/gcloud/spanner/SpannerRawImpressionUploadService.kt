@@ -33,6 +33,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadB
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUpload
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadExists
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadHasModelLines
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploads
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadRegistrationComplete
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadState
@@ -250,11 +251,28 @@ class SpannerRawImpressionUploadService(
           if (existing.rawImpressionUpload.registrationComplete) {
             return@run existing.rawImpressionUpload to false
           }
+          val completedState =
+            if (
+              txn.rawImpressionUploadHasModelLines(
+                request.dataProviderResourceId,
+                existing.rawImpressionUploadId,
+              )
+            ) {
+              null
+            } else {
+              RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED
+            }
           txn.updateRawImpressionUploadRegistrationComplete(
             request.dataProviderResourceId,
             existing.rawImpressionUploadId,
+            completedState,
           )
-          existing.rawImpressionUpload.copy { registrationComplete = true } to true
+          existing.rawImpressionUpload.copy {
+            registrationComplete = true
+            if (completedState != null) {
+              state = completedState
+            }
+          } to true
         }
       } catch (e: RawImpressionUploadNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
