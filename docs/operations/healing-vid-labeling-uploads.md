@@ -6,13 +6,37 @@ operator supplies the bad upload resource names, not individual model lines.
 
 ## Before eviction
 
-Pause DataWatcher delivery to both `VidLabelingDispatcher` and `DataAvailabilitySync`. Stop
-`VidLabelingMonitor` so it cannot dispatch new work, then wait for existing labeling and in-flight
-data-availability sync invocations to finish. The workers may remain running while their queues
-drain. The command checks every upload/model-line under the DataProvider and refuses to run while
-any row is `CREATED`, `POOL_ASSIGNING`, `RANKING`, or `LABELING`. The required
-`--pipeline-quiesced` flag acknowledges that new dispatch is paused; it does not pause components
-itself.
+The command checks every upload/model-line under the DataProvider and refuses to run while any VID
+labeling pipeline is queued or running. If this happens, retry later after processing for that
+DataProvider has finished.
+
+### Find uploads for an event date
+
+`evict-uploads` accepts upload resource names rather than dates. To find every upload containing
+raw-impression files for one or more bad dates, query the EDP Aggregator Spanner database:
+
+```sql
+SELECT DISTINCT
+  CONCAT(
+    'dataProviders/',
+    U.DataProviderResourceId,
+    '/rawImpressionUploads/',
+    U.RawImpressionUploadResourceId
+  ) AS RawImpressionUpload,
+  F.EventDate,
+  U.DoneBlobUri,
+  U.State
+FROM RawImpressionUploadFile AS F
+JOIN RawImpressionUpload AS U
+  USING (DataProviderResourceId, RawImpressionUploadId)
+WHERE F.DataProviderResourceId = 'DATA_PROVIDER_RESOURCE_ID'
+  AND F.EventDate IN (DATE '2026-08-15', DATE '2026-08-16')
+ORDER BY F.EventDate, RawImpressionUpload;
+```
+
+Pass every applicable returned resource name to `--bad-uploads`. A date can belong to multiple
+uploads, such as a main upload and one or more advertiser-backfill uploads, so do not select only
+the first row for that date.
 
 Run the command with:
 
