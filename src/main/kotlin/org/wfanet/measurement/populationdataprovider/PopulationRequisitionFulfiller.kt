@@ -19,15 +19,21 @@ import com.google.protobuf.Descriptors
 import io.grpc.Status
 import io.grpc.StatusException
 import java.security.cert.X509Certificate
+import java.time.LocalDate
 import java.util.logging.Level
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.fold
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DeterministicCount
+import org.wfanet.measurement.api.v2alpha.ListModelRolloutsResponse
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelRollout
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationKey
@@ -41,7 +47,11 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.getPopulationRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.flattenConcat
+import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.dataprovider.InvalidRequisitionException
@@ -190,39 +200,49 @@ class PopulationRequisitionFulfiller(
   }
 
   /**
-   * Returns the [ModelRelease] associated with the latest
-   * [org.wfanet.measurement.api.v2alpha.ModelRollout] for the specified [modelLineName].
+   * Returns the [ModelRelease] associated with the latest [ModelRollout] for the specified
+   * [modelLineName].
    */
   // TODO(world-federation-of-advertisers/cross-media-measurement#4426): Pace listModelRollouts
   //  and getModelRelease via kingdomRpcThrottler, or cache by modelLineName across iterations.
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private suspend fun getModelRelease(modelLineName: String): ModelRelease {
     // TODO(@jojijac0b): Handle case where measurement spans across one or more model outages.
     //  Should use HoldbackModelLine in this case to reflect what is done with measurement reports.
 
-    // Returns list of ModelRollouts.
-    val listModelRolloutsResponse =
-      try {
-        modelRolloutsStub.listModelRollouts(listModelRolloutsRequest { parent = modelLineName })
-      } catch (e: StatusException) {
-        throw when (e.status.code) {
-          Status.Code.NOT_FOUND ->
-            InvalidRequisitionException("ModelLine $modelLineName not found", e)
-          else -> UnfulfillableRequisitionException("Error retrieving ModelLine $modelLineName", e)
+    // ListModelRollouts returns at most 50 ModelRollouts per page, ordered by rollout start time
+    // ascending, so every page must be read to find the latest one.
+    val modelRolloutLists: Flow<ResourceList<ModelRollout, String>> =
+      modelRolloutsStub.listResources { pageToken: String ->
+        val response: ListModelRolloutsResponse =
+          try {
+            listModelRollouts(
+              listModelRolloutsRequest {
+                parent = modelLineName
+                this.pageToken = pageToken
+              }
+            )
+          } catch (e: StatusException) {
+            throw when (e.status.code) {
+              Status.Code.NOT_FOUND ->
+                InvalidRequisitionException("ModelLine $modelLineName not found", e)
+              else ->
+                UnfulfillableRequisitionException("Error retrieving ModelLine $modelLineName", e)
+            }
+          }
+        ResourceList(response.modelRolloutsList, response.nextPageToken)
+      }
+
+    // ModelRollouts for a ModelLine commonly share a rollout start date, so createTime breaks ties
+    // in favor of the most recently created one.
+    val latestModelRollout: ModelRollout =
+      modelRolloutLists.flattenConcat().fold(null as ModelRollout?) { latest, modelRollout ->
+        if (latest == null || MODEL_ROLLOUT_RECENCY_COMPARATOR.compare(modelRollout, latest) > 0) {
+          modelRollout
+        } else {
+          latest
         }
-      }
-
-    // Sort list of ModelRollouts by descending updateTime.
-    val sortedModelRolloutsList =
-      listModelRolloutsResponse.modelRolloutsList.sortedWith { a, b ->
-        val aDate =
-          if (a.hasGradualRolloutPeriod()) a.gradualRolloutPeriod.endDate else a.instantRolloutDate
-        val bDate =
-          if (b.hasGradualRolloutPeriod()) b.gradualRolloutPeriod.endDate else b.instantRolloutDate
-        if (aDate.toLocalDate().isBefore(bDate.toLocalDate())) -1 else 1
-      }
-
-    // Retrieves latest ModelRollout from list.
-    val latestModelRollout = sortedModelRolloutsList.first()
+      } ?: throw UnfulfillableRequisitionException("ModelLine $modelLineName has no ModelRollout")
     val modelReleaseName = latestModelRollout.modelRelease
 
     // Returns ModelRelease associated with latest ModelRollout.
@@ -268,3 +288,17 @@ class PopulationRequisitionFulfiller(
     fulfillDirectMeasurement(requisition, measurementSpec, requisitionSpec.nonce, measurementResult)
   }
 }
+
+/**
+ * Date on which this [ModelRollout] begins taking effect.
+ *
+ * This is the key that `ListModelRollouts` orders by.
+ */
+private val ModelRollout.rolloutStartDate: LocalDate
+  get() =
+    if (hasGradualRolloutPeriod()) gradualRolloutPeriod.startDate.toLocalDate()
+    else instantRolloutDate.toLocalDate()
+
+/** Orders [ModelRollout]s from least to most recent. */
+private val MODEL_ROLLOUT_RECENCY_COMPARATOR: Comparator<ModelRollout> =
+  compareBy({ it.rolloutStartDate }, { it.createTime.toInstant() })
