@@ -77,24 +77,16 @@ class GaussianResultNoiser(
 ) : ResultNoiser {
   private val noise = GaussianNoise()
 
-  override val reachVariance: Double =
-    DirectNoiseVariances.continuousGaussian(
-      epsilon = reachDpParams.epsilon,
-      delta = reachDpParams.delta,
-      sensitivity = L_INFINITE_SENSITIVITY.toDouble(),
-    )
+  override val reachVariance: Double = gaussianVariance(reachDpParams, L_INFINITE_SENSITIVITY)
   override val impressionVariance: Double =
-    DirectNoiseVariances.continuousGaussian(
-      epsilon = reachDpParams.epsilon,
-      delta = reachDpParams.delta,
-      sensitivity = maxFrequencyPerUser.toDouble(),
-    )
+    gaussianVariance(reachDpParams, maxFrequencyPerUser.toLong())
   override val frequencyBucketVariance: Double =
-    DirectNoiseVariances.continuousGaussian(
-      epsilon = frequencyDpParams.epsilon,
-      delta = frequencyDpParams.delta,
-      sensitivity = L_INFINITE_SENSITIVITY.toDouble(),
-    )
+    gaussianVariance(frequencyDpParams, L_INFINITE_SENSITIVITY)
+
+  private fun gaussianVariance(dpParams: DifferentialPrivacyParams, sensitivity: Long): Double {
+    val sigma = GaussianNoise.getSigma(sensitivity.toDouble(), dpParams.epsilon, dpParams.delta)
+    return sigma * sigma
+  }
 
   override fun noiseReach(reachInSample: Long): Long =
     noise.addNoise(
@@ -140,11 +132,11 @@ class DeterministicTruncatedLaplaceResultNoiser(
   private val fingerprint: ByteArray = fingerprint(combinedFrequencyVector, contributionCount)
 
   override val reachVariance: Double =
-    DirectNoiseVariances.deterministicTruncatedLaplace(UNIT_SENSITIVITY)
+    DeterministicTruncatedLaplaceParams.variance(UNIT_SENSITIVITY)
   override val impressionVariance: Double =
-    DirectNoiseVariances.deterministicTruncatedLaplace(maxFrequencyPerUser.toDouble())
+    DeterministicTruncatedLaplaceParams.variance(maxFrequencyPerUser.toDouble())
   override val frequencyBucketVariance: Double =
-    DirectNoiseVariances.deterministicTruncatedLaplace(UNIT_SENSITIVITY)
+    DeterministicTruncatedLaplaceParams.variance(UNIT_SENSITIVITY)
 
   // One sampler per released quantity, each calibrated to that quantity's L1 sensitivity: reach and
   // each frequency bucket move by 1 per VID, the capped impression count by maxFrequencyPerUser.

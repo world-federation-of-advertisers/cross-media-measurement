@@ -33,6 +33,17 @@ object DeterministicTruncatedLaplaceParams {
   /** The truncation bound a draw of L1 [sensitivity] takes under these parameters. */
   fun truncationBound(sensitivity: Double): Double = truncationBoundFor(EPSILON, DELTA, sensitivity)
 
+  /** The variance of a draw with L1 [sensitivity] under these parameters. */
+  fun variance(sensitivity: Double): Double {
+    val scale = sensitivity / EPSILON
+    val bound = truncationBound(sensitivity)
+    val tailMass = StrictMath.exp(-bound / scale)
+    val normalizer = 1.0 - tailMass
+    val untruncatedVariance = 2.0 * scale * scale
+    val truncatedTail = tailMass * (bound * bound + 2.0 * bound * scale + 2.0 * scale * scale)
+    return (untruncatedVariance - truncatedTail) / normalizer
+  }
+
   /**
    * The smallest bound at which a Laplace of scale `sensitivity / epsilon`, truncated to `[-bound,
    * bound]`, is ([epsilon], [delta])-differentially private.

@@ -39,7 +39,7 @@ kt_jvm_library(
         ":measurement_statistics",
         ":metric_statistics",
         "//imports/java/org/apache/commons/numbers/core",
-        "//src/main/kotlin/org/wfanet/measurement/computation:direct_noise_variances",
+        "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_truncated_laplace_params",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
     ],
 )

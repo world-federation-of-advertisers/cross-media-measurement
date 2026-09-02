@@ -26,15 +26,6 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "direct_noise_variances",
-    srcs = ["DirectNoiseVariances.kt"],
-    deps = [
-        ":deterministic_truncated_laplace_params",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
-    ],
-)
-
-kt_jvm_library(
     name = "deterministic_truncated_laplace_params",
     srcs = ["DeterministicTruncatedLaplaceParams.kt"],
     visibility = _DEFAULT_VISIBILITY + [
@@ -122,7 +113,6 @@ kt_jvm_library(
         ":deterministic_truncated_laplace_noise_sampler",
         ":deterministic_truncated_laplace_params",
         ":differential_privacy_params",
-        ":direct_noise_variances",
         "//imports/java/com/google/privacy:differential_privacy",
     ],
 )
