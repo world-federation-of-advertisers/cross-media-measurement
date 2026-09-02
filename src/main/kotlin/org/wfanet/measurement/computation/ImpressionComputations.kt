@@ -141,8 +141,7 @@ object ImpressionComputations {
     // further draw. It carries the bar noise, which is calibrated across the whole histogram and
     // so is larger than the unit-sensitivity draw a fixed-cap count gates on; the gate therefore
     // admits and rejects more often near the threshold.
-    val scaledUserCount: Long =
-      scaleAndClamp(bars.firstOrNull() ?: 0.0, vidSamplingIntervalWidth)
+    val scaledUserCount: Long = scaleAndClamp(bars.firstOrNull() ?: 0.0, vidSamplingIntervalWidth)
     val isBelowMinimum =
       resultMinimumThresholds != null &&
         (scaledImpressionCount < resultMinimumThresholds.minImpressions ||

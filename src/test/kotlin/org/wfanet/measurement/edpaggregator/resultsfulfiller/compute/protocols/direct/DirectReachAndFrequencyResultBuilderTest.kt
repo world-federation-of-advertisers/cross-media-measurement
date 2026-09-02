@@ -260,13 +260,11 @@ class DirectReachAndFrequencyResultBuilderTest {
       assertThat(result.reach.hasDeterministicCountDistinct()).isTrue()
       assertThat(result.frequency.relativeFrequencyDistributionMap.values.all { it == 0.0 })
         .isTrue()
-      assertThat(result.frequency.noiseMechanism)
-        .isEqualTo(NoiseMechanism.CONTINUOUS_GAUSSIAN)
+      assertThat(result.frequency.noiseMechanism).isEqualTo(NoiseMechanism.CONTINUOUS_GAUSSIAN)
       val relativeVariance =
         result.frequency.customDirectMethodology.variance.frequency.variancesMap.getValue(1L)
       val thresholdRelativeVariance =
-        (threshold.toDouble() / result.reach.value) *
-          (threshold.toDouble() / result.reach.value)
+        (threshold.toDouble() / result.reach.value) * (threshold.toDouble() / result.reach.value)
       assertThat(relativeVariance).isGreaterThan(thresholdRelativeVariance)
     }
 

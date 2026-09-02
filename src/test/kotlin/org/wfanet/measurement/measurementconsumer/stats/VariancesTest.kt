@@ -51,8 +51,7 @@ class VariancesTest {
         ),
       )
 
-    val expectedCountVariance =
-      relativeVariance * (reach.toDouble() * reach + reachVariance)
+    val expectedCountVariance = relativeVariance * (reach.toDouble() * reach + reachVariance)
     assertThat(result.countVariances.getValue(1)).isWithin(1E-6).of(expectedCountVariance)
     assertThat(result.kPlusCountVariances.getValue(1)).isWithin(1E-6).of(expectedCountVariance)
     assertThat(result.countVariances.filterKeys { it > 1 }.values)
