@@ -28,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
 @RunWith(JUnit4::class)
@@ -109,6 +110,44 @@ class DirectReachResultBuilderTest {
       assertThat(first.reach.value).isWithin(TRUNCATION_BOUND.toLong()).of(100L)
     }
 
+  @Test
+  fun `buildMeasurementResult reports variance when reach is thresholded`() = runBlocking {
+    val thresholds = ResultMinimumThresholds(minUsers = 100, minImpressions = 1)
+    val result =
+      DirectReachResultBuilder(
+          directProtocolConfig = DIRECT_PROTOCOL,
+          reachPrivacyParams = REACH_PRIVACY_PARAMS,
+          samplingRate = SAMPLING_RATE,
+          directNoiseMechanism = DirectNoiseMechanism.NONE,
+          frequencyData = IntArray(99) { 1 },
+          maxPopulation = null,
+          resultMinimumThresholds = thresholds,
+        )
+        .buildMeasurementResult()
+
+    assertThat(result.reach.value).isEqualTo(0)
+    assertThat(result.reach.hasCustomDirectMethodology()).isTrue()
+    assertThat(result.reach.customDirectMethodology.variance.scalar).isEqualTo(10000.0)
+  }
+
+  @Test
+  fun `buildMeasurementResult does not report variance for true zero reach`() = runBlocking {
+    val result =
+      DirectReachResultBuilder(
+          directProtocolConfig = DIRECT_PROTOCOL,
+          reachPrivacyParams = REACH_PRIVACY_PARAMS,
+          samplingRate = SAMPLING_RATE,
+          directNoiseMechanism = DirectNoiseMechanism.NONE,
+          frequencyData = IntArray(99),
+          maxPopulation = null,
+          resultMinimumThresholds = ResultMinimumThresholds(minUsers = 100, minImpressions = 1),
+        )
+        .buildMeasurementResult()
+
+    assertThat(result.reach.value).isEqualTo(0)
+    assertThat(result.reach.hasDeterministicCountDistinct()).isTrue()
+  }
+
   companion object {
     private val MAX_FREQUENCY = 10
     private val REACH_PRIVACY_PARAMS = differentialPrivacyParams {
@@ -125,6 +164,7 @@ class DirectReachResultBuilderTest {
 
     private val DIRECT_PROTOCOL = direct {
       noiseMechanisms += NOISE_MECHANISM
+      customDirectMethodology = ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
       deterministicCountDistinct =
         ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
     }

@@ -386,27 +386,6 @@ class TrusTeeProcessorImplTest {
   }
 
   @Test
-  fun `computeResult zeros reach when thresholds suppress every frequency bucket`() {
-    val thresholds =
-      ResultMinimumThresholds(minUsers = 400, minImpressions = 2000, reachMaxFrequencyPerUser = 6)
-    val params =
-      TrusTeeReachAndFrequencyParams(
-        maximumFrequency = 6,
-        vidSamplingIntervalWidth = FULL_SAMPLING_RATE,
-        reachDpParams = null,
-        frequencyDpParams = null,
-        resultMinimumThresholds = thresholds,
-      )
-    val processor = TrusTeeProcessorImpl(params)
-    processor.addFrequencyVector(ByteArray(480) { index -> (3 + index / 120).toByte() })
-
-    val result = processor.computeResult() as ReachAndFrequencyResult
-
-    assertThat(result.reach).isEqualTo(0)
-    assertThat(result.frequency.values.all { it == 0.0 }).isTrue()
-  }
-
-  @Test
   fun `computeResult for R&F with small-cell suppression and no noise returns nonzero when above threshold`() {
     val resultMinimumThresholds = ResultMinimumThresholds(minUsers = 1, minImpressions = 1)
     val params =

@@ -28,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.HistogramComputations
+import org.wfanet.measurement.computation.NoNoise
 import org.wfanet.measurement.computation.ReachAndFrequencyComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
@@ -80,22 +81,60 @@ class DirectReachAndFrequencyResultBuilder(
     val reachValue = getReachValue(histogram)
 
     val frequencyMap = getFrequencyMap(histogram)
-    val thresholdedReachValue =
-      if (resultMinimumThresholds != null && frequencyMap.values.all { it == 0.0 }) 0L
-      else reachValue
+
+    val reachNeedsThresholdVariance =
+      directNoiseMechanism == DirectNoiseMechanism.NONE &&
+        resultMinimumThresholds != null &&
+        reachValue == 0L &&
+        ReachAndFrequencyComputations.computeReach(
+          rawHistogram = histogram,
+          noiser = NoNoise,
+          vidSamplingIntervalWidth = samplingRate.toDouble(),
+          vectorSize = maxPopulation,
+          resultMinimumThresholds = null,
+        ) > 0L
+    val frequencyNeedsThresholdVariance =
+      directNoiseMechanism == DirectNoiseMechanism.NONE &&
+        resultMinimumThresholds != null &&
+        reachValue > 0L &&
+        histogram.sum() > 0L &&
+        frequencyMap.values.all { it == 0.0 }
+    if (
+      (reachNeedsThresholdVariance || frequencyNeedsThresholdVariance) &&
+        !directProtocolConfig.hasCustomDirectMethodology()
+    ) {
+      throw RequisitionRefusalException.Default(
+        Requisition.Refusal.Justification.DECLINED,
+        "No valid methodology for reporting thresholded direct results.",
+      )
+    }
 
     val protocolConfigNoiseMechanism = directNoiseMechanism.toProtocolConfigNoiseMechanism()
 
     return MeasurementKt.result {
       reach = reach {
-        value = thresholdedReachValue
+        value = reachValue
         this.noiseMechanism = protocolConfigNoiseMechanism
-        deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+        if (reachNeedsThresholdVariance) {
+          customDirectMethodology =
+            buildThresholdedReachMethodology(requireNotNull(resultMinimumThresholds))
+        } else {
+          deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+        }
       }
       frequency = frequency {
         relativeFrequencyDistribution.putAll(frequencyMap.mapKeys { it.key.toLong() })
         this.noiseMechanism = protocolConfigNoiseMechanism
-        deterministicDistribution = DeterministicDistribution.getDefaultInstance()
+        if (frequencyNeedsThresholdVariance) {
+          customDirectMethodology =
+            buildThresholdedFrequencyMethodology(
+              thresholds = requireNotNull(resultMinimumThresholds),
+              maximumFrequency = maxFrequency,
+              reach = reachValue,
+            )
+        } else {
+          deterministicDistribution = DeterministicDistribution.getDefaultInstance()
+        }
       }
     }
   }

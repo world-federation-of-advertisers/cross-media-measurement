@@ -157,9 +157,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
             resultMinimumThresholds = resultMinimumThresholds,
             vidSamplingIntervalWidth = vidSamplingIntervalWidth,
           )
-        val thresholdedReach =
-          if (resultMinimumThresholds != null && frequency.values.all { it == 0.0 }) 0L else reach
-        ReachAndFrequencyResult(thresholdedReach, frequency, DeterministicMethodology)
+        ReachAndFrequencyResult(reach, frequency, DeterministicMethodology)
       }
     }
   }

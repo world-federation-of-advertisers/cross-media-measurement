@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.HistogramComputations
+import org.wfanet.measurement.computation.NoNoise
 import org.wfanet.measurement.computation.ReachAndFrequencyComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
@@ -68,13 +69,36 @@ class DirectReachResultBuilder(
 
     val reachValue = getReachValue(histogram)
 
+    val needsThresholdVariance =
+      directNoiseMechanism == DirectNoiseMechanism.NONE &&
+        resultMinimumThresholds != null &&
+        reachValue == 0L &&
+        ReachAndFrequencyComputations.computeReach(
+          rawHistogram = histogram,
+          noiser = NoNoise,
+          vidSamplingIntervalWidth = samplingRate.toDouble(),
+          vectorSize = maxPopulation,
+          resultMinimumThresholds = null,
+        ) > 0L
+    if (needsThresholdVariance && !directProtocolConfig.hasCustomDirectMethodology()) {
+      throw RequisitionRefusalException.Default(
+        Requisition.Refusal.Justification.DECLINED,
+        "No valid methodology for reporting a thresholded direct result.",
+      )
+    }
+
     val protocolConfigNoiseMechanism = directNoiseMechanism.toProtocolConfigNoiseMechanism()
 
     return MeasurementKt.result {
       reach = reach {
         value = reachValue
         this.noiseMechanism = protocolConfigNoiseMechanism
-        deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+        if (needsThresholdVariance) {
+          customDirectMethodology =
+            buildThresholdedReachMethodology(requireNotNull(resultMinimumThresholds))
+        } else {
+          deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+        }
       }
     }
   }

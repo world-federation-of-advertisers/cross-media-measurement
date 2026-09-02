@@ -28,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
 @RunWith(JUnit4::class)
@@ -204,6 +205,50 @@ class DirectImpressionResultBuilderTest {
       .isEqualTo(NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
   }
 
+  @Test
+  fun `buildMeasurementResult reports variance when impressions are thresholded`() = runBlocking {
+    val thresholds = ResultMinimumThresholds(minUsers = 1, minImpressions = 1000)
+    val result =
+      DirectImpressionResultBuilder(
+          directProtocolConfig = DIRECT_PROTOCOL,
+          frequencyData = IntArray(100) { 1 },
+          privacyParams = PRIVACY_PARAMS,
+          samplingRate = SAMPLING_RATE,
+          directNoiseMechanism = DirectNoiseMechanism.NONE,
+          maxPopulation = null,
+          maxFrequencyFromSpec = MAX_FREQUENCY,
+          resultMinimumThresholds = thresholds,
+          impressionMaxFrequencyPerUser = null,
+          totalUncappedImpressions = 100L,
+        )
+        .buildMeasurementResult()
+
+    assertThat(result.impression.value).isEqualTo(0)
+    assertThat(result.impression.hasCustomDirectMethodology()).isTrue()
+    assertThat(result.impression.customDirectMethodology.variance.scalar).isEqualTo(1000000.0)
+  }
+
+  @Test
+  fun `buildMeasurementResult does not report variance for true zero impressions`() = runBlocking {
+    val result =
+      DirectImpressionResultBuilder(
+          directProtocolConfig = DIRECT_PROTOCOL,
+          frequencyData = IntArray(100),
+          privacyParams = PRIVACY_PARAMS,
+          samplingRate = SAMPLING_RATE,
+          directNoiseMechanism = DirectNoiseMechanism.NONE,
+          maxPopulation = null,
+          maxFrequencyFromSpec = MAX_FREQUENCY,
+          resultMinimumThresholds = ResultMinimumThresholds(minUsers = 1, minImpressions = 1000),
+          impressionMaxFrequencyPerUser = null,
+          totalUncappedImpressions = 0L,
+        )
+        .buildMeasurementResult()
+
+    assertThat(result.impression.value).isEqualTo(0)
+    assertThat(result.impression.hasDeterministicCount()).isTrue()
+  }
+
   companion object {
     private val MAX_FREQUENCY = 2
     private val PRIVACY_PARAMS = differentialPrivacyParams {
@@ -220,6 +265,7 @@ class DirectImpressionResultBuilderTest {
 
     private val DIRECT_PROTOCOL = direct {
       noiseMechanisms += NOISE_MECHANISM
+      customDirectMethodology = ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
       deterministicCount = ProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
     }
 

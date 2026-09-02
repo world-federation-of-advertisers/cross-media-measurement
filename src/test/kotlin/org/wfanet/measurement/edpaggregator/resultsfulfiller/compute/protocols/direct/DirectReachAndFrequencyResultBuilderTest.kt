@@ -164,7 +164,7 @@ class DirectReachAndFrequencyResultBuilderTest {
     }
 
   @Test
-  fun `buildMeasurementResult zeros reach when thresholds suppress every frequency bucket`() =
+  fun `buildMeasurementResult reports variance when final frequency bucket is thresholded`() =
     runBlocking {
       val frequencyData = IntArray(480) { index -> 3 + index / 120 }
       val thresholds =
@@ -184,10 +184,76 @@ class DirectReachAndFrequencyResultBuilderTest {
           )
           .buildMeasurementResult()
 
-      assertThat(result.reach.value).isEqualTo(0)
+      assertThat(result.reach.value).isEqualTo(480)
+      assertThat(result.reach.hasDeterministicCountDistinct()).isTrue()
       assertThat(result.frequency.relativeFrequencyDistributionMap.values.all { it == 0.0 })
         .isTrue()
+      assertThat(result.frequency.hasCustomDirectMethodology()).isTrue()
+      val frequencyVariances = result.frequency.customDirectMethodology.variance.frequency
+      val expectedRelativeVariance = (2000.0 / 480.0) * (2000.0 / 480.0)
+      assertThat(frequencyVariances.variancesMap.getValue(1L))
+        .isWithin(1E-12)
+        .of(expectedRelativeVariance)
+      assertThat(frequencyVariances.kPlusVariancesMap.getValue(1L))
+        .isWithin(1E-12)
+        .of(expectedRelativeVariance)
+      assertThat(frequencyVariances.variancesMap.filterKeys { it > 1L }.values)
+        .containsExactlyElementsIn(List(5) { 0.0 })
+      Unit
     }
+
+  @Test
+  fun `buildMeasurementResult reports variance when reach is thresholded`() = runBlocking {
+    val result =
+      DirectReachAndFrequencyResultBuilder(
+          directProtocolConfig = DIRECT_PROTOCOL,
+          maxFrequency = 6,
+          reachPrivacyParams = REACH_PRIVACY_PARAMS,
+          frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
+          samplingRate = SAMPLING_RATE,
+          directNoiseMechanism = DirectNoiseMechanism.NONE,
+          frequencyData = IntArray(99) { 1 },
+          maxPopulation = null,
+          resultMinimumThresholds =
+            ResultMinimumThresholds(
+              minUsers = 100,
+              minImpressions = 1,
+              reachMaxFrequencyPerUser = 6,
+            ),
+        )
+        .buildMeasurementResult()
+
+    assertThat(result.reach.value).isEqualTo(0)
+    assertThat(result.reach.hasCustomDirectMethodology()).isTrue()
+    assertThat(result.reach.customDirectMethodology.variance.scalar).isEqualTo(10000.0)
+    assertThat(result.frequency.hasDeterministicDistribution()).isTrue()
+  }
+
+  @Test
+  fun `buildMeasurementResult does not report variance for a true zero histogram`() = runBlocking {
+    val result =
+      DirectReachAndFrequencyResultBuilder(
+          directProtocolConfig = DIRECT_PROTOCOL,
+          maxFrequency = 6,
+          reachPrivacyParams = REACH_PRIVACY_PARAMS,
+          frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
+          samplingRate = SAMPLING_RATE,
+          directNoiseMechanism = DirectNoiseMechanism.NONE,
+          frequencyData = IntArray(480),
+          maxPopulation = null,
+          resultMinimumThresholds =
+            ResultMinimumThresholds(
+              minUsers = 400,
+              minImpressions = 2000,
+              reachMaxFrequencyPerUser = 6,
+            ),
+        )
+        .buildMeasurementResult()
+
+    assertThat(result.reach.value).isEqualTo(0)
+    assertThat(result.reach.hasDeterministicCountDistinct()).isTrue()
+    assertThat(result.frequency.hasDeterministicDistribution()).isTrue()
+  }
 
   companion object {
     private val MAX_FREQUENCY = 10
@@ -209,6 +275,7 @@ class DirectReachAndFrequencyResultBuilderTest {
 
     private val DIRECT_PROTOCOL = direct {
       noiseMechanisms += NOISE_MECHANISM
+      customDirectMethodology = ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
       deterministicCountDistinct =
         ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
       deterministicDistribution =

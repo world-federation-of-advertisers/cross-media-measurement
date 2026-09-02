@@ -30,6 +30,7 @@ import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.DynamicallyClippedImpressions
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.ImpressionComputations
+import org.wfanet.measurement.computation.NoNoise
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.MeasurementResultBuilder
@@ -106,13 +107,30 @@ class DirectImpressionResultBuilder(
 
     val impressionValue = computeImpressionCount(effectiveMaxFrequency)
 
+    val needsThresholdVariance =
+      directNoiseMechanism == DirectNoiseMechanism.NONE &&
+        resultMinimumThresholds != null &&
+        impressionValue == 0L &&
+        computeUnthresholdedImpressionCount(effectiveMaxFrequency) > 0L
+    if (needsThresholdVariance && !directProtocolConfig.hasCustomDirectMethodology()) {
+      throw RequisitionRefusalException.Default(
+        Requisition.Refusal.Justification.DECLINED,
+        "No valid methodology for reporting a thresholded direct result.",
+      )
+    }
+
     val protocolConfigNoiseMechanism = directNoiseMechanism.toProtocolConfigNoiseMechanism()
     return MeasurementKt.result {
       impression = impression {
         value = impressionValue
         this.noiseMechanism = protocolConfigNoiseMechanism
-        this.deterministicCount = deterministicCount {
-          customMaximumFrequencyPerUser = effectiveMaxFrequency
+        if (needsThresholdVariance) {
+          customDirectMethodology =
+            buildThresholdedImpressionMethodology(requireNotNull(resultMinimumThresholds))
+        } else {
+          this.deterministicCount = deterministicCount {
+            customMaximumFrequencyPerUser = effectiveMaxFrequency
+          }
         }
       }
     }
@@ -201,6 +219,23 @@ class DirectImpressionResultBuilder(
       }
     }
     return totalUncappedImpressions
+  }
+
+  private fun computeUnthresholdedImpressionCount(effectiveMaxFrequency: Int): Long {
+    if (releaseUncapped) {
+      return totalUncappedImpressions
+    }
+    val histogram: LongArray =
+      HistogramComputations.buildHistogram(
+        frequencyVector = frequencyData,
+        maxFrequency = effectiveMaxFrequency,
+      )
+    return ImpressionComputations.computeImpressionCount(
+      rawHistogram = histogram,
+      noiser = NoNoise,
+      vidSamplingIntervalWidth = samplingRate.toDouble(),
+      resultMinimumThresholds = null,
+    )
   }
 
   private fun getImpressionValue(histogram: LongArray, maxFrequency: Int): Long {
