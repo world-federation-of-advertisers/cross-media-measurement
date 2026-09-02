@@ -218,6 +218,15 @@ class VidLabelingDispatcher(
         Attributes.of(DATA_PROVIDER_ATTR, dataProviderName),
       )
 
+      // A newer done object can be written while this invocation is listing and diffing the
+      // directory. Do not register a stale view. The metadata service additionally serializes
+      // distinct generations transactionally, closing the race between this check and create.
+      if (!isCurrentDoneBlobGeneration(doneBlobUri, doneBlobGeneration)) {
+        logger.info("Ignoring stale done-object generation $doneBlobGeneration for $doneBlobPath")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
+
       val rawImpressionUpload =
         createRawImpressionUpload(doneBlobPath, doneBlobGeneration, doneBlobMetadata.createTime)
       if (rawImpressionUpload == null) {
@@ -553,6 +562,7 @@ class VidLabelingDispatcher(
     currentUploadName: String?,
   ): List<RawBlobVersion> {
     val registeredVersions = mutableSetOf<Pair<String, Long>>()
+    val legacyRegisteredUris = mutableSetOf<String>()
     for (chunk in current.chunked(RAW_IMPRESSION_UPLOAD_FILE_LOOKUP_BATCH_SIZE)) {
       rawImpressionUploadFilesStub
         .listResources { pageToken: String ->
@@ -569,9 +579,17 @@ class VidLabelingDispatcher(
         }
         .flattenConcat()
         .filter { file -> parentUploadName(file) != currentUploadName }
-        .collect { file -> registeredVersions += file.blobUri to file.blobGeneration }
+        .collect { file ->
+          if (file.blobGeneration == 0L) {
+            legacyRegisteredUris += file.blobUri
+          } else {
+            registeredVersions += file.blobUri to file.blobGeneration
+          }
+        }
     }
-    return current.filter { (it.blobUri to it.generation) !in registeredVersions }
+    return current.filter {
+      it.blobUri !in legacyRegisteredUris && (it.blobUri to it.generation) !in registeredVersions
+    }
   }
 
   private fun parentUploadName(file: RawImpressionUploadFile): String =
