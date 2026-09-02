@@ -14,10 +14,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset marcopremier:add-raw-impression-upload-replacement dbms:cloudspanner
--- comment: Link each replacement upload to the preceding revision of the same done path.
+-- changeset marcopremier:add-raw-impression-upload-registration-complete dbms:cloudspanner
+-- comment: Track whether every file and model line for an upload has been registered.
 
-ALTER TABLE RawImpressionUpload ADD COLUMN ReplacesRawImpressionUploadResourceId STRING(63);
-
-CREATE NULL_FILTERED INDEX RawImpressionUploadByReplacement
-  ON RawImpressionUpload(DataProviderResourceId, ReplacesRawImpressionUploadResourceId);
+-- Existing CREATED uploads may represent interrupted registration, so legacy rows start
+-- incomplete. Non-CREATED legacy rows are treated as complete by the dispatcher.
+ALTER TABLE RawImpressionUpload ADD COLUMN RegistrationComplete BOOL NOT NULL DEFAULT (FALSE);

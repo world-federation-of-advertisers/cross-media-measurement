@@ -753,7 +753,6 @@ class VidLabelingDispatcher(
       return true
     }
   }
-
 }
 
 data class RawImpressionBlobMetadata(val generation: Long, val sizeBytes: Long)
