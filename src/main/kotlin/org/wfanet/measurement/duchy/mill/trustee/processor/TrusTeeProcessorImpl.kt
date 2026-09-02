@@ -124,9 +124,8 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
     val rawHistogram = HistogramComputations.buildHistogram(frequencyVector, maxFrequency)
     val sampledReachAndFrequency = ReachAndFrequency(rawHistogram.sum(), rawHistogram)
 
-    // TODO(world-federation-of-advertisers/cross-media-measurement#4454): Propagate
-    // minimum-threshold
-    // correction variance for TrusTEE reach and frequency results.
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4454): Add TrusTEE
+    // minimum-threshold correction variance.
 
     return when (val params = trusTeeParams) {
       is TrusTeeReachParams -> {
