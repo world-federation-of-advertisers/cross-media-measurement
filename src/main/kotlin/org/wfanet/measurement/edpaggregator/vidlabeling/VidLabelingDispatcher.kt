@@ -144,6 +144,11 @@ class VidLabelingDispatcher(
       )
 
       val rawImpressionUpload = createRawImpressionUpload(doneBlobPath, doneBlobGeneration)
+      if (rawImpressionUpload == null) {
+        logger.info("Ignoring stale done-object generation $doneBlobGeneration for $doneBlobPath")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
 
       createRawImpressionUploadFiles(rawImpressionUpload.name, blobs, doneBlobUri)
 
@@ -312,7 +317,7 @@ class VidLabelingDispatcher(
   private suspend fun createRawImpressionUpload(
     doneBlobPath: String,
     generation: Long,
-  ): RawImpressionUpload {
+  ): RawImpressionUpload? {
     val request = createRawImpressionUploadRequest {
       parent = dataProviderName
       rawImpressionUpload = rawImpressionUpload {
@@ -333,10 +338,14 @@ class VidLabelingDispatcher(
       // ALREADY_EXISTS, yet findUploadByDoneBlobUri returns null for it — log that collision
       // explicitly (logger.severe) and rethrow instead of the opaque IllegalStateException below.
       findUploadByDoneBlob(doneBlobPath, generation)
-        ?: throw IllegalStateException(
-          "createRawImpressionUpload returned ALREADY_EXISTS but no RawImpressionUpload matches " +
-            doneBlobPath
-        )
+        ?: if ((findLatestUploadByDoneBlob(doneBlobPath)?.doneBlobGeneration ?: 0L) > generation) {
+          null
+        } else {
+          throw IllegalStateException(
+            "createRawImpressionUpload returned ALREADY_EXISTS but no RawImpressionUpload matches " +
+              doneBlobPath
+          )
+        }
     }
   }
 
@@ -369,6 +378,25 @@ class VidLabelingDispatcher(
       }
       .flattenConcat()
       .firstOrNull { it.doneBlobGeneration == generation }
+
+  /** Finds the latest registered revision at [doneBlobPath]. */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  private suspend fun findLatestUploadByDoneBlob(doneBlobPath: String): RawImpressionUpload? =
+    rawImpressionUploadStub
+      .listResources { pageToken: String ->
+        val response =
+          rawImpressionUploadStub.listRawImpressionUploads(
+            listRawImpressionUploadsRequest {
+              parent = dataProviderName
+              filter = rawUploadFilter { doneBlobUri = doneBlobPath }
+              if (pageToken.isNotEmpty()) this.pageToken = pageToken
+            }
+          )
+        ResourceList(response.rawImpressionUploadsList, response.nextPageToken)
+      }
+      .flattenConcat()
+      .toList()
+      .maxByOrNull { it.doneBlobGeneration }
 
   private fun LocalDate.toProtoDate(): Date = date {
     year = this@toProtoDate.year

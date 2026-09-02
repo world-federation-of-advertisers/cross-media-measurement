@@ -119,6 +119,39 @@ class RawImpressionUploadServiceTest {
   }
 
   @Test
+  fun `createRawImpressionUpload persists replacement relationship`(): Unit = runBlocking {
+    val original =
+      service.createRawImpressionUpload(
+        createRawImpressionUploadRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = 1L
+          }
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+
+    val replacement =
+      service.createRawImpressionUpload(
+        createRawImpressionUploadRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = 2L
+          }
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+
+    assertThat(replacement.replacesRawImpressionUpload).isEqualTo(original.name)
+    assertThat(
+        service.getRawImpressionUpload(getRawImpressionUploadRequest { name = replacement.name })
+      )
+      .isEqualTo(replacement)
+  }
+
+  @Test
   fun `createRawImpressionUpload with requestId is idempotent`(): Unit = runBlocking {
     val request = createRawImpressionUploadRequest {
       parent = DATA_PROVIDER_KEY.toName()

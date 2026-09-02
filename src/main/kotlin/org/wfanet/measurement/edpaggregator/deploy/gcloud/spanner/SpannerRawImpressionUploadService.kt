@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RawImpressionUploadResult
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findLatestUploadByDoneBlobUri
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadByCreateRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUpload
@@ -116,6 +117,28 @@ class SpannerRawImpressionUploadService(
             return@run existing.rawImpressionUpload
           }
 
+          val previous =
+            txn.findLatestUploadByDoneBlobUri(
+              request.dataProviderResourceId,
+              request.rawImpressionUpload.doneBlobUri,
+            )
+          if (
+            previous != null &&
+              previous.rawImpressionUpload.doneBlobGeneration >=
+                request.rawImpressionUpload.doneBlobGeneration
+          ) {
+            throw RawImpressionUploadAlreadyExistsException(
+                request.dataProviderResourceId,
+                requestId,
+                previous.rawImpressionUpload.doneBlobUri,
+                request.rawImpressionUpload.doneBlobUri,
+                previous.rawImpressionUpload.doneBlobGeneration,
+                request.rawImpressionUpload.doneBlobGeneration,
+              )
+              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          }
+          val replacesResourceId = previous?.rawImpressionUpload?.rawImpressionUploadResourceId
+
           val rawImpressionUploadId: Long =
             idGenerator.generateNewId { id ->
               txn.rawImpressionUploadExists(request.dataProviderResourceId, id)
@@ -131,6 +154,7 @@ class SpannerRawImpressionUploadService(
             requestId,
             RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED,
             request.rawImpressionUpload.doneBlobGeneration,
+            replacesResourceId,
           )
 
           rawImpressionUpload {
@@ -138,6 +162,9 @@ class SpannerRawImpressionUploadService(
             rawImpressionUploadResourceId = resolvedResourceId
             doneBlobUri = request.rawImpressionUpload.doneBlobUri
             doneBlobGeneration = request.rawImpressionUpload.doneBlobGeneration
+            if (replacesResourceId != null) {
+              replacesRawImpressionUploadResourceId = replacesResourceId
+            }
             state = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED
           }
         }

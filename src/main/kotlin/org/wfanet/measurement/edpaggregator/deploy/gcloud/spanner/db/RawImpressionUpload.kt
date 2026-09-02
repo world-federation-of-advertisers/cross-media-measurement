@@ -51,6 +51,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadByResourceId(
       RawImpressionUploadResourceId,
       DoneBlobUri,
       DoneBlobGeneration,
+      ReplacesRawImpressionUploadResourceId,
       State,
       CreateTime,
       UpdateTime,
@@ -93,6 +94,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findUploadByCreateRequestId(
       RawImpressionUploadResourceId,
       DoneBlobUri,
       DoneBlobGeneration,
+      ReplacesRawImpressionUploadResourceId,
       State,
       CreateTime,
       UpdateTime,
@@ -116,6 +118,76 @@ suspend fun AsyncDatabaseClient.ReadContext.findUploadByCreateRequestId(
   return buildRawImpressionUploadResult(row)
 }
 
+/** Finds the highest registered generation for a done-blob path. */
+suspend fun AsyncDatabaseClient.ReadContext.findLatestUploadByDoneBlobUri(
+  dataProviderResourceId: String,
+  doneBlobUri: String,
+): RawImpressionUploadResult? {
+  val generatedSql =
+    """
+    SELECT
+      DataProviderResourceId,
+      RawImpressionUploadId,
+      RawImpressionUploadResourceId,
+      DoneBlobUri,
+      DoneBlobGeneration,
+      ReplacesRawImpressionUploadResourceId,
+      State,
+      CreateTime,
+      UpdateTime,
+    FROM RawImpressionUpload@{
+      FORCE_INDEX=RawImpressionUploadByDoneBlobGeneration,
+      spanner_emulator.disable_query_null_filtered_index_check=true
+    }
+    WHERE DataProviderResourceId = @dataProviderResourceId
+      AND DoneBlobUri = @doneBlobUri
+      AND DoneBlobGeneration IS NOT NULL
+    ORDER BY DoneBlobGeneration DESC
+    LIMIT 1
+    """
+      .trimIndent()
+
+  val generatedRow =
+    executeQuery(
+        statement(generatedSql) {
+          bind("dataProviderResourceId").to(dataProviderResourceId)
+          bind("doneBlobUri").to(doneBlobUri)
+        }
+      )
+      .singleOrNullIfEmpty()
+  if (generatedRow != null) return buildRawImpressionUploadResult(generatedRow)
+
+  val legacySql =
+    """
+    SELECT
+      DataProviderResourceId,
+      RawImpressionUploadId,
+      RawImpressionUploadResourceId,
+      DoneBlobUri,
+      DoneBlobGeneration,
+      ReplacesRawImpressionUploadResourceId,
+      State,
+      CreateTime,
+      UpdateTime,
+    FROM RawImpressionUpload
+    WHERE DataProviderResourceId = @dataProviderResourceId
+      AND DoneBlobUri = @doneBlobUri
+      AND DoneBlobGeneration IS NULL
+    ORDER BY CreateTime DESC
+    LIMIT 1
+    """
+      .trimIndent()
+  val legacyRow =
+    executeQuery(
+        statement(legacySql) {
+          bind("dataProviderResourceId").to(dataProviderResourceId)
+          bind("doneBlobUri").to(doneBlobUri)
+        }
+      )
+      .singleOrNullIfEmpty() ?: return null
+  return buildRawImpressionUploadResult(legacyRow)
+}
+
 /** Checks whether an upload with the given internal ID exists. */
 suspend fun AsyncDatabaseClient.ReadContext.rawImpressionUploadExists(
   dataProviderResourceId: String,
@@ -137,6 +209,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUpload(
   createRequestId: String,
   state: RawImpressionUploadState,
   doneBlobGeneration: Long,
+  replacesRawImpressionUploadResourceId: String?,
 ) {
   bufferInsertMutation("RawImpressionUpload") {
     set("DataProviderResourceId").to(dataProviderResourceId)
@@ -147,6 +220,9 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUpload(
     }
     set("DoneBlobUri").to(doneBlobUri)
     set("DoneBlobGeneration").to(doneBlobGeneration)
+    if (replacesRawImpressionUploadResourceId != null) {
+      set("ReplacesRawImpressionUploadResourceId").to(replacesRawImpressionUploadResourceId)
+    }
     set("State").to(state)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
@@ -169,6 +245,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploads(
         RawImpressionUploadResourceId,
         DoneBlobUri,
         DoneBlobGeneration,
+        ReplacesRawImpressionUploadResourceId,
         State,
         CreateTime,
         UpdateTime,
@@ -250,6 +327,10 @@ private fun buildRawImpressionUploadResult(struct: Struct): RawImpressionUploadR
       doneBlobUri = struct.getString("DoneBlobUri")
       if (!struct.isNull("DoneBlobGeneration")) {
         doneBlobGeneration = struct.getLong("DoneBlobGeneration")
+      }
+      if (!struct.isNull("ReplacesRawImpressionUploadResourceId")) {
+        replacesRawImpressionUploadResourceId =
+          struct.getString("ReplacesRawImpressionUploadResourceId")
       }
       state = struct.getProtoEnum("State", RawImpressionUploadState::forNumber)
       createTime = struct.getTimestamp("CreateTime").toProto()

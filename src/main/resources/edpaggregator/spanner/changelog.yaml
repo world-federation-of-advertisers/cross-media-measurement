@@ -61,3 +61,6 @@ databaseChangeLog:
   - include:
       file: add-raw-impression-upload-generations.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-raw-impression-upload-replacement.sql
+      relativeToChangeLogFile: true

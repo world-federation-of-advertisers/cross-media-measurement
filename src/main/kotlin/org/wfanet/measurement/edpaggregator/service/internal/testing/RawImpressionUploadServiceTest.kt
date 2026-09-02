@@ -91,6 +91,66 @@ abstract class RawImpressionUploadServiceTest {
   }
 
   @Test
+  fun `createRawImpressionUpload persists replaced upload resource ID`(): Unit = runBlocking {
+    val original =
+      service.createRawImpressionUpload(
+        createRawImpressionUploadRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = 1L
+          }
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+
+    val replacement =
+      service.createRawImpressionUpload(
+        createRawImpressionUploadRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = 2L
+          }
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+
+    assertThat(replacement.replacesRawImpressionUploadResourceId)
+      .isEqualTo(original.rawImpressionUploadResourceId)
+  }
+
+  @Test
+  fun `createRawImpressionUpload rejects a stale done blob generation`(): Unit = runBlocking {
+    service.createRawImpressionUpload(
+      createRawImpressionUploadRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUpload = rawImpressionUpload {
+          doneBlobUri = DONE_BLOB_URI
+          doneBlobGeneration = 2L
+        }
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.createRawImpressionUpload(
+          createRawImpressionUploadRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUpload = rawImpressionUpload {
+              doneBlobUri = DONE_BLOB_URI
+              doneBlobGeneration = 1L
+            }
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+  }
+
+  @Test
   fun `createRawImpressionUpload is idempotent with same request_id`(): Unit = runBlocking {
     val requestId: String = UUID.randomUUID().toString()
 
