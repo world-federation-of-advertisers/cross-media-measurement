@@ -86,6 +86,7 @@ class TokenBucket(
         }
       }
     }
+    var permitAcquired = false
     try {
       while (acquirer.job.isActive) {
         refill()
@@ -99,9 +100,14 @@ class TokenBucket(
         }
       }
       acquirer.job.join()
+      permitAcquired = true
     } finally {
       synchronized(this) {
         if (acquirers.remove(acquirer)) {
+          releaseAcquirers()
+        } else if (acquirer.isGranted && !permitAcquired) {
+          acquirer.isGranted = false
+          tokenCount.updateAndGet { count -> (count + acquirer.permitCount).coerceAtMost(size) }
           releaseAcquirers()
         }
       }
@@ -157,6 +163,7 @@ class TokenBucket(
         // was actually granted the permit so that a canceled waiter cannot reduce capacity.
         if (acquirer.job.complete()) {
           check(tryConsumeTokens(acquirer.permitCount))
+          acquirer.isGranted = true
         }
       } else {
         break
@@ -164,5 +171,8 @@ class TokenBucket(
     }
   }
 
-  private data class Acquirer(val permitCount: Int, val job: CompletableJob)
+  private class Acquirer(val permitCount: Int, val job: CompletableJob) {
+    /** Whether tokens were removed from the bucket for this acquirer, guarded by the bucket. */
+    var isGranted: Boolean = false
+  }
 }

@@ -137,4 +137,23 @@ class TokenBucketTest {
 
     assertThat(next.isCompleted).isTrue()
   }
+
+  @Test
+  @OptIn(ExperimentalCoroutinesApi::class)
+  fun `acquire returns token when canceled after grant before resume`() = runTest {
+    val tokenBucket = TokenBucket(1, 1.0, testScheduler.timeSource)
+    assertThat(tokenBucket.tryAcquire()).isTrue()
+
+    val waiter = launch { tokenBucket.acquire() }
+    runCurrent()
+    testScheduler.advanceTimeBy(1.seconds)
+
+    // Trigger the refill and grant from outside the suspended waiter without resuming it.
+    assertThat(tokenBucket.tryAcquire()).isFalse()
+    waiter.cancel()
+    runCurrent()
+
+    assertThat(waiter.isCancelled).isTrue()
+    assertThat(tokenBucket.tryAcquire()).isTrue()
+  }
 }
