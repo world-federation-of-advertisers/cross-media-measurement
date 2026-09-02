@@ -17,6 +17,40 @@ The `done` object tells the VID-labeling pipeline that the directory is complete
 records a snapshot of every raw-impression object currently present and processes that complete
 snapshot for the applicable model lines.
 
+## Backfill a newly onboarded advertiser
+
+When a new advertiser needs historical data added to dates that were already processed, create a
+dedicated subdirectory for that advertiser under each date. For example:
+
+```text
+gs://BUCKET/RAW_IMPRESSION_PREFIX/2026-08-15/advertiser-XYZ/
+  campaign-1.parquet
+  campaign-2.parquet
+  done
+```
+
+The `done` object must be inside the advertiser subdirectory. Its directory is the upload boundary,
+so the pipeline registers a new upload containing only the files for that advertiser. Do not write
+the new `done` object in the date directory, because a marker there recursively includes files in
+all of its subdirectories.
+
+For each historical date:
+
+1. Create a separate advertiser subdirectory under that date.
+2. Write only the new advertiser's raw-impression files into that subdirectory.
+3. Verify that the advertiser subdirectory contains the complete dataset intended for that date.
+4. Write the empty `done` object into the advertiser subdirectory last.
+5. Process dates from oldest to newest, waiting for each upload to complete before writing the next
+   date's `done` object.
+
+Do not modify the existing date upload or another advertiser's subdirectory. Multiple independent
+uploads can contain impressions for the same date, and each upload can be corrected or evicted
+independently.
+
+For a legacy date whose original files and `done` marker are directly in the date directory, leave
+the existing files unchanged and create the new advertiser subdirectory beneath it. Writing the
+marker inside the advertiser subdirectory limits the new upload to that advertiser's files.
+
 ## Correct bad data
 
 **Never overwrite or re-upload the `done` object for an already processed directory until the
@@ -28,9 +62,7 @@ When bad data is discovered:
 
 1. Contact the market operator and provide:
    * the DataProvider resource name;
-   * every affected date and `done` object URI;
-   * the raw-impression object URIs that will be replaced, added, or removed;
-   * a short description of the data problem.
+   * every affected date and `done` object URI.
 2. Do not modify the raw-impression directory or its `done` object while the operator investigates
    or runs eviction.
 3. Wait for the operator to confirm that eviction completed successfully.
