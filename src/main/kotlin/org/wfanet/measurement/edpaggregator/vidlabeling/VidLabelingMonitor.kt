@@ -64,10 +64,10 @@ import org.wfanet.measurement.storage.StorageClient
  * cadence). This first iteration (#3958) implements:
  * - **Dispatch sequencing:** delegated to the shared [VidLabelingDispatchSequencer], which both
  *   this monitor (the periodic backstop) and [VidLabelingDispatcher] (the upload-triggered fast
- *   path) call. The sequencer enforces "at most one upload per DataProvider runs at a time" and
- *   starts the Phase-0/Phase-2 work for the oldest `CREATED` upload when none are `ACTIVE`. Keeping
- *   that logic in one place means the sequencing rule lives in exactly one component with one set
- *   of tests.
+ *   path) call. The sequencer allows different model lines for the same DataProvider to run
+ *   concurrently, but enforces at most one active upload per `(DataProvider, ModelLine)`. It starts
+ *   Phase-0/Phase-2 work for the oldest eligible `CREATED` model-line states. Keeping that logic in
+ *   one place means the sequencing rule lives in exactly one component with one set of tests.
  * - **Failure + staleness monitoring:** uploads stuck in a non-terminal state past
  *   [stalenessThreshold] are surfaced via [VidLabelingMonitorMetrics.uploadsStuckGauge], and
  *   uploads with a `FAILED` model line via [VidLabelingMonitorMetrics.failedUploadsGauge], for
