@@ -623,12 +623,12 @@ class VidLabelingDispatcherTest {
         .containsExactly(20L, 30L)
 
       val listRequest = argumentCaptor<ListRawImpressionUploadFilesRequest>()
-      verifyBlocking(rawImpressionUploadFileService) {
+      verifyBlocking(rawImpressionUploadFileService, times(2)) {
         listRawImpressionUploadFiles(listRequest.capture())
       }
-      assertThat(listRequest.firstValue.parent)
-        .isEqualTo("$DATA_PROVIDER_NAME/rawImpressionUploads/-")
-      assertThat(listRequest.firstValue.showDeleted).isTrue()
+      assertThat(listRequest.allValues.map { it.parent }.distinct())
+        .containsExactly("$DATA_PROVIDER_NAME/rawImpressionUploads/-")
+      assertThat(listRequest.allValues.all { it.showDeleted }).isTrue()
     }
 
   @Test

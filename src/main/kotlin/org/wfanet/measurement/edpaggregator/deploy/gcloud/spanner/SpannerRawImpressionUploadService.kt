@@ -33,7 +33,9 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadB
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUpload
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadExists
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadHasModelLines
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploads
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadState
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
@@ -138,25 +140,21 @@ class SpannerRawImpressionUploadService(
               .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
           }
           if (
-            previous != null &&
-              previous.rawImpressionUpload.state !in
-                setOf(
-                  RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED,
-                  RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
-                )
-          ) {
-            // Registration is complete before the upload can become terminal. Rejecting the next
-            // generation in this transaction prevents two dispatcher invocations from computing
-            // their directory delta against the same predecessor.
-            throw RawImpressionUploadAlreadyExistsException(
+            previous?.rawImpressionUpload?.state ==
+              RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED &&
+              !txn.rawImpressionUploadHasModelLines(
                 request.dataProviderResourceId,
-                requestId,
-                previous.rawImpressionUpload.doneBlobUri,
-                request.rawImpressionUpload.doneBlobUri,
-                previous.rawImpressionUpload.doneBlobGeneration,
-                request.rawImpressionUpload.doneBlobGeneration,
+                previous.rawImpressionUploadId,
               )
-              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          ) {
+            // The previous dispatcher invocation did not finish registration. Supersede it in the
+            // same transaction that claims this newer generation. Any concurrent attempt to add
+            // model lines to the previous upload will conflict and then observe FAILED.
+            txn.updateRawImpressionUploadState(
+              request.dataProviderResourceId,
+              previous.rawImpressionUploadId,
+              RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
+            )
           }
           val replacesResourceId = previous?.rawImpressionUpload?.rawImpressionUploadResourceId
 

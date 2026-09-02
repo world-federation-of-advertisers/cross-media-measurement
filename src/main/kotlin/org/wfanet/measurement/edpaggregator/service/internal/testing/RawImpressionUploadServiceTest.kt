@@ -51,12 +51,6 @@ abstract class RawImpressionUploadServiceTest {
     idGenerator: IdGenerator = IdGenerator.Default
   ): RawImpressionUploadServiceCoroutineImplBase
 
-  /** Sets an upload's state for tests that exercise revision sequencing. */
-  protected abstract suspend fun setUploadState(
-    rawImpressionUploadResourceId: String,
-    state: RawImpressionUploadState,
-  )
-
   @Before
   fun initService() {
     service = newService()
@@ -109,11 +103,6 @@ abstract class RawImpressionUploadServiceTest {
           requestId = UUID.randomUUID().toString()
         }
       )
-    setUploadState(
-      original.rawImpressionUploadResourceId,
-      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED,
-    )
-
     val replacement =
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
@@ -128,38 +117,18 @@ abstract class RawImpressionUploadServiceTest {
 
     assertThat(replacement.replacesRawImpressionUploadResourceId)
       .isEqualTo(original.rawImpressionUploadResourceId)
-  }
-
-  @Test
-  fun `createRawImpressionUpload rejects next generation while previous is not terminal`(): Unit =
-    runBlocking {
-      service.createRawImpressionUpload(
-        createRawImpressionUploadRequest {
-          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          rawImpressionUpload = rawImpressionUpload {
-            doneBlobUri = DONE_BLOB_URI
-            doneBlobGeneration = 1L
-          }
-          requestId = UUID.randomUUID().toString()
-        }
-      )
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.createRawImpressionUpload(
-            createRawImpressionUploadRequest {
+    assertThat(
+        service
+          .getRawImpressionUpload(
+            getRawImpressionUploadRequest {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-              rawImpressionUpload = rawImpressionUpload {
-                doneBlobUri = DONE_BLOB_URI
-                doneBlobGeneration = 2L
-              }
-              requestId = UUID.randomUUID().toString()
+              rawImpressionUploadResourceId = original.rawImpressionUploadResourceId
             }
           )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
-    }
+          .state
+      )
+      .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED)
+  }
 
   @Test
   fun `createRawImpressionUpload rejects a stale done blob generation`(): Unit = runBlocking {
@@ -576,7 +545,7 @@ abstract class RawImpressionUploadServiceTest {
       service.listRawImpressionUploads(
         listRawImpressionUploadsRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          filter = ListRawImpressionUploadsRequestKt.filter { doneBlobUri = DONE_BLOB_URI }
+          filter = ListRawImpressionUploadsRequestKt.filter { doneBlobUri = expected.doneBlobUri }
         }
       )
 

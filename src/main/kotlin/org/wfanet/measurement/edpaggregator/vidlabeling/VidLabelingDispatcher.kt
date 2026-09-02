@@ -172,23 +172,18 @@ class VidLabelingDispatcher(
           latestRevision?.takeIf { it.doneBlobGeneration < doneBlobGeneration }
         }
       val currentBlobVersions = resolveBlobVersions(blobs, doneBlobUri)
-      val blobsToRegister =
+      val candidateBlobs =
         if (previousRevision?.state == RawImpressionUpload.State.FAILED) {
           currentBlobVersions
         } else {
           selectUnregisteredBlobVersions(currentBlobVersions, exactRevision?.name)
         }
 
-      if (blobsToRegister.isEmpty()) {
+      if (candidateBlobs.isEmpty()) {
         logger.info("No new raw impression object versions found in $folderPrefix")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
       }
-
-      metrics.filesProcessedCounter.add(
-        blobsToRegister.size.toLong(),
-        Attributes.of(DATA_PROVIDER_ATTR, dataProviderName),
-      )
 
       // A newer done object can be written while this invocation is listing and diffing the
       // directory. Do not register a stale view. The metadata service additionally serializes
@@ -205,6 +200,43 @@ class VidLabelingDispatcher(
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
       }
+
+      // Creating this revision atomically supersedes any incomplete predecessor. Re-read the
+      // chain and recompute the delta so a concurrent newer marker either wins cleanly, or this
+      // revision includes the complete directory after replacing a partial predecessor.
+      val refreshedRevisions = listUploadsByDoneBlob(doneBlobPath)
+      val refreshedLatest = refreshedRevisions.maxByOrNull { it.doneBlobGeneration }
+      if (
+        refreshedLatest != null &&
+          (refreshedLatest.doneBlobGeneration > doneBlobGeneration ||
+            (refreshedLatest.doneBlobGeneration == doneBlobGeneration &&
+              refreshedLatest.state == RawImpressionUpload.State.FAILED))
+      ) {
+        logger.info(
+          "Ignoring superseded done-object generation $doneBlobGeneration for $doneBlobPath"
+        )
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
+      val refreshedCurrent =
+        refreshedRevisions.firstOrNull { it.doneBlobGeneration == doneBlobGeneration }
+          ?: rawImpressionUpload
+      val refreshedPrevious =
+        refreshedCurrent.replacesRawImpressionUpload
+          .takeIf { it.isNotEmpty() }
+          ?.let { replacedName -> refreshedRevisions.firstOrNull { it.name == replacedName } }
+          ?: previousRevision
+      val blobsToRegister =
+        if (refreshedPrevious?.state == RawImpressionUpload.State.FAILED) {
+          currentBlobVersions
+        } else {
+          selectUnregisteredBlobVersions(currentBlobVersions, refreshedCurrent.name)
+        }
+
+      metrics.filesProcessedCounter.add(
+        blobsToRegister.size.toLong(),
+        Attributes.of(DATA_PROVIDER_ATTR, dataProviderName),
+      )
 
       createRawImpressionUploadFiles(rawImpressionUpload.name, blobsToRegister)
 
