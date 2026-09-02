@@ -53,7 +53,7 @@ class PrivacyBudgetManagerTest {
 
       val exception =
         assertFailsWith<PrivacyBudgetManagerException> {
-          pbm.chargePrivacyBudgetInAcdp(createAcdpQuery("referenceId", "person.age_group"))
+          pbm.chargePrivacyBudgetInAcdp(createAcdpQuery("referenceId", "common.age_group"))
         }
       assertThat(exception.errorType)
         .isEqualTo(PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER)
@@ -136,7 +136,7 @@ class PrivacyBudgetManagerTest {
 
   companion object {
     private const val MEASUREMENT_CONSUMER_ID = "ACME"
-    private const val FILTER_EXPRESSION = "person.gender==1 && person.age_group==1"
+    private const val FILTER_EXPRESSION = "common.gender==1 && common.age_group==1"
     private val today: LocalDateTime = LocalDate.now().atTime(4, 20)
     private val yesterday: LocalDateTime = today.minusDays(1)
     private val startOfTomorrow: LocalDateTime = today.plusDays(1).toLocalDate().atStartOfDay()

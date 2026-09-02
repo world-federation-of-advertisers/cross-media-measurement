@@ -58,7 +58,7 @@ object SyntheticDataGeneration {
    * The event message type is taken from [messageInstance]'s descriptor. Each
    * [PopulationSpec.SubPopulation.attributes] entry must be a [com.google.protobuf.Any] holding an
    * event template message whose type matches one of the template fields of the event message (e.g.
-   * for `TestEvent` an attribute may carry a `Person` message). Population field values are taken
+   * for `TestEvent` an attribute may carry a `Common` message). Population field values are taken
    * from these attribute messages; non-population field values are taken from
    * [VidRangeSpec.nonPopulationFieldValuesMap], whose keys are template field paths of the form
    * `<template_name>.<field_name>` (or `<template_name>.<sub_message>.<field_name>` for nested

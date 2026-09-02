@@ -73,8 +73,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCorouti
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig as PublicProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
@@ -138,7 +138,6 @@ import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsC
 import org.wfanet.measurement.reporting.v2alpha.CreateBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as ReportingEventGroupsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
@@ -154,8 +153,6 @@ import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
-import org.wfanet.measurement.reporting.v2alpha.eventFilter
-import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
@@ -1398,7 +1395,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       getRuntimePath(TEST_RESULTS_FULFILLER_DATA_PATH)!!
 
     private val POPULATION_SPEC_TYPE_REGISTRY: TypeRegistry =
-      TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
+      TypeRegistry.newBuilder().add(Common.getDescriptor()).build()
 
     val populationSpec: PopulationSpec =
       parseTextProto(
@@ -1433,18 +1430,13 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           }
       }
 
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4370): Add a filter term once
+    // threshold comparisons are supported. Every IMPRESSION_QUALIFICATION field on the event
+    // message is a fraction, and filter terms render as `==`.
     private val IMPRESSION_QUALIFICATION_FILTER = reportingImpressionQualificationFilter {
       custom =
         ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-          filterSpec += impressionQualificationFilterSpec {
-            mediaType = MediaType.DISPLAY
-            filters += eventFilter {
-              terms += eventTemplateField {
-                path = "banner_ad.viewable"
-                value = EventTemplateFieldKt.fieldValue { boolValue = true }
-              }
-            }
-          }
+          filterSpec += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
         }
     }
     // All computation methods (HMSS, TrusTee, etc.) are expected to produce exactly the same

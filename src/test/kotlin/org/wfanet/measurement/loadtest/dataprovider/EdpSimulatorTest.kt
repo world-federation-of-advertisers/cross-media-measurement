@@ -82,10 +82,10 @@ import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.testEvent
 import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
@@ -182,12 +182,12 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
   private fun generateEvents(
     vidRange: LongRange,
     date: LocalDate,
-    ageGroup: Person.AgeGroup,
-    gender: Person.Gender,
+    ageGroup: Common.AgeGroup,
+    gender: Common.Gender,
   ): List<LabeledTestEvent> {
     val timestamp = date.atStartOfDay().toInstant(ZoneOffset.UTC)
     val message = testEvent {
-      person = person {
+      common = common {
         this.ageGroup = ageGroup
         this.gender = gender
       }
@@ -433,32 +433,32 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
       generateEvents(
         1L..10L,
         FIRST_EVENT_DATE,
-        Person.AgeGroup.YEARS_18_TO_34,
-        Person.Gender.FEMALE,
+        Common.AgeGroup.YEARS_18_TO_34,
+        Common.Gender.FEMALE,
       ) +
         generateEvents(
           11L..15L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_35_TO_54,
+          Common.Gender.FEMALE,
         ) +
         generateEvents(
           16L..20L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_55_PLUS,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_55_PLUS,
+          Common.Gender.FEMALE,
         ) +
         generateEvents(
           21L..25L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.MALE,
+          Common.AgeGroup.YEARS_18_TO_34,
+          Common.Gender.MALE,
         ) +
         generateEvents(
           26L..30L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.MALE,
+          Common.AgeGroup.YEARS_35_TO_54,
+          Common.Gender.MALE,
         )
 
     val edpSimulator =
@@ -687,33 +687,33 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
       generateEvents(
         1L..10L,
         FIRST_EVENT_DATE,
-        Person.AgeGroup.YEARS_18_TO_34,
-        Person.Gender.FEMALE,
+        Common.AgeGroup.YEARS_18_TO_34,
+        Common.Gender.FEMALE,
       )
     val nonMatchingEvents =
       generateEvents(
         11L..15L,
         FIRST_EVENT_DATE,
-        Person.AgeGroup.YEARS_35_TO_54,
-        Person.Gender.FEMALE,
+        Common.AgeGroup.YEARS_35_TO_54,
+        Common.Gender.FEMALE,
       ) +
         generateEvents(
           16L..20L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_55_PLUS,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_55_PLUS,
+          Common.Gender.FEMALE,
         ) +
         generateEvents(
           21L..25L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.MALE,
+          Common.AgeGroup.YEARS_18_TO_34,
+          Common.Gender.MALE,
         ) +
         generateEvents(
           26L..30L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.MALE,
+          Common.AgeGroup.YEARS_35_TO_54,
+          Common.Gender.MALE,
         )
 
     val allEvents = matchingEvents + nonMatchingEvents
@@ -956,33 +956,33 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         generateEvents(
           1L..10L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_18_TO_34,
+          Common.Gender.FEMALE,
         )
       val nonMatchingEvents =
         generateEvents(
           11L..15L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_35_TO_54,
+          Common.Gender.FEMALE,
         ) +
           generateEvents(
             16L..20L,
             FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_55_PLUS,
-            Person.Gender.FEMALE,
+            Common.AgeGroup.YEARS_55_PLUS,
+            Common.Gender.FEMALE,
           ) +
           generateEvents(
             21L..25L,
             FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_18_TO_34,
-            Person.Gender.MALE,
+            Common.AgeGroup.YEARS_18_TO_34,
+            Common.Gender.MALE,
           ) +
           generateEvents(
             26L..30L,
             FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_35_TO_54,
-            Person.Gender.MALE,
+            Common.AgeGroup.YEARS_35_TO_54,
+            Common.Gender.MALE,
           )
 
       val allEvents = matchingEvents + nonMatchingEvents
@@ -1089,33 +1089,33 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         generateEvents(
           1L..10L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_18_TO_34,
+          Common.Gender.FEMALE,
         )
       val nonMatchingEvents =
         generateEvents(
           11L..15L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_35_TO_54,
+          Common.Gender.FEMALE,
         ) +
           generateEvents(
             16L..20L,
             FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_55_PLUS,
-            Person.Gender.FEMALE,
+            Common.AgeGroup.YEARS_55_PLUS,
+            Common.Gender.FEMALE,
           ) +
           generateEvents(
             21L..25L,
             FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_18_TO_34,
-            Person.Gender.MALE,
+            Common.AgeGroup.YEARS_18_TO_34,
+            Common.Gender.MALE,
           ) +
           generateEvents(
             26L..30L,
             FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_35_TO_54,
-            Person.Gender.MALE,
+            Common.AgeGroup.YEARS_35_TO_54,
+            Common.Gender.MALE,
           )
 
       val allEvents = matchingEvents + nonMatchingEvents
@@ -1242,33 +1242,33 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         generateEvents(
           1L..10L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_18_TO_34,
+          Common.Gender.FEMALE,
         )
       val nonMatchingEvents =
         generateEvents(
           11L..15L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_35_TO_54,
+          Common.Gender.FEMALE,
         ) +
           generateEvents(
             16L..20L,
             FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_55_PLUS,
-            Person.Gender.FEMALE,
+            Common.AgeGroup.YEARS_55_PLUS,
+            Common.Gender.FEMALE,
           ) +
           generateEvents(
             21L..25L,
             FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_18_TO_34,
-            Person.Gender.MALE,
+            Common.AgeGroup.YEARS_18_TO_34,
+            Common.Gender.MALE,
           ) +
           generateEvents(
             26L..30L,
             FIRST_EVENT_DATE,
-            Person.AgeGroup.YEARS_35_TO_54,
-            Person.Gender.MALE,
+            Common.AgeGroup.YEARS_35_TO_54,
+            Common.Gender.MALE,
           )
 
       val allEvents = matchingEvents + nonMatchingEvents
@@ -1356,32 +1356,32 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
       generateEvents(
         1L..10L,
         FIRST_EVENT_DATE,
-        Person.AgeGroup.YEARS_18_TO_34,
-        Person.Gender.FEMALE,
+        Common.AgeGroup.YEARS_18_TO_34,
+        Common.Gender.FEMALE,
       ) +
         generateEvents(
           11L..15L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_35_TO_54,
+          Common.Gender.FEMALE,
         ) +
         generateEvents(
           16L..20L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_55_PLUS,
-          Person.Gender.FEMALE,
+          Common.AgeGroup.YEARS_55_PLUS,
+          Common.Gender.FEMALE,
         ) +
         generateEvents(
           21L..25L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_18_TO_34,
-          Person.Gender.MALE,
+          Common.AgeGroup.YEARS_18_TO_34,
+          Common.Gender.MALE,
         ) +
         generateEvents(
           26L..30L,
           FIRST_EVENT_DATE,
-          Person.AgeGroup.YEARS_35_TO_54,
-          Person.Gender.MALE,
+          Common.AgeGroup.YEARS_35_TO_54,
+          Common.Gender.MALE,
         )
     val eventQuery = InMemoryEventQuery(events)
     val edpSimulator =
@@ -2208,8 +2208,8 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
                   filter = eventFilter {
                     // An null set expression
                     expression =
-                      "person.gender == ${Person.Gender.MALE_VALUE} && " +
-                        "person.gender == ${Person.Gender.FEMALE_VALUE}"
+                      "common.gender == ${Common.Gender.MALE_VALUE} && " +
+                        "common.gender == ${Common.Gender.FEMALE_VALUE}"
                   }
                 }
             }

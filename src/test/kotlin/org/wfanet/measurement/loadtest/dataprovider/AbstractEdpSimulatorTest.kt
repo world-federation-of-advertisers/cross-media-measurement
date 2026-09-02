@@ -74,7 +74,7 @@ import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.copy
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
@@ -375,8 +375,8 @@ abstract class AbstractEdpSimulatorTest {
                 }
                 filter = eventFilter {
                   expression =
-                    "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE} && " +
-                      "person.gender == ${Person.Gender.FEMALE_VALUE}"
+                    "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE} && " +
+                      "common.gender == ${Common.Gender.FEMALE_VALUE}"
                 }
               }
           }
