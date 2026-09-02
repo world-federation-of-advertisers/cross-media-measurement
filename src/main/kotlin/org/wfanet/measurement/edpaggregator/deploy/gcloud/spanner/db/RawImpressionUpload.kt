@@ -26,6 +26,7 @@ import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUpload
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
+import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsRequest
@@ -52,6 +53,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadByResourceId(
       DoneBlobUri,
       DoneBlobGeneration,
       ReplacesRawImpressionUploadResourceId,
+      RegistrationComplete,
       State,
       CreateTime,
       UpdateTime,
@@ -95,6 +97,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findUploadByCreateRequestId(
       DoneBlobUri,
       DoneBlobGeneration,
       ReplacesRawImpressionUploadResourceId,
+      RegistrationComplete,
       State,
       CreateTime,
       UpdateTime,
@@ -132,6 +135,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findLatestUploadByDoneBlobUri(
       DoneBlobUri,
       DoneBlobGeneration,
       ReplacesRawImpressionUploadResourceId,
+      RegistrationComplete,
       State,
       CreateTime,
       UpdateTime,
@@ -166,6 +170,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findLatestUploadByDoneBlobUri(
       DoneBlobUri,
       DoneBlobGeneration,
       ReplacesRawImpressionUploadResourceId,
+      RegistrationComplete,
       State,
       CreateTime,
       UpdateTime,
@@ -223,6 +228,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUpload(
     if (replacesRawImpressionUploadResourceId != null) {
       set("ReplacesRawImpressionUploadResourceId").to(replacesRawImpressionUploadResourceId)
     }
+    set("RegistrationComplete").to(false)
     set("State").to(state)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
@@ -246,6 +252,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploads(
         DoneBlobUri,
         DoneBlobGeneration,
         ReplacesRawImpressionUploadResourceId,
+        RegistrationComplete,
         State,
         CreateTime,
         UpdateTime,
@@ -332,10 +339,24 @@ private fun buildRawImpressionUploadResult(struct: Struct): RawImpressionUploadR
         replacesRawImpressionUploadResourceId =
           struct.getString("ReplacesRawImpressionUploadResourceId")
       }
+      registrationComplete = struct.getBoolean("RegistrationComplete")
       state = struct.getProtoEnum("State", RawImpressionUploadState::forNumber)
       createTime = struct.getTimestamp("CreateTime").toProto()
       updateTime = struct.getTimestamp("UpdateTime").toProto()
     },
     struct.getLong("RawImpressionUploadId"),
   )
+}
+
+/** Marks registration of an upload's children complete. */
+fun AsyncDatabaseClient.TransactionContext.updateRawImpressionUploadRegistrationComplete(
+  dataProviderResourceId: String,
+  rawImpressionUploadId: Long,
+) {
+  bufferUpdateMutation("RawImpressionUpload") {
+    set("DataProviderResourceId").to(dataProviderResourceId)
+    set("RawImpressionUploadId").to(rawImpressionUploadId)
+    set("RegistrationComplete").to(true)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
 }

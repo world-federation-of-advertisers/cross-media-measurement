@@ -41,6 +41,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadsRequest
+import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload
 
 @RunWith(JUnit4::class)
@@ -128,6 +129,53 @@ abstract class RawImpressionUploadServiceTest {
           .state
       )
       .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED)
+  }
+
+  @Test
+  fun `completed registration is not failed by a replacement upload`(): Unit = runBlocking {
+    val original =
+      service.createRawImpressionUpload(
+        createRawImpressionUploadRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = 1L
+          }
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    val completed =
+      service.markRawImpressionUploadRegistrationComplete(
+        markRawImpressionUploadRegistrationCompleteRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = original.rawImpressionUploadResourceId
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+
+    assertThat(completed.registrationComplete).isTrue()
+
+    service.createRawImpressionUpload(
+      createRawImpressionUploadRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUpload = rawImpressionUpload {
+          doneBlobUri = DONE_BLOB_URI
+          doneBlobGeneration = 2L
+        }
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+
+    val fetched =
+      service.getRawImpressionUpload(
+        getRawImpressionUploadRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = original.rawImpressionUploadResourceId
+        }
+      )
+    assertThat(fetched.registrationComplete).isTrue()
+    assertThat(fetched.state)
+      .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED)
   }
 
   @Test

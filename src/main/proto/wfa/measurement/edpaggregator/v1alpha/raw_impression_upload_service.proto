@@ -39,6 +39,28 @@ service RawImpressionUploadService {
   // Lists RawImpressionUpload resources for a data provider.
   rpc ListRawImpressionUploads(ListRawImpressionUploadsRequest)
       returns (ListRawImpressionUploadsResponse) {}
+
+  // Marks registration of an upload's files and model lines complete.
+  rpc MarkRawImpressionUploadRegistrationComplete(
+      MarkRawImpressionUploadRegistrationCompleteRequest)
+      returns (RawImpressionUpload) {}
+}
+
+// Request message for `MarkRawImpressionUploadRegistrationComplete`.
+message MarkRawImpressionUploadRegistrationCompleteRequest {
+  // Resource name of the RawImpressionUpload.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // A UUID4 request ID used to make the operation idempotent.
+  string request_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
 }
 
 // Request message for the `CreateRawImpressionUpload` method.
