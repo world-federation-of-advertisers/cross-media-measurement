@@ -181,6 +181,44 @@ abstract class RawImpressionUploadServiceTest {
   }
 
   @Test
+  fun `finalizing a superseded upload does not resurrect it`(): Unit = runBlocking {
+    val original =
+      service.createRawImpressionUpload(
+        createRawImpressionUploadRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = 1L
+          }
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    service.createRawImpressionUpload(
+      createRawImpressionUploadRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUpload = rawImpressionUpload {
+          doneBlobUri = DONE_BLOB_URI
+          doneBlobGeneration = 2L
+        }
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+
+    val finalized =
+      service.markRawImpressionUploadRegistrationComplete(
+        markRawImpressionUploadRegistrationCompleteRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = original.rawImpressionUploadResourceId
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+
+    assertThat(finalized.state)
+      .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED)
+    assertThat(finalized.registrationComplete).isFalse()
+  }
+
+  @Test
   fun `createRawImpressionUpload rejects a stale done blob generation`(): Unit = runBlocking {
     service.createRawImpressionUpload(
       createRawImpressionUploadRequest {
