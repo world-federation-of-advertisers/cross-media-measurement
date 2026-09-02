@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
 @RunWith(JUnit4::class)
@@ -160,6 +161,32 @@ class DirectReachAndFrequencyResultBuilderTest {
         .isEqualTo(NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
       // Reach draws at unit sensitivity, where the compiled params bound the draw at 6.7571.
       assertThat(first.reach.value).isWithin(UNIT_SENSITIVITY_BOUND).of(100L)
+    }
+
+  @Test
+  fun `buildMeasurementResult zeros reach when thresholds suppress every frequency bucket`() =
+    runBlocking {
+      val frequencyData = IntArray(480) { index -> 3 + index / 120 }
+      val thresholds =
+        ResultMinimumThresholds(minUsers = 400, minImpressions = 2000, reachMaxFrequencyPerUser = 6)
+
+      val result =
+        DirectReachAndFrequencyResultBuilder(
+            directProtocolConfig = DIRECT_PROTOCOL,
+            maxFrequency = 6,
+            reachPrivacyParams = REACH_PRIVACY_PARAMS,
+            frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
+            samplingRate = SAMPLING_RATE,
+            directNoiseMechanism = DirectNoiseMechanism.NONE,
+            frequencyData = frequencyData,
+            maxPopulation = null,
+            resultMinimumThresholds = thresholds,
+          )
+          .buildMeasurementResult()
+
+      assertThat(result.reach.value).isEqualTo(0)
+      assertThat(result.frequency.relativeFrequencyDistributionMap.values.all { it == 0.0 })
+        .isTrue()
     }
 
   companion object {

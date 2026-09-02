@@ -80,12 +80,15 @@ class DirectReachAndFrequencyResultBuilder(
     val reachValue = getReachValue(histogram)
 
     val frequencyMap = getFrequencyMap(histogram)
+    val thresholdedReachValue =
+      if (resultMinimumThresholds != null && frequencyMap.values.all { it == 0.0 }) 0L
+      else reachValue
 
     val protocolConfigNoiseMechanism = directNoiseMechanism.toProtocolConfigNoiseMechanism()
 
     return MeasurementKt.result {
       reach = reach {
-        value = reachValue
+        value = thresholdedReachValue
         this.noiseMechanism = protocolConfigNoiseMechanism
         deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
       }

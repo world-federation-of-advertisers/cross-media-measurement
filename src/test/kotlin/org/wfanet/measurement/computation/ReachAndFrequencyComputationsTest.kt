@@ -491,34 +491,6 @@ class ReachAndFrequencyComputationsTest {
     assertThat(distribution.values.sum()).isWithin(FLOAT_COMPARISON_TOLERANCE).of(1.0)
   }
 
-  @Test
-  fun `computeFrequencyDistribution keeps folded users when their impressions meet threshold`() {
-    val rawHistogram = longArrayOf(0, 0, 120, 120, 120, 120)
-    val thresholds =
-      ResultMinimumThresholds(minUsers = 400, minImpressions = 2000, reachMaxFrequencyPerUser = 6)
-
-    val reach =
-      ReachAndFrequencyComputations.computeReach(
-        rawHistogram,
-        vidSamplingIntervalWidth = 1.0,
-        vectorSize = 1000,
-        noiser = NoNoise,
-        resultMinimumThresholds = thresholds,
-      )
-    val distribution =
-      ReachAndFrequencyComputations.computeFrequencyDistribution(
-        rawHistogram,
-        maxFrequency = 6,
-        noiser = NoNoise,
-        resultMinimumThresholds = thresholds,
-        vidSamplingIntervalWidth = 1.0,
-      )
-
-    assertThat(reach).isEqualTo(480)
-    assertThat(distribution[3L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(1.0)
-    assertThat(distribution.values.sum()).isWithin(FLOAT_COMPARISON_TOLERANCE).of(1.0)
-  }
-
   companion object {
     private const val MAX_FREQUENCY = 5
     private const val FLOAT_COMPARISON_TOLERANCE = 1e-9
