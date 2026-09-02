@@ -115,7 +115,7 @@ class DirectReachResultBuilderTest {
     val thresholds = ResultMinimumThresholds(minUsers = 100, minImpressions = 1)
     val result =
       DirectReachResultBuilder(
-          directProtocolConfig = DIRECT_PROTOCOL,
+          directProtocolConfig = CUSTOM_DIRECT_PROTOCOL,
           reachPrivacyParams = REACH_PRIVACY_PARAMS,
           samplingRate = SAMPLING_RATE,
           directNoiseMechanism = DirectNoiseMechanism.NONE,
@@ -128,6 +128,27 @@ class DirectReachResultBuilderTest {
     assertThat(result.reach.value).isEqualTo(0)
     assertThat(result.reach.hasCustomDirectMethodology()).isTrue()
     assertThat(result.reach.customDirectMethodology.variance.scalar).isEqualTo(10000.0)
+  }
+
+  @Test
+  fun `buildMeasurementResult includes noise variance when reach is thresholded`() = runBlocking {
+    val threshold = 1000
+    val result =
+      DirectReachResultBuilder(
+          directProtocolConfig = CUSTOM_DIRECT_PROTOCOL,
+          reachPrivacyParams = REACH_PRIVACY_PARAMS,
+          samplingRate = SAMPLING_RATE,
+          directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
+          frequencyData = IntArray(100) { 1 },
+          maxPopulation = null,
+          resultMinimumThresholds =
+            ResultMinimumThresholds(minUsers = threshold, minImpressions = 1),
+        )
+        .buildMeasurementResult()
+
+    assertThat(result.reach.value).isEqualTo(0)
+    assertThat(result.reach.customDirectMethodology.variance.scalar)
+      .isGreaterThan(threshold.toDouble() * threshold)
   }
 
   @Test
@@ -161,6 +182,11 @@ class DirectReachResultBuilderTest {
     private const val TRUNCATION_BOUND = 7
 
     private val NOISE_MECHANISM = NoiseMechanism.CONTINUOUS_GAUSSIAN
+
+    private val CUSTOM_DIRECT_PROTOCOL = direct {
+      noiseMechanisms += NOISE_MECHANISM
+      customDirectMethodology = ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
+    }
 
     private val DIRECT_PROTOCOL = direct {
       noiseMechanisms += NOISE_MECHANISM

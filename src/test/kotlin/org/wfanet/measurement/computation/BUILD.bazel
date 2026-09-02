@@ -3,6 +3,15 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 package(default_testonly = True)
 
 kt_jvm_test(
+    name = "DirectNoiseVariancesTest",
+    srcs = ["DirectNoiseVariancesTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:direct_noise_variances",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+    ],
+)
+
+kt_jvm_test(
     name = "ImpressionComputationsTest",
     srcs = ["ImpressionComputationsTest.kt"],
     deps = [

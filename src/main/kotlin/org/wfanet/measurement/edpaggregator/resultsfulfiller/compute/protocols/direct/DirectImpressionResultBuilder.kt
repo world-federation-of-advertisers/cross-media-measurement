@@ -17,7 +17,6 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
 import java.util.logging.Logger
-import org.wfanet.measurement.api.v2alpha.CustomDirectMethodology
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams as CmmsDpParams
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -99,22 +98,21 @@ class DirectImpressionResultBuilder(
       return buildDynamicallyClippedResult()
     }
 
-    if (!directProtocolConfig.hasDeterministicCount()) {
+    val impressionResult = computeImpressionResult(effectiveMaxFrequency)
+    if (impressionResult.variance == null && !directProtocolConfig.hasDeterministicCount()) {
       throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.DECLINED,
         "No valid methodologies for direct impression computation.",
       )
     }
-
-    val impressionResult = computeImpressionResult(effectiveMaxFrequency)
     val protocolConfigNoiseMechanism = directNoiseMechanism.toProtocolConfigNoiseMechanism()
     return MeasurementKt.result {
       impression = impression {
         value = impressionResult.value
         this.noiseMechanism = protocolConfigNoiseMechanism
-        val thresholdMethodology = impressionResult.thresholdMethodology
-        if (thresholdMethodology != null) {
-          customDirectMethodology = thresholdMethodology
+        val variance = impressionResult.variance
+        if (variance != null) {
+          customDirectMethodology = ThresholdedResultMethodologies.buildScalar(variance)
         } else {
           this.deterministicCount = deterministicCount {
             customMaximumFrequencyPerUser = effectiveMaxFrequency
@@ -167,7 +165,7 @@ class DirectImpressionResultBuilder(
     }
   }
 
-  private fun computeImpressionResult(effectiveMaxFrequency: Int): ComputedResult<Long> {
+  private fun computeImpressionResult(effectiveMaxFrequency: Int): MinimumThresholdResult<Long> {
     val thresholdResult =
       if (releaseUncapped) {
         computeUncappedImpressionResult()
@@ -179,27 +177,25 @@ class DirectImpressionResultBuilder(
           )
         getImpressionResult(histogram, effectiveMaxFrequency)
       }
-    val thresholdMethodology =
-      if (
-        directNoiseMechanism == DirectNoiseMechanism.NONE && thresholdResult.wasSuppressedToZero
-      ) {
-        ThresholdedResultMethodologies.buildImpression(requireNotNull(resultMinimumThresholds))
-      } else {
-        null
-      }
-    return ComputedResult(thresholdResult.value, thresholdMethodology)
+    return thresholdResult
   }
 
   private fun computeUncappedImpressionResult(): MinimumThresholdResult<Long> {
     val thresholds =
       resultMinimumThresholds
-        ?: return MinimumThresholdResult(totalUncappedImpressions, wasSuppressedToZero = false)
+        ?: return MinimumThresholdResult(totalUncappedImpressions, variance = null)
     val reach = frequencyData.count { it != 0 }
     val failsThreshold =
       totalUncappedImpressions < thresholds.minImpressions || reach < thresholds.minUsers
     return MinimumThresholdResult(
       value = if (failsThreshold) 0L else totalUncappedImpressions,
-      wasSuppressedToZero = failsThreshold && totalUncappedImpressions > 0L,
+      variance =
+        if (failsThreshold && totalUncappedImpressions > 0L) {
+          val thresholdStandardDeviation = thresholds.minImpressions.toDouble()
+          thresholdStandardDeviation * thresholdStandardDeviation
+        } else {
+          null
+        },
     )
   }
 
@@ -212,7 +208,7 @@ class DirectImpressionResultBuilder(
     }
     val dpParams =
       DifferentialPrivacyParams(epsilon = privacyParams.epsilon, delta = privacyParams.delta)
-    return ImpressionComputations.computeImpressionCountResult(
+    return ImpressionComputations.computeImpressionCount(
       rawHistogram = histogram,
       noiser =
         buildDirectResultNoiser(
@@ -226,11 +222,6 @@ class DirectImpressionResultBuilder(
       resultMinimumThresholds = resultMinimumThresholds,
     )
   }
-
-  private data class ComputedResult<T>(
-    val value: T,
-    val thresholdMethodology: CustomDirectMethodology?,
-  )
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

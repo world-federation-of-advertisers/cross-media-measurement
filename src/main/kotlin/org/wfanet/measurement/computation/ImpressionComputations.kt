@@ -46,25 +46,11 @@ object ImpressionComputations {
    *   impression count.
    * @param noiser The mechanism applied to the released quantities. Pass [NoNoise] for none.
    * @param resultMinimumThresholds Optional result minimum thresholds.
-   * @return The (potentially noised) impression count as a [Long]. If noise results in a negative
-   *   count, zero is returned instead.
+   * @return The released impression count and minimum-threshold variance. If noise results in a
+   *   negative count, the released value is zero. Variance is present only when thresholding
+   *   changes a positive value to zero.
    */
   fun computeImpressionCount(
-    rawHistogram: LongArray,
-    vidSamplingIntervalWidth: Double,
-    noiser: ResultNoiser,
-    resultMinimumThresholds: ResultMinimumThresholds?,
-  ): Long =
-    computeImpressionCountResult(
-        rawHistogram,
-        vidSamplingIntervalWidth,
-        noiser,
-        resultMinimumThresholds,
-      )
-      .value
-
-  /** Computes impressions and reports whether minimum-result thresholding suppressed them. */
-  fun computeImpressionCountResult(
     rawHistogram: LongArray,
     vidSamplingIntervalWidth: Double,
     noiser: ResultNoiser,
@@ -76,7 +62,7 @@ object ImpressionComputations {
       else (noisedImpressionCount / vidSamplingIntervalWidth).toLong()
 
     if (resultMinimumThresholds == null) {
-      return MinimumThresholdResult(scaledImpressionCount, wasSuppressedToZero = false)
+      return MinimumThresholdResult(scaledImpressionCount, variance = null)
     }
     // The user count is a distinct-user quantity, so it takes the reach draw's unit sensitivity.
     val noisedUserCount = noiser.noiseReach(rawHistogram.sum())
@@ -85,9 +71,16 @@ object ImpressionComputations {
     val failsThreshold =
       scaledImpressionCount < resultMinimumThresholds.minImpressions ||
         scaledUserCount < resultMinimumThresholds.minUsers
+    val thresholdStandardDeviation = resultMinimumThresholds.minImpressions.toDouble()
     return MinimumThresholdResult(
       value = if (failsThreshold) 0L else scaledImpressionCount,
-      wasSuppressedToZero = failsThreshold && scaledImpressionCount > 0L,
+      variance =
+        if (failsThreshold && scaledImpressionCount > 0L) {
+          noiser.impressionVariance / (vidSamplingIntervalWidth * vidSamplingIntervalWidth) +
+            thresholdStandardDeviation * thresholdStandardDeviation
+        } else {
+          null
+        },
     )
   }
 

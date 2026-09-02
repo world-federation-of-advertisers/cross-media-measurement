@@ -16,17 +16,12 @@
 
 package org.wfanet.measurement.measurementconsumer.stats
 
-import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
-import kotlin.random.Random
-import kotlin.random.asJavaRandom
 import org.apache.commons.numbers.core.Precision
-import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParams
+import org.wfanet.measurement.computation.DirectNoiseVariances
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
-import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
-import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpParamsConverter
 
 /** The interface of Variance calculations. */
@@ -92,15 +87,6 @@ object VariancesImpl : Variances {
    * reach or per-bucket count by 1.
    */
   private const val DETERMINISTIC_TRUNCATED_LAPLACE_SENSITIVITY = 1.0
-  /**
-   * Scale and truncation bound of a unit-sensitivity deterministic truncated-Laplace draw, taken
-   * from the params compiled into the attested images and the same threshold the sampler applies,
-   * so the reported variance cannot describe noise other than what is drawn.
-   */
-  private val DETERMINISTIC_TRUNCATED_LAPLACE_SCALE =
-    DETERMINISTIC_TRUNCATED_LAPLACE_SENSITIVITY / DeterministicTruncatedLaplaceParams.EPSILON
-  private val DETERMINISTIC_TRUNCATED_LAPLACE_BOUND =
-    DeterministicTruncatedLaplaceParams.truncationBound(DETERMINISTIC_TRUNCATED_LAPLACE_SENSITIVITY)
   private val EQUIVALENCE = Precision.doubleEquivalenceOfEpsilon(TOLERANCE)
 
   /**
@@ -404,30 +390,6 @@ object VariancesImpl : Variances {
   }
 
   /**
-   * Variance of a Laplace(0, b) distribution confined to `[-bound, bound]`, where `b` is [scale].
-   *
-   * The truncated density is the Laplace density renormalized by `Z = 1 - exp(-bound / b)`, so
-   *
-   * ```
-   * Var = [2b^2 - exp(-bound/b) * (bound^2 + 2*bound*b + 2b^2)] / Z
-   * ```
-   *
-   * The mean is zero by symmetry. As `bound` grows this tends to `2b^2`, the untruncated Laplace
-   * variance, and truncation only ever reduces it.
-   */
-  private fun truncatedLaplaceVariance(scale: Double, bound: Double): Double {
-    require(scale > 0.0) { "Laplace scale must be positive, got $scale" }
-    require(bound > 0.0) { "Truncation bound must be positive, got $bound" }
-    val boundOverScale: Double = bound / scale
-    val tailMass: Double = exp(-boundOverScale)
-    val normalizer: Double = 1.0 - tailMass
-    val untruncated: Double = 2.0 * scale * scale
-    val truncatedTail: Double =
-      tailMass * (bound * bound + 2.0 * bound * scale + 2.0 * scale * scale)
-    return (untruncated - truncatedTail) / normalizer
-  }
-
-  /**
    * Computes the noise variance based on the [DpParams] and the [NoiseMechanism].
    *
    * [dpParams] is unused for [NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE], whose privacy params
@@ -439,21 +401,18 @@ object VariancesImpl : Variances {
   ): Double {
     return when (noiseMechanism) {
       NoiseMechanism.NONE -> 0.0
-      NoiseMechanism.LAPLACE -> {
-        LaplaceNoiser(dpParams, Random.asJavaRandom()).variance
-      }
-      NoiseMechanism.GAUSSIAN -> {
-        GaussianNoiser(dpParams, Random.asJavaRandom()).variance
-      }
-      NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE -> {
-        // The noise is deterministic in the data, so this is the variance of the draw treating the
-        // seed as unknown: the uncertainty a consumer has before seeing the result. epsilon and the
-        // truncation bound are the system's compiled params, not taken from the measurement.
-        truncatedLaplaceVariance(
-          scale = DETERMINISTIC_TRUNCATED_LAPLACE_SCALE,
-          bound = DETERMINISTIC_TRUNCATED_LAPLACE_BOUND,
+      NoiseMechanism.LAPLACE ->
+        DirectNoiseVariances.continuousLaplace(epsilon = dpParams.epsilon, sensitivity = 1.0)
+      NoiseMechanism.GAUSSIAN ->
+        DirectNoiseVariances.continuousGaussian(
+          epsilon = dpParams.epsilon,
+          delta = dpParams.delta,
+          sensitivity = 1.0,
         )
-      }
+      NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE ->
+        DirectNoiseVariances.deterministicTruncatedLaplace(
+          DETERMINISTIC_TRUNCATED_LAPLACE_SENSITIVITY
+        )
     }
   }
 

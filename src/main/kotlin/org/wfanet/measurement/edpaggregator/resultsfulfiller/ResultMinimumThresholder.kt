@@ -83,19 +83,21 @@ object ResultMinimumThresholder {
     val vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width.toDouble()
     val scaledReach =
       ReachAndFrequencyComputations.computeReach(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = vidSamplingIntervalWidth,
-        vectorSize = maxPopulation,
-        noiser = NoNoise,
-        resultMinimumThresholds = null,
-      )
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+          vectorSize = maxPopulation,
+          noiser = NoNoise,
+          resultMinimumThresholds = null,
+        )
+        .value
     val scaledImpressions =
       ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = vidSamplingIntervalWidth,
-        noiser = NoNoise,
-        resultMinimumThresholds = null,
-      )
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+          noiser = NoNoise,
+          resultMinimumThresholds = null,
+        )
+        .value
 
     if (
       scaledReach < resultMinimumThresholds.minUsers ||

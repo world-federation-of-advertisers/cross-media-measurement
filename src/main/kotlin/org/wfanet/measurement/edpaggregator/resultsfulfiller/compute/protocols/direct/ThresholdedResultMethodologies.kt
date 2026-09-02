@@ -16,39 +16,32 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
-import kotlin.math.max
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodology
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt
 import org.wfanet.measurement.api.v2alpha.customDirectMethodology
-import org.wfanet.measurement.computation.ResultMinimumThresholds
 
 /** Builds fixed uncertainty metadata for values suppressed by minimum-result thresholding. */
 object ThresholdedResultMethodologies {
-  /** Builds metadata for a reach value suppressed to zero. */
-  fun buildReach(thresholds: ResultMinimumThresholds): CustomDirectMethodology =
-    buildScalar(thresholds.minUsers)
-
-  /** Builds metadata for an impression value suppressed to zero. */
-  fun buildImpression(thresholds: ResultMinimumThresholds): CustomDirectMethodology =
-    buildScalar(thresholds.minImpressions)
+  /** Builds metadata for a scalar value suppressed to zero. */
+  fun buildScalar(variance: Double): CustomDirectMethodology = customDirectMethodology {
+    this.variance = CustomDirectMethodologyKt.variance { scalar = variance }
+  }
 
   /**
    * Builds metadata for a frequency histogram whose final 1+ bucket was suppressed.
    *
    * Fold-down has already represented higher-frequency users in frequency 1, so only frequency 1
-   * and its 1+ cumulative bucket get non-zero variance. The standard deviation is derived solely
-   * from configured thresholds.
+   * and its 1+ cumulative bucket get non-zero variance. [countVariance] is converted from count
+   * units to relative-frequency units using [reach].
    */
   fun buildFrequency(
-    thresholds: ResultMinimumThresholds,
+    countVariance: Double,
     maximumFrequency: Int,
     reach: Long,
   ): CustomDirectMethodology {
     require(reach > 0L) { "Reach must be positive, got $reach" }
 
-    val countStandardDeviation = max(thresholds.minUsers, thresholds.minImpressions).toDouble()
-    val relativeStandardDeviation = countStandardDeviation / reach
-    val relativeVariance = relativeStandardDeviation * relativeStandardDeviation
+    val relativeVariance = countVariance / (reach.toDouble() * reach)
     val variances =
       (1..maximumFrequency).associate { frequency ->
         frequency.toLong() to if (frequency == 1) relativeVariance else 0.0
@@ -63,13 +56,6 @@ object ThresholdedResultMethodologies {
               kPlusVariances.putAll(variances)
             }
         }
-    }
-  }
-
-  private fun buildScalar(standardDeviation: Int): CustomDirectMethodology {
-    val variance = standardDeviation.toDouble() * standardDeviation
-    return customDirectMethodology {
-      this.variance = CustomDirectMethodologyKt.variance { scalar = variance }
     }
   }
 }

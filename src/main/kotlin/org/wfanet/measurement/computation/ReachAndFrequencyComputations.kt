@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.computation
 
+import kotlin.math.max
 import kotlin.math.min
 
 object ReachAndFrequencyComputations {
@@ -29,26 +30,10 @@ object ReachAndFrequencyComputations {
    *   before scaling. If null, no capping is applied.
    * @param noiser The noise mechanism. Use [NoNoise] to release the raw values.
    * @param resultMinimumThresholds Optional result minimum thresholds.
-   * @return The reach value, or 0 when it does not meet [resultMinimumThresholds].
+   * @return The released reach and minimum-threshold variance. Variance is present only when
+   *   thresholding changes a positive value to zero.
    */
   fun computeReach(
-    sampled: ReachAndFrequency,
-    vidSamplingIntervalWidth: Double,
-    vectorSize: Int?,
-    noiser: ResultNoiser,
-    resultMinimumThresholds: ResultMinimumThresholds?,
-  ): Long =
-    computeReachResult(
-        sampled,
-        vidSamplingIntervalWidth,
-        vectorSize,
-        noiser,
-        resultMinimumThresholds,
-      )
-      .value
-
-  /** Computes reach and reports whether minimum-result thresholding suppressed a positive value. */
-  fun computeReachResult(
     sampled: ReachAndFrequency,
     vidSamplingIntervalWidth: Double,
     vectorSize: Int?,
@@ -68,7 +53,7 @@ object ReachAndFrequencyComputations {
     val minScaledNoisedReach = min(scaledNoisedReach, maxPossibleScaledReach)
 
     if (resultMinimumThresholds == null) {
-      return MinimumThresholdResult(minScaledNoisedReach, wasSuppressedToZero = false)
+      return MinimumThresholdResult(minScaledNoisedReach, variance = null)
     }
 
     val impressionCount = noiser.noiseImpressionsFromFrequencyHistogram(sampled.frequencyHistogram)
@@ -76,9 +61,16 @@ object ReachAndFrequencyComputations {
     val failsThreshold =
       scaledImpressionCount < resultMinimumThresholds.minImpressions ||
         minScaledNoisedReach < resultMinimumThresholds.minUsers
+    val thresholdStandardDeviation = resultMinimumThresholds.minUsers.toDouble()
     return MinimumThresholdResult(
       value = if (failsThreshold) 0L else minScaledNoisedReach,
-      wasSuppressedToZero = failsThreshold && minScaledNoisedReach > 0L,
+      variance =
+        if (failsThreshold && minScaledNoisedReach > 0L) {
+          noiser.reachVariance / (vidSamplingIntervalWidth * vidSamplingIntervalWidth) +
+            thresholdStandardDeviation * thresholdStandardDeviation
+        } else {
+          null
+        },
     )
   }
 
@@ -95,25 +87,8 @@ object ReachAndFrequencyComputations {
     vectorSize: Int?,
     noiser: ResultNoiser,
     resultMinimumThresholds: ResultMinimumThresholds?,
-  ): Long =
-    computeReachResult(
-        rawHistogram,
-        vidSamplingIntervalWidth,
-        vectorSize,
-        noiser,
-        resultMinimumThresholds,
-      )
-      .value
-
-  /** Computes reach from a raw histogram and reports whether a positive value was suppressed. */
-  fun computeReachResult(
-    rawHistogram: LongArray,
-    vidSamplingIntervalWidth: Double,
-    vectorSize: Int?,
-    noiser: ResultNoiser,
-    resultMinimumThresholds: ResultMinimumThresholds?,
   ): MinimumThresholdResult<Long> =
-    computeReachResult(
+    computeReach(
       ReachAndFrequency(rawHistogram.sum(), rawHistogram),
       vidSamplingIntervalWidth,
       vectorSize,
@@ -132,29 +107,10 @@ object ReachAndFrequencyComputations {
    * @param resultMinimumThresholds Optional result minimum thresholds.
    * @param vidSamplingIntervalWidth The sampling rate used to select VIDs. Required if small-cell
    *   suppression thresholds are set.
-   * @return A map representing the frequency distribution for frequencies 1 through `maxFrequency`.
+   * @return The released frequency distribution and minimum-threshold count variance. Variance is
+   *   present only when terminal suppression changes a nonempty histogram to all zeros.
    */
   fun computeFrequencyDistribution(
-    rawHistogram: LongArray,
-    maxFrequency: Int,
-    noiser: ResultNoiser,
-    resultMinimumThresholds: ResultMinimumThresholds?,
-    vidSamplingIntervalWidth: Double?,
-  ): Map<Long, Double> =
-    computeFrequencyDistributionResult(
-        rawHistogram,
-        maxFrequency,
-        noiser,
-        resultMinimumThresholds,
-        vidSamplingIntervalWidth,
-      )
-      .value
-
-  /**
-   * Computes a frequency distribution and reports whether thresholding suppressed all frequency
-   * mass.
-   */
-  fun computeFrequencyDistributionResult(
     rawHistogram: LongArray,
     maxFrequency: Int,
     noiser: ResultNoiser,
@@ -170,7 +126,7 @@ object ReachAndFrequencyComputations {
     if (numNoisedActiveRegisters == 0L) {
       return MinimumThresholdResult(
         (1..maxFrequency).associate { it.toLong() to 0.0 },
-        wasSuppressedToZero = false,
+        variance = null,
       )
     }
 
@@ -179,7 +135,7 @@ object ReachAndFrequencyComputations {
         noisedHistogram.withIndex().associate { (index, count) ->
           (index + 1L) to count.toDouble() / numNoisedActiveRegisters
         },
-        wasSuppressedToZero = false,
+        variance = null,
       )
     }
 
@@ -213,7 +169,17 @@ object ReachAndFrequencyComputations {
             frequency to count.toDouble() / numThresholdedActiveRegisters
           }
         },
-      wasSuppressedToZero = numThresholdedActiveRegisters == 0L,
+      variance =
+        if (numThresholdedActiveRegisters == 0L) {
+          val thresholdStandardDeviation =
+            max(resultMinimumThresholds.minUsers, resultMinimumThresholds.minImpressions).toDouble()
+          val noiseVariance =
+            maxFrequency * noiser.frequencyBucketVariance /
+              (vidSamplingIntervalWidth * vidSamplingIntervalWidth)
+          noiseVariance + thresholdStandardDeviation * thresholdStandardDeviation
+        } else {
+          null
+        },
     )
   }
 }

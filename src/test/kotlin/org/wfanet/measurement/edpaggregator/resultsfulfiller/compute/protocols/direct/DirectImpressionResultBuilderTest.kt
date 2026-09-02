@@ -210,7 +210,7 @@ class DirectImpressionResultBuilderTest {
     val thresholds = ResultMinimumThresholds(minUsers = 1, minImpressions = 1000)
     val result =
       DirectImpressionResultBuilder(
-          directProtocolConfig = DIRECT_PROTOCOL,
+          directProtocolConfig = CUSTOM_DIRECT_PROTOCOL,
           frequencyData = IntArray(100) { 1 },
           privacyParams = PRIVACY_PARAMS,
           samplingRate = SAMPLING_RATE,
@@ -262,6 +262,11 @@ class DirectImpressionResultBuilderTest {
     private const val CAP_SENSITIVITY_BOUND = 14L
 
     private val NOISE_MECHANISM = NoiseMechanism.CONTINUOUS_GAUSSIAN
+
+    private val CUSTOM_DIRECT_PROTOCOL = direct {
+      noiseMechanisms += NOISE_MECHANISM
+      customDirectMethodology = ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
+    }
 
     private val DIRECT_PROTOCOL = direct {
       noiseMechanisms += NOISE_MECHANISM

@@ -21,22 +21,14 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.computation.ResultMinimumThresholds
 
 @RunWith(JUnit4::class)
 class ThresholdedResultMethodologiesTest {
   @Test
-  fun `buildReach uses min users as standard deviation`() {
-    val methodology = ThresholdedResultMethodologies.buildReach(THRESHOLDS)
+  fun `buildScalar returns the specified variance`() {
+    val methodology = ThresholdedResultMethodologies.buildScalar(160000.0)
 
     assertThat(methodology.variance.scalar).isEqualTo(160000.0)
-  }
-
-  @Test
-  fun `buildImpression uses min impressions as standard deviation`() {
-    val methodology = ThresholdedResultMethodologies.buildImpression(THRESHOLDS)
-
-    assertThat(methodology.variance.scalar).isEqualTo(4000000.0)
   }
 
   @Test
@@ -44,7 +36,7 @@ class ThresholdedResultMethodologiesTest {
     val reach = 1000L
     val methodology =
       ThresholdedResultMethodologies.buildFrequency(
-        thresholds = THRESHOLDS,
+        countVariance = 4000000.0,
         maximumFrequency = 3,
         reach = reach,
       )
@@ -58,35 +50,16 @@ class ThresholdedResultMethodologiesTest {
   }
 
   @Test
-  fun `buildFrequency uses the larger threshold as count standard deviation`() {
-    val thresholds = ResultMinimumThresholds(minUsers = 2500, minImpressions = 1000)
-    val reach = 5000L
-
-    val methodology =
-      ThresholdedResultMethodologies.buildFrequency(
-        thresholds = thresholds,
-        maximumFrequency = 1,
-        reach = reach,
-      )
-
-    assertThat(methodology.variance.frequency.variancesMap.getValue(1L)).isEqualTo(0.25)
-  }
-
-  @Test
   fun `buildFrequency rejects non-positive reach`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
         ThresholdedResultMethodologies.buildFrequency(
-          thresholds = THRESHOLDS,
+          countVariance = 4000000.0,
           maximumFrequency = 3,
           reach = 0L,
         )
       }
 
     assertThat(exception).hasMessageThat().contains("Reach must be positive")
-  }
-
-  companion object {
-    private val THRESHOLDS = ResultMinimumThresholds(minUsers = 400, minImpressions = 2000)
   }
 }

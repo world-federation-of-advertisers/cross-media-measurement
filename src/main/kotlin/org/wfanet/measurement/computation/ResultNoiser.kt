@@ -27,6 +27,15 @@ import kotlin.math.min
  * quantity's sensitivity.
  */
 interface ResultNoiser {
+  /** Variance of the in-sample reach draw. */
+  val reachVariance: Double
+
+  /** Variance of the in-sample impression-count draw. */
+  val impressionVariance: Double
+
+  /** Variance of each in-sample frequency-bucket draw. */
+  val frequencyBucketVariance: Double
+
   /** Returns the in-sample reach with noise applied. Callers clamp and scale the result. */
   fun noiseReach(reachInSample: Long): Long
 
@@ -42,6 +51,10 @@ interface ResultNoiser {
 
 /** A [ResultNoiser] that releases the raw values. */
 object NoNoise : ResultNoiser {
+  override val reachVariance: Double = 0.0
+  override val impressionVariance: Double = 0.0
+  override val frequencyBucketVariance: Double = 0.0
+
   override fun noiseReach(reachInSample: Long): Long = reachInSample
 
   override fun noiseImpressionsFromFrequencyHistogram(frequencyHistogram: LongArray): Long =
@@ -63,6 +76,25 @@ class GaussianResultNoiser(
   private val maxFrequencyPerUser: Int = 1,
 ) : ResultNoiser {
   private val noise = GaussianNoise()
+
+  override val reachVariance: Double =
+    DirectNoiseVariances.continuousGaussian(
+      epsilon = reachDpParams.epsilon,
+      delta = reachDpParams.delta,
+      sensitivity = L_INFINITE_SENSITIVITY.toDouble(),
+    )
+  override val impressionVariance: Double =
+    DirectNoiseVariances.continuousGaussian(
+      epsilon = reachDpParams.epsilon,
+      delta = reachDpParams.delta,
+      sensitivity = maxFrequencyPerUser.toDouble(),
+    )
+  override val frequencyBucketVariance: Double =
+    DirectNoiseVariances.continuousGaussian(
+      epsilon = frequencyDpParams.epsilon,
+      delta = frequencyDpParams.delta,
+      sensitivity = L_INFINITE_SENSITIVITY.toDouble(),
+    )
 
   override fun noiseReach(reachInSample: Long): Long =
     noise.addNoise(
@@ -106,6 +138,13 @@ class DeterministicTruncatedLaplaceResultNoiser(
   private val maxFrequencyPerUser: Int = 1,
 ) : ResultNoiser {
   private val fingerprint: ByteArray = fingerprint(combinedFrequencyVector, contributionCount)
+
+  override val reachVariance: Double =
+    DirectNoiseVariances.deterministicTruncatedLaplace(UNIT_SENSITIVITY)
+  override val impressionVariance: Double =
+    DirectNoiseVariances.deterministicTruncatedLaplace(maxFrequencyPerUser.toDouble())
+  override val frequencyBucketVariance: Double =
+    DirectNoiseVariances.deterministicTruncatedLaplace(UNIT_SENSITIVITY)
 
   // One sampler per released quantity, each calibrated to that quantity's L1 sensitivity: reach and
   // each frequency bucket move by 1 per VID, the capped impression count by maxFrequencyPerUser.
