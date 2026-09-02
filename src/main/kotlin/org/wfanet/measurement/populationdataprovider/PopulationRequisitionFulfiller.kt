@@ -23,7 +23,7 @@ import java.time.LocalDate
 import java.util.logging.Level
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.fold
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DeterministicCount
@@ -236,12 +236,13 @@ class PopulationRequisitionFulfiller(
     // ModelRollouts for a ModelLine commonly share a rollout start date, so createTime breaks ties
     // in favor of the most recently created one.
     val latestModelRollout: ModelRollout =
-      modelRolloutLists
-        .flattenConcat()
-        .toList()
-        .maxWithOrNull(
-          compareBy<ModelRollout>({ it.rolloutStartDate }, { it.createTime.toInstant() })
-        ) ?: throw UnfulfillableRequisitionException("ModelLine $modelLineName has no ModelRollout")
+      modelRolloutLists.flattenConcat().fold(null as ModelRollout?) { latest, modelRollout ->
+        if (latest == null || MODEL_ROLLOUT_RECENCY_COMPARATOR.compare(modelRollout, latest) > 0) {
+          modelRollout
+        } else {
+          latest
+        }
+      } ?: throw UnfulfillableRequisitionException("ModelLine $modelLineName has no ModelRollout")
     val modelReleaseName = latestModelRollout.modelRelease
 
     // Returns ModelRelease associated with latest ModelRollout.
@@ -297,3 +298,7 @@ private val ModelRollout.rolloutStartDate: LocalDate
   get() =
     if (hasGradualRolloutPeriod()) gradualRolloutPeriod.startDate.toLocalDate()
     else instantRolloutDate.toLocalDate()
+
+/** Orders [ModelRollout]s from least to most recent. */
+private val MODEL_ROLLOUT_RECENCY_COMPARATOR: Comparator<ModelRollout> =
+  compareBy({ it.rolloutStartDate }, { it.createTime.toInstant() })
