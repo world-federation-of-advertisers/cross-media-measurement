@@ -80,13 +80,6 @@ class DirectReachResultBuilder(
           vectorSize = maxPopulation,
           resultMinimumThresholds = null,
         ) > 0L
-    if (needsThresholdVariance && !directProtocolConfig.hasCustomDirectMethodology()) {
-      throw RequisitionRefusalException.Default(
-        Requisition.Refusal.Justification.DECLINED,
-        "No valid methodology for reporting a thresholded direct result.",
-      )
-    }
-
     val protocolConfigNoiseMechanism = directNoiseMechanism.toProtocolConfigNoiseMechanism()
 
     return MeasurementKt.result {

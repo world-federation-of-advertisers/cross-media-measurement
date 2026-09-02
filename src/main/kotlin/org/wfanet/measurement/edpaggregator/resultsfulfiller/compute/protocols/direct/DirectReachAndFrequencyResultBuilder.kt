@@ -99,16 +99,6 @@ class DirectReachAndFrequencyResultBuilder(
         reachValue > 0L &&
         histogram.sum() > 0L &&
         frequencyMap.values.all { it == 0.0 }
-    if (
-      (reachNeedsThresholdVariance || frequencyNeedsThresholdVariance) &&
-        !directProtocolConfig.hasCustomDirectMethodology()
-    ) {
-      throw RequisitionRefusalException.Default(
-        Requisition.Refusal.Justification.DECLINED,
-        "No valid methodology for reporting thresholded direct results.",
-      )
-    }
-
     val protocolConfigNoiseMechanism = directNoiseMechanism.toProtocolConfigNoiseMechanism()
 
     return MeasurementKt.result {

@@ -112,13 +112,6 @@ class DirectImpressionResultBuilder(
         resultMinimumThresholds != null &&
         impressionValue == 0L &&
         computeUnthresholdedImpressionCount(effectiveMaxFrequency) > 0L
-    if (needsThresholdVariance && !directProtocolConfig.hasCustomDirectMethodology()) {
-      throw RequisitionRefusalException.Default(
-        Requisition.Refusal.Justification.DECLINED,
-        "No valid methodology for reporting a thresholded direct result.",
-      )
-    }
-
     val protocolConfigNoiseMechanism = directNoiseMechanism.toProtocolConfigNoiseMechanism()
     return MeasurementKt.result {
       impression = impression {
