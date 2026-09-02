@@ -33,3 +33,6 @@ data class ResultMinimumThresholds(
   val reachMaxFrequencyPerUser: Int =
     minOf(Byte.MAX_VALUE.toInt(), ComputationParams.MIN_RING_MODULUS - 1),
 )
+
+/** A value after minimum-result thresholding and whether a positive value was suppressed. */
+data class MinimumThresholdResult<T>(val value: T, val wasSuppressedToZero: Boolean)

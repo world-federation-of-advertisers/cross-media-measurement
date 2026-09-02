@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
 import java.util.logging.Logger
+import org.wfanet.measurement.api.v2alpha.CustomDirectMethodology
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams as CmmsDpParams
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -26,7 +27,6 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.HistogramComputations
-import org.wfanet.measurement.computation.NoNoise
 import org.wfanet.measurement.computation.ReachAndFrequencyComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
@@ -67,28 +67,16 @@ class DirectReachResultBuilder(
         maxFrequency = resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1,
       )
 
-    val reachValue = getReachValue(histogram)
-
-    val needsThresholdVariance =
-      directNoiseMechanism == DirectNoiseMechanism.NONE &&
-        resultMinimumThresholds != null &&
-        reachValue == 0L &&
-        ReachAndFrequencyComputations.computeReach(
-          rawHistogram = histogram,
-          noiser = NoNoise,
-          vidSamplingIntervalWidth = samplingRate.toDouble(),
-          vectorSize = maxPopulation,
-          resultMinimumThresholds = null,
-        ) > 0L
+    val reachResult = getReachResult(histogram)
     val protocolConfigNoiseMechanism = directNoiseMechanism.toProtocolConfigNoiseMechanism()
 
     return MeasurementKt.result {
       reach = reach {
-        value = reachValue
+        value = reachResult.value
         this.noiseMechanism = protocolConfigNoiseMechanism
-        if (needsThresholdVariance) {
-          customDirectMethodology =
-            ThresholdedResultMethodologies.buildReach(requireNotNull(resultMinimumThresholds))
+        val thresholdMethodology = reachResult.thresholdMethodology
+        if (thresholdMethodology != null) {
+          customDirectMethodology = thresholdMethodology
         } else {
           deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
         }
@@ -96,7 +84,7 @@ class DirectReachResultBuilder(
     }
   }
 
-  private fun getReachValue(histogram: LongArray): Long {
+  private fun getReachResult(histogram: LongArray): ComputedResult<Long> {
     if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
       logger.info("Adding $directNoiseMechanism publisher noise to direct reach...")
     }
@@ -105,21 +93,36 @@ class DirectReachResultBuilder(
         epsilon = reachPrivacyParams.epsilon,
         delta = reachPrivacyParams.delta,
       )
-    return ReachAndFrequencyComputations.computeReach(
-      rawHistogram = histogram,
-      noiser =
-        buildDirectResultNoiser(
-          directNoiseMechanism = directNoiseMechanism,
-          frequencyData = frequencyData,
-          reachDpParams = reachDpParams,
-          frequencyDpParams = reachDpParams,
-          maxFrequencyPerUser = resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1,
-        ),
-      vidSamplingIntervalWidth = samplingRate.toDouble(),
-      vectorSize = maxPopulation,
-      resultMinimumThresholds = resultMinimumThresholds,
-    )
+    val thresholdResult =
+      ReachAndFrequencyComputations.computeReachResult(
+        rawHistogram = histogram,
+        noiser =
+          buildDirectResultNoiser(
+            directNoiseMechanism = directNoiseMechanism,
+            frequencyData = frequencyData,
+            reachDpParams = reachDpParams,
+            frequencyDpParams = reachDpParams,
+            maxFrequencyPerUser = resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1,
+          ),
+        vidSamplingIntervalWidth = samplingRate.toDouble(),
+        vectorSize = maxPopulation,
+        resultMinimumThresholds = resultMinimumThresholds,
+      )
+    val thresholdMethodology =
+      if (
+        directNoiseMechanism == DirectNoiseMechanism.NONE && thresholdResult.wasSuppressedToZero
+      ) {
+        ThresholdedResultMethodologies.buildReach(requireNotNull(resultMinimumThresholds))
+      } else {
+        null
+      }
+    return ComputedResult(thresholdResult.value, thresholdMethodology)
   }
+
+  private data class ComputedResult<T>(
+    val value: T,
+    val thresholdMethodology: CustomDirectMethodology?,
+  )
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

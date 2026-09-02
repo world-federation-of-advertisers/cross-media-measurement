@@ -54,27 +54,41 @@ object ImpressionComputations {
     vidSamplingIntervalWidth: Double,
     noiser: ResultNoiser,
     resultMinimumThresholds: ResultMinimumThresholds?,
-  ): Long {
+  ): Long =
+    computeImpressionCountResult(
+        rawHistogram,
+        vidSamplingIntervalWidth,
+        noiser,
+        resultMinimumThresholds,
+      )
+      .value
+
+  /** Computes impressions and reports whether minimum-result thresholding suppressed them. */
+  fun computeImpressionCountResult(
+    rawHistogram: LongArray,
+    vidSamplingIntervalWidth: Double,
+    noiser: ResultNoiser,
+    resultMinimumThresholds: ResultMinimumThresholds?,
+  ): MinimumThresholdResult<Long> {
     val noisedImpressionCount = noiser.noiseImpressionsFromFrequencyHistogram(rawHistogram)
     val scaledImpressionCount: Long =
       if (noisedImpressionCount < 0) 0L
       else (noisedImpressionCount / vidSamplingIntervalWidth).toLong()
 
     if (resultMinimumThresholds == null) {
-      return scaledImpressionCount
+      return MinimumThresholdResult(scaledImpressionCount, wasSuppressedToZero = false)
     }
     // The user count is a distinct-user quantity, so it takes the reach draw's unit sensitivity.
     val noisedUserCount = noiser.noiseReach(rawHistogram.sum())
     val scaledUserCount: Long =
       if (noisedUserCount < 0) 0L else (noisedUserCount / vidSamplingIntervalWidth).toLong()
-    return if (
+    val failsThreshold =
       scaledImpressionCount < resultMinimumThresholds.minImpressions ||
         scaledUserCount < resultMinimumThresholds.minUsers
-    ) {
-      0
-    } else {
-      scaledImpressionCount
-    }
+    return MinimumThresholdResult(
+      value = if (failsThreshold) 0L else scaledImpressionCount,
+      wasSuppressedToZero = failsThreshold && scaledImpressionCount > 0L,
+    )
   }
 
   /**

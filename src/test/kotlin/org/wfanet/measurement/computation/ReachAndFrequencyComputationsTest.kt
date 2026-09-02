@@ -234,8 +234,8 @@ class ReachAndFrequencyComputationsTest {
   @Test
   fun `computeFrequencyDistribution zeroes only freq-1 bucket when it fails threshold`() {
     val rawHistogram = longArrayOf(10, 30, 70) // Frequencies 1, 2, 3
-    val distribution =
-      ReachAndFrequencyComputations.computeFrequencyDistribution(
+    val result =
+      ReachAndFrequencyComputations.computeFrequencyDistributionResult(
         rawHistogram,
         maxFrequency = 3,
         noiser = NoNoise,
@@ -246,7 +246,8 @@ class ReachAndFrequencyComputationsTest {
     // freq2 (30) and freq3 (70) pass, so only freq1 is suppressed.
     val totalAfterFold = 30.0 + 70.0
     val expected = mapOf(1L to 0.0, 2L to 30.0 / totalAfterFold, 3L to 70.0 / totalAfterFold)
-    assertThat(distribution).isEqualTo(expected)
+    assertThat(result.value).isEqualTo(expected)
+    assertThat(result.wasSuppressedToZero).isFalse()
   }
 
   @Test
@@ -295,6 +296,36 @@ class ReachAndFrequencyComputationsTest {
       )
     assertThat(distribution[2L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(0.0)
     assertThat(distribution[3L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(0.0)
+  }
+
+  @Test
+  fun `computeReachResult identifies a suppressed positive value`() {
+    val result =
+      ReachAndFrequencyComputations.computeReachResult(
+        rawHistogram = longArrayOf(10, 5, 1),
+        vidSamplingIntervalWidth = 1.0,
+        vectorSize = 20,
+        noiser = NoNoise,
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 10, minImpressions = 50),
+      )
+
+    assertThat(result.value).isEqualTo(0L)
+    assertThat(result.wasSuppressedToZero).isTrue()
+  }
+
+  @Test
+  fun `computeReachResult does not identify a true zero as suppressed`() {
+    val result =
+      ReachAndFrequencyComputations.computeReachResult(
+        rawHistogram = longArrayOf(0, 0, 0),
+        vidSamplingIntervalWidth = 1.0,
+        vectorSize = 20,
+        noiser = NoNoise,
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 10, minImpressions = 50),
+      )
+
+    assertThat(result.value).isEqualTo(0L)
+    assertThat(result.wasSuppressedToZero).isFalse()
   }
 
   @Test
@@ -406,8 +437,8 @@ class ReachAndFrequencyComputationsTest {
   fun `computeFrequencyDistribution zeros everything when 1+ bucket fails after fold-down`() {
     // All users are at high frequencies — after fold-down to freq1, it still fails min_users
     val rawHistogram = longArrayOf(3, 5, 2, 1, 1)
-    val distribution =
-      ReachAndFrequencyComputations.computeFrequencyDistribution(
+    val result =
+      ReachAndFrequencyComputations.computeFrequencyDistributionResult(
         rawHistogram,
         maxFrequency = 5,
         noiser = NoNoise,
@@ -416,7 +447,8 @@ class ReachAndFrequencyComputationsTest {
       )
     // All buckets should be zero because even after folding everything to 1+,
     // total users (12) < minUsers (50)
-    assertThat(distribution.values.all { it == 0.0 }).isTrue()
+    assertThat(result.value.values.all { it == 0.0 }).isTrue()
+    assertThat(result.wasSuppressedToZero).isTrue()
   }
 
   @Test

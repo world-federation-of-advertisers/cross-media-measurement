@@ -37,7 +37,24 @@ object ReachAndFrequencyComputations {
     vectorSize: Int?,
     noiser: ResultNoiser,
     resultMinimumThresholds: ResultMinimumThresholds?,
-  ): Long {
+  ): Long =
+    computeReachResult(
+        sampled,
+        vidSamplingIntervalWidth,
+        vectorSize,
+        noiser,
+        resultMinimumThresholds,
+      )
+      .value
+
+  /** Computes reach and reports whether minimum-result thresholding suppressed a positive value. */
+  fun computeReachResult(
+    sampled: ReachAndFrequency,
+    vidSamplingIntervalWidth: Double,
+    vectorSize: Int?,
+    noiser: ResultNoiser,
+    resultMinimumThresholds: ResultMinimumThresholds?,
+  ): MinimumThresholdResult<Long> {
     val maxPossibleScaledReach =
       if (vectorSize != null) {
         (vectorSize / vidSamplingIntervalWidth).toLong()
@@ -51,19 +68,18 @@ object ReachAndFrequencyComputations {
     val minScaledNoisedReach = min(scaledNoisedReach, maxPossibleScaledReach)
 
     if (resultMinimumThresholds == null) {
-      return minScaledNoisedReach
+      return MinimumThresholdResult(minScaledNoisedReach, wasSuppressedToZero = false)
     }
 
     val impressionCount = noiser.noiseImpressionsFromFrequencyHistogram(sampled.frequencyHistogram)
     val scaledImpressionCount = (impressionCount / vidSamplingIntervalWidth).toLong()
-    return if (
+    val failsThreshold =
       scaledImpressionCount < resultMinimumThresholds.minImpressions ||
         minScaledNoisedReach < resultMinimumThresholds.minUsers
-    ) {
-      0
-    } else {
-      minScaledNoisedReach
-    }
+    return MinimumThresholdResult(
+      value = if (failsThreshold) 0L else minScaledNoisedReach,
+      wasSuppressedToZero = failsThreshold && minScaledNoisedReach > 0L,
+    )
   }
 
   /**
@@ -80,7 +96,24 @@ object ReachAndFrequencyComputations {
     noiser: ResultNoiser,
     resultMinimumThresholds: ResultMinimumThresholds?,
   ): Long =
-    computeReach(
+    computeReachResult(
+        rawHistogram,
+        vidSamplingIntervalWidth,
+        vectorSize,
+        noiser,
+        resultMinimumThresholds,
+      )
+      .value
+
+  /** Computes reach from a raw histogram and reports whether a positive value was suppressed. */
+  fun computeReachResult(
+    rawHistogram: LongArray,
+    vidSamplingIntervalWidth: Double,
+    vectorSize: Int?,
+    noiser: ResultNoiser,
+    resultMinimumThresholds: ResultMinimumThresholds?,
+  ): MinimumThresholdResult<Long> =
+    computeReachResult(
       ReachAndFrequency(rawHistogram.sum(), rawHistogram),
       vidSamplingIntervalWidth,
       vectorSize,
@@ -107,26 +140,47 @@ object ReachAndFrequencyComputations {
     noiser: ResultNoiser,
     resultMinimumThresholds: ResultMinimumThresholds?,
     vidSamplingIntervalWidth: Double?,
-  ): Map<Long, Double> {
+  ): Map<Long, Double> =
+    computeFrequencyDistributionResult(
+        rawHistogram,
+        maxFrequency,
+        noiser,
+        resultMinimumThresholds,
+        vidSamplingIntervalWidth,
+      )
+      .value
+
+  /**
+   * Computes a frequency distribution and reports whether thresholding suppressed all frequency
+   * mass.
+   */
+  fun computeFrequencyDistributionResult(
+    rawHistogram: LongArray,
+    maxFrequency: Int,
+    noiser: ResultNoiser,
+    resultMinimumThresholds: ResultMinimumThresholds?,
+    vidSamplingIntervalWidth: Double?,
+  ): MinimumThresholdResult<Map<Long, Double>> {
     require(rawHistogram.size == maxFrequency) {
       "Invalid histogram size: ${rawHistogram.size} against maxFrequency: $maxFrequency"
     }
     val noisedHistogram =
       LongArray(maxFrequency) { index -> noiser.noiseFrequencyBucket(index, rawHistogram[index]) }
-    if (noisedHistogram.sum() == 0L) {
-      return (1..maxFrequency).associate { it.toLong() to 0.0 }
+    val numNoisedActiveRegisters = noisedHistogram.sum()
+    if (numNoisedActiveRegisters == 0L) {
+      return MinimumThresholdResult(
+        (1..maxFrequency).associate { it.toLong() to 0.0 },
+        wasSuppressedToZero = false,
+      )
     }
 
     if (resultMinimumThresholds == null) {
-      val numNoisedActiveRegisters = noisedHistogram.sum()
-      return noisedHistogram.withIndex().associate { (index, count) ->
-        val frequency = index + 1L
-        if (numNoisedActiveRegisters === 0L) {
-          frequency to 0.0
-        } else {
-          frequency to count.toDouble() / numNoisedActiveRegisters
-        }
-      }
+      return MinimumThresholdResult(
+        noisedHistogram.withIndex().associate { (index, count) ->
+          (index + 1L) to count.toDouble() / numNoisedActiveRegisters
+        },
+        wasSuppressedToZero = false,
+      )
     }
 
     requireNotNull(vidSamplingIntervalWidth) {
@@ -149,13 +203,17 @@ object ReachAndFrequencyComputations {
       }
     }
     val numThresholdedActiveRegisters = thresholdedHistogram.sum()
-    return thresholdedHistogram.withIndex().associate { (index, count) ->
-      val frequency = index + 1L
-      if (numThresholdedActiveRegisters === 0L) {
-        frequency to 0.0
-      } else {
-        frequency to count.toDouble() / numThresholdedActiveRegisters
-      }
-    }
+    return MinimumThresholdResult(
+      value =
+        thresholdedHistogram.withIndex().associate { (index, count) ->
+          val frequency = index + 1L
+          if (numThresholdedActiveRegisters == 0L) {
+            frequency to 0.0
+          } else {
+            frequency to count.toDouble() / numThresholdedActiveRegisters
+          }
+        },
+      wasSuppressedToZero = numThresholdedActiveRegisters == 0L,
+    )
   }
 }

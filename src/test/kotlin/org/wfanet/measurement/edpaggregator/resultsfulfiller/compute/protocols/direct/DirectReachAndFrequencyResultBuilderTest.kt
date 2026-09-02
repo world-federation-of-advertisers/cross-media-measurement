@@ -164,6 +164,37 @@ class DirectReachAndFrequencyResultBuilderTest {
     }
 
   @Test
+  fun `buildMeasurementResult keeps deterministic methodology after partial thresholding`() =
+    runBlocking {
+      val frequencyData =
+        IntArray(110) { index ->
+          when {
+            index < 10 -> 1
+            index < 40 -> 2
+            else -> 3
+          }
+        }
+
+      val result =
+        DirectReachAndFrequencyResultBuilder(
+            directProtocolConfig = DIRECT_PROTOCOL,
+            maxFrequency = 3,
+            reachPrivacyParams = REACH_PRIVACY_PARAMS,
+            frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
+            samplingRate = SAMPLING_RATE,
+            directNoiseMechanism = DirectNoiseMechanism.NONE,
+            frequencyData = frequencyData,
+            maxPopulation = null,
+            resultMinimumThresholds = ResultMinimumThresholds(minUsers = 11, minImpressions = 5),
+          )
+          .buildMeasurementResult()
+
+      assertThat(result.reach.value).isEqualTo(110L)
+      assertThat(result.frequency.relativeFrequencyDistributionMap.getValue(1L)).isEqualTo(0.0)
+      assertThat(result.frequency.hasDeterministicDistribution()).isTrue()
+    }
+
+  @Test
   fun `buildMeasurementResult reports variance when final frequency bucket is thresholded`() =
     runBlocking {
       val frequencyData = IntArray(480) { index -> 3 + index / 120 }

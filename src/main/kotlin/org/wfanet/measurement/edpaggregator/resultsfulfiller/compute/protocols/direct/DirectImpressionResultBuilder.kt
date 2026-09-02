@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
 import java.util.logging.Logger
+import org.wfanet.measurement.api.v2alpha.CustomDirectMethodology
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams as CmmsDpParams
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -30,7 +31,7 @@ import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.DynamicallyClippedImpressions
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.ImpressionComputations
-import org.wfanet.measurement.computation.NoNoise
+import org.wfanet.measurement.computation.MinimumThresholdResult
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.MeasurementResultBuilder
@@ -105,21 +106,15 @@ class DirectImpressionResultBuilder(
       )
     }
 
-    val impressionValue = computeImpressionCount(effectiveMaxFrequency)
-
-    val needsThresholdVariance =
-      directNoiseMechanism == DirectNoiseMechanism.NONE &&
-        resultMinimumThresholds != null &&
-        impressionValue == 0L &&
-        computeUnthresholdedImpressionCount(effectiveMaxFrequency) > 0L
+    val impressionResult = computeImpressionResult(effectiveMaxFrequency)
     val protocolConfigNoiseMechanism = directNoiseMechanism.toProtocolConfigNoiseMechanism()
     return MeasurementKt.result {
       impression = impression {
-        value = impressionValue
+        value = impressionResult.value
         this.noiseMechanism = protocolConfigNoiseMechanism
-        if (needsThresholdVariance) {
-          customDirectMethodology =
-            ThresholdedResultMethodologies.buildImpression(requireNotNull(resultMinimumThresholds))
+        val thresholdMethodology = impressionResult.thresholdMethodology
+        if (thresholdMethodology != null) {
+          customDirectMethodology = thresholdMethodology
         } else {
           this.deterministicCount = deterministicCount {
             customMaximumFrequencyPerUser = effectiveMaxFrequency
@@ -172,72 +167,52 @@ class DirectImpressionResultBuilder(
     }
   }
 
-  /**
-   * Computes the impression count based on frequency data and capping configuration.
-   *
-   * When [impressionMaxFrequencyPerUser] is -1, uses uncapped impressions directly (with
-   * k-anonymity checks if configured). Otherwise, builds a histogram and computes the capped
-   * impression count.
-   *
-   * @param effectiveMaxFrequency The maximum frequency per user to use for capped computations.
-   * @return The computed impression count.
-   */
-  private fun computeImpressionCount(effectiveMaxFrequency: Int): Long {
-    return if (releaseUncapped) {
-      computeUncappedImpressionValue()
-    } else {
-      val histogram: LongArray =
-        HistogramComputations.buildHistogram(
-          frequencyVector = frequencyData,
-          maxFrequency = effectiveMaxFrequency,
-        )
-      getImpressionValue(histogram, effectiveMaxFrequency)
-    }
-  }
-
-  /**
-   * Computes the uncapped impression value, applying k-anonymity checks if configured.
-   *
-   * @return The uncapped impression count, or 0 if k-anonymity thresholds are not met.
-   */
-  private fun computeUncappedImpressionValue(): Long {
-    if (resultMinimumThresholds != null) {
-      val reachValue = frequencyData.count { it != 0 }
-      return if (totalUncappedImpressions < resultMinimumThresholds.minImpressions) {
-        0L
-      } else if (reachValue < resultMinimumThresholds.minUsers) {
-        0L
+  private fun computeImpressionResult(effectiveMaxFrequency: Int): ComputedResult<Long> {
+    val thresholdResult =
+      if (releaseUncapped) {
+        computeUncappedImpressionResult()
       } else {
-        totalUncappedImpressions
+        val histogram: LongArray =
+          HistogramComputations.buildHistogram(
+            frequencyVector = frequencyData,
+            maxFrequency = effectiveMaxFrequency,
+          )
+        getImpressionResult(histogram, effectiveMaxFrequency)
       }
-    }
-    return totalUncappedImpressions
+    val thresholdMethodology =
+      if (
+        directNoiseMechanism == DirectNoiseMechanism.NONE && thresholdResult.wasSuppressedToZero
+      ) {
+        ThresholdedResultMethodologies.buildImpression(requireNotNull(resultMinimumThresholds))
+      } else {
+        null
+      }
+    return ComputedResult(thresholdResult.value, thresholdMethodology)
   }
 
-  private fun computeUnthresholdedImpressionCount(effectiveMaxFrequency: Int): Long {
-    if (releaseUncapped) {
-      return totalUncappedImpressions
-    }
-    val histogram: LongArray =
-      HistogramComputations.buildHistogram(
-        frequencyVector = frequencyData,
-        maxFrequency = effectiveMaxFrequency,
-      )
-    return ImpressionComputations.computeImpressionCount(
-      rawHistogram = histogram,
-      noiser = NoNoise,
-      vidSamplingIntervalWidth = samplingRate.toDouble(),
-      resultMinimumThresholds = null,
+  private fun computeUncappedImpressionResult(): MinimumThresholdResult<Long> {
+    val thresholds =
+      resultMinimumThresholds
+        ?: return MinimumThresholdResult(totalUncappedImpressions, wasSuppressedToZero = false)
+    val reach = frequencyData.count { it != 0 }
+    val failsThreshold =
+      totalUncappedImpressions < thresholds.minImpressions || reach < thresholds.minUsers
+    return MinimumThresholdResult(
+      value = if (failsThreshold) 0L else totalUncappedImpressions,
+      wasSuppressedToZero = failsThreshold && totalUncappedImpressions > 0L,
     )
   }
 
-  private fun getImpressionValue(histogram: LongArray, maxFrequency: Int): Long {
+  private fun getImpressionResult(
+    histogram: LongArray,
+    maxFrequency: Int,
+  ): MinimumThresholdResult<Long> {
     if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
       logger.info("Adding $directNoiseMechanism publisher noise to direct impression...")
     }
     val dpParams =
       DifferentialPrivacyParams(epsilon = privacyParams.epsilon, delta = privacyParams.delta)
-    return ImpressionComputations.computeImpressionCount(
+    return ImpressionComputations.computeImpressionCountResult(
       rawHistogram = histogram,
       noiser =
         buildDirectResultNoiser(
@@ -251,6 +226,11 @@ class DirectImpressionResultBuilder(
       resultMinimumThresholds = resultMinimumThresholds,
     )
   }
+
+  private data class ComputedResult<T>(
+    val value: T,
+    val thresholdMethodology: CustomDirectMethodology?,
+  )
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

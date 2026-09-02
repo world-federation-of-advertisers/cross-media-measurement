@@ -117,6 +117,34 @@ class ImpressionComputationsTest {
   }
 
   @Test
+  fun `computeImpressionCountResult identifies a suppressed positive value`() {
+    val result =
+      ImpressionComputations.computeImpressionCountResult(
+        rawHistogram = longArrayOf(2L, 4L),
+        vidSamplingIntervalWidth = 1.0,
+        noiser = NoNoise,
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 10, minImpressions = 1),
+      )
+
+    assertThat(result.value).isEqualTo(0L)
+    assertThat(result.wasSuppressedToZero).isTrue()
+  }
+
+  @Test
+  fun `computeImpressionCountResult does not identify a true zero as suppressed`() {
+    val result =
+      ImpressionComputations.computeImpressionCountResult(
+        rawHistogram = longArrayOf(0L, 0L),
+        vidSamplingIntervalWidth = 1.0,
+        noiser = NoNoise,
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 10, minImpressions = 1),
+      )
+
+    assertThat(result.value).isEqualTo(0L)
+    assertThat(result.wasSuppressedToZero).isFalse()
+  }
+
+  @Test
   fun `impression count with K Anonymity is zero for too few unique users`() {
     val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L) // 1*2 + 2*4 + 4*8 + 7*10 + 7*2
     val resultMinimumThresholds = ResultMinimumThresholds(minUsers = 28, minImpressions = 50)
