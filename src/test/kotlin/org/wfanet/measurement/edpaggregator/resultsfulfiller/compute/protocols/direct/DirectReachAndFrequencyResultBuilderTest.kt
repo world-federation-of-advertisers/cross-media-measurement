@@ -234,6 +234,43 @@ class DirectReachAndFrequencyResultBuilderTest {
     }
 
   @Test
+  fun `buildMeasurementResult includes noise variance when final frequency bucket is thresholded`() =
+    runBlocking {
+      val threshold = 20000
+      val result =
+        DirectReachAndFrequencyResultBuilder(
+            directProtocolConfig = DIRECT_PROTOCOL_WITHOUT_DETERMINISTIC_DISTRIBUTION,
+            maxFrequency = 6,
+            reachPrivacyParams = REACH_PRIVACY_PARAMS,
+            frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
+            samplingRate = SAMPLING_RATE,
+            directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
+            frequencyData = IntArray(4800) { index -> 3 + index / 1200 },
+            maxPopulation = null,
+            resultMinimumThresholds =
+              ResultMinimumThresholds(
+                minUsers = 4000,
+                minImpressions = threshold,
+                reachMaxFrequencyPerUser = 6,
+              ),
+          )
+          .buildMeasurementResult()
+
+      assertThat(result.reach.value).isGreaterThan(0L)
+      assertThat(result.reach.hasDeterministicCountDistinct()).isTrue()
+      assertThat(result.frequency.relativeFrequencyDistributionMap.values.all { it == 0.0 })
+        .isTrue()
+      assertThat(result.frequency.noiseMechanism)
+        .isEqualTo(NoiseMechanism.CONTINUOUS_GAUSSIAN)
+      val relativeVariance =
+        result.frequency.customDirectMethodology.variance.frequency.variancesMap.getValue(1L)
+      val thresholdRelativeVariance =
+        (threshold.toDouble() / result.reach.value) *
+          (threshold.toDouble() / result.reach.value)
+      assertThat(relativeVariance).isGreaterThan(thresholdRelativeVariance)
+    }
+
+  @Test
   fun `buildMeasurementResult reports variance when reach is thresholded`() = runBlocking {
     val result =
       DirectReachAndFrequencyResultBuilder(

@@ -33,7 +33,10 @@ object DeterministicTruncatedLaplaceParams {
   /** The truncation bound a draw of L1 [sensitivity] takes under these parameters. */
   fun truncationBound(sensitivity: Double): Double = truncationBoundFor(EPSILON, DELTA, sensitivity)
 
-  /** The variance of a draw with L1 [sensitivity] under these parameters. */
+  /**
+   * The continuous truncated-Laplace variance for L1 [sensitivity], before the sampler rounds its
+   * draw to an integer.
+   */
   fun variance(sensitivity: Double): Double {
     val scale = sensitivity / EPSILON
     val bound = truncationBound(sensitivity)

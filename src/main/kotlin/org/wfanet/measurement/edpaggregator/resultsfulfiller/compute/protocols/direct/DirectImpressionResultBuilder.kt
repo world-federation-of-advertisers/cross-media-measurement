@@ -165,20 +165,17 @@ class DirectImpressionResultBuilder(
     }
   }
 
-  private fun computeImpressionResult(effectiveMaxFrequency: Int): MinimumThresholdResult<Long> {
-    val thresholdResult =
-      if (releaseUncapped) {
-        computeUncappedImpressionResult()
-      } else {
-        val histogram: LongArray =
-          HistogramComputations.buildHistogram(
-            frequencyVector = frequencyData,
-            maxFrequency = effectiveMaxFrequency,
-          )
-        getImpressionResult(histogram, effectiveMaxFrequency)
-      }
-    return thresholdResult
-  }
+  private fun computeImpressionResult(effectiveMaxFrequency: Int): MinimumThresholdResult<Long> =
+    if (releaseUncapped) {
+      computeUncappedImpressionResult()
+    } else {
+      val histogram: LongArray =
+        HistogramComputations.buildHistogram(
+          frequencyVector = frequencyData,
+          maxFrequency = effectiveMaxFrequency,
+        )
+      getImpressionResult(histogram, effectiveMaxFrequency)
+    }
 
   private fun computeUncappedImpressionResult(): MinimumThresholdResult<Long> {
     val thresholds =

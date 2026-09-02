@@ -23,9 +23,11 @@ import org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClipp
  * A dynamically clipped impression count.
  *
  * @param value The released impression count.
- * @param variance The variance of [value]. A caller releasing this through the CMMS reports it as a
- *   custom direct methodology, because the reporting server cannot derive it: the clip is
- *   data-derived and the noise is spread across the histogram bars.
+ * @param variance The correction variance of [value]. This includes the estimator variance and,
+ *   when minimum thresholding changes a positive count to zero, the fixed threshold correction
+ *   variance. A caller releasing this through the CMMS reports it as a custom direct methodology,
+ *   because the reporting server cannot derive it: the clip is data-derived and the noise is spread
+ *   across the histogram bars.
  * @param clip The per-user clip the count was taken at. Chosen by the noised search, so it is safe
  *   to release.
  */
@@ -135,24 +137,24 @@ object ImpressionComputations {
     val bars: List<Double> = searched.noisedCumulativeHistogramList
 
     val scaledImpressionCount: Long = scaleAndClamp(bars.take(clip).sum(), vidSamplingIntervalWidth)
-    val value: Long =
-      if (resultMinimumThresholds == null) {
-        scaledImpressionCount
+    // Bar 0 is the noised count of users with any impression, so the min_users gate costs no
+    // further draw. It carries the bar noise, which is calibrated across the whole histogram and
+    // so is larger than the unit-sensitivity draw a fixed-cap count gates on; the gate therefore
+    // admits and rejects more often near the threshold.
+    val scaledUserCount: Long =
+      scaleAndClamp(bars.firstOrNull() ?: 0.0, vidSamplingIntervalWidth)
+    val isBelowMinimum =
+      resultMinimumThresholds != null &&
+        (scaledImpressionCount < resultMinimumThresholds.minImpressions ||
+          scaledUserCount < resultMinimumThresholds.minUsers)
+    val value: Long = if (isBelowMinimum) 0L else scaledImpressionCount
+    val thresholdStandardDeviation: Double =
+      resultMinimumThresholds?.minImpressions?.toDouble() ?: 0.0
+    val thresholdCorrectionVariance: Double =
+      if (isBelowMinimum && scaledImpressionCount > 0L) {
+        thresholdStandardDeviation * thresholdStandardDeviation
       } else {
-        // Bar 0 is the noised count of users with any impression, so the min_users gate costs no
-        // further draw. It carries the bar noise, which is calibrated across the whole histogram
-        // and so is larger than the unit-sensitivity draw a fixed-cap count gates on; the gate
-        // therefore admits and rejects more often near the threshold.
-        val scaledUserCount: Long =
-          scaleAndClamp(bars.firstOrNull() ?: 0.0, vidSamplingIntervalWidth)
-        if (
-          scaledImpressionCount < resultMinimumThresholds.minImpressions ||
-            scaledUserCount < resultMinimumThresholds.minUsers
-        ) {
-          0L
-        } else {
-          scaledImpressionCount
-        }
+        0.0
       }
 
     // TODO(world-federation-of-advertisers/cross-media-measurement#4437): The target is
@@ -186,7 +188,8 @@ object ImpressionComputations {
         (1.0 - vidSamplingIntervalWidth)
     val noiseVariance: Double = clip.toDouble() * searched.barNoiseVariance
     val variance: Double =
-      (samplingVariance + noiseVariance) / (vidSamplingIntervalWidth * vidSamplingIntervalWidth)
+      (samplingVariance + noiseVariance) / (vidSamplingIntervalWidth * vidSamplingIntervalWidth) +
+        thresholdCorrectionVariance
 
     return DynamicallyClippedImpressions(value, variance.coerceAtLeast(0.0), clip)
   }

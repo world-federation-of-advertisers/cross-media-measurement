@@ -93,22 +93,20 @@ class DirectReachResultBuilder(
         epsilon = reachPrivacyParams.epsilon,
         delta = reachPrivacyParams.delta,
       )
-    val thresholdResult =
-      ReachAndFrequencyComputations.computeReach(
-        rawHistogram = histogram,
-        noiser =
-          buildDirectResultNoiser(
-            directNoiseMechanism = directNoiseMechanism,
-            frequencyData = frequencyData,
-            reachDpParams = reachDpParams,
-            frequencyDpParams = reachDpParams,
-            maxFrequencyPerUser = resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1,
-          ),
-        vidSamplingIntervalWidth = samplingRate.toDouble(),
-        vectorSize = maxPopulation,
-        resultMinimumThresholds = resultMinimumThresholds,
-      )
-    return thresholdResult
+    return ReachAndFrequencyComputations.computeReach(
+      rawHistogram = histogram,
+      noiser =
+        buildDirectResultNoiser(
+          directNoiseMechanism = directNoiseMechanism,
+          frequencyData = frequencyData,
+          reachDpParams = reachDpParams,
+          frequencyDpParams = reachDpParams,
+          maxFrequencyPerUser = resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1,
+        ),
+      vidSamplingIntervalWidth = samplingRate.toDouble(),
+      vectorSize = maxPopulation,
+      resultMinimumThresholds = resultMinimumThresholds,
+    )
   }
 
   companion object {

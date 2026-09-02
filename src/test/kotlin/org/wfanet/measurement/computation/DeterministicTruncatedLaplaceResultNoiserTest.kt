@@ -54,6 +54,7 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
   fun `variance scales with squared sensitivity`() {
     val noiser = noiser()
 
+    assertThat(noiser.reachVariance).isWithin(1E-12).of(1.9311259178384792)
     assertThat(noiser.frequencyBucketVariance).isEqualTo(noiser.reachVariance)
     assertThat(noiser.impressionVariance)
       .isWithin(1E-12)

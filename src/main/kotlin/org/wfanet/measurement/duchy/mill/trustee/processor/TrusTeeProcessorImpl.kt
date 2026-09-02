@@ -124,6 +124,9 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
     val rawHistogram = HistogramComputations.buildHistogram(frequencyVector, maxFrequency)
     val sampledReachAndFrequency = ReachAndFrequency(rawHistogram.sum(), rawHistogram)
 
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4454): Preserve the noise
+    // mechanism and independent reach and frequency variances in the TrusTEE result conversion.
+
     return when (val params = trusTeeParams) {
       is TrusTeeReachParams -> {
         // A reach-only measurement has a single set of DP params, and never draws a frequency

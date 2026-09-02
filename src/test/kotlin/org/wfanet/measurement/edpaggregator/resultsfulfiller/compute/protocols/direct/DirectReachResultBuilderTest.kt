@@ -75,14 +75,15 @@ class DirectReachResultBuilderTest {
           resultMinimumThresholds = null,
         )
 
-      val result = directReachResultBuilder.buildMeasurementResult().reach.value
+      val result = directReachResultBuilder.buildMeasurementResult()
       val tolerance = calculateNoiseTolerance(REACH_PRIVACY_PARAMS, 1, 1.0)
-      val rawImpressionCount = 110
-      check(rawImpressionCount > tolerance) {
-        "Test must be set up such that raw impression count $rawImpressionCount is greater than tolerance $tolerance"
+      val rawReach = 100
+      check(rawReach > tolerance) {
+        "Test must be set up such that raw reach $rawReach is greater than tolerance $tolerance"
       }
-      assertThat(result).isAtLeast((rawImpressionCount - tolerance).coerceAtLeast(0))
-      assertThat(result).isAtMost((rawImpressionCount + tolerance))
+      assertThat(result.reach.value).isAtLeast((rawReach - tolerance).coerceAtLeast(0))
+      assertThat(result.reach.value).isAtMost(rawReach + tolerance)
+      assertThat(result.reach.hasDeterministicCountDistinct()).isTrue()
     }
 
   @Test

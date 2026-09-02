@@ -27,8 +27,9 @@ import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 @RunWith(JUnit4::class)
 class VariancesTest {
   @Test
-  fun `computeMeasurementVariance converts threshold variance to frequency count variance`() {
+  fun `computeMeasurementVariance combines custom frequency variance with reach variance`() {
     val reach = 480L
+    val reachVariance = 2500.0
     val countStandardDeviation = 2000.0
     val relativeVariance = (countStandardDeviation / reach) * (countStandardDeviation / reach)
     val relativeVariances = (1..6).associateWith { if (it == 1) relativeVariance else 0.0 }
@@ -38,7 +39,7 @@ class VariancesTest {
         CustomDirectFrequencyMethodology(relativeVariances, relativeVariances),
         FrequencyMeasurementVarianceParams(
           totalReach = reach,
-          reachMeasurementVariance = 0.0,
+          reachMeasurementVariance = reachVariance,
           relativeFrequencyDistribution = (1..6).associateWith { 0.0 },
           measurementParams =
             FrequencyMeasurementParams(
@@ -50,12 +51,10 @@ class VariancesTest {
         ),
       )
 
-    assertThat(result.countVariances.getValue(1))
-      .isWithin(1E-6)
-      .of(countStandardDeviation * countStandardDeviation)
-    assertThat(result.kPlusCountVariances.getValue(1))
-      .isWithin(1E-6)
-      .of(countStandardDeviation * countStandardDeviation)
+    val expectedCountVariance =
+      relativeVariance * (reach.toDouble() * reach + reachVariance)
+    assertThat(result.countVariances.getValue(1)).isWithin(1E-6).of(expectedCountVariance)
+    assertThat(result.kPlusCountVariances.getValue(1)).isWithin(1E-6).of(expectedCountVariance)
     assertThat(result.countVariances.filterKeys { it > 1 }.values)
       .containsExactlyElementsIn(List(5) { 0.0 })
   }

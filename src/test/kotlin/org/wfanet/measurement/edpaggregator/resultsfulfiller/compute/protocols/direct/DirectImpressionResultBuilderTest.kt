@@ -82,14 +82,16 @@ class DirectImpressionResultBuilderTest {
           totalUncappedImpressions = 9999L, // Bogus value to verify it's not used
         )
 
-      val result = directImpressionResultBuilder.buildMeasurementResult().impression.value
+      val result = directImpressionResultBuilder.buildMeasurementResult()
       val tolerance = calculateNoiseTolerance(PRIVACY_PARAMS, 1, MAX_FREQUENCY.toDouble())
       val rawImpressionCount = 110
       check(rawImpressionCount > tolerance) {
         "Test must be set up such that raw impression count $rawImpressionCount is greater than tolerance $tolerance"
       }
-      assertThat(result).isAtLeast((rawImpressionCount - tolerance).coerceAtLeast(0))
-      assertThat(result).isAtMost((rawImpressionCount + tolerance))
+      assertThat(result.impression.value)
+        .isAtLeast((rawImpressionCount - tolerance).coerceAtLeast(0))
+      assertThat(result.impression.value).isAtMost((rawImpressionCount + tolerance))
+      assertThat(result.impression.hasDeterministicCount()).isTrue()
     }
 
   @Test
@@ -227,6 +229,32 @@ class DirectImpressionResultBuilderTest {
     assertThat(result.impression.hasCustomDirectMethodology()).isTrue()
     assertThat(result.impression.customDirectMethodology.variance.scalar).isEqualTo(1000000.0)
   }
+
+  @Test
+  fun `buildMeasurementResult includes noise variance when impressions are thresholded`() =
+    runBlocking {
+      val threshold = 10000
+      val result =
+        DirectImpressionResultBuilder(
+            directProtocolConfig = CUSTOM_DIRECT_PROTOCOL,
+            frequencyData = IntArray(1000) { 1 },
+            privacyParams = PRIVACY_PARAMS,
+            samplingRate = SAMPLING_RATE,
+            directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
+            maxPopulation = null,
+            maxFrequencyFromSpec = MAX_FREQUENCY,
+            resultMinimumThresholds =
+              ResultMinimumThresholds(minUsers = 1, minImpressions = threshold),
+            impressionMaxFrequencyPerUser = null,
+            totalUncappedImpressions = 1000L,
+          )
+          .buildMeasurementResult()
+
+      assertThat(result.impression.value).isEqualTo(0L)
+      assertThat(result.impression.noiseMechanism).isEqualTo(NoiseMechanism.CONTINUOUS_GAUSSIAN)
+      assertThat(result.impression.customDirectMethodology.variance.scalar)
+        .isGreaterThan(threshold.toDouble() * threshold)
+    }
 
   @Test
   fun `buildMeasurementResult does not report variance for true zero impressions`() = runBlocking {

@@ -342,7 +342,7 @@ class ReachAndFrequencyComputationsTest {
     val result =
       ReachAndFrequencyComputations.computeReach(
         rawHistogram = longArrayOf(1000, 500, 100),
-        vidSamplingIntervalWidth = 1.0,
+        vidSamplingIntervalWidth = 0.5,
         vectorSize = 10000,
         noiser = GAUSSIAN_NOISER,
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = threshold, minImpressions = 1),
@@ -351,7 +351,7 @@ class ReachAndFrequencyComputationsTest {
     assertThat(result.value).isEqualTo(0L)
     assertThat(result.variance)
       .isWithin(1E-9)
-      .of(threshold.toDouble() * threshold + GAUSSIAN_NOISER.reachVariance)
+      .of(threshold.toDouble() * threshold + GAUSSIAN_NOISER.reachVariance / (0.5 * 0.5))
   }
 
   @Test
@@ -507,13 +507,16 @@ class ReachAndFrequencyComputationsTest {
         maxFrequency = maxFrequency,
         noiser = GAUSSIAN_NOISER,
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = threshold, minImpressions = 1),
-        vidSamplingIntervalWidth = 1.0,
+        vidSamplingIntervalWidth = 0.5,
       )
 
     assertThat(result.value.values.all { it == 0.0 }).isTrue()
     assertThat(result.variance)
       .isWithin(1E-9)
-      .of(threshold.toDouble() * threshold + maxFrequency * GAUSSIAN_NOISER.frequencyBucketVariance)
+      .of(
+        threshold.toDouble() * threshold +
+          maxFrequency * GAUSSIAN_NOISER.frequencyBucketVariance / (0.5 * 0.5)
+      )
   }
 
   @Test

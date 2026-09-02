@@ -142,7 +142,7 @@ class ImpressionComputationsTest {
     val result =
       ImpressionComputations.computeImpressionCount(
         rawHistogram = longArrayOf(1000, 500),
-        vidSamplingIntervalWidth = 1.0,
+        vidSamplingIntervalWidth = 0.5,
         noiser = noiser,
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 1, minImpressions = threshold),
       )
@@ -150,7 +150,7 @@ class ImpressionComputationsTest {
     assertThat(result.value).isEqualTo(0L)
     assertThat(result.variance)
       .isWithin(1E-9)
-      .of(threshold.toDouble() * threshold + noiser.impressionVariance)
+      .of(threshold.toDouble() * threshold + noiser.impressionVariance / (0.5 * 0.5))
   }
 
   @Test
@@ -425,6 +425,10 @@ class ImpressionComputationsTest {
       )
 
     assertThat(result.value).isEqualTo(0L)
+    val unsuppressed = dynamicallyClipped(COARSE_RHO)
+    assertThat(result.variance)
+      .isWithin(result.variance * RELATIVE_TOLERANCE)
+      .of(unsuppressed.variance + 500.0 * 500.0)
   }
 
   @Test
