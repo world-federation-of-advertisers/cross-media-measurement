@@ -251,12 +251,20 @@ class SpannerRawImpressionUploadService(
           if (existing.rawImpressionUpload.registrationComplete) {
             return@run existing.rawImpressionUpload to false
           }
+          if (
+            existing.rawImpressionUpload.state ==
+              RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED
+          ) {
+            return@run existing.rawImpressionUpload to false
+          }
           val completedState =
             if (
-              txn.rawImpressionUploadHasModelLines(
-                request.dataProviderResourceId,
-                existing.rawImpressionUploadId,
-              )
+              existing.rawImpressionUpload.state !=
+                RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED ||
+                txn.rawImpressionUploadHasModelLines(
+                  request.dataProviderResourceId,
+                  existing.rawImpressionUploadId,
+                )
             ) {
               null
             } else {
