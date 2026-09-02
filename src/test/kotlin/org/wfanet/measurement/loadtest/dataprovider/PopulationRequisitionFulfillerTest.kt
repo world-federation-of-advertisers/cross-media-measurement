@@ -470,7 +470,57 @@ class PopulationRequisitionFulfillerTest {
   }
 
   @Test
-  fun `uses end of gradual rollout period as rollout date`() {
+  fun `uses ModelRollout that starts last when an earlier gradual rollout ends later`() {
+    // The gradual rollout starts first but is still in progress when the instant rollout starts.
+    // It also has the later createTime, so ordering must come from the rollout start date.
+    modelRolloutsServiceMock.stub {
+      onBlocking { listModelRollouts(any()) }
+        .thenReturn(
+          listModelRolloutsResponse {
+            modelRollouts += modelRollout {
+              name = MODEL_ROLLOUT_NAME
+              gradualRolloutPeriod = dateInterval {
+                startDate = ROLLOUT_DATE_EARLIER
+                endDate = ROLLOUT_DATE_LATEST
+              }
+              createTime = CREATE_TIME_2
+              modelRelease = MODEL_RELEASE_NAME_1
+            }
+            modelRollouts += modelRollout {
+              name = MODEL_ROLLOUT_NAME_2
+              instantRolloutDate = ROLLOUT_DATE_LATER
+              createTime = CREATE_TIME_1
+              modelRelease = MODEL_RELEASE_NAME_2
+            }
+          }
+        )
+    }
+
+    val requisitionFulfiller =
+      PopulationRequisitionFulfiller(
+        PDP_DATA,
+        certificatesStub,
+        requisitionsStub,
+        dummyThrottler,
+        TRUSTED_CERTIFICATES,
+        modelRolloutsStub,
+        modelReleasesStub,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
+        kingdomRpcThrottler = dummyKingdomRpcThrottler,
+      )
+
+    runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
+
+    val request: GetModelReleaseRequest =
+      verifyAndCapture(modelReleasesServiceMock, ModelReleasesCoroutineImplBase::getModelRelease)
+    assertThat(request.name).isEqualTo(MODEL_RELEASE_NAME_2)
+  }
+
+  @Test
+  fun `uses latest ModelRollout from a subsequent page`() {
+    // ListModelRollouts orders by rollout start time ascending, so the latest ModelRollout is on
+    // the last page.
     modelRolloutsServiceMock.stub {
       onBlocking { listModelRollouts(any()) }
         .thenReturn(
@@ -478,19 +528,19 @@ class PopulationRequisitionFulfillerTest {
             modelRollouts += modelRollout {
               name = MODEL_ROLLOUT_NAME
               instantRolloutDate = ROLLOUT_DATE_EARLIER
-              createTime = CREATE_TIME_2
+              createTime = CREATE_TIME_1
               modelRelease = MODEL_RELEASE_NAME_1
             }
+            nextPageToken = NEXT_PAGE_TOKEN
+          },
+          listModelRolloutsResponse {
             modelRollouts += modelRollout {
               name = MODEL_ROLLOUT_NAME_2
-              gradualRolloutPeriod = dateInterval {
-                startDate = ROLLOUT_DATE_EARLIER
-                endDate = ROLLOUT_DATE_LATER
-              }
-              createTime = CREATE_TIME_1
+              instantRolloutDate = ROLLOUT_DATE_LATER
+              createTime = CREATE_TIME_2
               modelRelease = MODEL_RELEASE_NAME_2
             }
-          }
+          },
         )
     }
 
@@ -760,6 +810,9 @@ class PopulationRequisitionFulfillerTest {
 
     private val ROLLOUT_DATE_EARLIER: Date = LocalDate.of(2024, 1, 1).toProtoDate()
     private val ROLLOUT_DATE_LATER: Date = LocalDate.of(2025, 1, 1).toProtoDate()
+    private val ROLLOUT_DATE_LATEST: Date = LocalDate.of(2026, 1, 1).toProtoDate()
+
+    private const val NEXT_PAGE_TOKEN = "next-page-token"
 
     private val MODEL_RELEASE_1 = modelRelease {
       name = MODEL_RELEASE_NAME_1
