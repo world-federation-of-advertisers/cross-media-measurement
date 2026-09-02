@@ -236,9 +236,12 @@ class PopulationRequisitionFulfiller(
     // ModelRollouts for a ModelLine commonly share a rollout start date, so createTime breaks ties
     // in favor of the most recently created one.
     val latestModelRollout: ModelRollout =
-      modelRolloutLists.flattenConcat().toList().maxWithOrNull(
-        compareBy<ModelRollout>({ it.rolloutStartDate }, { it.createTime.toInstant() })
-      ) ?: throw UnfulfillableRequisitionException("ModelLine $modelLineName has no ModelRollout")
+      modelRolloutLists
+        .flattenConcat()
+        .toList()
+        .maxWithOrNull(
+          compareBy<ModelRollout>({ it.rolloutStartDate }, { it.createTime.toInstant() })
+        ) ?: throw UnfulfillableRequisitionException("ModelLine $modelLineName has no ModelRollout")
     val modelReleaseName = latestModelRollout.modelRelease
 
     // Returns ModelRelease associated with latest ModelRollout.
