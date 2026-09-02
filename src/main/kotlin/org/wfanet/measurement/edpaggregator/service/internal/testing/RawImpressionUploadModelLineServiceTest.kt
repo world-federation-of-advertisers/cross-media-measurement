@@ -93,7 +93,9 @@ abstract class RawImpressionUploadModelLineServiceTest {
    * Creates one model line and drives it — and therefore the sole-child parent upload — to
    * COMPLETED (non-memoized path: CREATED -> LABELING -> COMPLETED).
    */
-  private suspend fun completeSoleModelLine(cmmsModelLine: String = CMMS_MODEL_LINE) {
+  private suspend fun completeSoleModelLine(
+    cmmsModelLine: String = CMMS_MODEL_LINE
+  ): RawImpressionUploadModelLine {
     val created =
       service.createRawImpressionUploadModelLine(
         createRawImpressionUploadModelLineRequest {
@@ -114,7 +116,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
         etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
       }
     )
-    service.markRawImpressionUploadModelLineCompleted(
+    return service.markRawImpressionUploadModelLineCompleted(
       markRawImpressionUploadModelLineCompletedRequest {
         requestId = UUID.randomUUID().toString()
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
@@ -968,6 +970,31 @@ abstract class RawImpressionUploadModelLineServiceTest {
       .isEqualTo(RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED)
     assertThat(modelLine.errorMessage).isEqualTo("something went wrong")
   }
+
+  @Test
+  fun `markRawImpressionUploadModelLineFailed transitions from COMPLETED to FAILED`() =
+    runBlocking {
+      val completed = completeSoleModelLine()
+
+      val modelLine =
+        service.markRawImpressionUploadModelLineFailed(
+          markRawImpressionUploadModelLineFailedRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId =
+              completed.rawImpressionUploadModelLineResourceId
+            etag = currentEtag(completed.rawImpressionUploadModelLineResourceId)
+            errorMessage = "completed output contains invalid data"
+          }
+        )
+
+      assertThat(modelLine.state)
+        .isEqualTo(RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED)
+      assertThat(modelLine.errorMessage).isEqualTo("completed output contains invalid data")
+      assertThat(getParentUploadState(DATA_PROVIDER_RESOURCE_ID, RAW_IMPRESSION_UPLOAD_RESOURCE_ID))
+        .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED)
+    }
 
   @Test
   fun `markRawImpressionUploadModelLineFailed transitions from POOL_ASSIGNING to FAILED`() =
