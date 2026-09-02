@@ -84,4 +84,7 @@ message RawImpressionUpload {
       type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
     }
   ];
+
+  // Whether registration of this upload's files and model lines finished.
+  bool registration_complete = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

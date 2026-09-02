@@ -33,7 +33,10 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadB
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUpload
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadExists
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadHasModelLines
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploads
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadRegistrationComplete
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadState
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
@@ -45,6 +48,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsPag
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsResponse
+import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUpload
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
@@ -137,6 +141,20 @@ class SpannerRawImpressionUploadService(
               )
               .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
           }
+          if (
+            previous?.rawImpressionUpload?.state ==
+              RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED &&
+              !previous.rawImpressionUpload.registrationComplete
+          ) {
+            // The previous dispatcher invocation did not finish registration. Supersede it in the
+            // same transaction that claims this newer generation. Any concurrent attempt to add
+            // model lines to the previous upload will conflict and then observe FAILED.
+            txn.updateRawImpressionUploadState(
+              request.dataProviderResourceId,
+              previous.rawImpressionUploadId,
+              RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
+            )
+          }
           val replacesResourceId = previous?.rawImpressionUpload?.rawImpressionUploadResourceId
 
           val rawImpressionUploadId: Long =
@@ -166,6 +184,7 @@ class SpannerRawImpressionUploadService(
               replacesRawImpressionUploadResourceId = replacesResourceId
             }
             state = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED
+            registrationComplete = false
           }
         }
       } catch (e: SpannerException) {
@@ -192,6 +211,84 @@ class SpannerRawImpressionUploadService(
     return result.copy {
       createTime = commitTimestamp
       updateTime = commitTimestamp
+    }
+  }
+
+  override suspend fun markRawImpressionUploadRegistrationComplete(
+    request: MarkRawImpressionUploadRegistrationCompleteRequest
+  ): RawImpressionUpload {
+    if (request.dataProviderResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("data_provider_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.rawImpressionUploadResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("raw_impression_upload_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val transactionRunner =
+      databaseClient.readWriteTransaction(
+        Options.tag("action=markRawImpressionUploadRegistrationComplete")
+      )
+    val (result, changed) =
+      try {
+        transactionRunner.run { txn ->
+          val existing =
+            txn.getRawImpressionUploadByResourceId(
+              request.dataProviderResourceId,
+              request.rawImpressionUploadResourceId,
+            )
+          if (existing.rawImpressionUpload.registrationComplete) {
+            return@run existing.rawImpressionUpload to false
+          }
+          if (
+            existing.rawImpressionUpload.state ==
+              RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED
+          ) {
+            return@run existing.rawImpressionUpload to false
+          }
+          val completedState =
+            if (
+              existing.rawImpressionUpload.state !=
+                RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED ||
+                txn.rawImpressionUploadHasModelLines(
+                  request.dataProviderResourceId,
+                  existing.rawImpressionUploadId,
+                )
+            ) {
+              null
+            } else {
+              RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED
+            }
+          txn.updateRawImpressionUploadRegistrationComplete(
+            request.dataProviderResourceId,
+            existing.rawImpressionUploadId,
+            completedState,
+          )
+          existing.rawImpressionUpload.copy {
+            registrationComplete = true
+            if (completedState != null) {
+              state = completedState
+            }
+          } to true
+        }
+      } catch (e: RawImpressionUploadNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      }
+    return if (changed) {
+      result.copy { updateTime = transactionRunner.getCommitTimestamp().toProto() }
+    } else {
+      result
     }
   }
 

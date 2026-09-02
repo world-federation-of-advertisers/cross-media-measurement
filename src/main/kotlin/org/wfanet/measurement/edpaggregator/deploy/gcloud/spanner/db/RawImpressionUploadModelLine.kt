@@ -88,6 +88,29 @@ suspend fun AsyncDatabaseClient.ReadContext.rawImpressionUploadModelLineExists(
   ) != null
 }
 
+/** Returns whether [rawImpressionUploadId] has any registered model-line children. */
+suspend fun AsyncDatabaseClient.ReadContext.rawImpressionUploadHasModelLines(
+  dataProviderResourceId: String,
+  rawImpressionUploadId: Long,
+): Boolean {
+  val sql =
+    """
+    SELECT RawImpressionUploadModelLineId
+    FROM RawImpressionUploadModelLine
+    WHERE DataProviderResourceId = @dataProviderResourceId
+      AND RawImpressionUploadId = @rawImpressionUploadId
+    LIMIT 1
+    """
+      .trimIndent()
+  return executeQuery(
+      statement(sql) {
+        bind("dataProviderResourceId").to(dataProviderResourceId)
+        bind("rawImpressionUploadId").to(rawImpressionUploadId)
+      }
+    )
+    .singleOrNullIfEmpty() != null
+}
+
 /**
  * Returns the parent [RawImpressionUpload]'s current [RawImpressionUploadState], or `null` if the
  * row is missing.

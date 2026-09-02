@@ -31,7 +31,9 @@ import java.util.logging.Logger
 import kotlin.time.TimeSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
@@ -45,8 +47,11 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.edpaggregator.BlobUris
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadFileKey
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequestKt.filter as rawUploadFileFilter
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt.filter as rawUploadFilter
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
@@ -56,7 +61,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUplo
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadFileRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
@@ -108,6 +115,12 @@ class VidLabelingDispatcher(
   private val metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
 ) {
 
+  private data class RawBlobVersion(
+    val blob: StorageClient.Blob,
+    val blobUri: String,
+    val generation: Long,
+  )
+
   /** Caps concurrent Parquet-footer reads so footer fan-out stays well under GCS per-bucket QPS. */
   private val readSemaphore = Semaphore(FOOTER_READ_PARALLELISM)
 
@@ -126,22 +139,65 @@ class VidLabelingDispatcher(
 
     try {
       val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
-      val folderPrefix: String = doneBlobUri.key.substringBeforeLast("/")
+      val folderPrefix: String =
+        doneBlobUri.key.substringBeforeLast("/", missingDelimiterValue = "")
+      val listingPrefix = if (folderPrefix.isEmpty()) "" else "$folderPrefix/"
+
+      if (!isCurrentDoneBlobGeneration(doneBlobUri, doneBlobGeneration)) {
+        logger.info("Ignoring stale done-object generation $doneBlobGeneration for $doneBlobPath")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
 
       val blobs: List<StorageClient.Blob> =
-        storageClient.listBlobs(folderPrefix).filter { !isDoneMarker(it.blobKey) }.toList()
-      val blobKeys: List<String> = blobs.map { it.blobKey }
+        storageClient.listBlobs(listingPrefix).filter { !isDoneMarker(it.blobKey) }.toList()
 
-      if (blobKeys.isEmpty()) {
+      if (blobs.isEmpty()) {
         logger.info("No raw impression files found in $folderPrefix")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
       }
 
-      metrics.filesProcessedCounter.add(
-        blobKeys.size.toLong(),
-        Attributes.of(DATA_PROVIDER_ATTR, dataProviderName),
-      )
+      val revisions = listUploadsByDoneBlob(doneBlobPath)
+      val latestRevision = revisions.maxByOrNull { it.doneBlobGeneration }
+      if (latestRevision != null && latestRevision.doneBlobGeneration > doneBlobGeneration) {
+        logger.info("Ignoring stale done-object generation $doneBlobGeneration for $doneBlobPath")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
+      val exactRevision = revisions.firstOrNull { it.doneBlobGeneration == doneBlobGeneration }
+      val previousRevision =
+        if (exactRevision != null && exactRevision.replacesRawImpressionUpload.isNotEmpty()) {
+          revisions.firstOrNull { it.name == exactRevision.replacesRawImpressionUpload }
+        } else {
+          latestRevision?.takeIf { it.doneBlobGeneration < doneBlobGeneration }
+        }
+      val currentBlobVersions = resolveBlobVersions(blobs, doneBlobUri)
+      val candidateBlobs =
+        if (previousRevision?.state == RawImpressionUpload.State.FAILED) {
+          currentBlobVersions
+        } else {
+          selectUnregisteredBlobVersions(currentBlobVersions, exactRevision?.name)
+        }
+
+      val registrationBaseline = exactRevision ?: previousRevision
+      if (
+        candidateBlobs.isEmpty() &&
+          (registrationBaseline == null || isRegistrationComplete(registrationBaseline))
+      ) {
+        logger.info("No new raw impression object versions found in $folderPrefix")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
+
+      // A newer done object can be written while this invocation is listing and diffing the
+      // directory. Do not register a stale view. The metadata service additionally serializes
+      // distinct generations transactionally, closing the race between this check and create.
+      if (!isCurrentDoneBlobGeneration(doneBlobUri, doneBlobGeneration)) {
+        logger.info("Ignoring stale done-object generation $doneBlobGeneration for $doneBlobPath")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
 
       val rawImpressionUpload = createRawImpressionUpload(doneBlobPath, doneBlobGeneration)
       if (rawImpressionUpload == null) {
@@ -150,20 +206,66 @@ class VidLabelingDispatcher(
         return
       }
 
-      createRawImpressionUploadFiles(rawImpressionUpload.name, blobs, doneBlobUri)
+      // Creating this revision atomically supersedes any incomplete predecessor. Re-read the
+      // chain and recompute the delta so a concurrent newer marker either wins cleanly, or this
+      // revision includes the complete directory after replacing a partial predecessor.
+      val refreshedRevisions = listUploadsByDoneBlob(doneBlobPath)
+      val refreshedLatest = refreshedRevisions.maxByOrNull { it.doneBlobGeneration }
+      if (
+        refreshedLatest != null &&
+          (refreshedLatest.doneBlobGeneration > doneBlobGeneration ||
+            (refreshedLatest.doneBlobGeneration == doneBlobGeneration &&
+              refreshedLatest.state == RawImpressionUpload.State.FAILED))
+      ) {
+        logger.info(
+          "Ignoring superseded done-object generation $doneBlobGeneration for $doneBlobPath"
+        )
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
+      val refreshedCurrent =
+        refreshedRevisions.firstOrNull { it.doneBlobGeneration == doneBlobGeneration }
+          ?: rawImpressionUpload
+      val refreshedPrevious =
+        refreshedCurrent.replacesRawImpressionUpload
+          .takeIf { it.isNotEmpty() }
+          ?.let { replacedName -> refreshedRevisions.firstOrNull { it.name == replacedName } }
+          ?: previousRevision
+      val blobsToRegister =
+        if (refreshedPrevious?.state == RawImpressionUpload.State.FAILED) {
+          currentBlobVersions
+        } else {
+          selectUnregisteredBlobVersions(currentBlobVersions, refreshedCurrent.name)
+        }
+
+      if (blobsToRegister.isEmpty() && !hasRegisteredFiles(refreshedCurrent.name)) {
+        markRegistrationComplete(rawImpressionUpload.name)
+        logger.info("No new raw impression object versions found in $folderPrefix")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
+
+      metrics.filesProcessedCounter.add(
+        blobsToRegister.size.toLong(),
+        Attributes.of(DATA_PROVIDER_ATTR, dataProviderName),
+      )
+
+      createRawImpressionUploadFiles(rawImpressionUpload.name, blobsToRegister)
 
       val resolvedModelLineNames = resolveModelLines()
 
       if (resolvedModelLineNames.isEmpty()) {
+        markRegistrationComplete(rawImpressionUpload.name)
         logger.info("No active model lines resolved for $modelSuiteName")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
       }
 
       createRawImpressionUploadModelLines(rawImpressionUpload.name, resolvedModelLineNames)
+      markRegistrationComplete(rawImpressionUpload.name)
 
       logger.info(
-        "Registered upload ${rawImpressionUpload.name} with ${blobKeys.size} files and " +
+        "Registered upload ${rawImpressionUpload.name} with ${blobsToRegister.size} files and " +
           "${resolvedModelLineNames.size} model lines"
       )
 
@@ -349,6 +451,29 @@ class VidLabelingDispatcher(
     }
   }
 
+  private suspend fun markRegistrationComplete(uploadName: String) {
+    rawImpressionUploadStub.markRawImpressionUploadRegistrationComplete(
+      markRawImpressionUploadRegistrationCompleteRequest {
+        name = uploadName
+        requestId = RequestIds.forRawImpressionUploadRegistrationComplete(uploadName)
+      }
+    )
+  }
+
+  private suspend fun hasRegisteredFiles(uploadName: String): Boolean {
+    val response =
+      rawImpressionUploadFilesStub.listRawImpressionUploadFiles(
+        listRawImpressionUploadFilesRequest {
+          parent = uploadName
+          pageSize = 1
+        }
+      )
+    return response.rawImpressionUploadFilesCount > 0
+  }
+
+  private fun isRegistrationComplete(upload: RawImpressionUpload): Boolean =
+    upload.registrationComplete || upload.state != RawImpressionUpload.State.CREATED
+
   /**
    * Finds the existing `RawImpressionUpload` for the exact done-object version. Used to recover
    * from `ALREADY_EXISTS` on create.
@@ -382,6 +507,11 @@ class VidLabelingDispatcher(
   /** Finds the latest registered revision at [doneBlobPath]. */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private suspend fun findLatestUploadByDoneBlob(doneBlobPath: String): RawImpressionUpload? =
+    listUploadsByDoneBlob(doneBlobPath).maxByOrNull { it.doneBlobGeneration }
+
+  /** Lists every registered revision for [doneBlobPath]. */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  private suspend fun listUploadsByDoneBlob(doneBlobPath: String): List<RawImpressionUpload> =
     rawImpressionUploadStub
       .listResources { pageToken: String ->
         val response =
@@ -396,7 +526,79 @@ class VidLabelingDispatcher(
       }
       .flattenConcat()
       .toList()
-      .maxByOrNull { it.doneBlobGeneration }
+
+  private suspend fun resolveBlobVersions(
+    blobs: List<StorageClient.Blob>,
+    doneBlobUri: BlobUri,
+  ): List<RawBlobVersion> = buildList {
+    for (chunk in blobs.chunked(RAW_IMPRESSION_UPLOAD_FILE_LOOKUP_BATCH_SIZE)) {
+      addAll(
+        coroutineScope {
+          chunk
+            .map { blob ->
+              async {
+                RawBlobVersion(
+                  blob = blob,
+                  blobUri = BlobUris.buildUri(doneBlobUri, blob.blobKey),
+                  generation = readSemaphore.withPermit { readBlobGeneration(blob.blobKey) },
+                )
+              }
+            }
+            .awaitAll()
+        }
+      )
+    }
+  }
+
+  private suspend fun isCurrentDoneBlobGeneration(
+    doneBlobUri: BlobUri,
+    expectedGeneration: Long,
+  ): Boolean =
+    readSemaphore.withPermit { readBlobGeneration(doneBlobUri.key) } == expectedGeneration
+
+  /** Returns object versions that have not been registered by an earlier upload. */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  private suspend fun selectUnregisteredBlobVersions(
+    current: List<RawBlobVersion>,
+    currentUploadName: String?,
+  ): List<RawBlobVersion> {
+    val registeredVersions = mutableSetOf<Pair<String, Long>>()
+    val legacyRegisteredUris = mutableSetOf<String>()
+    for (chunk in current.chunked(RAW_IMPRESSION_UPLOAD_FILE_LOOKUP_BATCH_SIZE)) {
+      rawImpressionUploadFilesStub
+        .listResources { pageToken: String ->
+          val response =
+            rawImpressionUploadFilesStub.listRawImpressionUploadFiles(
+              listRawImpressionUploadFilesRequest {
+                parent = "$dataProviderName/rawImpressionUploads/-"
+                filter = rawUploadFileFilter { blobUriIn += chunk.map { it.blobUri } }
+                showDeleted = true
+                if (pageToken.isNotEmpty()) this.pageToken = pageToken
+              }
+            )
+          ResourceList(response.rawImpressionUploadFilesList, response.nextPageToken)
+        }
+        .flattenConcat()
+        .filter { file -> parentUploadName(file) != currentUploadName }
+        .collect { file ->
+          if (file.blobGeneration == 0L) {
+            legacyRegisteredUris += file.blobUri
+          } else {
+            registeredVersions += file.blobUri to file.blobGeneration
+          }
+        }
+    }
+    return current.filter {
+      it.blobUri !in legacyRegisteredUris && (it.blobUri to it.generation) !in registeredVersions
+    }
+  }
+
+  private fun parentUploadName(file: RawImpressionUploadFile): String =
+    requireNotNull(RawImpressionUploadFileKey.fromName(file.name)) {
+        "Malformed RawImpressionUploadFile resource name: ${file.name}"
+      }
+      .parentKey
+      .toName()
 
   private fun LocalDate.toProtoDate(): Date = date {
     year = this@toProtoDate.year
@@ -409,12 +611,10 @@ class VidLabelingDispatcher(
    *
    * @param uploadName resource name of the parent `RawImpressionUpload`.
    * @param blobs raw-impression file blobs (key + size) in the upload.
-   * @param doneBlobUri parsed URI of the "done" blob, used to reconstruct full blob URIs.
    */
   private suspend fun createRawImpressionUploadFiles(
     uploadName: String,
-    blobs: List<StorageClient.Blob>,
-    doneBlobUri: BlobUri,
+    blobs: List<RawBlobVersion>,
   ) {
     for (chunk in blobs.chunked(RAW_IMPRESSION_UPLOAD_FILE_BATCH_SIZE)) {
       // Resolve each file's event date from its Parquet footer up front, in bounded parallel. Every
@@ -424,35 +624,31 @@ class VidLabelingDispatcher(
       // BatchCreate writes below stay serial on purpose: they all write interleaved children of the
       // same RawImpressionUpload row, so parallelizing them would only force Spanner to
       // lock-serialize (or abort-retry) the writes.
-      val fileMetadataByBlobKey: Map<String, Pair<LocalDate, Long>> = coroutineScope {
+      val eventDateByBlobKey: Map<String, LocalDate> = coroutineScope {
         chunk
-          .associate { blob ->
-            blob.blobKey to
-              async {
-                readSemaphore.withPermit {
-                  readEventDate(blob.blobKey) to readBlobGeneration(blob.blobKey)
-                }
-              }
+          .associate { blobVersion ->
+            blobVersion.blob.blobKey to
+              async { readSemaphore.withPermit { readEventDate(blobVersion.blob.blobKey) } }
           }
           .mapValues { (_, deferred) -> deferred.await() }
       }
 
       val request = batchCreateRawImpressionUploadFilesRequest {
         parent = uploadName
-        for (blob in chunk) {
-          val fileBlobUri = BlobUris.buildUri(doneBlobUri, blob.blobKey)
+        for (blobVersion in chunk) {
+          val blob = blobVersion.blob
           requests += createRawImpressionUploadFileRequest {
             parent = uploadName
             // size_bytes (REQUIRED) is the GCS object size from the directory listing (the Phase-1
             // last-out bin-packer batches files by it). event_date (REQUIRED) is read from the
             // file's plaintext Parquet footer so consumers can reconcile registered files by date.
             rawImpressionUploadFile = rawImpressionUploadFile {
-              blobUri = fileBlobUri
-              blobGeneration = fileMetadataByBlobKey.getValue(blob.blobKey).second
+              blobUri = blobVersion.blobUri
+              blobGeneration = blobVersion.generation
               sizeBytes = blob.size
-              this.eventDate = fileMetadataByBlobKey.getValue(blob.blobKey).first.toProtoDate()
+              this.eventDate = eventDateByBlobKey.getValue(blob.blobKey).toProtoDate()
             }
-            requestId = RequestIds.forRawImpressionUploadFile(uploadName, fileBlobUri)
+            requestId = RequestIds.forRawImpressionUploadFile(uploadName, blobVersion.blobUri)
           }
         }
       }
@@ -527,6 +723,7 @@ class VidLabelingDispatcher(
     private const val DONE_MARKER_FILE_NAME = "done"
 
     private const val RAW_IMPRESSION_UPLOAD_FILE_BATCH_SIZE = 100
+    private const val RAW_IMPRESSION_UPLOAD_FILE_LOOKUP_BATCH_SIZE = 100
     private const val RAW_IMPRESSION_UPLOAD_MODEL_LINE_BATCH_SIZE = 50
 
     /** Max concurrent Parquet-footer reads when resolving event dates (well under GCS QPS). */
