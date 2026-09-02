@@ -50,6 +50,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt.filter as listFilter
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.batchUndeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchUpdateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
@@ -381,18 +382,24 @@ class DataAvailabilitySync(
       // Partition into creates and updates
       val toCreate = mutableListOf<ImpressionMetadataWithBlobKey>()
       val toUpdate = mutableListOf<ImpressionMetadataWithBlobKey>()
+      val toRestore = mutableListOf<ImpressionMetadata>()
 
       for (item in impressionMetadataList) {
         val existing = existingByBlobUri[item.impressionMetadata.blobUri]
         if (existing == null) {
           toCreate.add(item)
-        } else if (hasContentChanged(item.impressionMetadata, existing)) {
-          toUpdate.add(
-            ImpressionMetadataWithBlobKey(
-              impressionMetadata = item.impressionMetadata.copy { name = existing.name },
-              impressionsBlobKey = item.impressionsBlobKey,
+        } else {
+          if (existing.state == ImpressionMetadata.State.DELETED) {
+            toRestore.add(existing)
+          }
+          if (hasContentChanged(item.impressionMetadata, existing)) {
+            toUpdate.add(
+              ImpressionMetadataWithBlobKey(
+                impressionMetadata = item.impressionMetadata.copy { name = existing.name },
+                impressionsBlobKey = item.impressionsBlobKey,
+              )
             )
-          )
+          }
         }
       }
 
@@ -437,6 +444,22 @@ class DataAvailabilitySync(
             .impressionMetadataList
         }
 
+      // Restore soft-deleted entries only after their latest content has been persisted. This
+      // prevents stale metadata from becoming visible if an update fails.
+      val restoreResponses =
+        toRestore.chunked(impressionMetadataBatchSize).flatMap { restoreChunk ->
+          throttler
+            .onReady {
+              impressionMetadataServiceStub.batchUndeleteImpressionMetadata(
+                batchUndeleteImpressionMetadataRequest {
+                  parent = dataProviderName
+                  names += restoreChunk.map { it.name }
+                }
+              )
+            }
+            .impressionMetadataList
+        }
+
       // Set GCS object metadata on every scanned metadata blob — not just newly
       // created/updated ones. A re-sync of a date whose metadata content is unchanged would
       // land in neither `createResponses` nor `updateResponses` (contentAwareRequestId
@@ -446,6 +469,7 @@ class DataAvailabilitySync(
       val resourceIdByBlobUri: Map<String, ImpressionMetadata> =
         (existingByBlobUri +
           createResponses.associateBy { it.blobUri } +
+          restoreResponses.associateBy { it.blobUri } +
           updateResponses.associateBy { it.blobUri })
       for (item in impressionMetadataList) {
         val blobUri = item.impressionMetadata.blobUri
@@ -490,6 +514,7 @@ class DataAvailabilitySync(
                   listImpressionMetadataRequest {
                     parent = dataProviderName
                     filter = listFilter { this.blobUris += blobUriChunk }
+                    showDeleted = true
                     if (pageToken.isNotEmpty()) {
                       this.pageToken = pageToken
                     }

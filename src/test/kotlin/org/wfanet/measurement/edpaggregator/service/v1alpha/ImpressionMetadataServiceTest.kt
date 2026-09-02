@@ -55,6 +55,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadat
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.batchUndeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
@@ -65,6 +66,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.getImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.undeleteImpressionMetadataRequest
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase as InternalImpressionMetadataServiceCoroutineImplBase
@@ -1193,9 +1195,9 @@ class ImpressionMetadataServiceTest {
     }
 
   @Test
-  fun `listImpressionMetadata returns deleted ImpressionMetadata when show deleted is set to true`() =
+  fun `listImpressionMetadata includes deleted ImpressionMetadata when show deleted is true`() =
     runBlocking {
-      val created = createImpressionMetadata(IMPRESSION_METADATA)
+      val created = createImpressionMetadata(IMPRESSION_METADATA, IMPRESSION_METADATA_2)
       val deleted =
         service.deleteImpressionMetadata(deleteImpressionMetadataRequest { name = created[0].name })
 
@@ -1208,8 +1210,61 @@ class ImpressionMetadataServiceTest {
         )
 
       assertThat(response)
-        .isEqualTo(listImpressionMetadataResponse { impressionMetadata += deleted })
+        .isEqualTo(
+          listImpressionMetadataResponse {
+            impressionMetadata += listOf(deleted, created[1]).sortedBy { it.name }
+          }
+        )
     }
+
+  @Test
+  fun `undeleteImpressionMetadata restores deleted metadata`() = runBlocking {
+    val created = createImpressionMetadata(IMPRESSION_METADATA).single()
+    service.deleteImpressionMetadata(deleteImpressionMetadataRequest { name = created.name })
+
+    val restored =
+      service.undeleteImpressionMetadata(undeleteImpressionMetadataRequest { name = created.name })
+
+    assertThat(restored.state).isEqualTo(ImpressionMetadata.State.ACTIVE)
+    assertThat(restored.name).isEqualTo(created.name)
+  }
+
+  @Test
+  fun `batchUndeleteImpressionMetadata restores deleted metadata`() = runBlocking {
+    val created = createImpressionMetadata(IMPRESSION_METADATA, IMPRESSION_METADATA_2)
+    service.batchDeleteImpressionMetadata(
+      batchDeleteImpressionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        names += created.map { it.name }
+      }
+    )
+
+    val response =
+      service.batchUndeleteImpressionMetadata(
+        batchUndeleteImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          names += created.map { it.name }
+        }
+      )
+
+    assertThat(response.impressionMetadataList.map { it.state })
+      .containsExactly(ImpressionMetadata.State.ACTIVE, ImpressionMetadata.State.ACTIVE)
+  }
+
+  @Test
+  fun `batchUndeleteImpressionMetadata rejects name under another parent`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchUndeleteImpressionMetadata(
+          batchUndeleteImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            names += "dataProviders/another/impressionMetadata/impression-1"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
 
   @Test
   fun `listImpressionMetadata throws INVALID_ARGUMENT when parent is not set`() = runBlocking {
