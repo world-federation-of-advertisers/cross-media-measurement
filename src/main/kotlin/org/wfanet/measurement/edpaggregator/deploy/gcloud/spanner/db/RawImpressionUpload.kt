@@ -352,11 +352,15 @@ private fun buildRawImpressionUploadResult(struct: Struct): RawImpressionUploadR
 fun AsyncDatabaseClient.TransactionContext.updateRawImpressionUploadRegistrationComplete(
   dataProviderResourceId: String,
   rawImpressionUploadId: Long,
+  state: RawImpressionUploadState? = null,
 ) {
   bufferUpdateMutation("RawImpressionUpload") {
     set("DataProviderResourceId").to(dataProviderResourceId)
     set("RawImpressionUploadId").to(rawImpressionUploadId)
     set("RegistrationComplete").to(true)
+    if (state != null) {
+      set("State").to(state)
+    }
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
 }
