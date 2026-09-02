@@ -95,7 +95,7 @@ class DirectReachResultBuilder(
         this.noiseMechanism = protocolConfigNoiseMechanism
         if (needsThresholdVariance) {
           customDirectMethodology =
-            buildThresholdedReachMethodology(requireNotNull(resultMinimumThresholds))
+            ThresholdedResultMethodologies.buildReach(requireNotNull(resultMinimumThresholds))
         } else {
           deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
         }

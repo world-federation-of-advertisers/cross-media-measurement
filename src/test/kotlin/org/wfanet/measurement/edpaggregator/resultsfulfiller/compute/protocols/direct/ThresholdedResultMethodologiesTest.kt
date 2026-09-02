@@ -1,0 +1,92 @@
+/*
+ * Copyright 2026 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
+
+import com.google.common.truth.Truth.assertThat
+import kotlin.test.assertFailsWith
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import org.wfanet.measurement.computation.ResultMinimumThresholds
+
+@RunWith(JUnit4::class)
+class ThresholdedResultMethodologiesTest {
+  @Test
+  fun `buildReach uses min users as standard deviation`() {
+    val methodology = ThresholdedResultMethodologies.buildReach(THRESHOLDS)
+
+    assertThat(methodology.variance.scalar).isEqualTo(160000.0)
+  }
+
+  @Test
+  fun `buildImpression uses min impressions as standard deviation`() {
+    val methodology = ThresholdedResultMethodologies.buildImpression(THRESHOLDS)
+
+    assertThat(methodology.variance.scalar).isEqualTo(4000000.0)
+  }
+
+  @Test
+  fun `buildFrequency sets variance only for frequency one`() {
+    val reach = 1000L
+    val methodology =
+      ThresholdedResultMethodologies.buildFrequency(
+        thresholds = THRESHOLDS,
+        maximumFrequency = 3,
+        reach = reach,
+      )
+
+    val frequencyVariances = methodology.variance.frequency
+    val expectedRelativeVariance = (2000.0 / reach) * (2000.0 / reach)
+    assertThat(frequencyVariances.variancesMap)
+      .containsExactly(1L, expectedRelativeVariance, 2L, 0.0, 3L, 0.0)
+    assertThat(frequencyVariances.kPlusVariancesMap)
+      .containsExactly(1L, expectedRelativeVariance, 2L, 0.0, 3L, 0.0)
+  }
+
+  @Test
+  fun `buildFrequency uses the larger threshold as count standard deviation`() {
+    val thresholds = ResultMinimumThresholds(minUsers = 2500, minImpressions = 1000)
+    val reach = 5000L
+
+    val methodology =
+      ThresholdedResultMethodologies.buildFrequency(
+        thresholds = thresholds,
+        maximumFrequency = 1,
+        reach = reach,
+      )
+
+    assertThat(methodology.variance.frequency.variancesMap.getValue(1L)).isEqualTo(0.25)
+  }
+
+  @Test
+  fun `buildFrequency rejects non-positive reach`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ThresholdedResultMethodologies.buildFrequency(
+          thresholds = THRESHOLDS,
+          maximumFrequency = 3,
+          reach = 0L,
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("Reach must be positive")
+  }
+
+  companion object {
+    private val THRESHOLDS = ResultMinimumThresholds(minUsers = 400, minImpressions = 2000)
+  }
+}

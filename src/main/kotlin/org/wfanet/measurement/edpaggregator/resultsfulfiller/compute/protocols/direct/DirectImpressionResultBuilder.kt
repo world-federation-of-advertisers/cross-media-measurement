@@ -126,7 +126,7 @@ class DirectImpressionResultBuilder(
         this.noiseMechanism = protocolConfigNoiseMechanism
         if (needsThresholdVariance) {
           customDirectMethodology =
-            buildThresholdedImpressionMethodology(requireNotNull(resultMinimumThresholds))
+            ThresholdedResultMethodologies.buildImpression(requireNotNull(resultMinimumThresholds))
         } else {
           this.deterministicCount = deterministicCount {
             customMaximumFrequencyPerUser = effectiveMaxFrequency

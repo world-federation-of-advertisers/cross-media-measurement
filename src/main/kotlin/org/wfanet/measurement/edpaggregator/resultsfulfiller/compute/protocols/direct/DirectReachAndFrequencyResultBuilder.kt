@@ -117,7 +117,7 @@ class DirectReachAndFrequencyResultBuilder(
         this.noiseMechanism = protocolConfigNoiseMechanism
         if (reachNeedsThresholdVariance) {
           customDirectMethodology =
-            buildThresholdedReachMethodology(requireNotNull(resultMinimumThresholds))
+            ThresholdedResultMethodologies.buildReach(requireNotNull(resultMinimumThresholds))
         } else {
           deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
         }
@@ -127,7 +127,7 @@ class DirectReachAndFrequencyResultBuilder(
         this.noiseMechanism = protocolConfigNoiseMechanism
         if (frequencyNeedsThresholdVariance) {
           customDirectMethodology =
-            buildThresholdedFrequencyMethodology(
+            ThresholdedResultMethodologies.buildFrequency(
               thresholds = requireNotNull(resultMinimumThresholds),
               maximumFrequency = maxFrequency,
               reach = reachValue,

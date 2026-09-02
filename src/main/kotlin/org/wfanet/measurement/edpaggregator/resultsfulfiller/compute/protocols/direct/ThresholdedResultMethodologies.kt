@@ -22,51 +22,54 @@ import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt
 import org.wfanet.measurement.api.v2alpha.customDirectMethodology
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 
-/** Builds fixed uncertainty metadata for a reach value suppressed to zero. */
-fun buildThresholdedReachMethodology(thresholds: ResultMinimumThresholds): CustomDirectMethodology =
-  buildThresholdedScalarMethodology(thresholds.minUsers)
+/** Builds fixed uncertainty metadata for values suppressed by minimum-result thresholding. */
+object ThresholdedResultMethodologies {
+  /** Builds metadata for a reach value suppressed to zero. */
+  fun buildReach(thresholds: ResultMinimumThresholds): CustomDirectMethodology =
+    buildScalar(thresholds.minUsers)
 
-/** Builds fixed uncertainty metadata for an impression value suppressed to zero. */
-fun buildThresholdedImpressionMethodology(
-  thresholds: ResultMinimumThresholds
-): CustomDirectMethodology = buildThresholdedScalarMethodology(thresholds.minImpressions)
+  /** Builds metadata for an impression value suppressed to zero. */
+  fun buildImpression(thresholds: ResultMinimumThresholds): CustomDirectMethodology =
+    buildScalar(thresholds.minImpressions)
 
-/**
- * Builds fixed uncertainty metadata for a frequency histogram whose final 1+ bucket was suppressed.
- *
- * Fold-down has already represented higher-frequency users in the 1+ bucket, so only that bucket
- * gets non-zero variance. The standard deviation is derived solely from configured thresholds.
- */
-fun buildThresholdedFrequencyMethodology(
-  thresholds: ResultMinimumThresholds,
-  maximumFrequency: Int,
-  reach: Long,
-): CustomDirectMethodology {
-  require(reach > 0L) { "Reach must be positive, got $reach" }
+  /**
+   * Builds metadata for a frequency histogram whose final 1+ bucket was suppressed.
+   *
+   * Fold-down has already represented higher-frequency users in frequency 1, so only frequency 1
+   * and its 1+ cumulative bucket get non-zero variance. The standard deviation is derived solely
+   * from configured thresholds.
+   */
+  fun buildFrequency(
+    thresholds: ResultMinimumThresholds,
+    maximumFrequency: Int,
+    reach: Long,
+  ): CustomDirectMethodology {
+    require(reach > 0L) { "Reach must be positive, got $reach" }
 
-  val countStandardDeviation = max(thresholds.minUsers, thresholds.minImpressions).toDouble()
-  val relativeStandardDeviation = countStandardDeviation / reach
-  val relativeVariance = relativeStandardDeviation * relativeStandardDeviation
-  val variances =
-    (1..maximumFrequency).associate { frequency ->
-      frequency.toLong() to if (frequency == 1) relativeVariance else 0.0
-    }
-
-  return customDirectMethodology {
-    variance =
-      CustomDirectMethodologyKt.variance {
-        frequency =
-          CustomDirectMethodologyKt.VarianceKt.frequencyVariances {
-            this.variances.putAll(variances)
-            kPlusVariances.putAll(variances)
-          }
+    val countStandardDeviation = max(thresholds.minUsers, thresholds.minImpressions).toDouble()
+    val relativeStandardDeviation = countStandardDeviation / reach
+    val relativeVariance = relativeStandardDeviation * relativeStandardDeviation
+    val variances =
+      (1..maximumFrequency).associate { frequency ->
+        frequency.toLong() to if (frequency == 1) relativeVariance else 0.0
       }
-  }
-}
 
-private fun buildThresholdedScalarMethodology(standardDeviation: Int): CustomDirectMethodology {
-  val variance = standardDeviation.toDouble() * standardDeviation
-  return customDirectMethodology {
-    this.variance = CustomDirectMethodologyKt.variance { scalar = variance }
+    return customDirectMethodology {
+      variance =
+        CustomDirectMethodologyKt.variance {
+          frequency =
+            CustomDirectMethodologyKt.VarianceKt.frequencyVariances {
+              this.variances.putAll(variances)
+              kPlusVariances.putAll(variances)
+            }
+        }
+    }
+  }
+
+  private fun buildScalar(standardDeviation: Int): CustomDirectMethodology {
+    val variance = standardDeviation.toDouble() * standardDeviation
+    return customDirectMethodology {
+      this.variance = CustomDirectMethodologyKt.variance { scalar = variance }
+    }
   }
 }
