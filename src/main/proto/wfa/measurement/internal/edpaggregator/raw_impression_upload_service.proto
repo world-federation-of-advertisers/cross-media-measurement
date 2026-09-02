@@ -86,6 +86,9 @@ message ListRawImpressionUploadsRequest {
     // returns resources created before end, omitting end returns
     // resources created after start.
     google.type.Interval create_time_in = 2;
+
+    // Filter by the exact Cloud Storage URI of the done blob.
+    string done_blob_uri = 3;
   }
   Filter filter = 4;
 }

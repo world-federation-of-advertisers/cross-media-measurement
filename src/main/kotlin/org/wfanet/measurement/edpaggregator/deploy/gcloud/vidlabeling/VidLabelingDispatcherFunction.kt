@@ -19,6 +19,8 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
+import com.google.cloud.storage.BlobId
+import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.util.JsonFormat
 import io.opentelemetry.context.Context
@@ -27,7 +29,9 @@ import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
@@ -138,6 +142,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
           )
 
       val storageClient: StorageClient = createStorageClient(doneBlobPath)
+      val readBlobGeneration = createBlobGenerationReader(doneBlobPath)
       val parquetStorageClient: ParquetStorageClient = createParquetStorageClient(doneBlobPath)
       val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
 
@@ -246,6 +251,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
         VidLabelingDispatcher(
           storageClient = storageClient,
           readEventDate = { blobKey -> readEventDateFromFooter(parquetStorageClient, blobKey) },
+          readBlobGeneration = readBlobGeneration,
           rawImpressionUploadStub = rawImpressionUploadStub,
           rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
           rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
@@ -352,6 +358,42 @@ class VidLabelingDispatcherFunction : HttpFunction {
             .service,
           doneBlobUri.bucket,
         )
+      }
+    }
+
+    private fun createBlobGenerationReader(doneBlobPath: String): suspend (String) -> Long {
+      if (!fileSystemPath.isNullOrEmpty()) {
+        val storageRoot = File(EnvVars.checkIsPath("VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH"))
+        return { blobKey ->
+          withContext(Dispatchers.IO) {
+            val blobFile = storageRoot.resolve(blobKey)
+            check(blobFile.isFile) {
+              "Raw impression file disappeared before registration: $blobKey"
+            }
+            blobFile.lastModified().also { generation ->
+              check(generation > 0L) { "Raw impression file has no modification time: $blobKey" }
+            }
+          }
+        }
+      }
+      val doneBlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
+      val storage: Storage =
+        StorageOptions.newBuilder()
+          .also { builder ->
+            val projectId = System.getenv(GOOGLE_PROJECT_ID_ENV)
+            if (!projectId.isNullOrEmpty()) {
+              builder.setProjectId(projectId)
+            }
+          }
+          .build()
+          .service
+      return { blobKey ->
+        withContext(Dispatchers.IO) {
+          checkNotNull(storage.get(BlobId.of(doneBlobUri.bucket, blobKey))) {
+              "Raw impression blob disappeared before registration: $blobKey"
+            }
+            .generation
+        }
       }
     }
   }

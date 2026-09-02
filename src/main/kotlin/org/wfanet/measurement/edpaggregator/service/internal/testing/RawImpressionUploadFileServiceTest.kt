@@ -66,6 +66,7 @@ abstract class RawImpressionUploadFileServiceTest {
   private suspend fun createFile(
     uploadResourceId: String,
     blobUri: String = BLOB_URI,
+    blobGeneration: Long = BLOB_GENERATION,
     requestId: String = UUID.randomUUID().toString(),
     eventDate: Date = EVENT_DATE,
   ): RawImpressionUploadFile {
@@ -75,6 +76,7 @@ abstract class RawImpressionUploadFileServiceTest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           rawImpressionUploadResourceId = uploadResourceId
           this.blobUri = blobUri
+          this.blobGeneration = blobGeneration
           this.eventDate = eventDate
         }
         this.requestId = requestId
@@ -94,6 +96,7 @@ abstract class RawImpressionUploadFileServiceTest {
     assertThat(file.rawImpressionUploadResourceId).isEqualTo(uploadId)
     assertThat(file.fileResourceId).isNotEmpty()
     assertThat(file.blobUri).isEqualTo(BLOB_URI)
+    assertThat(file.blobGeneration).isEqualTo(BLOB_GENERATION)
     assertThat(file.eventDate).isEqualTo(EVENT_DATE)
     assertThat(file.createTime.toInstant()).isGreaterThan(startTime)
     assertThat(file.updateTime).isEqualTo(file.createTime)
@@ -105,11 +108,25 @@ abstract class RawImpressionUploadFileServiceTest {
     val requestId: String = UUID.randomUUID().toString()
 
     val file1: RawImpressionUploadFile = createFile(uploadId, requestId = requestId)
-    val file2: RawImpressionUploadFile =
-      createFile(uploadId, blobUri = "gs://other-uri", requestId = requestId)
+    val file2: RawImpressionUploadFile = createFile(uploadId, requestId = requestId)
 
     assertThat(file2).isEqualTo(file1)
   }
+
+  @Test
+  fun `createRawImpressionUploadFile rejects request_id reused with different generation`() =
+    runBlocking {
+      val uploadId = createUpload()
+      val requestId = UUID.randomUUID().toString()
+      createFile(uploadId, blobGeneration = 1L, requestId = requestId)
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          createFile(uploadId, blobGeneration = 2L, requestId = requestId)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    }
 
   @Test
   fun `createRawImpressionUploadFile throws ALREADY_EXISTS for duplicate blob_uri`() = runBlocking {
@@ -127,6 +144,19 @@ abstract class RawImpressionUploadFileServiceTest {
           reason = Errors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS.name
         }
       )
+  }
+
+  @Test
+  fun `createRawImpressionUploadFile allows blob_uri reuse across uploads`() = runBlocking {
+    val firstUploadId = createUpload()
+    val secondUploadId = createUpload()
+
+    val first = createFile(firstUploadId)
+    val second = createFile(secondUploadId)
+
+    assertThat(second.blobUri).isEqualTo(first.blobUri)
+    assertThat(second.blobGeneration).isEqualTo(first.blobGeneration)
+    assertThat(second.rawImpressionUploadResourceId).isEqualTo(secondUploadId)
   }
 
   @Test
@@ -158,6 +188,7 @@ abstract class RawImpressionUploadFileServiceTest {
               rawImpressionUploadFile = rawImpressionUploadFile {
                 rawImpressionUploadResourceId = uploadId
                 blobUri = BLOB_URI
+                blobGeneration = BLOB_GENERATION
               }
             }
           )
@@ -185,6 +216,7 @@ abstract class RawImpressionUploadFileServiceTest {
               rawImpressionUploadFile = rawImpressionUploadFile {
                 dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
                 blobUri = BLOB_URI
+                blobGeneration = BLOB_GENERATION
               }
             }
           )
@@ -230,6 +262,36 @@ abstract class RawImpressionUploadFileServiceTest {
   }
 
   @Test
+  fun `createRawImpressionUploadFile throws INVALID_ARGUMENT if blob_generation not set`(): Unit =
+    runBlocking {
+      val uploadId: String = createUpload()
+      val exception: StatusRuntimeException =
+        assertFailsWith<StatusRuntimeException> {
+          fileService.createRawImpressionUploadFile(
+            createRawImpressionUploadFileRequest {
+              rawImpressionUploadFile = rawImpressionUploadFile {
+                dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                rawImpressionUploadResourceId = uploadId
+                blobUri = BLOB_URI
+                eventDate = EVENT_DATE
+              }
+              requestId = UUID.randomUUID().toString()
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "raw_impression_upload_file.blob_generation"
+          }
+        )
+    }
+
+  @Test
   fun `createRawImpressionUploadFile throws INVALID_ARGUMENT if event_date not set`() =
     runBlocking {
       val uploadId: String = createUpload()
@@ -242,6 +304,7 @@ abstract class RawImpressionUploadFileServiceTest {
                 dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
                 rawImpressionUploadResourceId = uploadId
                 blobUri = BLOB_URI
+                blobGeneration = BLOB_GENERATION
               }
               requestId = UUID.randomUUID().toString()
             }
@@ -313,6 +376,7 @@ abstract class RawImpressionUploadFileServiceTest {
               requests += createRawImpressionUploadFileRequest {
                 rawImpressionUploadFile = rawImpressionUploadFile {
                   blobUri = BLOB_URI
+                  blobGeneration = BLOB_GENERATION
                   eventDate = EVENT_DATE
                 }
               }
@@ -343,7 +407,10 @@ abstract class RawImpressionUploadFileServiceTest {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               rawImpressionUploadResourceId = uploadId
               requests += createRawImpressionUploadFileRequest {
-                rawImpressionUploadFile = rawImpressionUploadFile { blobUri = BLOB_URI }
+                rawImpressionUploadFile = rawImpressionUploadFile {
+                  blobUri = BLOB_URI
+                  blobGeneration = BLOB_GENERATION
+                }
                 requestId = UUID.randomUUID().toString()
               }
             }
@@ -374,6 +441,7 @@ abstract class RawImpressionUploadFileServiceTest {
           requests += createRawImpressionUploadFileRequest {
             rawImpressionUploadFile = rawImpressionUploadFile {
               blobUri = "gs://bucket/file1"
+              blobGeneration = BLOB_GENERATION
               eventDate = EVENT_DATE
             }
             requestId = UUID.randomUUID().toString()
@@ -381,6 +449,7 @@ abstract class RawImpressionUploadFileServiceTest {
           requests += createRawImpressionUploadFileRequest {
             rawImpressionUploadFile = rawImpressionUploadFile {
               blobUri = "gs://bucket/file2"
+              blobGeneration = BLOB_GENERATION
               eventDate = EVENT_DATE
             }
             requestId = UUID.randomUUID().toString()
@@ -417,6 +486,7 @@ abstract class RawImpressionUploadFileServiceTest {
               requests += createRawImpressionUploadFileRequest {
                 rawImpressionUploadFile = rawImpressionUploadFile {
                   blobUri = "gs://bucket/file1"
+                  blobGeneration = BLOB_GENERATION
                   eventDate = EVENT_DATE
                 }
                 this.requestId = requestId
@@ -424,6 +494,7 @@ abstract class RawImpressionUploadFileServiceTest {
               requests += createRawImpressionUploadFileRequest {
                 rawImpressionUploadFile = rawImpressionUploadFile {
                   blobUri = "gs://bucket/file2"
+                  blobGeneration = BLOB_GENERATION
                   eventDate = EVENT_DATE
                 }
                 this.requestId = requestId
@@ -457,7 +528,8 @@ abstract class RawImpressionUploadFileServiceTest {
           rawImpressionUploadResourceId = uploadId
           requests += createRawImpressionUploadFileRequest {
             rawImpressionUploadFile = rawImpressionUploadFile {
-              blobUri = "gs://bucket/other"
+              blobUri = BLOB_URI
+              blobGeneration = BLOB_GENERATION
               eventDate = EVENT_DATE
             }
             this.requestId = requestId
@@ -469,6 +541,34 @@ abstract class RawImpressionUploadFileServiceTest {
     assertThat(response.rawImpressionUploadFilesList.first().fileResourceId)
       .isEqualTo(createdFile.fileResourceId)
   }
+
+  @Test
+  fun `batchCreateRawImpressionUploadFiles rejects request_id reused with different generation`() =
+    runBlocking {
+      val uploadId = createUpload()
+      val requestId = UUID.randomUUID().toString()
+      createFile(uploadId, blobGeneration = 1L, requestId = requestId)
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          fileService.batchCreateRawImpressionUploadFiles(
+            batchCreateRawImpressionUploadFilesRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = uploadId
+              requests += createRawImpressionUploadFileRequest {
+                rawImpressionUploadFile = rawImpressionUploadFile {
+                  blobUri = BLOB_URI
+                  blobGeneration = 2L
+                  eventDate = EVENT_DATE
+                }
+                this.requestId = requestId
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    }
 
   @Test
   fun `batchCreateRawImpressionUploadFiles is partially idempotent with mixed request_ids`() =
@@ -486,7 +586,8 @@ abstract class RawImpressionUploadFileServiceTest {
             // Reuses an existing request_id: should return the previously created file.
             requests += createRawImpressionUploadFileRequest {
               rawImpressionUploadFile = rawImpressionUploadFile {
-                blobUri = "gs://bucket/ignored"
+                blobUri = "gs://bucket/existing"
+                blobGeneration = BLOB_GENERATION
                 eventDate = EVENT_DATE
               }
               this.requestId = existingRequestId
@@ -495,6 +596,7 @@ abstract class RawImpressionUploadFileServiceTest {
             requests += createRawImpressionUploadFileRequest {
               rawImpressionUploadFile = rawImpressionUploadFile {
                 blobUri = "gs://bucket/new"
+                blobGeneration = BLOB_GENERATION
                 eventDate = EVENT_DATE
               }
               this.requestId = UUID.randomUUID().toString()
@@ -524,6 +626,7 @@ abstract class RawImpressionUploadFileServiceTest {
                 rawImpressionUploadFile = rawImpressionUploadFile {
                   dataProviderResourceId = "different-provider"
                   blobUri = BLOB_URI
+                  blobGeneration = BLOB_GENERATION
                 }
               }
             }
@@ -554,6 +657,7 @@ abstract class RawImpressionUploadFileServiceTest {
             requests += createRawImpressionUploadFileRequest {
               rawImpressionUploadFile = rawImpressionUploadFile {
                 blobUri = BLOB_URI
+                blobGeneration = BLOB_GENERATION
                 eventDate = EVENT_DATE
               }
               requestId = UUID.randomUUID().toString()
@@ -996,6 +1100,7 @@ abstract class RawImpressionUploadFileServiceTest {
   companion object {
     private const val DATA_PROVIDER_RESOURCE_ID = "data-provider-1"
     private const val BLOB_URI = "gs://bucket/path/to/file"
+    private const val BLOB_GENERATION = 1234L
     private val EVENT_DATE: Date = date {
       year = 2026
       month = 6
