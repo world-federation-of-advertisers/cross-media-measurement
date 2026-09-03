@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.edpaggregator.tools
+package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertFailsWith
@@ -24,13 +24,12 @@ import org.junit.runners.JUnit4
 import picocli.CommandLine
 
 @RunWith(JUnit4::class)
-class VidLabelingHealTest {
+class InternalApiServerTest {
   @Test
   fun `command line rejects negative RPC interval`() {
     val exception =
       assertFailsWith<CommandLine.ParameterException> {
-        CommandLine(VidLabelingHeal())
-          .parseArgs("retry-failed", "--metadata-read-rpc-min-interval=-1s")
+        CommandLine(InternalApiServer()).parseArgs("--metadata-read-rpc-min-interval=-1s")
       }
 
     assertThat(exception).hasMessageThat().contains("complete human-readable duration")
@@ -40,36 +39,9 @@ class VidLabelingHealTest {
   fun `command line rejects partially malformed RPC interval`() {
     val exception =
       assertFailsWith<CommandLine.ParameterException> {
-        CommandLine(VidLabelingHeal())
-          .parseArgs("retry-failed", "--control-plane-rpc-min-interval=500msjunk")
+        CommandLine(InternalApiServer()).parseArgs("--control-plane-rpc-min-interval=500msjunk")
       }
 
     assertThat(exception).hasMessageThat().contains("complete human-readable duration")
-  }
-
-  @Test
-  fun `isAffirmative accepts y and yes case-insensitively, ignoring surrounding whitespace`() {
-    assertThat(isAffirmative("yes")).isTrue()
-    assertThat(isAffirmative("y")).isTrue()
-    assertThat(isAffirmative("YES")).isTrue()
-    assertThat(isAffirmative("Yes")).isTrue()
-    assertThat(isAffirmative("  yes  ")).isTrue()
-    assertThat(isAffirmative(" Y ")).isTrue()
-  }
-
-  @Test
-  fun `isAffirmative rejects anything that is not exactly y or yes`() {
-    assertThat(isAffirmative("no")).isFalse()
-    assertThat(isAffirmative("n")).isFalse()
-    assertThat(isAffirmative("yep")).isFalse()
-    assertThat(isAffirmative("yesss")).isFalse()
-    assertThat(isAffirmative("ye")).isFalse()
-    assertThat(isAffirmative("")).isFalse()
-    assertThat(isAffirmative("   ")).isFalse()
-  }
-
-  @Test
-  fun `isAffirmative treats null (no stdin or EOF) as a decline`() {
-    assertThat(isAffirmative(null)).isFalse()
   }
 }

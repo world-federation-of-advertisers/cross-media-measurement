@@ -38,6 +38,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.securecomputation.QueuesConfig
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcDurationConverter
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
@@ -171,6 +172,7 @@ class InternalApiServer : Runnable {
     names = ["--metadata-read-rpc-min-interval"],
     defaultValue = "100ms",
     description = ["Minimum interval between outbound EDPA metadata read RPCs from this process."],
+    converter = [VidLabelingRpcDurationConverter::class],
   )
   private lateinit var metadataReadRpcMinInterval: Duration
 
@@ -178,6 +180,7 @@ class InternalApiServer : Runnable {
     names = ["--metadata-write-rpc-min-interval"],
     defaultValue = "200ms",
     description = ["Minimum interval between outbound EDPA metadata write RPCs from this process."],
+    converter = [VidLabelingRpcDurationConverter::class],
   )
   private lateinit var metadataWriteRpcMinInterval: Duration
 
@@ -185,6 +188,7 @@ class InternalApiServer : Runnable {
     names = ["--control-plane-rpc-min-interval"],
     defaultValue = "250ms",
     description = ["Minimum interval between outbound WorkItems RPCs from this process."],
+    converter = [VidLabelingRpcDurationConverter::class],
   )
   private lateinit var controlPlaneRpcMinInterval: Duration
 

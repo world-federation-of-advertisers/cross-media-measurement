@@ -70,14 +70,11 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "base_vid_labeling_tee_app_runner",
-    srcs = [
-        "BaseVidLabelingTeeAppRunner.kt",
-        "VidLabelingRpcDurationConverter.kt",
-    ],
+    srcs = ["BaseVidLabelingTeeAppRunner.kt"],
     deps = [
         ":base_tee_app_runner",
         ":storage_config",
-        ":vid_labeling_rpc_duration_parser",
+        ":vid_labeling_rpc_duration_converter",
         ":vid_labeling_rpc_throttlers",
         "@wfa_common_jvm//imports/java/com/google/crypto/tink",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
@@ -87,6 +84,19 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:parquet_storage_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+    ],
+)
+
+kt_jvm_library(
+    name = "vid_labeling_rpc_duration_converter",
+    srcs = ["VidLabelingRpcDurationConverter.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
+    ],
+    deps = [
+        ":vid_labeling_rpc_duration_parser",
+        "@wfa_common_jvm//imports/java/picocli",
     ],
 )
 
