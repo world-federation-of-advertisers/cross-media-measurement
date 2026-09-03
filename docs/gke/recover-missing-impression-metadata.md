@@ -58,31 +58,10 @@ The job uses the same Workload Identity service account as
 `roles/storage.objectAdmin` on the configured bucket because recovery reads blobs and updates
 their metadata after registration.
 
-Configure `DATA_AVAILABILITY_RECOVERY_EDP7_CONFIG_CONTENT` in each GitHub environment before
-deploying. Its value is a single `DataAvailabilitySyncConfig`:
-
-```textproto
-# proto-file: wfa/measurement/config/edpaggregator/data_availability_sync_config.proto
-# proto-message: wfa.measurement.config.edpaggregator.DataAvailabilitySyncConfig
-data_provider: "dataProviders/<DATA_PROVIDER_ID>"
-data_availability_storage {
-  gcs {
-    project_id: "<GCP_PROJECT>"
-    bucket_name: "<EDPA_STORAGE_BUCKET>"
-  }
-}
-cmms_connection {
-  cert_file_path: "/etc/halo-cmms/edp-aggregator/edp7-tls/tls.crt"
-  private_key_file_path: "/etc/halo-cmms/edp-aggregator/edp7-tls/tls.key"
-  cert_collection_file_path: "/etc/halo-cmms/edp-aggregator/config/kingdom_root.pem"
-}
-impression_metadata_storage_connection {
-  cert_file_path: "/etc/halo-cmms/edp-aggregator/data-availability-tls/tls.crt"
-  private_key_file_path: "/etc/halo-cmms/edp-aggregator/data-availability-tls/tls.key"
-  cert_collection_file_path: "/etc/halo-cmms/edp-aggregator/config/trusted_certs.pem"
-}
-edp_impression_path: "<EDP_IMPRESSION_PATH>"
-```
+The deployment workflow derives the job's single-EDP config from the `edp/edp7` entry in the
+existing `DATA_AVAILABILITY_SYNC_CONFIG_CONTENT` GitHub environment variable and rewrites its TLS
+paths for the Kubernetes mounts. The expected Cloud Function TLS paths must remain present in that
+source config so the workflow can validate and replace each one explicitly.
 
 The pod needs:
 
