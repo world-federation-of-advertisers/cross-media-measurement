@@ -108,6 +108,60 @@ vid-labeling-heal recover-upload \
   --gcs-project=GCS_PROJECT
 ```
 
+### Example: D2 and D4 contain bad data
+
+Assume D1 through D5 completed for one memoized model line, `ML_MEMO`, and one non-memoized
+model line, `ML_DIRECT`. The EDP reports that D2 and D4 contain bad data, so the operator passes the
+D2 and D4 upload resources to `evict-uploads`.
+
+The eviction plan contains:
+
+* D2 and D4 for `ML_DIRECT`, because non-memoized uploads are independent; and
+* D2, D3, D4, and D5 for `ML_MEMO`, because each later cumulative snapshot depends on D2.
+
+The tool prints recovery commands for D3 and D5. It does not print commands for D2 or D4 because
+the EDP must correct those explicitly selected bad uploads.
+
+Recovery proceeds as follows:
+
+1. The EDP corrects the D2 directory and writes a new `done` generation. The pipeline regenerates
+   D2 for both `ML_DIRECT` and `ML_MEMO`; the memoized path rebuilds its cumulative state from D1.
+2. After D2 completes, the EDP corrects D4 and writes a new `done` generation. The pipeline
+   regenerates D4 for both model lines. The memoized path uses corrected D2 as the latest available
+   snapshot; D3 is temporarily absent from that cumulative state.
+3. After D4 completes, the operator recovers D3 for the memoized model line:
+
+   ```shell
+   vid-labeling-heal recover-upload \
+     --raw-impression-upload=dataProviders/DP/rawImpressionUploads/D3_UPLOAD \
+     --model-lines=modelProviders/MP/modelSuites/MS/modelLines/ML_MEMO \
+     --edpa-public-api-target=EDPA_TARGET \
+     --tls-cert-file=TLS_CERT \
+     --tls-key-file=TLS_KEY \
+     --cert-collection-file=ROOT_CERTS \
+     --gcs-project=GCS_PROJECT
+   ```
+
+   D3 is processed as a historical backfill against the corrected D4 snapshot. The resulting
+   cumulative state includes D2, D3, and D4. `ML_DIRECT` is not processed because its original D3
+   output was never evicted.
+4. After D3 recovery completes, the operator recovers D5:
+
+   ```shell
+   vid-labeling-heal recover-upload \
+     --raw-impression-upload=dataProviders/DP/rawImpressionUploads/D5_UPLOAD \
+     --model-lines=modelProviders/MP/modelSuites/MS/modelLines/ML_MEMO \
+     --edpa-public-api-target=EDPA_TARGET \
+     --tls-cert-file=TLS_CERT \
+     --tls-key-file=TLS_KEY \
+     --cert-collection-file=ROOT_CERTS \
+     --gcs-project=GCS_PROJECT
+   ```
+
+   D5 is processed on top of the corrected cumulative state. The final result has regenerated D2
+   and D4 for both model lines and regenerated D2 through D5 for `ML_MEMO`. The EDP never needs to
+   re-upload D3 or D5.
+
 Run recovery commands in their printed order and wait for each preceding replacement to complete,
 so every cumulative rank-index snapshot is rebuilt from its corrected predecessor. The normal
 labeling and data-availability flows regenerate output, restore matching soft-deleted metadata, and
