@@ -1201,6 +1201,12 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       processBuilder
         .command()
         .add("--potential-direct-result-min-impressions=${thresholds.minImpressions}")
+      processBuilder
+        .command()
+        .add(
+          "--potential-direct-result-maximum-frequency-per-user=" +
+            IMPRESSION_MAXIMUM_FREQUENCY_PER_USER
+        )
       for (edpDisplayName in resultMinimumThresholdsByEdp.keys.sorted()) {
         val edpResourceName =
           inProcessCmmsComponents.edpDisplayNameToResourceMap.getValue(edpDisplayName).name
@@ -1486,6 +1492,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         delta = 1e-15
       }
 
+    private const val IMPRESSION_MAXIMUM_FREQUENCY_PER_USER = 60
+
     /** MetricSpecConfig with width=1.0 so there's no VID sampling variance. */
     private val NO_SAMPLING_METRIC_SPEC_CONFIG = metricSpecConfig {
       reachParams =
@@ -1538,7 +1546,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
                     }
                 }
             }
-          maximumFrequencyPerUser = 60
+          maximumFrequencyPerUser = IMPRESSION_MAXIMUM_FREQUENCY_PER_USER
         }
 
       watchDurationParams =

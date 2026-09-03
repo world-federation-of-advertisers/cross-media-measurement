@@ -25,7 +25,10 @@ class PotentialDirectResultMinimumThresholdsTest(unittest.TestCase):
 
     def test_add_reach_uncertainty_combines_existing_noise(self):
         thresholds = PotentialDirectResultMinimumThresholds(
-            min_users=100, min_impressions=1000
+            min_users=100,
+            min_impressions=1000,
+            maximum_frequency_per_user=20,
+            applies_to_union_reach=False,
         )
 
         result = thresholds.add_reach_uncertainty(
@@ -33,11 +36,14 @@ class PotentialDirectResultMinimumThresholdsTest(unittest.TestCase):
         )
 
         self.assertEqual(result.value, 0)
-        self.assertAlmostEqual(result.sigma, math.hypot(30, 100))
+        self.assertAlmostEqual(result.sigma, math.hypot(30, 1000))
 
     def test_add_measurement_set_uncertainty_updates_zero_results(self):
         thresholds = PotentialDirectResultMinimumThresholds(
-            min_users=100, min_impressions=1000
+            min_users=100,
+            min_impressions=1000,
+            maximum_frequency_per_user=20,
+            applies_to_union_reach=False,
         )
 
         result = thresholds.add_measurement_set_uncertainty(
@@ -53,9 +59,9 @@ class PotentialDirectResultMinimumThresholdsTest(unittest.TestCase):
             )
         )
 
-        self.assertAlmostEqual(result.reach.sigma, math.hypot(30, 100))
+        self.assertAlmostEqual(result.reach.sigma, math.hypot(30, 1000))
         self.assertAlmostEqual(
-            result.impression.sigma, math.hypot(60, 1000)
+            result.impression.sigma, math.hypot(60, 2000)
         )
         self.assertAlmostEqual(
             result.k_reach[1].sigma, math.hypot(40, 1000)
@@ -64,7 +70,10 @@ class PotentialDirectResultMinimumThresholdsTest(unittest.TestCase):
 
     def test_add_measurement_set_uncertainty_does_not_change_nonzero_results(self):
         thresholds = PotentialDirectResultMinimumThresholds(
-            min_users=100, min_impressions=1000
+            min_users=100,
+            min_impressions=1000,
+            maximum_frequency_per_user=20,
+            applies_to_union_reach=False,
         )
         measurement_set = MeasurementSet(
             reach=Measurement(value=50, sigma=10, name="reach"),
@@ -82,11 +91,24 @@ class PotentialDirectResultMinimumThresholdsTest(unittest.TestCase):
     def test_constructor_rejects_nonpositive_thresholds(self):
         with self.assertRaisesRegex(ValueError, "min_users"):
             PotentialDirectResultMinimumThresholds(
-                min_users=0, min_impressions=1000
+                min_users=0,
+                min_impressions=1000,
+                maximum_frequency_per_user=20,
+                applies_to_union_reach=False,
             )
         with self.assertRaisesRegex(ValueError, "min_impressions"):
             PotentialDirectResultMinimumThresholds(
-                min_users=100, min_impressions=0
+                min_users=100,
+                min_impressions=0,
+                maximum_frequency_per_user=20,
+                applies_to_union_reach=False,
+            )
+        with self.assertRaisesRegex(ValueError, "maximum_frequency_per_user"):
+            PotentialDirectResultMinimumThresholds(
+                min_users=100,
+                min_impressions=1000,
+                maximum_frequency_per_user=0,
+                applies_to_union_reach=False,
             )
 
 

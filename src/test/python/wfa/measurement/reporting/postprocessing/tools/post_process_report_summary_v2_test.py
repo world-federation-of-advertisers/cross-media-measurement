@@ -67,9 +67,15 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             report_summary,
             [],
             PotentialDirectResultMinimumThresholds(
-                min_users=100, min_impressions=1000
+                min_users=100,
+                min_impressions=1000,
+                maximum_frequency_per_user=5,
+                applies_to_union_reach=False,
             ),
-            potential_direct_thresholding_reporting_set_ids={"provider-one"},
+            potential_direct_thresholding_data_provider_ids={"edp-one"},
+            data_provider_ids_by_reporting_set_id={
+                "provider-one": {"edp-one"}
+            },
         ).process()
 
         self.assertEqual(
@@ -93,7 +99,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
               data_providers: "provider-one"
               cumulative_results {
                 reach {
-                  value: 400
+                  value: 900
                   standard_deviation: 0
                   metric: "reach-week-one"
                 }
@@ -114,17 +120,24 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             report_summary,
             [],
             PotentialDirectResultMinimumThresholds(
-                min_users=100, min_impressions=1000
+                min_users=100,
+                min_impressions=1000,
+                maximum_frequency_per_user=5,
+                applies_to_union_reach=False,
             ),
-            potential_direct_thresholding_reporting_set_ids={"provider-one"},
+            potential_direct_thresholding_data_provider_ids={"edp-one"},
+            data_provider_ids_by_reporting_set_id={
+                "provider-one": {"edp-one"}
+            },
         ).process()
 
         self.assertEqual(
             result.status.status_code,
             StatusCode.SOLUTION_FOUND_WITH_HIGHS,
         )
-        self.assertEqual(result.updated_measurements["reach-week-one"], 400)
-        self.assertEqual(result.updated_measurements["reach-week-two"], 400)
+        self.assertEqual(result.updated_measurements["reach-week-one"], 900)
+        self.assertEqual(result.updated_measurements["reach-week-two"], 900)
+        self.assertEqual(result.large_corrections, [])
 
     def test_empty_union_histogram_remains_exact(self):
         report_summary = text_format.Parse(
@@ -157,11 +170,18 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             report_summary,
             [],
             PotentialDirectResultMinimumThresholds(
-                min_users=100, min_impressions=1000
+                min_users=100,
+                min_impressions=1000,
+                maximum_frequency_per_user=5,
+                applies_to_union_reach=False,
             ),
-            potential_direct_thresholding_reporting_set_ids={
-                "provider-one",
-                "provider-two",
+            potential_direct_thresholding_data_provider_ids={
+                "edp-one",
+                "edp-two",
+            },
+            data_provider_ids_by_reporting_set_id={
+                "provider-one": {"edp-one"},
+                "provider-two": {"edp-two"},
             },
         ).process()
 
@@ -169,6 +189,155 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             result.status.status_code,
             StatusCode.SOLUTION_NOT_FOUND,
         )
+
+    def test_direct_result_with_multiple_reporting_sets_for_one_edp_is_corrected(
+        self,
+    ):
+        report_summary = text_format.Parse(
+            """
+            population: 10000
+            report_summary_set_results {
+              impression_filter: "ami"
+              set_operation: "union"
+              data_providers: "provider-one-a"
+              data_providers: "provider-one-b"
+              whole_campaign_result {
+                reach { value: 480 standard_deviation: 0 metric: "reach" }
+                frequency {
+                  bins { key: 1 value { value: 0 standard_deviation: 0 } }
+                  bins { key: 2 value { value: 0 standard_deviation: 0 } }
+                  metric: "frequency"
+                }
+                impression_count {
+                  value: 2400
+                  standard_deviation: 0
+                  metric: "impressions"
+                }
+              }
+            }
+            """,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(
+            report_summary,
+            [],
+            PotentialDirectResultMinimumThresholds(
+                min_users=100,
+                min_impressions=1000,
+                maximum_frequency_per_user=5,
+                applies_to_union_reach=False,
+            ),
+            potential_direct_thresholding_data_provider_ids={"edp-one"},
+            data_provider_ids_by_reporting_set_id={
+                "provider-one-a": {"edp-one"},
+                "provider-one-b": {"edp-one"},
+            },
+        ).process()
+
+        self.assertEqual(
+            result.status.status_code,
+            StatusCode.SOLUTION_FOUND_WITH_HIGHS,
+        )
+
+    def test_reporting_set_with_multiple_edps_remains_exact(self):
+        report_summary = text_format.Parse(
+            """
+            population: 10000
+            report_summary_set_results {
+              impression_filter: "ami"
+              set_operation: "union"
+              data_providers: "provider-one-two"
+              whole_campaign_result {
+                reach { value: 480 standard_deviation: 0 metric: "reach" }
+                frequency {
+                  bins { key: 1 value { value: 0 standard_deviation: 0 } }
+                  bins { key: 2 value { value: 0 standard_deviation: 0 } }
+                  metric: "frequency"
+                }
+                impression_count {
+                  value: 2400
+                  standard_deviation: 0
+                  metric: "impressions"
+                }
+              }
+            }
+            """,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(
+            report_summary,
+            [],
+            PotentialDirectResultMinimumThresholds(
+                min_users=100,
+                min_impressions=1000,
+                maximum_frequency_per_user=5,
+                applies_to_union_reach=False,
+            ),
+            potential_direct_thresholding_data_provider_ids={
+                "edp-one",
+                "edp-two",
+            },
+            data_provider_ids_by_reporting_set_id={
+                "provider-one-two": {"edp-one", "edp-two"}
+            },
+        ).process()
+
+        self.assertEqual(
+            result.status.status_code,
+            StatusCode.SOLUTION_NOT_FOUND,
+        )
+
+    def test_zero_union_reach_can_be_corrected_when_enabled(self):
+        report_summary = text_format.Parse(
+            """
+            population: 10000
+            report_summary_set_results {
+              impression_filter: "ami"
+              set_operation: "union"
+              data_providers: "provider-one-two"
+              cumulative_results {
+                reach {
+                  value: 900
+                  standard_deviation: 0
+                  metric: "reach-week-one"
+                }
+              }
+              cumulative_results {
+                reach {
+                  value: 0
+                  standard_deviation: 0
+                  metric: "reach-week-two"
+                }
+              }
+            }
+            """,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(
+            report_summary,
+            [],
+            PotentialDirectResultMinimumThresholds(
+                min_users=100,
+                min_impressions=1000,
+                maximum_frequency_per_user=5,
+                applies_to_union_reach=True,
+            ),
+            potential_direct_thresholding_data_provider_ids={"edp-one"},
+            data_provider_ids_by_reporting_set_id={
+                "provider-one-two": {"edp-one", "edp-two"}
+            },
+        ).process()
+
+        self.assertEqual(
+            result.status.status_code,
+            StatusCode.SOLUTION_FOUND_WITH_HIGHS,
+        )
+        self.assertEqual(result.updated_measurements["reach-week-one"], 900)
+        self.assertEqual(result.updated_measurements["reach-week-two"], 900)
+        self.assertEqual(result.large_corrections, [])
 
     def test_empty_direct_histogram_remains_exact_for_unlisted_edp(self):
         report_summary = text_format.Parse(
@@ -200,9 +369,15 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             report_summary,
             [],
             PotentialDirectResultMinimumThresholds(
-                min_users=100, min_impressions=1000
+                min_users=100,
+                min_impressions=1000,
+                maximum_frequency_per_user=5,
+                applies_to_union_reach=False,
             ),
-            potential_direct_thresholding_reporting_set_ids={"provider-two"},
+            potential_direct_thresholding_data_provider_ids={"edp-two"},
+            data_provider_ids_by_reporting_set_id={
+                "provider-one": {"edp-one"}
+            },
         ).process()
 
         self.assertEqual(

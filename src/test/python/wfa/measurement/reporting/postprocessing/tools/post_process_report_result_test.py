@@ -73,7 +73,10 @@ class PostProcessReportResultTest(unittest.TestCase):
                 self.mock_reporting_sets_stub,
                 potential_direct_result_minimum_thresholds=(
                     PotentialDirectResultMinimumThresholds(
-                        min_users=100, min_impressions=1000
+                        min_users=100,
+                        min_impressions=1000,
+                        maximum_frequency_per_user=5,
+                        applies_to_union_reach=False,
                     )
                 ),
             )
@@ -601,7 +604,10 @@ class PostProcessReportResultTest(unittest.TestCase):
         mock_processor_instance.process.return_value = mock_result
 
         thresholds = PotentialDirectResultMinimumThresholds(
-            min_users=100, min_impressions=1000
+            min_users=100,
+            min_impressions=1000,
+            maximum_frequency_per_user=5,
+            applies_to_union_reach=True,
         )
         report_result_processor = PostProcessReportResult(
             self.mock_report_results_stub,
@@ -636,8 +642,11 @@ class PostProcessReportResultTest(unittest.TestCase):
             ANY,
             ['reporting_set_id_edp1'],
             potential_direct_result_minimum_thresholds=thresholds,
-            potential_direct_thresholding_reporting_set_ids={
-                "reporting_set_id_edp1"
+            potential_direct_thresholding_data_provider_ids={"edp1"},
+            data_provider_ids_by_reporting_set_id={
+                "reporting_set_id_edp1": {"edp1"},
+                "reporting_set_id_edp2": {"edp2"},
+                "reporting_set_id_edp3": {"edp3"},
             },
         )
 
@@ -664,7 +673,7 @@ class PostProcessReportResultTest(unittest.TestCase):
                 self.cmms_measurement_consumer_id,
                 self.external_report_result_id, [])
 
-    def test_get_primitive_reporting_set_ids_by_data_provider_id(self):
+    def test_get_data_provider_ids_by_primitive_reporting_set_id(self):
         self.mock_reporting_sets_stub.BatchGetReportingSets.return_value = (
             self.mock_batch_get_reporting_set_response)
 
@@ -673,51 +682,53 @@ class PostProcessReportResultTest(unittest.TestCase):
 
         # Case 1: Empty inputs
         self.assertEqual(
-            report_result_processor._get_primitive_reporting_set_ids_by_data_provider_id(
-                self.cmms_measurement_consumer_id, [], ['dataProviders/edp1']),
-            {},
-        )
-        self.assertEqual(
-            report_result_processor._get_primitive_reporting_set_ids_by_data_provider_id(
-                self.cmms_measurement_consumer_id, ['reporting_set_id_edp1'], []),
+            report_result_processor._get_data_provider_ids_by_primitive_reporting_set_id(
+                self.cmms_measurement_consumer_id, []),
             {},
         )
 
-        # Case 2: No match
-        reporting_set_ids_by_data_provider_id = (
-            report_result_processor._get_primitive_reporting_set_ids_by_data_provider_id(
+        data_provider_ids_by_reporting_set_id = (
+            report_result_processor._get_data_provider_ids_by_primitive_reporting_set_id(
                 self.cmms_measurement_consumer_id,
                 [
                     'reporting_set_id_edp1',
                     'reporting_set_id_edp2',
                     'reporting_set_id_edp1_edp2',
                 ],
-                ['dataProviders/edp5'],
             )
         )
         self.assertEqual(
-            reporting_set_ids_by_data_provider_id,
-            {},
-        )
-
-        # Case 3: Match with EDP name
-        reporting_set_ids_by_data_provider_id = (
-            report_result_processor._get_primitive_reporting_set_ids_by_data_provider_id(
-                self.cmms_measurement_consumer_id,
-                [
-                    'reporting_set_id_edp1',
-                    'reporting_set_id_edp2',
-                    'reporting_set_id_edp1_edp2',
-                ],
-                ['dataProviders/edp1', 'edp2'],
-            )
-        )
-        self.assertEqual(
-            reporting_set_ids_by_data_provider_id,
+            data_provider_ids_by_reporting_set_id,
             {
-                'edp1': {'reporting_set_id_edp1'},
-                'edp2': {'reporting_set_id_edp2'},
+                'reporting_set_id_edp1': {'edp1'},
+                'reporting_set_id_edp2': {'edp2'},
             },
+        )
+
+    def test_get_data_provider_ids_includes_all_edps_in_primitive_set(self):
+        response = reporting_sets_service_pb2.BatchGetReportingSetsResponse()
+        response.CopyFrom(self.mock_batch_get_reporting_set_response)
+        primitive_reporting_set = response.reporting_sets[0]
+        primitive_reporting_set.primitive.event_group_keys.add(
+            cmms_data_provider_id="edp2"
+        )
+        self.mock_reporting_sets_stub.BatchGetReportingSets.return_value = (
+            response
+        )
+        report_result_processor = PostProcessReportResult(
+            self.mock_report_results_stub, self.mock_reporting_sets_stub
+        )
+
+        result = (
+            report_result_processor._get_data_provider_ids_by_primitive_reporting_set_id(
+                self.cmms_measurement_consumer_id,
+                ['reporting_set_id_edp1'],
+            )
+        )
+
+        self.assertEqual(
+            result,
+            {'reporting_set_id_edp1': {'edp1', 'edp2'}},
         )
 
     def _make_reporting_set_result(

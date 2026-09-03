@@ -20,10 +20,12 @@ package k8s
 
 	_reportSchedulingCronSchedule:      string | *"30 6 * * *"  // Daily at 6:30 AM
 	_reportResultProcessorCronSchedule: string | *"*/5 * * * *" // Every 5 minutes.
-	// An empty EDP list and zero thresholds disable potential Direct threshold correction.
-	_potentialDirectResultMinUsers:       uint | *0
-	_potentialDirectResultMinImpressions: uint | *0
-	_potentialDirectThresholdingEdps:     [...string] | *[]
+	// An empty EDP list and zero threshold settings disable potential Direct threshold correction.
+	_potentialDirectResultMinUsers:                  uint | *0
+	_potentialDirectResultMinImpressions:            uint | *0
+	_potentialDirectResultMaximumFrequencyPerUser:   uint | *0
+	_potentialDirectThresholdingEdps:                [...string] | *[]
+	_potentialDirectThresholdingAppliesToUnionReach: bool | *false
 
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
@@ -377,6 +379,8 @@ package k8s
 					"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
 					"--potential-direct-result-min-users=\(_potentialDirectResultMinUsers)",
 					"--potential-direct-result-min-impressions=\(_potentialDirectResultMinImpressions)",
+					"--potential-direct-result-maximum-frequency-per-user=\(_potentialDirectResultMaximumFrequencyPerUser)",
+					"--potential-direct-thresholding-applies-to-union-reach=\(_potentialDirectThresholdingAppliesToUnionReach)",
 				] + [ for edp in _potentialDirectThresholdingEdps {
 					"--potential-direct-thresholding-edp=\(edp)"
 				}] + _tlsArgs + _internalApiTarget.args

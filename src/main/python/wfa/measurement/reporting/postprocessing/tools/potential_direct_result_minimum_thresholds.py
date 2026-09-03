@@ -24,21 +24,30 @@ class PotentialDirectResultMinimumThresholds:
     """Adds correction uncertainty for potentially suppressed Direct zeros.
 
     Thresholds are treated as standard-deviation components and combined with
-    reported noise in quadrature.
+    reported noise in quadrature. The maximum frequency bounds impressions
+    hidden when the minimum-user gate suppresses a capped impression result.
     """
 
     min_users: int
     min_impressions: int
+    maximum_frequency_per_user: int
+    applies_to_union_reach: bool
 
     def __post_init__(self):
         if self.min_users <= 0:
             raise ValueError("min_users must be greater than 0.")
         if self.min_impressions <= 0:
             raise ValueError("min_impressions must be greater than 0.")
+        if self.maximum_frequency_per_user <= 0:
+            raise ValueError(
+                "maximum_frequency_per_user must be greater than 0."
+            )
 
     def add_reach_uncertainty(self, measurement: Measurement) -> Measurement:
-        """Adds minimum-user uncertainty to a zero reach measurement."""
-        return self._add_uncertainty(measurement, self.min_users)
+        """Adds uncertainty for either threshold that can suppress reach."""
+        return self._add_uncertainty(
+            measurement, max(self.min_users, self.min_impressions)
+        )
 
     def add_measurement_set_uncertainty(
         self, measurement_set: MeasurementSet
@@ -51,7 +60,11 @@ class PotentialDirectResultMinimumThresholds:
         impression = measurement_set.impression
         if impression is not None:
             impression = self._add_uncertainty(
-                impression, self.min_impressions
+                impression,
+                max(
+                    self.min_impressions,
+                    self.min_users * self.maximum_frequency_per_user,
+                ),
             )
 
         k_reach = dict(measurement_set.k_reach)
