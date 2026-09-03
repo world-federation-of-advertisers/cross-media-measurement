@@ -16,11 +16,21 @@
 
 package org.wfanet.measurement.edpaggregator.tools
 
+import com.google.cloud.storage.Blob
+import com.google.cloud.storage.BlobId
+import com.google.cloud.storage.BlobInfo
+import com.google.cloud.storage.Storage
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
+import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 
 @RunWith(JUnit4::class)
 class VidLabelingHealTest {
@@ -63,5 +73,59 @@ class VidLabelingHealTest {
     assertFailsWith<IllegalArgumentException> {
       EvictUploadsCommand.parseLabeledImpressionsBlobPrefix("https://output-bucket/path")
     }
+  }
+
+  @Test
+  fun `rewriteDoneBlob can retry an undelivered recovery generation`() {
+    val storage = mock<Storage>()
+    val current = mock<Blob>()
+    val created = mock<Blob>()
+    val metadata =
+      mapOf(
+        WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to "modelLines/ml1",
+        WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to "rawImpressionUploads/up1",
+      )
+    whenever(storage.get(BlobId.of("bucket", "path/done"))).thenReturn(current)
+    whenever(current.generation).thenReturn(11L)
+    whenever(current.metadata).thenReturn(metadata)
+    whenever(storage.create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>()))
+      .thenReturn(created)
+    whenever(created.generation).thenReturn(12L)
+
+    val generation =
+      RecoverUploadCommand.rewriteDoneBlob(
+        storage,
+        "gs://bucket/path/done",
+        expectedGeneration = 10L,
+        metadata = metadata,
+      )
+
+    assertThat(generation).isEqualTo(12L)
+    val blobInfo = argumentCaptor<BlobInfo>()
+    val targetOption = argumentCaptor<Storage.BlobTargetOption>()
+    verify(storage).create(blobInfo.capture(), any<ByteArray>(), targetOption.capture())
+    assertThat(blobInfo.firstValue.metadata).containsAtLeastEntriesIn(metadata)
+    assertThat(targetOption.firstValue).isEqualTo(Storage.BlobTargetOption.generationMatch(11L))
+  }
+
+  @Test
+  fun `rewriteDoneBlob rejects a newer unrelated generation`() {
+    val storage = mock<Storage>()
+    val current = mock<Blob>()
+    whenever(storage.get(BlobId.of("bucket", "path/done"))).thenReturn(current)
+    whenever(current.generation).thenReturn(11L)
+    whenever(current.metadata).thenReturn(emptyMap())
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        RecoverUploadCommand.rewriteDoneBlob(
+          storage,
+          "gs://bucket/path/done",
+          expectedGeneration = 10L,
+          mapOf(WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to "modelLines/ml1"),
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("does not carry the same recovery metadata")
   }
 }

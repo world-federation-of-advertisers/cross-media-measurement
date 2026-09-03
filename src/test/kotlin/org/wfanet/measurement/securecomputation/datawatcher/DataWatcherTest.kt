@@ -37,6 +37,7 @@ import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.net.InetSocketAddress
 import java.net.ServerSocket
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -424,6 +425,100 @@ class DataWatcherTest() {
   }
 
   @Test
+  fun `forwards override model lines metadata to webhook sink`() {
+    runBlocking {
+      val localPort = ServerSocket(0).use { it.localPort }
+      val config = watchedPath {
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+        this.httpEndpointSink = httpEndpointSink { endpointUri = "http://localhost:$localPort" }
+      }
+      val server = TestServer()
+      server.start(localPort)
+      val dataWatcher =
+        DataWatcher(
+          workItemsStub = workItemsStub,
+          dataWatcherConfigs = listOf(config),
+          idTokenProvider = mockIdTokenProvider,
+        )
+      val modelLines =
+        "modelProviders/mp1/modelSuites/ms1/modelLines/ml1," +
+          "modelProviders/mp1/modelSuites/ms1/modelLines/ml2"
+
+      dataWatcher.receivePath(
+        "test-schema://test-bucket/path-to-watch/some-data",
+        mapOf(
+          WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to modelLines,
+          WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to "dataProviders/dp/rawImpressionUploads/up1",
+        ),
+      )
+
+      assertThat(server.getLastRequestHeader("X-Override-Model-Lines")).isEqualTo(modelLines)
+      assertThat(server.getLastRequestHeader("X-Recovery-Source-Upload"))
+        .isEqualTo("dataProviders/dp/rawImpressionUploads/up1")
+      server.stop()
+    }
+  }
+
+  @Test
+  fun `rejects override model lines metadata without recovery source`() {
+    runBlocking {
+      val config = watchedPath {
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+        this.httpEndpointSink = httpEndpointSink { endpointUri = "http://localhost:1" }
+      }
+      val dataWatcher =
+        DataWatcher(
+          workItemsStub = workItemsStub,
+          dataWatcherConfigs = listOf(config),
+          idTokenProvider = mockIdTokenProvider,
+        )
+
+      val error =
+        assertFailsWith<IllegalArgumentException> {
+          dataWatcher.receivePath(
+            "test-schema://test-bucket/path-to-watch/some-data",
+            mapOf(WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to "modelLines/ml1"),
+          )
+        }
+
+      assertThat(error).hasMessageThat().contains("Recovery metadata must include both")
+    }
+  }
+
+  @Test
+  fun `surfaces recovery dispatch failure so Eventarc can retry`() {
+    runBlocking {
+      val localPort = ServerSocket(0).use { it.localPort }
+      val config = watchedPath {
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+        this.httpEndpointSink = httpEndpointSink { endpointUri = "http://localhost:$localPort" }
+      }
+      val server = TestServer(statusCode = 500)
+      server.start(localPort)
+      val dataWatcher =
+        DataWatcher(
+          workItemsStub = workItemsStub,
+          dataWatcherConfigs = listOf(config),
+          idTokenProvider = mockIdTokenProvider,
+        )
+
+      val error =
+        assertFailsWith<IllegalStateException> {
+          dataWatcher.receivePath(
+            "test-schema://test-bucket/path-to-watch/some-data",
+            mapOf(
+              WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to "modelLines/ml1",
+              WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to "dataProviders/dp/rawImpressionUploads/up1",
+            ),
+          )
+        }
+
+      assertThat(error).hasMessageThat().contains("returned 500")
+      server.stop()
+    }
+  }
+
+  @Test
   fun `omits X-DataWatcher-Generation header when object generation absent`() {
     runBlocking {
       val appParams =
@@ -456,13 +551,13 @@ class DataWatcherTest() {
   }
 }
 
-private class TestServer() {
+private class TestServer(private val statusCode: Int = 200) {
   private lateinit var handler: ServerHandler
   private lateinit var httpServer: HttpServer
 
   fun start(port: Int): HttpServer {
     httpServer = HttpServer.create(InetSocketAddress(port), 0)
-    handler = ServerHandler()
+    handler = ServerHandler(statusCode)
     httpServer.createContext("/", handler)
     httpServer.setExecutor(null)
     httpServer.start()
@@ -486,7 +581,7 @@ private class TestServer() {
       ?.firstOrNull()
   }
 
-  class ServerHandler : HttpHandler {
+  class ServerHandler(private val statusCode: Int) : HttpHandler {
     lateinit var requestBody: String
     lateinit var requestHeaders: Map<String, List<String>>
 
@@ -495,7 +590,7 @@ private class TestServer() {
       requestBody = requestBodyBytes.toString(Charsets.UTF_8)
       requestHeaders = t.requestHeaders.toMap()
       val response = "Success"
-      t.sendResponseHeaders(200, response.length.toLong())
+      t.sendResponseHeaders(statusCode, response.length.toLong())
       val os = t.responseBody
       os.write(response.toByteArray())
       os.close()

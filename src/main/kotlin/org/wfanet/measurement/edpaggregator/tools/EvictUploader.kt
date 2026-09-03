@@ -103,6 +103,9 @@ class EvictUploader(
     val memoized: Boolean,
   )
 
+  /** A memoized-only cascade entry that must be recovered after corrected uploads complete. */
+  data class RecoveryTarget(val uploadName: String, val cmmsModelLines: List<String>)
+
   /** The forward cascade to evict, ordered by upload create time. */
   data class EvictionPlan(
     val cascade: List<CascadeEntry>,
@@ -112,6 +115,8 @@ class EvictUploader(
     val nonMemoizedModelLines: Set<String>,
     val badUploads: List<String>,
     val cutoffTime: Instant,
+    /** Latest revisions evicted only because their memoized rank state depended on a bad upload. */
+    val recoveryTargets: List<RecoveryTarget>,
   )
 
   /** Outcome of an [evict] run. */
@@ -243,6 +248,21 @@ class EvictUploader(
         )
         .map { it.second }
     val extraUploads = cascade.map { it.uploadName }.filter { it !in requestedNames }.distinct()
+    val latestUploadByDoneBlobUri =
+      uploadsByName.values
+        .groupBy { it.doneBlobUri }
+        .mapValues { (_, revisions) -> revisions.maxBy { it.doneBlobGeneration } }
+    val recoveryTargets =
+      cascade
+        .filter { entry ->
+          if (!entry.memoized || entry.uploadName in requestedNames) return@filter false
+          val upload = uploadsByName.getValue(entry.uploadName)
+          latestUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
+        }
+        .groupBy { it.uploadName }
+        .map { (uploadName, entries) ->
+          RecoveryTarget(uploadName, entries.map { it.cmmsModelLine }.distinct())
+        }
     return EvictionPlan(
       cascade,
       extraUploads,
@@ -250,6 +270,7 @@ class EvictUploader(
       nonMemoizedModelLines,
       badUploads,
       cutoffTime,
+      recoveryTargets,
     )
   }
 

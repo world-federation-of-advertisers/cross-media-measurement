@@ -22,6 +22,16 @@ package org.wfanet.measurement.securecomputation.datawatcher
  * names; this object is the single source of truth.
  */
 object WatchedBlobs {
+  /** GCS custom metadata key identifying the evicted upload that authorizes a recovery override. */
+  const val RECOVERY_SOURCE_UPLOAD_KEY = "recovery-source-upload"
+
+  /**
+   * GCS custom metadata key carrying a comma-separated list of CMMS ModelLine resource names for an
+   * operator-triggered upload recovery. Forwarded by [DataWatcher] as the `X-Override-Model-Lines`
+   * HTTP header.
+   */
+  const val OVERRIDE_MODEL_LINES_KEY = "override-model-lines"
+
   /**
    * GCS custom metadata key carrying the resource name of the `ImpressionMetadata` that a metadata
    * blob corresponds to. Appears as `x-goog-meta-impression-metadata-resource-id` in GCS and is
