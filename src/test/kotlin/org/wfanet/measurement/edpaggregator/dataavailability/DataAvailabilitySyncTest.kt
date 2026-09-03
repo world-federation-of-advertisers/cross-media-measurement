@@ -62,6 +62,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
@@ -231,6 +232,11 @@ class DataAvailabilitySyncTest {
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    val listRequestCaptor = argumentCaptor<ListImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      listImpressionMetadata(listRequestCaptor.capture())
+    }
+    assertThat(listRequestCaptor.firstValue.showDeleted).isTrue()
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
     val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
@@ -679,7 +685,7 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
-  fun `sync with unchanged content skips create and update`() = runBlocking {
+  fun `sync with unchanged deleted content skips create and update`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
     val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
@@ -715,11 +721,14 @@ class DataAvailabilitySyncTest {
         val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
         listImpressionMetadataResponse {
           impressionMetadata +=
-            createdMetadata.copy { name = "${request.parent}/impressionMetadata/im-0" }
+            createdMetadata.copy {
+              name = "${request.parent}/impressionMetadata/im-0"
+              state = ImpressionMetadata.State.DELETED
+            }
         }
       }
 
-    // Second sync — same content, List returns existing entries -> no create or update.
+    // Second sync preserves the deleted entry instead of trying to recreate it.
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
     // batchCreate should still have been called exactly once (from the first sync only).

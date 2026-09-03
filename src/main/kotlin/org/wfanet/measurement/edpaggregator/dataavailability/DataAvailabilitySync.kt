@@ -489,6 +489,7 @@ class DataAvailabilitySync(
                 impressionMetadataServiceStub.listImpressionMetadata(
                   listImpressionMetadataRequest {
                     parent = dataProviderName
+                    showDeleted = true
                     filter = listFilter { this.blobUris += blobUriChunk }
                     if (pageToken.isNotEmpty()) {
                       this.pageToken = pageToken
