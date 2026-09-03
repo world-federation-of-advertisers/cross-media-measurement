@@ -669,10 +669,10 @@ The checked-in topology permits 24 phase-worker VMs, one dispatcher function, on
 function, one internal API server, and one concurrently running operator retry process. If every
 eligible process saturates a throttle class, the aggregate ceilings are 4 Kingdom RPCs per second
 (two functions), 280 metadata reads per second (28 processes), 140 metadata mutations per second
-(28 processes), and 108 control-plane RPCs per second (27 processes; the dispatcher does not call
-the control plane). These are conservative per-class envelopes, not per-method bounds: each class
-contains multiple methods, and each method has its own caller set. Compare each method's measured
-traffic and configured server limit before tuning these values.
+(28 processes), and 112 control-plane RPCs per second (28 processes). These are conservative
+per-class envelopes, not per-method bounds: each class contains multiple methods, and each method
+has its own caller set. Compare each method's measured traffic and configured server limit before
+tuning these values.
 
 The Terraform module caps both the dispatcher and monitor at one instance. The checked-in Kingdom
 `RateLimitConfig` gives each VID Repository method its own 5-QPS average / 20-request burst bucket,
