@@ -31,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
@@ -63,10 +64,10 @@ import org.wfanet.measurement.storage.StorageClient
  * cadence). This first iteration (#3958) implements:
  * - **Dispatch sequencing:** delegated to the shared [VidLabelingDispatchSequencer], which both
  *   this monitor (the periodic backstop) and [VidLabelingDispatcher] (the upload-triggered fast
- *   path) call. The sequencer enforces "at most one upload per DataProvider runs at a time" and
- *   starts the Phase-0/Phase-2 work for the oldest `CREATED` upload when none are `ACTIVE`. Keeping
- *   that logic in one place means the sequencing rule lives in exactly one component with one set
- *   of tests.
+ *   path) call. The sequencer allows different model lines for the same DataProvider to run
+ *   concurrently, but enforces at most one active upload per `(DataProvider, ModelLine)`. It starts
+ *   Phase-0/Phase-2 work for the oldest eligible `CREATED` model-line states. Keeping that logic in
+ *   one place means the sequencing rule lives in exactly one component with one set of tests.
  * - **Failure + staleness monitoring:** uploads stuck in a non-terminal state past
  *   [stalenessThreshold] are surfaced via [VidLabelingMonitorMetrics.uploadsStuckGauge], and
  *   uploads with a `FAILED` model line via [VidLabelingMonitorMetrics.failedUploadsGauge], for
@@ -81,6 +82,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @param dispatchSequencer shared sequencer that performs dispatch for this DataProvider.
  * @param dataProviderName resource name of the `DataProvider` this monitor scans.
  * @param stalenessThreshold non-terminal uploads older than this are flagged as stuck.
+ * @param rpcThrottlers process-scoped rate limiters shared with the dispatch sequencer.
  * @param clock clock used for staleness evaluation.
  * @param metrics OpenTelemetry instruments recorder.
  */
@@ -99,6 +101,7 @@ class VidLabelingMonitor(
   private val rankerJobStub: RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub,
   private val vidLabelingJobStub: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub,
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
+  private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val clock: Clock = Clock.systemUTC(),
   private val metrics: VidLabelingMonitorMetrics = VidLabelingMonitorMetrics(),
 ) {
@@ -315,14 +318,16 @@ class VidLabelingMonitor(
         // distinguish UNAVAILABLE/NOT_FOUND/PERMISSION_DENIED instead of seeing an opaque
         // Exception.
         val response =
-          rawImpressionUploadStub.listRawImpressionUploads(
-            listRawImpressionUploadsRequest {
-              parent = dataProviderName
-              if (pageToken.isNotEmpty()) {
-                this.pageToken = pageToken
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadStub.listRawImpressionUploads(
+              listRawImpressionUploadsRequest {
+                parent = dataProviderName
+                if (pageToken.isNotEmpty()) {
+                  this.pageToken = pageToken
+                }
               }
-            }
-          )
+            )
+          }
         ResourceList(response.rawImpressionUploadsList, response.nextPageToken)
       }
       .flattenConcat()
@@ -335,14 +340,16 @@ class VidLabelingMonitor(
       .listResources { pageToken: String ->
         // Let StatusException propagate with its gRPC Status.Code intact (see listUploads).
         val response =
-          rawImpressionUploadModelLineStub.listRawImpressionUploadModelLines(
-            listRawImpressionUploadModelLinesRequest {
-              parent = uploadName
-              if (pageToken.isNotEmpty()) {
-                this.pageToken = pageToken
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadModelLineStub.listRawImpressionUploadModelLines(
+              listRawImpressionUploadModelLinesRequest {
+                parent = uploadName
+                if (pageToken.isNotEmpty()) {
+                  this.pageToken = pageToken
+                }
               }
-            }
-          )
+            )
+          }
         ResourceList(response.rawImpressionUploadModelLinesList, response.nextPageToken)
       }
       .flattenConcat()
@@ -354,14 +361,16 @@ class VidLabelingMonitor(
     rawImpressionUploadFileStub
       .listResources { pageToken: String ->
         val response =
-          rawImpressionUploadFileStub.listRawImpressionUploadFiles(
-            listRawImpressionUploadFilesRequest {
-              parent = uploadName
-              if (pageToken.isNotEmpty()) {
-                this.pageToken = pageToken
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadFileStub.listRawImpressionUploadFiles(
+              listRawImpressionUploadFilesRequest {
+                parent = uploadName
+                if (pageToken.isNotEmpty()) {
+                  this.pageToken = pageToken
+                }
               }
-            }
-          )
+            )
+          }
         ResourceList(response.rawImpressionUploadFilesList, response.nextPageToken)
       }
       .flattenConcat()
@@ -622,48 +631,54 @@ class VidLabelingMonitor(
     modelLine: String,
   ): RecoveryOutcome {
     val total =
-      rankerJobStub
-        .listRankerJobs(
-          listRankerJobsRequest {
-            parent = uploadName
-            filter = ListRankerJobsRequestKt.filter { cmmsModelLine = modelLine }
-            pageSize = 0
-          }
-        )
+      rpcThrottlers.metadataRead
+        .onReady {
+          rankerJobStub.listRankerJobs(
+            listRankerJobsRequest {
+              parent = uploadName
+              filter = ListRankerJobsRequestKt.filter { cmmsModelLine = modelLine }
+              pageSize = 0
+            }
+          )
+        }
         .totalSize
     if (total == 0) {
       return RecoveryOutcome.NOOP
     }
     val nonSucceeded =
-      rankerJobStub
-        .listRankerJobs(
-          listRankerJobsRequest {
-            parent = uploadName
-            filter =
-              ListRankerJobsRequestKt.filter {
-                cmmsModelLine = modelLine
-                stateIn += listOf(RankerJob.State.CREATED, RankerJob.State.FAILED)
-              }
-            pageSize = 0
-          }
-        )
+      rpcThrottlers.metadataRead
+        .onReady {
+          rankerJobStub.listRankerJobs(
+            listRankerJobsRequest {
+              parent = uploadName
+              filter =
+                ListRankerJobsRequestKt.filter {
+                  cmmsModelLine = modelLine
+                  stateIn += listOf(RankerJob.State.CREATED, RankerJob.State.FAILED)
+                }
+              pageSize = 0
+            }
+          )
+        }
         .totalSize
     if (nonSucceeded > 0) {
       return RecoveryOutcome.NOOP
     }
     val job =
-      rankerJobStub
-        .listRankerJobs(
-          listRankerJobsRequest {
-            parent = uploadName
-            filter =
-              ListRankerJobsRequestKt.filter {
-                cmmsModelLine = modelLine
-                stateIn += RankerJob.State.SUCCEEDED
-              }
-            pageSize = 1
-          }
-        )
+      rpcThrottlers.metadataRead
+        .onReady {
+          rankerJobStub.listRankerJobs(
+            listRankerJobsRequest {
+              parent = uploadName
+              filter =
+                ListRankerJobsRequestKt.filter {
+                  cmmsModelLine = modelLine
+                  stateIn += RankerJob.State.SUCCEEDED
+                }
+              pageSize = 1
+            }
+          )
+        }
         .rankerJobsList
         .firstOrNull() ?: return RecoveryOutcome.NOOP
     return republishWorkItem(WorkItemIds.forVidRankBuilder(job.name))
@@ -695,18 +710,20 @@ class VidLabelingMonitor(
     modelLine: String,
     state: VidLabelingJob.State,
   ): List<VidLabelingJob> =
-    vidLabelingJobStub
-      .listVidLabelingJobs(
-        listVidLabelingJobsRequest {
-          parent = uploadName
-          filter =
-            ListVidLabelingJobsRequestKt.filter {
-              cmmsModelLine = modelLine
-              this.state = state
-            }
-          pageSize = 1
-        }
-      )
+    rpcThrottlers.metadataRead
+      .onReady {
+        vidLabelingJobStub.listVidLabelingJobs(
+          listVidLabelingJobsRequest {
+            parent = uploadName
+            filter =
+              ListVidLabelingJobsRequestKt.filter {
+                cmmsModelLine = modelLine
+                this.state = state
+              }
+            pageSize = 1
+          }
+        )
+      }
       .vidLabelingJobsList
 
   /**
@@ -725,7 +742,9 @@ class VidLabelingMonitor(
   private suspend fun republishWorkItem(workItemId: String): RecoveryOutcome {
     val existing =
       try {
-        workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
+        rpcThrottlers.controlPlane.onReady {
+          workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
+        }
       } catch (e: StatusException) {
         if (e.status.code == Status.Code.NOT_FOUND) {
           // The original WorkItem is gone (e.g. retention-deleted); cloning it is impossible and
@@ -740,15 +759,17 @@ class VidLabelingMonitor(
     for (attempt in 1..MAX_RECOVERY_ATTEMPTS) {
       val recoveryId = "$workItemId-monitor-recovery-$attempt"
       try {
-        workItemsStub.createWorkItem(
-          createWorkItemRequest {
-            this.workItemId = recoveryId
-            workItem = workItem {
-              queue = existing.queue
-              workItemParams = existing.workItemParams
+        rpcThrottlers.controlPlane.onReady {
+          workItemsStub.createWorkItem(
+            createWorkItemRequest {
+              this.workItemId = recoveryId
+              workItem = workItem {
+                queue = existing.queue
+                workItemParams = existing.workItemParams
+              }
             }
-          }
-        )
+          )
+        }
         logger.info(
           "Recovered a stuck transition by re-publishing WorkItem $workItemId (attempt $attempt)"
         )
