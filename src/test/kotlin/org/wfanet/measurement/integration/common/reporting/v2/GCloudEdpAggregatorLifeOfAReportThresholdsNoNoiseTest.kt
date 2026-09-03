@@ -105,6 +105,8 @@ class GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseTest :
     assertThat(thresholdedResult.frequency.noiseMechanism)
       .isEqualTo(PublicProtocolConfig.NoiseMechanism.NONE)
     val thresholdedDistribution = thresholdedResult.frequency.relativeFrequencyDistributionMap
+    // Without threshold uncertainty, these zeros are treated as exact and conflict with the
+    // positive reach, making report correction infeasible.
     assertThat(thresholdedDistribution).isNotEmpty()
     assertThat(thresholdedDistribution.values.all { it == 0.0 }).isTrue()
     val thresholdedImpression = thresholdedResults.single { it.hasImpression() }.impression
