@@ -386,10 +386,7 @@ class DataAvailabilitySync(
         val existing = existingByBlobUri[item.impressionMetadata.blobUri]
         if (existing == null) {
           toCreate.add(item)
-        } else if (
-          existing.state != ImpressionMetadata.State.DELETED &&
-            hasContentChanged(item.impressionMetadata, existing)
-        ) {
+        } else if (hasContentChanged(item.impressionMetadata, existing)) {
           toUpdate.add(
             ImpressionMetadataWithBlobKey(
               impressionMetadata = item.impressionMetadata.copy { name = existing.name },
@@ -492,7 +489,6 @@ class DataAvailabilitySync(
                 impressionMetadataServiceStub.listImpressionMetadata(
                   listImpressionMetadataRequest {
                     parent = dataProviderName
-                    showDeleted = true
                     filter = listFilter { this.blobUris += blobUriChunk }
                     if (pageToken.isNotEmpty()) {
                       this.pageToken = pageToken

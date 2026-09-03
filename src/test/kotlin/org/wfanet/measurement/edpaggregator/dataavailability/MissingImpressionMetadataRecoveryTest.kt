@@ -25,6 +25,7 @@ import io.opentelemetry.sdk.metrics.data.MetricData
 import io.opentelemetry.sdk.metrics.export.MetricReader
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
+import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -119,7 +120,7 @@ class MissingImpressionMetadataRecoveryTest {
       val syncedDoneBlobUris = mutableListOf<String>()
 
       val result =
-        buildRecovery(storageClient, impressionMetadataBatchSize = 100) { doneBlobUri ->
+        buildRecovery(storageClient, impressionMetadataBatchSize = 100) { doneBlobUri, _ ->
             syncedDoneBlobUris += doneBlobUri
           }
           .recover()
@@ -139,10 +140,12 @@ class MissingImpressionMetadataRecoveryTest {
     val storageClient = InMemoryStorageClient()
     writeFinalizedMetadata(storageClient, "2026-08-01", "metadata-a.json", "metadata-b.binpb")
     val syncedDoneBlobUris = mutableListOf<String>()
+    val syncedMetadataBlobKeys = mutableSetOf<String>()
 
     val result =
-      buildRecovery(storageClient, impressionMetadataBatchSize = 100) { doneBlobUri ->
+      buildRecovery(storageClient, impressionMetadataBatchSize = 100) { doneBlobUri, blobKeys ->
           syncedDoneBlobUris += doneBlobUri
+          syncedMetadataBlobKeys += blobKeys
         }
         .recover()
 
@@ -150,10 +153,46 @@ class MissingImpressionMetadataRecoveryTest {
     assertThat(result.recoveredBlobs).isEqualTo(2)
     assertThat(result.dateFoldersResynced).isEqualTo(1)
     assertThat(syncedDoneBlobUris).hasSize(1)
+    assertThat(syncedMetadataBlobKeys)
+      .containsExactly(
+        metadataKey("2026-08-01", "metadata-a.json"),
+        metadataKey("2026-08-01", "metadata-b.binpb"),
+      )
     assertThat(metricValue(MISSING_BLOBS_METRIC)).isEqualTo(2)
     assertThat(metricValue(RECOVERED_BLOBS_METRIC)).isEqualTo(2)
     assertThat(metricValue(FAILED_BLOBS_METRIC)).isEqualTo(0)
     assertThat(metricValue(DELETED_RECORDS_WITH_BLOBS_METRIC)).isEqualTo(0)
+  }
+
+  @Test
+  fun `recover passes only missing in-scope blob keys to sync`(): Unit = runBlocking {
+    val storageClient = InMemoryStorageClient()
+    val deletedUri = metadataUri("2026-08-02", "metadata-deleted.json")
+    writeFinalizedMetadata(
+      storageClient,
+      "2026-08-02",
+      "metadata-missing.json",
+      "metadata-deleted.json",
+    )
+    writeFinalizedMetadata(storageClient, "2025-01-01", "metadata-outside-lookback.json")
+    writeFinalizedMetadata(storageClient, "2026-09-01", "metadata-future.json")
+    registeredMetadata[deletedUri] = impressionMetadata {
+      blobUri = deletedUri
+      state = ImpressionMetadata.State.DELETED
+    }
+    val syncedMetadataBlobKeys = mutableSetOf<String>()
+
+    val result =
+      buildRecovery(storageClient, impressionMetadataBatchSize = 100) { _, blobKeys ->
+          syncedMetadataBlobKeys += blobKeys
+        }
+        .recover()
+
+    assertThat(result.finalizedMetadataBlobs).isEqualTo(2)
+    assertThat(result.missingBlobs).isEqualTo(1)
+    assertThat(result.deletedRecordsWithBlobs).isEqualTo(1)
+    assertThat(syncedMetadataBlobKeys)
+      .containsExactly(metadataKey("2026-08-02", "metadata-missing.json"))
   }
 
   @Test
@@ -163,7 +202,7 @@ class MissingImpressionMetadataRecoveryTest {
     writeFinalizedMetadata(storageClient, "2026-08-02", "metadata.json")
 
     val result =
-      buildRecovery(storageClient, impressionMetadataBatchSize = 100) { doneBlobUri ->
+      buildRecovery(storageClient, impressionMetadataBatchSize = 100) { doneBlobUri, _ ->
           if (doneBlobUri.contains("2026-08-01")) {
             error("sync failed")
           }
@@ -192,7 +231,7 @@ class MissingImpressionMetadataRecoveryTest {
       state = ImpressionMetadata.State.DELETED
     }
 
-    val result = buildRecovery(storageClient, impressionMetadataBatchSize = 2) {}.recover()
+    val result = buildRecovery(storageClient, impressionMetadataBatchSize = 2) { _, _ -> }.recover()
 
     assertThat(result.deletedRecordsWithBlobs).isEqualTo(1)
     assertThat(metricValue(DELETED_RECORDS_WITH_BLOBS_METRIC)).isEqualTo(1)
@@ -210,7 +249,7 @@ class MissingImpressionMetadataRecoveryTest {
   private fun buildRecovery(
     storageClient: InMemoryStorageClient,
     impressionMetadataBatchSize: Int,
-    sync: suspend (String) -> Unit,
+    sync: suspend (String, Set<String>) -> Unit,
   ): MissingImpressionMetadataRecovery =
     MissingImpressionMetadataRecovery(
       storageClient = storageClient,
@@ -223,6 +262,8 @@ class MissingImpressionMetadataRecoveryTest {
           override suspend fun <T> onReady(block: suspend () -> T): T = block()
         },
       impressionMetadataBatchSize = impressionMetadataBatchSize,
+      earliestDataDate = LocalDate.parse("2026-06-01"),
+      latestDataDate = LocalDate.parse("2026-08-31"),
       sync = sync,
       metrics = metrics,
     )

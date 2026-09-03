@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 
 import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
+import java.time.LocalDate
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.coroutines.cancellation.CancellationException
@@ -49,7 +50,9 @@ import org.wfanet.measurement.storage.StorageClient
  * @param dataProviderName Parent resource name for metadata list requests.
  * @param throttler Throttles metadata list requests.
  * @param impressionMetadataBatchSize Maximum blob URIs per list request.
- * @param sync Re-runs data availability sync for a completion blob.
+ * @param earliestDataDate Earliest date folder included in the reconciliation.
+ * @param latestDataDate Latest date folder included in the reconciliation.
+ * @param sync Re-runs data availability sync for a completion blob and selected metadata keys.
  * @param metrics Records reconciliation results.
  */
 class MissingImpressionMetadataRecovery(
@@ -60,7 +63,9 @@ class MissingImpressionMetadataRecovery(
   private val dataProviderName: String,
   private val throttler: Throttler,
   private val impressionMetadataBatchSize: Int,
-  private val sync: suspend (doneBlobUri: String) -> Unit,
+  private val earliestDataDate: LocalDate,
+  private val latestDataDate: LocalDate,
+  private val sync: suspend (doneBlobUri: String, metadataBlobKeys: Set<String>) -> Unit,
   private val metrics: MissingImpressionMetadataRecoveryMetrics,
 ) {
   init {
@@ -70,6 +75,7 @@ class MissingImpressionMetadataRecovery(
     require(impressionMetadataBatchSize > 0) {
       "impressionMetadataBatchSize must be greater than zero"
     }
+    require(!latestDataDate.isBefore(earliestDataDate)) { "data date range must not be empty" }
   }
 
   /**
@@ -102,7 +108,7 @@ class MissingImpressionMetadataRecovery(
   /** Finds missing resources and re-runs data availability sync for each affected date folder. */
   suspend fun recover(): RecoveryResult {
     val prefix = "$edpImpressionPath/"
-    val blobs = storageClient.listBlobs(prefix).toList()
+    val blobs = storageClient.listBlobs(prefix).filter(::isInLookbackWindow).toList()
     val doneBlobKeys = blobs.filter { it.blobKey.endsWith(DONE_SUFFIX) }.map { it.blobKey }.toSet()
     val storageMetadataBlobs = blobs.filter(::hasMetadataFileName)
     val finalizedMetadataBlobs =
@@ -156,16 +162,22 @@ class MissingImpressionMetadataRecovery(
     var failedBlobs = 0
     var dateFoldersResynced = 0
     val errors = mutableListOf<RecoveryError>()
-    for ((folder, folderBlobUris) in missingBlobUris.groupBy { it.substringBeforeLast('/') }) {
-      val doneBlobUri = "$folder$DONE_SUFFIX"
+    val missingBlobUriSet = missingBlobUris.toSet()
+    val missingMetadataBlobs =
+      finalizedMetadataBlobs.filter {
+        BlobUris.buildUri(storageRootUri, it.blobKey) in missingBlobUriSet
+      }
+    for ((folder, folderBlobs) in
+      missingMetadataBlobs.groupBy { it.blobKey.substringBeforeLast('/') }) {
+      val doneBlobUri = BlobUris.buildUri(storageRootUri, "$folder$DONE_SUFFIX")
       try {
-        sync(doneBlobUri)
-        recoveredBlobs += folderBlobUris.size
+        sync(doneBlobUri, folderBlobs.mapTo(mutableSetOf()) { it.blobKey })
+        recoveredBlobs += folderBlobs.size
         dateFoldersResynced++
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
-        failedBlobs += folderBlobUris.size
+        failedBlobs += folderBlobs.size
         errors += RecoveryError(doneBlobUri, e.message ?: e::class.java.simpleName)
       }
     }
@@ -225,5 +237,14 @@ class MissingImpressionMetadataRecovery(
     private fun hasMetadataFileName(blob: StorageClient.Blob): Boolean =
       !blob.blobKey.endsWith(DONE_SUFFIX) &&
         METADATA_FILE_NAME in blob.blobKey.substringAfterLast('/').lowercase()
+
+    private fun dataDate(blobKey: String): LocalDate? =
+      runCatching { LocalDate.parse(blobKey.substringBeforeLast('/').substringAfterLast('/')) }
+        .getOrNull()
+  }
+
+  private fun isInLookbackWindow(blob: StorageClient.Blob): Boolean {
+    val date = dataDate(blob.blobKey) ?: return false
+    return date in earliestDataDate..latestDataDate
   }
 }

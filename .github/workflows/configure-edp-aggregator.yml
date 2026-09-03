@@ -88,6 +88,7 @@ jobs:
         IMAGE_TAG: ${{ inputs.image-tag }}
         SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
         GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
+        KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -96,6 +97,7 @@ jobs:
         build --define "image_tag=$IMAGE_TAG"
         build --define "google_cloud_project=$GCLOUD_PROJECT"
         build --define "spanner_instance=$SPANNER_INSTANCE"
+        build --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         EOF
 
     - name: Set up Bazel
@@ -116,6 +118,7 @@ jobs:
         //src/main/k8s/dev:edp_aggregator.tar
         //src/main/k8s/testing/secretfiles:edp_aggregator_tls_files.tar
         //src/main/k8s/testing/secretfiles:edp7_tls_files.tar
+        //src/main/k8s/testing/secretfiles:data_availability_tls_files.tar
         //src/main/k8s/testing/secretfiles:edp_aggregator_trusted_certs.pem
 
     - name: Make Kustomization dir
@@ -135,6 +138,11 @@ jobs:
       run: >
         tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/edp7_tls_files.tar"
         -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp7_tls"
+
+    - name: Extract data availability TLS files archive
+      run: >
+        tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/data_availability_tls_files.tar"
+        -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/data_availability_tls"
 
     - name: Copy trusted certs
       run: >
@@ -156,6 +164,17 @@ jobs:
         fi
         printf '%s' "$EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT" > \
           "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_config/event-group-activity-sync-config-edp7.textproto"
+
+    - name: Write data-availability-recovery config (edp7)
+      env:
+        DATA_AVAILABILITY_RECOVERY_EDP7_CONFIG_CONTENT: ${{ vars.DATA_AVAILABILITY_RECOVERY_EDP7_CONFIG_CONTENT }}
+      run: |
+        if [ -z "$DATA_AVAILABILITY_RECOVERY_EDP7_CONFIG_CONTENT" ]; then
+          echo "vars.DATA_AVAILABILITY_RECOVERY_EDP7_CONFIG_CONTENT is empty for environment ${{ inputs.environment }}" >&2
+          exit 1
+        fi
+        printf '%s' "$DATA_AVAILABILITY_RECOVERY_EDP7_CONFIG_CONTENT" > \
+          "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_config/data-availability-recovery-config-edp7.textproto"
 
     - name: Export KUSTOMIZE_PATH
       run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator" >> $GITHUB_ENV

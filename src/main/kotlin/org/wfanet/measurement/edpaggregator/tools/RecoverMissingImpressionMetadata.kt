@@ -23,10 +23,14 @@ import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 import kotlin.properties.Delegates
 import kotlin.system.exitProcess
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.common.Instrumentation
@@ -43,9 +47,20 @@ import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMe
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecoveryMetrics
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.BlobUri
+import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
+
+private class FilteringBlobMetadataStorageClient(
+  private val delegate: BlobMetadataStorageClient,
+  private val includedBlobKeys: Set<String>,
+) : BlobMetadataStorageClient by delegate {
+  override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> {
+    return delegate.listBlobs(prefix).filter { it.blobKey in includedBlobKeys }
+  }
+}
 
 /** Recovers finalized metadata blobs that were not registered by DataAvailabilitySync. */
 @Command(
@@ -101,6 +116,13 @@ class RecoverMissingImpressionMetadata : Runnable {
   )
   private var impressionMetadataBatchSize: Int by Delegates.notNull()
 
+  @set:Option(
+    names = ["--lookback-days"],
+    description = ["Number of date folders to reconcile, including today"],
+    defaultValue = "90",
+  )
+  private var lookbackDays: Int by Delegates.notNull()
+
   override fun run() {
     val config = parseTextProto(configFile, DataAvailabilitySyncConfig.getDefaultInstance())
     require(config.dataAvailabilityStorage.storageCase == StorageCase.GCS) {
@@ -111,6 +133,7 @@ class RecoverMissingImpressionMetadata : Runnable {
 
     val storageConfig = config.dataAvailabilityStorage.gcs
     require(storageConfig.bucketName.isNotEmpty()) { "GCS bucket_name must be set" }
+    require(lookbackDays > 0) { "lookback-days must be greater than zero" }
     val storageClient =
       GcsStorageClient(
         StorageOptions.newBuilder()
@@ -144,18 +167,7 @@ class RecoverMissingImpressionMetadata : Runnable {
         )
       )
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
-    val dataAvailabilitySync =
-      DataAvailabilitySync(
-        edpImpressionPath = config.edpImpressionPath,
-        storageClient = storageClient,
-        dataProvidersStub = dataProvidersStub,
-        impressionMetadataServiceStub = impressionMetadataStub,
-        dataProviderName = config.dataProvider,
-        throttler = throttler,
-        impressionMetadataBatchSize = impressionMetadataBatchSize,
-        modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
-        errorIfGapsExist = config.errorIfGapsExist,
-      )
+    val latestDataDate = LocalDate.now(ZoneOffset.UTC)
     val recovery =
       MissingImpressionMetadataRecovery(
         storageClient = storageClient,
@@ -165,7 +177,22 @@ class RecoverMissingImpressionMetadata : Runnable {
         dataProviderName = config.dataProvider,
         throttler = throttler,
         impressionMetadataBatchSize = impressionMetadataBatchSize,
-        sync = dataAvailabilitySync::sync,
+        earliestDataDate = latestDataDate.minusDays((lookbackDays - 1).toLong()),
+        latestDataDate = latestDataDate,
+        sync = { doneBlobUri, metadataBlobKeys ->
+          DataAvailabilitySync(
+              edpImpressionPath = config.edpImpressionPath,
+              storageClient = FilteringBlobMetadataStorageClient(storageClient, metadataBlobKeys),
+              dataProvidersStub = dataProvidersStub,
+              impressionMetadataServiceStub = impressionMetadataStub,
+              dataProviderName = config.dataProvider,
+              throttler = throttler,
+              impressionMetadataBatchSize = impressionMetadataBatchSize,
+              modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
+              errorIfGapsExist = config.errorIfGapsExist,
+            )
+            .sync(doneBlobUri)
+        },
         metrics = MissingImpressionMetadataRecoveryMetrics(Instrumentation.meter),
       )
 

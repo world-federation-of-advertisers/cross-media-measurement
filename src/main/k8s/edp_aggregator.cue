@@ -32,10 +32,11 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 
 	_imageSuffixes: [_=string]: string
 	_imageSuffixes: {
-		"edp-aggregator-system-api-server":   string | *"edp-aggregator/system-api"
-		"edp-aggregator-internal-api-server": string | *"edp-aggregator/internal-api"
-		"update-edp-aggregator-schema":       string | *"edp-aggregator/update-schema"
-		"sync-event-group-activities":        string | *"edp-aggregator/sync-event-group-activities"
+		"edp-aggregator-system-api-server":    string | *"edp-aggregator/system-api"
+		"edp-aggregator-internal-api-server":  string | *"edp-aggregator/internal-api"
+		"update-edp-aggregator-schema":        string | *"edp-aggregator/update-schema"
+		"sync-event-group-activities":         string | *"edp-aggregator/sync-event-group-activities"
+		"recover-missing-impression-metadata": string | *"edp-aggregator/recover-missing-impression-metadata"
 	}
 	_imageConfigs: [_=string]: #ImageConfig
 	_imageConfigs: {
@@ -68,6 +69,20 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 	_syncEventGroupActivitiesArgs: [string]: {
 		args: [...string]
 		tlsSecret: string
+	}
+
+	// Schedule for the per-EDP data availability recovery CronJobs. Override in
+	// the env-specific overlay (default: Sundays at 06:00 UTC).
+	_recoverMissingImpressionMetadataCronSchedule: string | *"0 6 * * 0"
+
+	// Per-EDP recovery CronJob configs. The overlay sets one entry per EDP.
+	// Empty by default, so entries produce no CronJob unless configured.
+	//
+	// args: CLI flags passed to the recovery container.
+	// tlsSecrets: K8s Secrets containing the EDP and data-availability TLS files.
+	_recoverMissingImpressionMetadataArgs: [string]: {
+		args: [...string]
+		tlsSecrets: [...string]
 	}
 
 	services: [Name=_]: #GrpcService & {
@@ -176,19 +191,27 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 				}
 			}
 		}
+		for edp, _ in _recoverMissingImpressionMetadataArgs {
+			"recover-missing-impression-metadata-\(edp)": {
+				_app_label: "recover-missing-impression-metadata-\(edp)-app"
+				_egresses: {
+					// Needs GCS plus the Kingdom and EDP Aggregator public APIs.
+					any: {}
+				}
+			}
+		}
 	}
 
-	// K8s ServiceAccount that the CronJob pods run as. Set in the overlay
-	// (e.g. dev/edp_aggregator_gke.cue) and bound via Workload Identity to a
-	// GCP SA that has storage.objectViewer on the spot-data bucket.
-	_syncEventGroupActivitiesServiceAccountName: string
+	// K8s ServiceAccounts for scheduled jobs. Set in the overlay and bound via
+	// Workload Identity to GCP service accounts with access to their buckets.
+	_syncEventGroupActivitiesServiceAccountName:         string
+	_recoverMissingImpressionMetadataServiceAccountName: string
 
 	cronJobs: [Name=_]: #CronJob & {
 		_name:       Name
 		_secretName: _edpAggregatorSecretName
 		_system:     "edp-aggregator"
 		_container: {
-			image: _images["sync-event-group-activities"]
 			_javaOptions: maxHeapSize: "256M"
 			resources: {
 				requests: {
@@ -202,9 +225,7 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 		}
 		spec: {
 			concurrencyPolicy: "Forbid"
-			schedule:          _syncEventGroupActivitiesCronSchedule
 			jobTemplate: spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: _syncEventGroupActivitiesServiceAccountName
 				// Per-EDP secret mounts (e.g. edp7-tls) are added by the per-EDP
 				// override block below; only the shared ConfigMap mount lives here.
 				_mounts: {
@@ -218,10 +239,38 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 	cronJobs: {
 		for edp, cfg in _syncEventGroupActivitiesArgs {
 			"sync-event-group-activities-\(edp)": {
-				_container: args: cfg.args
-				spec: jobTemplate: spec: template: spec: _mounts: {
-					"\(cfg.tlsSecret)": #SecretMount & {
-						volumeMount: mountPath: "\(MountRoot)/\(cfg.tlsSecret)"
+				_container: {
+					image: _images["sync-event-group-activities"]
+					args:  cfg.args
+				}
+				spec: {
+					schedule: _syncEventGroupActivitiesCronSchedule
+					jobTemplate: spec: template: spec: {
+						serviceAccountName: _syncEventGroupActivitiesServiceAccountName
+						_mounts: "\(cfg.tlsSecret)": #SecretMount & {
+							volumeMount: mountPath: "\(MountRoot)/\(cfg.tlsSecret)"
+						}
+					}
+				}
+			}
+		}
+		for edp, cfg in _recoverMissingImpressionMetadataArgs {
+			"recover-missing-impression-metadata-\(edp)": {
+				_container: {
+					image: _images["recover-missing-impression-metadata"]
+					args:  cfg.args
+				}
+				spec: {
+					schedule: _recoverMissingImpressionMetadataCronSchedule
+					jobTemplate: spec: template: spec: {
+						serviceAccountName: _recoverMissingImpressionMetadataServiceAccountName
+						_mounts: {
+							for secret in cfg.tlsSecrets {
+								"\(secret)": #SecretMount & {
+									volumeMount: mountPath: "\(MountRoot)/\(secret)"
+								}
+							}
+						}
 					}
 				}
 			}
