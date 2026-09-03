@@ -1,0 +1,14 @@
+name: "modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelLines/AAAAAAAAAKs"
+
+display_name: "Display name"
+description: "Description"
+
+active_start_time: {
+  seconds: 1000000000
+}
+
+active_end_time: {
+  seconds: 2000000000
+}
+
+type: PROD

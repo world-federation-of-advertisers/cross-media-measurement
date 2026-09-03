@@ -1,0 +1,24 @@
+event_id {
+  publisher: "PUBLISHER_01"
+  id: "EVENT_05"
+}
+timestamp_usec: 1626847100000001
+geo {
+  country_id: 1
+}
+profile_info {
+  phone_user_info {
+    user_id: "PHONE_USER_05"
+    profile_version: "20210701"
+    demo {
+      demo_bucket {
+        gender: GENDER_MALE
+        age {
+          min_age: 25
+          max_age: 34
+        }
+      }
+    }
+    creation_time_usec: 1626847100002001
+  }
+}

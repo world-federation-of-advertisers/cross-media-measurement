@@ -1,0 +1,41 @@
+name: "root"
+branch_node {
+  updates {
+    updates {
+      # Always assign virtual person demo to M18-24.
+      conditional_merge {
+        pass_through_non_matches: True
+        nodes {
+          condition {
+            op: TRUE
+          }
+          update {
+            label {
+              demo {
+                gender: 1
+                age {
+                  min_age: 18
+                  max_age: 24
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  branches {
+    condition {
+      op: TRUE
+    }
+    node {
+      name: "pool_all"
+      # Always return virtual person id 10000.
+      population_node {
+        pools { population_offset: 10000 total_population: 1 }
+        random_seed: "pool_all_seed"
+      }
+    }
+  }
+}
+

@@ -111,6 +111,10 @@ jobs:
           //src/main/k8s/local:cmms
           //src/main/k8s/dev:edp_simulators
 
+      - name: Run nested module tests
+        working-directory: modules/virtual-people-core-serving
+        run: bazel test //...
+
       - name: Run tests
         id: run-tests
         run: bazel test //...
