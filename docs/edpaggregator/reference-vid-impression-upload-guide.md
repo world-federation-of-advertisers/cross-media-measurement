@@ -17,10 +17,19 @@ The `done` object tells the VID-labeling pipeline that the directory is complete
 records a snapshot of every raw-impression object currently present and processes that complete
 snapshot for the applicable model lines.
 
-## Backfill a newly onboarded advertiser
+## Backfill additional data
 
-When a new advertiser needs historical data added to dates that were already processed, create a
-dedicated subdirectory for that advertiser under each date. For example:
+Backfilling is appropriate when the data already processed is correct, but additional raw
+impressions must be added. Examples include a newly onboarded advertiser or files that the EDP
+forgot to include in the original upload.
+
+The system supports two backfill strategies. **Using a dedicated subdirectory is strongly
+recommended** because it creates a clear upload boundary and allows the backfill to be corrected or
+evicted independently from the original upload.
+
+### Recommended: use a dedicated subdirectory
+
+Create a dedicated subdirectory for the backfill under each affected date. For example:
 
 ```text
 gs://BUCKET/RAW_IMPRESSION_PREFIX/2026-08-15/advertiser-XYZ/
@@ -29,34 +38,55 @@ gs://BUCKET/RAW_IMPRESSION_PREFIX/2026-08-15/advertiser-XYZ/
   done
 ```
 
-The `done` object must be inside the advertiser subdirectory. Its directory is the upload boundary,
-so the pipeline registers a new upload containing only the files for that advertiser. Do not write
-the new `done` object in the date directory, because a marker there recursively includes files in
-all of its subdirectories.
+The `done` object must be inside the backfill subdirectory. Its directory is the upload boundary, so
+the pipeline registers a new upload containing only the files in that subdirectory. Do not write
+this marker in the date directory, because a marker there recursively includes files in all of its
+subdirectories.
 
 For each historical date:
 
-1. Create a separate advertiser subdirectory under that date.
-2. Write only the new advertiser's raw-impression files into that subdirectory.
-3. Verify that the advertiser subdirectory contains the complete dataset intended for that date.
-4. Write the empty `done` object into the advertiser subdirectory last.
+1. Create a separate backfill subdirectory under that date.
+2. Write only the additional raw-impression files into that subdirectory.
+3. Verify that the subdirectory contains the complete backfill dataset intended for that date.
+4. Write the empty `done` object into the backfill subdirectory last.
 5. Process dates from oldest to newest, waiting for each upload to complete before writing the next
    date's `done` object.
 
-Do not modify the existing date upload or another advertiser's subdirectory. Multiple independent
-uploads can contain impressions for the same date, and each upload can be corrected or evicted
-independently.
+Multiple independent uploads can contain impressions for the same date, and each upload can be
+corrected or evicted independently.
 
 For a legacy date whose original files and `done` marker are directly in the date directory, leave
-the existing files unchanged and create the new advertiser subdirectory beneath it. Writing the
-marker inside the advertiser subdirectory limits the new upload to that advertiser's files.
+the existing files unchanged and create the new backfill subdirectory beneath it. Writing the
+marker inside the subdirectory limits the new upload to the backfill files.
+
+### Alternative: add files to the existing directory
+
+The EDP may instead add the missing raw-impression files to the existing directory and write a new
+generation of its `done` object. The pipeline compares object URIs and generations with previously
+registered files and creates a new upload containing the newly added object versions.
+
+Use this strategy only for additive backfills: leave every previously processed file unchanged and
+do not remove any file. Removing or correcting previously processed data requires operator-managed
+eviction as described below.
 
 ## Correct bad data
 
-**Never overwrite or re-upload the `done` object for an already processed directory until the
-market operator confirms that the bad upload has been evicted.** A new `done` generation starts a
-replacement upload. Starting it before eviction can leave stale labeled output and can corrupt the
-ordering required by memoized model lines.
+Bad data includes situations such as:
+
+* a file that should not have been uploaded;
+* a corrupted or incomplete file;
+* a file containing incorrect impressions, campaign data, or dates; or
+* a previously processed file that must be replaced or removed.
+
+**The EDP must not fix bad data by deleting or overwriting files and writing a new `done` generation
+on its own.** Without eviction, the pipeline treats the new marker as an incremental upload and
+does not remove all data and generated output from the earlier upload. This can leave stale
+VID-labeled impressions and can corrupt the ordering required by memoized model lines.
+
+Contact the market operator and wait for confirmation that the affected upload has been evicted
+before modifying the directory. If the existing files are correct and the only problem is that
+additional files were forgotten, use one of the backfill strategies above instead; eviction is not
+required for a purely additive backfill.
 
 When bad data is discovered:
 
