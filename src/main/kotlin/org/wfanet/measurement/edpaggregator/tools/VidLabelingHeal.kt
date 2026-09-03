@@ -26,6 +26,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcDurationConverter
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
@@ -194,6 +195,7 @@ class RetryFailedCommand : EdpaApiCommand() {
     names = ["--metadata-read-rpc-min-interval"],
     description = ["Minimum interval between outbound metadata read RPCs."],
     defaultValue = "100ms",
+    converter = [VidLabelingRpcDurationConverter::class],
   )
   private lateinit var metadataReadRpcMinInterval: Duration
 
@@ -201,6 +203,7 @@ class RetryFailedCommand : EdpaApiCommand() {
     names = ["--metadata-write-rpc-min-interval"],
     description = ["Minimum interval between outbound metadata write RPCs."],
     defaultValue = "200ms",
+    converter = [VidLabelingRpcDurationConverter::class],
   )
   private lateinit var metadataWriteRpcMinInterval: Duration
 
@@ -208,6 +211,7 @@ class RetryFailedCommand : EdpaApiCommand() {
     names = ["--control-plane-rpc-min-interval"],
     description = ["Minimum interval between outbound Secure Computation control-plane RPCs."],
     defaultValue = "250ms",
+    converter = [VidLabelingRpcDurationConverter::class],
   )
   private lateinit var controlPlaneRpcMinInterval: Duration
 
