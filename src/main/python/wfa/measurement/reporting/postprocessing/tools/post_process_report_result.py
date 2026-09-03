@@ -132,6 +132,11 @@ class PostProcessReportResult:
         }
         external_reporting_set_id_map = self._get_external_reporting_set_id_map(
             cmms_measurement_consumer_id, external_reporting_set_ids)
+        primitive_reporting_set_ids = {
+            primitive_reporting_set_id
+            for reporting_set_ids in external_reporting_set_id_map.values()
+            for primitive_reporting_set_id in reporting_set_ids
+        }
 
         configured_edps = set(ami_mrc_exempted_edps or []) | (
             self._potential_direct_thresholding_edps
@@ -139,7 +144,7 @@ class PostProcessReportResult:
         reporting_set_ids_by_data_provider_id = (
             self._get_primitive_reporting_set_ids_by_data_provider_id(
                 cmms_measurement_consumer_id,
-                external_reporting_set_ids,
+                primitive_reporting_set_ids,
                 configured_edps,
             )
         )
@@ -588,25 +593,25 @@ class PostProcessReportResult:
     def _get_primitive_reporting_set_ids_by_data_provider_id(
         self,
         cmms_measurement_consumer_id: str,
-        external_reporting_set_ids: Iterable[str],
+        primitive_reporting_set_ids: Iterable[str],
         edps: Iterable[str],
     ) -> dict[str, set[str]]:
         """Gets primitive reporting set IDs keyed by CMMS DataProvider ID.
 
         Args:
             cmms_measurement_consumer_id: The MC's ID.
-            external_reporting_set_ids: A list of external reporting set IDs.
+            primitive_reporting_set_ids: External primitive reporting set IDs.
             edps: EDP resource names or raw IDs to resolve.
 
         Returns:
             External primitive reporting set IDs keyed by DataProvider ID.
         """
-        if not external_reporting_set_ids or not edps:
+        if not primitive_reporting_set_ids or not edps:
             return {}
 
         request = BatchGetReportingSetsRequest(
             cmms_measurement_consumer_id=cmms_measurement_consumer_id,
-            external_reporting_set_ids=external_reporting_set_ids,
+            external_reporting_set_ids=primitive_reporting_set_ids,
         )
         response = self._reporting_sets_stub.BatchGetReportingSets(request)
         cmms_data_provider_ids = set(
