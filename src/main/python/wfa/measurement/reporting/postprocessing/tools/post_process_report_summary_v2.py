@@ -26,6 +26,9 @@ from noiseninja.noised_measurements import MeasurementSet
 from report.report import EdpCombination
 from report.report import MetricReport
 from report.report import Report
+from tools.potential_direct_result_minimum_thresholds import (
+    PotentialDirectResultMinimumThresholds,
+)
 from wfa.measurement.internal.reporting.postprocessing import (
     report_post_processor_result_pb2,
 )
@@ -60,11 +63,17 @@ class ReportSummaryV2Processor:
         self,
         report_summary: report_summary_v2_pb2.ReportSummaryV2,
         ami_mrc_exempted_reporting_set_ids: list[str],
+        potential_direct_result_minimum_thresholds: (
+            PotentialDirectResultMinimumThresholds | None
+        ) = None,
     ):
         """Initializes the processor with a ReportSummary v2 proto."""
         self._report_summary = report_summary
         self._ami_mrc_exempted_reporting_set_ids = (
             ami_mrc_exempted_reporting_set_ids or []
+        )
+        self._potential_direct_result_minimum_thresholds = (
+            potential_direct_result_minimum_thresholds
         )
         self._weekly_cumulative_reaches: dict[ImpressionFilter,
                                               dict[EdpCombination,
@@ -150,6 +159,7 @@ class ReportSummaryV2Processor:
             impression_filter = report_summary_set_result.impression_filter
             edp_combination = frozenset(
                 report_summary_set_result.data_providers)
+            is_single_edp_result = len(edp_combination) == 1
 
             # Initialize dictionaries for the impression_filter if not seen before.
             self._weekly_cumulative_reaches.setdefault(impression_filter, {})
@@ -167,12 +177,19 @@ class ReportSummaryV2Processor:
                     if not result.HasField("reach"):
                         raise ValueError(
                             "Cumulative results must be reach results.")
-                    measurements.append(
-                        Measurement(
+                    measurement = Measurement(
                             result.reach.value,
                             result.reach.standard_deviation,
                             result.reach.metric,
-                        ))
+                    )
+                    thresholds = (
+                        self._potential_direct_result_minimum_thresholds
+                    )
+                    if is_single_edp_result and thresholds is not None:
+                        measurement = thresholds.add_reach_uncertainty(
+                            measurement
+                        )
+                    measurements.append(measurement)
                 bucket = self._weekly_cumulative_reaches[impression_filter]
                 if edp_combination in bucket:
                     self._record_measurement_list_aliases(
@@ -189,7 +206,9 @@ class ReportSummaryV2Processor:
 
                 if weekly_results:
                     new_measurement_sets = [
-                        self._extract_measurement_set(result)
+                        self._extract_measurement_set(
+                            result, is_single_edp_result
+                        )
                         for result in weekly_results
                     ]
                     bucket = self._weekly_non_cumulative_measurements[
@@ -215,7 +234,9 @@ class ReportSummaryV2Processor:
                     f"Processing {impression_filter} whole campaign result for"
                     f" EDPs {report_summary_set_result.data_providers}.")
                 new_set = self._extract_measurement_set(
-                    report_summary_set_result.whole_campaign_result)
+                    report_summary_set_result.whole_campaign_result,
+                    is_single_edp_result,
+                )
                 bucket = self._whole_campaign_measurements[impression_filter]
                 if edp_combination in bucket:
                     self._record_measurement_set_aliases(
@@ -226,7 +247,10 @@ class ReportSummaryV2Processor:
         logging.info("Finished processing results.")
 
     def _extract_measurement_set(
-            self, result: ReportSummaryWindowResult) -> MeasurementSet:
+        self,
+        result: ReportSummaryWindowResult,
+        is_single_edp_result: bool = False,
+    ) -> MeasurementSet:
         """Extracts a MeasurementSet from a ReportSummaryWindowResult."""
         reach = None
         k_reach = {}
@@ -249,9 +273,13 @@ class ReportSummaryV2Processor:
                 result.impression_count.standard_deviation,
                 result.impression_count.metric,
             )
-        return MeasurementSet(reach=reach,
-                              k_reach=k_reach,
-                              impression=impression)
+        measurement_set = MeasurementSet(
+            reach=reach, k_reach=k_reach, impression=impression
+        )
+        thresholds = self._potential_direct_result_minimum_thresholds
+        if is_single_edp_result and thresholds is not None:
+            return thresholds.add_measurement_set_uncertainty(measurement_set)
+        return measurement_set
 
     def _record_measurement_list_aliases(
             self, aliased: list[Measurement],

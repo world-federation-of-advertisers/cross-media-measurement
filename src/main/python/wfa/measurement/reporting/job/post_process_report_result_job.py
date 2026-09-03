@@ -25,6 +25,9 @@ from wfa.measurement.internal.reporting.v2 import basic_reports_service_pb2_grpc
 from wfa.measurement.internal.reporting.v2 import report_results_service_pb2_grpc
 from wfa.measurement.internal.reporting.v2 import reporting_sets_service_pb2_grpc
 from tools import post_process_report_result
+from tools.potential_direct_result_minimum_thresholds import (
+    PotentialDirectResultMinimumThresholds,
+)
 
 _MAX_PAGE_SIZE = 50
 
@@ -109,6 +112,9 @@ class PostProcessReportResultJob:
         self,
         internal_reporting_channel: grpc.Channel,
         ami_mrc_exempted_edps: Iterable[str] | None = None,
+        potential_direct_result_minimum_thresholds: (
+            PotentialDirectResultMinimumThresholds | None
+        ) = None,
     ):
         """Initializes the job with the necessary gRPC stubs.
 
@@ -117,6 +123,8 @@ class PostProcessReportResultJob:
                 server.
             ami_mrc_exempted_edps: The list of EDPs resource name for which the
                 AMI >= MRC consistency checks are disabled.
+            potential_direct_result_minimum_thresholds: Minimum thresholds that
+                may have suppressed single-EDP Direct results.
         """
         self._report_results_stub = (
             report_results_service_pb2_grpc.ReportResultsStub(
@@ -135,7 +143,11 @@ class PostProcessReportResultJob:
         )
         self._post_processor = (
             post_process_report_result.PostProcessReportResult(
-                self._report_results_stub, self._reporting_sets_stub
+                self._report_results_stub,
+                self._reporting_sets_stub,
+                potential_direct_result_minimum_thresholds=(
+                    potential_direct_result_minimum_thresholds
+                ),
             )
         )
         self._ami_mrc_exempted_edps = ami_mrc_exempted_edps or []

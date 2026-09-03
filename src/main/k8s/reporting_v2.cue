@@ -20,6 +20,9 @@ package k8s
 
 	_reportSchedulingCronSchedule:      string | *"30 6 * * *"  // Daily at 6:30 AM
 	_reportResultProcessorCronSchedule: string | *"*/5 * * * *" // Every 5 minutes.
+	// Setting both to zero disables potential Direct threshold correction.
+	_potentialDirectResultMinUsers:       uint | *0
+	_potentialDirectResultMinImpressions: uint | *0
 
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
@@ -371,6 +374,8 @@ package k8s
 			_container: {
 				args: [
 					"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
+					"--potential-direct-result-min-users=\(_potentialDirectResultMinUsers)",
+					"--potential-direct-result-min-impressions=\(_potentialDirectResultMinImpressions)",
 				] + _tlsArgs + _internalApiTarget.args
 			}
 			spec: {

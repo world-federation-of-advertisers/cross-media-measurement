@@ -20,6 +20,9 @@ from unittest.mock import ANY
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result import (
     PostProcessReportResult, )
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result import compute_basic_metric_set
+from tools.potential_direct_result_minimum_thresholds import (
+    PotentialDirectResultMinimumThresholds,
+)
 from wfa.measurement.internal.reporting.postprocessing import (
     report_post_processor_result_pb2, )
 
@@ -560,7 +563,7 @@ class PostProcessReportResultTest(unittest.TestCase):
             self.assertAlmostEqual(actual, expected)
 
     @patch('src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result.ReportSummaryV2Processor')
-    def test_post_process_report_result_with_exempted_edps_passed_to_processor(self, mock_processor_class):
+    def test_post_process_report_result_configuration_passed_to_processor(self, mock_processor_class):
         # Configures the mock stubs to return the data from the textproto files.
         self.mock_report_results_stub.ListReportingSetResults.return_value = (
             self.mock_list_reporing_set_results_response)
@@ -577,17 +580,24 @@ class PostProcessReportResultTest(unittest.TestCase):
         mock_result.large_corrections = []
         mock_processor_instance.process.return_value = mock_result
 
+        thresholds = PotentialDirectResultMinimumThresholds(
+            min_users=100, min_impressions=1000
+        )
         report_result_processor = PostProcessReportResult(
-            self.mock_report_results_stub, self.mock_reporting_sets_stub)
+            self.mock_report_results_stub,
+            self.mock_reporting_sets_stub,
+            potential_direct_result_minimum_thresholds=thresholds,
+        )
         exempted_edps = ['dataProviders/edp1']
         report_result_processor.process(
             self.cmms_measurement_consumer_id, self.external_report_result_id,
             exempted_edps)
 
-        # Verify that ReportSummaryV2Processor was instantiated with the exempted reporting set ids
+        # Verify that processor configuration is preserved.
         mock_processor_class.assert_called_with(
             ANY,
-            ['reporting_set_id_edp1']
+            ['reporting_set_id_edp1'],
+            potential_direct_result_minimum_thresholds=thresholds,
         )
 
     def test_post_process_report_result_raises_on_large_corrections(self):

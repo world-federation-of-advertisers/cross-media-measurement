@@ -31,9 +31,96 @@ StatusCode = report_post_processor_result_pb2.ReportPostProcessorStatus.StatusCo
 NOISE_CORRECTION_TOLERANCE = 0.1
 
 from tools.post_process_report_summary_v2 import ReportSummaryV2Processor
+from tools.potential_direct_result_minimum_thresholds import (
+    PotentialDirectResultMinimumThresholds,
+)
 
 
 class TestPostProcessReportSummaryV2(unittest.TestCase):
+    def test_empty_direct_histogram_can_be_corrected_to_match_reach(self):
+        report_summary = text_format.Parse(
+            """
+            population: 10000
+            report_summary_set_results {
+              impression_filter: "ami"
+              set_operation: "union"
+              data_providers: "provider-one"
+              whole_campaign_result {
+                reach { value: 480 standard_deviation: 0 metric: "reach" }
+                frequency {
+                  bins { key: 1 value { value: 0 standard_deviation: 0 } }
+                  bins { key: 2 value { value: 0 standard_deviation: 0 } }
+                  metric: "frequency"
+                }
+                impression_count {
+                  value: 2400
+                  standard_deviation: 0
+                  metric: "impressions"
+                }
+              }
+            }
+            """,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(
+            report_summary,
+            [],
+            PotentialDirectResultMinimumThresholds(
+                min_users=100, min_impressions=1000
+            ),
+        ).process()
+
+        self.assertEqual(
+            result.status.status_code,
+            StatusCode.SOLUTION_FOUND_WITH_HIGHS,
+        )
+        self.assertEqual(result.updated_measurements["reach"], 480)
+        self.assertEqual(
+            result.updated_measurements["frequency-bin-1"]
+            + result.updated_measurements["frequency-bin-2"],
+            480,
+        )
+
+    def test_empty_union_histogram_remains_exact(self):
+        report_summary = text_format.Parse(
+            """
+            population: 10000
+            report_summary_set_results {
+              impression_filter: "ami"
+              set_operation: "union"
+              data_providers: "provider-one"
+              data_providers: "provider-two"
+              whole_campaign_result {
+                reach { value: 480 standard_deviation: 0 metric: "reach" }
+                frequency {
+                  bins { key: 1 value { value: 0 standard_deviation: 0 } }
+                  bins { key: 2 value { value: 0 standard_deviation: 0 } }
+                  metric: "frequency"
+                }
+                impression_count {
+                  value: 2400
+                  standard_deviation: 0
+                  metric: "impressions"
+                }
+              }
+            }
+            """,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(
+            report_summary,
+            [],
+            PotentialDirectResultMinimumThresholds(
+                min_users=100, min_impressions=1000
+            ),
+        ).process()
+
+        self.assertEqual(
+            result.status.status_code,
+            StatusCode.SOLUTION_NOT_FOUND,
+        )
 
     def test_report_summary_with_a_single_reach_is_processed_correctly(self):
         report_summary_textproto = """

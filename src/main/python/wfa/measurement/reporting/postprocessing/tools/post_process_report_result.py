@@ -26,6 +26,9 @@ from wfa.measurement.internal.reporting.postprocessing import \
     report_post_processor_result_pb2
 from tools import report_conversion
 from tools import post_process_report_summary_v2
+from tools.potential_direct_result_minimum_thresholds import (
+    PotentialDirectResultMinimumThresholds,
+)
 from wfa.measurement.internal.reporting.v2 import report_result_pb2
 from wfa.measurement.internal.reporting.v2 import report_results_service_pb2
 from wfa.measurement.internal.reporting.v2 import report_results_service_pb2_grpc
@@ -72,9 +75,15 @@ class PostProcessReportResult:
         self,
         report_results_stub: report_results_service_pb2_grpc.ReportResultsStub,
         reporting_sets_stub: reporting_sets_service_pb2_grpc.ReportingSetsStub,
+        potential_direct_result_minimum_thresholds: (
+            PotentialDirectResultMinimumThresholds | None
+        ) = None,
     ):
         self._report_results_stub = report_results_stub
         self._reporting_sets_stub = reporting_sets_stub
+        self._potential_direct_result_minimum_thresholds = (
+            potential_direct_result_minimum_thresholds
+        )
 
     def process(
         self,
@@ -134,7 +143,10 @@ class PostProcessReportResult:
         for report_summary in report_summaries:
             result = ReportSummaryV2Processor(
                 report_summary,
-                ami_mrc_exempted_reporting_set_ids
+                ami_mrc_exempted_reporting_set_ids,
+                potential_direct_result_minimum_thresholds=(
+                    self._potential_direct_result_minimum_thresholds
+                ),
             ).process()
             if result.status.status_code in [
                     ReportPostProcessorStatus.SOLUTION_FOUND_WITH_HIGHS,

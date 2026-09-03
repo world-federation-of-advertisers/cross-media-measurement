@@ -21,6 +21,9 @@ from absl.testing import flagsaver
 
 from job import post_process_report_result_job_executor
 from job import post_process_report_result_job
+from tools.potential_direct_result_minimum_thresholds import (
+    PotentialDirectResultMinimumThresholds,
+)
 
 
 class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
@@ -73,7 +76,9 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
         )
 
         mock_job_class.assert_called_once_with(
-            mock_channel_instance, ami_mrc_exempted_edps=[]
+            mock_channel_instance,
+            ami_mrc_exempted_edps=[],
+            potential_direct_result_minimum_thresholds=None,
         )
         mock_job_instance.execute.assert_called_once()
 
@@ -118,7 +123,9 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
             "internal_api_target", mock_credentials, []
         )
         mock_job_class.assert_called_once_with(
-            mock_channel_instance, ami_mrc_exempted_edps=[]
+            mock_channel_instance,
+            ami_mrc_exempted_edps=[],
+            potential_direct_result_minimum_thresholds=None,
         )
         mock_job_instance.execute.assert_called_once()
 
@@ -131,6 +138,8 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
             "dataProviders/edp1",
             "dataProviders/edp2",
         ],
+        potential_direct_result_min_users=100,
+        potential_direct_result_min_impressions=1000,
     )
     @mock.patch("os.path.exists", return_value=True)
     @mock.patch("job.post_process_report_result_job.PostProcessReportResultJob")
@@ -162,6 +171,11 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
         mock_job_class.assert_called_once_with(
             mock_channel_instance,
             ami_mrc_exempted_edps=["dataProviders/edp1", "dataProviders/edp2"],
+            potential_direct_result_minimum_thresholds=(
+                PotentialDirectResultMinimumThresholds(
+                    min_users=100, min_impressions=1000
+                )
+            ),
         )
         mock_job_instance.execute.assert_called_once()
 
@@ -220,7 +234,26 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
                 with flagsaver.flagsaver(ami_mrc_exempted_edps=invalid_entries):
                     pass
 
+    @parameterized.named_parameters(
+        ("users_only", 100, 0),
+        ("impressions_only", 0, 1000),
+        ("negative_users", -1, 1000),
+        ("negative_impressions", 100, -1),
+    )
+    def test_invalid_potential_direct_thresholds_raise_error(
+        self, min_users, min_impressions
+    ):
+        with flagsaver.flagsaver():
+            with self.assertRaisesRegex(
+                flags.IllegalFlagValueError,
+                "must both be 0 or both be greater than 0",
+            ):
+                with flagsaver.flagsaver(
+                    potential_direct_result_min_users=min_users,
+                    potential_direct_result_min_impressions=min_impressions,
+                ):
+                    pass
+
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -25,6 +25,9 @@ from google.rpc import status_pb2
 from google.protobuf import any_pb2
 from job import post_process_report_result_job
 from tools import post_process_report_result
+from tools.potential_direct_result_minimum_thresholds import (
+    PotentialDirectResultMinimumThresholds,
+)
 
 BasicReport = basic_report_pb2.BasicReport
 
@@ -92,8 +95,8 @@ class PostProcessReportResultJobTest(unittest.TestCase):
                 return_value=self.mock_post_processor,
             ),
         ]
-        for patch in self.patches:
-            patch.start()
+        started_patches = [patch.start() for patch in self.patches]
+        self.mock_post_processor_class = started_patches[-1]
 
         mock_channel = mock.create_autospec(grpc.Channel)
         self.job = post_process_report_result_job.PostProcessReportResultJob(
@@ -185,6 +188,23 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             "mc_id_1",
             101,
             ["dataProviders/edp1", "dataProviders/edp2"],
+        )
+
+    def test_potential_direct_thresholds_are_passed_to_post_processor(self):
+        mock_channel = mock.create_autospec(grpc.Channel)
+        thresholds = PotentialDirectResultMinimumThresholds(
+            min_users=100, min_impressions=1000
+        )
+
+        post_process_report_result_job.PostProcessReportResultJob(
+            mock_channel,
+            potential_direct_result_minimum_thresholds=thresholds,
+        )
+
+        self.mock_post_processor_class.assert_called_with(
+            self.mock_report_results_stub,
+            self.mock_reporting_sets_stub,
+            potential_direct_result_minimum_thresholds=thresholds,
         )
 
     def test_execute_no_unprocessed_reports(self):
