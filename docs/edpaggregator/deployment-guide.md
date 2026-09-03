@@ -660,15 +660,19 @@ entries only once your market has adopted VID labeling.
 
 Every VID Labeling process shares four client-side throttlers across its coroutines. The defaults
 pace Kingdom reads at **2 QPS** (one call every 500 milliseconds), EDP-Aggregator metadata reads at
-**2 QPS**, metadata mutations at **1 QPS**, and Secure Computation
-`WorkItems`/`WorkItemAttempts` calls at **2 QPS**. These are per-process limits, not measured
-downstream capacities or deployment-wide quotas.
+**10 QPS** (one call every 100 milliseconds), metadata mutations at **5 QPS** (one call every 200
+milliseconds), and Secure Computation `WorkItems`/`WorkItemAttempts` calls at **4 QPS** (one call
+every 250 milliseconds). These are per-process limits, not measured downstream capacities or
+deployment-wide quotas.
 
-The default topology permits 24 phase-worker VMs, one dispatcher, one monitor, one internal API
-server, and an operator retry process. At 28 processes, the read and write throttlers together are
-bounded at 84 metadata RPCs per second, below the existing 100-QPS EDPA per-method precedent, while
-control-plane traffic is bounded at 56 QPS. Treat those figures as a conservative planning envelope
-and tune them from production latency, saturation, and `RESOURCE_EXHAUSTED` metrics.
+The checked-in topology permits 24 phase-worker VMs, one dispatcher function, one monitor/dispatch
+function, one internal API server, and one concurrently running operator retry process. If every
+eligible process saturates a throttle class, the aggregate ceilings are 4 Kingdom RPCs per second
+(two functions), 280 metadata reads per second (28 processes), 140 metadata mutations per second
+(28 processes), and 108 control-plane RPCs per second (27 processes; the dispatcher does not call
+the control plane). These are conservative per-class envelopes, not per-method bounds: each class
+contains multiple methods, and each method has its own caller set. Compare each method's measured
+traffic and configured server limit before tuning these values.
 
 The Terraform module caps both the dispatcher and monitor at one instance. The checked-in Kingdom
 `RateLimitConfig` gives each VID Repository method its own 5-QPS average / 20-request burst bucket,
@@ -687,9 +691,10 @@ per_method_rate_limit {
 }
 ```
 
-Both VID Labeling scheduler jobs use a 600-second attempt deadline matching the monitor timeout. The
-GCS-triggered DataWatcher has a 540-second timeout and calls a dispatcher capped at 480 seconds, so
-the synchronous caller retains one minute of shutdown and response headroom.
+Both VID Labeling scheduler jobs use a 660-second attempt deadline, retaining 60 seconds of response
+headroom beyond the monitor function's 600-second timeout. The GCS-triggered DataWatcher has a
+540-second timeout and calls a dispatcher capped at 480 seconds, so that synchronous caller also
+retains one minute of shutdown and response headroom.
 
 The dispatcher and monitor accept these optional environment variables:
 
@@ -701,8 +706,8 @@ The dispatcher and monitor accept these optional environment variables:
 The TEE worker applications accept the corresponding command-line flags
 `--kingdom-rpc-min-interval`, `--metadata-read-rpc-min-interval`,
 `--metadata-write-rpc-min-interval`, and `--control-plane-rpc-min-interval`. The Secure Computation
-internal API server uses the latter three flags for its dead-letter listeners. Values are Java
-duration strings such as `500ms` or `1000ms` and must be positive.
+internal API server uses the latter three flags for its dead-letter listeners. Values are complete
+human-readable durations such as `500ms` or `1000ms` and must be positive.
 
 ---
 
