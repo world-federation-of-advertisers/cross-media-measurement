@@ -20,6 +20,7 @@ import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.rules.Timeout
 import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig as PublicProtocolConfig
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
@@ -99,11 +100,17 @@ class GCloudEdpAggregatorLifeOfAReportThresholdsNoNoiseTest :
 
     val thresholdedResult = thresholdedResults.single { it.hasReach() && it.hasFrequency() }
     assertThat(thresholdedResult.reach.value).isEqualTo(EXPECTED_TRUSTEE_EDP_SPEC1_REACH)
+    assertThat(thresholdedResult.reach.noiseMechanism)
+      .isEqualTo(PublicProtocolConfig.NoiseMechanism.NONE)
+    assertThat(thresholdedResult.frequency.noiseMechanism)
+      .isEqualTo(PublicProtocolConfig.NoiseMechanism.NONE)
     val thresholdedDistribution = thresholdedResult.frequency.relativeFrequencyDistributionMap
     assertThat(thresholdedDistribution).isNotEmpty()
     assertThat(thresholdedDistribution.values.all { it == 0.0 }).isTrue()
-    assertThat(thresholdedResults.single { it.hasImpression() }.impression.value)
-      .isEqualTo(EXPECTED_TRUSTEE_EDP_SPEC1_IMPRESSIONS)
+    val thresholdedImpression = thresholdedResults.single { it.hasImpression() }.impression
+    assertThat(thresholdedImpression.value).isEqualTo(EXPECTED_TRUSTEE_EDP_SPEC1_IMPRESSIONS)
+    assertThat(thresholdedImpression.noiseMechanism)
+      .isEqualTo(PublicProtocolConfig.NoiseMechanism.NONE)
 
     val unthresholdedMeasurements =
       measurements.filter {
