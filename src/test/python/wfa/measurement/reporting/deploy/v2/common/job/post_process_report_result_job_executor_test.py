@@ -79,6 +79,7 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
             mock_channel_instance,
             ami_mrc_exempted_edps=[],
             potential_direct_result_minimum_thresholds=None,
+            potential_direct_thresholding_edps=[],
         )
         mock_job_instance.execute.assert_called_once()
 
@@ -126,6 +127,7 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
             mock_channel_instance,
             ami_mrc_exempted_edps=[],
             potential_direct_result_minimum_thresholds=None,
+            potential_direct_thresholding_edps=[],
         )
         mock_job_instance.execute.assert_called_once()
 
@@ -140,6 +142,10 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
         ],
         potential_direct_result_min_users=100,
         potential_direct_result_min_impressions=1000,
+        potential_direct_thresholding_edp=[
+            "dataProviders/edp1",
+            "dataProviders/edp2",
+        ],
     )
     @mock.patch("os.path.exists", return_value=True)
     @mock.patch("job.post_process_report_result_job.PostProcessReportResultJob")
@@ -149,7 +155,7 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
     @mock.patch(
         "job.post_process_report_result_job_executor._create_secure_channel"
     )
-    def test_post_process_report_result_job_executor_with_ami_mrc_exempted_edps_success(
+    def test_post_process_report_result_job_executor_with_edp_configuration_success(
         self, mock_create_channel, mock_get_credentials, mock_job_class,
         mock_exists
     ):
@@ -176,6 +182,10 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
                     min_users=100, min_impressions=1000
                 )
             ),
+            potential_direct_thresholding_edps=[
+                "dataProviders/edp1",
+                "dataProviders/edp2",
+            ],
         )
         mock_job_instance.execute.assert_called_once()
 
@@ -235,22 +245,47 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
                     pass
 
     @parameterized.named_parameters(
-        ("users_only", 100, 0),
-        ("impressions_only", 0, 1000),
-        ("negative_users", -1, 1000),
-        ("negative_impressions", 100, -1),
+        ("thresholds_without_edp", 100, 1000, []),
+        ("edp_without_thresholds", 0, 0, ["dataProviders/edp1"]),
+        ("users_only", 100, 0, ["dataProviders/edp1"]),
+        ("impressions_only", 0, 1000, ["dataProviders/edp1"]),
+        ("negative_users", -1, 1000, ["dataProviders/edp1"]),
+        ("negative_impressions", 100, -1, ["dataProviders/edp1"]),
     )
     def test_invalid_potential_direct_thresholds_raise_error(
-        self, min_users, min_impressions
+        self, min_users, min_impressions, thresholding_edps
     ):
         with flagsaver.flagsaver():
             with self.assertRaisesRegex(
                 flags.IllegalFlagValueError,
-                "must both be 0 or both be greater than 0",
+                "must all be set or all be disabled",
             ):
                 with flagsaver.flagsaver(
                     potential_direct_result_min_users=min_users,
                     potential_direct_result_min_impressions=min_impressions,
+                    potential_direct_thresholding_edp=thresholding_edps,
+                ):
+                    pass
+
+    @parameterized.named_parameters(
+        ("missing_prefix", ["edp1"]),
+        ("invalid_prefix", ["dataProvider/edp1"]),
+        ("too_many_slashes", ["dataProviders/edp1/extra"]),
+        ("empty_id", ["dataProviders/"]),
+    )
+    def test_invalid_potential_direct_thresholding_edp_raises_error(
+        self, invalid_entries
+    ):
+        with flagsaver.flagsaver():
+            with self.assertRaisesRegex(
+                flags.IllegalFlagValueError,
+                r"--potential_direct_thresholding_edp entries must be of the"
+                r" form dataProviders/\{id\}",
+            ):
+                with flagsaver.flagsaver(
+                    potential_direct_result_min_users=100,
+                    potential_direct_result_min_impressions=1000,
+                    potential_direct_thresholding_edp=invalid_entries,
                 ):
                     pass
 

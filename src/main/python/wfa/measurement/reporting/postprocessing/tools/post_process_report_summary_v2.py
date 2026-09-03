@@ -66,6 +66,7 @@ class ReportSummaryV2Processor:
         potential_direct_result_minimum_thresholds: (
             PotentialDirectResultMinimumThresholds | None
         ) = None,
+        potential_direct_thresholding_reporting_set_ids: set[str] | None = None,
     ):
         """Initializes the processor with a ReportSummary v2 proto."""
         self._report_summary = report_summary
@@ -74,6 +75,9 @@ class ReportSummaryV2Processor:
         )
         self._potential_direct_result_minimum_thresholds = (
             potential_direct_result_minimum_thresholds
+        )
+        self._potential_direct_thresholding_reporting_set_ids = (
+            potential_direct_thresholding_reporting_set_ids or set()
         )
         self._weekly_cumulative_reaches: dict[ImpressionFilter,
                                               dict[EdpCombination,
@@ -159,7 +163,12 @@ class ReportSummaryV2Processor:
             impression_filter = report_summary_set_result.impression_filter
             edp_combination = frozenset(
                 report_summary_set_result.data_providers)
-            is_single_edp_result = len(edp_combination) == 1
+            is_potentially_thresholded_direct_result = (
+                len(edp_combination) == 1
+                and edp_combination.issubset(
+                    self._potential_direct_thresholding_reporting_set_ids
+                )
+            )
 
             # Initialize dictionaries for the impression_filter if not seen before.
             self._weekly_cumulative_reaches.setdefault(impression_filter, {})
@@ -185,7 +194,10 @@ class ReportSummaryV2Processor:
                     thresholds = (
                         self._potential_direct_result_minimum_thresholds
                     )
-                    if is_single_edp_result and thresholds is not None:
+                    if (
+                        is_potentially_thresholded_direct_result
+                        and thresholds is not None
+                    ):
                         measurement = thresholds.add_reach_uncertainty(
                             measurement
                         )
@@ -207,7 +219,7 @@ class ReportSummaryV2Processor:
                 if weekly_results:
                     new_measurement_sets = [
                         self._extract_measurement_set(
-                            result, is_single_edp_result
+                            result, is_potentially_thresholded_direct_result
                         )
                         for result in weekly_results
                     ]
@@ -235,7 +247,7 @@ class ReportSummaryV2Processor:
                     f" EDPs {report_summary_set_result.data_providers}.")
                 new_set = self._extract_measurement_set(
                     report_summary_set_result.whole_campaign_result,
-                    is_single_edp_result,
+                    is_potentially_thresholded_direct_result,
                 )
                 bucket = self._whole_campaign_measurements[impression_filter]
                 if edp_combination in bucket:
@@ -249,7 +261,7 @@ class ReportSummaryV2Processor:
     def _extract_measurement_set(
         self,
         result: ReportSummaryWindowResult,
-        is_single_edp_result: bool = False,
+        is_potentially_thresholded_direct_result: bool = False,
     ) -> MeasurementSet:
         """Extracts a MeasurementSet from a ReportSummaryWindowResult."""
         reach = None
@@ -277,7 +289,7 @@ class ReportSummaryV2Processor:
             reach=reach, k_reach=k_reach, impression=impression
         )
         thresholds = self._potential_direct_result_minimum_thresholds
-        if is_single_edp_result and thresholds is not None:
+        if is_potentially_thresholded_direct_result and thresholds is not None:
             return thresholds.add_measurement_set_uncertainty(measurement_set)
         return measurement_set
 

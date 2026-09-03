@@ -78,12 +78,23 @@ class PostProcessReportResult:
         potential_direct_result_minimum_thresholds: (
             PotentialDirectResultMinimumThresholds | None
         ) = None,
+        potential_direct_thresholding_edps: Iterable[str] | None = None,
     ):
         self._report_results_stub = report_results_stub
         self._reporting_sets_stub = reporting_sets_stub
         self._potential_direct_result_minimum_thresholds = (
             potential_direct_result_minimum_thresholds
         )
+        self._potential_direct_thresholding_edps = set(
+            potential_direct_thresholding_edps or []
+        )
+        if (potential_direct_result_minimum_thresholds is None) != (
+            not self._potential_direct_thresholding_edps
+        ):
+            raise ValueError(
+                "Potential Direct result thresholds and EDPs must be "
+                "configured together."
+            )
 
     def process(
         self,
@@ -122,12 +133,30 @@ class PostProcessReportResult:
         external_reporting_set_id_map = self._get_external_reporting_set_id_map(
             cmms_measurement_consumer_id, external_reporting_set_ids)
 
-        # Gets the AMI MRC exempted reporting set ids.
-        ami_mrc_exempted_reporting_set_ids = self._get_ami_mrc_exempted_reporting_set_id(
-            cmms_measurement_consumer_id,
-            external_reporting_set_ids,
-            ami_mrc_exempted_edps,
+        configured_edps = set(ami_mrc_exempted_edps or []) | (
+            self._potential_direct_thresholding_edps
         )
+        reporting_set_ids_by_data_provider_id = (
+            self._get_primitive_reporting_set_ids_by_data_provider_id(
+                cmms_measurement_consumer_id,
+                external_reporting_set_ids,
+                configured_edps,
+            )
+        )
+        ami_mrc_exempted_reporting_set_ids = sorted({
+            reporting_set_id
+            for edp in ami_mrc_exempted_edps or []
+            for reporting_set_id in reporting_set_ids_by_data_provider_id.get(
+                _get_cmms_data_provider_id(edp), set()
+            )
+        })
+        potential_direct_thresholding_reporting_set_ids = {
+            reporting_set_id
+            for edp in self._potential_direct_thresholding_edps
+            for reporting_set_id in reporting_set_ids_by_data_provider_id.get(
+                _get_cmms_data_provider_id(edp), set()
+            )
+        }
 
         # Converts report result to a list of report summary v2.
         report_summaries = report_conversion.report_summaries_from_reporting_set_results(
@@ -146,6 +175,9 @@ class PostProcessReportResult:
                 ami_mrc_exempted_reporting_set_ids,
                 potential_direct_result_minimum_thresholds=(
                     self._potential_direct_result_minimum_thresholds
+                ),
+                potential_direct_thresholding_reporting_set_ids=(
+                    potential_direct_thresholding_reporting_set_ids
                 ),
             ).process()
             if result.status.status_code in [
@@ -553,46 +585,47 @@ class PostProcessReportResult:
             if reporting_set_id in reporting_set_map
         }
 
-    def _get_ami_mrc_exempted_reporting_set_id(
+    def _get_primitive_reporting_set_ids_by_data_provider_id(
         self,
         cmms_measurement_consumer_id: str,
         external_reporting_set_ids: Iterable[str],
-        ami_mrc_exempted_edps: Iterable[str],
-    ) -> list[str]:
-        """Gets the reporting set IDs that are exempted from AMI vs MRC check.
+        edps: Iterable[str],
+    ) -> dict[str, set[str]]:
+        """Gets primitive reporting set IDs keyed by CMMS DataProvider ID.
 
         Args:
             cmms_measurement_consumer_id: The MC's ID.
             external_reporting_set_ids: A list of external reporting set IDs.
-            ami_mrc_exempted_edps: A list of exempted EDP names or raw IDs.
+            edps: EDP resource names or raw IDs to resolve.
 
         Returns:
-            A list of external reporting set IDs that belong to the exempted EDPs.
+            External primitive reporting set IDs keyed by DataProvider ID.
         """
-        if not external_reporting_set_ids or not ami_mrc_exempted_edps:
-            return []
+        if not external_reporting_set_ids or not edps:
+            return {}
 
         request = BatchGetReportingSetsRequest(
             cmms_measurement_consumer_id=cmms_measurement_consumer_id,
             external_reporting_set_ids=external_reporting_set_ids,
         )
         response = self._reporting_sets_stub.BatchGetReportingSets(request)
-        # Gets a list of exempted cmms data provider ids from edp names.
-        exempted_cmms_data_provider_ids = set(
-            _get_cmms_data_provider_id(edp) for edp in ami_mrc_exempted_edps
+        cmms_data_provider_ids = set(
+            _get_cmms_data_provider_id(edp) for edp in edps
         )
-        exempted_reporting_set_ids = []
+        reporting_set_ids_by_data_provider_id: dict[str, set[str]] = {}
 
         for reporting_set in response.reporting_sets:
             if reporting_set.WhichOneof("value") != "primitive":
                 continue
             for key in reporting_set.primitive.event_group_keys:
-                if key.cmms_data_provider_id in exempted_cmms_data_provider_ids:
-                    exempted_reporting_set_ids.append(
-                        reporting_set.external_reporting_set_id)
-                    break
+                data_provider_id = key.cmms_data_provider_id
+                if data_provider_id not in cmms_data_provider_ids:
+                    continue
+                reporting_set_ids_by_data_provider_id.setdefault(
+                    data_provider_id, set()
+                ).add(reporting_set.external_reporting_set_id)
 
-        return exempted_reporting_set_ids
+        return reporting_set_ids_by_data_provider_id
 
     def _process_window_results(
         self,

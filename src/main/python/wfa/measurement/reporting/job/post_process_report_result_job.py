@@ -115,6 +115,7 @@ class PostProcessReportResultJob:
         potential_direct_result_minimum_thresholds: (
             PotentialDirectResultMinimumThresholds | None
         ) = None,
+        potential_direct_thresholding_edps: Iterable[str] | None = None,
     ):
         """Initializes the job with the necessary gRPC stubs.
 
@@ -125,6 +126,8 @@ class PostProcessReportResultJob:
                 AMI >= MRC consistency checks are disabled.
             potential_direct_result_minimum_thresholds: Minimum thresholds that
                 may have suppressed single-EDP Direct results.
+            potential_direct_thresholding_edps: EDP resource names whose Direct
+                results may have been thresholded.
         """
         self._report_results_stub = (
             report_results_service_pb2_grpc.ReportResultsStub(
@@ -147,6 +150,9 @@ class PostProcessReportResultJob:
                 self._reporting_sets_stub,
                 potential_direct_result_minimum_thresholds=(
                     potential_direct_result_minimum_thresholds
+                ),
+                potential_direct_thresholding_edps=(
+                    potential_direct_thresholding_edps
                 ),
             )
         )

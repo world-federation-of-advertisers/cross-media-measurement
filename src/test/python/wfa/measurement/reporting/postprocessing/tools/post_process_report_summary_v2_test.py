@@ -69,6 +69,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             PotentialDirectResultMinimumThresholds(
                 min_users=100, min_impressions=1000
             ),
+            potential_direct_thresholding_reporting_set_ids={"provider-one"},
         ).process()
 
         self.assertEqual(
@@ -115,6 +116,50 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             PotentialDirectResultMinimumThresholds(
                 min_users=100, min_impressions=1000
             ),
+            potential_direct_thresholding_reporting_set_ids={
+                "provider-one",
+                "provider-two",
+            },
+        ).process()
+
+        self.assertEqual(
+            result.status.status_code,
+            StatusCode.SOLUTION_NOT_FOUND,
+        )
+
+    def test_empty_direct_histogram_remains_exact_for_unlisted_edp(self):
+        report_summary = text_format.Parse(
+            """
+            population: 10000
+            report_summary_set_results {
+              impression_filter: "ami"
+              set_operation: "union"
+              data_providers: "provider-one"
+              whole_campaign_result {
+                reach { value: 480 standard_deviation: 0 metric: "reach" }
+                frequency {
+                  bins { key: 1 value { value: 0 standard_deviation: 0 } }
+                  bins { key: 2 value { value: 0 standard_deviation: 0 } }
+                  metric: "frequency"
+                }
+                impression_count {
+                  value: 2400
+                  standard_deviation: 0
+                  metric: "impressions"
+                }
+              }
+            }
+            """,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(
+            report_summary,
+            [],
+            PotentialDirectResultMinimumThresholds(
+                min_users=100, min_impressions=1000
+            ),
+            potential_direct_thresholding_reporting_set_ids={"provider-two"},
         ).process()
 
         self.assertEqual(
