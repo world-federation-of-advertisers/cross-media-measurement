@@ -685,7 +685,7 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
-  fun `sync with unchanged deleted content skips create and update`() = runBlocking {
+  fun `sync does not recreate or update deleted metadata`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
     val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
@@ -724,11 +724,12 @@ class DataAvailabilitySyncTest {
             createdMetadata.copy {
               name = "${request.parent}/impressionMetadata/im-0"
               state = ImpressionMetadata.State.DELETED
+              eventGroupReferenceId = "changed-event-group-reference-id"
             }
         }
       }
 
-    // Second sync preserves the deleted entry instead of trying to recreate it.
+    // Second sync preserves the deleted entry even when its content differs from storage.
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
     // batchCreate should still have been called exactly once (from the first sync only).
