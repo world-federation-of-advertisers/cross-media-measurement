@@ -614,6 +614,23 @@ class PostProcessReportResultTest(unittest.TestCase):
             self.cmms_measurement_consumer_id, self.external_report_result_id,
             exempted_edps)
 
+        self.assertEqual(
+            self.mock_reporting_sets_stub.BatchGetReportingSets.call_count, 2
+        )
+        primitive_reporting_set_request = (
+            self.mock_reporting_sets_stub.BatchGetReportingSets.call_args_list[
+                1
+            ].args[0]
+        )
+        self.assertCountEqual(
+            primitive_reporting_set_request.external_reporting_set_ids,
+            [
+                "reporting_set_id_edp1",
+                "reporting_set_id_edp2",
+                "reporting_set_id_edp3",
+            ],
+        )
+
         # Verify that processor configuration is preserved.
         mock_processor_class.assert_called_with(
             ANY,

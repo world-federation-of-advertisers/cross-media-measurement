@@ -83,6 +83,49 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             480,
         )
 
+    def test_zero_direct_cumulative_reach_can_be_corrected(self):
+        report_summary = text_format.Parse(
+            """
+            population: 10000
+            report_summary_set_results {
+              impression_filter: "ami"
+              set_operation: "union"
+              data_providers: "provider-one"
+              cumulative_results {
+                reach {
+                  value: 400
+                  standard_deviation: 0
+                  metric: "reach-week-one"
+                }
+              }
+              cumulative_results {
+                reach {
+                  value: 0
+                  standard_deviation: 0
+                  metric: "reach-week-two"
+                }
+              }
+            }
+            """,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(
+            report_summary,
+            [],
+            PotentialDirectResultMinimumThresholds(
+                min_users=100, min_impressions=1000
+            ),
+            potential_direct_thresholding_reporting_set_ids={"provider-one"},
+        ).process()
+
+        self.assertEqual(
+            result.status.status_code,
+            StatusCode.SOLUTION_FOUND_WITH_HIGHS,
+        )
+        self.assertEqual(result.updated_measurements["reach-week-one"], 400)
+        self.assertEqual(result.updated_measurements["reach-week-two"], 400)
+
     def test_empty_union_histogram_remains_exact(self):
         report_summary = text_format.Parse(
             """
