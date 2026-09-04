@@ -22,6 +22,7 @@ import com.google.protobuf.Parser
 import java.time.Instant
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigestExtractor
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
@@ -93,6 +94,7 @@ import org.wfanet.measurement.storage.ParquetStorageClient
  * @param loadPoolEmitLabeler Loads the compiled VID model in pool-emit mode from a
  *   `model_blob_path`.
  * @param getSubpoolMapKekUri Resolves the key-encryption-key URI used to wrap the subpool-map DEK.
+ * @param rpcThrottlers process-scoped rate limiters shared by the TEE lifecycle and Phase-0 RPCs.
  * @param eventIdDigestExtractor Computes the 12-byte `EventIdDigest` of an event id.
  */
 class SubpoolAssignerApp(
@@ -116,6 +118,7 @@ class SubpoolAssignerApp(
   private val loadPoolEmitLabeler:
     suspend (modelStorageConfig: StorageConfig, modelBlobPath: String) -> PoolEmitLabeler,
   private val getSubpoolMapKekUri: (dataProvider: String) -> String,
+  private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val eventIdDigestExtractor: EventIdDigestExtractor = EventIdDigestExtractor(),
 ) :
   BaseTeeApplication(
@@ -124,6 +127,7 @@ class SubpoolAssignerApp(
     parser = parser,
     workItemsStub = workItemsClient,
     workItemAttemptsStub = workItemAttemptsClient,
+    controlPlaneThrottler = rpcThrottlers.controlPlane,
   ) {
 
   override suspend fun runWork(message: Any) {
@@ -165,6 +169,7 @@ class SubpoolAssignerApp(
             kmsClient,
           ),
         rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
+        metadataReadThrottler = rpcThrottlers.metadataRead,
         rawImpressionUpload = params.rawImpressionUpload,
         eventIdColumn = eventIdColumn,
         shardIndex = params.shardIndex,
@@ -215,6 +220,7 @@ class SubpoolAssignerApp(
             totalShards = params.totalShards,
             vidRankBuilderQueue = vidRankBuilderQueue,
             vidRankBuilderParamsTemplate = vidRankBuilderParamsTemplate,
+            rpcThrottlers = rpcThrottlers,
           )
           .assign()
       }

@@ -35,6 +35,7 @@ import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
@@ -112,6 +113,7 @@ class SubpoolAssigner(
   // filled in at fan-out time.
   private val vidRankBuilderQueue: String,
   private val vidRankBuilderParamsTemplate: VidRankBuilderParams,
+  private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val accumulator: SubpoolFingerprintsAccumulator = SubpoolFingerprintsAccumulator(),
   private val metrics: SubpoolAssignerMetrics = SubpoolAssignerMetrics(),
 ) {
@@ -142,9 +144,11 @@ class SubpoolAssigner(
     // expensive re-read/re-label/re-write (SUCCEEDED is set only after the per-shard write is
     // durable, so it is a reliable completion marker) and only recover the last-shard-out merge.
     val job =
-      poolAssignmentJobsStub.getPoolAssignmentJob(
-        getPoolAssignmentJobRequest { name = poolAssignmentJob }
-      )
+      rpcThrottlers.metadataRead.onReady {
+        poolAssignmentJobsStub.getPoolAssignmentJob(
+          getPoolAssignmentJobRequest { name = poolAssignmentJob }
+        )
+      }
     if (job.state == PoolAssignmentJob.State.SUCCEEDED) {
       return recoverIfLastShardOut()
     }
@@ -209,18 +213,20 @@ class SubpoolAssigner(
     // so the service can union the offsets and reduce the dates to a max across shards, persisting
     // both on the parent RawImpressionUploadModelLine.
     val markResponse =
-      poolAssignmentJobsStub.markPoolAssignmentJobSucceeded(
-        markPoolAssignmentJobSucceededRequest {
-          name = poolAssignmentJob
-          etag = job.etag
-          // AIP-155 retry-idempotency key: a Pub/Sub redelivery reuses the same request_id so the
-          // server returns the cached LastShardResult instead of hitting the etag-mismatch path.
-          requestId = deterministicUuid("$poolAssignmentJob|succeeded")
-          encryptedDek = dek
-          poolOffsets += subpoolIds
-          sink.maxTimestampUsec?.let { maxEventDate = usecToUtcDate(it) }
-        }
-      )
+      rpcThrottlers.metadataWrite.onReady {
+        poolAssignmentJobsStub.markPoolAssignmentJobSucceeded(
+          markPoolAssignmentJobSucceededRequest {
+            name = poolAssignmentJob
+            etag = job.etag
+            // AIP-155 retry-idempotency key: a Pub/Sub redelivery reuses the same request_id so the
+            // server returns the cached LastShardResult instead of hitting the etag-mismatch path.
+            requestId = deterministicUuid("$poolAssignmentJob|succeeded")
+            encryptedDek = dek
+            poolOffsets += subpoolIds
+            sink.maxTimestampUsec?.let { maxEventDate = usecToUtcDate(it) }
+          }
+        )
+      }
 
     // 4. Last-shard-out: merge per-shard blobs into one blob per subpool, then fan out Phase 1.
     val lastShardOut = markResponse.hasLastShardResult()
@@ -379,16 +385,18 @@ class SubpoolAssigner(
    * existing row instead of creating a duplicate.
    */
   private suspend fun createRankerJob(poolOffsets: List<Long>): RankerJob =
-    rankerJobsStub.createRankerJob(
-      createRankerJobRequest {
-        parent = rawImpressionUpload
-        rankerJob = rankerJob {
-          cmmsModelLine = modelLine
-          this.poolOffsets += poolOffsets
+    rpcThrottlers.metadataWrite.onReady {
+      rankerJobsStub.createRankerJob(
+        createRankerJobRequest {
+          parent = rawImpressionUpload
+          rankerJob = rankerJob {
+            cmmsModelLine = modelLine
+            this.poolOffsets += poolOffsets
+          }
+          requestId = rankerJobRequestId(poolOffsets)
         }
-        requestId = rankerJobRequestId(poolOffsets)
-      }
-    )
+      )
+    }
 
   /**
    * Publishes one `VidRankBuilder` WorkItem for [rankerJob], pointing it at the merged blobs for
@@ -411,15 +419,17 @@ class SubpoolAssigner(
       }
     val workItemId = WorkItemIds.forVidRankBuilder(rankerJob.name)
     try {
-      workItemsStub.createWorkItem(
-        createWorkItemRequest {
-          this.workItemId = workItemId
-          workItem = workItem {
-            queue = vidRankBuilderQueue
-            workItemParams = workItemParams { appParams = params.pack() }.pack()
+      rpcThrottlers.controlPlane.onReady {
+        workItemsStub.createWorkItem(
+          createWorkItemRequest {
+            this.workItemId = workItemId
+            workItem = workItem {
+              queue = vidRankBuilderQueue
+              workItemParams = workItemParams { appParams = params.pack() }.pack()
+            }
           }
-        }
-      )
+        )
+      }
     } catch (e: StatusException) {
       if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
       logger.warning(
@@ -444,13 +454,15 @@ class SubpoolAssigner(
       // only lands if the row hasn't changed since getParent() read it, so a concurrent runner that
       // already advanced (or otherwise mutated) the parent loses the CAS with ABORTED rather than
       // racing on the state guard alone.
-      rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineRanking(
-        markRawImpressionUploadModelLineRankingRequest {
-          name = parent.name
-          etag = parent.etag
-          requestId = RequestIds.forMarkRawImpressionUploadModelLineRanking(parent.name)
-        }
-      )
+      rpcThrottlers.metadataWrite.onReady {
+        rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineRanking(
+          markRawImpressionUploadModelLineRankingRequest {
+            name = parent.name
+            etag = parent.etag
+            requestId = RequestIds.forMarkRawImpressionUploadModelLineRanking(parent.name)
+          }
+        )
+      }
     } catch (e: StatusException) {
       // Swallow only the benign "already advanced" races: the parent read at getParent() time is
       // stale, so a concurrent runner that already flipped this row (or bumped its etag) surfaces
@@ -482,13 +494,15 @@ class SubpoolAssigner(
     poolAssignmentJobsStub
       .listResources { pageToken: String ->
         val response =
-          listPoolAssignmentJobs(
-            listPoolAssignmentJobsRequest {
-              parent = rawImpressionUpload
-              filter = ListPoolAssignmentJobsRequestKt.filter { cmmsModelLine = modelLine }
-              this.pageToken = pageToken
-            }
-          )
+          rpcThrottlers.metadataRead.onReady {
+            poolAssignmentJobsStub.listPoolAssignmentJobs(
+              listPoolAssignmentJobsRequest {
+                parent = rawImpressionUpload
+                filter = ListPoolAssignmentJobsRequestKt.filter { cmmsModelLine = modelLine }
+                this.pageToken = pageToken
+              }
+            )
+          }
         ResourceList(response.poolAssignmentJobsList, response.nextPageToken)
       }
       .collect { page -> page.forEach { job -> deks[job.shardIndex] = job.encryptedDek } }
@@ -507,14 +521,16 @@ class SubpoolAssigner(
     rawImpressionUploadModelLinesStub
       .listResources { pageToken: String ->
         val response =
-          listRawImpressionUploadModelLines(
-            listRawImpressionUploadModelLinesRequest {
-              parent = rawImpressionUpload
-              filter =
-                ListRawImpressionUploadModelLinesRequestKt.filter { cmmsModelLine = modelLine }
-              this.pageToken = pageToken
-            }
-          )
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadModelLinesStub.listRawImpressionUploadModelLines(
+              listRawImpressionUploadModelLinesRequest {
+                parent = rawImpressionUpload
+                filter =
+                  ListRawImpressionUploadModelLinesRequestKt.filter { cmmsModelLine = modelLine }
+                this.pageToken = pageToken
+              }
+            )
+          }
         ResourceList(response.rawImpressionUploadModelLinesList, response.nextPageToken)
       }
       .collect { page ->

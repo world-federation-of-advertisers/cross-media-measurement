@@ -16,8 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 
-import java.time.Duration
-import org.wfanet.measurement.common.toDuration
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcDurationParser
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 
 /** Loads VID Labeling RPC throttler configuration from Cloud Function environment variables. */
@@ -46,12 +45,10 @@ object VidLabelingRpcThrottlersEnvironment {
         } ?: VidLabelingRpcThrottlers.DEFAULT_CONTROL_PLANE_MIN_INTERVAL,
     )
 
-  private fun parseDuration(environmentVariable: String, value: String): Duration {
-    require(HUMAN_READABLE_DURATION_PATTERN.matches(value)) {
-      "$environmentVariable must be a complete human-readable duration"
+  private fun parseDuration(environmentVariable: String, value: String) =
+    try {
+      VidLabelingRpcDurationParser.parse(value)
+    } catch (e: IllegalArgumentException) {
+      throw IllegalArgumentException("$environmentVariable: ${e.message ?: "Invalid duration"}", e)
     }
-    return value.toDuration()
-  }
-
-  private val HUMAN_READABLE_DURATION_PATTERN = Regex("(?:\\d+(?:ns|ms|s|m|h|d))+")
 }

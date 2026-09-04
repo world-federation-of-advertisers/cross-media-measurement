@@ -54,20 +54,31 @@ class VidLabelingRpcThrottlersEnvironmentTest {
 
   @Test
   fun `load rejects negative configured interval`() {
-    assertFailsWith<IllegalArgumentException> {
-      VidLabelingRpcThrottlersEnvironment.load { name ->
-        if (name == VidLabelingRpcThrottlersEnvironment.KINGDOM_MIN_INTERVAL_ENV) "-1s" else null
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingRpcThrottlersEnvironment.load { name ->
+          if (name == VidLabelingRpcThrottlersEnvironment.KINGDOM_MIN_INTERVAL_ENV) "-1s" else null
+        }
       }
-    }
+
+    assertThat(exception)
+      .hasMessageThat()
+      .contains(VidLabelingRpcThrottlersEnvironment.KINGDOM_MIN_INTERVAL_ENV)
   }
 
   @Test
   fun `load rejects partially malformed configured interval`() {
-    assertFailsWith<IllegalArgumentException> {
-      VidLabelingRpcThrottlersEnvironment.load { name ->
-        if (name == VidLabelingRpcThrottlersEnvironment.CONTROL_PLANE_MIN_INTERVAL_ENV) "500msjunk"
-        else null
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingRpcThrottlersEnvironment.load { name ->
+          if (name == VidLabelingRpcThrottlersEnvironment.CONTROL_PLANE_MIN_INTERVAL_ENV)
+            "500msjunk"
+          else null
+        }
       }
-    }
+
+    assertThat(exception)
+      .hasMessageThat()
+      .contains(VidLabelingRpcThrottlersEnvironment.CONTROL_PLANE_MIN_INTERVAL_ENV)
   }
 }

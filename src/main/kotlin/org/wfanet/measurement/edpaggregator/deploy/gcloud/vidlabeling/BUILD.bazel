@@ -34,8 +34,8 @@ kt_jvm_library(
     name = "vid_labeling_rpc_throttler_environment",
     srcs = ["VidLabelingRpcThrottlersEnvironment.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_duration_parser",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_throttlers",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 

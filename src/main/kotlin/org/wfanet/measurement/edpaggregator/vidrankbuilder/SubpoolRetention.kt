@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
@@ -50,6 +51,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
  * @param modelLine the model line scoping the retention query.
  * @param retentionDays retention window in days.
  * @param today the UTC date treated as "now" for the age computation.
+ * @param rpcThrottlers process-scoped rate limiters for rank-index metadata RPCs.
  */
 class SubpoolRetention(
   private val rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
@@ -58,6 +60,7 @@ class SubpoolRetention(
   private val modelLine: String,
   private val retentionDays: Int,
   private val today: LocalDate,
+  private val rpcThrottlers: VidLabelingRpcThrottlers,
 ) {
   /** Soft-deletes and hard-deletes the aged-out `DAY_ONLY` blobs of [poolOffset]. */
   suspend fun deleteAgedBlobs(poolOffset: Long) {
@@ -73,7 +76,9 @@ class SubpoolRetention(
       // between the two leaks the bytes (no corruption — the row is gone, so nothing references
       // them) and they're reclaimed by the monitor
       // (world-federation-of-advertisers/cross-media-measurement#3958) or the bucket lifecycle.
-      rankIndexBlobsStub.deleteRankIndexBlob(deleteRankIndexBlobRequest { name = candidate.name })
+      rpcThrottlers.metadataWrite.onReady {
+        rankIndexBlobsStub.deleteRankIndexBlob(deleteRankIndexBlobRequest { name = candidate.name })
+      }
       rankIndexStore.delete(candidate.blobUri)
     }
   }
@@ -89,19 +94,21 @@ class SubpoolRetention(
     rankIndexBlobsStub
       .listResources { pageToken: String ->
         val response =
-          listRankIndexBlobs(
-            listRankIndexBlobsRequest {
-              parent = "$dataProvider/rawImpressionUploads/${ResourceKey.WILDCARD_ID}"
-              filter =
-                ListRankIndexBlobsRequestKt.filter {
-                  blobType = RankIndexBlob.BlobType.DAY_ONLY
-                  cmmsModelLine = modelLine
-                  this.poolOffset = poolOffset
-                  maxEventDateOnOrBefore = cutoff.toDate()
-                }
-              this.pageToken = pageToken
-            }
-          )
+          rpcThrottlers.metadataRead.onReady {
+            rankIndexBlobsStub.listRankIndexBlobs(
+              listRankIndexBlobsRequest {
+                parent = "$dataProvider/rawImpressionUploads/${ResourceKey.WILDCARD_ID}"
+                filter =
+                  ListRankIndexBlobsRequestKt.filter {
+                    blobType = RankIndexBlob.BlobType.DAY_ONLY
+                    cmmsModelLine = modelLine
+                    this.poolOffset = poolOffset
+                    maxEventDateOnOrBefore = cutoff.toDate()
+                  }
+                this.pageToken = pageToken
+              }
+            )
+          }
         ResourceList(response.rankIndexBlobsList, response.nextPageToken)
       }
       .collect { page -> candidates.addAll(page) }
