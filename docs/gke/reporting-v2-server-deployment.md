@@ -355,9 +355,16 @@ For EDPs with different policies, configure the greatest applicable value for
 each bound. A higher bound can give a suppressed zero less weight during
 correction; a lower bound can understate its uncertainty.
 
+Set `_edpThresholdingAppliesToUnion` only when a
+listed EDP may suppress its frequency-vector contribution before multi-party
+aggregation. When enabled, correction accounts for potentially suppressed
+zero reach and fully zero frequency histograms in multi-publisher results that
+include a listed EDP. This setting does not represent protocol-level TrusTEE
+aggregate thresholding, which is tracked separately in issue #4454.
+
 Use the following rollout order whenever a producer policy changes:
 
-1. Before increasing an EDP or TrusTEE threshold or maximum frequency, deploy
+1. Before increasing an EDP threshold or maximum frequency, deploy
    the new correction upper bound and wait for that configuration to become
    active.
 2. Deploy the producer policy change.

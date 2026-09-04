@@ -28,7 +28,7 @@ package k8s
 	_potentialDirectResultMaximumFrequencyPerUser:   uint | *0
 	_potentialDirectThresholdingEdps:                [...string] | *[]
 	// Whether listed EDPs may suppress their inputs to multi-publisher results.
-	_potentialDirectThresholdingAppliesToUnionReach: bool | *false
+	_edpThresholdingAppliesToUnion: bool | *false
 
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
@@ -383,7 +383,7 @@ package k8s
 					"--potential-direct-result-min-users=\(_potentialDirectResultMinUsers)",
 					"--potential-direct-result-min-impressions=\(_potentialDirectResultMinImpressions)",
 					"--potential-direct-result-maximum-frequency-per-user=\(_potentialDirectResultMaximumFrequencyPerUser)",
-					"--potential-direct-thresholding-applies-to-union-reach=\(_potentialDirectThresholdingAppliesToUnionReach)",
+					"--potential-edp-thresholding-applies-to-union=\(_edpThresholdingAppliesToUnion)",
 				] + [ for edp in _potentialDirectThresholdingEdps {
 					"--potential-direct-thresholding-edp=\(edp)"
 				}] + _tlsArgs + _internalApiTarget.args

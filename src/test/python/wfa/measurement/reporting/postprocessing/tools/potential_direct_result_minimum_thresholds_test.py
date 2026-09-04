@@ -28,7 +28,7 @@ class PotentialDirectResultMinimumThresholdsTest(unittest.TestCase):
             min_users=100,
             min_impressions=1000,
             maximum_frequency_per_user=20,
-            applies_to_union_reach=False,
+            applies_to_multi_publisher_results=False,
         )
 
         result = thresholds.add_reach_uncertainty(
@@ -38,12 +38,43 @@ class PotentialDirectResultMinimumThresholdsTest(unittest.TestCase):
         self.assertEqual(result.value, 0)
         self.assertAlmostEqual(result.sigma, math.hypot(30, 1000))
 
+    def test_add_reach_and_frequency_uncertainty_leaves_impression_unchanged(
+        self,
+    ):
+        thresholds = PotentialDirectResultMinimumThresholds(
+            min_users=100,
+            min_impressions=1000,
+            maximum_frequency_per_user=20,
+            applies_to_multi_publisher_results=True,
+        )
+        impression = Measurement(
+            value=0, sigma=60, name="impressions"
+        )
+
+        result = thresholds.add_reach_and_frequency_uncertainty(
+            MeasurementSet(
+                reach=Measurement(value=0, sigma=30, name="reach"),
+                k_reach={
+                    1: Measurement(value=0, sigma=40, name="frequency-1"),
+                    2: Measurement(value=0, sigma=50, name="frequency-2"),
+                },
+                impression=impression,
+            )
+        )
+
+        self.assertAlmostEqual(result.reach.sigma, math.hypot(30, 1000))
+        self.assertAlmostEqual(
+            result.k_reach[1].sigma, math.hypot(40, 1000)
+        )
+        self.assertEqual(result.k_reach[2].sigma, 50)
+        self.assertEqual(result.impression, impression)
+
     def test_add_measurement_set_uncertainty_updates_zero_results(self):
         thresholds = PotentialDirectResultMinimumThresholds(
             min_users=100,
             min_impressions=1000,
             maximum_frequency_per_user=20,
-            applies_to_union_reach=False,
+            applies_to_multi_publisher_results=False,
         )
 
         result = thresholds.add_measurement_set_uncertainty(
@@ -73,7 +104,7 @@ class PotentialDirectResultMinimumThresholdsTest(unittest.TestCase):
             min_users=100,
             min_impressions=1000,
             maximum_frequency_per_user=20,
-            applies_to_union_reach=False,
+            applies_to_multi_publisher_results=False,
         )
         measurement_set = MeasurementSet(
             reach=Measurement(value=50, sigma=10, name="reach"),
@@ -94,21 +125,21 @@ class PotentialDirectResultMinimumThresholdsTest(unittest.TestCase):
                 min_users=0,
                 min_impressions=1000,
                 maximum_frequency_per_user=20,
-                applies_to_union_reach=False,
+                applies_to_multi_publisher_results=False,
             )
         with self.assertRaisesRegex(ValueError, "min_impressions"):
             PotentialDirectResultMinimumThresholds(
                 min_users=100,
                 min_impressions=0,
                 maximum_frequency_per_user=20,
-                applies_to_union_reach=False,
+                applies_to_multi_publisher_results=False,
             )
         with self.assertRaisesRegex(ValueError, "maximum_frequency_per_user"):
             PotentialDirectResultMinimumThresholds(
                 min_users=100,
                 min_impressions=1000,
                 maximum_frequency_per_user=0,
-                applies_to_union_reach=False,
+                applies_to_multi_publisher_results=False,
             )
 
 

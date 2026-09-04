@@ -37,7 +37,7 @@ class PotentialDirectResultMinimumThresholds:
     min_users: int
     min_impressions: int
     maximum_frequency_per_user: int
-    applies_to_union_reach: bool
+    applies_to_multi_publisher_results: bool
 
     def __post_init__(self):
         if self.min_users <= 0:
@@ -55,13 +55,28 @@ class PotentialDirectResultMinimumThresholds:
             measurement, max(self.min_users, self.min_impressions)
         )
 
+    def add_reach_and_frequency_uncertainty(
+        self, measurement_set: MeasurementSet
+    ) -> MeasurementSet:
+        """Adds potential thresholding uncertainty to reach and frequency."""
+        reach = measurement_set.reach
+        if reach is not None:
+            reach = self.add_reach_uncertainty(reach)
+
+        k_reach = self._add_frequency_uncertainty(measurement_set.k_reach)
+        return MeasurementSet(
+            reach=reach,
+            k_reach=k_reach,
+            impression=measurement_set.impression,
+        )
+
     def add_measurement_set_uncertainty(
         self, measurement_set: MeasurementSet
     ) -> MeasurementSet:
         """Adds potential thresholding uncertainty to a measurement set."""
-        reach = measurement_set.reach
-        if reach is not None:
-            reach = self.add_reach_uncertainty(reach)
+        reach_and_frequency = self.add_reach_and_frequency_uncertainty(
+            measurement_set
+        )
 
         impression = measurement_set.impression
         if impression is not None:
@@ -73,7 +88,16 @@ class PotentialDirectResultMinimumThresholds:
                 ),
             )
 
-        k_reach = dict(measurement_set.k_reach)
+        return MeasurementSet(
+            reach=reach_and_frequency.reach,
+            k_reach=reach_and_frequency.k_reach,
+            impression=impression,
+        )
+
+    def _add_frequency_uncertainty(
+        self, k_reach: dict[int, Measurement]
+    ) -> dict[int, Measurement]:
+        k_reach = dict(k_reach)
         if k_reach and all(
             measurement.value == 0 for measurement in k_reach.values()
         ):
@@ -86,11 +110,7 @@ class PotentialDirectResultMinimumThresholds:
                 max(self.min_users, self.min_impressions),
             )
 
-        return MeasurementSet(
-            reach=reach,
-            k_reach=k_reach,
-            impression=impression,
-        )
+        return k_reach
 
     @staticmethod
     def _add_uncertainty(

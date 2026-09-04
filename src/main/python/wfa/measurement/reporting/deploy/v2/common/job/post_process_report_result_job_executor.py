@@ -97,15 +97,17 @@ flags.register_validator(
         "dataProviders/{id}"
     ),
 )
-_POTENTIAL_DIRECT_THRESHOLDING_APPLIES_TO_UNION_REACH = flags.DEFINE_boolean(
-    "potential_direct_thresholding_applies_to_union_reach",
-    False,
-    "Whether configured thresholding EDPs may suppress their frequency-vector "
-    "contributions to multi-EDP union results.",
+_EDP_THRESHOLDING_APPLIES_TO_UNION = (
+    flags.DEFINE_boolean(
+        "potential_edp_thresholding_applies_to_union",
+        False,
+        "Whether configured thresholding EDPs may suppress their "
+        "frequency-vector contributions to multi-EDP union results.",
+    )
 )
 flags.DEFINE_alias(
-    "potential-direct-thresholding-applies-to-union-reach",
-    "potential_direct_thresholding_applies_to_union_reach",
+    "potential-edp-thresholding-applies-to-union",
+    "potential_edp_thresholding_applies_to_union",
 )
 _POTENTIAL_DIRECT_RESULT_MIN_USERS = flags.DEFINE_integer(
     "potential_direct_result_min_users",
@@ -140,7 +142,7 @@ flags.DEFINE_alias(
 flags.register_multi_flags_validator(
     [
         "potential_direct_thresholding_edp",
-        "potential_direct_thresholding_applies_to_union_reach",
+        "potential_edp_thresholding_applies_to_union",
         "potential_direct_result_min_users",
         "potential_direct_result_min_impressions",
         "potential_direct_result_maximum_frequency_per_user",
@@ -148,7 +150,7 @@ flags.register_multi_flags_validator(
     lambda values: (
         not values["potential_direct_thresholding_edp"]
         and not values[
-            "potential_direct_thresholding_applies_to_union_reach"
+            "potential_edp_thresholding_applies_to_union"
         ]
         and values["potential_direct_result_min_users"] == 0
         and values["potential_direct_result_min_impressions"] == 0
@@ -256,8 +258,8 @@ def main(argv):
                 maximum_frequency_per_user=(
                     _POTENTIAL_DIRECT_RESULT_MAXIMUM_FREQUENCY_PER_USER.value
                 ),
-                applies_to_union_reach=(
-                    _POTENTIAL_DIRECT_THRESHOLDING_APPLIES_TO_UNION_REACH.value
+                applies_to_multi_publisher_results=(
+                    _EDP_THRESHOLDING_APPLIES_TO_UNION.value
                 ),
             )
         )

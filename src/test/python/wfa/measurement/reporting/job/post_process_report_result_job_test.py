@@ -196,7 +196,7 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             min_users=100,
             min_impressions=1000,
             maximum_frequency_per_user=5,
-            applies_to_union_reach=True,
+            applies_to_multi_publisher_results=True,
         )
 
         post_process_report_result_job.PostProcessReportResultJob(

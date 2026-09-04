@@ -76,7 +76,7 @@ class PostProcessReportResultTest(unittest.TestCase):
                         min_users=100,
                         min_impressions=1000,
                         maximum_frequency_per_user=5,
-                        applies_to_union_reach=False,
+                        applies_to_multi_publisher_results=False,
                     )
                 ),
             )
@@ -607,7 +607,7 @@ class PostProcessReportResultTest(unittest.TestCase):
             min_users=100,
             min_impressions=1000,
             maximum_frequency_per_user=5,
-            applies_to_union_reach=True,
+            applies_to_multi_publisher_results=True,
         )
         report_result_processor = PostProcessReportResult(
             self.mock_report_results_stub,
