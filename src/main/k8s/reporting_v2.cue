@@ -27,6 +27,7 @@ package k8s
 	_potentialDirectResultMinImpressions:            uint | *0
 	_potentialDirectResultMaximumFrequencyPerUser:   uint | *0
 	_potentialDirectThresholdingEdps:                [...string] | *[]
+	// Whether listed EDPs may suppress their inputs to multi-publisher results.
 	_potentialDirectThresholdingAppliesToUnionReach: bool | *false
 
 	_certificateCacheExpirationDuration:  string | *"60m"

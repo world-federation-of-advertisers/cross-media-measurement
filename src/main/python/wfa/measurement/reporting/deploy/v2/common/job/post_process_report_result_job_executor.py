@@ -100,8 +100,8 @@ flags.register_validator(
 _POTENTIAL_DIRECT_THRESHOLDING_APPLIES_TO_UNION_REACH = flags.DEFINE_boolean(
     "potential_direct_thresholding_applies_to_union_reach",
     False,
-    "Whether configured thresholding EDPs may also threshold multi-EDP union "
-    "reach.",
+    "Whether configured thresholding EDPs may suppress their frequency-vector "
+    "contributions to multi-EDP union results.",
 )
 flags.DEFINE_alias(
     "potential-direct-thresholding-applies-to-union-reach",

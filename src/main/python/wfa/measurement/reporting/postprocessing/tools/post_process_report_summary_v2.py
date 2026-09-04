@@ -185,6 +185,11 @@ class ReportSummaryV2Processor:
                     self._potential_direct_thresholding_data_provider_ids
                 )
             )
+            # An EDP Aggregator can suppress its own frequency-vector
+            # contribution before a multi-party protocol combines the inputs.
+            # TODO(world-federation-of-advertisers/cross-media-measurement#4454):
+            # Independently account for protocol-level TrusTEE aggregate
+            # thresholding if it is enabled.
             is_potentially_thresholded_union_reach = (
                 thresholds is not None
                 and thresholds.applies_to_union_reach
