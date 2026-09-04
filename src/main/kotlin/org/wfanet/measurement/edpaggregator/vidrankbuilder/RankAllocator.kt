@@ -322,6 +322,7 @@ class RankAllocator(
     if (hasOld) {
       dayOnly.put(keyHi, keyLo, oldRank)
       backfillReusedOldRank++
+      backfillRankCollisions++
       return oldRank
     }
     dayOnly.put(keyHi, keyLo, newRank)
