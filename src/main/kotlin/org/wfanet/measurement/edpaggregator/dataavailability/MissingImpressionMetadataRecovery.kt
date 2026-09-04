@@ -23,6 +23,9 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.api.grpc.ResourceList
@@ -107,8 +110,7 @@ class MissingImpressionMetadataRecovery(
 
   /** Finds missing resources and re-runs data availability sync for each affected date folder. */
   suspend fun recover(): RecoveryResult {
-    val prefix = "$edpImpressionPath/"
-    val blobs = storageClient.listBlobs(prefix).filter(::isInLookbackWindow).toList()
+    val blobs = listBlobsInLookbackWindow()
     val doneBlobKeys = blobs.filter { it.blobKey.endsWith(DONE_SUFFIX) }.map { it.blobKey }.toSet()
     val storageMetadataBlobs = blobs.filter(::hasMetadataFileName)
     val finalizedMetadataBlobs =
@@ -195,6 +197,46 @@ class MissingImpressionMetadataRecovery(
     )
   }
 
+  /** Lists objects only for date folders inside the requested window. */
+  private suspend fun listBlobsInLookbackWindow(): List<StorageClient.Blob> {
+    val prefixesToVisit = ArrayDeque<String>()
+    val dateFolderPrefixes = mutableListOf<String>()
+    prefixesToVisit.add("$edpImpressionPath/")
+
+    while (prefixesToVisit.isNotEmpty()) {
+      val prefix = prefixesToVisit.removeFirst()
+      for (keyOrPrefix in storageClient.listBlobKeysAndPrefixes(prefix).toList()) {
+        if (!keyOrPrefix.endsWith(StorageClient.DELIMITER) || keyOrPrefix.length <= prefix.length) {
+          continue
+        }
+
+        val folderName =
+          keyOrPrefix
+            .removeSuffix(StorageClient.DELIMITER)
+            .substringAfterLast(StorageClient.DELIMITER)
+        val date = runCatching { LocalDate.parse(folderName) }.getOrNull()
+        if (date == null) {
+          prefixesToVisit.addLast(keyOrPrefix)
+        } else if (date in earliestDataDate..latestDataDate) {
+          dateFolderPrefixes += keyOrPrefix
+        }
+      }
+    }
+
+    return dateFolderPrefixes
+      .sorted()
+      .chunked(DATE_FOLDER_LIST_CONCURRENCY)
+      .flatMap { prefixChunk ->
+        coroutineScope {
+          prefixChunk
+            .map { prefix -> async { storageClient.listBlobs(prefix).toList() } }
+            .awaitAll()
+            .flatten()
+        }
+      }
+      .filter(::isInLookbackWindow)
+  }
+
   private suspend fun listRegisteredMetadata(
     blobUris: Set<String>
   ): Map<String, ImpressionMetadata> {
@@ -238,6 +280,7 @@ class MissingImpressionMetadataRecovery(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val DONE_SUFFIX = "/done"
+    private const val DATE_FOLDER_LIST_CONCURRENCY = 16
     private const val METADATA_FILE_NAME = "metadata"
 
     private fun hasMetadataFileName(blob: StorageClient.Blob): Boolean =

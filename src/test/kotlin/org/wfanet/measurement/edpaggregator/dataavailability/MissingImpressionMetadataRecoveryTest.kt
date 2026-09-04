@@ -45,6 +45,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataReques
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.storage.BlobUri
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
@@ -226,6 +227,23 @@ class MissingImpressionMetadataRecoveryTest {
   }
 
   @Test
+  fun `recover lists blobs only from date folders in lookback window`(): Unit = runBlocking {
+    val delegate = InMemoryStorageClient()
+    writeFinalizedMetadata(delegate, "2026-08-31", "metadata-in-window.json")
+    writeFinalizedMetadata(delegate, "2025-01-01", "metadata-outside-window.json")
+    val storageClient = RecordingStorageClient(delegate)
+
+    val result = buildRecovery(storageClient, impressionMetadataBatchSize = 100) { _, _ -> }.recover()
+
+    assertThat(result.finalizedMetadataBlobs).isEqualTo(1)
+    assertThat(storageClient.listedBlobPrefixes)
+      .containsExactly("$EDP_IMPRESSION_PATH/model-line/model-line-1/2026-08-31/")
+    assertThat(storageClient.listedBlobPrefixes)
+      .doesNotContain("$EDP_IMPRESSION_PATH/model-line/model-line-1/2025-01-01/")
+    assertThat(storageClient.listedBlobPrefixes).doesNotContain("$EDP_IMPRESSION_PATH/")
+  }
+
+  @Test
   fun `recover lists deleted resources and exact storage blob URIs`(): Unit = runBlocking {
     val storageClient = InMemoryStorageClient()
     val firstUri = metadataUri("2026-08-01", "metadata.json")
@@ -250,7 +268,7 @@ class MissingImpressionMetadataRecoveryTest {
   }
 
   private fun buildRecovery(
-    storageClient: InMemoryStorageClient,
+    storageClient: StorageClient,
     impressionMetadataBatchSize: Int,
     sync: suspend (String, Set<String>) -> Unit,
   ): MissingImpressionMetadataRecovery =
@@ -295,6 +313,14 @@ class MissingImpressionMetadataRecoveryTest {
     metricReader.forceFlush()
     val metric: MetricData = metricExporter.finishedMetricItems.last { it.name == name }
     return metric.longGaugeData.points.single().value
+  }
+
+  private class RecordingStorageClient(private val delegate: StorageClient) :
+    StorageClient by delegate {
+    val listedBlobPrefixes = mutableListOf<String?>()
+
+    override suspend fun listBlobs(prefix: String?) =
+      delegate.listBlobs(prefix).also { listedBlobPrefixes += prefix }
   }
 
   companion object {
