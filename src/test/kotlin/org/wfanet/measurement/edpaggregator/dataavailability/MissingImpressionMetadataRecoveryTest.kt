@@ -233,7 +233,8 @@ class MissingImpressionMetadataRecoveryTest {
     writeFinalizedMetadata(delegate, "2025-01-01", "metadata-outside-window.json")
     val storageClient = RecordingStorageClient(delegate)
 
-    val result = buildRecovery(storageClient, impressionMetadataBatchSize = 100) { _, _ -> }.recover()
+    val result =
+      buildRecovery(storageClient, impressionMetadataBatchSize = 100) { _, _ -> }.recover()
 
     assertThat(result.finalizedMetadataBlobs).isEqualTo(1)
     assertThat(storageClient.listedBlobPrefixes)
