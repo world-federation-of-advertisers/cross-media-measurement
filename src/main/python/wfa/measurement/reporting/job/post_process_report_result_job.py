@@ -124,8 +124,9 @@ class PostProcessReportResultJob:
                 server.
             ami_mrc_exempted_edps: The list of EDPs resource name for which the
                 AMI >= MRC consistency checks are disabled.
-            potential_direct_result_minimum_thresholds: Minimum thresholds that
-                may have suppressed single-EDP Direct results.
+            potential_direct_result_minimum_thresholds: Conservative upper
+                bounds on the minimum thresholds that may have suppressed any
+                pending single-EDP Direct result.
             potential_direct_thresholding_edps: EDP resource names whose Direct
                 results may have been thresholded.
         """

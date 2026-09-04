@@ -110,7 +110,8 @@ flags.DEFINE_alias(
 _POTENTIAL_DIRECT_RESULT_MIN_USERS = flags.DEFINE_integer(
     "potential_direct_result_min_users",
     0,
-    "Minimum users that may be required for a Direct result to be displayed.",
+    "Conservative upper bound on the minimum users that any configured EDP "
+    "may require for a Direct result to be displayed.",
 )
 flags.DEFINE_alias(
     "potential-direct-result-min-users", "potential_direct_result_min_users"
@@ -118,7 +119,8 @@ flags.DEFINE_alias(
 _POTENTIAL_DIRECT_RESULT_MIN_IMPRESSIONS = flags.DEFINE_integer(
     "potential_direct_result_min_impressions",
     0,
-    "Minimum impressions that may be required for a Direct result to be displayed.",
+    "Conservative upper bound on the minimum impressions that any configured "
+    "EDP may require for a Direct result to be displayed.",
 )
 flags.DEFINE_alias(
     "potential-direct-result-min-impressions",
@@ -127,7 +129,9 @@ flags.DEFINE_alias(
 _POTENTIAL_DIRECT_RESULT_MAXIMUM_FREQUENCY_PER_USER = flags.DEFINE_integer(
     "potential_direct_result_maximum_frequency_per_user",
     0,
-    "Conservative maximum frequency per user for thresholded Direct impressions.",
+    "Conservative upper bound on the maximum frequency per user across all "
+    "configured EDP policies that may have produced a pending thresholded "
+    "Direct impression result.",
 )
 flags.DEFINE_alias(
     "potential-direct-result-maximum-frequency-per-user",

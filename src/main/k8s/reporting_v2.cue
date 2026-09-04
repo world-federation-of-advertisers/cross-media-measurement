@@ -20,7 +20,9 @@ package k8s
 
 	_reportSchedulingCronSchedule:      string | *"30 6 * * *"  // Daily at 6:30 AM
 	_reportResultProcessorCronSchedule: string | *"*/5 * * * *" // Every 5 minutes.
-	// An empty EDP list and zero threshold settings disable potential Direct threshold correction.
+	// These values are conservative upper bounds across all policies that could have produced a
+	// pending result, not necessarily the thresholds currently used by any one EDP. An empty EDP
+	// list and zero threshold settings disable potential Direct threshold correction.
 	_potentialDirectResultMinUsers:                  uint | *0
 	_potentialDirectResultMinImpressions:            uint | *0
 	_potentialDirectResultMaximumFrequencyPerUser:   uint | *0

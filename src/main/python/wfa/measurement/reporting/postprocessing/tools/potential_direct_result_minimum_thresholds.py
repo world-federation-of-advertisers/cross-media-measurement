@@ -23,9 +23,15 @@ from noiseninja.noised_measurements import MeasurementSet
 class PotentialDirectResultMinimumThresholds:
     """Adds correction uncertainty for potentially suppressed Direct zeros.
 
-    Thresholds are treated as standard-deviation components and combined with
-    reported noise in quadrature. The maximum frequency bounds impressions
-    hidden when the minimum-user gate suppresses a capped impression result.
+    The fields are conservative upper bounds across every threshold policy
+    that could have produced a result processed by this instance. They are not
+    necessarily the exact current policy of any one EDP. Thresholds are treated
+    as standard-deviation components and combined with reported noise in
+    quadrature. The maximum frequency bounds impressions hidden when the
+    minimum-user gate suppresses a capped impression result.
+
+    Operators must follow the rollout contract documented in the Reporting V2
+    deployment guide so these bounds cannot be lower than a producer's policy.
     """
 
     min_users: int
