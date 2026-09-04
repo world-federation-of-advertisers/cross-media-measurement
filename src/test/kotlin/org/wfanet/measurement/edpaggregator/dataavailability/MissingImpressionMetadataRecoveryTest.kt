@@ -34,7 +34,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
-import org.mockito.kotlin.check
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -51,13 +50,21 @@ import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 @RunWith(JUnit4::class)
 class MissingImpressionMetadataRecoveryTest {
   private val registeredMetadata = mutableMapOf<String, ImpressionMetadata>()
+  private val listRequests = mutableListOf<ListImpressionMetadataRequest>()
   private val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase =
     mockService {
       onBlocking { listImpressionMetadata(any<ListImpressionMetadataRequest>()) }
         .thenAnswer { invocation ->
           val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
           listImpressionMetadataResponse {
-            impressionMetadata += request.filter.blobUrisList.mapNotNull { registeredMetadata[it] }
+            listRequests += request
+            impressionMetadata +=
+              request.filter.blobUrisList.mapNotNull { blobUri ->
+                registeredMetadata[blobUri]?.takeIf {
+                  if (request.showDeleted) it.state == ImpressionMetadata.State.DELETED
+                  else it.state != ImpressionMetadata.State.DELETED
+                }
+              }
           }
         }
     }
@@ -235,14 +242,10 @@ class MissingImpressionMetadataRecoveryTest {
 
     assertThat(result.deletedRecordsWithBlobs).isEqualTo(1)
     assertThat(metricValue(DELETED_RECORDS_WITH_BLOBS_METRIC)).isEqualTo(1)
-    org.mockito.kotlin.verifyBlocking(impressionMetadataServiceMock) {
-      listImpressionMetadata(
-        check { request ->
-          assertThat(request.showDeleted).isTrue()
-          assertThat(request.pageSize).isEqualTo(2)
-          assertThat(request.filter.blobUrisList).containsExactly(firstUri, secondUri)
-        }
-      )
+    assertThat(listRequests.map { it.showDeleted }).containsExactly(false, true).inOrder()
+    for (request in listRequests) {
+      assertThat(request.pageSize).isEqualTo(2)
+      assertThat(request.filter.blobUrisList).containsExactly(firstUri, secondUri)
     }
   }
 

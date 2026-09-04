@@ -195,38 +195,44 @@ class MissingImpressionMetadataRecovery(
     )
   }
 
-  @OptIn(ExperimentalCoroutinesApi::class)
   private suspend fun listRegisteredMetadata(
     blobUris: Set<String>
   ): Map<String, ImpressionMetadata> {
-    return blobUris
-      .chunked(impressionMetadataBatchSize)
-      .flatMap { blobUriChunk ->
-        impressionMetadataStub
-          .listResources<ImpressionMetadata, String, ImpressionMetadataServiceCoroutineStub> {
-            pageToken ->
-            val response =
-              try {
-                throttler.onReady {
-                  impressionMetadataStub.listImpressionMetadata(
-                    listImpressionMetadataRequest {
-                      parent = dataProviderName
-                      pageSize = impressionMetadataBatchSize
-                      showDeleted = true
-                      this.pageToken = pageToken
-                      filter = filter { this.blobUris += blobUriChunk }
-                    }
-                  )
-                }
-              } catch (e: StatusException) {
-                throw Exception("Error listing ImpressionMetadata", e)
+    val activeMetadata = listRegisteredMetadata(blobUris, showDeleted = false)
+    val deletedMetadata = listRegisteredMetadata(blobUris, showDeleted = true)
+    return (activeMetadata + deletedMetadata).associateBy { it.blobUri }
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  private suspend fun listRegisteredMetadata(
+    blobUris: Set<String>,
+    showDeleted: Boolean,
+  ): List<ImpressionMetadata> {
+    return blobUris.chunked(impressionMetadataBatchSize).flatMap { blobUriChunk ->
+      impressionMetadataStub
+        .listResources<ImpressionMetadata, String, ImpressionMetadataServiceCoroutineStub> {
+          pageToken ->
+          val response =
+            try {
+              throttler.onReady {
+                impressionMetadataStub.listImpressionMetadata(
+                  listImpressionMetadataRequest {
+                    parent = dataProviderName
+                    pageSize = impressionMetadataBatchSize
+                    this.showDeleted = showDeleted
+                    this.pageToken = pageToken
+                    filter = filter { this.blobUris += blobUriChunk }
+                  }
+                )
               }
-            ResourceList(response.impressionMetadataList, response.nextPageToken)
-          }
-          .flattenConcat()
-          .toList()
-      }
-      .associateBy { it.blobUri }
+            } catch (e: StatusException) {
+              throw Exception("Error listing ImpressionMetadata", e)
+            }
+          ResourceList(response.impressionMetadataList, response.nextPageToken)
+        }
+        .flattenConcat()
+        .toList()
+    }
   }
 
   companion object {
